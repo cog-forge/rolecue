@@ -1,6 +1,7 @@
 node_modules/
 .cache/
 .next/
+next-env.d.ts
 out/
 coverage/
 playwright-report/

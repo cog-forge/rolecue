@@ -1,8 +1,0 @@
-<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">RoleCue icon</title>
-  <desc id="desc">An open near-black halo with a green cue tick.</desc>
-  <g shape-rendering="geometricPrecision" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M33.9 14.1C28.4 8.6 19.6 8.6 14.1 14.1C8.6 19.6 8.6 28.4 14.1 33.9C19.6 39.4 28.4 39.4 33.9 33.9" stroke="#121814" stroke-width="5.5"/>
-    <path d="M34.8 9.6L39 13.8" stroke="#428762" stroke-width="5.5"/>
-  </g>
-</svg>

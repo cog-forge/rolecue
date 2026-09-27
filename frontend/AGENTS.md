@@ -14,15 +14,13 @@
 
 ## Design source of truth
 
-- `frontend/design/` contains the project's design source-of-truth artifacts.
-- For any UI work with an approved design, agents MUST read `design/DESIGN-CONTRACT.md` first.
-- Before implementing or materially changing a UI that already has a design artifact, agents MUST inspect the relevant files under `design/`.
-- RoleCue brand files under `design/brand/` are the canonical branding source.
-- For the landing page, the approved OpenDesign landing/reference artifacts under `design/exploration/` are the canonical visual reference.
+- The canonical RoleCue visual/design source is the read-only sibling repository `../../ai-interview-practice-design/` (relative to `frontend/`); begin every material UI change by reading `../../ai-interview-practice-design/DESIGN-CONTRACT.md`.
+- Before implementing or materially changing a UI that already has a design artifact, inspect the relevant sibling-repository files under `../../ai-interview-practice-design/brand/`, `../../ai-interview-practice-design/exploration/`, and `../../ai-interview-practice-design/product/`.
+- RoleCue brand files under `../../ai-interview-practice-design/brand/` are the canonical branding source. The approved OpenDesign landing/reference artifacts under `../../ai-interview-practice-design/exploration/` are the landing's canonical visual reference.
 - Realtime 3D / Blender exploration is currently DEFERRED; do not introduce or invent Three.js / R3F / GLB during landing implementation.
 - Approved OpenDesign output is a visual/interaction contract, not production source code.
-- Agents should reproduce its visual grammar, layout, spacing, typography, responsive behavior, motion, and interaction intent in the real Next.js architecture.
-- Do NOT blindly paste generated HTML/CSS/JS from OpenDesign into production.
+- Agents should reproduce its visual grammar, layout, spacing, typography, responsive behavior, motion, and interaction intent in the real Next.js architecture. Generated OpenDesign HTML/CSS/JS is never production source code.
 - Production implementation must still follow the frontend architecture, component boundaries, accessibility, and existing engineering conventions.
 - When implementation and an approved design artifact visibly disagree, do not silently invent a new direction. Treat the approved design artifact as the visual reference unless newer explicit product/design direction supersedes it.
+- Runtime assets must be copied into production-owned `frontend/` paths; production code must not use hardcoded sibling-repository paths or otherwise depend on that repository. The frontend must build when the sibling design repository is absent.
 - Downloaded, vendor, or cache assets are not design source-of-truth and should not be committed merely because an agent used them during exploration.

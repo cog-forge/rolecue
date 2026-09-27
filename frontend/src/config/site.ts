@@ -1,4 +1,4 @@
 export const site = {
-  name: "Interview Practice",
-  description: "AI virtual technical interview platform",
+  name: "RoleCue",
+  description: "Role-focused technical interview practice",
 } as const;

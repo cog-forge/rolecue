@@ -5,8 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: Arial, Helvetica, sans-serif;
+  --font-heading: var(--rolecue-font-sans);
+  --font-sans: var(--rolecue-font-sans);
+  --font-mono: var(--rolecue-font-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,72 +49,146 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  color-scheme: light;
+
+  /* OpenDesign-derived neutral foundation; the supplied RoleCue logo retains
+     its own #428762 cue tick. The luminous green is reserved for UI selection. */
+  --rolecue-canvas: #fafafa;
+  --rolecue-surface: #ffffff;
+  --rolecue-surface-soft: oklch(96.8% 0.003 105);
+  --rolecue-ink: #262626;
+  --rolecue-ink-rgb: 38 38 38;
+  --rolecue-ink-muted: #595959;
+  --rolecue-ink-subtle: #8c8c8c;
+  --rolecue-border: #d9d9d9;
+  --rolecue-border-soft: #f0f0f0;
+  --rolecue-border-strong: rgb(var(--rolecue-ink-rgb) / 20%);
+  --rolecue-cue-green: #428762;
+  --rolecue-accent: #63fe13;
+  --rolecue-accent-rgb: 99 254 19;
+  --rolecue-accent-soft: oklch(94% 0.12 135 / 82%);
+  --rolecue-accent-hover: oklch(58% 0.18 136);
+  --rolecue-wash-pink: oklch(93% 0.06 345 / 34%);
+  --rolecue-wash-blue: oklch(91% 0.055 235 / 46%);
+  --rolecue-wash-neutral: oklch(96.8% 0.003 105 / 84%);
+  --rolecue-surface-dark: #262626;
+  --rolecue-surface-dark-raised: #303030;
+  --rolecue-surface-dark-hover: #3a3a3a;
+  --rolecue-on-dark: #ffffff;
+  --rolecue-on-dark-muted: #d9d9d9;
+  --rolecue-media-blue: #76afd0;
+  --rolecue-media-pink: #d69aab;
+  --rolecue-focus: oklch(53% 0.19 250);
+  --rolecue-button-primary: var(--rolecue-ink);
+  --rolecue-button-primary-hover: #1f1f1f;
+  --rolecue-button-secondary: rgb(255 255 255 / 84%);
+  --rolecue-shadow-low: 0 0.375rem 1.5rem rgb(var(--rolecue-ink-rgb) / 6%);
+  --rolecue-shadow-media: 0 1.875rem 5rem -2.5rem
+    rgb(var(--rolecue-ink-rgb) / 28%);
+  --rolecue-shadow-float: 0 1rem 1.875rem -1rem
+    rgb(var(--rolecue-ink-rgb) / 38%);
+
+  --rolecue-font-sans:
+    "Albert Sans", "PingFang SC", "Microsoft YaHei", Arial, Helvetica,
+    sans-serif;
+  --rolecue-font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  --rolecue-weight-body: 480;
+  --rolecue-weight-label: 750;
+  --rolecue-weight-heading: 720;
+  --rolecue-weight-display: 790;
+  --rolecue-leading-body: 1.5;
+  --rolecue-leading-copy: 1.6;
+  --rolecue-leading-heading: 1.02;
+  --rolecue-leading-display: 0.98;
+  --rolecue-tracking-display: -0.052em;
+  --rolecue-tracking-heading: -0.045em;
+  --rolecue-tracking-label: 0.12em;
+  --rolecue-type-display: clamp(2.55rem, 4vw, 4rem);
+  --rolecue-type-display-secondary: clamp(1.2rem, 2.25vw, 2.3rem);
+  --rolecue-type-section: clamp(2.25rem, 4.4vw, 4.15rem);
+  --rolecue-type-heading-lg: clamp(1.7rem, 3.2vw, 2.7rem);
+  --rolecue-type-heading-md: clamp(1.25rem, 1.8vw, 1.75rem);
+  --rolecue-type-heading-sm: clamp(1.05rem, 1.4vw, 1.3rem);
+  --rolecue-type-body-lg: clamp(1.05rem, 1.35vw, 1.22rem);
+  --rolecue-type-body: 1rem;
+  --rolecue-type-body-sm: 0.875rem;
+  --rolecue-type-label: 0.75rem;
+  --rolecue-width-editorial: 67.5rem;
+  --rolecue-width-copy: 44rem;
+  --rolecue-width-hero-copy: 57rem;
+
+  /* Shared motion scale from transitions.dev. Component-specific motion stays
+     declarative in React or inside shadcn primitives. */
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --background: var(--rolecue-canvas);
+  --foreground: var(--rolecue-ink);
+  --card: var(--rolecue-surface);
+  --card-foreground: var(--rolecue-ink);
+  --popover: var(--rolecue-surface);
+  --popover-foreground: var(--rolecue-ink);
+  --primary: var(--rolecue-button-primary);
+  --primary-foreground: var(--rolecue-on-dark);
+  --secondary: var(--rolecue-surface-soft);
+  --secondary-foreground: var(--rolecue-ink);
+  --muted: var(--rolecue-surface-soft);
+  --muted-foreground: var(--rolecue-ink-muted);
+  --accent: var(--rolecue-surface-soft);
+  --accent-foreground: var(--rolecue-ink);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: var(--rolecue-border);
+  --input: var(--rolecue-border);
+  --ring: var(--rolecue-focus);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: var(--rolecue-surface);
+  --sidebar-foreground: var(--rolecue-ink);
+  --sidebar-primary: var(--rolecue-button-primary);
+  --sidebar-primary-foreground: var(--rolecue-on-dark);
+  --sidebar-accent: var(--rolecue-surface-soft);
+  --sidebar-accent-foreground: var(--rolecue-ink);
+  --sidebar-border: var(--rolecue-border);
+  --sidebar-ring: var(--rolecue-focus);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: var(--rolecue-surface-dark);
+  --foreground: var(--rolecue-on-dark);
+  --card: var(--rolecue-surface-dark-raised);
+  --card-foreground: var(--rolecue-on-dark);
+  --popover: var(--rolecue-surface-dark-raised);
+  --popover-foreground: var(--rolecue-on-dark);
+  --primary: var(--rolecue-on-dark);
+  --primary-foreground: var(--rolecue-surface-dark);
+  --secondary: var(--rolecue-surface-dark-hover);
+  --secondary-foreground: var(--rolecue-on-dark);
+  --muted: var(--rolecue-surface-dark-hover);
+  --muted-foreground: var(--rolecue-on-dark-muted);
+  --accent: var(--rolecue-surface-dark-hover);
+  --accent-foreground: var(--rolecue-on-dark);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: var(--rolecue-focus);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar: var(--rolecue-surface-dark-raised);
+  --sidebar-foreground: var(--rolecue-on-dark);
+  --sidebar-primary: var(--rolecue-on-dark);
+  --sidebar-primary-foreground: var(--rolecue-surface-dark);
+  --sidebar-accent: var(--rolecue-surface-dark-hover);
+  --sidebar-accent-foreground: var(--rolecue-on-dark);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-ring: var(--rolecue-focus);
 }
 
 @layer base {
@@ -122,6 +197,10 @@
   }
   body {
     @apply bg-background text-foreground;
+    --rolecue-font-sans:
+      var(--font-albert-sans), "Albert Sans", "PingFang SC", "Microsoft YaHei",
+      Arial, Helvetica, sans-serif;
+    font-synthesis: none;
   }
   html {
     @apply font-sans;
