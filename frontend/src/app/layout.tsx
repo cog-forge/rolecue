@@ -27,6 +27,15 @@ export const metadata: Metadata = {
     template: `%s | ${site.name}`,
   },
   description: site.description,
+  icons: {
+    icon: [
+      {
+        url: "/rolecue-cue.png",
+        type: "image/png",
+        sizes: "200x200",
+      },
+    ],
+  },
 };
 export default function RootLayout({
   children,
