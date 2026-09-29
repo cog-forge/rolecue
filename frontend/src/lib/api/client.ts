@@ -1,15 +1,23 @@
 "use client";
+
+import axios from "axios";
 import { getApiBaseUrl } from "./config";
-import { createApiTransport } from "./transport";
-import type { AuthHeadersProvider } from "./types";
-/** Create at the application auth integration boundary, never inside individual components. */
-export function createBrowserApiClient(authHeaders?: AuthHeadersProvider) {
-  const transport = createApiTransport({
-    baseUrl: getApiBaseUrl(),
-    authHeaders,
-  });
-  return {
-    request: <T>(path: string, options: import("./types").ApiRequest<T>) =>
-      transport.request(path, { credentials: "include", ...options }),
-  };
-}
+import { useAuthStore } from "@/stores/auth-store";
+
+const apiClient = axios.create({
+  baseURL: getApiBaseUrl(),
+  withCredentials: true,
+});
+
+apiClient.interceptors.request.use((config) => {
+  if (!config.baseURL) {
+    return Promise.reject(
+      new Error("NEXT_PUBLIC_API_BASE_URL is not configured."),
+    );
+  }
+  const token = useAuthStore.getState().accessToken;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+export { apiClient };
