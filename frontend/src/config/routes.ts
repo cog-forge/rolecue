@@ -7,6 +7,13 @@ export const routes = {
   forgotPassword: "/forgot-password",
   resetPassword: "/reset-password",
   dashboard: "/dashboard",
+  terms: "/terms",
+  privacy: "/privacy",
+  oauth: {
+    google: "/login/oauth/google",
+    github: "/login/oauth/github",
+    facebook: "/login/oauth/facebook",
+  },
   history: "/history",
   billing: "/billing",
   profile: "/profile",
