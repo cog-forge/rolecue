@@ -4,8 +4,12 @@
 - Read SKILL.md for the detailed frontend engineering playbook.
 - Keep app pages focused on composition; Server Components are the default.
 - Own business code inside features; shared UI cannot import features.
-- Server state: TanStack Query. Forms: React Hook Form. Navigation: URL. Local UI: React. Cross-route client state: narrowly scoped Zustand only when needed.
-- Use the canonical lib/api transport and domain key factories. No arbitrary token reads or competing HTTP clients.
+- TanStack Query owns remote async state; React Hook Form + Zod own forms; Zustand is only for genuine cross-route client state.
+- Axios is the single shared browser HTTP client. The browser calls Go directly; add a Next.js proxy only for a concrete server/BFF requirement.
+- Prefer existing shadcn/ui primitives for interactive controls. Recreate Button, Input, Field, Label, Alert, Dialog, Sheet, Tabs, or similar primitives only with a documented reason.
+- Tailwind CSS v4 is the default styling mechanism. Do not add feature-local CSS for ordinary styling or simple motion.
+- Do not add one-line wrapper hooks or adapter layers. Extract only for real reuse, behavior, or complexity; keep each feature screen cohesive.
+- Unit/component tests live under `tests/unit/`, mirroring source paths. Browser tests live under `tests/e2e/`; never colocate tests with production source.
 - Keep the interview machine pure and browser runtimes behind client boundaries.
 - Never invent auth, backend, AI, billing, socket or lip-sync contracts.
 - Run lint, typecheck, bun test and build; discover Playwright tests and run smoke if a browser is installed.

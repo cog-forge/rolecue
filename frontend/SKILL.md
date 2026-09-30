@@ -2,7 +2,7 @@
 
 ## Stack
 
-Use Next.js 15+ App Router (currently pinned Next 16), React 19, strict TypeScript, Bun, Tailwind v4, shadcn/ui and Lucide. Server state uses TanStack Query. Forms use React Hook Form + Zod + @hookform/resolvers. Zustand is reserved for genuine cross-route client state. The interview renderer uses Three.js/R3F/Drei; browser WebSocket, Web Audio and MediaRecorder remain native. Tests use Vitest, RTL, jest-dom, jsdom and Playwright.
+Use Next.js 16 App Router, React 19, strict TypeScript, Bun, Tailwind v4, shadcn/ui and Lucide. Axios is the shared browser HTTP client. Server state uses TanStack Query. Forms use React Hook Form + Zod + @hookform/resolvers. Zustand is reserved for genuine cross-route client state. The interview renderer uses Three.js/R3F/Drei; browser WebSocket, Web Audio and MediaRecorder remain native. Tests use Vitest, RTL, jest-dom, jsdom and Playwright.
 
 ## Commands
 
@@ -10,11 +10,11 @@ Run from frontend/: bun install, bun run dev, bun run lint, bun run typecheck, b
 
 ## Architecture
 
-Compose routes → features → shared presentation/infrastructure. API flow is request → Query wrapper → orchestration → UI. Do not introduce circular imports or a second HTTP contract. Add folders only with meaningful content.
+Compose routes → features → shared presentation/infrastructure. Browser UI calls Go directly through one shared Axios client; do not add fetch-wrapper stacks or Next.js proxy/API routes without a concrete server/BFF requirement. TanStack Query owns remote async state, RHF + Zod own forms, and Zustand owns only genuine cross-route client state. Avoid one-line wrappers. Add folders only with meaningful content.
 
 ## Folder Ownership
 
-app owns route composition and framework boundaries. features owns business components, validation, APIs and state. components/ui contains domain-neutral shadcn primitives; components/layout and feedback contain reusable presentation. lib owns platform infrastructure, config owns route/environment/navigation rules, providers owns application React context. Shared types are introduced only for truly cross-domain contracts. public belongs at the frontend root when assets exist.
+app owns route composition and framework boundaries. features owns business components, validation and APIs. src/stores owns genuine cross-feature client state. components/ui contains domain-neutral shadcn primitives; components/layout and feedback contain reusable presentation. lib owns platform infrastructure, config owns route/environment/navigation rules, providers owns application React context. Shared types are introduced only for truly cross-domain contracts. public belongs at the frontend root when assets exist.
 
 ## Next.js / RSC Rules
 
@@ -26,11 +26,9 @@ Keep components, schemas and contracts near their feature. Avoid giant global ho
 
 ## API Rules
 
-Use createBrowserApiClient or createServerApiClient; both delegate to createApiTransport. Request options require an explicit unknown-to-T decoder. Keep response envelopes absent until backend agreement. HTTP failures become ApiError with status and unknown body; configuration failures have their own error, while abort/network and decoder errors retain their original identity. Avoid showing raw error bodies in UI.
+Use one shared Axios instance configured from `NEXT_PUBLIC_API_BASE_URL`, with browser credentials and the current access-token bearer interceptor. Preserve Axios response payloads for feature validation and messages; do not recreate them as a generic ApiError hierarchy. Do not add refresh/retry logic or a Next.js proxy without a concrete requirement.
 
-Inject auth through AuthHeadersProvider supplied by the session authority adapter. Never read credentials in components. Construct server clients per request; never share credentials globally. Browser defaults include cookies; the final backend integration must settle credential/CORS/CSRF policy. Only use relative request paths under the configured base URL. AbortSignal travels through native fetch. No Axios, fake endpoints or guessed data.
-
-Feature requests accept the canonical client and validate the known response. Query wrappers call requests without routing or notifications. A use-case orchestrator performs navigation only after the real operation succeeds. Do not create wrappers for endpoints that do not exist yet.
+Feature API functions validate known request/response contracts. Query mutations may call those functions directly. Navigation follows a successful real operation. Do not create one-line hooks, repositories, adapters or wrappers for endpoints that do not exist.
 
 ## TanStack Query Rules
 
@@ -40,15 +38,15 @@ Use domain key factories, as in interview/api/keys.ts. Lists and details form ex
 
 ## Zustand Rules
 
-No global useAppStore. Install does not imply a store is needed. Introduce a feature-owned store for real cross-route draft values only. Expose reset, consume selectors and keep the current wizard step in the URL. Never persist secrets or duplicate backend records. Document persistence lifetime, logout cleanup and migration behavior before enabling persistence.
+No global useAppStore. Install does not imply a store is needed. Put genuine cross-feature client state in `src/stores/`; feature-specific drafts may stay with their feature. Expose reset, consume selectors and keep the current wizard step in the URL. Do not mirror backend records into Zustand. Keep the current access token tab-scoped in sessionStorage; document the lifetime and cleanup of any new persistence.
 
 ## React Hook Form / Zod Rules
 
-RHF owns form values/errors; schemas live in the owning feature. Wire useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues }) when input and output types match; specify input/output generics for transformed schemas. Submit real use cases only. Use native labels, error descriptions and pending/disabled state. Do not invent login success or submit behavior merely to demonstrate a library. Decode external data from unknown with Zod once real schemas exist.
+RHF owns form values/errors; schemas live beside their feature API contract. Use the schema input/output types when transforms differ. Prefer existing shadcn primitives for interactive controls and native semantic HTML for headings, descriptions and simple layout. Keep labels, error descriptions and pending/disabled state accessible. Decode external data from unknown with Zod at real API boundaries.
 
 ## shadcn Rules
 
-components.json configures TypeScript, RSC, Tailwind v4 variables and Lucide using Radix Nova. Keep primitives domain-neutral. Current baseline is button, card, input, textarea and skeleton. Add components with bunx --bun shadcn add only when used. Check generated imports: normalize cn imports to @/lib/utils and preserve the local neutral font setup. Avoid installing the whole catalog. Keep business cards/avatars/reports in features.
+components.json configures TypeScript, RSC, Tailwind v4 variables and Lucide using Radix Nova. Keep primitives domain-neutral. Prefer existing Button, Input, Field, Label, Alert, Dialog, Sheet, Tabs, Accordion and Separator components; add only primitives that are used. Normalize generated cn imports to @/lib/utils and preserve the local neutral font setup. Avoid installing the whole catalog. Keep business cards/avatars/reports in features.
 
 ## TypeScript Rules
 
@@ -74,7 +72,7 @@ Own credits, packages, checkout and transactions under features/billing. Future 
 
 ## Testing Rules
 
-Colocate meaningful unit/component tests. Use Vitest with jsdom and RTL cleanup; use dependency injection for transport tests. Synthetic test fixtures are test-only, not proposed product contracts. Test state transitions, error behavior and accessible interaction. E2E belongs in tests/e2e and must not need the backend during skeleton development. Discover tests even if browser binaries are missing. Never install machine packages to force E2E execution without authorization.
+Put meaningful unit/component tests under `tests/unit/`, mirroring production source paths; do not colocate tests with source. Use Vitest with jsdom and RTL cleanup. Test behavior and accessible interaction. E2E belongs in `tests/e2e/`. Never install machine packages to force E2E execution without authorization.
 
 ## Naming Conventions
 
