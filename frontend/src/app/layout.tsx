@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { site } from "@/config/site";
 import { AppProviders } from "@/providers/app-providers";
@@ -19,6 +21,13 @@ const albertSans = localFont({
   ],
   display: "swap",
   variable: "--font-albert-sans",
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-cta",
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -41,9 +50,18 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <Script id="rolecue-theme-init" strategy="beforeInteractive">
+          {`try {
+            const savedTheme = localStorage.getItem("rolecue-theme");
+            if (savedTheme === "dark") document.documentElement.classList.add("dark");
+            if (savedTheme === "light") document.documentElement.classList.remove("dark");
+          } catch {}`}
+        </Script>
+      </head>
       <body
-        className={`${albertSans.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
+        className={`${albertSans.variable} ${plusJakartaSans.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
         <AppProviders>{children}</AppProviders>
       </body>

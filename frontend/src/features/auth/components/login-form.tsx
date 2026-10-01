@@ -92,10 +92,10 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
     <div className="w-full">
       <header className="mb-7 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500">
         <RoleCueMark className="mx-auto size-32 object-contain" priority />
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#121814] sm:text-[28px]">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-[28px]">
           Sign in to RoleCue
         </h1>
-        <p className="mx-auto mt-1.5 max-w-[320px] text-sm leading-normal text-[#5c5c5c]">
+        <p className="mx-auto mt-1.5 max-w-[320px] text-sm leading-normal text-muted-foreground">
           Welcome back. Select an authentication method to continue.
         </p>
       </header>
@@ -106,7 +106,7 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
             key={name}
             asChild
             variant="outline"
-            className="group h-12 w-full rounded-xl border-[#dbdbdb] bg-white px-2 text-sm font-medium text-[#262626] shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all duration-200 hover:border-[#b5b5b5] hover:bg-[#fafafa] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-[0.99]"
+            className="group h-12 w-full rounded-xl border-border bg-card px-2 text-sm font-medium text-card-foreground shadow-xs transition-all duration-200 hover:border-(--rolecue-border-strong) hover:bg-muted hover:shadow-(--rolecue-shadow-low) active:scale-[0.99]"
           >
             <Link href={href} aria-label={`Continue with ${name}`}>
               <Icon
@@ -118,12 +118,12 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
         ))}
       </div>
 
-      <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-[#858585]">
-        <Separator className="flex-1 bg-[#e5e5e5]" />
+      <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
+        <Separator className="flex-1 bg-border" />
         <span className="select-none text-[11px] font-medium tracking-[0.12em]">
           or continue with email
         </span>
-        <Separator className="flex-1 bg-[#e5e5e5]" />
+        <Separator className="flex-1 bg-border" />
       </div>
 
       <form
@@ -135,7 +135,7 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
         <div className="space-y-1.5">
           <label
             htmlFor="login-email"
-            className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
+            className="block text-xs font-semibold uppercase tracking-wider text-foreground"
           >
             Email address
           </label>
@@ -147,7 +147,7 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
             disabled={isPending}
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? "login-email-error" : undefined}
-            className="h-11 rounded-xl border-[#dbdbdb] bg-white px-3.5 text-sm text-[#121814] shadow-2xs transition-all placeholder:text-[#a3a3a3] focus-visible:border-[#121814] focus-visible:ring-[#121814]/10 disabled:bg-[#f5f5f5] sm:h-12"
+            className="h-11 rounded-xl border-input bg-card px-3.5 text-sm text-card-foreground shadow-2xs transition-all placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/20 disabled:bg-muted sm:h-12"
             {...register("email")}
           />
           {errors.email && (
@@ -165,7 +165,7 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
           <div className="flex items-center justify-between gap-3">
             <label
               htmlFor="login-password"
-              className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
+              className="block text-xs font-semibold uppercase tracking-wider text-foreground"
             >
               Password
             </label>
@@ -187,7 +187,7 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
               aria-describedby={
                 errors.password ? "login-password-error" : undefined
               }
-              className="h-11 rounded-xl border-[#dbdbdb] bg-white px-3.5 pr-12 text-sm text-[#121814] shadow-2xs transition-all placeholder:text-[#a3a3a3] focus-visible:border-[#121814] focus-visible:ring-[#121814]/10 disabled:bg-[#f5f5f5] sm:h-12"
+              className="h-11 rounded-xl border-input bg-card px-3.5 pr-12 text-sm text-card-foreground shadow-2xs transition-all placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/20 disabled:bg-muted sm:h-12"
               {...register("password")}
             />
             <Button
@@ -196,7 +196,7 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
               size="icon-sm"
               onClick={() => setShowPassword((visible) => !visible)}
               aria-label={showPassword ? "Hide password" : "Show password"}
-              className="absolute top-1/2 right-2 -translate-y-1/2 text-[#737373] hover:text-[#121814]"
+              className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? <EyeOff /> : <Eye />}
             </Button>
@@ -215,33 +215,33 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
         <Button
           type="submit"
           disabled={isPending}
-          className="mt-1 h-11 w-full rounded-xl bg-[#121814] px-4 text-sm font-medium text-white shadow-xs transition-all hover:bg-[#252f28] hover:shadow-[0_4px_16px_rgba(18,24,20,0.18)] active:scale-[0.99] focus-visible:ring-[#121814]/40 sm:h-12"
+          className="mt-1 h-11 w-full rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-(--rolecue-shadow-low) transition-all hover:bg-primary/90 hover:shadow-(--rolecue-shadow-float) active:scale-[0.99] sm:h-12"
         >
           {isPending ? "Signing in..." : "Sign in"}
         </Button>
       </form>
 
-      <p className="mt-5 text-center text-xs text-[#5c5c5c] sm:text-sm">
+      <p className="mt-5 text-center text-xs text-muted-foreground sm:text-sm">
         No account?{" "}
         <Link
           href={routes.register}
-          className="rounded-sm font-semibold text-[#121814] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#202020]/35"
+          className="rounded-sm font-semibold text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rolecue-brand/40"
         >
           Register
         </Link>
       </p>
-      <p className="mt-3.5 text-center text-[11px] leading-relaxed text-[#737373] sm:text-xs">
+      <p className="mt-3.5 text-center text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
         By continuing, you agree to the{" "}
         <Link
           href={routes.terms}
-          className="font-medium text-[#494949] hover:text-[#121814] hover:underline"
+          className="font-medium text-foreground hover:text-rolecue-brand hover:underline"
         >
           Terms of Service
         </Link>{" "}
         and acknowledge that you have read the{" "}
         <Link
           href={routes.privacy}
-          className="font-medium text-[#494949] hover:text-[#121814] hover:underline"
+          className="font-medium text-foreground hover:text-rolecue-brand hover:underline"
         >
           Privacy Policy
         </Link>

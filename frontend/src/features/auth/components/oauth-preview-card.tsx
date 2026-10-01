@@ -22,7 +22,7 @@ type OAuthProviderDetails = {
 
 const providerDetails: Record<OAuthProvider, OAuthProviderDetails> = {
   google: { name: "Google", Mark: GoogleIcon },
-  github: { name: "GitHub", Mark: GitHubIcon, markClassName: "text-[#121814]" },
+  github: { name: "GitHub", Mark: GitHubIcon, markClassName: "text-foreground" },
   facebook: {
     name: "Facebook",
     Mark: FacebookIcon,
@@ -43,12 +43,12 @@ export function OAuthPreviewCard({ provider }: OAuthPreviewCardProps) {
   } = providerDetails[provider];
 
   return (
-    <div className="mx-auto w-full max-w-[440px] rounded-2xl border border-[#dbdbdb] bg-white p-6 shadow-[0_4px_32px_rgba(0,0,0,0.06)] transition-all duration-300 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 sm:p-8">
+    <div className="mx-auto w-full max-w-[440px] rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-(--rolecue-shadow-low) transition-all duration-300 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500 sm:p-8">
       {/* Back to sign in link */}
       <div className="mb-5">
         <Link
           href={routes.login}
-          className="inline-flex items-center gap-2 text-xs font-medium text-[#5c5c5c] hover:text-[#121814] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#202020]/30 rounded-md py-1 px-1.5 -ml-1.5"
+          className="inline-flex items-center gap-2 rounded-md py-1 pr-1.5 pl-0 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         >
           <ArrowLeft className="size-3.5" />
           <span>Back to sign in</span>
@@ -57,41 +57,41 @@ export function OAuthPreviewCard({ provider }: OAuthPreviewCardProps) {
 
       {/* Visual Handoff Bridge: RoleCue <---> Provider */}
       <div className="flex items-center justify-center gap-4 my-3 py-2">
-        <div className="flex size-14 items-center justify-center rounded-2xl border border-[#ebebeb] bg-[#fafafa] shadow-xs">
+        <div className="flex size-14 items-center justify-center rounded-2xl border border-border bg-muted shadow-xs">
           <RoleCueMark className="size-9 shrink-0" priority />
         </div>
 
-        <div className="flex items-center gap-1 text-[#b5b5b5]">
-          <span className="h-0.5 w-3 rounded-full bg-[#d4d4d4] animate-pulse" />
-          <span className="h-0.5 w-3 rounded-full bg-[#a3a3a3]" />
-          <span className="h-0.5 w-3 rounded-full bg-[#d4d4d4] animate-pulse" />
+        <div className="flex items-center gap-1 text-muted-foreground">
+          <span className="h-0.5 w-3 animate-pulse rounded-full bg-border" />
+          <span className="h-0.5 w-3 rounded-full bg-muted-foreground" />
+          <span className="h-0.5 w-3 animate-pulse rounded-full bg-border" />
         </div>
 
-        <div className="flex size-14 items-center justify-center rounded-2xl border border-[#ebebeb] bg-[#fafafa] shadow-xs">
+        <div className="flex size-14 items-center justify-center rounded-2xl border border-border bg-muted shadow-xs">
           <ProviderMark className={`size-7 shrink-0 ${markClassName}`} />
         </div>
       </div>
 
       {/* Heading & Subheading */}
       <div className="text-center mt-4 mb-6">
-        <div className="inline-flex items-center gap-1.5 rounded-full border border-[#e0e7ff] bg-[#f0f4ff] px-2.5 py-0.5 text-[11px] font-semibold text-[#3b5998] mb-2.5">
+        <div className="mb-2.5 inline-flex items-center gap-1.5 rounded-full border border-rolecue-brand/20 bg-rolecue-brand/10 px-2.5 py-0.5 text-[11px] font-semibold text-rolecue-brand">
           <Info className="size-3" />
           <span>Authorization Preview</span>
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[#121814]">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Continue with {providerName}
         </h1>
-        <p className="mt-2 text-sm text-[#5c5c5c] leading-relaxed">
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           OAuth sign-in is not connected yet. When OAuth integration is
           available, RoleCue will hand off to {providerName} for authorization.
         </p>
       </div>
 
       {/* Transparent Preview Mode Callout */}
-      <div className="rounded-xl border border-[#ebebeb] bg-[#fafafa] p-4 mb-5 text-left text-xs text-[#5c5c5c] leading-relaxed flex items-start gap-3">
-        <Info className="size-4 text-[#494949] shrink-0 mt-0.5" />
+      <div className="mb-5 flex items-start gap-3 rounded-xl border border-border bg-muted p-4 text-left text-xs leading-relaxed text-muted-foreground">
+        <Info className="mt-0.5 size-4 shrink-0 text-foreground" />
         <div>
-          <span className="font-semibold text-[#121814] block mb-1">
+          <span className="mb-1 block font-semibold text-foreground">
             Preview Mode
           </span>
           OAuth sign-in is not connected yet. When OAuth integration is
@@ -103,7 +103,7 @@ export function OAuthPreviewCard({ provider }: OAuthPreviewCardProps) {
       {clicked && (
         <div
           role="alert"
-          className="rounded-xl border border-[#bfdbfe] bg-[#eff6ff] p-3.5 mb-5 text-xs text-[#1e40af] leading-relaxed animate-in fade-in slide-in-from-top-1 duration-200"
+          className="mb-5 animate-in slide-in-from-top-1 rounded-xl border border-rolecue-brand/25 bg-rolecue-brand/10 p-3.5 text-xs leading-relaxed text-rolecue-brand fade-in duration-200"
         >
           <strong>Handoff Preview:</strong> OAuth sign-in is not connected yet.
           When OAuth integration is available, RoleCue will hand off to{" "}
@@ -116,7 +116,7 @@ export function OAuthPreviewCard({ provider }: OAuthPreviewCardProps) {
         <Button
           type="button"
           onClick={() => setClicked(true)}
-          className="h-11 w-full rounded-xl bg-[#121814] px-4 text-sm font-medium text-white shadow-sm transition hover:bg-[#252f28] active:scale-[0.99] focus-visible:ring-[#202020]/35 sm:h-12"
+          className="h-11 w-full rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90 active:scale-[0.99] sm:h-12"
         >
           Preview {providerName} handoff
         </Button>
@@ -124,7 +124,7 @@ export function OAuthPreviewCard({ provider }: OAuthPreviewCardProps) {
         <Button
           asChild
           variant="outline"
-          className="h-11 w-full rounded-xl border-[#dbdbdb] bg-white px-4 text-sm font-medium text-[#494949] shadow-2xs transition hover:bg-[#f5f5f5] active:scale-[0.99] focus-visible:ring-[#202020]/35"
+          className="h-11 w-full rounded-xl border-border bg-card px-4 text-sm font-medium text-card-foreground shadow-2xs transition hover:bg-muted active:scale-[0.99]"
         >
           <Link href={routes.login}>Cancel</Link>
         </Button>

@@ -6,6 +6,7 @@ import { useMotionValueEvent, useScroll } from "motion/react";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RoleCueMark } from "@/components/brand/rolecue-mark";
+import { CurtainThemeToggle } from "@/components/ui/curtain-theme-toggle";
 import {
   Sheet,
   SheetClose,
@@ -56,7 +57,7 @@ export function MarketingHeader() {
       <a
         className={cn(
           landingFocus,
-          "fixed top-3 left-3 z-100 translate-y-[-160%] rounded-lg bg-(--rolecue-ink) px-4 py-3 text-(--rolecue-on-dark) transition-transform duration-150 focus:translate-y-0 motion-reduce:transition-none",
+          "fixed top-3 left-3 z-100 translate-y-[-160%] rounded-lg bg-(--rolecue-ink) px-4 py-3 text-(--rolecue-on-primary) transition-transform duration-150 focus:translate-y-0 motion-reduce:transition-none",
         )}
         href="#main-content"
       >
@@ -70,7 +71,7 @@ export function MarketingHeader() {
             landingContainer,
             "pointer-events-auto h-full transition-[width,height,margin,padding,border-radius,background-color,border-color,box-shadow] duration-400 ease-[cubic-bezier(0.22,0.61,0.36,1)] motion-reduce:transition-none! max-[760px]:px-1",
             isCompact &&
-              "mt-3 h-14 w-[min(80rem,calc(100%-2rem))] rounded-full border border-(--rolecue-border-soft) bg-[rgb(255_255_255/94%)] px-3 shadow-(--rolecue-shadow-low)",
+              "mt-3 h-14 w-[min(80rem,calc(100%-2rem))] rounded-full border border-(--rolecue-border-soft) bg-[color-mix(in_srgb,var(--rolecue-surface)_94%,transparent)] px-3 shadow-(--rolecue-shadow-low)",
           )}
         >
           <div className="grid h-full grid-cols-[auto_1fr_auto] items-center gap-6 max-[760px]:grid-cols-[1fr_auto] max-[760px]:gap-3">
@@ -101,6 +102,7 @@ export function MarketingHeader() {
             </div>
 
             <div className="flex items-center justify-self-end gap-3 max-[760px]:gap-2">
+              <CurtainThemeToggle />
               <Button
                 asChild
                 className={cn(
@@ -109,9 +111,7 @@ export function MarketingHeader() {
                   "min-h-11 px-4 py-2 text-[0.8rem] max-[760px]:px-3 max-[760px]:text-xs",
                 )}
               >
-                <Link href={routes.interviews.new.jobDescription}>
-                  Start practice
-                </Link>
+                <Link href={routes.login}>Sign in</Link>
               </Button>
 
               <Sheet>
@@ -139,7 +139,7 @@ export function MarketingHeader() {
                       Explore RoleCue
                     </SheetTitle>
                     <SheetDescription className="sr-only">
-                      Site navigation and the practice link.
+                      Site navigation and account access.
                     </SheetDescription>
                     <SheetClose asChild>
                       <Button
@@ -171,9 +171,9 @@ export function MarketingHeader() {
                           landingFocus,
                           "group/button mt-3 min-h-11 w-full justify-between px-4 text-sm",
                         )}
-                        href={routes.interviews.new.jobDescription}
+                        href={routes.login}
                       >
-                        Start practice
+                        Sign in
                         <ArrowRight
                           aria-hidden="true"
                           className="transition-transform duration-(--duration-fast) ease-(--ease-smooth-out) group-hover/button:translate-x-1 motion-reduce:transform-none! motion-reduce:transition-none!"

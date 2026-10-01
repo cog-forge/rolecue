@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { site } from "@/config/site";
 import { routes } from "@/config/routes";
+import { CurtainThemeToggle } from "@/components/ui/curtain-theme-toggle";
 export function SiteShell({
   children,
   navigation,
@@ -35,6 +36,9 @@ export function SiteShell({
               </Link>
             ))}
           </nav>
+          <div className="ml-auto shrink-0">
+            <CurtainThemeToggle />
+          </div>
         </div>
       </header>
       <main
