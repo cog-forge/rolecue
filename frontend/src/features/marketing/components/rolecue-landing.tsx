@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TextGenerateEffect } from "@/components/ui/text-generate-effect";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
+import { AboutRolecueSection } from "./about-rolecue-section";
 import { FaqSection } from "./faq-section";
 import { MarketingHeader } from "./marketing-header";
 import { PracticeSection } from "./practice-section";
@@ -62,77 +64,6 @@ function Arrow() {
       size={16}
       strokeWidth={1.8}
     />
-  );
-}
-
-function HeroMedia() {
-  return (
-    <Reveal>
-      <figure
-        aria-label="A RoleCue editorial practice workspace"
-        className="relative mx-auto mt-[3.3rem] aspect-video w-[min(67.5rem,92vw)] overflow-hidden rounded-2xl border border-(--rolecue-border) bg-(--rolecue-wash-neutral) shadow-(--rolecue-shadow-media) max-[1080px]:aspect-3/2 max-[760px]:mt-11 max-[760px]:w-[calc(100%-2.5rem)] max-[620px]:aspect-4/5"
-      >
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-[radial-gradient(circle_at_72%_28%,var(--rolecue-wash-pink),transparent_25%),radial-gradient(circle_at_22%_70%,var(--rolecue-wash-blue),transparent_35%),linear-gradient(130deg,var(--rolecue-surface-soft)_8%,var(--rolecue-wash-neutral)_56%,var(--rolecue-surface-soft))]"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 opacity-35 bg-[linear-gradient(rgb(var(--rolecue-ink-rgb)/12%)_1px,transparent_1px),linear-gradient(90deg,rgb(var(--rolecue-ink-rgb)/12%)_1px,transparent_1px)] bg-size-[4.8rem_4.8rem] mask-[linear-gradient(135deg,#000,transparent_74%)]"
-        />
-        <div className="absolute inset-[clamp(1rem,2.8vw,2rem)] grid grid-cols-[clamp(3rem,8vw,5.1rem)_1fr] overflow-hidden rounded-xl border border-white/72 bg-[color-mix(in_srgb,var(--rolecue-surface)_77%,transparent)] shadow-[inset_0_1px_rgb(255_255_255/90%),0_1.1rem_3rem_rgb(var(--rolecue-ink-rgb)/15%)] backdrop-blur-[14px] max-[620px]:grid-cols-[2.8rem_1fr]">
-          <aside
-            aria-hidden="true"
-            className="flex flex-col items-center gap-4 border-r border-[rgb(var(--rolecue-ink-rgb)/10%)] bg-[color-mix(in_srgb,var(--rolecue-surface)_48%,transparent)] pt-4 max-[620px]:gap-3"
-          >
-            <div className="mb-[0.8rem] flex gap-1">
-              <i className="size-[0.28rem] rounded-full bg-[rgb(var(--rolecue-ink-rgb)/26%)]" />
-              <i className="size-[0.28rem] rounded-full bg-[rgb(var(--rolecue-ink-rgb)/26%)]" />
-              <i className="size-[0.28rem] rounded-full bg-[rgb(var(--rolecue-ink-rgb)/26%)]" />
-            </div>
-            <span className="h-[0.18rem] w-[1.45rem] rounded-full bg-(--rolecue-accent)" />
-            <span className="h-[0.18rem] w-[1.15rem] rounded-full bg-[rgb(var(--rolecue-ink-rgb)/18%)]" />
-            <span className="h-[0.18rem] w-[1.15rem] rounded-full bg-[rgb(var(--rolecue-ink-rgb)/18%)]" />
-            <span className="h-[0.18rem] w-[1.15rem] rounded-full bg-[rgb(var(--rolecue-ink-rgb)/18%)]" />
-            <span className="h-[0.18rem] w-[1.15rem] rounded-full bg-[rgb(var(--rolecue-ink-rgb)/18%)]" />
-          </aside>
-          <div className="relative flex min-w-0 flex-col overflow-hidden p-[clamp(1.25rem,3.2vw,2.7rem)] max-[620px]:p-4">
-            <div className="flex justify-between gap-4 font-mono text-[clamp(0.55rem,1.1vw,0.7rem)] font-semibold tracking-[0.06em] text-(--rolecue-ink-muted) uppercase">
-              <span>Practice field / 01</span>
-              <span>Role focus</span>
-            </div>
-            <div className="relative z-2 mt-auto max-w-[10.8ch] max-[620px]:mb-auto">
-              <p className="m-0 text-(length:--rolecue-type-section) leading-(--rolecue-leading-display) tracking-(--rolecue-tracking-display) text-(--rolecue-ink) font-(--rolecue-weight-display) max-[620px]:text-(length:--rolecue-type-heading-lg)">
-                Tell us about a decision that changed the work.
-              </p>
-              <i className="mt-4 block w-[min(9rem,45%)] border-t-2 border-(--rolecue-accent)" />
-            </div>
-            <div className="relative z-3 mt-4 max-w-52 rounded-lg border border-[rgb(var(--rolecue-ink-rgb)/10%)] bg-[color-mix(in_srgb,var(--rolecue-surface)_78%,transparent)] px-[0.8rem] py-[0.72rem] shadow-(--rolecue-shadow-low) max-[620px]:mt-auto">
-              <span className="block font-mono text-(length:--rolecue-type-label) tracking-[0.06em] text-(--rolecue-ink-muted) uppercase">
-                Keep the detail
-              </span>
-              <strong className="mt-[0.32rem] block text-(length:--rolecue-type-body-sm) leading-tight font-[650]">
-                Start with the constraint, then name the choice.
-              </strong>
-            </div>
-            <div
-              aria-hidden="true"
-              className="absolute top-[28%] right-[-2.8rem] aspect-square w-[clamp(11rem,26vw,22rem)] rounded-full border border-(--rolecue-border) max-[620px]:top-[19%] max-[620px]:-right-20 max-[620px]:w-64"
-            >
-              <span className="absolute inset-[22%] rounded-full border border-(--rolecue-border)" />
-            </div>
-            <span
-              aria-hidden="true"
-              className="absolute top-[35%] right-[12%] w-[clamp(3.5rem,8vw,7rem)] rotate-45 border-t-[clamp(0.35rem,0.75vw,0.65rem)] border-(--rolecue-accent) max-[620px]:top-[29%] max-[620px]:right-[1%] max-[620px]:w-[4.8rem]"
-            />
-          </div>
-        </div>
-        <figcaption className="absolute right-4 bottom-4 z-5 max-w-56 rounded-lg border border-white/58 bg-[color-mix(in_srgb,var(--rolecue-surface-dark)_68%,transparent)] px-[0.7rem] py-[0.55rem] text-right font-mono text-(length:--rolecue-type-label) font-semibold leading-[1.45] tracking-[0.035em] text-(--rolecue-on-dark) backdrop-blur-lg max-[620px]:max-w-40 max-[620px]:text-[0.53rem]">
-          ROLECUE / PRACTICE FIELD
-          <br />A quiet screen for a considered answer
-        </figcaption>
-      </figure>
-    </Reveal>
   );
 }
 
@@ -197,83 +128,83 @@ export function RoleCueLanding() {
     <div className="min-w-0 overflow-x-clip bg-(--rolecue-canvas) text-(--rolecue-ink) font-(--rolecue-weight-body) leading-(--rolecue-leading-body)">
       <MarketingHeader />
       <main id="main-content">
-        <section
-          className="relative mt-[-5.3rem] min-h-232 overflow-hidden pt-[12.7rem] pb-36 max-[760px]:-mt-19 max-[760px]:min-h-0 max-[760px]:pt-39 max-[760px]:pb-23"
-          id="top"
-        >
+        <div className="relative isolate overflow-hidden">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 top-4 h-208 overflow-hidden max-[760px]:h-168"
+            className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
           >
-            <div className="absolute inset-0 opacity-80 bg-[radial-gradient(circle_at_12%_24%,var(--rolecue-wash-blue),transparent_19rem),radial-gradient(circle_at_88%_30%,var(--rolecue-wash-pink),transparent_24rem),linear-gradient(rgb(var(--rolecue-ink-rgb)/8%)_1px,transparent_1px),linear-gradient(90deg,rgb(var(--rolecue-ink-rgb)/8%)_1px,transparent_1px)] bg-size-[auto,auto,5.5rem_5.5rem,5.5rem_5.5rem] mask-[linear-gradient(90deg,transparent,#000_16%,#000_84%,transparent)] max-[760px]:bg-size-[auto,auto,4rem_4rem,4rem_4rem] max-[760px]:mask-none" />
-            <span className="absolute top-46 -right-40 aspect-square w-140 rounded-full border border-(--rolecue-border) max-[760px]:top-76 max-[760px]:-right-72">
-              <span className="absolute inset-[21%] rounded-full border border-(--rolecue-border)" />
-              <span className="absolute inset-y-0 left-[49%] border-x border-(--rolecue-border)" />
-            </span>
-            <span className="absolute top-[20.1rem] left-[max(2rem,calc(50%-40rem))] w-52 border-t border-[rgb(var(--rolecue-accent-rgb)/48%)] max-[760px]:top-68 max-[760px]:-left-16 max-[760px]:w-32">
-              <i className="absolute -top-1 right-0 size-2 -translate-y-1/2 border border-(--rolecue-accent) bg-(--rolecue-canvas)" />
-            </span>
+            <div className="absolute inset-0 bg-[linear-gradient(rgb(var(--rolecue-ink-rgb)/5%)_1px,transparent_1px),linear-gradient(90deg,rgb(var(--rolecue-ink-rgb)/5%)_1px,transparent_1px)] bg-size-[5.5rem_5.5rem] opacity-75 mask-[linear-gradient(180deg,#000_0%,#000_78%,transparent_100%)] max-[760px]:bg-size-[4rem_4rem]" />
+            <div className="absolute -top-40 left-[2%] size-[min(70vw,48rem)] rounded-full bg-(--rolecue-wash-blue) blur-[110px]" />
+            <div className="absolute -top-24 right-[2%] size-[min(65vw,42rem)] rounded-full bg-(--rolecue-wash-pink) blur-[110px]" />
+            <div className="absolute top-[50%] right-[8%] size-[min(72vw,46rem)] rounded-full bg-(--rolecue-wash-blue) opacity-80 blur-[130px]" />
           </div>
-          <div className={cn(landingContainer, "relative z-1 text-center")}>
-            <Reveal className="relative mx-auto max-w-272 border border-(--rolecue-accent) px-[clamp(1.25rem,3vw,3rem)] py-[clamp(1.45rem,2.5vw,2.3rem)] max-[760px]:px-[1.1rem] max-[760px]:pt-[1.35rem] max-[760px]:pb-6">
-              <i className="absolute top-0 left-0 size-[0.58rem] -translate-x-1/2 -translate-y-1/2 bg-(--rolecue-accent)" />
-              <i className="absolute top-0 right-0 size-[0.58rem] translate-x-1/2 -translate-y-1/2 bg-(--rolecue-accent)" />
-              <i className="absolute bottom-0 left-0 size-[0.58rem] -translate-x-1/2 translate-y-1/2 bg-(--rolecue-accent)" />
-              <i className="absolute right-0 bottom-0 size-[0.58rem] translate-x-1/2 translate-y-1/2 bg-(--rolecue-accent)" />
-              <p className={eyebrow}>Technical interview practice</p>
-              <h1 className="mx-auto max-w-[11.8ch] text-balance text-(length:--rolecue-type-display) leading-(--rolecue-leading-display) tracking-(--rolecue-tracking-display) font-(--rolecue-weight-display) max-[760px]:text-[clamp(2.3rem,11vw,3.2rem)]">
-                Practice the role{" "}
-                <em className="relative z-1 not-italic font-[720] after:absolute after:right-[-0.05em] after:bottom-[0.02em] after:left-[-0.08em] after:z-[-1] after:h-[0.17em] after:bg-[rgb(var(--rolecue-accent-rgb)/28%)]">
-                  before
-                </em>{" "}
-                the room.
-              </h1>
-              <p className="mx-auto mt-[1.35rem] max-w-(--rolecue-width-hero-copy) text-balance text-(length:--rolecue-type-display-secondary) leading-[1.13] tracking-[-0.035em] text-(--rolecue-ink-muted) font-[690] max-[760px]:text-[clamp(1.2rem,6vw,1.7rem)]">
-                A calmer way to shape the examples, choices, and confidence you
-                want to bring to the next technical conversation.
-              </p>
-            </Reveal>
-            <ul className="mx-auto mt-8 flex max-w-184 flex-wrap justify-center gap-2 p-0 max-[760px]:mt-[1.6rem] max-[760px]:max-w-80 max-[760px]:gap-[0.42rem]">
-              {["Role context", "Clear examples", "Useful cues"].map((tag) => (
-                <li
-                  className="list-none rounded-full bg-(--rolecue-accent-soft) px-[0.76rem] py-[0.42rem] text-(length:--rolecue-type-label) font-semibold max-[760px]:text-[0.68rem]"
-                  key={tag}
-                >
-                  {tag}
-                </li>
-              ))}
-            </ul>
-            <div className="mt-[2.35rem] flex flex-wrap justify-center gap-3 max-[760px]:mx-auto max-[760px]:w-[min(100%,21rem)] max-[760px]:*:flex-1">
-              <Button asChild className={cn(primaryButton, landingFocus)}>
-                <Link href={routes.interviews.new.jobDescription}>
-                  Start a practice <Arrow />
-                </Link>
-              </Button>
-              <Button
-                asChild
-                className={cn(secondaryButton, landingFocus)}
-                variant="outline"
-              >
-                <a href="#method">See the method</a>
-              </Button>
-            </div>
-          </div>
-          <HeroMedia />
-        </section>
+          <section
+            className="relative mt-[-5.3rem] flex min-h-[min(58rem,100svh)] items-end overflow-hidden pt-[9rem] pb-[clamp(7rem,12vh,10rem)] max-[760px]:-mt-19 max-[760px]:min-h-[88svh] max-[760px]:pt-32 max-[760px]:pb-28"
+            id="top"
+          >
+            <video
+              aria-label="RoleCue technical interview practice preview"
+              autoPlay
+              className="absolute inset-0 size-full object-cover object-center motion-reduce:hidden max-[760px]:object-[42%_center]"
+              loop
+              muted
+              playsInline
+              poster="/images/hero-poster.webp"
+              preload="metadata"
+            >
+              <source src="/hero.mp4" type="video/mp4" />
+            </video>
+            <div
+              aria-label="RoleCue technical interview practice preview"
+              className="absolute inset-0 hidden bg-[url('/images/hero-poster.webp')] bg-cover bg-center motion-reduce:block max-[760px]:bg-[position:42%_center]"
+              role="img"
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent_0%,transparent_88%,rgb(var(--rolecue-canvas-rgb)/24%)_95%,var(--rolecue-canvas)_100%)] max-[760px]:bg-[linear-gradient(180deg,transparent_0%,transparent_86%,rgb(var(--rolecue-canvas-rgb)/30%)_95%,var(--rolecue-canvas)_100%)]"
+            />
 
-        <section className="px-5 py-[clamp(9rem,18vw,16rem)] pt-[clamp(10rem,20vw,18rem)] max-[760px]:py-34">
-          <Reveal className="mx-auto w-full max-w-(--rolecue-width-editorial) text-center">
-            <p className={eyebrow}>Less performance, more preparation</p>
-            <h2 className={sectionTitle}>
-              Bring the thinking behind your work into the conversation.
-            </h2>
-            <p className={cn(sectionIntro, "mx-auto")}>
-              The strongest interview answer does not sound rehearsed. It makes
-              a decision legible: what you saw, what you chose, and why it
-              mattered.
-            </p>
-          </Reveal>
-        </section>
+            <div className={cn(landingContainer, "relative")}>
+              <Reveal className="max-w-[31rem] translate-x-[-1rem] translate-y-3 max-[760px]:translate-x-0 max-[760px]:translate-y-2">
+                <h1 className="mt-3 max-w-[11ch] text-balance text-[clamp(2.4rem,4.6vw,4.1rem)] font-(--rolecue-weight-display) leading-[1.02] tracking-(--rolecue-tracking-display) text-(--rolecue-ink) max-[760px]:text-[clamp(2.2rem,9vw,3rem)]">
+                  <span className="sr-only">Practice the role before the room.</span>
+                  <TextGenerateEffect
+                    className="text-inherit"
+                    duration={0.32}
+                    filter={false}
+                    words="Practice the role before the room."
+                  />
+                </h1>
+                <p className="mt-6 max-w-[28rem] text-pretty text-sm leading-(--rolecue-leading-copy) font-medium text-(--rolecue-ink) [text-shadow:0_1px_8px_var(--rolecue-copy-halo)] sm:text-base">
+                  A calmer way to prepare for the next technical conversation.
+                </p>
+                <div className="group/trial relative mt-5 inline-flex">
+                  <Button
+                    asChild
+                    className={cn(primaryButton, landingFocus, "relative min-h-12 overflow-hidden pr-12 pl-2 font-[family-name:var(--font-cta)] text-sm font-semibold shadow-(--rolecue-shadow-low)")}
+                  >
+                    <Link href={routes.interviews.new.jobDescription}>
+                      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-[#65f328] text-[#2f3139]">
+                        <Arrow />
+                      </span>
+                      Start a practice
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute top-0 right-0 h-14 w-14 overflow-hidden rounded-tr-[inherit]"
+                      >
+                        <span className="absolute top-[0.55rem] right-[-1.35rem] flex h-4 w-24 rotate-45 items-center justify-center bg-[#65f328] pt-0.5 text-[0.5rem] leading-none font-black tracking-[0.03em] text-[#2f3139] shadow-sm">
+                          FREE TRIAL
+                        </span>
+                      </span>
+                    </Link>
+                  </Button>
+                </div>
+              </Reveal>
+            </div>
+          </section>
+
+          <AboutRolecueSection />
+        </div>
 
         <PracticeSection />
 
@@ -495,6 +426,7 @@ export function RoleCueLanding() {
           </div>
         </div>
       </footer>
+
     </div>
   );
 }
