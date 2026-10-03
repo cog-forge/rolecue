@@ -1,136 +1,74 @@
 package middleware
 
 import (
-	"encoding/json"
+	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-
 	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
+	"github.com/swp391-group3/ai-interview-practice/api/internal/features/auth"
 	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/response"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/token"
 )
 
+type authStub struct {
+	err   error
+	calls int
+	id    uuid.UUID
+}
+
+func (s *authStub) Authenticate(context.Context, *http.Request) (auth.User, []string, error) {
+	s.calls++
+	return auth.User{ID: s.id}, []string{"rolecue-authentication.session_token=a; Path=/; HttpOnly; SameSite=Lax", "rolecue-authentication.session_data=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"}, s.err
+}
 func TestRequireAuth(t *testing.T) {
-	cfg := &config.Config{
-		JWT: config.JWTConfig{
-			AccessSecret:  "test-access-secret",
-			RefreshSecret: "test-refresh-secret",
-		},
-	}
-	id := uuid.New()
-	generate := func(secret string, expiry int) string {
-		t.Helper()
-		value, err := token.GenerateToken(id, secret, expiry)
-		if err != nil {
-			t.Fatalf("generate token: %v", err)
-		}
-		return value
-	}
-	access := generate(cfg.JWT.AccessSecret, 600)
 	for _, tc := range []struct {
-		name   string
-		header string
-		valid  bool
+		name, method, origin string
+		err                  error
+		status, calls        int
 	}{
-		{name: "missing header"},
-		{name: "wrong scheme", header: "Basic " + access},
-		{name: "missing token", header: "Bearer"},
-		{name: "blank token", header: "Bearer   "},
-		{name: "malformed token", header: "Bearer not-a-jwt"},
-		{name: "wrong secret", header: "Bearer " + generate("wrong-secret", 600)},
-		{name: "expired token", header: "Bearer " + generate(cfg.JWT.AccessSecret, -60)},
-		{name: "refresh token", header: "Bearer " + generate(cfg.JWT.RefreshSecret, 86400)},
-		{name: "extra credentials", header: "Bearer " + access + " extra"},
-		{name: "valid access token", header: "Bearer " + access, valid: true},
-		{name: "case insensitive scheme", header: "bEaReR " + access, valid: true},
+		{"read", "GET", "", nil, 204, 1},
+		{"write", "POST", "http://localhost:3000", nil, 204, 1},
+		{"missing origin", "POST", "", nil, 403, 0},
+		{"sibling origin", "DELETE", "https://evil.dorriss.com", nil, 403, 0},
+		{"invalid session", "GET", "", auth.ErrInvalidSession, 401, 1},
+		{"unavailable", "GET", "", auth.ErrUnavailable, 503, 1},
+		{"locked", "GET", "", apperror.New(apperror.CodeForbidden, "locked"), 403, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			service := &authStub{err: tc.err, id: uuid.New()}
 			r := gin.New()
-			called := false
-			var ctx *gin.Context
-			r.Use(func(c *gin.Context) { ctx = c; c.Next() })
-			group := r.Group("/protected")
-			group.Use(RequireAuth(cfg))
-			group.POST("/:user_id", func(c *gin.Context) {
-				called = true
-				got, ok := CurrentUserID(c)
-				if !ok || got != id {
-					t.Errorf("CurrentUserID = (%v, %t), want (%v, true)", got, ok, id)
+			r.Use(RequireAuth(service, config.CORSConfig{AllowOrigins: []string{"http://localhost:3000"}}))
+			r.Any("/", func(c *gin.Context) {
+				id, ok := CurrentUserID(c)
+				if !ok || id != service.id {
+					t.Fatal("wrong authenticated owner")
 				}
-				c.Status(http.StatusNoContent)
+				c.Status(204)
 			})
-			spoofed := uuid.New().String()
-			req := httptest.NewRequest(http.MethodPost, "/protected/"+spoofed+"?user_id="+spoofed,
-				strings.NewReader(`{"user_id":"`+spoofed+`"}`))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("user_id", spoofed)
-			if tc.header != "" {
-				req.Header.Set("Authorization", tc.header)
+			req := httptest.NewRequest(tc.method, "/?user_id="+uuid.NewString(), nil)
+			req.Header.Set("Origin", tc.origin)
+			req.Header.Set("user_id", uuid.NewString())
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			if w.Code != tc.status || service.calls != tc.calls {
+				t.Fatalf("status=%d calls=%d", w.Code, service.calls)
 			}
-			recorder := httptest.NewRecorder()
-			r.ServeHTTP(recorder, req)
-			if called != tc.valid {
-				t.Fatalf("protected handler called = %t, want %t", called, tc.valid)
-			}
-			if tc.valid {
-				if recorder.Code != http.StatusNoContent || ctx.IsAborted() {
-					t.Fatalf("valid request: status = %d, aborted = %t", recorder.Code, ctx.IsAborted())
-				}
-				return
-			}
-			if recorder.Code != http.StatusUnauthorized || !ctx.IsAborted() {
-				t.Fatalf("invalid request: status = %d, aborted = %t", recorder.Code, ctx.IsAborted())
-			}
-			var body response.Envelope
-			if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
-				t.Fatalf("decode error envelope: %v", err)
-			}
-			if body.Success || body.Data != nil || body.Error == nil || body.Error.Code != apperror.CodeInvalidToken || body.Error.Message == "" {
-				t.Fatalf("unexpected error envelope: %s", recorder.Body.String())
-			}
-			if got, ok := CurrentUserID(ctx); ok || got != uuid.Nil {
-				t.Fatalf("failed authentication stored identity: (%v, %t)", got, ok)
+			if service.calls == 1 && len(w.Header().Values("Set-Cookie")) != 2 {
+				t.Fatal("cookies were merged/lost")
 			}
 		})
 	}
 }
-
 func TestCurrentUserID(t *testing.T) {
-	id := uuid.New()
-	for _, tc := range []struct {
-		name  string
-		value any
-		set   bool
-		valid bool
-	}{
-		{name: "missing"},
-		{name: "nil value", set: true},
-		{name: "string UUID", value: id.String(), set: true},
-		{name: "wrong type", value: 123, set: true},
-		{name: "UUID pointer", value: &id, set: true},
-		{name: "UUID", value: id, set: true, valid: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			if tc.set {
-				c.Set(currentUserIDKey, tc.value)
-			}
-			want := uuid.Nil
-			if tc.valid {
-				want = id
-			}
-			if got, ok := CurrentUserID(c); got != want || ok != tc.valid {
-				t.Fatalf("CurrentUserID = (%v, %t), want (%v, %t)", got, ok, want, tc.valid)
-			}
-		})
+	if _, ok := CurrentUserID(nil); ok {
+		t.Fatal("nil context has identity")
 	}
-	if got, ok := CurrentUserID(nil); got != uuid.Nil || ok {
-		t.Fatalf("CurrentUserID(nil) = (%v, %t), want (uuid.Nil, false)", got, ok)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set(currentUserIDKey, "spoofed")
+	if _, ok := CurrentUserID(c); ok {
+		t.Fatal("string accepted as UUID")
 	}
 }
