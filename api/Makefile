@@ -18,6 +18,7 @@ MIGRATE := $(TOOLS_DIR)/migrate-$(MIGRATE_VERSION)/migrate
 ROOT_DIR := $(abspath ..)
 ENV_FILE := $(ROOT_DIR)/.env
 COMPOSE_FILE := $(ROOT_DIR)/.docker/compose.local.yaml
+COMPOSE_ARGS := -f "$(COMPOSE_FILE)" -f "$(CURDIR)/compose.local.override.yaml"
 MIGRATION_DIR := $(CURDIR)/migration
 GO_FILES := $(shell find . -type d \( -name .tools -o -name tmp -o -name vendor \) -prune -o -type f -name '*.go' -print)
 
@@ -27,11 +28,7 @@ ensure-env:
 	@test -f "$(ENV_FILE)" || { printf '%s\n' "Missing $(ENV_FILE); copy ../.env.example to ../.env and set local values."; exit 1; }
 
 db-up: ensure-env
-	@if [ "$$(docker inspect --format '{{.State.Running}}' ai-interview-practice-postgres 2>/dev/null || true)" = "true" ]; then \
-		printf '%s\n' 'Using running ai-interview-practice-postgres container.'; \
-	else \
-		docker compose -p ai-interview-practice --env-file "$(ENV_FILE)" -f "$(COMPOSE_FILE)" up -d; \
-	fi
+	docker compose -p rolecue-authentication --env-file "$(ENV_FILE)" $(COMPOSE_ARGS) up -d --wait
 
 # Applies checked-in migrations, then starts the API with the root env contract.
 run: migrate
