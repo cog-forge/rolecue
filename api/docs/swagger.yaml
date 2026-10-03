@@ -8,6 +8,8 @@ definitions:
     - USER_NOT_FOUND
     - USER_INACTIVE
     - INVALID_TOKEN
+    - AUTH_UNAVAILABLE
+    - FORBIDDEN
     - VALIDATION_ERROR
     - INTERNAL_ERROR
     - INVALID_JD_INPUT
@@ -23,6 +25,8 @@ definitions:
     - CodeAccountNotFound
     - CodeAccountLocked
     - CodeInvalidToken
+    - CodeAuthUnavailable
+    - CodeForbidden
     - CodeValidation
     - CodeInternal
     - CodeInvalidJDInput
@@ -30,17 +34,20 @@ definitions:
     - CodeJDTooLong
     - CodeExtractionFailed
     - CodeInvalidExtractionOutput
-  auth.LoginRequest:
+  auth.User:
     properties:
       email:
-        example: jane@example.com
         type: string
-      password:
-        example: SuperSecret123
+      email_verified:
+        type: boolean
+      full_name:
         type: string
-    required:
-    - email
-    - password
+      id:
+        type: string
+      is_locked:
+        type: boolean
+      role:
+        type: string
     type: object
   domain.ExtractedSkill:
     properties:
@@ -216,61 +223,40 @@ definitions:
     type: object
 info:
   contact: {}
-  description: Existing backend foundation endpoints. Health is liveness only; login
-    returns a normalized envelope.
+  description: Application API endpoints protected by Better Auth session cookies.
+    Health is liveness only.
   title: AI Interview Practice API
   version: 1.0.0
 paths:
-  /auth/login:
-    post:
-      consumes:
-      - application/json
-      description: Returns an access token in data and sets the refresh cookie scoped
-        to /auth/refresh. A refresh endpoint is not currently registered.
-      parameters:
-      - description: Login credentials
-        in: body
-        name: credentials
-        required: true
-        schema:
-          $ref: '#/definitions/auth.LoginRequest'
+  /auth/me:
+    get:
       produces:
       - application/json
       responses:
         "200":
-          description: Access token
-          headers:
-            Set-Cookie:
-              description: Refresh token cookie; Path=/auth/refresh
-              type: string
+          description: OK
           schema:
             allOf:
             - $ref: '#/definitions/response.Envelope'
             - properties:
                 data:
-                  type: string
+                  $ref: '#/definitions/auth.User'
               type: object
-        "400":
-          description: Invalid request
-          schema:
-            $ref: '#/definitions/response.Envelope'
         "401":
-          description: Invalid credentials
+          description: Unauthorized
           schema:
             $ref: '#/definitions/response.Envelope'
         "403":
-          description: Account locked
+          description: Forbidden
           schema:
             $ref: '#/definitions/response.Envelope'
-        "404":
-          description: Account not found
+        "503":
+          description: Service Unavailable
           schema:
             $ref: '#/definitions/response.Envelope'
-        "500":
-          description: Internal error
-          schema:
-            $ref: '#/definitions/response.Envelope'
-      summary: Log in with email and password
+      security:
+      - SessionCookie: []
+      summary: Current application user
       tags:
       - auth
   /health:
@@ -332,7 +318,7 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: List current user's JDs
       tags:
       - jds
@@ -371,7 +357,7 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Save a reviewed JD
       tags:
       - jds
@@ -411,7 +397,7 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Delete an owned JD
       tags:
       - jds
@@ -453,7 +439,7 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Get an owned JD
       tags:
       - jds
@@ -501,7 +487,7 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Update reviewed fields; original raw text is immutable
       tags:
       - jds
@@ -545,14 +531,15 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       security:
-      - BearerAuth: []
+      - SessionCookie: []
       summary: Analyze a raw JD without saving
       tags:
       - jds
 securityDefinitions:
-  BearerAuth:
-    description: Bearer access token, formatted as "Bearer <token>".
+  SessionCookie:
+    description: Better Auth HttpOnly session cookie. Production uses __Secure-rolecue-authentication.session_token;
+      browser sends cookies automatically.
     in: header
-    name: Authorization
+    name: Cookie
     type: apiKey
 swagger: "2.0"
