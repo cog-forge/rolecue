@@ -17,7 +17,7 @@ type Config struct {
 	App      AppConfig      `mapstructure:"app"`
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
-	JWT      JWTConfig      `mapstructure:"jwt"`
+	Auth     AuthConfig     `mapstructure:"auth"`
 	CORS     CORSConfig     `mapstructure:"cors"`
 	Logger   LoggerConfig   `mapstructure:"logger"`
 	Tracer   TracerConfig   `mapstructure:"tracer"`
@@ -95,14 +95,12 @@ func (d *DatabaseConfig) DSN() string {
 	return u.String()
 }
 
-type JWTConfig struct {
-	AccessSecret       string        `mapstructure:"access_secret"`
-	RefreshSecret      string        `mapstructure:"refresh_secret"`
-	AccessTokenExpiry  time.Duration `mapstructure:"access_token_expiry"`
-	RefreshTokenExpiry time.Duration `mapstructure:"refresh_token_expiry"`
-	ResetTokenExpiry   time.Duration `mapstructure:"reset_token_expiry"`
-	VerifyTokenExpiry  time.Duration `mapstructure:"verify_token_expiry"`
-	Issuer             string        `mapstructure:"issuer"`
+type AuthConfig struct {
+	URL           string        `mapstructure:"url"`
+	Timeout       time.Duration `mapstructure:"timeout"`
+	CookiePrefix  string        `mapstructure:"cookie_prefix"`
+	CookieDomain  string        `mapstructure:"cookie_domain"`
+	SecureCookies bool          `mapstructure:"secure_cookies"`
 }
 
 type CORSConfig struct {
@@ -165,31 +163,24 @@ func Load(configPath string) (*Config, error) {
 
 	// Explicitly bind environment variables
 	for key, env := range map[string]string{
-		"database.url":             "DATABASE_URL",
-		"database.name":            "DB_DATABASE",
-		"database.user":            "DB_USERNAME",
-		"database.password":        "DB_PASSWORD",
-		"database.port":            "DB_PORT",
-		"jwt.access_secret":        "JWT_ACCESS_SECRET",
-		"jwt.refresh_secret":       "JWT_REFRESH_SECRET",
-		"jwt.access_token_expiry":  "JWT_ACCESS_EXPIRY",
-		"jwt.refresh_token_expiry": "JWT_REFRESH_EXPIRY",
-		"llm.provider":             "LLM_PROVIDER",
-		"llm.api_key":              "LLM_API_KEY",
-		"llm.model":                "LLM_MODEL",
-		"llm.timeout":              "LLM_TIMEOUT",
-		"llm.max_retries":          "LLM_MAX_RETRIES",
+		"database.url":        "DATABASE_URL",
+		"database.name":       "DB_DATABASE",
+		"database.user":       "DB_USERNAME",
+		"database.password":   "DB_PASSWORD",
+		"database.port":       "DB_PORT",
+		"auth.url":            "BETTER_AUTH_URL",
+		"auth.timeout":        "AUTH_SESSION_TIMEOUT",
+		"auth.cookie_prefix":  "BETTER_AUTH_COOKIE_PREFIX",
+		"auth.cookie_domain":  "BETTER_AUTH_COOKIE_DOMAIN",
+		"auth.secure_cookies": "AUTH_SECURE_COOKIES",
+		"llm.provider":        "LLM_PROVIDER",
+		"llm.api_key":         "LLM_API_KEY",
+		"llm.model":           "LLM_MODEL",
+		"llm.timeout":         "LLM_TIMEOUT",
+		"llm.max_retries":     "LLM_MAX_RETRIES",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
-		}
-	}
-
-	// The original JWT env contract uses integer seconds; also accept Go durations.
-	for _, key := range []string{"jwt.access_token_expiry", "jwt.refresh_token_expiry"} {
-		value := v.GetString(key)
-		if _, err := strconv.ParseInt(value, 10, 64); err == nil {
-			v.Set(key, value+"s")
 		}
 	}
 
@@ -214,29 +205,27 @@ func setDefaults(v *viper.Viper) {
 
 	// Server defaults
 	v.SetDefault("server.host", "0.0.0.0")
-	v.SetDefault("server.port", 3000)
+	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.read_timeout", "10s")
 	v.SetDefault("server.write_timeout", "30s")
 	v.SetDefault("server.shutdown_timeout", "5s")
 
 	// Database defaults
 	v.SetDefault("database.host", "localhost")
-	v.SetDefault("database.port", 5432)
+	v.SetDefault("database.port", 5434)
 	v.SetDefault("database.user", "postgres")
 	v.SetDefault("database.password", "postgres")
-	v.SetDefault("database.name", "ai_interview_practice")
+	v.SetDefault("database.name", "rolecue_authentication")
 	v.SetDefault("database.ssl_mode", "disable")
 	v.SetDefault("database.max_open_conns", 25)
 	v.SetDefault("database.max_idle_conns", 10)
 	v.SetDefault("database.conn_max_lifetime", "5m")
 
-	// JWT defaults (no default secrets in base viper config)
-	v.SetDefault("jwt.access_token_expiry", "600s")
-	v.SetDefault("jwt.refresh_token_expiry", "86400s")
-	v.SetDefault("jwt.reset_token_expiry", "1h")
-	v.SetDefault("jwt.verify_token_expiry", "24h")
-	v.SetDefault("jwt.issuer", "ai-interview-practice")
-
+	v.SetDefault("auth.url", "http://localhost:3000")
+	v.SetDefault("auth.timeout", "5s")
+	v.SetDefault("auth.cookie_prefix", "rolecue-authentication")
+	v.SetDefault("auth.cookie_domain", "")
+	v.SetDefault("auth.secure_cookies", false)
 	// CORS defaults
 	v.SetDefault("cors.allow_origins", []string{"http://localhost:3000"})
 	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
@@ -277,42 +266,24 @@ func (c *Config) Validate() error {
 			}
 		}
 	}
-	if c.JWT.AccessTokenExpiry <= 0 || c.JWT.RefreshTokenExpiry <= 0 {
-		return errors.New("JWT expiry must be positive")
+	u, err := url.Parse(c.Auth.URL)
+	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return errors.New("auth.url must be a fixed HTTP(S) origin without path, query or credentials")
 	}
-	if c.IsProduction() {
-		if strings.TrimSpace(c.JWT.AccessSecret) == "" {
-			return errors.New("jwt.access_secret is required in production")
-		}
-		if strings.TrimSpace(c.JWT.RefreshSecret) == "" {
-			return errors.New("jwt.refresh_secret is required in production")
-		}
-		if c.JWT.AccessSecret == c.JWT.RefreshSecret {
-			return errors.New("jwt.access_secret and jwt.refresh_secret must be distinct")
-		}
-
-		knownInsecure := map[string]bool{
-			"access-secret":      true,
-			"refresh-secret":     true,
-			"secret":             true,
-			"dev-access-secret":  true,
-			"dev-refresh-secret": true,
-			"change-me":          true,
-		}
-		if knownInsecure[c.JWT.AccessSecret] || knownInsecure[c.JWT.RefreshSecret] {
-			return errors.New("jwt secrets must not use default or placeholder values in production")
-		}
-	} else {
-		// Keep isolated defaults for development and testing environments only
-		if c.JWT.AccessSecret == "" {
-			c.JWT.AccessSecret = "dev-access-secret"
-		}
-		if c.JWT.RefreshSecret == "" {
-			c.JWT.RefreshSecret = "dev-refresh-secret"
-		}
-		if c.JWT.AccessSecret == c.JWT.RefreshSecret {
-			return errors.New("jwt.access_secret and jwt.refresh_secret must be distinct")
-		}
+	if c.Auth.Timeout <= 0 || c.Auth.Timeout > 30*time.Second {
+		return errors.New("auth.timeout must be positive and at most 30s")
+	}
+	if c.Auth.CookiePrefix == "" || strings.ContainsAny(c.Auth.CookiePrefix, " ;=\r\n") {
+		return errors.New("auth.cookie_prefix is invalid")
+	}
+	if c.Auth.SecureCookies != (u.Scheme == "https") {
+		return errors.New("auth.secure_cookies must match the auth URL scheme")
+	}
+	if c.Auth.CookieDomain != "" && (!c.Auth.SecureCookies || c.Auth.CookieDomain != "dorriss.com" || !strings.HasSuffix(u.Hostname(), ".dorriss.com")) {
+		return errors.New("shared auth cookies require HTTPS under dorriss.com")
+	}
+	if c.IsProduction() && (!c.Auth.SecureCookies || c.Auth.CookieDomain != "dorriss.com") {
+		return errors.New("production requires HTTPS and the shared dorriss.com cookie domain")
 	}
 
 	if c.Tracer.Enabled {

@@ -32,6 +32,8 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeAccountNotFound:         http.StatusNotFound,
 	apperror.CodeAccountLocked:           http.StatusForbidden,
 	apperror.CodeInvalidToken:            http.StatusUnauthorized,
+	apperror.CodeAuthUnavailable:         http.StatusServiceUnavailable,
+	apperror.CodeForbidden:               http.StatusForbidden,
 	apperror.CodeValidation:              http.StatusBadRequest,
 	apperror.CodeInternal:                http.StatusInternalServerError,
 }
