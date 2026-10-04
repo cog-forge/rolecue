@@ -11,6 +11,8 @@ const (
 	CodeAccountNotFound         Code = "USER_NOT_FOUND"
 	CodeAccountLocked           Code = "USER_INACTIVE"
 	CodeInvalidToken            Code = "INVALID_TOKEN"
+	CodeAuthUnavailable         Code = "AUTH_UNAVAILABLE"
+	CodeForbidden               Code = "FORBIDDEN"
 	CodeValidation              Code = "VALIDATION_ERROR"
 	CodeInternal                Code = "INTERNAL_ERROR"
 	CodeInvalidJDInput          Code = "INVALID_JD_INPUT"

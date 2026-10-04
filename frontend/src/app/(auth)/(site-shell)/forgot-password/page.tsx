@@ -1,9 +1,16 @@
-import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
-export default function Page() {
+import type { Metadata } from "next";
+import { ForgotPasswordForm } from "@/features/auth/components/forgot-password-form";
+import { LoginView } from "@/features/auth/components/login-view";
+
+export const metadata: Metadata = {
+  title: "Reset your password — RoleCue",
+  description: "Request a secure password reset link for your RoleCue account.",
+};
+
+export default function ForgotPasswordPage() {
   return (
-    <RoutePlaceholder
-      title="Forgot password"
-      description="Password recovery is pending authentication integration."
-    ></RoutePlaceholder>
+    <LoginView>
+      <ForgotPasswordForm />
+    </LoginView>
   );
 }

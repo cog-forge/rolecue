@@ -2,66 +2,57 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"net/http"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
-
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/auth/repository"
+	"github.com/jackc/pgx/v5"
 	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/token"
 )
 
+type User struct {
+	ID            uuid.UUID `json:"id"`
+	Email         string    `json:"email"`
+	FullName      string    `json:"full_name"`
+	Role          string    `json:"role"`
+	EmailVerified bool      `json:"email_verified"`
+	IsLocked      bool      `json:"is_locked"`
+}
+
+type UserReader interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
 type AuthService interface {
-	Login(ctx context.Context, email string, password string) (*TokenPair, error)
-	GenerateTokenPair(id uuid.UUID) (*TokenPair, error)
+	Authenticate(context.Context, *http.Request) (User, []string, error)
 }
-
 type Service struct {
-	cfg     *config.Config
-	queries *repository.Queries
+	verifier SessionVerifier
+	users    UserReader
 }
 
-func NewService(cfg *config.Config, queries *repository.Queries) AuthService {
-	return &Service{
-		cfg:     cfg,
-		queries: queries,
-	}
+func NewService(verifier SessionVerifier, users UserReader) AuthService {
+	return &Service{verifier: verifier, users: users}
 }
 
-func (s *Service) Login(ctx context.Context, email string, password string) (*TokenPair, error) {
-	account, err := s.queries.GetAccountByEmail(ctx, email)
+func (s *Service) Authenticate(ctx context.Context, req *http.Request) (User, []string, error) {
+	verified, err := s.verifier.Verify(ctx, req)
 	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeAccountNotFound, "account with given email does not exist", err)
+		return User{}, verified.SetCookies, err
 	}
-
-	if account.IsLocked {
-		return nil, apperror.New(apperror.CodeAccountLocked, "account is locked")
+	var user User
+	// Always read the current application role and lock after SDK validation.
+	err = s.users.QueryRow(ctx, `SELECT id,email,name,coalesce(role,'candidate'),email_verified,coalesce(is_locked,false) FROM public.users WHERE id=$1`, verified.UserID).Scan(&user.ID, &user.Email, &user.FullName, &user.Role, &user.EmailVerified, &user.IsLocked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return User{}, verified.SetCookies, ErrInvalidSession
 	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(account.PasswordHash), []byte(password)); err != nil {
-		return nil, apperror.Wrap(apperror.CodeInvalidCredentials, "wrong password", err)
-	}
-
-	return s.GenerateTokenPair(account.ID)
-}
-
-func (s *Service) GenerateTokenPair(id uuid.UUID) (*TokenPair, error) {
-	refreshExpirySec := int(s.cfg.JWT.RefreshTokenExpiry.Seconds())
-	accessExpirySec := int(s.cfg.JWT.AccessTokenExpiry.Seconds())
-
-	refresh, err := token.GenerateToken(id, s.cfg.JWT.RefreshSecret, refreshExpirySec)
 	if err != nil {
-		return nil, err
+		return User{}, verified.SetCookies, ErrUnavailable
 	}
-
-	access, err := token.GenerateToken(id, s.cfg.JWT.AccessSecret, accessExpirySec)
-	if err != nil {
-		return nil, err
+	if user.IsLocked || !user.EmailVerified {
+		return User{}, verified.SetCookies, apperror.New(apperror.CodeForbidden, "account is locked or email is unverified")
 	}
-
-	return &TokenPair{
-		RefreshToken: refresh,
-		AccessToken:  access,
-	}, nil
+	if user.Role != "candidate" && user.Role != "recruiter" && user.Role != "admin" {
+		return User{}, verified.SetCookies, apperror.New(apperror.CodeForbidden, "account role is not permitted")
+	}
+	return user, verified.SetCookies, nil
 }

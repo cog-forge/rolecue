@@ -88,7 +88,7 @@ func jdBadRequest(c *gin.Context) {
 // @Tags jds
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param request body AnalyzeJDRequest true "JD request"
 // @Success 200 {object} response.Envelope{data=domain.StructuredJD}
 // @Failure 400 {object} response.Envelope
@@ -121,7 +121,7 @@ func (h *JDHandler) Analyze(c *gin.Context) {
 // @Tags jds
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param request body CreateJDRequest true "JD request"
 // @Success 201 {object} response.Envelope{data=JDResponse}
 // @Failure 400 {object} response.Envelope
@@ -154,7 +154,7 @@ func (h *JDHandler) Create(c *gin.Context) {
 // @Tags jds
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param limit query int false "Page size" default(20) minimum(1) maximum(100)
 // @Param offset query int false "Number of items to skip" default(0) minimum(0) maximum(2147483647)
 // @Success 200 {object} response.Envelope{data=response.Page[domain.ListItem]}
@@ -198,7 +198,7 @@ func (h *JDHandler) List(c *gin.Context) {
 // @Tags jds
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param id path string true "JD UUID"
 // @Success 200 {object} response.Envelope{data=JDResponse}
 // @Failure 400 {object} response.Envelope
@@ -228,7 +228,7 @@ func (h *JDHandler) Get(c *gin.Context) {
 // @Tags jds
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param request body UpdateJDRequest true "JD request"
 // @Param id path string true "JD UUID"
 // @Success 200 {object} response.Envelope{data=JDResponse}
@@ -267,7 +267,7 @@ func (h *JDHandler) Update(c *gin.Context) {
 // @Tags jds
 // @Accept json
 // @Produce json
-// @Security BearerAuth
+// @Security SessionCookie
 // @Param id path string true "JD UUID"
 // @Success 204 "Deleted"
 // @Failure 400 {object} response.Envelope

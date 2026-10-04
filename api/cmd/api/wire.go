@@ -28,7 +28,6 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideLogger,
 		provider.ProvideTracer,
 		provider.ProvideDatabasePool,
-		provider.ProvideAuthQueries,
 		provider.ProvideAuthService,
 		provider.ProvideAuthHandler,
 		provider.ProvideHealthHandler,

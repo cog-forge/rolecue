@@ -53,10 +53,10 @@ func (r *Router) Setup() *gin.Engine {
 
 	auth := router.Group("/auth")
 	{
-		auth.POST("/login", r.authHandler.Login)
+		auth.GET("/me", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), r.authHandler.Me)
 	}
 
-	jds := router.Group("/jds", middleware.RequireAuth(r.cfg))
+	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
 	jds.POST("/analyze", r.jdHandler.Analyze)
 	jds.POST("", r.jdHandler.Create)
 	jds.GET("", r.jdHandler.List)

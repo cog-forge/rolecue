@@ -15,11 +15,12 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/auth/login": {
-            "post": {
-                "description": "Returns an access token in data and sets the refresh cookie scoped to /auth/refresh. A refresh endpoint is not currently registered.",
-                "consumes": [
-                    "application/json"
+        "/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
                 ],
                 "produces": [
                     "application/json"
@@ -27,21 +28,10 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Log in with email and password",
-                "parameters": [
-                    {
-                        "description": "Login credentials",
-                        "name": "credentials",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/auth.LoginRequest"
-                        }
-                    }
-                ],
+                "summary": "Current application user",
                 "responses": {
                     "200": {
-                        "description": "Access token",
+                        "description": "OK",
                         "schema": {
                             "allOf": [
                                 {
@@ -51,45 +41,27 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "string"
+                                            "$ref": "#/definitions/auth.User"
                                         }
                                     }
                                 }
                             ]
-                        },
-                        "headers": {
-                            "Set-Cookie": {
-                                "type": "string",
-                                "description": "Refresh token cookie; Path=/auth/refresh"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request",
-                        "schema": {
-                            "$ref": "#/definitions/response.Envelope"
                         }
                     },
                     "401": {
-                        "description": "Invalid credentials",
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
                     },
                     "403": {
-                        "description": "Account locked",
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
                     },
-                    "404": {
-                        "description": "Account not found",
-                        "schema": {
-                            "$ref": "#/definitions/response.Envelope"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error",
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -124,7 +96,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "consumes": [
@@ -199,7 +171,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "consumes": [
@@ -267,7 +239,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "consumes": [
@@ -341,7 +313,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "consumes": [
@@ -411,7 +383,7 @@ const docTemplate = `{
             "put": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "consumes": [
@@ -490,7 +462,7 @@ const docTemplate = `{
             "delete": {
                 "security": [
                     {
-                        "BearerAuth": []
+                        "SessionCookie": []
                     }
                 ],
                 "consumes": [
@@ -560,6 +532,8 @@ const docTemplate = `{
                 "USER_NOT_FOUND",
                 "USER_INACTIVE",
                 "INVALID_TOKEN",
+                "AUTH_UNAVAILABLE",
+                "FORBIDDEN",
                 "VALIDATION_ERROR",
                 "INTERNAL_ERROR",
                 "INVALID_JD_INPUT",
@@ -575,6 +549,8 @@ const docTemplate = `{
                 "CodeAccountNotFound",
                 "CodeAccountLocked",
                 "CodeInvalidToken",
+                "CodeAuthUnavailable",
+                "CodeForbidden",
                 "CodeValidation",
                 "CodeInternal",
                 "CodeInvalidJDInput",
@@ -584,20 +560,26 @@ const docTemplate = `{
                 "CodeInvalidExtractionOutput"
             ]
         },
-        "auth.LoginRequest": {
+        "auth.User": {
             "type": "object",
-            "required": [
-                "email",
-                "password"
-            ],
             "properties": {
                 "email": {
-                    "type": "string",
-                    "example": "jane@example.com"
+                    "type": "string"
                 },
-                "password": {
-                    "type": "string",
-                    "example": "SuperSecret123"
+                "email_verified": {
+                    "type": "boolean"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_locked": {
+                    "type": "boolean"
+                },
+                "role": {
+                    "type": "string"
                 }
             }
         },
@@ -851,10 +833,10 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
-        "BearerAuth": {
-            "description": "Bearer access token, formatted as \"Bearer \u003ctoken\u003e\".",
+        "SessionCookie": {
+            "description": "Better Auth HttpOnly session cookie. Production uses __Secure-rolecue-authentication.session_token; browser sends cookies automatically.",
             "type": "apiKey",
-            "name": "Authorization",
+            "name": "Cookie",
             "in": "header"
         }
     }
@@ -867,7 +849,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "AI Interview Practice API",
-	Description:      "Existing backend foundation endpoints. Health is liveness only; login returns a normalized envelope.",
+	Description:      "Application API endpoints protected by Better Auth session cookies. Health is liveness only.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
