@@ -1,9 +1,16 @@
-import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
-export default function Page() {
+import type { Metadata } from "next";
+import { LoginView } from "@/features/auth/components/login-view";
+import { RegisterForm } from "@/features/auth/components/register-form";
+
+export const metadata: Metadata = {
+  title: "Create account — RoleCue",
+  description: "Create a RoleCue account to practice technical interviews.",
+};
+
+export default function RegisterPage() {
   return (
-    <RoutePlaceholder
-      title="Create an account"
-      description="Registration will be connected after the account contract is finalized."
-    ></RoutePlaceholder>
+    <LoginView>
+      <RegisterForm />
+    </LoginView>
   );
 }

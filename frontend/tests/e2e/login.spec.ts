@@ -1,49 +1,38 @@
 import { expect, test } from "@playwright/test";
 
-test("login validates locally and OAuth links provide review preview flows", async ({
+test("auth screens expose Better Auth entry points and validate without sending requests", async ({
   page,
 }) => {
-  const loginRequests: string[] = [];
+  const authRequests: string[] = [];
   page.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/auth/login")
-      loginRequests.push(request.url());
+    if (new URL(request.url()).pathname.startsWith("/api/auth/"))
+      authRequests.push(request.url());
   });
 
   await page.goto("/login");
-
-  // Verify interactive OAuth preview links are present.
-  for (const provider of ["Google", "GitHub", "Facebook"]) {
-    await expect(
-      page.getByRole("link", { name: `Continue with ${provider}` }),
-    ).toBeVisible();
-  }
-
-  for (const provider of ["google", "github", "facebook"] as const) {
-    const label = provider[0].toUpperCase() + provider.slice(1);
-    await page.getByRole("link", { name: `Continue with ${label}` }).click();
-    await expect(page).toHaveURL(new RegExp(`/login/oauth/${provider}$`));
-    await expect(page.getByText("Authorization Preview")).toBeVisible();
-    await expect(
-      page.getByText("OAuth sign-in is not connected yet.").first(),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: `Preview ${label} handoff` }),
-    ).toBeVisible();
-    await page
-      .getByRole("button", { name: `Preview ${label} handoff` })
-      .click();
-    await expect(page.getByText("Handoff Preview:")).toBeVisible();
-    await page.getByRole("link", { name: "Back to sign in" }).click();
-    await expect(page).toHaveURL(/\/login$/);
-  }
-
-  // Form local validation
+  await page.goto("/login?oauth=failed");
+  await expect(page.locator('p[role="alert"]')).toHaveText(
+    "Social sign-in could not be completed. Please try again.",
+  );
+  await page.goto("/login");
   await page.getByLabel("Email address").fill("invalid-email");
   await page.getByLabel("Password", { exact: true }).fill("simple");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(
     page.getByText("Please enter a valid email address"),
   ).toBeVisible();
-  expect(loginRequests).toHaveLength(0);
-  await expect(page).toHaveURL(/\/login$/);
+  expect(authRequests).toHaveLength(0);
+
+  await page.getByRole("link", { name: "Register" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Create your RoleCue account" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Full name")).toHaveCount(0);
+  await expect(page.getByLabel("I am a")).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Forgot password?" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Reset your password" }),
+  ).toBeVisible();
 });
