@@ -9,10 +9,4 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-export const loginResponseSchema = z.object({
-  success: z.literal(true),
-  data: z.string().min(1),
-});
-
-export type LoginCredentials = z.input<typeof loginSchema>;
 export type LoginFormValues = z.output<typeof loginSchema>;
