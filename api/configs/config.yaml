@@ -6,7 +6,7 @@ app:
 
 server:
   host: 0.0.0.0
-  port: 3000
+  port: 8080
   read_timeout: 10s
   write_timeout: 30s
   shutdown_timeout: 5s
@@ -14,30 +14,26 @@ server:
 database:
   url: ""
   host: localhost
-  port: 5432
+  port: 5434
   user: postgres
   password: postgres
-  name: ai_interview_practice
+  name: rolecue_authentication
   ssl_mode: disable
   max_open_conns: 25
   max_idle_conns: 10
   conn_max_lifetime: 5m
   debug_level: info
 
-jwt:
-  access_secret: ""
-  refresh_secret: ""
-  access_token_expiry: 600s     # 10 minutes
-  refresh_token_expiry: 86400s  # 24 hours
-  reset_token_expiry: 1h
-  verify_token_expiry: 24h
-  issuer: ai-interview-practice
+auth:
+  url: http://localhost:3000
+  timeout: 5s
+  cookie_prefix: rolecue-authentication
+  cookie_domain: ""
+  secure_cookies: false
 
 cors:
   allow_origins:
     - "http://localhost:3000"
-    - "http://localhost:8080"
-    - "http://127.0.0.1:8080"
   allow_methods:
     - GET
     - POST

@@ -10,132 +10,214 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { routes } from "@/config/routes";
-import { useAuthStore } from "@/stores/auth-store";
+import {
+  getAuthErrorMessage,
+  isEmailVerificationError,
+} from "@/features/auth/utils/get-auth-error-message";
+import { authClient } from "@/lib/auth/client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
-import { login } from "../api/login";
-import { loginSchema, type LoginFormValues } from "../api/login-schema";
+import { gooeyToast as toast } from "goey-toast";
+import { useShakeInvalidFields } from "../hooks/use-shake-invalid-fields";
+import { loginSchema, type LoginFormValues } from "../schemas/login-schema";
 
-const providers = [
-  {
-    name: "Google",
-    href: routes.oauth.google,
-    Icon: GoogleIcon,
-    iconClassName: "",
-  },
-  {
-    name: "GitHub",
-    href: routes.oauth.github,
-    Icon: GitHubIcon,
-    iconClassName: "",
-  },
+const providerOptions = [
+  { name: "Google", provider: "google", Icon: GoogleIcon, className: "" },
+  { name: "GitHub", provider: "github", Icon: GitHubIcon, className: "" },
   {
     name: "Facebook",
-    href: routes.oauth.facebook,
+    provider: "facebook",
     Icon: FacebookIcon,
-    iconClassName: "text-[#1877f2]",
+    className: "text-[#1877f2]",
   },
 ] as const;
+export type SocialProvider = (typeof providerOptions)[number]["provider"];
 
-function getLoginErrorMessage(error: unknown) {
-  if (isAxiosError(error)) {
-    const data: unknown = error.response?.data;
-    if (
-      data &&
-      typeof data === "object" &&
-      "error" in data &&
-      data.error &&
-      typeof data.error === "object" &&
-      "message" in data.error &&
-      typeof data.error.message === "string"
-    ) {
-      return data.error.message;
-    }
-  }
-  return "Unable to sign in. Please check your connection and try again.";
-}
-
-export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
+export function LoginForm({
+  defaultEmail = "",
+  oauthFailed = false,
+  oauthError,
+  enabledProviders = [],
+}: {
+  defaultEmail?: string;
+  oauthFailed?: boolean;
+  oauthError?: string;
+  enabledProviders?: readonly SocialProvider[];
+}) {
   const [showPassword, setShowPassword] = useState(false);
+  const [socialPendingProvider, setSocialPendingProvider] =
+    useState<SocialProvider | null>(null);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationMessage, setVerificationMessage] = useState("");
   const router = useRouter();
-  const setAccessToken = useAuthStore((state) => state.setAccessToken);
-  const loginMutation = useMutation({ mutationFn: login });
+  const formRef = useRef<HTMLFormElement>(null);
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginFormValues, unknown, LoginFormValues>({
+    formState: { errors, isSubmitting, submitCount },
+  } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: defaultEmail, password: "" },
     mode: "onTouched",
   });
-  const isPending = isSubmitting || loginMutation.isPending;
+  useShakeInvalidFields(formRef, submitCount);
+  const pending = isSubmitting || socialPendingProvider !== null;
 
   const submit = async (values: LoginFormValues) => {
     try {
-      const result = await loginMutation.mutateAsync(values);
-      setAccessToken(result.accessToken);
-      router.replace(routes.dashboard);
+      const { error } = await authClient.signIn.email({
+        ...values,
+        callbackURL: `${routes.dashboard}?auth=signed-in`,
+      });
+      if (error) throw error;
+      router.replace(`${routes.dashboard}?auth=signed-in`);
     } catch (error) {
-      toast.error(getLoginErrorMessage(error));
+      toast.error("Sign-in failed", {
+        description: getAuthErrorMessage(
+          error,
+          "Unable to sign in. Please check your connection and try again.",
+        ),
+      });
+      if (isEmailVerificationError(error)) setVerificationEmail(values.email);
+    }
+  };
+
+  const resendVerification = async () => {
+    try {
+      const { error } = await authClient.sendVerificationEmail({
+        email: verificationEmail,
+        callbackURL: routes.afterEmailVerification,
+      });
+      if (error) throw error;
+      setVerificationMessage("Verification email sent.");
+      toast.success("Verification email sent", {
+        description: "Check your inbox and spam folder for the link.",
+      });
+    } catch {
+      setVerificationMessage(
+        "Unable to resend the verification email right now.",
+      );
+      toast.error("Email could not be sent", {
+        description: "Please try again in a moment.",
+      });
     }
   };
 
   return (
     <div className="w-full">
-      <header className="mb-7 text-center motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500">
+      <header className="mb-7 text-center">
         <RoleCueMark className="mx-auto size-32 object-contain" priority />
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-[28px]">
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#121814] sm:text-[28px]">
           Sign in to RoleCue
         </h1>
-        <p className="mx-auto mt-1.5 max-w-[320px] text-sm leading-normal text-muted-foreground">
+        <p className="mx-auto mt-1.5 max-w-[320px] text-sm leading-normal text-[#5c5c5c]">
           Welcome back. Select an authentication method to continue.
         </p>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-3">
-        {providers.map(({ name, href, Icon, iconClassName = "" }) => (
+      {oauthFailed && (
+        <p
+          role="alert"
+          className="mb-4 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-[#5c5c5c]"
+        >
+          {oauthError === "account_not_linked"
+            ? "This social account is not linked to RoleCue. Sign in with your original method first."
+            : "Social sign-in could not be completed. Please try again."}
+        </p>
+      )}
+      {verificationEmail && (
+        <div className="mb-4 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-[#5c5c5c]">
+          <p>
+            Please verify your email before signing in. We sent a verification
+            link if your account needs one.
+          </p>
           <Button
-            key={name}
-            asChild
-            variant="outline"
-            className="group h-12 w-full rounded-xl border-border bg-card px-2 text-sm font-medium text-card-foreground shadow-xs transition-all duration-200 hover:border-(--rolecue-border-strong) hover:bg-muted hover:shadow-(--rolecue-shadow-low) active:scale-[0.99]"
+            type="button"
+            variant="link"
+            onClick={resendVerification}
+            className="mt-1 h-auto p-0 text-sm font-semibold text-[#121814]"
           >
-            <Link href={href} aria-label={`Continue with ${name}`}>
-              <Icon
-                className={`size-4 shrink-0 transition-transform duration-200 group-hover:scale-110 ${iconClassName}`}
-              />
-              <span>{name}</span>
-            </Link>
+            Resend verification email
           </Button>
-        ))}
+          {verificationMessage && (
+            <p role="status" className="mt-1">
+              {verificationMessage}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 min-[520px]:grid-cols-3">
+        {providerOptions
+          .filter(({ provider }) => enabledProviders.includes(provider))
+          .map(({ name, provider, Icon, className = "" }) => (
+            <Button
+              key={name}
+              type="button"
+              variant="outline"
+              disabled={pending}
+              aria-label={`Continue with ${name}`}
+              onClick={async () => {
+                setSocialPendingProvider(provider);
+                try {
+                  const { error } = await authClient.signIn.social({
+                    provider,
+                    callbackURL: `${routes.dashboard}?auth=signed-in`,
+                    errorCallbackURL: `${routes.login}?oauth=failed`,
+                  });
+                  if (error) throw error;
+                } catch (error) {
+                  toast.error("Social sign-in failed", {
+                    description: getAuthErrorMessage(
+                      error,
+                      `Unable to continue with ${name}. Please try again.`,
+                    ),
+                  });
+                  setSocialPendingProvider(null);
+                }
+              }}
+              aria-busy={socialPendingProvider === provider}
+              className="group h-12 w-full rounded-xl border-[#dbdbdb] bg-white px-2 text-sm font-medium text-[#262626] shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all duration-200 hover:border-[#b5b5b5] hover:bg-[#fafafa] hover:shadow-[0_2px_8px_rgba(0,0,0,0.06)] active:scale-[0.99]"
+            >
+              {socialPendingProvider === provider ? (
+                <LoaderCircle className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <Icon
+                  className={`size-4 shrink-0 transition-transform duration-200 group-hover:scale-110 ${className}`}
+                />
+              )}
+              <span>
+                {socialPendingProvider === provider ? "Connecting…" : name}
+              </span>
+            </Button>
+          ))}
       </div>
 
-      <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
-        <Separator className="flex-1 bg-border" />
+      <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-[#858585]">
+        <Separator className="flex-1 bg-[#e5e5e5]" />
         <span className="select-none text-[11px] font-medium tracking-[0.12em]">
           or continue with email
         </span>
-        <Separator className="flex-1 bg-border" />
+        <Separator className="flex-1 bg-[#e5e5e5]" />
       </div>
 
       <form
+        ref={formRef}
         onSubmit={handleSubmit(submit)}
         noValidate
         aria-label="Sign in credentials form"
         className="space-y-4"
       >
-        <div className="space-y-1.5">
+        <div
+          className={`t-input-wrap space-y-1.5 ${errors.email ? "is-error" : ""}`}
+        >
           <label
             htmlFor="login-email"
-            className="block text-xs font-semibold uppercase tracking-wider text-foreground"
+            className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
           >
             Email address
           </label>
@@ -144,34 +226,36 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
             type="email"
             autoComplete="email"
             placeholder="name@example.com"
-            disabled={isPending}
+            disabled={pending}
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? "login-email-error" : undefined}
-            className="h-11 rounded-xl border-input bg-card px-3.5 text-sm text-card-foreground shadow-2xs transition-all placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/20 disabled:bg-muted sm:h-12"
+            data-auth-input
+            className={`t-input h-11 rounded-xl border-[#dbdbdb] bg-white px-3.5 text-sm text-[#262626] shadow-2xs placeholder:text-[#8c8c8c] focus-visible:border-rolecue-brand focus-visible:ring-rolecue-brand/15 sm:h-12 ${errors.email ? "is-error" : ""}`}
             {...register("email")}
           />
           {errors.email && (
             <p
               id="login-email-error"
               role="alert"
-              className="text-xs font-medium text-destructive"
+              className="t-error-msg text-xs font-medium text-destructive"
             >
               {errors.email.message}
             </p>
           )}
         </div>
-
-        <div className="space-y-1.5">
+        <div
+          className={`t-input-wrap space-y-1.5 ${errors.password ? "is-error" : ""}`}
+        >
           <div className="flex items-center justify-between gap-3">
             <label
               htmlFor="login-password"
-              className="block text-xs font-semibold uppercase tracking-wider text-foreground"
+              className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
             >
               Password
             </label>
             <Link
               href={routes.forgotPassword}
-              className="rounded text-xs font-medium text-rolecue-brand transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rolecue-brand/40"
+              className="rounded text-xs font-medium text-rolecue-brand hover:underline"
             >
               Forgot password?
             </Link>
@@ -182,21 +266,22 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
               placeholder="••••••••"
-              disabled={isPending}
+              disabled={pending}
               aria-invalid={!!errors.password}
               aria-describedby={
                 errors.password ? "login-password-error" : undefined
               }
-              className="h-11 rounded-xl border-input bg-card px-3.5 pr-12 text-sm text-card-foreground shadow-2xs transition-all placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/20 disabled:bg-muted sm:h-12"
+              data-auth-input
+              className={`t-input h-11 rounded-xl border-[#dbdbdb] bg-white px-3.5 pr-12 text-sm text-[#262626] shadow-2xs placeholder:text-[#8c8c8c] focus-visible:border-rolecue-brand focus-visible:ring-rolecue-brand/15 sm:h-12 ${errors.password ? "is-error" : ""}`}
               {...register("password")}
             />
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              onClick={() => setShowPassword((visible) => !visible)}
+              onClick={() => setShowPassword((value) => !value)}
               aria-label={showPassword ? "Hide password" : "Show password"}
-              className="absolute top-1/2 right-2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute top-1/2 right-1 size-11 -translate-y-1/2 text-[#595959] hover:text-[#262626]"
             >
               {showPassword ? <EyeOff /> : <Eye />}
             </Button>
@@ -205,43 +290,46 @@ export function LoginForm({ defaultEmail = "" }: { defaultEmail?: string }) {
             <p
               id="login-password-error"
               role="alert"
-              className="text-xs font-medium text-destructive"
+              className="t-error-msg text-xs font-medium text-destructive"
             >
               {errors.password.message}
             </p>
           )}
         </div>
-
         <Button
           type="submit"
-          disabled={isPending}
-          className="mt-1 h-11 w-full rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-(--rolecue-shadow-low) transition-all hover:bg-primary/90 hover:shadow-(--rolecue-shadow-float) active:scale-[0.99] sm:h-12"
+          disabled={pending}
+          aria-busy={isSubmitting}
+          className="mt-1 h-11 w-full rounded-xl bg-[#262626] px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-[#1f1f1f] sm:h-12"
         >
-          {isPending ? "Signing in..." : "Sign in"}
+          {isSubmitting && (
+            <LoaderCircle className="animate-spin" aria-hidden />
+          )}
+          {isSubmitting ? "Signing in…" : "Sign in"}
         </Button>
       </form>
 
-      <p className="mt-5 text-center text-xs text-muted-foreground sm:text-sm">
+      <p className="mt-5 text-center text-xs text-[#5c5c5c] sm:text-sm">
         No account?{" "}
         <Link
           href={routes.register}
-          className="rounded-sm font-semibold text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rolecue-brand/40"
+          className="rounded-sm font-semibold text-[#121814] hover:underline"
         >
           Register
         </Link>
       </p>
-      <p className="mt-3.5 text-center text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
+      <p className="mt-3.5 text-center text-[11px] leading-relaxed text-[#737373] sm:text-xs">
         By continuing, you agree to the{" "}
         <Link
           href={routes.terms}
-          className="font-medium text-foreground hover:text-rolecue-brand hover:underline"
+          className="font-medium text-[#494949] hover:text-[#121814] hover:underline"
         >
           Terms of Service
         </Link>{" "}
         and acknowledge that you have read the{" "}
         <Link
           href={routes.privacy}
-          className="font-medium text-foreground hover:text-rolecue-brand hover:underline"
+          className="font-medium text-[#494949] hover:text-[#121814] hover:underline"
         >
           Privacy Policy
         </Link>

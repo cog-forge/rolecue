@@ -1,60 +1,65 @@
 package middleware
 
 import (
-	"strings"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-
 	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
+	"github.com/swp391-group3/ai-interview-practice/api/internal/features/auth"
 	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
 	"github.com/swp391-group3/ai-interview-practice/api/pkg/response"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/token"
 )
 
 const currentUserIDKey = "auth.middleware.currentUserID"
+const currentUserKey = "auth.middleware.currentUser"
 
-// RequireAuth authenticates requests using a JWT Access Token
-func RequireAuth(cfg *config.Config) gin.HandlerFunc {
+func RequireAuth(service auth.AuthService, cors config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if cfg == nil ||
-			strings.TrimSpace(cfg.JWT.AccessSecret) == "" ||
-			cfg.JWT.AccessSecret == cfg.JWT.RefreshSecret {
-			response.Error(c, apperror.New(
-				apperror.CodeInternal,
-				"Something went wrong",
-			))
-			c.Abort()
-			return
+		c.Header("Cache-Control", "no-store")
+		switch c.Request.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		default:
+			allowed := false
+			for _, origin := range cors.AllowOrigins {
+				if origin != "*" && origin != "" && c.GetHeader("Origin") == origin {
+					allowed = true
+				}
+			}
+			if !allowed {
+				response.Error(c, apperror.New(apperror.CodeForbidden, "a trusted Origin is required"))
+				c.Abort()
+				return
+			}
 		}
-		parts := strings.Fields(c.GetHeader("Authorization"))
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			response.Error(c, apperror.New(apperror.CodeInvalidToken, "a bearer token is required"))
-			c.Abort()
-			return
+		user, cookies, err := service.Authenticate(c.Request.Context(), c.Request)
+		for _, cookie := range cookies {
+			c.Writer.Header().Add("Set-Cookie", cookie)
 		}
-
-		id, err := token.ParseToken(parts[1], cfg.JWT.AccessSecret)
 		if err != nil {
 			response.Error(c, err)
 			c.Abort()
 			return
 		}
-
-		c.Set(currentUserIDKey, id)
+		c.Set(currentUserIDKey, user.ID)
+		c.Set(currentUserKey, user)
 		c.Next()
 	}
 }
 
-// CurrentUserID retrieves the UUID of the authenticated user from the context
+func CurrentUser(c *gin.Context) (auth.User, bool) {
+	if c == nil {
+		return auth.User{}, false
+	}
+	value, exists := c.Get(currentUserKey)
+	user, ok := value.(auth.User)
+	return user, exists && ok
+}
 func CurrentUserID(c *gin.Context) (uuid.UUID, bool) {
 	if c == nil {
 		return uuid.Nil, false
 	}
 	value, exists := c.Get(currentUserIDKey)
-	if !exists {
-		return uuid.Nil, false
-	}
 	id, ok := value.(uuid.UUID)
-	return id, ok
+	return id, exists && ok
 }

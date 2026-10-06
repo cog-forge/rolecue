@@ -6,7 +6,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
 	"github.com/swp391-group3/ai-interview-practice/api/internal/database"
-	authRepo "github.com/swp391-group3/ai-interview-practice/api/internal/features/auth/repository"
 	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
 	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/tracer"
 )
@@ -54,8 +53,4 @@ func ProvideDatabasePool(cfg *config.Config, log *logger.Logger) (*pgxpool.Pool,
 	}
 	log.Info("Database connection pool established successfully")
 	return pool, pool.Close, nil
-}
-
-func ProvideAuthQueries(pool *pgxpool.Pool) *authRepo.Queries {
-	return authRepo.New(pool)
 }

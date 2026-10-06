@@ -16,12 +16,12 @@ import (
 
 // @title AI Interview Practice API
 // @version 1.0.0
-// @description Existing backend foundation endpoints. Health is liveness only; login returns a normalized envelope.
+// @description Application API endpoints protected by Better Auth session cookies. Health is liveness only.
 // @BasePath /
-// @securityDefinitions.apikey BearerAuth
+// @securityDefinitions.apikey SessionCookie
 // @in header
-// @name Authorization
-// @description Bearer access token, formatted as "Bearer <token>".
+// @name Cookie
+// @description Better Auth HttpOnly session cookie. Production uses __Secure-rolecue-authentication.session_token; browser sends cookies automatically.
 func main() {
 	var configPath string
 	flag.StringVar(&configPath, "config", "", "path to config file")

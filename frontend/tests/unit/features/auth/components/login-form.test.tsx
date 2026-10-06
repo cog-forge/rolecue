@@ -1,42 +1,47 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "@/features/auth/components/login-form";
-import { login } from "@/features/auth/api/login";
-import { useAuthStore } from "@/stores/auth-store";
 
-const { replace, toastError } = vi.hoisted(() => ({
+const {
+  replace,
+  emailSignIn,
+  socialSignIn,
+  sendVerificationEmail,
+  toastError,
+  toastSuccess,
+} = vi.hoisted(() => ({
   replace: vi.fn(),
+  emailSignIn: vi.fn(),
+  socialSignIn: vi.fn(),
+  sendVerificationEmail: vi.fn(),
   toastError: vi.fn(),
+  toastSuccess: vi.fn(),
 }));
 
-vi.mock("@/features/auth/api/login", () => ({ login: vi.fn() }));
+vi.mock("@/lib/auth/client", () => ({
+  authClient: {
+    signIn: { email: emailSignIn, social: socialSignIn },
+    sendVerificationEmail,
+  },
+}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
-vi.mock("sonner", () => ({ toast: { error: toastError } }));
-
-function renderLoginForm() {
-  const queryClient = new QueryClient({
-    defaultOptions: { mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <LoginForm />
-    </QueryClientProvider>,
-  );
-}
+vi.mock("goey-toast", () => ({
+  gooeyToast: { error: toastError, success: toastSuccess },
+}));
+const configuredProviders = ["google", "github", "facebook"] as const;
 
 describe("LoginForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAuthStore.getState().clearSession();
+    emailSignIn.mockResolvedValue({ data: {}, error: null });
+    socialSignIn.mockResolvedValue({ data: {}, error: null });
+    sendVerificationEmail.mockResolvedValue({ data: {}, error: null });
   });
 
-  it("validates credentials, calls Login, stores its token and redirects", async () => {
-    vi.mocked(login).mockResolvedValue({ accessToken: "test-token" });
-    renderLoginForm();
-
+  it("signs in with Better Auth and continues to the dashboard", async () => {
+    render(<LoginForm enabledProviders={configuredProviders} />);
     fireEvent.change(screen.getByLabelText("Email address"), {
-      target: { value: "  Candidate@Example.com " },
+      target: { value: "candidate@example.com" },
     });
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "passphrase" },
@@ -44,23 +49,25 @@ describe("LoginForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() =>
-      expect(vi.mocked(login).mock.calls[0]?.[0]).toEqual({
-        email: "Candidate@Example.com",
+      expect(emailSignIn).toHaveBeenCalledWith({
+        email: "candidate@example.com",
         password: "passphrase",
+        callbackURL: "/dashboard?auth=signed-in",
       }),
     );
-    expect(useAuthStore.getState().accessToken).toBe("test-token");
-    expect(replace).toHaveBeenCalledWith("/dashboard");
+    expect(replace).toHaveBeenCalledWith("/dashboard?auth=signed-in");
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
-  it("shows normalized backend errors through Sonner", async () => {
-    vi.mocked(login).mockRejectedValue({
-      isAxiosError: true,
-      response: {
-        data: { success: false, error: { message: "Invalid credentials." } },
+  it("shows Better Auth errors without redirecting", async () => {
+    emailSignIn.mockResolvedValue({
+      data: null,
+      error: {
+        code: "INVALID_EMAIL_OR_PASSWORD",
+        message: "Invalid credentials.",
       },
     });
-    renderLoginForm();
+    render(<LoginForm enabledProviders={configuredProviders} />);
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "candidate@example.com" },
     });
@@ -70,22 +77,81 @@ describe("LoginForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith("Invalid credentials."),
+      expect(toastError).toHaveBeenCalledWith("Sign-in failed", {
+        description: "Email or password is incorrect.",
+      }),
     );
-    expect(useAuthStore.getState().accessToken).toBeNull();
     expect(replace).not.toHaveBeenCalled();
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
-  it("links all provider choices to their preview routes", () => {
-    renderLoginForm();
+  it("offers verification resend after an unverified email cannot sign in", async () => {
+    emailSignIn.mockResolvedValue({
+      data: null,
+      error: { message: "Email not verified" },
+    });
+    render(<LoginForm enabledProviders={configuredProviders} />);
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "candidate@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "passphrase" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Resend verification email" }),
+    );
+    await waitFor(() =>
+      expect(sendVerificationEmail).toHaveBeenCalledWith({
+        email: "candidate@example.com",
+        callbackURL: "/dashboard?auth=email-verified",
+      }),
+    );
+  });
+
+  it("explains how to recover when a social account is not linked", () => {
+    render(
+      <LoginForm
+        enabledProviders={configuredProviders}
+        oauthFailed
+        oauthError="account_not_linked"
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This social account is not linked to RoleCue. Sign in with your original method first.",
+    );
+  });
+
+  it.each([
+    ["Google", "google"],
+    ["GitHub", "github"],
+    ["Facebook", "facebook"],
+  ])("starts %s OAuth through Better Auth", async (name, provider) => {
+    render(<LoginForm enabledProviders={configuredProviders} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Continue with ${name}` }),
+    );
+    await waitFor(() =>
+      expect(socialSignIn).toHaveBeenCalledWith({
+        provider,
+        callbackURL: "/dashboard?auth=signed-in",
+        errorCallbackURL: "/login?oauth=failed",
+      }),
+    );
+  });
+
+  it("hides social sign-in options when provider credentials are missing", () => {
+    render(<LoginForm enabledProviders={[]} />);
     expect(
-      screen.getByRole("link", { name: "Continue with Google" }),
-    ).toHaveAttribute("href", "/login/oauth/google");
+      screen.queryByRole("button", { name: "Continue with Google" }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Continue with GitHub" }),
-    ).toHaveAttribute("href", "/login/oauth/github");
+      screen.queryByRole("button", { name: "Continue with GitHub" }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Continue with Facebook" }),
-    ).toHaveAttribute("href", "/login/oauth/facebook");
+      screen.queryByRole("button", { name: "Continue with Facebook" }),
+    ).not.toBeInTheDocument();
   });
 });

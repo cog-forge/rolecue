@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-test("public, wizard and admin routes render without a backend", async ({
+test("public navigation and protected routes enforce login", async ({
   page,
 }) => {
   await page.goto("/");
@@ -27,27 +27,23 @@ test("public, wizard and admin routes render without a backend", async ({
   await expect(
     page.getByText(/centers reflection, examples, and clearer choices/i),
   ).toBeVisible();
+  await page.route("**/auth/me", (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: false,
+        error: {
+          code: "INVALID_TOKEN",
+          message: "a valid session is required",
+        },
+      }),
+    }),
+  );
   await page.goto("/interviews");
-  await page
-    .getByRole("link", { name: "Create an interview", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/interviews\/new\/job-description$/);
-  await page.getByRole("link", { name: "2. Skills", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Review skills" }),
-  ).toBeVisible();
-  await page.reload();
-  await expect(
-    page.getByRole("link", { name: "2. Skills", exact: true }),
-  ).toHaveAttribute("aria-current", "step");
-  await page.goBack();
-  await expect(
-    page.getByRole("heading", { name: "Job description" }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
   await page.goto("/admin/users");
-  await expect(
-    page.getByRole("heading", { name: "Users", exact: true }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
 });
 
 test("mobile navigation exposes the landing anchors", async ({ page }) => {

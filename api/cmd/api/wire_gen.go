@@ -31,8 +31,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	queries := provider.ProvideAuthQueries(pool)
-	authService := provider.ProvideAuthService(config, queries)
+	authService := provider.ProvideAuthService(config, pool)
 	authHandler := provider.ProvideAuthHandler(authService)
 	healthHandler := provider.ProvideHealthHandler()
 	repository := provider.ProvideJDRepository(pool)
