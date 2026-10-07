@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/config"
 )
 
 // CORSMiddleware dynamically handles CORS based on config.CORSConfig

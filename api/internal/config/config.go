@@ -148,7 +148,7 @@ func Load(configPath string) (*Config, error) {
 		v.SetConfigType("yaml")
 		v.AddConfigPath("./configs")
 		v.AddConfigPath(".")
-		v.AddConfigPath("/etc/ai-interview/")
+		v.AddConfigPath("/etc/rolecue/")
 	}
 
 	if err := v.ReadInConfig(); err != nil {
@@ -198,7 +198,7 @@ func Load(configPath string) (*Config, error) {
 
 func setDefaults(v *viper.Viper) {
 	// App defaults
-	v.SetDefault("app.name", "ai-interview-practice")
+	v.SetDefault("app.name", "rolecue")
 	v.SetDefault("app.environment", "development")
 	v.SetDefault("app.version", "1.0.0")
 	v.SetDefault("app.debug", true)
@@ -215,7 +215,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.port", 5434)
 	v.SetDefault("database.user", "postgres")
 	v.SetDefault("database.password", "postgres")
-	v.SetDefault("database.name", "rolecue_authentication")
+	v.SetDefault("database.name", "rolecue")
 	v.SetDefault("database.ssl_mode", "disable")
 	v.SetDefault("database.max_open_conns", 25)
 	v.SetDefault("database.max_idle_conns", 10)
@@ -223,7 +223,7 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("auth.url", "http://localhost:3000")
 	v.SetDefault("auth.timeout", "5s")
-	v.SetDefault("auth.cookie_prefix", "rolecue-authentication")
+	v.SetDefault("auth.cookie_prefix", "rolecue")
 	v.SetDefault("auth.cookie_domain", "")
 	v.SetDefault("auth.secure_cookies", false)
 	// CORS defaults
@@ -242,7 +242,7 @@ func setDefaults(v *viper.Viper) {
 
 	// Tracer defaults
 	v.SetDefault("tracer.enabled", false)
-	v.SetDefault("tracer.service_name", "ai-interview-practice-api")
+	v.SetDefault("tracer.service_name", "rolecue-api")
 	v.SetDefault("tracer.endpoint", "localhost:4317")
 	v.SetDefault("tracer.insecure", true)
 	v.SetDefault("tracer.sample_rate", 1.0)

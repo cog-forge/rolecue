@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/domain"
+	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
 )
 
 // Extractor performs one attempt. Implementations must not retry internally.

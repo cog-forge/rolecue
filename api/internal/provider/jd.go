@@ -3,12 +3,12 @@ package provider
 import (
 	"context"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	jdprovider "github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/provider"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/repository"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/service"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/handler"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/ai"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	jdprovider "github.com/cog-forge/rolecue/api/internal/features/jd/provider"
+	"github.com/cog-forge/rolecue/api/internal/features/jd/repository"
+	"github.com/cog-forge/rolecue/api/internal/features/jd/service"
+	"github.com/cog-forge/rolecue/api/internal/handler"
+	"github.com/cog-forge/rolecue/api/internal/pkg/ai"
 )
 
 func ProvideJDRepository(pool *pgxpool.Pool) *repository.Repository {

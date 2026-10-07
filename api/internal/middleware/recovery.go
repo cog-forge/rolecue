@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/response"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
+	"github.com/cog-forge/rolecue/api/pkg/response"
 )
 
 // RecoveryMiddleware recovers from panics during request processing and logs the stack trace

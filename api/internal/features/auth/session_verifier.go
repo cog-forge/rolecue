@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
 var ErrInvalidSession = apperror.New(apperror.CodeInvalidToken, "a valid session is required")

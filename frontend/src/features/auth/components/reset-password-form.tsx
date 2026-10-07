@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { routes } from "@/config/routes";
 import { authClient } from "@/lib/auth/client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
+import { PasswordVisibilityIcon } from "@/components/icons/password-visibility-icon";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -150,9 +151,9 @@ export function ResetPasswordForm({ token }: { token?: string }) {
                 }
                 aria-controls="reset-password"
                 aria-pressed={showPassword}
-                className="absolute top-1/2 right-1 size-11 -translate-y-1/2 text-[#595959] hover:text-[#262626]"
+                className="absolute top-1/2 right-1 size-11 -translate-y-1/2 active:not-aria-[haspopup]:-translate-y-1/2 text-[#595959] hover:text-[#262626]"
               >
-                {showPassword ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+                <PasswordVisibilityIcon visible={showPassword} />
               </Button>
             </div>
             {!errors.password && (
@@ -206,13 +207,9 @@ export function ResetPasswordForm({ token }: { token?: string }) {
                 }
                 aria-controls="reset-confirm-password"
                 aria-pressed={showConfirmPassword}
-                className="absolute top-1/2 right-1 size-11 -translate-y-1/2 text-[#595959] hover:text-[#262626]"
+                className="absolute top-1/2 right-1 size-11 -translate-y-1/2 active:not-aria-[haspopup]:-translate-y-1/2 text-[#595959] hover:text-[#262626]"
               >
-                {showConfirmPassword ? (
-                  <EyeOff aria-hidden />
-                ) : (
-                  <Eye aria-hidden />
-                )}
+                <PasswordVisibilityIcon visible={showConfirmPassword} />
               </Button>
             </div>
             {errors.confirmPassword && (

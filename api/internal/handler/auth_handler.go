@@ -2,10 +2,10 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/auth"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/middleware"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/response"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/features/auth"
+	"github.com/cog-forge/rolecue/api/internal/middleware"
+	"github.com/cog-forge/rolecue/api/pkg/response"
 )
 
 type AuthHandler struct{ authService auth.AuthService }

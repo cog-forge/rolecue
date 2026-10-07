@@ -30,18 +30,20 @@ export function ForgotPasswordForm() {
   useShakeInvalidFields(formRef, submitCount);
   const submit = async ({ email }: ForgotPasswordValues) => {
     try {
-      await authClient.requestPasswordReset({
+      const result = await authClient.requestPasswordReset({
         email,
         redirectTo: routes.resetPassword,
       });
-    } catch {
-      // Keep the outcome generic if the request fails to avoid disclosing account state.
-    } finally {
+      if (result.error) throw new Error("Password reset request failed");
       // Keep the response generic so the UI does not reveal whether an account exists.
       setSubmitted(true);
       gooeyToast.info("Check your inbox", {
         description:
           "If an account exists for that email, you will receive a password reset link shortly.",
+      });
+    } catch {
+      gooeyToast.error("Reset link could not be requested", {
+        description: "Please check your connection and try again in a moment.",
       });
     }
   };

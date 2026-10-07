@@ -28,3 +28,13 @@
 - When implementation and an approved design artifact visibly disagree, do not silently invent a new direction. Treat the approved design artifact as the visual reference unless newer explicit product/design direction supersedes it.
 - Runtime assets must be copied into production-owned `frontend/` paths; production code must not use hardcoded sibling-repository paths or otherwise depend on that repository. The frontend must build when the sibling design repository is absent.
 - Downloaded, vendor, or cache assets are not design source-of-truth and should not be committed merely because an agent used them during exploration.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

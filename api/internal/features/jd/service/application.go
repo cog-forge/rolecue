@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/domain"
+	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
 )
 
 // Repository is the persistence contract consumed by JD application operations.

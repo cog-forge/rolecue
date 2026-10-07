@@ -1,4 +1,4 @@
-module github.com/swp391-group3/ai-interview-practice/api
+module github.com/cog-forge/rolecue/api
 
 go 1.27.0
 
