@@ -16,7 +16,8 @@ import {
 } from "@/features/auth/utils/get-auth-error-message";
 import { authClient } from "@/lib/auth/client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
+import { PasswordVisibilityIcon } from "@/components/icons/password-visibility-icon";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -281,9 +282,12 @@ export function LoginForm({
               size="icon-sm"
               onClick={() => setShowPassword((value) => !value)}
               aria-label={showPassword ? "Hide password" : "Show password"}
-              className="absolute top-1/2 right-1 size-11 -translate-y-1/2 text-[#595959] hover:text-[#262626]"
+              aria-controls="login-password"
+              aria-pressed={showPassword}
+              disabled={pending}
+              className="absolute top-1/2 right-1 size-11 -translate-y-1/2 active:not-aria-[haspopup]:-translate-y-1/2 text-[#595959] hover:text-[#262626]"
             >
-              {showPassword ? <EyeOff /> : <Eye />}
+              <PasswordVisibilityIcon visible={showPassword} />
             </Button>
           </div>
           {errors.password && (
