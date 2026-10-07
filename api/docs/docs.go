@@ -834,7 +834,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "SessionCookie": {
-            "description": "Better Auth HttpOnly session cookie. Production uses __Secure-rolecue-authentication.session_token; browser sends cookies automatically.",
+            "description": "Better Auth HttpOnly session cookie. Production uses __Secure-rolecue.session_token; browser sends cookies automatically.",
             "type": "apiKey",
             "name": "Cookie",
             "in": "header"

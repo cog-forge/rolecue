@@ -4,12 +4,12 @@ import (
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	_ "github.com/swp391-group3/ai-interview-practice/api/docs"
+	_ "github.com/cog-forge/rolecue/api/docs"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/handler"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/middleware"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/handler"
+	"github.com/cog-forge/rolecue/api/internal/middleware"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 )
 
 type Router struct {

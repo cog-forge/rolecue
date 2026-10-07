@@ -10,10 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/domain"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/middleware"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/response"
+	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
+	"github.com/cog-forge/rolecue/api/internal/middleware"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
+	"github.com/cog-forge/rolecue/api/pkg/response"
 )
 
 type JDService interface {

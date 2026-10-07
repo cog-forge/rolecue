@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/config"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

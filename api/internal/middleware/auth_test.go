@@ -8,9 +8,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/auth"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/features/auth"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
 type authStub struct {
@@ -21,7 +21,7 @@ type authStub struct {
 
 func (s *authStub) Authenticate(context.Context, *http.Request) (auth.User, []string, error) {
 	s.calls++
-	return auth.User{ID: s.id}, []string{"rolecue-authentication.session_token=a; Path=/; HttpOnly; SameSite=Lax", "rolecue-authentication.session_data=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"}, s.err
+	return auth.User{ID: s.id}, []string{"rolecue.session_token=a; Path=/; HttpOnly; SameSite=Lax", "rolecue.session_data=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"}, s.err
 }
 func TestRequireAuth(t *testing.T) {
 	for _, tc := range []struct {

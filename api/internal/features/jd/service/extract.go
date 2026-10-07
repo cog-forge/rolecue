@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/domain"
+	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
 )
 
 func (s *Service) Extract(ctx context.Context, raw string) (domain.StructuredJD, error) {

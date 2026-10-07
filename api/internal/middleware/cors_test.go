@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/config"
 )
 
 func TestCORS(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/domain"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
+	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
 type fakeExtractor struct {
