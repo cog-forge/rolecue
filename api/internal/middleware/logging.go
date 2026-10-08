@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 )
 
 // LoggingMiddleware automatically logs requests using the Zap logger

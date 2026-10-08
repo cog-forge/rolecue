@@ -43,7 +43,7 @@ export function createAuth(database?: Pool) {
     advanced: {
       ...authOptions.advanced,
       cookiePrefix:
-        process.env.BETTER_AUTH_COOKIE_PREFIX || "rolecue-authentication",
+        process.env.BETTER_AUTH_COOKIE_PREFIX || "rolecue",
       useSecureCookies: origin.protocol === "https:",
       defaultCookieAttributes: {
         httpOnly: true,

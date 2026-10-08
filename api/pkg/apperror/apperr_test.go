@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
 var _ error = (*apperror.AppError)(nil)

@@ -18,19 +18,19 @@ MIGRATE := $(TOOLS_DIR)/migrate-$(MIGRATE_VERSION)/migrate
 ROOT_DIR := $(abspath ..)
 ENV_FILE := $(ROOT_DIR)/.env
 COMPOSE_FILE := $(ROOT_DIR)/.docker/compose.local.yaml
-COMPOSE_ARGS := -f "$(COMPOSE_FILE)" -f "$(CURDIR)/compose.local.override.yaml"
-MIGRATION_DIR := $(CURDIR)/migration
+COMPOSE_ARGS := -f "$(COMPOSE_FILE)"
+MIGRATION_DIR ?= $(CURDIR)/migrations
 GO_FILES := $(shell find . -type d \( -name .tools -o -name tmp -o -name vendor \) -prune -o -type f -name '*.go' -print)
 
-.PHONY: fmt fmt-check vet test test-race test-integration swagger build lint vuln check ensure-env db-up migrate migrate-force migrate-version run dev sqlc
+.PHONY: fmt fmt-check vet test test-race test-integration swagger build lint vuln check ensure-env db-up migrate migrate-up migrate-down migrate-down-all migrate-force migrate-version run dev sqlc
 
 ensure-env:
 	@test -f "$(ENV_FILE)" || { printf '%s\n' "Missing $(ENV_FILE); copy ../.env.example to ../.env and set local values."; exit 1; }
 
 db-up: ensure-env
-	docker compose -p rolecue-authentication --env-file "$(ENV_FILE)" $(COMPOSE_ARGS) up -d --wait
+	docker compose -p rolecue --env-file "$(ENV_FILE)" $(COMPOSE_ARGS) up -d --wait
 
-# Applies checked-in migrations, then starts the API with the root env contract.
+# Applies all pending migrations from MIGRATION_DIR (defaults to migrations), then starts the API.
 run: migrate
 	@set -a; . "$(ENV_FILE)"; : "$${SERVER_PORT:=8080}"; export SERVER_PORT; set +a; go run ./cmd/api
 
@@ -41,6 +41,18 @@ dev: migrate $(AIR) $(SQLC)
 migrate: db-up $(MIGRATE)
 	@set -eu; set -a; . "$(ENV_FILE)"; set +a; : "$${DATABASE_URL:?DATABASE_URL must be set in $(ENV_FILE)}"; "$(MIGRATE)" -path "$(MIGRATION_DIR)" -database "$$DATABASE_URL" up
 
+# Applies one or more migrations. Use steps=1 for a single domain checkpoint.
+migrate-up: db-up $(MIGRATE)
+	@set -eu; set -a; . "$(ENV_FILE)"; set +a; : "$${DATABASE_URL:?DATABASE_URL must be set in $(ENV_FILE)}"; : "$${steps:?Specify steps=1 to apply one domain}"; "$(MIGRATE)" -path "$(MIGRATION_DIR)" -database "$$DATABASE_URL" up "$(steps)"
+
+# Applies one domain migration, keeping a reviewable checkpoint between domains.
+migrate-down: db-up $(MIGRATE)
+	@set -eu; set -a; . "$(ENV_FILE)"; set +a; : "$${DATABASE_URL:?DATABASE_URL must be set in $(ENV_FILE)}"; : "$${steps:?Specify steps=1 to roll back one domain}"; "$(MIGRATE)" -path "$(MIGRATION_DIR)" -database "$$DATABASE_URL" down "$(steps)"
+
+# Removes all applied migrations. This drops schema objects; use only for the dev reset workflow.
+migrate-down-all: db-up $(MIGRATE)
+	@set -eu; set -a; . "$(ENV_FILE)"; set +a; : "$${DATABASE_URL:?DATABASE_URL must be set in $(ENV_FILE)}"; "$(MIGRATE)" -path "$(MIGRATION_DIR)" -database "$$DATABASE_URL" down -all
+
 migrate-force: db-up $(MIGRATE)
 	@set -eu; set -a; . "$(ENV_FILE)"; set +a; : "$${DATABASE_URL:?DATABASE_URL must be set in $(ENV_FILE)}"; : "$${v:?Specify version with v=<version>, e.g. make migrate-force v=2}"; "$(MIGRATE)" -path "$(MIGRATION_DIR)" -database "$$DATABASE_URL" force "$$v"
 
@@ -48,7 +60,7 @@ migrate-version: db-up $(MIGRATE)
 	@set -eu; set -a; . "$(ENV_FILE)"; set +a; : "$${DATABASE_URL:?DATABASE_URL must be set in $(ENV_FILE)}"; "$(MIGRATE)" -path "$(MIGRATION_DIR)" -database "$$DATABASE_URL" version
 
 swagger: $(SWAG)
-	$(SWAG) init -g main.go -d cmd/api,internal/handler,internal/features/auth,internal/features/jd/domain,pkg/response,pkg/apperror --parseInternal -o docs
+	$(SWAG) init -g main.go -d cmd/api,internal/handler,internal/features/auth/domain,internal/features/profile/domain,internal/features/jd/domain,pkg/response,pkg/apperror --parseInternal -o docs
 
 test-integration:
 	go test -tags=integration -count=1 -timeout=5m ./internal/...

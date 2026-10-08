@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 )
 
 // @title AI Interview Practice API
@@ -21,7 +21,7 @@ import (
 // @securityDefinitions.apikey SessionCookie
 // @in header
 // @name Cookie
-// @description Better Auth HttpOnly session cookie. Production uses __Secure-rolecue-authentication.session_token; browser sends cookies automatically.
+// @description Better Auth HttpOnly session cookie. Production uses __Secure-rolecue.session_token; browser sends cookies automatically.
 func main() {
 	var configPath string
 	flag.StringVar(&configPath, "config", "", "path to config file")

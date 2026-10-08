@@ -9,8 +9,8 @@ export function AdminSection({
   return (
     <RoutePlaceholder title={title} description={description}>
       <p className="text-sm text-muted-foreground">
-        Administration is not connected. This route is not access-controlled
-        yet.
+        This area is being prepared. More tools will appear here as they become
+        available.
       </p>
     </RoutePlaceholder>
   );

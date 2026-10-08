@@ -1,77 +1,74 @@
-# Interview Practice frontend
+# RoleCue frontend
 
-Frontend architecture for the AI Virtual Technical Interview Platform. This directory is the Next.js application root inside the Go monorepo.
+Next.js 16 / React 19 application in the RoleCue Go monorepo. The canonical repository is https://github.com/cog-forge/rolecue.
 
-## Quick start
+## Local setup
 
-Use Bun 1.4.0 and Node 22.12+ (Node 26.7.0 was used for verification). From this directory:
+Use Bun 1.4.x and Node 22.12+. From `frontend/`:
 
 ```sh
 bun install --frozen-lockfile
+cp .env.example .env
 bun run dev
 ```
 
-The UI and build do not require a running backend. Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_API_BASE_URL` to the Go backend origin to use Login. Public variables are build-time values, never secrets.
+Fill in the auth database, a random `BETTER_AUTH_SECRET` of at least 32 characters, and all four Resend settings before using authentication. Public pages can render without backend services; login, registration, verification, recovery, and protected API calls need their configured services. Enable each OAuth provider by supplying both its client ID and secret.
 
-## Stack
+Next.js reads environment files in `frontend/`; it does not automatically read the root `.env`. Go's `make dev` / `make run` loads the root `.env`. `.env.local` takes priority over `.env` in Next.js, so use one local file consistently. Keep secrets out of Git. `NEXT_PUBLIC_*` values are public and embedded at build time; rebuild after changing them.
 
-Next.js App Router, React 19, strict TypeScript, Tailwind v4 and shadcn/ui (Radix Nova, neutral, Lucide). Axios is the shared browser HTTP client. TanStack Query owns remote async state, RHF + Zod own forms, and Zustand holds the cross-route access token. Three.js, React Three Fiber and Drei are ready for the future avatar integration.
+From `api/`, `make dev` starts the local database, applies migrations, and starts Go. Configure the root `.env` first. The `DB_*` settings configure local PostgreSQL; `DATABASE_URL` is the Go/migration connection string and takes precedence over Go's individual DB settings.
 
-See package.json for exact pinned versions and bun.lock for resolved dependencies.
+## Better Auth and environment contract
+
+Better Auth runs in Next.js at `/api/auth/*` and owns users, credential accounts, verification records, and login sessions. Browser authentication calls use the Better Auth SDK. Business requests use the shared Axios client with `withCredentials: true` and go directly to Go. Go forwards the allowed session cookies to Next's `/api/auth/get-session`, then reads the current user role, verification status, and lock status from PostgreSQL. There is one session system; several devices can each have their own session.
+
+| Setting                     | Owner         | Meaning                                                                                                                 |
+| --------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_API_BASE_URL`  | Frontend      | Go origin; localhost default example is `http://localhost:8080`.                                                        |
+| `BETTER_AUTH_URL`           | Both          | Next/auth origin, `http://localhost:3000` locally. Go must be able to reach it. No trailing slash or path.              |
+| `BETTER_AUTH_SECRET`        | Frontend only | Signs auth data; use a stable random secret of at least 32 characters.                                                  |
+| `BETTER_AUTH_DATABASE_URL`  | Frontend      | Must target the same migrated database as root `DATABASE_URL`.                                                          |
+| `BETTER_AUTH_COOKIE_PREFIX` | Both          | Cookie namespace. Values must match; changing it makes existing cookies unusable.                                       |
+| `BETTER_AUTH_COOKIE_DOMAIN` | Both          | Empty on localhost. The approved production topology uses `dorriss.com` to share cookies across Next and Go subdomains. |
+| `AUTH_SECURE_COOKIES`       | Go/root       | `false` for local HTTP, `true` for production HTTPS; Next derives this from `BETTER_AUTH_URL`.                          |
+| `AUTH_SESSION_TIMEOUT`      | Go/root       | Maximum wait for the Next session verification request, currently `5s`. This is not the session lifetime.               |
+| `CORS_ALLOW_ORIGINS`        | Go/root       | Exact browser frontend origin; never `*` with credentialed requests.                                                    |
+| `CORS_ALLOW_CREDENTIALS`    | Go/root       | `true` to allow browser cookie credentials.                                                                             |
+| OAuth / `RESEND_*`          | Frontend only | Provider credentials and verification/reset email templates.                                                            |
+
+The session lifetime is configured in `src/lib/auth/options.ts`: `expiresIn = 14 days`, `updateAge = 1 day`. Using an eligible session after the refresh threshold extends its expiry; this is a rolling lifetime. Cookie caching is disabled so verification checks the database. Logout revokes the current session; successful password reset revokes all sessions. `HttpOnly` prevents JavaScript from reading the session token; `Secure` limits transport to HTTPS; `SameSite=Lax` restricts cross-site sending. Subdomains of the same site still require CORS when their origins differ.
+
+Local cookie scope is the hostname, not the port. Use `localhost` for both apps rather than mixing `localhost` and `127.0.0.1`. Production is currently explicitly constrained in code to Next `https://rolecue.dorriss.com`, Go `https://rolecue-api.dorriss.com`, shared cookie domain `dorriss.com`, secure cookies, and exact frontend CORS origin. Deploying to another domain requires changing the validation contract in both apps.
+
+Different `.env.example` and `.env` values are expected: examples contain placeholders, while `.env` contains local credentials. The two examples intentionally expose different variables because the apps have different responsibilities. Copying only the frontend env into the root does not configure Go.
 
 ## Commands
 
-| Command                               | Purpose                                               |
-| ------------------------------------- | ----------------------------------------------------- |
-| bun run dev                           | Development server                                    |
-| bun run build                         | Production compilation and prerendering               |
-| bun run start                         | Serve the production build                            |
-| bun run lint                          | Next.js core web vitals and TypeScript ESLint rules   |
-| bun run typecheck                     | Generate route types, then strict TypeScript checking |
-| bun test                              | Native Bun bridge that runs the Vitest suite          |
-| bun run test                          | Run Vitest directly                                   |
-| bun run test:watch                    | Vitest watch mode                                     |
-| bun run test:e2e -- --list            | Discover Playwright tests                             |
-| bun run test:e2e                      | Smoke test against an existing production build       |
-| bun run format / bun run format:check | Format / verify frontend files                        |
+| Command                      | Purpose                                            |
+| ---------------------------- | -------------------------------------------------- |
+| `bun run dev`                | Development server                                 |
+| `bun run lint`               | ESLint                                             |
+| `bun run typecheck`          | Route types and strict TypeScript                  |
+| `bun test`                   | Bun bridge to Vitest                               |
+| `bun run build`              | Production build                                   |
+| `bun run start`              | Production server                                  |
+| `bun run test:e2e -- --list` | Discover browser tests                             |
+| `bun run test:e2e`           | Playwright against a production build on port 3100 |
 
-Playwright uses port 3100 and an already installed Chromium browser. Run build first. Set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH when reusing an existing compatible Chromium executable instead of Playwright's expected revision. Browser binaries and operating-system dependencies are not installed automatically. Unit/component tests live under `tests/unit/`, mirroring source paths; browser tests live under `tests/e2e/`.
+Playwright requires an installed Chromium. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to reuse a compatible executable. Unit/component tests belong in `tests/unit/`; browser tests belong in `tests/e2e/`.
 
-## Source structure
+## Architecture and current limits
 
-- src/app: Server Component pages, route groups, layouts, redirects and error/loading boundaries.
-- src/features: auth, dashboard, job-description, interview-setup, interview, report, history, billing, profile and admin.
-- src/components: shared layout, feedback and domain-neutral shadcn primitives.
-- src/lib: shared Axios client, API configuration and styling utility.
-- src/config: routes, navigation, environment, site metadata and role vocabulary.
-- src/providers: per-browser-lifecycle QueryClient and application provider composition.
-- tests: Vitest setup, native Bun bridge and Playwright smoke test.
+Routes compose feature components; shared UI is under `src/components`, infrastructure under `src/lib`, and providers under `src/providers`. Server Components are the default. TanStack Query owns remote state and RHF/Zod owns forms. No bearer token or Zustand access-token store is used by current auth.
 
-No global types folder or empty public asset directories are needed yet. Feature-specific contracts stay beside their owner.
+Candidate/admin layouts use a client `SessionGate` backed by Go `/auth/me`. It controls displayed UI; it is not a server authorization check for Server Components or future Server Actions. All sensitive operations must enforce authorization at their server/API boundary. Go business endpoints enforce authentication and ownership; Better Auth's admin plugin enforces administrative permissions.
 
-## Architecture and workflow
+Email/password registration, login, verification, recovery, configured OAuth entry points, sign-out, and admin lock/unlock are implemented. AI interview runtime, avatar assets, voice capture, evaluation/report data, payments, and much of the candidate UI remain placeholders. The interview state machine is a pure local lifecycle foundation, not a wire protocol. The avatar component is unmounted; future usage must load it dynamically from a client boundary with SSR disabled.
 
-Read AGENTS.md and SKILL.md before changing this frontend. Prefer Server Components; introduce client boundaries for interaction or browser runtime ownership only. URL routes determine wizard steps and allow refresh/back/deep links. Step guards and draft persistence are intentionally pending actual draft semantics.
-
-The browser calls the Go backend directly through the shared Axios client; no Next.js proxy is used. Its request interceptor reads the minimal Zustand access-token state and adds a bearer header. Login validates the known request and `{ success: true, data: string }` response with Zod. Axios preserves backend error payloads for the Login toast.
-
-Feature integration follows request function → Query wrapper → orchestration → UI. interviewKeys demonstrates hierarchical key factories without a fabricated request. Do not put navigation or notifications inside transport/query functions.
-
-The interview machine is deterministic TypeScript independent of React and Zustand. Invalid transitions are no-ops, terminal states require RESET, and resume enters synchronization through RECONNECTING. The 2D state is an acknowledgement gate; persistent renderer mode and authoritative session resumption must be designed with the runtime contract.
-
-The avatar stage is a small unmounted client boundary; future callers must dynamically import it with SSR disabled. There are no models or fake lip-sync. Browser capability checks are user-triggered and only test availability; they do not verify permissions, actual devices or connection quality.
-
-## Current status and integration limits
-
-All planned public/auth/candidate/admin route placeholders render without backend services. /interviews/new redirects to its first explicit step; /admin redirects to /admin/dashboard. Dynamic room/report routes display references without inventing session records.
-
-**Candidate and admin layouts are not authorization barriers.** Login uses the current custom Go `/auth/login` contract and stores the returned access token in tab-scoped sessionStorage; that client state does not make layouts authorization barriers. Implement server/backend authorization before exposing sensitive data.
-
-Social provider routes are informational previews; real OAuth is not connected. Registration and password recovery are placeholders. AI analysis, interview wire protocol, voice capture/playback, resume reconciliation, evaluation/report data, avatar assets and payment gateway integration remain unimplemented. Billing belongs behind backend/provider boundaries, including credits, packages, checkout, transactions and optional invoices/subscriptions.
-
-The Login form uses RHF/Zod and Sonner for backend error feedback. Semantic theme variables remain ready for a later visual system. DESIGN.md is intentionally absent.
+Read `AGENTS.md` and `SKILL.md` before changing this app. See `../docs/AUTH-SINGLE-SESSION-SPEC.md` for the approved auth architecture.
 
 ## References
 
-- [Next.js installation](https://nextjs.org/docs/app/getting-started/installation)
-- [shadcn Tailwind v4](https://ui.shadcn.com/docs/tailwind-v4)
+- [Better Auth sessions](https://better-auth.com/docs/concepts/session-management)
+- [Better Auth cookies](https://better-auth.com/docs/concepts/cookies)
+- [Next.js environment variables](https://nextjs.org/docs/app/guides/environment-variables)

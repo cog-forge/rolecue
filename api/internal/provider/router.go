@@ -3,11 +3,11 @@ package provider
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/handler"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/router"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/server"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/handler"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/router"
+	"github.com/cog-forge/rolecue/api/internal/server"
 )
 
 func ProvideRouter(
@@ -16,8 +16,9 @@ func ProvideRouter(
 	authHandler *handler.AuthHandler,
 	healthHandler *handler.HealthHandler,
 	jdHandler *handler.JDHandler,
+	profileHandler *handler.ProfileHandler,
 ) *gin.Engine {
-	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, jdHandler)
+	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, jdHandler, profileHandler)
 	return appRouter.Setup()
 }
 

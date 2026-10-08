@@ -34,21 +34,6 @@ definitions:
     - CodeJDTooLong
     - CodeExtractionFailed
     - CodeInvalidExtractionOutput
-  auth.User:
-    properties:
-      email:
-        type: string
-      email_verified:
-        type: boolean
-      full_name:
-        type: string
-      id:
-        type: string
-      is_locked:
-        type: boolean
-      role:
-        type: string
-    type: object
   domain.ExtractedSkill:
     properties:
       category:
@@ -74,6 +59,43 @@ definitions:
       title:
         type: string
       updatedAt:
+        type: string
+    type: object
+  domain.Patch:
+    properties:
+      company_name:
+        type: string
+        x-nullable: true
+      company_website:
+        type: string
+        x-nullable: true
+      full_name:
+        type: string
+      image:
+        type: string
+        x-nullable: true
+    type: object
+  domain.Profile:
+    properties:
+      company_name:
+        type: string
+      company_website:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      full_name:
+        type: string
+      id:
+        type: string
+      image:
+        type: string
+      role:
+        type: string
+      updated_at:
         type: string
     type: object
   domain.Requirement:
@@ -147,6 +169,23 @@ definitions:
           type: string
         type: array
       title:
+        type: string
+    type: object
+  domain.User:
+    properties:
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      full_name:
+        type: string
+      id:
+        type: string
+      image:
+        type: string
+      is_locked:
+        type: boolean
+      role:
         type: string
     type: object
   handler.AnalyzeJDRequest:
@@ -240,7 +279,7 @@ paths:
             - $ref: '#/definitions/response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/auth.User'
+                  $ref: '#/definitions/domain.User'
               type: object
         "401":
           description: Unauthorized
@@ -535,9 +574,107 @@ paths:
       summary: Analyze a raw JD without saving
       tags:
       - jds
+  /profile:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Profile'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get your own profile
+      tags:
+      - profile
+    patch:
+      consumes:
+      - application/json
+      description: Omitted keys are unchanged. Null removes image/company values;
+        full_name cannot be null. Only recruiters may change company fields. Trusted
+        Origin required. Unknown fields reject the whole request.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Changed profile fields (at least one); body limit 16 KiB
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.Patch'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Profile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Update allowed fields in your own profile
+      tags:
+      - profile
 securityDefinitions:
   SessionCookie:
-    description: Better Auth HttpOnly session cookie. Production uses __Secure-rolecue-authentication.session_token;
+    description: Better Auth HttpOnly session cookie. Production uses __Secure-rolecue.session_token;
       browser sends cookies automatically.
     in: header
     name: Cookie

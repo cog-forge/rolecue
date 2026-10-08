@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/jd/service"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/ai"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/features/jd/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/ai"
 )
 
 // TestLLMSmoke is explicitly opt-in and never compiled in the default test suite.

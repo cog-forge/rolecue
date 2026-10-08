@@ -1,5 +1,5 @@
 app:
-  name: ai-interview-practice
+  name: rolecue
   environment: development
   version: 1.0.0
   debug: true
@@ -17,7 +17,7 @@ database:
   port: 5434
   user: postgres
   password: postgres
-  name: rolecue_authentication
+  name: rolecue
   ssl_mode: disable
   max_open_conns: 25
   max_idle_conns: 10
@@ -27,7 +27,7 @@ database:
 auth:
   url: http://localhost:3000
   timeout: 5s
-  cookie_prefix: rolecue-authentication
+  cookie_prefix: rolecue
   cookie_domain: ""
   secure_cookies: false
 
@@ -60,7 +60,7 @@ logger:
 
 tracer:
   enabled: false
-  service_name: ai-interview-practice-api
+  service_name: rolecue-api
   endpoint: localhost:4317
   insecure: true
   sample_rate: 1.0

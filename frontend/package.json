@@ -1,5 +1,5 @@
 {
-  "name": "interview-practice-frontend",
+  "name": "rolecue-frontend",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,6 +17,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@doan-labs/peek": "1.0.0",
     "@hookform/resolvers": "5.9.1",
     "@lottiefiles/dotlottie-react": "^0.20.0",
     "@react-three/drei": "10.7.8",

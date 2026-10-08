@@ -7,6 +7,10 @@ export const routes = {
   forgotPassword: "/forgot-password",
   resetPassword: "/reset-password",
   dashboard: "/dashboard",
+  targetJds: "/target-jds",
+  avatarStudio: "/avatar-studio",
+  jobs: "/jobs",
+  applications: "/applications",
   afterEmailVerification: "/dashboard?auth=email-verified",
   terms: "/terms",
   privacy: "/privacy",
@@ -26,6 +30,12 @@ export const routes = {
     room: (id: string) => `/interviews/${segment(id)}/room`,
   },
   reports: { detail: (id: string) => `/reports/${segment(id)}` },
+  recruiter: {
+    root: "/recruiter",
+    dashboard: "/recruiter/dashboard",
+    jobPostings: "/recruiter/job-postings",
+    applications: "/recruiter/applications",
+  },
   admin: {
     root: "/admin",
     dashboard: "/admin/dashboard",
@@ -37,5 +47,9 @@ export const routes = {
     voices: "/admin/voices",
     billing: "/admin/billing",
     settings: "/admin/settings",
+    jobPostings: "/admin/job-postings",
+    aiBehaviour: "/admin/ai-behaviour",
+    evaluationCriteria: "/admin/evaluation-criteria",
+    revenue: "/admin/revenue",
   },
 } as const;

@@ -10,7 +10,7 @@ import (
 	"github.com/cloudwego/eino/components/model"
 	"google.golang.org/genai"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/config"
 )
 
 func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatModel, error) {

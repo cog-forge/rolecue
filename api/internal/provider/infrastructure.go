@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/database"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/tracer"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/database"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
 )
 
 func ProvideLogger(cfg *config.Config) (*logger.Logger, func(), error) {

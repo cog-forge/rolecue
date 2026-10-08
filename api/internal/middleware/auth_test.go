@@ -6,11 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/cog-forge/rolecue/api/internal/config"
+	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/features/auth"
-	"github.com/swp391-group3/ai-interview-practice/api/pkg/apperror"
 )
 
 type authStub struct {
@@ -19,9 +19,9 @@ type authStub struct {
 	id    uuid.UUID
 }
 
-func (s *authStub) Authenticate(context.Context, *http.Request) (auth.User, []string, error) {
+func (s *authStub) Authenticate(context.Context, *http.Request) (authdomain.User, []string, error) {
 	s.calls++
-	return auth.User{ID: s.id}, []string{"rolecue-authentication.session_token=a; Path=/; HttpOnly; SameSite=Lax", "rolecue-authentication.session_data=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"}, s.err
+	return authdomain.User{ID: s.id}, []string{"rolecue.session_token=a; Path=/; HttpOnly; SameSite=Lax", "rolecue.session_data=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"}, s.err
 }
 func TestRequireAuth(t *testing.T) {
 	for _, tc := range []struct {
@@ -33,8 +33,8 @@ func TestRequireAuth(t *testing.T) {
 		{"write", "POST", "http://localhost:3000", nil, 204, 1},
 		{"missing origin", "POST", "", nil, 403, 0},
 		{"sibling origin", "DELETE", "https://evil.dorriss.com", nil, 403, 0},
-		{"invalid session", "GET", "", auth.ErrInvalidSession, 401, 1},
-		{"unavailable", "GET", "", auth.ErrUnavailable, 503, 1},
+		{"invalid session", "GET", "", authdomain.ErrInvalidSession, 401, 1},
+		{"unavailable", "GET", "", authdomain.ErrUnavailable, 503, 1},
 		{"locked", "GET", "", apperror.New(apperror.CodeForbidden, "locked"), 403, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -14,11 +14,11 @@ Compose routes → features → shared presentation/infrastructure. Browser UI c
 
 ## Folder Ownership
 
-app owns route composition and framework boundaries. features owns business components, validation and APIs. src/stores owns genuine cross-feature client state. components/ui contains domain-neutral shadcn primitives; components/layout and feedback contain reusable presentation. lib owns platform infrastructure, config owns route/environment/navigation rules, providers owns application React context. Shared types are introduced only for truly cross-domain contracts. public belongs at the frontend root when assets exist.
+app owns route composition and framework boundaries; follow src/app/README.md when placing routes. features owns business components, validation and APIs. lib/stores owns genuine cross-feature client state. components/ui contains domain-neutral shadcn primitives; components/layout and feedback contain reusable presentation. lib owns platform infrastructure, config owns route/environment/navigation rules, providers owns application React context. Shared types are introduced only for truly cross-domain contracts. public belongs at the frontend root when assets exist.
 
 ## Next.js / RSC Rules
 
-Prefer Server Components, including pages and root layout. Mark only interactive or browser-dependent entry points with use client. Async dynamic route params are promises. Route groups must not add candidate URL prefixes; admin is a real segment. Wizard steps live at explicit URLs; never replace them with a Zustand currentStep. Implement server/backend session checks once auth is real; existing layouts do not protect anything. Keep per-user credentials and query caches isolated between server requests.
+Prefer Server Components, including pages and root layout. Mark only interactive or browser-dependent entry points with use client. Async dynamic route params are promises. Use (public), (auth) and (workspace) for access/layout boundaries. The workspace layout owns SessionGate and AuthenticatedShell; role layouts only use RoleGate. Shared signed-in pages belong directly in (workspace). Route groups must not add candidate URL prefixes; admin/recruiter are real URL segments. Wizard steps live at explicit URLs; never replace them with a Zustand currentStep. Client gates control presentation; sensitive data and operations require server/backend authorization. Keep per-user credentials and query caches isolated between server requests.
 
 ## Feature Rules
 
@@ -38,7 +38,7 @@ Use domain key factories, as in interview/api/keys.ts. Lists and details form ex
 
 ## Zustand Rules
 
-No global useAppStore. Install does not imply a store is needed. Put genuine cross-feature client state in `src/stores/`; feature-specific drafts may stay with their feature. Expose reset, consume selectors and keep the current wizard step in the URL. Do not mirror backend records into Zustand. Keep the current access token tab-scoped in sessionStorage; document the lifetime and cleanup of any new persistence.
+No global useAppStore. Install does not imply a store is needed. Put genuine cross-feature client state in `src/lib/stores/`; feature-specific drafts may stay with their feature. Expose reset, consume selectors and keep the current wizard step in the URL. Do not mirror backend records into Zustand. Auth uses Better Auth cookies; document the lifetime and cleanup of any new persistence.
 
 ## React Hook Form / Zod Rules
 

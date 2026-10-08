@@ -7,12 +7,12 @@
 package main
 
 import (
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
+	"github.com/cog-forge/rolecue/api/internal/provider"
+	"github.com/cog-forge/rolecue/api/internal/server"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/tracer"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/provider"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/server"
 )
 
 // Injectors from wire.go:
@@ -31,18 +31,22 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	authService := provider.ProvideAuthService(config, pool)
+	repository := provider.ProvideAuthRepository(pool)
+	authService := provider.ProvideAuthService(config, repository)
 	authHandler := provider.ProvideAuthHandler(authService)
 	healthHandler := provider.ProvideHealthHandler()
-	repository := provider.ProvideJDRepository(pool)
-	application, err := provider.ProvideJDService(config, repository)
+	repositoryRepository := provider.ProvideJDRepository(pool)
+	application, err := provider.ProvideJDService(config, repositoryRepository)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	jdHandler := provider.ProvideJDHandler(application)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler)
+	repository2 := provider.ProvideProfileRepository(pool)
+	service := provider.ProvideProfileService(repository2)
+	profileHandler := provider.ProvideProfileHandler(service)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {

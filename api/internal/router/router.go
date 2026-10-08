@@ -1,23 +1,24 @@
 package router
 
 import (
+	_ "github.com/cog-forge/rolecue/api/docs"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	_ "github.com/swp391-group3/ai-interview-practice/api/docs"
 
-	"github.com/swp391-group3/ai-interview-practice/api/internal/config"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/handler"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/middleware"
-	"github.com/swp391-group3/ai-interview-practice/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/handler"
+	"github.com/cog-forge/rolecue/api/internal/middleware"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 )
 
 type Router struct {
-	cfg           *config.Config
-	logger        *logger.Logger
-	authHandler   *handler.AuthHandler
-	healthHandler *handler.HealthHandler
-	jdHandler     *handler.JDHandler
+	cfg            *config.Config
+	logger         *logger.Logger
+	authHandler    *handler.AuthHandler
+	healthHandler  *handler.HealthHandler
+	jdHandler      *handler.JDHandler
+	profileHandler *handler.ProfileHandler
 }
 
 func NewRouter(
@@ -26,13 +27,15 @@ func NewRouter(
 	authHandler *handler.AuthHandler,
 	healthHandler *handler.HealthHandler,
 	jdHandler *handler.JDHandler,
+	profileHandler *handler.ProfileHandler,
 ) *Router {
 	return &Router{
-		cfg:           cfg,
-		logger:        logger,
-		authHandler:   authHandler,
-		healthHandler: healthHandler,
-		jdHandler:     jdHandler,
+		cfg:            cfg,
+		logger:         logger,
+		authHandler:    authHandler,
+		healthHandler:  healthHandler,
+		jdHandler:      jdHandler,
+		profileHandler: profileHandler,
 	}
 }
 
@@ -55,6 +58,10 @@ func (r *Router) Setup() *gin.Engine {
 	{
 		auth.GET("/me", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), r.authHandler.Me)
 	}
+
+	profiles := router.Group("/profile", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	profiles.GET("", r.profileHandler.Get)
+	profiles.PATCH("", r.profileHandler.Update)
 
 	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
 	jds.POST("/analyze", r.jdHandler.Analyze)
