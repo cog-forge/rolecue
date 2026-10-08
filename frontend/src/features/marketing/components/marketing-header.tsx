@@ -6,7 +6,6 @@ import { useMotionValueEvent, useScroll } from "motion/react";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RoleCueMark } from "@/components/brand/rolecue-mark";
-import { CurtainThemeToggle } from "@/components/ui/curtain-theme-toggle";
 import {
   Sheet,
   SheetClose,
@@ -17,15 +16,11 @@ import {
 } from "@/components/ui/sheet";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
-import {
-  landingContainer,
-  landingFocus,
-  primaryButton,
-} from "./rolecue-landing-styles";
+import { landingFocus, primaryButton } from "./rolecue-landing-styles";
 
 const navigation = [
-  { href: "#practice", label: "Practice" },
-  { href: "#method", label: "Method" },
+  { href: "#about", label: "Features" },
+  { href: "#practice", label: "How it works" },
   { href: "#questions", label: "Questions" },
 ] as const;
 
@@ -64,45 +59,59 @@ export function MarketingHeader() {
         Skip to content
       </a>
 
-      <header className="pointer-events-none sticky top-0 z-60 flex h-[5.3rem] justify-center max-[760px]:h-19">
+      <header className="pointer-events-none sticky top-0 z-60 flex h-[5.3rem] justify-center -mb-[5.3rem] max-[760px]:h-19 max-[760px]:-mb-19">
         <nav
           aria-label="Main navigation"
           className={cn(
-            landingContainer,
-            "pointer-events-auto h-full transition-[width,height,margin,padding,border-radius,background-color,border-color,box-shadow] duration-400 ease-[cubic-bezier(0.22,0.61,0.36,1)] motion-reduce:transition-none! max-[760px]:px-1",
-            isCompact &&
-              "mt-3 h-14 w-[min(80rem,calc(100%-2rem))] rounded-full border border-(--rolecue-border-soft) bg-[color-mix(in_srgb,var(--rolecue-surface)_94%,transparent)] px-3 shadow-(--rolecue-shadow-low)",
+            "pointer-events-auto min-w-0 h-full transition-[width,height,margin,padding,border-radius,background-color,border-color,box-shadow] duration-400 ease-[cubic-bezier(0.22,0.61,0.36,1)] motion-reduce:transition-none! max-[760px]:px-3",
+            isCompact
+              ? "mt-3 h-14 w-[min(80rem,calc(100%-2rem))] rounded-full border border-(--rolecue-border-soft) bg-[color-mix(in_srgb,var(--rolecue-surface)_94%,transparent)] px-3 shadow-(--rolecue-shadow-low) backdrop-blur-md"
+              : "mt-2 sm:mt-3 lg:mt-4 h-[4.2rem] w-full max-w-[1440px] border-transparent bg-transparent shadow-none px-4 sm:px-8 lg:px-12 max-[760px]:w-[calc(100%-1.5rem)] sm:max-[760px]:w-[calc(100%-2.5rem)]",
           )}
         >
-          <div className="grid h-full grid-cols-[auto_1fr_auto] items-center gap-6 max-[760px]:grid-cols-[1fr_auto] max-[760px]:gap-3">
+          <div className="grid h-full grid-cols-[auto_1fr] items-center gap-6 max-[760px]:grid-cols-[minmax(0,1fr)_auto] max-[760px]:gap-3">
             <Link
               aria-label="RoleCue home"
               className={cn(
                 landingFocus,
-                "inline-flex justify-self-start transition-[width,height] duration-400 ease-[cubic-bezier(0.22,0.61,0.36,1)] motion-reduce:transition-none!",
-                isCompact
-                  ? "size-12 max-[760px]:size-11"
-                  : "size-16 max-[760px]:size-14",
+                "inline-flex items-center gap-2.5 justify-self-start transition-transform duration-300",
               )}
               href={routes.home}
             >
-              <RoleCueMark
-                alt=""
-                className="size-full object-contain"
-                priority
-              />
+              <div
+                className={cn(
+                  "transition-[width,height] duration-400 ease-[cubic-bezier(0.22,0.61,0.36,1)] motion-reduce:transition-none!",
+                  isCompact
+                    ? "size-9 max-[760px]:size-8"
+                    : "size-10 sm:size-11 max-[760px]:size-9",
+                )}
+              >
+                <RoleCueMark
+                  alt=""
+                  className="size-full object-contain"
+                  priority
+                />
+              </div>
+              <span
+                className={cn(
+                  "font-bold tracking-tight text-[#1E2229] transition-[opacity,font-size] duration-300",
+                  isCompact
+                    ? "text-lg max-[600px]:hidden"
+                    : "text-xl sm:text-2xl",
+                )}
+              >
+                RoleCue
+              </span>
             </Link>
 
-            <div className="flex items-center gap-9 max-[920px]:gap-6 max-[760px]:hidden">
-              {navigation.map((item) => (
-                <a className={navLink} href={item.href} key={item.href}>
-                  {item.label}
-                </a>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-self-end gap-3 max-[760px]:gap-2">
-              <CurtainThemeToggle />
+            <div className="flex items-center justify-self-end gap-9 max-[920px]:gap-6 max-[760px]:gap-2">
+              <div className="flex items-center gap-9 max-[920px]:gap-6 max-[760px]:hidden">
+                {navigation.map((item) => (
+                  <a className={navLink} href={item.href} key={item.href}>
+                    {item.label}
+                  </a>
+                ))}
+              </div>
               <Button
                 asChild
                 className={cn(

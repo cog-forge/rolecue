@@ -1,12 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "goey-toast/styles.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark:not(:has([data-rolecue-theme="light"])) *));
 
 @theme inline {
   --color-rolecue-brand: var(--rolecue-brand-blue);
+  --color-rolecue-hero-surface: var(--rolecue-hero-surface);
   --font-heading: var(--rolecue-font-sans);
   --font-sans: var(--rolecue-font-sans);
   --font-mono: var(--rolecue-font-mono);
@@ -59,6 +59,7 @@
   --rolecue-canvas: #fafafa;
   --rolecue-canvas-rgb: 250 250 250;
   --rolecue-surface: #ffffff;
+  --rolecue-hero-surface: #d9e8f3;
   --rolecue-surface-soft: oklch(96.8% 0.003 105);
   --rolecue-ink: #262626;
   --rolecue-ink-rgb: 38 38 38;
@@ -127,6 +128,9 @@
      declarative in React or inside shadcn primitives. */
   --duration-quick: 150ms;
   --duration-fast: 250ms;
+  --duration-slow: 400ms;
+  --rolecue-cta-duration: 300ms;
+  --rolecue-press-duration: 100ms;
   --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
   --shake-distance: 6px;
   --shake-overshoot: 4px;
@@ -225,12 +229,15 @@
   }
 }
 
-.dark {
+/* The landing's server-rendered marker keeps the page and portaled navigation
+   light, including first paint when a dark preference was saved elsewhere. */
+.dark:not(:has([data-rolecue-theme="light"])) {
   color-scheme: dark;
 
   --rolecue-canvas: #191a1c;
   --rolecue-canvas-rgb: 25 26 28;
   --rolecue-surface: #232529;
+  --rolecue-hero-surface: oklch(27% 0.04 235);
   --rolecue-surface-soft: #2c2f34;
   --rolecue-ink: #f2f3f5;
   --rolecue-ink-rgb: 242 243 245;

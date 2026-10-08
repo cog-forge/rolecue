@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import Script from "next/script";
+import "goey-toast/styles.css";
 import "./globals.css";
 import { site } from "@/config/site";
 import { AppProviders } from "@/providers/app-providers";

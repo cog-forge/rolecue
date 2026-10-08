@@ -21,98 +21,14 @@
 
 ## Design source of truth
 
-- The canonical RoleCue design repository is:
-  `https://github.com/cog-forge/role-cue-design`.
+- For UI work, follow the current `DESIGN.md` in the [RoleCue design repository](https://github.com/cog-forge/role-cue-design).
 
-- Before every material UI implementation or visual change, read the current:
-  `DESIGN.md`
-  from the canonical design repository.
+<!-- BEGIN:nextjs-agent-rules -->
 
-- A local sibling or cached checkout may be used when available for speed, but it is only a convenience. Production implementation must never depend on a local sibling path existing.
+# This is NOT the Next.js you know
 
-- Relevant design artifacts should be inspected from the canonical design repository, especially:
-  - `brand/`
-  - `references/open-design/`
-  - `references/open-design/source-system/`
-  - `screens/`
-  - `flows/`
-  - the relevant current screen notes/inventory when implementing product screens.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
 
-## Visual authority model
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
-- OpenDesign is RoleCue's structural / interaction / editorial reference.
-- RoleCue's current brand contract is the branding authority.
-
-OpenDesign defines how the interface is constructed:
-- composition
-- layout geometry
-- typography hierarchy
-- spacing rhythm
-- material/surface treatment
-- border and elevation discipline
-- responsive behavior
-- interaction patterns
-- motion restraint
-- editorial presentation grammar
-
-RoleCue defines whose interface it is:
-- canonical logo / mark
-- canonical blue identity
-- product-specific brand expression
-- copy and product semantics
-- action hierarchy
-
-Use this rule:
-
-**Reuse the grammar, not the branding.**
-
-Do not copy OpenDesign's green/lime identity into RoleCue.
-
-## Current RoleCue visual thesis
-
-- Canonical RoleCue identity is blue.
-- Blue is restrained identity/accent, not a full-interface fill color.
-- Near-black remains the primary text and primary-action authority.
-- Neutral near-white and white surfaces dominate the interface.
-- Media/artwork may carry substantially more chroma than interface chrome.
-
-Use this principle:
-
-**Blue identifies RoleCue. Black drives action. Media carries emotion.**
-
-Explicitly avoid:
-- blue-purple AI gradients
-- neon/glow
-- glassmorphism
-- cyberpunk styling
-- generic AI blobs
-- excessive pill UI
-- dense card soup
-- arbitrary blue decoration everywhere
-- recoloring third-party provider brands into RoleCue blue
-
-## OpenDesign source-code references
-
-- It is allowed to inspect or temporarily clone OpenDesign source code when a task explicitly asks to study an existing OpenDesign component or interaction.
-- Treat OpenDesign source as reference material, not production source.
-- Study geometry, responsive logic, typography, interaction physics, motion, and composition.
-- Re-author the implementation using RoleCue's actual frontend architecture:
-  Next.js App Router, React, Tailwind CSS v4, shadcn/ui, and Motion where justified.
-- Do not copy OpenDesign branding, copywriting, product identity, or source-specific architectural assumptions.
-- Do not add OpenDesign as a runtime dependency, submodule, workspace dependency, or production import.
-- Temporary/reference clones must live outside the RoleCue repository and must not be committed.
-
-## Brand asset rule
-
-- Use the newest explicitly approved RoleCue brand direction.
-- The current product direction is the team-approved blue RoleCue identity.
-- Some historical artifacts in the design repository may still contain the older Split Halo/green direction; historical assets do not override the current `DESIGN.md`.
-- Do not fabricate, recolor, auto-vectorize, or substitute brand assets.
-- Runtime assets must be copied into production-owned `frontend/` paths when authorized by the task.
-
-## Implementation contract
-
-- Approved design/reference output is a visual and interaction contract, not production HTML/CSS/JS.
-- Preserve visual grammar, layout, spacing, typography hierarchy, responsive behavior, motion intent, and interaction intent while implementing with the project's real architecture.
-- When implementation and an older artifact disagree, the newest explicit RoleCue design contract wins.
-- When product behavior is unclear, do not invent it from a reference website.
+<!-- END:nextjs-agent-rules -->
