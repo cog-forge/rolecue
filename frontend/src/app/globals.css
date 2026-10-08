@@ -7,6 +7,7 @@
 
 @theme inline {
   --color-rolecue-brand: var(--rolecue-brand-blue);
+  --color-workspace-accent: #5b8def;
   --font-heading: var(--rolecue-font-sans);
   --font-sans: var(--rolecue-font-sans);
   --font-mono: var(--rolecue-font-mono);
@@ -222,6 +223,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: var(--rolecue-surface-dark);
   --foreground: var(--rolecue-on-dark);
   --card: var(--rolecue-surface-dark-raised);
@@ -253,6 +255,20 @@
   --sidebar-accent-foreground: var(--rolecue-on-dark);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: var(--rolecue-brand-blue);
+}
+
+/* The root snapshot pseudo-elements cannot be targeted by Tailwind utilities.
+   These rules are enabled only during the workspace's circular theme reveal. */
+html[data-theme-reveal]::view-transition-old(root),
+html[data-theme-reveal]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html[data-theme-reveal]::view-transition-old(root) {
+  z-index: 1;
+}
+html[data-theme-reveal]::view-transition-new(root) {
+  z-index: 2;
 }
 
 @layer base {

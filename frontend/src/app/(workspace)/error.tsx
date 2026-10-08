@@ -1,6 +1,6 @@
 "use client";
 import { Button } from "@/components/ui/button";
-export default function CandidateError({
+export default function WorkspaceError({
   reset,
 }: {
   error: Error & { digest?: string };
