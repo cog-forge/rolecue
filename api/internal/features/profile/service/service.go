@@ -28,5 +28,12 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, role string, patch d
 	if err := validatePatch(&patch, role); err != nil {
 		return domain.Profile{}, err
 	}
+	current, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return domain.Profile{}, err
+	}
+	if err := validateOnboarding(current, patch); err != nil {
+		return domain.Profile{}, err
+	}
 	return s.repository.Update(ctx, id, role, patch)
 }
