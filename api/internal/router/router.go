@@ -22,6 +22,7 @@ type Router struct {
 	walletHandler       *handler.WalletHandler
 	questionBankHandler *handler.QuestionBankHandler
 	moderationHandler   *handler.ModerationHandler
+	onboardingHandler   *handler.OnboardingHandler
 }
 
 func NewRouter(
@@ -34,6 +35,7 @@ func NewRouter(
 	walletHandler *handler.WalletHandler,
 	questionBankHandler *handler.QuestionBankHandler,
 	moderationHandler *handler.ModerationHandler,
+	onboardingHandler *handler.OnboardingHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -45,6 +47,7 @@ func NewRouter(
 		walletHandler:       walletHandler,
 		questionBankHandler: questionBankHandler,
 		moderationHandler:   moderationHandler,
+		onboardingHandler:   onboardingHandler,
 	}
 }
 
@@ -72,7 +75,9 @@ func (r *Router) Setup() *gin.Engine {
 	profiles.GET("", r.profileHandler.Get)
 	profiles.PATCH("", r.profileHandler.Update)
 
-	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	router.POST("/onboarding/role", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), r.onboardingHandler.SelectRole)
+
+	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	jds.POST("/analyze", r.jdHandler.Analyze)
 	jds.POST("", r.jdHandler.Create)
 	jds.GET("", r.jdHandler.List)
