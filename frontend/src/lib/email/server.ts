@@ -48,9 +48,14 @@ async function sendAuthEmail(
     !("id" in result) ||
     typeof result.id !== "string"
   ) {
+    console.error("Resend auth email rejected", {
+      kind,
+      status: response.status,
+    });
     // Never include recipient, link, credential or the provider response in logs/errors.
     throw new Error(`Unable to send ${kind} email`);
   }
+  console.info("Resend auth email accepted", { kind, emailId: result.id });
 }
 
 export const sendVerificationEmail = (user: EmailUser, url: string) =>
