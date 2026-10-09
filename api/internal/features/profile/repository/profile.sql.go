@@ -14,22 +14,26 @@ import (
 
 const getProfile = `-- name: GetProfile :one
 SELECT id, name, email, image, coalesce(role, 'candidate')::text AS role,
-       email_verified, company_name, company_website, created_at, updated_at
+       email_verified, company_name, company_website, created_at, updated_at,
+       (coalesce(role, 'candidate') = 'admin' OR onboarding_status IN ('role_selected', 'completed'))::boolean AS onboarding_role_selected,
+       (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed')::boolean AS onboarding_completed
 FROM public.users
 WHERE id = $1
 `
 
 type GetProfileRow struct {
-	ID             uuid.UUID
-	Name           string
-	Email          string
-	Image          *string
-	Role           string
-	EmailVerified  bool
-	CompanyName    *string
-	CompanyWebsite *string
-	CreatedAt      pgtype.Timestamptz
-	UpdatedAt      pgtype.Timestamptz
+	ID                     uuid.UUID
+	Name                   string
+	Email                  string
+	Image                  *string
+	Role                   string
+	EmailVerified          bool
+	CompanyName            *string
+	CompanyWebsite         *string
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+	OnboardingRoleSelected bool
+	OnboardingCompleted    bool
 }
 
 func (q *Queries) GetProfile(ctx context.Context, id uuid.UUID) (GetProfileRow, error) {
@@ -46,6 +50,8 @@ func (q *Queries) GetProfile(ctx context.Context, id uuid.UUID) (GetProfileRow, 
 		&i.CompanyWebsite,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardingRoleSelected,
+		&i.OnboardingCompleted,
 	)
 	return i, err
 }
@@ -67,12 +73,19 @@ UPDATE public.users SET
     image = CASE WHEN $3::boolean THEN $4::text ELSE image END,
     company_name = CASE WHEN $5::boolean THEN $6::text ELSE company_name END,
     company_website = CASE WHEN $7::boolean THEN $8::text ELSE company_website END,
+    onboarding_status = CASE WHEN role = 'admin' THEN onboarding_status ELSE 'completed'::public.onboarding_status END,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $9
     AND coalesce(role, 'candidate') = $10::text
     AND NOT coalesce(is_locked, false) AND email_verified
+    AND (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed' OR (
+        onboarding_status = 'role_selected' AND $1::boolean
+        AND (role = 'candidate' OR ($5::boolean AND $7::boolean))
+    ))
 RETURNING id, name, email, image, coalesce(role, 'candidate')::text AS role,
-          email_verified, company_name, company_website, created_at, updated_at
+          email_verified, company_name, company_website, created_at, updated_at,
+       (coalesce(role, 'candidate') = 'admin' OR onboarding_status IN ('role_selected', 'completed'))::boolean AS onboarding_role_selected,
+       (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed')::boolean AS onboarding_completed
 `
 
 type UpdateProfileParams struct {
@@ -89,16 +102,18 @@ type UpdateProfileParams struct {
 }
 
 type UpdateProfileRow struct {
-	ID             uuid.UUID
-	Name           string
-	Email          string
-	Image          *string
-	Role           string
-	EmailVerified  bool
-	CompanyName    *string
-	CompanyWebsite *string
-	CreatedAt      pgtype.Timestamptz
-	UpdatedAt      pgtype.Timestamptz
+	ID                     uuid.UUID
+	Name                   string
+	Email                  string
+	Image                  *string
+	Role                   string
+	EmailVerified          bool
+	CompanyName            *string
+	CompanyWebsite         *string
+	CreatedAt              pgtype.Timestamptz
+	UpdatedAt              pgtype.Timestamptz
+	OnboardingRoleSelected bool
+	OnboardingCompleted    bool
 }
 
 func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (UpdateProfileRow, error) {
@@ -126,6 +141,8 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (U
 		&i.CompanyWebsite,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OnboardingRoleSelected,
+		&i.OnboardingCompleted,
 	)
 	return i, err
 }
