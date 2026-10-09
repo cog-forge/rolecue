@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => ({
     role: "candidate" as "candidate" | "recruiter" | "admin",
     email_verified: true,
     is_locked: false,
+    onboarding_role_selected: true,
+    onboarding_completed: true,
     image: null as string | null,
   },
 }));
@@ -228,14 +230,22 @@ describe("own profile screen", () => {
         "Your profile has been saved",
       ),
     );
-    fireEvent.change(name, { target: { value: "Next draft" } });
+    const nextName = screen.getByLabelText("Display name");
+    await act(async () => {
+      fireEvent.change(nextName, { target: { value: "Next draft" } });
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "You have unsaved changes",
+      ),
+    );
     await act(async () => {
       client.setQueryData(profileKeys.me(profile.id), {
         ...profile,
         full_name: "Elsewhere",
       });
     });
-    expect(name).toHaveValue("Next draft");
+    expect(nextName).toHaveValue("Next draft");
   });
   it("keeps a dirty draft when a background refresh fails", async () => {
     const client = mount();

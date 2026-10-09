@@ -18,6 +18,8 @@ async function session(page: Page, role: Role) {
           role,
           email_verified: true,
           is_locked: false,
+          onboarding_role_selected: true,
+          onboarding_completed: true,
         },
       }),
     }),
@@ -100,6 +102,7 @@ test("collapse, deep links, back and refresh preserve navigation state", async (
     page.getByRole("link", { name: "Target JDs", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Interview History" }).click();
+  await expect(page).toHaveURL(/\/history$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/interviews\/new\/setup$/);
   await expect(
