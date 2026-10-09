@@ -1,11 +1,16 @@
 package provider
 
 import (
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/cog-forge/rolecue/api/internal/config"
-	"github.com/cog-forge/rolecue/api/internal/features/auth"
+	"github.com/cog-forge/rolecue/api/internal/features/auth/repository"
+	"github.com/cog-forge/rolecue/api/internal/features/auth/service"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func ProvideAuthService(cfg *config.Config, pool *pgxpool.Pool) auth.AuthService {
-	return auth.NewService(auth.NewHTTPVerifier(cfg.Auth), pool)
+func ProvideAuthRepository(pool *pgxpool.Pool) *repository.Repository {
+	return repository.NewRepository(pool)
+}
+
+func ProvideAuthService(cfg *config.Config, repo *repository.Repository) service.AuthService {
+	return service.NewService(service.NewHTTPVerifier(cfg.Auth), repo)
 }

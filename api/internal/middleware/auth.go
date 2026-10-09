@@ -3,18 +3,19 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/cog-forge/rolecue/api/internal/config"
-	"github.com/cog-forge/rolecue/api/internal/features/auth"
+	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
+	authservice "github.com/cog-forge/rolecue/api/internal/features/auth/service"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/cog-forge/rolecue/api/pkg/response"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 const currentUserIDKey = "auth.middleware.currentUserID"
 const currentUserKey = "auth.middleware.currentUser"
 
-func RequireAuth(service auth.AuthService, cors config.CORSConfig) gin.HandlerFunc {
+func RequireAuth(service authservice.AuthService, cors config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store")
 		switch c.Request.Method {
@@ -47,12 +48,12 @@ func RequireAuth(service auth.AuthService, cors config.CORSConfig) gin.HandlerFu
 	}
 }
 
-func CurrentUser(c *gin.Context) (auth.User, bool) {
+func CurrentUser(c *gin.Context) (authdomain.User, bool) {
 	if c == nil {
-		return auth.User{}, false
+		return authdomain.User{}, false
 	}
 	value, exists := c.Get(currentUserKey)
-	user, ok := value.(auth.User)
+	user, ok := value.(authdomain.User)
 	return user, exists && ok
 }
 func CurrentUserID(c *gin.Context) (uuid.UUID, bool) {

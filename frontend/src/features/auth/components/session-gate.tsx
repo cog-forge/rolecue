@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { createContext, useContext, useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
@@ -21,16 +21,21 @@ const meSchema = z.object({
     role: z.enum(["candidate", "recruiter", "admin"]),
     email_verified: z.boolean(),
     is_locked: z.boolean(),
+    image: z.string().nullable().optional(),
   }),
 });
-export function SessionGate({
-  children,
-  requireAdmin = false,
-}: {
-  children: React.ReactNode;
-  requireAdmin?: boolean;
-}) {
+export type SessionUser = z.infer<typeof meSchema>["data"];
+const SessionContext = createContext<SessionUser | null>(null);
+
+export function useSessionUser() {
+  const user = useContext(SessionContext);
+  if (!user) throw new Error("Session user requires a validated SessionGate");
+  return user;
+}
+
+export function SessionGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const cache = useQueryClient();
   const session = useQuery({
     queryKey: ["auth", "me"],
     queryFn: async ({ signal }) =>
@@ -43,6 +48,15 @@ export function SessionGate({
         isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)
       ) && count < 1,
   });
+  // Revalidate cached data on entry without destroying mounted page state on
+  // every background focus check. Any failed recheck still hides the content.
+  const [initialSessionUpdates] = useState(
+    () => cache.getQueryState(["auth", "me"])?.dataUpdateCount ?? 0,
+  );
+  const checkingEntry =
+    session.isFetching &&
+    (cache.getQueryState(["auth", "me"])?.dataUpdateCount ?? 0) <=
+      initialSessionUpdates;
   const unauthorized =
     isAxiosError(session.error) && session.error.response?.status === 401;
   const forbidden =
@@ -113,7 +127,7 @@ export function SessionGate({
     account.error,
     account.isFetching,
   ]);
-  if (session.isPending || unauthorized)
+  if (session.isPending || unauthorized || (!session.error && checkingEntry))
     return <p role="status">Checking your session…</p>;
   if (forbidden && account.isPending)
     return <p role="status">Checking your account…</p>;
@@ -130,10 +144,7 @@ export function SessionGate({
         checking={session.isFetching || account.isFetching}
       />
     );
-  if (
-    (forbidden && !account.error) ||
-    (requireAdmin && session.data?.role !== "admin" && !session.error)
-  )
+  if (forbidden && !account.error)
     return <p role="alert">You do not have access to this page.</p>;
   // An old successful result must never render protected content after a failed recheck.
   if (session.error)
@@ -145,5 +156,10 @@ export function SessionGate({
         </Button>
       </div>
     );
-  return children;
+  if (!session.data) return null;
+  return (
+    <SessionContext.Provider value={session.data}>
+      {children}
+    </SessionContext.Provider>
+  );
 }
