@@ -52,6 +52,7 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 
 // Update godoc
 // @Summary Update allowed fields in your own profile
+// @Description While onboarding is pending, PATCH requires full_name and (for recruiters) company_name/company_website and atomically marks completion.
 // @Description Omitted keys are unchanged. Null removes image/company values; full_name cannot be null. Only recruiters may change company fields. Trusted Origin required. Unknown fields reject the whole request.
 // @Tags profile
 // @Accept json

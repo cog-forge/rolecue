@@ -41,7 +41,15 @@ async function mockProfile(
         headers,
         json:
           sessionStatus === 200
-            ? { success: true, data: { ...profile, is_locked: false } }
+            ? {
+                success: true,
+                data: {
+                  ...profile,
+                  is_locked: false,
+                  onboarding_role_selected: true,
+                  onboarding_completed: true,
+                },
+              }
             : {
                 success: false,
                 error: { code: "INVALID_TOKEN", message: "Session expired" },

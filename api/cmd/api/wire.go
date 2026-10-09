@@ -38,6 +38,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideProfileRepository,
 		provider.ProvideProfileService,
 		provider.ProvideProfileHandler,
+		provider.ProvideOnboardingHandler,
 		provider.ProvideRouter,
 		provider.ProvideHTTPServer,
 		wire.Struct(new(Application), "*"),

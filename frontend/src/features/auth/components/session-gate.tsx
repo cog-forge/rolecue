@@ -4,7 +4,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useRouter } from "next/navigation";
-import { z } from "zod";
+import { meSchema, type SessionUser } from "../schemas/session-schema";
+export type { SessionUser } from "../schemas/session-schema";
 import { apiClient } from "@/lib/api/client";
 import { routes } from "@/config/routes";
 import { Button } from "@/components/ui/button";
@@ -12,19 +13,6 @@ import { authClient } from "@/lib/auth/client";
 import { VerificationNotice } from "./verification-notice";
 import { gooeyToast } from "goey-toast";
 
-const meSchema = z.object({
-  success: z.literal(true),
-  data: z.object({
-    id: z.uuid(),
-    email: z.email(),
-    full_name: z.string(),
-    role: z.enum(["candidate", "recruiter", "admin"]),
-    email_verified: z.boolean(),
-    is_locked: z.boolean(),
-    image: z.string().nullable().optional(),
-  }),
-});
-export type SessionUser = z.infer<typeof meSchema>["data"];
 const SessionContext = createContext<SessionUser | null>(null);
 
 export function useSessionUser() {
