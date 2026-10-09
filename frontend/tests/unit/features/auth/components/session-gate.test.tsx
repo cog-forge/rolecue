@@ -31,6 +31,8 @@ const user = {
   role: "candidate",
   email_verified: true,
   is_locked: false,
+  onboarding_role_selected: true,
+  onboarding_completed: true,
 };
 function Content() {
   const session = useSessionUser();
