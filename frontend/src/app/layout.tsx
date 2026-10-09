@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Plus_Jakarta_Sans } from "next/font/google";
+import "goey-toast/styles.css";
 import "./globals.css";
 import { site } from "@/config/site";
 import { AppProviders } from "@/providers/app-providers";
@@ -19,6 +21,13 @@ const albertSans = localFont({
   ],
   display: "swap",
   variable: "--font-albert-sans",
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-cta",
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -45,12 +54,12 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `var t="system";try{var p=JSON.parse(localStorage.getItem("rolecue.workspace-preferences")||"null");t=p?.state?.theme??p?.theme??t;if(t!=="light"&&t!=="dark"&&t!=="system")t="system"}catch{}var w=/^\\/(admin|recruiter|dashboard|interviews|reports|target-jds|avatar-studio|jobs|applications|history|billing|profile|settings)(\\/|$)/.test(location.pathname);document.documentElement.classList.toggle("dark",w&&(t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches)))`,
+            __html: `var t="system";try{var p=JSON.parse(localStorage.getItem("rolecue.workspace-preferences")||"null");t=p?.state?.theme??p?.theme??t;if(t!=="light"&&t!=="dark"&&t!=="system")t="system"}catch{}var w=/^\/(admin|recruiter|dashboard|interviews|reports|target-jds|avatar-studio|jobs|applications|history|billing|profile|settings)(\/|$)/.test(location.pathname);document.documentElement.classList.toggle("dark",w&&(t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches)))`,
           }}
         />
       </head>
       <body
-        className={`${albertSans.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
+        className={`${albertSans.variable} ${plusJakartaSans.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
         <AppProviders>{children}</AppProviders>
       </body>

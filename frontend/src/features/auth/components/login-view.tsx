@@ -7,7 +7,7 @@ export interface LoginViewProps {
 
 export function LoginView({ children }: LoginViewProps) {
   return (
-    <main className="min-h-screen bg-[#fafafa] text-[#262626] antialiased">
+    <main className="min-h-screen bg-background text-foreground antialiased">
       <div className="flex min-h-screen">
         {/* Left column: Authentication surface */}
         <div className="flex min-h-screen w-full flex-col lg:w-1/2">
@@ -25,7 +25,7 @@ export function LoginView({ children }: LoginViewProps) {
           aria-hidden="true"
           className="relative hidden min-h-screen lg:block lg:w-1/2 p-3"
         >
-          <div className="relative h-full w-full overflow-hidden rounded-3xl border border-black/5 shadow-[0_4px_32px_rgba(0,0,0,0.04)] bg-[#f0f0f0]">
+          <div className="relative h-full w-full overflow-hidden rounded-3xl border border-border bg-muted shadow-(--rolecue-shadow-low)">
             <Image
               src="/images/login-art.webp"
               alt=""

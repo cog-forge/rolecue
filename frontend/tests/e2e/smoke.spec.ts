@@ -1,31 +1,31 @@
 import { expect, test } from "@playwright/test";
+
 test("public navigation and protected routes enforce login", async ({
   page,
 }) => {
   await page.goto("/");
   await expect(
     page.getByRole("heading", {
-      name: "Practice the role before the room.",
+      name: "Walk in ready.",
     }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Start a practice" }).first(),
+    page.getByRole("link", { name: "Start now" }).first(),
   ).toBeVisible();
+  await expect(
+    page.getByText("Practice the role before the room."),
+  ).toBeVisible();
+  await expect(page.getByText("Real interview practice").first()).toBeVisible();
+  await expect(page.getByText("ROLE-BASED").first()).toBeVisible();
   await page.keyboard.press("Tab");
   await expect(page.locator(":focus")).toHaveAttribute("href", "#main-content");
+  await page.getByRole("button", { name: "Show Set up your session" }).click();
   await expect(
-    page.getByRole("link", { name: "See the method" }),
-  ).toHaveAttribute("href", "#method");
-  await page.getByRole("tab", { name: "Read the role" }).focus();
-  await page.keyboard.press("ArrowRight");
+    page.getByRole("button", { name: "Show Set up your session" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Can I start for free?" }).click();
   await expect(
-    page.getByRole("tab", { name: "Try the response" }),
-  ).toHaveAttribute("aria-selected", "true");
-  await page
-    .getByRole("button", { name: "Is RoleCue trying to script an interview?" })
-    .click();
-  await expect(
-    page.getByText(/centers reflection, examples, and clearer choices/i),
+    page.getByText(/you can create an account and start practicing for free/i),
   ).toBeVisible();
   await page.route("**/auth/me", (route) =>
     route.fulfill({
@@ -60,13 +60,13 @@ test("FAQ honors reduced-motion preferences", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
 
-  await page
-    .getByRole("button", { name: "Is RoleCue trying to script an interview?" })
-    .click();
+  await page.getByRole("button", { name: "Can I start for free?" }).click();
 
   const content = page
     .locator('[data-slot="accordion-content"]')
-    .filter({ hasText: /centers reflection, examples, and clearer choices/i });
+    .filter({
+      hasText: /you can create an account and start practicing for free/i,
+    });
 
   await expect(content).toBeVisible();
   await expect(content).toHaveCSS("animation-name", "none");

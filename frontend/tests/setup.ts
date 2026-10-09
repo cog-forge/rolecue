@@ -60,4 +60,19 @@ Object.defineProperty(globalThis, "IntersectionObserver", {
   writable: true,
 });
 
+class TestResizeObserver {
+  constructor(private readonly callback: ResizeObserverCallback) {}
+  observe() {
+    this.callback([], this);
+  }
+  unobserve() {}
+  disconnect() {}
+}
+
+Object.defineProperty(globalThis, "ResizeObserver", {
+  configurable: true,
+  value: TestResizeObserver,
+  writable: true,
+});
+
 afterEach(cleanup);

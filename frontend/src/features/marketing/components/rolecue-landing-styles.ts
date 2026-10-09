@@ -16,7 +16,7 @@ export const sectionIntro =
 const buttonBase =
   "inline-flex min-h-[3.2rem] items-center justify-center gap-[0.62rem] rounded-full border px-5 py-[0.78rem] text-[0.88rem] no-underline [font-variation-settings:'wght'_700] transition-[transform,border-color,color,background,box-shadow] duration-(--duration-quick) ease-(--ease-smooth-out) hover:-translate-y-[3px] motion-reduce:transform-none! motion-reduce:transition-none!";
 
-export const primaryButton = `${buttonBase} border-transparent bg-(--rolecue-button-primary) text-(--rolecue-on-dark) shadow-(--rolecue-shadow-low) hover:bg-(--rolecue-button-primary-hover) hover:text-(--rolecue-on-dark) hover:shadow-(--rolecue-shadow-float)`;
+export const primaryButton = `${buttonBase} border-transparent bg-(--rolecue-button-primary) text-(--rolecue-on-primary) shadow-(--rolecue-shadow-low) hover:bg-(--rolecue-button-primary-hover) hover:text-(--rolecue-on-primary) hover:shadow-(--rolecue-shadow-float)`;
 
 export const secondaryButton = `${buttonBase} border-(--rolecue-border-strong) bg-(--rolecue-button-secondary) text-(--rolecue-ink) hover:border-[rgb(var(--rolecue-ink-rgb)/42%)] hover:bg-(--rolecue-surface) hover:shadow-(--rolecue-shadow-low)`;
 
