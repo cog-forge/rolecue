@@ -133,8 +133,8 @@ export function LoginForm({
       {verificationEmail && (
         <div className="mb-4 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-[#5c5c5c]">
           <p>
-            Please verify your email before signing in. We sent a verification
-            link if your account needs one.
+            Please verify your email before signing in. You can request a new
+            verification link below.
           </p>
           <Button
             type="button"
