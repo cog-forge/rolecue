@@ -36,6 +36,16 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeForbidden:               http.StatusForbidden,
 	apperror.CodeValidation:              http.StatusBadRequest,
 	apperror.CodeInternal:                http.StatusInternalServerError,
+
+	// Wallet / payment domain.
+	apperror.CodeWalletNotFound:          http.StatusNotFound,
+	apperror.CodeInsufficientBalance:     http.StatusUnprocessableEntity,
+	apperror.CodePackageNotFound:         http.StatusNotFound,
+	apperror.CodeCoinPackageNotFound:     http.StatusNotFound,
+	apperror.CodeTransactionNotFound:     http.StatusNotFound,
+	apperror.CodePaymentGatewayError:     http.StatusBadGateway,
+	apperror.CodePayOSError:              http.StatusBadGateway,
+	apperror.CodeWebhookSignatureInvalid: http.StatusBadRequest,
 }
 
 func OK(c *gin.Context, data interface{}) {

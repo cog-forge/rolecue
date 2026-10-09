@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 // Config holds the entire system configuration
@@ -22,6 +23,7 @@ type Config struct {
 	Logger   LoggerConfig   `mapstructure:"logger"`
 	Tracer   TracerConfig   `mapstructure:"tracer"`
 	LLM      LLMConfig      `mapstructure:"llm"`
+	PayOS    PayOSConfig    `mapstructure:"payos"`
 }
 
 type AppConfig struct {
@@ -135,8 +137,17 @@ type LLMConfig struct {
 	MaxRetries int           `mapstructure:"max_retries"`
 }
 
+type PayOSConfig struct {
+	ClientID    string `mapstructure:"client_id"`
+	APIKey      string `mapstructure:"api_key"`
+	ChecksumKey string `mapstructure:"checksum_key"`
+}
+
 // Load loads configuration from file and overrides with environment variables
 func Load(configPath string) (*Config, error) {
+	_ = gotenv.Load("../.env")
+	_ = gotenv.Load(".env")
+
 	v := viper.New()
 
 	setDefaults(v)
@@ -178,6 +189,9 @@ func Load(configPath string) (*Config, error) {
 		"llm.model":           "LLM_MODEL",
 		"llm.timeout":         "LLM_TIMEOUT",
 		"llm.max_retries":     "LLM_MAX_RETRIES",
+		"payos.client_id":     "PAYOS_CLIENT_ID",
+		"payos.api_key":       "PAYOS_API_KEY",
+		"payos.checksum_key":  "PAYOS_CHECKSUM_KEY",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
