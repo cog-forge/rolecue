@@ -579,3 +579,382 @@ func TestRefundRecruitmentCapacity_Success(t *testing.T) {
 	mockPayOS.AssertNotCalled(t, "CreatePaymentLink")
 	mockRepo.AssertExpectations(t)
 }
+
+// RefundRecruitmentCapacity auto-creates the wallet when none exists yet.
+func TestRefundRecruitmentCapacity_WalletAutoCreated(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	recruiterID := uuid.New()
+	newWalletID := uuid.New()
+
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).
+		Return(domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "not found"))
+	newWallet := domain.Wallet{ID: newWalletID, UserID: recruiterID, Balance: 0}
+	mockRepo.On("CreateWallet", mock.Anything, recruiterID).Return(newWallet, nil)
+	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), newWalletID, int32(30)).
+		Return(domain.Wallet{ID: newWalletID, Balance: 30}, nil)
+	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.Anything).
+		Return(domain.Transaction{ID: uuid.New()}, nil)
+
+	err := svc.RefundRecruitmentCapacity(context.Background(), recruiterID, 30)
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// ChargeRecruitmentCapacity
+// ---------------------------------------------------------------------------
+
+func TestChargeRecruitmentCapacity_Success(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	recruiterID := uuid.New()
+	walletID := uuid.New()
+	wallet := domain.Wallet{ID: walletID, UserID: recruiterID, Balance: 200}
+
+	// Must use GetWalletForUpdate (FOR UPDATE lock) — not GetWalletByUserID.
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
+	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(150)).
+		Return(domain.Wallet{ID: walletID, Balance: 150}, nil)
+	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.MatchedBy(func(tx domain.Transaction) bool {
+		return tx.From != nil && *tx.From == recruiterID &&
+			tx.Amount == 50 &&
+			tx.Status == domain.StatusSuccess &&
+			tx.Description == "Recruitment interview capacity charge"
+	})).Return(domain.Transaction{ID: uuid.New()}, nil)
+
+	err := svc.ChargeRecruitmentCapacity(context.Background(), recruiterID, 50)
+	assert.NoError(t, err)
+	mockPayOS.AssertNotCalled(t, "CreatePaymentLink")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestChargeRecruitmentCapacity_InsufficientBalance(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	recruiterID := uuid.New()
+	wallet := domain.Wallet{ID: uuid.New(), UserID: recruiterID, Balance: 10}
+
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
+
+	err := svc.ChargeRecruitmentCapacity(context.Background(), recruiterID, 50)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeInsufficientBalance))
+	mockRepo.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// ChargeAvatarCapacity
+// ---------------------------------------------------------------------------
+
+func TestChargeAvatarCapacity_Success(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	recruiterID := uuid.New()
+	walletID := uuid.New()
+	wallet := domain.Wallet{ID: walletID, UserID: recruiterID, Balance: 300}
+
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
+	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(200)).
+		Return(domain.Wallet{ID: walletID, Balance: 200}, nil)
+	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.MatchedBy(func(tx domain.Transaction) bool {
+		return tx.From != nil && *tx.From == recruiterID &&
+			tx.Amount == 100 &&
+			tx.Status == domain.StatusSuccess &&
+			tx.Description == "Avatar capacity purchase charge"
+	})).Return(domain.Transaction{ID: uuid.New()}, nil)
+
+	err := svc.ChargeAvatarCapacity(context.Background(), recruiterID, 100)
+	assert.NoError(t, err)
+	mockPayOS.AssertNotCalled(t, "CreatePaymentLink")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestChargeAvatarCapacity_InsufficientBalance(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	recruiterID := uuid.New()
+	wallet := domain.Wallet{ID: uuid.New(), UserID: recruiterID, Balance: 0}
+
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
+
+	err := svc.ChargeAvatarCapacity(context.Background(), recruiterID, 100)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeInsufficientBalance))
+	mockRepo.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// Concurrent balance safety — GetWalletForUpdate is always used for mutations
+// ---------------------------------------------------------------------------
+
+// deductBalance must fail fast with InsufficientBalance when the wallet
+// does not exist at all (e.g. balance is effectively 0 — concurrent debit
+// race is safe because GetWalletForUpdate holds a DB-level row lock).
+func TestDeductBalance_WalletNotFound_GivesInsufficientBalance(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).
+		Return(domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "not found"))
+
+	err := svc.ChargePracticeInterview(context.Background(), userID, 10)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeInsufficientBalance),
+		"missing wallet must be treated as insufficient balance, not an internal error")
+	// Balance update must not be attempted.
+	mockRepo.AssertNotCalled(t, "UpdateWalletBalance")
+	mockRepo.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// Failed DB updates propagate correctly
+// ---------------------------------------------------------------------------
+
+func TestDeductBalance_UpdateWalletFails(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	walletID := uuid.New()
+	wallet := domain.Wallet{ID: walletID, UserID: userID, Balance: 200}
+	dbErr := errors.New("db: connection reset")
+
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).Return(wallet, nil)
+	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(150)).
+		Return(domain.Wallet{}, dbErr)
+
+	err := svc.ChargePracticeInterview(context.Background(), userID, 50)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	// InsertTransaction must NOT be called if the balance update failed.
+	mockRepo.AssertNotCalled(t, "InsertTransaction")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestRefundRecruitmentCapacity_UpdateWalletFails(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	recruiterID := uuid.New()
+	walletID := uuid.New()
+	wallet := domain.Wallet{ID: walletID, UserID: recruiterID, Balance: 100}
+	dbErr := errors.New("db: deadlock detected")
+
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
+	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(150)).
+		Return(domain.Wallet{}, dbErr)
+
+	err := svc.RefundRecruitmentCapacity(context.Background(), recruiterID, 50)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	mockRepo.AssertNotCalled(t, "InsertTransaction")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestDeductBalance_InsertTransactionFails(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	walletID := uuid.New()
+	wallet := domain.Wallet{ID: walletID, UserID: userID, Balance: 100}
+	dbErr := errors.New("db: unique violation")
+
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).Return(wallet, nil)
+	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(50)).
+		Return(domain.Wallet{ID: walletID, Balance: 50}, nil)
+	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.Anything).
+		Return(domain.Transaction{}, dbErr)
+
+	err := svc.ChargePracticeInterview(context.Background(), userID, 50)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	mockRepo.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// ListTransactions
+// ---------------------------------------------------------------------------
+
+func TestListTransactions_Success(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	txs := []domain.Transaction{
+		{ID: uuid.New(), Amount: 100, Status: domain.StatusSuccess},
+		{ID: uuid.New(), Amount: 50, Status: domain.StatusPending},
+	}
+	// page=1, pageSize=20 → limit=20, offset=0
+	mockRepo.On("ListTransactionsByUserID", mock.Anything, userID, int32(20), int32(0)).
+		Return(txs, int64(2), nil)
+
+	result, total, err := svc.ListTransactions(context.Background(), userID, 1, 20)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), total)
+	assert.Len(t, result, 2)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestListTransactions_PageClampedToOne(t *testing.T) {
+	// page < 1 should be treated as page = 1 (offset 0).
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	mockRepo.On("ListTransactionsByUserID", mock.Anything, userID, int32(20), int32(0)).
+		Return([]domain.Transaction{}, int64(0), nil)
+
+	_, _, err := svc.ListTransactions(context.Background(), userID, 0, 20)
+	assert.NoError(t, err)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestListTransactions_PageSizeClamped(t *testing.T) {
+	// pageSize=0 and pageSize>100 both normalize to 20.
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+
+	// pageSize = 0 → defaults to 20
+	mockRepo.On("ListTransactionsByUserID", mock.Anything, userID, int32(20), int32(0)).
+		Return([]domain.Transaction{}, int64(0), nil).Once()
+
+	_, _, err := svc.ListTransactions(context.Background(), userID, 1, 0)
+	assert.NoError(t, err)
+
+	// pageSize = 200 → defaults to 20
+	mockRepo.On("ListTransactionsByUserID", mock.Anything, userID, int32(20), int32(0)).
+		Return([]domain.Transaction{}, int64(0), nil).Once()
+
+	_, _, err = svc.ListTransactions(context.Background(), userID, 1, 200)
+	assert.NoError(t, err)
+
+	mockRepo.AssertExpectations(t)
+}
+
+func TestListTransactions_Pagination_PageTwo(t *testing.T) {
+	// page=2, pageSize=10 → limit=10, offset=10
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	mockRepo.On("ListTransactionsByUserID", mock.Anything, userID, int32(10), int32(10)).
+		Return([]domain.Transaction{}, int64(15), nil)
+
+	_, total, err := svc.ListTransactions(context.Background(), userID, 2, 10)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(15), total)
+	mockRepo.AssertExpectations(t)
+}
+
+// Scoping: each call receives exactly the authenticated user's ID — cross-user
+// access is impossible because the service never accepts a "target user" param.
+func TestListTransactions_ScopedToOwnUserID(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userA := uuid.New()
+	userB := uuid.New()
+
+	mockRepo.On("ListTransactionsByUserID", mock.Anything, userA, int32(20), int32(0)).
+		Return([]domain.Transaction{{ID: uuid.New(), Amount: 100}}, int64(1), nil)
+	// userB must get its own separate call — service does not mix IDs.
+	mockRepo.On("ListTransactionsByUserID", mock.Anything, userB, int32(20), int32(0)).
+		Return([]domain.Transaction{}, int64(0), nil)
+
+	resultA, totalA, _ := svc.ListTransactions(context.Background(), userA, 1, 20)
+	resultB, totalB, _ := svc.ListTransactions(context.Background(), userB, 1, 20)
+
+	assert.Len(t, resultA, 1)
+	assert.Equal(t, int64(1), totalA)
+	assert.Len(t, resultB, 0)
+	assert.Equal(t, int64(0), totalB)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestListTransactions_RepoError(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	dbErr := errors.New("db: timeout")
+	mockRepo.On("ListTransactionsByUserID", mock.Anything, userID, int32(20), int32(0)).
+		Return([]domain.Transaction(nil), int64(0), dbErr)
+
+	_, _, err := svc.ListTransactions(context.Background(), userID, 1, 20)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	mockRepo.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// ListPackages
+// ---------------------------------------------------------------------------
+
+func TestListPackages_Success(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	packages := []domain.CoinPackage{
+		{ID: uuid.New(), Name: "Starter", PriceVND: 20000, CoinAmount: 50, Currency: "VND", IsActive: true},
+		{ID: uuid.New(), Name: "Pro", PriceVND: 50000, CoinAmount: 150, Currency: "VND", IsActive: true},
+	}
+	mockRepo.On("ListCoinPackages", mock.Anything).Return(packages, nil)
+
+	result, err := svc.ListPackages(context.Background())
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestListPackages_Empty(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	mockRepo.On("ListCoinPackages", mock.Anything).Return([]domain.CoinPackage{}, nil)
+
+	result, err := svc.ListPackages(context.Background())
+	assert.NoError(t, err)
+	assert.Empty(t, result)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestListPackages_RepoError(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	dbErr := errors.New("db: timeout")
+	mockRepo.On("ListCoinPackages", mock.Anything).Return([]domain.CoinPackage(nil), dbErr)
+
+	_, err := svc.ListPackages(context.Background())
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	mockRepo.AssertExpectations(t)
+}
