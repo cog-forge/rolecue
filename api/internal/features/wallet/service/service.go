@@ -145,16 +145,17 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 		}
 
 		if txRecord.Status != domain.StatusPending {
-			// Already processed
+			// Already processed — idempotent, do nothing.
 			return nil
 		}
 
-		if webhookData.Success || webhookData.Code == "00" || webhookData.Data.Code == "00" {
+		switch {
+		case webhookData.Success || webhookData.Code == "00" || webhookData.Data.Code == "00":
+			// Payment confirmed by PayOS.
 			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusSuccess)
 			if err != nil {
 				return err
 			}
-
 			if txRecord.To != nil {
 				wallet, err := s.repo.GetWalletForUpdate(ctx, q, *txRecord.To)
 				if err != nil {
@@ -173,7 +174,14 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 					return err
 				}
 			}
-		} else {
+		case webhookData.Code == "01" || webhookData.Data.Code == "01":
+			// PayOS signals payment was cancelled by the user.
+			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusCancelled)
+			if err != nil {
+				return err
+			}
+		default:
+			// Any other non-success code is treated as a failed payment.
 			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
 			if err != nil {
 				return err
@@ -257,10 +265,19 @@ func (s *Service) deductBalance(ctx context.Context, userID uuid.UUID, amount in
 	})
 }
 
+// generateOrderCode produces a cryptographically random positive int64
+// suitable for use as a PayOS orderCode. The range is [100_000_000_000,
+// 999_999_999_999] (12 digits), giving ~900 billion distinct values and
+// negligible collision probability.
 func generateOrderCode() (int64, error) {
-	nBig, err := rand.Int(rand.Reader, big.NewInt(899999))
+	const (
+		min   int64 = 100_000_000_000
+		range_ int64 = 899_999_999_999
+	)
+	nBig, err := rand.Int(rand.Reader, big.NewInt(range_))
 	if err != nil {
-		return time.Now().UnixNano() % 100000000, nil
+		// Fallback: derive from nanosecond timestamp, keeping it in range.
+		return min + (time.Now().UnixNano()%range_ + range_)%range_, nil
 	}
-	return 100000 + nBig.Int64(), nil
+	return min + nBig.Int64(), nil
 }
