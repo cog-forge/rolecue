@@ -1,6 +1,9 @@
 package apperror
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type Code string
 
@@ -20,6 +23,16 @@ const (
 	CodeJDTooLong               Code = "JD_TOO_LONG"
 	CodeExtractionFailed        Code = "EXTRACTION_FAILED"
 	CodeInvalidExtractionOutput Code = "INVALID_EXTRACTION_OUTPUT"
+
+	// Wallet / payment domain codes.
+	CodeWalletNotFound          Code = "WALLET_NOT_FOUND"
+	CodeInsufficientBalance     Code = "INSUFFICIENT_BALANCE"
+	CodePackageNotFound         Code = "PACKAGE_NOT_FOUND"
+	CodeCoinPackageNotFound     Code = "COIN_PACKAGE_NOT_FOUND"
+	CodeTransactionNotFound     Code = "TRANSACTION_NOT_FOUND"
+	CodePaymentGatewayError     Code = "PAYMENT_GATEWAY_ERROR"
+	CodePayOSError              Code = "PAYOS_ERROR"
+	CodeWebhookSignatureInvalid Code = "WEBHOOK_SIGNATURE_INVALID"
 )
 
 type AppError struct {
@@ -65,4 +78,12 @@ func (e *AppError) Unwrap() error {
 	}
 
 	return e.Err
+}
+
+func IsCode(err error, code Code) bool {
+	var appErr *AppError
+	if errors.As(err, &appErr) && appErr != nil {
+		return appErr.Code == code
+	}
+	return false
 }

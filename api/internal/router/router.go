@@ -19,6 +19,7 @@ type Router struct {
 	healthHandler  *handler.HealthHandler
 	jdHandler      *handler.JDHandler
 	profileHandler *handler.ProfileHandler
+	walletHandler  *handler.WalletHandler
 }
 
 func NewRouter(
@@ -28,6 +29,7 @@ func NewRouter(
 	healthHandler *handler.HealthHandler,
 	jdHandler *handler.JDHandler,
 	profileHandler *handler.ProfileHandler,
+	walletHandler *handler.WalletHandler,
 ) *Router {
 	return &Router{
 		cfg:            cfg,
@@ -36,6 +38,7 @@ func NewRouter(
 		healthHandler:  healthHandler,
 		jdHandler:      jdHandler,
 		profileHandler: profileHandler,
+		walletHandler:  walletHandler,
 	}
 }
 
@@ -70,5 +73,16 @@ func (r *Router) Setup() *gin.Engine {
 	jds.GET("/:id", r.jdHandler.Get)
 	jds.PUT("/:id", r.jdHandler.Update)
 	jds.DELETE("/:id", r.jdHandler.Delete)
+
+	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	{
+		wallet.GET("", r.walletHandler.GetWallet)
+		wallet.GET("/transactions", r.walletHandler.ListTransactions)
+		wallet.GET("/packages", r.walletHandler.ListPackages)
+		wallet.POST("/deposit/checkout", r.walletHandler.CreateDepositCheckout)
+	}
+
+	router.POST("/wallet/webhook/payos", r.walletHandler.HandlePayOSWebhook)
+
 	return router
 }

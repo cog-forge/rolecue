@@ -46,7 +46,11 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository2 := provider.ProvideProfileRepository(pool)
 	service := provider.ProvideProfileService(repository2)
 	profileHandler := provider.ProvideProfileHandler(service)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler)
+	walletRepository := provider.ProvideWalletRepository(pool)
+	payOSClient := provider.ProvidePayOSClient(config)
+	walletService := provider.ProvideWalletService(walletRepository, payOSClient)
+	walletHandler := provider.ProvideWalletHandler(walletService)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
