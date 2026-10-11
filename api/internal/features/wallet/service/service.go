@@ -32,6 +32,7 @@ type WalletRepository interface {
 type PayOSClient interface {
 	CreatePaymentLink(ctx context.Context, req payos.CreateLinkRequest) (payos.CreateLinkResponse, error)
 	VerifyWebhookData(body []byte) (*payos.WebhookData, error)
+	GetPaymentLink(ctx context.Context, orderCode int64) (*payos.PaymentLink, error)
 }
 
 type Service struct {
@@ -138,6 +139,15 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 		return apperror.Wrap(apperror.CodePayOSError, "invalid webhook signature or format", err)
 	}
 
+	payment, err := s.payos.GetPaymentLink(ctx, webhookData.Data.OrderCode)
+	if err != nil {
+		return apperror.Wrap(apperror.CodePayOSError, "failed to get PayOS payment link", err)
+	}
+
+	if payment.OrderCode != webhookData.Data.OrderCode {
+		return apperror.New(apperror.CodePayOSError, "payos order code mismatch")
+	}
+
 	return s.repo.ExecTx(ctx, func(q *repository.Queries) error {
 		txRecord, err := s.repo.GetTransactionByPayOSOrderCodeForUpdate(ctx, q, webhookData.Data.OrderCode)
 		if err != nil {
@@ -149,8 +159,11 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 			return nil
 		}
 
-		switch {
-		case webhookData.Success || webhookData.Code == "00" || webhookData.Data.Code == "00":
+		switch payment.Status {
+		case payos.PaymentLinkStatusPaid:
+			if payment.Amount <= 0 || payment.AmountPaid < payment.Amount {
+				return apperror.New(apperror.CodePayOSError, "payment amount is invalid or underpaid")
+			}
 			// Payment confirmed by PayOS.
 			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusSuccess)
 			if err != nil {
@@ -174,14 +187,16 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 					return err
 				}
 			}
-		case webhookData.Code == "01" || webhookData.Data.Code == "01":
+		case payos.PaymentLinkStatusCancelled:
 			// PayOS signals payment was cancelled by the user.
 			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusCancelled)
 			if err != nil {
 				return err
 			}
+		case payos.PaymentLinkStatusPending:
+			return apperror.New(apperror.CodePayOSError, "payment link is not paid: status is pending")
 		default:
-			// Any other non-success code is treated as a failed payment.
+			// Any other non-success status (FAILED, EXPIRED, etc.)
 			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
 			if err != nil {
 				return err

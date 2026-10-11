@@ -108,6 +108,14 @@ func (m *MockPayOS) VerifyWebhookData(body []byte) (*payos.WebhookData, error) {
 	return args.Get(0).(*payos.WebhookData), args.Error(1)
 }
 
+func (m *MockPayOS) GetPaymentLink(ctx context.Context, orderCode int64) (*payos.PaymentLink, error) {
+	args := m.Called(ctx, orderCode)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*payos.PaymentLink), args.Error(1)
+}
+
 // ---------------------------------------------------------------------------
 // GetWallet
 // ---------------------------------------------------------------------------
@@ -262,6 +270,12 @@ func TestHandlePayOSWebhook_Success(t *testing.T) {
 	webhookPayload.Data.Amount = 50000
 
 	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  orderCode,
+		Amount:     50000,
+		AmountPaid: 50000,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
 
 	pendingTx := domain.Transaction{
 		ID:             txID,
@@ -282,8 +296,8 @@ func TestHandlePayOSWebhook_Success(t *testing.T) {
 	mockPayOS.AssertExpectations(t)
 }
 
-// Success via data-level code (webhook envelope code is non-00 but inner data is 00).
-func TestHandlePayOSWebhook_Success_ViaDataCode(t *testing.T) {
+// Success via PayOS status PAID even if envelope code is non-00.
+func TestHandlePayOSWebhook_Success_ViaStatusPaid(t *testing.T) {
 	mockRepo := new(MockRepo)
 	mockPayOS := new(MockPayOS)
 	svc := service.NewService(mockRepo, mockPayOS)
@@ -299,6 +313,13 @@ func TestHandlePayOSWebhook_Success_ViaDataCode(t *testing.T) {
 	webhookPayload.Data.Code = "00"
 
 	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  orderCode,
+		Amount:     50000,
+		AmountPaid: 50000,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
+
 	pendingTx := domain.Transaction{ID: txID, To: &userID, Amount: 200, Status: domain.StatusPending, PayOSOrderCode: &orderCode}
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
 	mockRepo.On("UpdateTransactionStatus", mock.Anything, (*repository.Queries)(nil), txID, domain.StatusSuccess).Return(pendingTx, nil)
@@ -328,6 +349,12 @@ func TestHandlePayOSWebhook_AlreadyProcessed_Success(t *testing.T) {
 	webhookPayload.Data.OrderCode = orderCode
 
 	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  orderCode,
+		Amount:     50000,
+		AmountPaid: 50000,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
 
 	alreadySuccessTx := domain.Transaction{
 		ID:             txID,
@@ -357,6 +384,11 @@ func TestHandlePayOSWebhook_AlreadyProcessed_Failed(t *testing.T) {
 	webhookPayload.Data.OrderCode = orderCode
 
 	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode: orderCode,
+		Status:    payos.PaymentLinkStatusFailed,
+	}, nil)
+
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(
 		domain.Transaction{ID: txID, Status: domain.StatusFailed, PayOSOrderCode: &orderCode}, nil,
 	)
@@ -365,6 +397,7 @@ func TestHandlePayOSWebhook_AlreadyProcessed_Failed(t *testing.T) {
 	assert.NoError(t, err)
 	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
 	mockRepo.AssertExpectations(t)
+	mockPayOS.AssertExpectations(t)
 }
 
 // ---------------------------------------------------------------------------
@@ -401,6 +434,13 @@ func TestHandlePayOSWebhook_WrongOrderCode_NotFound(t *testing.T) {
 	webhookPayload.Data.OrderCode = orderCode
 
 	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  orderCode,
+		Amount:     50000,
+		AmountPaid: 50000,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
+
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).
 		Return(domain.Transaction{}, apperror.New(apperror.CodeTransactionNotFound, "not found"))
 
@@ -412,7 +452,7 @@ func TestHandlePayOSWebhook_WrongOrderCode_NotFound(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// HandlePayOSWebhook — failed payment (non-success code)
+// HandlePayOSWebhook — failed payment (PayOS status FAILED)
 // ---------------------------------------------------------------------------
 
 func TestHandlePayOSWebhook_Failed(t *testing.T) {
@@ -429,6 +469,10 @@ func TestHandlePayOSWebhook_Failed(t *testing.T) {
 	webhookPayload.Data.Code = "99"
 
 	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode: orderCode,
+		Status:    payos.PaymentLinkStatusFailed,
+	}, nil)
 
 	pendingTx := domain.Transaction{ID: txID, Amount: 100, Status: domain.StatusPending, PayOSOrderCode: &orderCode}
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
@@ -444,7 +488,7 @@ func TestHandlePayOSWebhook_Failed(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// HandlePayOSWebhook — cancelled payment (PayOS code "01")
+// HandlePayOSWebhook — cancelled payment (PayOS status CANCELLED)
 // ---------------------------------------------------------------------------
 
 func TestHandlePayOSWebhook_Cancelled(t *testing.T) {
@@ -461,6 +505,10 @@ func TestHandlePayOSWebhook_Cancelled(t *testing.T) {
 	webhookPayload.Data.Code = "01"
 
 	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode: orderCode,
+		Status:    payos.PaymentLinkStatusCancelled,
+	}, nil)
 
 	pendingTx := domain.Transaction{ID: txID, Amount: 100, Status: domain.StatusPending, PayOSOrderCode: &orderCode}
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
@@ -476,7 +524,7 @@ func TestHandlePayOSWebhook_Cancelled(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// HandlePayOSWebhook — pending payment stays pending (no-op until finalized)
+// HandlePayOSWebhook — wallet auto created on success
 // ---------------------------------------------------------------------------
 
 func TestHandlePayOSWebhook_WalletAutoCreated_OnSuccess(t *testing.T) {
@@ -495,6 +543,12 @@ func TestHandlePayOSWebhook_WalletAutoCreated_OnSuccess(t *testing.T) {
 	webhookPayload.Data.OrderCode = orderCode
 
 	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  orderCode,
+		Amount:     50000,
+		AmountPaid: 50000,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
 
 	pendingTx := domain.Transaction{ID: txID, To: &userID, Amount: 50, Status: domain.StatusPending, PayOSOrderCode: &orderCode}
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
@@ -510,6 +564,164 @@ func TestHandlePayOSWebhook_WalletAutoCreated_OnSuccess(t *testing.T) {
 	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)
 	mockPayOS.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------------------------
+// Security & Validation tests
+// ---------------------------------------------------------------------------
+
+func TestHandlePayOSWebhook_OrderCodeMismatch(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	orderCode := int64(123456789012)
+	body := []byte(`{"code":"00","success":true,"data":{"orderCode":123456789012,"amount":50000}}`)
+
+	webhookPayload := &payos.WebhookData{Code: "00", Success: true}
+	webhookPayload.Data.OrderCode = orderCode
+
+	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	// Return a payment link with a mismatched order code
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  999999999999,
+		Amount:     50000,
+		AmountPaid: 50000,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
+
+	err := svc.HandlePayOSWebhook(context.Background(), body)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
+	assert.Contains(t, err.Error(), "order code mismatch")
+	mockPayOS.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "ExecTx")
+}
+
+func TestHandlePayOSWebhook_Underpaid(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	orderCode := int64(123456789012)
+	body := []byte(`{"code":"00","success":true,"data":{"orderCode":123456789012,"amount":50000}}`)
+
+	webhookPayload := &payos.WebhookData{Code: "00", Success: true}
+	webhookPayload.Data.OrderCode = orderCode
+
+	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	// Amount paid is less than required amount
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  orderCode,
+		Amount:     50000,
+		AmountPaid: 20000,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
+
+	pendingTx := domain.Transaction{
+		ID:             uuid.New(),
+		Amount:         100,
+		Status:         domain.StatusPending,
+		PayOSOrderCode: &orderCode,
+	}
+	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
+
+	err := svc.HandlePayOSWebhook(context.Background(), body)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
+	assert.Contains(t, err.Error(), "invalid or underpaid")
+	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
+	mockPayOS.AssertExpectations(t)
+}
+
+func TestHandlePayOSWebhook_ZeroOrNegativeAmount(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	orderCode := int64(123456789012)
+	body := []byte(`{"code":"00","success":true,"data":{"orderCode":123456789012}}`)
+
+	webhookPayload := &payos.WebhookData{Code: "00", Success: true}
+	webhookPayload.Data.OrderCode = orderCode
+
+	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  orderCode,
+		Amount:     0,
+		AmountPaid: 0,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
+
+	pendingTx := domain.Transaction{
+		ID:             uuid.New(),
+		Amount:         100,
+		Status:         domain.StatusPending,
+		PayOSOrderCode: &orderCode,
+	}
+	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
+
+	err := svc.HandlePayOSWebhook(context.Background(), body)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
+	assert.Contains(t, err.Error(), "invalid or underpaid")
+	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
+	mockPayOS.AssertExpectations(t)
+}
+
+func TestHandlePayOSWebhook_PendingStatus_ReturnsError(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	orderCode := int64(123456789012)
+	body := []byte(`{"code":"00","success":true,"data":{"orderCode":123456789012}}`)
+
+	webhookPayload := &payos.WebhookData{Code: "00", Success: true}
+	webhookPayload.Data.OrderCode = orderCode
+
+	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode: orderCode,
+		Status:    payos.PaymentLinkStatusPending,
+	}, nil)
+
+	pendingTx := domain.Transaction{
+		ID:             uuid.New(),
+		Amount:         100,
+		Status:         domain.StatusPending,
+		PayOSOrderCode: &orderCode,
+	}
+	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
+
+	err := svc.HandlePayOSWebhook(context.Background(), body)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
+	assert.Contains(t, err.Error(), "status is pending")
+	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
+	mockPayOS.AssertExpectations(t)
+}
+
+func TestHandlePayOSWebhook_GetPaymentLinkError(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	orderCode := int64(123456789012)
+	body := []byte(`{"code":"00","success":true,"data":{"orderCode":123456789012}}`)
+
+	webhookPayload := &payos.WebhookData{Code: "00", Success: true}
+	webhookPayload.Data.OrderCode = orderCode
+
+	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(nil, errors.New("network error"))
+
+	err := svc.HandlePayOSWebhook(context.Background(), body)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
+	assert.Contains(t, err.Error(), "failed to get PayOS payment link")
+	mockPayOS.AssertExpectations(t)
+	mockRepo.AssertNotCalled(t, "ExecTx")
 }
 
 // ---------------------------------------------------------------------------
