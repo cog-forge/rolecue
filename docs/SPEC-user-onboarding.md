@@ -72,6 +72,8 @@ GET /auth/me hiện tại cần trả thêm onboarding_role_selected và onboard
 
 ### Migration / existing account behavior
 
+Ứng dụng chưa có user thực tế tại thời điểm triển khai PR onboarding. Vì vậy giữ quyết định mọi account bắt đầu pending và không backfill role; dữ liệu thử nghiệm cũng đi qua role chooser. Nếu triển khai cho hệ thống đã có user thực tế, cần chốt lại policy giữ role trước khi áp dụng migration này.
+
 Commit KAN-33 đã có API profile và các cột name, image, company_name, company_website; không cần tạo lại metadata storage/API. Kiểm tra source sau rebase không thấy field, endpoint hoặc migration onboarding nào trong KAN-33.
 
 Migration 7 thêm enum public.onboarding_status với ba giá trị pending, role_selected, completed và cột users.onboarding_status NOT NULL DEFAULT 'pending'. Account mới và hiện có bắt đầu pending; không backfill. Role endpoint chuyển pending sang role_selected, cho retry cùng role khi role_selected và từ chối đổi role. Profile PATCH chuyển role_selected sang completed khi metadata bắt buộc hợp lệ, trong cùng UPDATE. Admin bypass onboarding; API vẫn suy ra hai boolean onboarding_role_selected/onboarding_completed từ status và role. Không cần hai timestamp hay CHECK giữa hai marker.
