@@ -13,12 +13,13 @@ import (
 )
 
 type Router struct {
-	cfg            *config.Config
-	logger         *logger.Logger
-	authHandler    *handler.AuthHandler
-	healthHandler  *handler.HealthHandler
-	jdHandler      *handler.JDHandler
-	profileHandler *handler.ProfileHandler
+	cfg                 *config.Config
+	logger              *logger.Logger
+	authHandler         *handler.AuthHandler
+	healthHandler       *handler.HealthHandler
+	jdHandler           *handler.JDHandler
+	profileHandler      *handler.ProfileHandler
+	questionBankHandler *handler.QuestionBankHandler
 }
 
 func NewRouter(
@@ -28,14 +29,16 @@ func NewRouter(
 	healthHandler *handler.HealthHandler,
 	jdHandler *handler.JDHandler,
 	profileHandler *handler.ProfileHandler,
+	questionBankHandler *handler.QuestionBankHandler,
 ) *Router {
 	return &Router{
-		cfg:            cfg,
-		logger:         logger,
-		authHandler:    authHandler,
-		healthHandler:  healthHandler,
-		jdHandler:      jdHandler,
-		profileHandler: profileHandler,
+		cfg:                 cfg,
+		logger:              logger,
+		authHandler:         authHandler,
+		healthHandler:       healthHandler,
+		jdHandler:           jdHandler,
+		profileHandler:      profileHandler,
+		questionBankHandler: questionBankHandler,
 	}
 }
 
@@ -70,5 +73,12 @@ func (r *Router) Setup() *gin.Engine {
 	jds.GET("/:id", r.jdHandler.Get)
 	jds.PUT("/:id", r.jdHandler.Update)
 	jds.DELETE("/:id", r.jdHandler.Delete)
+
+	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
+	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
+	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
+	jobPostings.PATCH("/:id/questions/:questionId", r.questionBankHandler.Update)
+	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)
 	return router
 }
