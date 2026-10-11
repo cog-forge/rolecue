@@ -15,14 +15,15 @@ import (
 
 // Config holds the entire system configuration
 type Config struct {
-	App      AppConfig      `mapstructure:"app"`
-	Server   ServerConfig   `mapstructure:"server"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	CORS     CORSConfig     `mapstructure:"cors"`
-	Logger   LoggerConfig   `mapstructure:"logger"`
-	Tracer   TracerConfig   `mapstructure:"tracer"`
-	LLM      LLMConfig      `mapstructure:"llm"`
+	App          AppConfig          `mapstructure:"app"`
+	Server       ServerConfig       `mapstructure:"server"`
+	Database     DatabaseConfig     `mapstructure:"database"`
+	Auth         AuthConfig         `mapstructure:"auth"`
+	CORS         CORSConfig         `mapstructure:"cors"`
+	Logger       LoggerConfig       `mapstructure:"logger"`
+	Tracer       TracerConfig       `mapstructure:"tracer"`
+	LLM          LLMConfig          `mapstructure:"llm"`
+	Storage      StorageConfig      `mapstructure:"storage"`
 	PayOS        PayOSConfig        `mapstructure:"payos"`
 	QuestionBank QuestionBankConfig `mapstructure:"question_bank"`
 }
@@ -155,6 +156,7 @@ type QuestionBankConfig struct {
 
 // MaxQuestionBankSize bounds QUESTION_BANK_SIZE to a sane technical range.
 const MaxQuestionBankSize = 100
+
 // Load loads configuration from file and overrides with environment variables
 func Load(configPath string) (*Config, error) {
 	_ = gotenv.Load("../.env")
@@ -186,27 +188,33 @@ func Load(configPath string) (*Config, error) {
 
 	// Explicitly bind environment variables
 	for key, env := range map[string]string{
-		"database.url":        "DATABASE_URL",
-		"database.name":       "DB_DATABASE",
-		"database.user":       "DB_USERNAME",
-		"database.password":   "DB_PASSWORD",
-		"database.port":       "DB_PORT",
-		"auth.url":            "BETTER_AUTH_URL",
-		"auth.timeout":        "AUTH_SESSION_TIMEOUT",
-		"auth.cookie_prefix":  "BETTER_AUTH_COOKIE_PREFIX",
-		"auth.cookie_domain":  "BETTER_AUTH_COOKIE_DOMAIN",
-		"auth.secure_cookies": "AUTH_SECURE_COOKIES",
-		"llm.provider":        "LLM_PROVIDER",
-		"llm.api_key":         "LLM_API_KEY",
-		"llm.model":           "LLM_MODEL",
-		"llm.timeout":         "LLM_TIMEOUT",
-		"llm.max_retries":     "LLM_MAX_RETRIES",
-		"payos.client_id":     "PAYOS_CLIENT_ID",
-		"payos.api_key":       "PAYOS_API_KEY",
-		"payos.checksum_key":  "PAYOS_CHECKSUM_KEY",
-		"payos.timeout":       "PAYOS_TIMEOUT",
-		"payos.max_retries":   "PAYOS_MAX_RETRIES",
-		"question_bank.size":  "QUESTION_BANK_SIZE",
+		"storage.endpoint":          "S3_ENDPOINT",
+		"storage.region":            "S3_REGION",
+		"storage.bucket":            "S3_BUCKET",
+		"storage.access_key_id":     "S3_ACCESS_KEY_ID",
+		"storage.secret_access_key": "S3_SECRET_ACCESS_KEY",
+		"storage.session_token":     "S3_SESSION_TOKEN",
+		"database.url":              "DATABASE_URL",
+		"database.name":             "DB_DATABASE",
+		"database.user":             "DB_USERNAME",
+		"database.password":         "DB_PASSWORD",
+		"database.port":             "DB_PORT",
+		"auth.url":                  "BETTER_AUTH_URL",
+		"auth.timeout":              "AUTH_SESSION_TIMEOUT",
+		"auth.cookie_prefix":        "BETTER_AUTH_COOKIE_PREFIX",
+		"auth.cookie_domain":        "BETTER_AUTH_COOKIE_DOMAIN",
+		"auth.secure_cookies":       "AUTH_SECURE_COOKIES",
+		"llm.provider":              "LLM_PROVIDER",
+		"llm.api_key":               "LLM_API_KEY",
+		"llm.model":                 "LLM_MODEL",
+		"llm.timeout":               "LLM_TIMEOUT",
+		"llm.max_retries":           "LLM_MAX_RETRIES",
+		"payos.client_id":           "PAYOS_CLIENT_ID",
+		"payos.api_key":             "PAYOS_API_KEY",
+		"payos.checksum_key":        "PAYOS_CHECKSUM_KEY",
+		"payos.timeout":             "PAYOS_TIMEOUT",
+		"payos.max_retries":         "PAYOS_MAX_RETRIES",
+		"question_bank.size":        "QUESTION_BANK_SIZE",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -226,6 +234,9 @@ func Load(configPath string) (*Config, error) {
 }
 
 func setDefaults(v *viper.Viper) {
+	v.SetDefault("storage.endpoint", "")
+	v.SetDefault("storage.region", "")
+	v.SetDefault("storage.bucket", "")
 	// App defaults
 	v.SetDefault("app.name", "rolecue")
 	v.SetDefault("app.environment", "development")

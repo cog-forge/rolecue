@@ -72,5 +72,13 @@ llm:
   timeout: 30s
   max_retries: 1
 
+storage:
+  endpoint: ""
+  region: ""
+  bucket: ""
+  access_key_id: ""
+  secret_access_key: ""
+  session_token: ""
+
 question_bank:
   size: 50  # core questions generated per bank (team decision); 0 disables generation
