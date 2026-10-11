@@ -1,6 +1,6 @@
 //go:build llm_smoke
 
-package provider
+package tests
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
+	qbprovider "github.com/cog-forge/rolecue/api/internal/features/questionbank/provider"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ai"
 )
 
@@ -29,7 +30,7 @@ func TestLLMSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal("invalid Gemini configuration; check provider, API key, model and timeout")
 	}
-	generator, err := New(chatModel)
+	generator, err := qbprovider.New(chatModel)
 	if err != nil {
 		t.Fatal("invalid question generator configuration")
 	}

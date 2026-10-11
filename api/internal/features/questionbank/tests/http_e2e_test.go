@@ -1,12 +1,12 @@
 //go:build integration && llm_smoke
 
-package handler
+package tests
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -16,61 +16,61 @@ import (
 	qbprovider "github.com/cog-forge/rolecue/api/internal/features/questionbank/provider"
 	qbrepository "github.com/cog-forge/rolecue/api/internal/features/questionbank/repository"
 	qbservice "github.com/cog-forge/rolecue/api/internal/features/questionbank/service"
+	"github.com/cog-forge/rolecue/api/internal/handler"
+	"github.com/cog-forge/rolecue/api/internal/middleware"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ai"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
+	"github.com/cog-forge/rolecue/api/pkg/response"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // End-to-end: real HTTP handlers + real service + real Gemini + real PostgreSQL. Only the login
-// session is stubbed. Run: set -a; . ../.env; set +a; go test -tags "integration llm_smoke" ./internal/handler -run E2E
-// It makes one real Gemini call (only the posting with confirmed requirements reaches the model), with synthetic requirements.
+// session is stubbed. It makes one real Gemini call (only the posting with confirmed requirements
+// reaches the model), with synthetic requirements. See doc.go for the run command.
 
-type e2eSeed struct {
-	t    *testing.T
-	pool *pgxpool.Pool
-	ctx  context.Context
-	tag  string
-	undo []string
-	args [][]any
-}
+const trustedOrigin = "http://localhost:3000"
 
-func (s *e2eSeed) exec(sql string, args ...any) {
-	s.t.Helper()
-	if _, err := s.pool.Exec(s.ctx, sql, args...); err != nil {
-		s.t.Fatalf("seed: %v", err)
-	}
-}
-func (s *e2eSeed) later(sql string, args ...any) {
-	s.undo = append(s.undo, sql)
-	s.args = append(s.args, args)
-}
-func (s *e2eSeed) cleanup() {
-	for i := len(s.undo) - 1; i >= 0; i-- {
-		if _, err := s.pool.Exec(context.Background(), s.undo[i], s.args[i]...); err != nil {
-			s.t.Errorf("cleanup: %v", err)
-		}
-	}
+// sessionStub satisfies the auth service that the real RequireAuth middleware calls.
+type sessionStub struct{ user authdomain.User }
+
+func (s sessionStub) Authenticate(context.Context, *http.Request) (authdomain.User, []string, error) {
+	return s.user, nil, nil
 }
 
-// jdWithPosting seeds a JD with confirmed requirements and a pending posting owned by the recruiter.
-func (s *e2eSeed) jdWithPosting(levelID, recruiterID uuid.UUID, withRequirements bool) (jdID, postingID uuid.UUID) {
-	jdID, postingID = uuid.New(), uuid.New()
-	s.exec(`INSERT INTO public.job_descriptions (id, refinement_note, content_path, level_id) VALUES ($1, 'Do not ask about Spring Boot.', $2, $3)`,
-		jdID, "e2e/"+s.tag, levelID)
-	s.later(`DELETE FROM public.job_descriptions WHERE id = $1`, jdID)
-	s.exec(`INSERT INTO public.job_postings (id, jd_id, recruiter_id, title) VALUES ($1, $2, $3, 'e2e posting')`, postingID, jdID, recruiterID)
-	s.later(`DELETE FROM public.job_postings WHERE id = $1`, postingID)
-	s.later(`DELETE FROM public.core_questions WHERE jd_id = $1`, jdID)
-	if withRequirements {
-		s.exec(`INSERT INTO public.requirements (jd_id, name, target, type) VALUES
-			($1,'Go','backend services','required'), ($1,'PostgreSQL','data storage','required'),
-			($1,'Kafka','event streaming','required'), ($1,'API design','REST APIs','required'),
-			($1,'Automated testing','quality','required'), ($1,'Docker','deployment','preferred')`, jdID)
-		s.later(`DELETE FROM public.requirements WHERE jd_id = $1`, jdID)
+// newRouter mounts the real question-bank handlers behind the real RequireAuth middleware.
+func newRouter(user authdomain.User, svc handler.QuestionBankService) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	h := handler.NewQuestionBankHandler(svc)
+	auth := middleware.RequireAuth(sessionStub{user}, config.CORSConfig{AllowOrigins: []string{trustedOrigin}})
+	r := gin.New()
+	g := r.Group("/job-postings", auth)
+	g.GET("/:id/questions", h.List)
+	g.POST("/:id/questions/generate", h.Generate)
+	g.POST("/:id/questions", h.Add)
+	g.PATCH("/:id/questions/:questionId", h.Update)
+	g.DELETE("/:id/questions/:questionId", h.Delete)
+	return r
+}
+
+func do(r *gin.Engine, method, path, contentType, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
-	return jdID, postingID
+	req.Header.Set("Origin", trustedOrigin)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+	return w
+}
+
+func envelope(t *testing.T, w *httptest.ResponseRecorder) response.Envelope {
+	t.Helper()
+	var env response.Envelope
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("invalid JSON %q: %v", w.Body.String(), err)
+	}
+	return env
 }
 
 type bankBody struct {
@@ -88,20 +88,11 @@ func TestQuestionBankE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal("invalid configuration")
 	}
-	if cfg.Database.URL == "" || cfg.LLM.APIKey == "" {
-		t.Skip("DATABASE_URL and LLM_API_KEY must be set (load ../.env)")
+	if cfg.LLM.APIKey == "" {
+		t.Skip("LLM_API_KEY must be set (load ../.env)")
 	}
 	size := cfg.QuestionBank.Size
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-	pool, err := pgxpool.New(ctx, cfg.Database.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pool.Close()
-	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("database not reachable: %v", err)
-	}
+	ctx, pool := openPool(t, 3*time.Minute)
 	chatModel, err := ai.NewChatModel(ctx, cfg.LLM)
 	if err != nil {
 		t.Fatal("invalid Gemini configuration")
@@ -115,24 +106,15 @@ func TestQuestionBankE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s := &e2eSeed{t: t, pool: pool, ctx: ctx, tag: uuid.NewString()[:8]}
+	s := newSeed(t, ctx, pool)
 	defer s.cleanup()
-	levelID := uuid.New()
-	s.exec(`INSERT INTO public.levels (id, name, description) VALUES ($1, 'Senior', 'e2e '||$2::text)`, levelID, s.tag)
-	s.later(`DELETE FROM public.levels WHERE id = $1`, levelID)
-	mkUser := func(role string) uuid.UUID {
-		id := uuid.New()
-		s.exec(`INSERT INTO public.users (id, name, email, role, email_verified) VALUES ($1, $2, $3, $4, true)`,
-			id, "e2e "+role, fmt.Sprintf("e2e-%s-%s@example.test", s.tag, id), role)
-		s.later(`DELETE FROM public.users WHERE id = $1`, id)
-		return id
-	}
-	recruiterID, otherRecruiterID, candidateID := mkUser("recruiter"), mkUser("recruiter"), mkUser("candidate")
+	levelID := s.level("Senior", "e2e "+s.tag)
+	recruiterID, otherRecruiterID, candidateID := s.user("recruiter"), s.user("recruiter"), s.user("candidate")
 	jd1, posting1 := s.jdWithPosting(levelID, recruiterID, true)
 	_, postingNoReq := s.jdWithPosting(levelID, recruiterID, false)
 
 	asUser := func(id uuid.UUID, role string) *gin.Engine {
-		return questionBankRouter(authdomain.User{ID: id, Role: role, EmailVerified: true}, svc)
+		return newRouter(authdomain.User{ID: id, Role: role, EmailVerified: true}, svc)
 	}
 	recruiterAPI := asUser(recruiterID, "recruiter")
 	base := func(posting uuid.UUID) string { return "/job-postings/" + posting.String() + "/questions" }
