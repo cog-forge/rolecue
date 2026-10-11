@@ -71,3 +71,6 @@ llm:
   model: gemini-3.1-flash-lite
   timeout: 30s
   max_retries: 1
+
+question_bank:
+  size: 50  # core questions generated per bank (team decision); 0 disables generation
