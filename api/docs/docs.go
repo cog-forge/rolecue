@@ -521,6 +521,490 @@ const docTemplate = `{
                 }
             }
         },
+        "/job-postings/{id}/questions": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Candidates never receive the bank.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-posting-questions"
+                ],
+                "summary": "List the core-question bank of your own job posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.QuestionBankResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, while the posting is pending. Trusted Origin required. Unknown fields reject the whole request.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-posting-questions"
+                ],
+                "summary": "Add a question to the bank of your own job posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Question; body limit 16 KiB",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.QuestionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.CoreQuestion"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/questions/generate": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending. Requires confirmed requirements. Trusted Origin required.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-posting-questions"
+                ],
+                "summary": "Generate the core-question bank of your own job posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.QuestionBankResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/questions/{questionId}": {
+            "delete": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, while the posting is pending. A question already used by an interview cannot be deleted. Trusted Origin required.",
+                "tags": [
+                    "job-posting-questions"
+                ],
+                "summary": "Delete a question from the bank of your own job posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Question ID",
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, while the posting is pending. Trusted Origin required. Unknown fields reject the whole request.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-posting-questions"
+                ],
+                "summary": "Edit a question in the bank of your own job posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Question ID",
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Question; body limit 16 KiB",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.QuestionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.CoreQuestion"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/profile": {
             "get": {
                 "security": [
@@ -698,7 +1182,16 @@ const docTemplate = `{
                 "JD_TOO_SHORT",
                 "JD_TOO_LONG",
                 "EXTRACTION_FAILED",
-                "INVALID_EXTRACTION_OUTPUT"
+                "INVALID_EXTRACTION_OUTPUT",
+                "JOB_POSTING_NOT_FOUND",
+                "CORE_QUESTION_NOT_FOUND",
+                "QUESTION_BANK_EXISTS",
+                "QUESTION_BANK_LOCKED",
+                "CORE_QUESTION_IN_USE",
+                "REQUIREMENTS_NOT_CONFIRMED",
+                "QUESTION_GENERATION_FAILED",
+                "INVALID_QUESTION_GENERATION_OUTPUT",
+                "QUESTION_BANK_UNAVAILABLE"
             ],
             "x-enum-varnames": [
                 "CodeJDInUse",
@@ -715,8 +1208,28 @@ const docTemplate = `{
                 "CodeJDTooShort",
                 "CodeJDTooLong",
                 "CodeExtractionFailed",
-                "CodeInvalidExtractionOutput"
+                "CodeInvalidExtractionOutput",
+                "CodeJobPostingNotFound",
+                "CodeCoreQuestionNotFound",
+                "CodeQuestionBankExists",
+                "CodeQuestionBankLocked",
+                "CodeCoreQuestionInUse",
+                "CodeRequirementsNotConfirmed",
+                "CodeQuestionGenerationFailed",
+                "CodeInvalidQuestionGenerationOutput",
+                "CodeQuestionBankUnavailable"
             ]
+        },
+        "domain.CoreQuestion": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                }
+            }
         },
         "domain.ExtractedSkill": {
             "type": "object",
@@ -981,6 +1494,28 @@ const docTemplate = `{
                     "$ref": "#/definitions/domain.StructuredJD"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.QuestionBankResponse": {
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.CoreQuestion"
+                    }
+                }
+            }
+        },
+        "handler.QuestionRequest": {
+            "type": "object",
+            "required": [
+                "content"
+            ],
+            "properties": {
+                "content": {
                     "type": "string"
                 }
             }

@@ -13,13 +13,14 @@ import (
 )
 
 type Router struct {
-	cfg            *config.Config
-	logger         *logger.Logger
-	authHandler    *handler.AuthHandler
-	healthHandler  *handler.HealthHandler
-	jdHandler      *handler.JDHandler
-	profileHandler *handler.ProfileHandler
-	walletHandler  *handler.WalletHandler
+	cfg                 *config.Config
+	logger              *logger.Logger
+	authHandler         *handler.AuthHandler
+	healthHandler       *handler.HealthHandler
+	jdHandler           *handler.JDHandler
+	profileHandler      *handler.ProfileHandler
+	walletHandler       *handler.WalletHandler
+	questionBankHandler *handler.QuestionBankHandler
 }
 
 func NewRouter(
@@ -30,15 +31,17 @@ func NewRouter(
 	jdHandler *handler.JDHandler,
 	profileHandler *handler.ProfileHandler,
 	walletHandler *handler.WalletHandler,
+	questionBankHandler *handler.QuestionBankHandler,
 ) *Router {
 	return &Router{
-		cfg:            cfg,
-		logger:         logger,
-		authHandler:    authHandler,
-		healthHandler:  healthHandler,
-		jdHandler:      jdHandler,
-		profileHandler: profileHandler,
-		walletHandler:  walletHandler,
+		cfg:                 cfg,
+		logger:              logger,
+		authHandler:         authHandler,
+		healthHandler:       healthHandler,
+		jdHandler:           jdHandler,
+		profileHandler:      profileHandler,
+		walletHandler:       walletHandler,
+		questionBankHandler: questionBankHandler,
 	}
 }
 
@@ -84,5 +87,11 @@ func (r *Router) Setup() *gin.Engine {
 
 	router.POST("/wallet/webhook/payos", r.walletHandler.HandlePayOSWebhook)
 
+	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
+	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
+	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
+	jobPostings.PATCH("/:id/questions/:questionId", r.questionBankHandler.Update)
+	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)
 	return router
 }

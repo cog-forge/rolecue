@@ -23,7 +23,8 @@ type Config struct {
 	Logger   LoggerConfig   `mapstructure:"logger"`
 	Tracer   TracerConfig   `mapstructure:"tracer"`
 	LLM      LLMConfig      `mapstructure:"llm"`
-	PayOS    PayOSConfig    `mapstructure:"payos"`
+	PayOS        PayOSConfig        `mapstructure:"payos"`
+	QuestionBank QuestionBankConfig `mapstructure:"question_bank"`
 }
 
 type AppConfig struct {
@@ -145,6 +146,15 @@ type PayOSConfig struct {
 	MaxRetries  int           `mapstructure:"max_retries"`
 }
 
+// QuestionBankConfig holds the core-question bank settings. Size is the number of questions
+// generated per bank. The team chose a large bank (50) so any interview duration is covered,
+// because one interview only asks fewer than ten core questions. 0 disables generation.
+type QuestionBankConfig struct {
+	Size int `mapstructure:"size"`
+}
+
+// MaxQuestionBankSize bounds QUESTION_BANK_SIZE to a sane technical range.
+const MaxQuestionBankSize = 100
 // Load loads configuration from file and overrides with environment variables
 func Load(configPath string) (*Config, error) {
 	_ = gotenv.Load("../.env")
@@ -196,6 +206,7 @@ func Load(configPath string) (*Config, error) {
 		"payos.checksum_key":  "PAYOS_CHECKSUM_KEY",
 		"payos.timeout":       "PAYOS_TIMEOUT",
 		"payos.max_retries":   "PAYOS_MAX_RETRIES",
+		"question_bank.size":  "QUESTION_BANK_SIZE",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -274,6 +285,9 @@ func setDefaults(v *viper.Viper) {
 	// PayOS defaults
 	v.SetDefault("payos.timeout", "30s")
 	v.SetDefault("payos.max_retries", 2)
+
+	// Question bank defaults: 50 questions per bank, as agreed by the team.
+	v.SetDefault("question_bank.size", 50)
 }
 
 // Validate checks configuration integrity and security constraints.
@@ -306,6 +320,10 @@ func (c *Config) Validate() error {
 	}
 	if c.IsProduction() && (!c.Auth.SecureCookies || c.Auth.CookieDomain != "dorriss.com") {
 		return errors.New("production requires HTTPS and the shared dorriss.com cookie domain")
+	}
+
+	if c.QuestionBank.Size < 0 || c.QuestionBank.Size > MaxQuestionBankSize {
+		return fmt.Errorf("question_bank.size must be between 0 and %d", MaxQuestionBankSize)
 	}
 
 	if c.Tracer.Enabled {

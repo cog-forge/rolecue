@@ -50,7 +50,15 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	payOSClient := provider.ProvidePayOSClient(config)
 	walletService := provider.ProvideWalletService(walletRepository, payOSClient)
 	walletHandler := provider.ProvideWalletHandler(walletService)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler)
+	repository3 := provider.ProvideQuestionBankRepository(pool)
+	serviceService, err := provider.ProvideQuestionBankService(config, repository3)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	questionBankHandler := provider.ProvideQuestionBankHandler(serviceService)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler, questionBankHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
