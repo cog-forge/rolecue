@@ -48,7 +48,8 @@ type PostingSummary struct {
 	CreatedAt time.Time     `json:"created_at"`
 }
 
-// ReviewPosting is the read-only review view; the Admin can only decide, never edit it.
+// ReviewPosting is the read-only review view; the Admin can only decide, never edit it. The Admin
+// moderates the JD content candidates will read, reached through ContentPath.
 type ReviewPosting struct {
 	ID                uuid.UUID     `json:"id"`
 	Title             string        `json:"title"`
@@ -64,6 +65,10 @@ type ReviewPosting struct {
 	RequiredAvatar    *NamedRef     `json:"required_avatar"`
 	RequiredVoice     *NamedRef     `json:"required_voice"`
 	CreatedAt         time.Time     `json:"created_at"`
+	// ContentPath is the URL of the JD content (job_descriptions.content_path), the text the Admin reviews.
+	ContentPath string `json:"content_path"`
+	// CoreQuestionCount tells the Admin whether the posting can be approved (it needs at least one).
+	CoreQuestionCount int64 `json:"core_question_count"`
 }
 
 // ListFilter narrows the queue. A nil field means "no filter"; the date window is [From, To).

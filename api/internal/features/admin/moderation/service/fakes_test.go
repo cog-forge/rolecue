@@ -13,7 +13,8 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-// fakeRepository behaves like the SQL guard: Decide only changes a pending posting.
+// fakeRepository behaves like the SQL guards: Decide only changes a pending posting, and approval
+// also needs at least one core question (posting.CoreQuestionCount).
 type fakeRepository struct {
 	posting   *domain.ReviewPosting
 	listErr   error
@@ -54,6 +55,9 @@ func (f *fakeRepository) Decide(_ context.Context, _ uuid.UUID, status domain.Po
 	if f.posting == nil || f.posting.Status != domain.PostingStatusPending {
 		return domain.ErrNotPending
 	}
+	if status == domain.PostingStatusOpen && f.posting.CoreQuestionCount == 0 {
+		return domain.ErrNotPending
+	}
 	f.decidedStatus, f.decidedReason = status, reason
 	f.posting.Status, f.posting.RejectReason = status, reason
 	return nil
@@ -79,8 +83,9 @@ func newObservedService(t *testing.T, repo Repository) (*Service, *observer.Obse
 	return s, logs
 }
 
+// postingIn returns a posting with a non-empty question bank, so approval is allowed by default.
 func postingIn(status domain.PostingStatus) *fakeRepository {
-	return &fakeRepository{posting: &domain.ReviewPosting{ID: uuid.New(), Status: status}}
+	return &fakeRepository{posting: &domain.ReviewPosting{ID: uuid.New(), Status: status, CoreQuestionCount: 50}}
 }
 
 func assertCode(t *testing.T, err error, code apperror.Code) {

@@ -139,7 +139,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Read-only: the Admin cannot edit posting content, the 3D interviewer or the voice.",
+                "description": "Admin only. Read-only: the Admin cannot edit posting content, the 3D interviewer or the voice. content_path is the URL of the JD content the Admin reviews; core_question_count shows whether the posting can be approved (it needs at least one).",
                 "consumes": [
                     "application/json"
                 ],
@@ -225,7 +225,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Trusted Origin required. Moves pending to open, which makes the posting available. Approving an already open posting returns it unchanged; any other non-pending state is 409.",
+                "description": "Admin only. Trusted Origin required. Moves pending to open, which makes the posting available. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1602,7 +1602,8 @@ const docTemplate = `{
                 "QUESTION_GENERATION_FAILED",
                 "INVALID_QUESTION_GENERATION_OUTPUT",
                 "QUESTION_BANK_UNAVAILABLE",
-                "JOB_POSTING_NOT_PENDING"
+                "JOB_POSTING_NOT_PENDING",
+                "QUESTION_BANK_NOT_READY"
             ],
             "x-enum-varnames": [
                 "CodeJDInUse",
@@ -1629,7 +1630,8 @@ const docTemplate = `{
                 "CodeQuestionGenerationFailed",
                 "CodeInvalidQuestionGenerationOutput",
                 "CodeQuestionBankUnavailable",
-                "CodeJobPostingNotPending"
+                "CodeJobPostingNotPending",
+                "CodeQuestionBankNotReady"
             ]
         },
         "domain.CoreQuestion": {
@@ -1816,6 +1818,14 @@ const docTemplate = `{
         "domain.ReviewPosting": {
             "type": "object",
             "properties": {
+                "content_path": {
+                    "description": "ContentPath is the URL of the JD content (job_descriptions.content_path), the text the Admin reviews.",
+                    "type": "string"
+                },
+                "core_question_count": {
+                    "description": "CoreQuestionCount tells the Admin whether the posting can be approved (it needs at least one).",
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string"
                 },

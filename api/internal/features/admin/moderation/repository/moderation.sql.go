@@ -44,7 +44,9 @@ const decidePosting = `-- name: DecidePosting :execrows
 UPDATE public.job_postings
 SET status = $1::text::public.job_posting_status,
     reject_reason = $2::text
-WHERE id = $3 AND status = 'pending'
+WHERE job_postings.id = $3 AND job_postings.status = 'pending'
+  AND ($1::text <> 'open'
+       OR EXISTS (SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = job_postings.jd_id))
 `
 
 type DecidePostingParams struct {
@@ -54,6 +56,8 @@ type DecidePostingParams struct {
 }
 
 // The status guard sits in the same statement, so two admins deciding at once cannot both win.
+// Approval also needs a non-empty core-question bank: the bank is locked once the posting leaves
+// pending (KAN-79), so approving an empty one would leave the posting with nothing to interview from.
 func (q *Queries) DecidePosting(ctx context.Context, arg DecidePostingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, decidePosting, arg.NewStatus, arg.RejectReason, arg.ID)
 	if err != nil {
@@ -67,9 +71,11 @@ SELECT jp.id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location
        jp.salary_min, jp.salary_max, jp.interview_slot, jp.interview_duration, jp.created_at,
        u.id AS recruiter_id, u.name AS recruiter_name, u.email AS recruiter_email,
        jp.required_avatar_id, a.name AS avatar_name,
-       jp.required_voice_id, v.name AS voice_name
+       jp.required_voice_id, v.name AS voice_name, jd.content_path,
+       (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
+JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 LEFT JOIN public.avatars a ON a.id = jp.required_avatar_id
 LEFT JOIN public.voices v ON v.id = jp.required_voice_id
 WHERE jp.id = $1
@@ -94,6 +100,8 @@ type GetPostingRow struct {
 	AvatarName        *string
 	RequiredVoiceID   *uuid.UUID
 	VoiceName         *string
+	ContentPath       string
+	CoreQuestionCount int64
 }
 
 func (q *Queries) GetPosting(ctx context.Context, id uuid.UUID) (GetPostingRow, error) {
@@ -118,6 +126,8 @@ func (q *Queries) GetPosting(ctx context.Context, id uuid.UUID) (GetPostingRow, 
 		&i.AvatarName,
 		&i.RequiredVoiceID,
 		&i.VoiceName,
+		&i.ContentPath,
+		&i.CoreQuestionCount,
 	)
 	return i, err
 }

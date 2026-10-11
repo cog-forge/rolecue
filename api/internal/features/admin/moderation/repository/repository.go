@@ -52,14 +52,16 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.ReviewPostin
 		Recruiter: domain.Recruiter{ID: row.RecruiterID, Name: row.RecruiterName, Email: row.RecruiterEmail},
 		Location:  row.Location, EmploymentType: row.EmploymentType, SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax,
 		InterviewSlot: row.InterviewSlot, InterviewDuration: row.InterviewDuration,
-		RequiredAvatar: namedRef(row.RequiredAvatarID, row.AvatarName),
-		RequiredVoice:  namedRef(row.RequiredVoiceID, row.VoiceName),
-		CreatedAt:      row.CreatedAt.Time,
+		RequiredAvatar:    namedRef(row.RequiredAvatarID, row.AvatarName),
+		RequiredVoice:     namedRef(row.RequiredVoiceID, row.VoiceName),
+		CreatedAt:         row.CreatedAt.Time,
+		ContentPath:       row.ContentPath,
+		CoreQuestionCount: row.CoreQuestionCount,
 	}, nil
 }
 
-// Decide returns domain.ErrNotPending when no pending row matched; the service then reads the
-// posting to tell a missing posting, a repeated decision and a real conflict apart.
+// Decide returns domain.ErrNotPending when no row matched the guards (pending, and a non-empty bank
+// for approval); the service then reads the posting to tell the cases apart.
 func (r *Repository) Decide(ctx context.Context, id uuid.UUID, status domain.PostingStatus, rejectReason *string) error {
 	n, err := r.queries.DecidePosting(ctx, DecidePostingParams{ID: id, NewStatus: string(status), RejectReason: rejectReason})
 	if err != nil {

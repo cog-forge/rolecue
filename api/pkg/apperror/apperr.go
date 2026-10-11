@@ -32,6 +32,7 @@ const (
 	CodeQuestionBankUnavailable         Code = "QUESTION_BANK_UNAVAILABLE"
 
 	CodeJobPostingNotPending Code = "JOB_POSTING_NOT_PENDING"
+	CodeQuestionBankNotReady Code = "QUESTION_BANK_NOT_READY"
 )
 
 type AppError struct {
