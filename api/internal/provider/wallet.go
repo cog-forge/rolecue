@@ -14,7 +14,13 @@ func ProvideWalletRepository(pool *pgxpool.Pool) *walletrepo.Repository {
 }
 
 func ProvidePayOSClient(cfg *config.Config) *payos.Client {
-	return payos.NewClient(cfg.PayOS.ClientID, cfg.PayOS.APIKey, cfg.PayOS.ChecksumKey)
+	return payos.MustNewClientWithOptions(&payos.Options{
+		ClientId:    cfg.PayOS.ClientID,
+		ApiKey:      cfg.PayOS.APIKey,
+		ChecksumKey: cfg.PayOS.ChecksumKey,
+		Timeout:     cfg.PayOS.Timeout,
+		MaxRetries:  cfg.PayOS.MaxRetries,
+	})
 }
 
 func ProvideWalletService(repo *walletrepo.Repository, payosClient *payos.Client) *walletsvc.Service {

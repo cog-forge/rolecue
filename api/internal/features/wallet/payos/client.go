@@ -1,43 +1,36 @@
 package payos
 
 import (
-	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"sort"
 	"strings"
-	"time"
+
+	payosSDK "github.com/payOSHQ/payos-lib-golang/v2"
 )
 
-const baseURL = "https://api-merchant.payos.vn"
+// Re-exported types from the official payOS SDK
+type Options = payosSDK.PayOSOptions
+type PaymentLink = payosSDK.PaymentLink
+type PaymentLinkStatus = payosSDK.PaymentLinkStatus
+type CreatePaymentLinkRequest = payosSDK.CreatePaymentLinkRequest
+type CreatePaymentLinkResponse = payosSDK.CreatePaymentLinkResponse
+type CancelPaymentLinkRequest = payosSDK.CancelPaymentLinkRequest
+type Webhook = payosSDK.Webhook
+type SDKWebhookData = payosSDK.WebhookData
+type ConfirmWebhookRequest = payosSDK.ConfirmWebhookRequest
+type ConfirmWebhookResponse = payosSDK.ConfirmWebhookResponse
 
-type Config struct {
-	ClientID    string
-	APIKey      string
-	ChecksumKey string
-}
-
-type Client struct {
-	cfg        Config
-	httpClient *http.Client
-}
-
-func NewClient(clientID, apiKey, checksumKey string) *Client {
-	return &Client{
-		cfg: Config{
-			ClientID:    clientID,
-			APIKey:      apiKey,
-			ChecksumKey: checksumKey,
-		},
-		httpClient: &http.Client{Timeout: 15 * time.Second},
-	}
-}
+const (
+	PaymentLinkStatusPending    = payosSDK.PaymentLinkStatusPending
+	PaymentLinkStatusCancelled  = payosSDK.PaymentLinkStatusCancelled
+	PaymentLinkStatusUnderpaid  = payosSDK.PaymentLinkStatusUnderpaid
+	PaymentLinkStatusPaid       = payosSDK.PaymentLinkStatusPaid
+	PaymentLinkStatusExpired    = payosSDK.PaymentLinkStatusExpired
+	PaymentLinkStatusProcessing = payosSDK.PaymentLinkStatusProcessing
+	PaymentLinkStatusFailed     = payosSDK.PaymentLinkStatusFailed
+)
 
 type CreateLinkRequest struct {
 	OrderCode   int64  `json:"orderCode"`
@@ -45,7 +38,6 @@ type CreateLinkRequest struct {
 	Description string `json:"description"`
 	ReturnURL   string `json:"returnUrl"`
 	CancelURL   string `json:"cancelUrl"`
-	Signature   string `json:"signature"`
 }
 
 type CreateLinkResponse struct {
@@ -72,91 +64,148 @@ type WebhookData struct {
 	Signature string `json:"signature"`
 }
 
-func (c *Client) CreatePaymentLink(ctx context.Context, req CreateLinkRequest) (CreateLinkResponse, error) {
-	req.Signature = c.signCreateLink(req)
-
-	body, err := json.Marshal(req)
-	if err != nil {
-		return CreateLinkResponse{}, fmt.Errorf("payos: marshal request: %w", err)
-	}
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/v2/payment-requests", bytes.NewReader(body))
-	if err != nil {
-		return CreateLinkResponse{}, fmt.Errorf("payos: build request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-client-id", c.cfg.ClientID)
-	httpReq.Header.Set("x-api-key", c.cfg.APIKey)
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return CreateLinkResponse{}, fmt.Errorf("payos: http call: %w", err)
-	}
-	defer resp.Body.Close()
-
-	raw, _ := io.ReadAll(resp.Body)
-	var wrapper struct {
-		Code string             `json:"code"`
-		Desc string             `json:"desc"`
-		Data CreateLinkResponse `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &wrapper); err != nil {
-		return CreateLinkResponse{}, fmt.Errorf("payos: decode response: %w", err)
-	}
-	if wrapper.Code != "00" {
-		return CreateLinkResponse{}, fmt.Errorf("payos: gateway error %s: %s", wrapper.Code, wrapper.Desc)
-	}
-	return wrapper.Data, nil
+type Client struct {
+	sdk *payosSDK.PayOS
 }
 
+// NewClientWithOptions initializes a PayOS Client using full PayOSOptions.
+func NewClientWithOptions(opts *payosSDK.PayOSOptions) (*Client, error) {
+	if opts == nil {
+		return nil, errors.New("payos: options cannot be nil")
+	}
+	if strings.TrimSpace(opts.ClientId) == "" {
+		return nil, errors.New("payos: clientID is required")
+	}
+	if strings.TrimSpace(opts.ApiKey) == "" {
+		return nil, errors.New("payos: apiKey is required")
+	}
+	if strings.TrimSpace(opts.ChecksumKey) == "" {
+		return nil, errors.New("payos: checksumKey is required")
+	}
+
+	sdk, err := payosSDK.NewPayOS(opts)
+	if err != nil {
+		return nil, fmt.Errorf("payos: initialize sdk: %w", err)
+	}
+
+	return &Client{sdk: sdk}, nil
+}
+
+// MustNewClientWithOptions initializes a PayOS Client with PayOSOptions or panics on error.
+func MustNewClientWithOptions(opts *payosSDK.PayOSOptions) *Client {
+	c, err := NewClientWithOptions(opts)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
+// NewClient initializes a PayOS Client with basic credentials.
+func NewClient(clientID, apiKey, checksumKey string) (*Client, error) {
+	return NewClientWithOptions(&payosSDK.PayOSOptions{
+		ClientId:    clientID,
+		ApiKey:      apiKey,
+		ChecksumKey: checksumKey,
+	})
+}
+
+// MustNewClient initializes a PayOS Client with basic credentials or panics on error.
+func MustNewClient(clientID, apiKey, checksumKey string) *Client {
+	c, err := NewClient(clientID, apiKey, checksumKey)
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
+// SDK returns the underlying official PayOS SDK client instance.
+func (c *Client) SDK() *payosSDK.PayOS {
+	return c.sdk
+}
+
+// PaymentRequests returns the SDK PaymentRequests service.
+func (c *Client) PaymentRequests() *payosSDK.PaymentRequests {
+	return c.sdk.PaymentRequests
+}
+
+// Webhooks returns the SDK Webhooks service.
+func (c *Client) Webhooks() *payosSDK.Webhooks {
+	return c.sdk.Webhooks
+}
+
+// Payouts returns the SDK Payouts service.
+func (c *Client) Payouts() *payosSDK.Payouts {
+	return c.sdk.Payouts
+}
+
+// PayoutsAccount returns the SDK PayoutsAccount service.
+func (c *Client) PayoutsAccount() *payosSDK.PayoutsAccount {
+	return c.sdk.PayoutsAccount
+}
+
+// CreatePaymentLink generates a payment link using PayOS PaymentRequests.Create.
+func (c *Client) CreatePaymentLink(ctx context.Context, req CreateLinkRequest) (CreateLinkResponse, error) {
+	resp, err := c.sdk.PaymentRequests.Create(ctx, payosSDK.CreatePaymentLinkRequest{
+		OrderCode:   req.OrderCode,
+		Amount:      req.Amount,
+		Description: req.Description,
+		ReturnUrl:   req.ReturnURL,
+		CancelUrl:   req.CancelURL,
+	})
+	if err != nil {
+		return CreateLinkResponse{}, fmt.Errorf("payos: create payment link: %w", err)
+	}
+
+	return CreateLinkResponse{
+		CheckoutURL: resp.CheckoutUrl,
+		QRCode:      resp.QrCode,
+		OrderCode:   resp.OrderCode,
+	}, nil
+}
+
+// GetPaymentLink retrieves information about an order's payment link.
+func (c *Client) GetPaymentLink(ctx context.Context, orderCode int64) (*PaymentLink, error) {
+	link, err := c.sdk.PaymentRequests.Get(ctx, orderCode)
+	if err != nil {
+		return nil, fmt.Errorf("payos: get payment link: %w", err)
+	}
+	return link, nil
+}
+
+// CancelPaymentLink cancels an active payment link.
+func (c *Client) CancelPaymentLink(ctx context.Context, orderCode int64, cancellationReason *string) (*PaymentLink, error) {
+	link, err := c.sdk.PaymentRequests.Cancel(ctx, orderCode, cancellationReason)
+	if err != nil {
+		return nil, fmt.Errorf("payos: cancel payment link: %w", err)
+	}
+	return link, nil
+}
+
+// ConfirmWebhook registers/confirms a webhook URL with PayOS.
+func (c *Client) ConfirmWebhook(ctx context.Context, webhookURL string) (string, error) {
+	result, err := c.sdk.Webhooks.Confirm(ctx, webhookURL)
+	if err != nil {
+		return "", fmt.Errorf("payos: confirm webhook: %w", err)
+	}
+	return result, nil
+}
+
+// VerifyWebhookData cryptographically verifies webhook signature and decodes payload.
 func (c *Client) VerifyWebhookData(body []byte) (*WebhookData, error) {
-	var payload WebhookData
-	if err := json.Unmarshal(body, &payload); err != nil {
+	var rawMap map[string]interface{}
+	if err := json.Unmarshal(body, &rawMap); err != nil {
 		return nil, fmt.Errorf("payos: decode webhook body: %w", err)
 	}
 
-	if c.cfg.ChecksumKey != "" {
-		expectedSig := c.signWebhookData(payload)
-		if !hmac.Equal([]byte(payload.Signature), []byte(expectedSig)) {
-			return nil, fmt.Errorf("payos: invalid webhook signature")
-		}
+	_, err := c.sdk.Webhooks.VerifyData(context.Background(), rawMap)
+	if err != nil {
+		return nil, fmt.Errorf("payos: invalid webhook signature: %w", err)
+	}
+
+	var payload WebhookData
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("payos: decode webhook payload: %w", err)
 	}
 
 	return &payload, nil
-}
-
-func (c *Client) signCreateLink(req CreateLinkRequest) string {
-	raw := fmt.Sprintf("amount=%d&cancelUrl=%s&description=%s&orderCode=%d&returnUrl=%s",
-		req.Amount, req.CancelURL, req.Description, req.OrderCode, req.ReturnURL)
-	return c.hmac(raw)
-}
-
-func (c *Client) signWebhookData(data WebhookData) string {
-	fields := map[string]string{
-		"orderCode":           fmt.Sprintf("%d", data.Data.OrderCode),
-		"amount":              fmt.Sprintf("%d", data.Data.Amount),
-		"description":         data.Data.Description,
-		"accountNumber":       data.Data.AccountNumber,
-		"reference":           data.Data.Reference,
-		"transactionDateTime": data.Data.TransactionTime,
-		"paymentLinkId":       data.Data.PaymentLinkID,
-		"code":                data.Data.Code,
-		"desc":                data.Data.Desc,
-	}
-	keys := make([]string, 0, len(fields))
-	for k := range fields {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	parts := make([]string, 0, len(keys))
-	for _, k := range keys {
-		parts = append(parts, k+"="+fields[k])
-	}
-	return c.hmac(strings.Join(parts, "&"))
-}
-
-func (c *Client) hmac(message string) string {
-	mac := hmac.New(sha256.New, []byte(c.cfg.ChecksumKey))
-	mac.Write([]byte(message))
-	return hex.EncodeToString(mac.Sum(nil))
 }
