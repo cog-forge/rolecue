@@ -118,7 +118,7 @@ func TestQuestionBankE2E(t *testing.T) {
 	s := &e2eSeed{t: t, pool: pool, ctx: ctx, tag: uuid.NewString()[:8]}
 	defer s.cleanup()
 	levelID := uuid.New()
-	s.exec(`INSERT INTO public.levels (id, name) VALUES ($1, $2)`, levelID, "e2e-"+s.tag)
+	s.exec(`INSERT INTO public.levels (id, name, description) VALUES ($1, 'Senior', 'e2e '||$2::text)`, levelID, s.tag)
 	s.later(`DELETE FROM public.levels WHERE id = $1`, levelID)
 	mkUser := func(role string) uuid.UUID {
 		id := uuid.New()

@@ -115,7 +115,7 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 	defer s.cleanup()
 
 	levelID := uuid.New()
-	s.exec(`INSERT INTO public.levels (id, name) VALUES ($1, $2)`, levelID, "qb-"+s.tag)
+	s.exec(`INSERT INTO public.levels (id, name, description) VALUES ($1, $2, 'qb level description')`, levelID, "qb-"+s.tag)
 	s.later(`DELETE FROM public.levels WHERE id = $1`, levelID)
 
 	recruiter, otherRecruiter := s.user("recruiter"), s.user("recruiter")
@@ -144,6 +144,9 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 		in, err := repo.GenerationInput(ctx, jd)
 		if err != nil || len(in.Requirements) != 2 || in.RefinementNote != "skip Docker" {
 			t.Fatalf("got %+v, %v", in, err)
+		}
+		if in.Seniority.Name != "qb-"+s.tag || in.Seniority.Description == nil || *in.Seniority.Description != "qb level description" {
+			t.Fatalf("seniority level was not read from the JD's level: %+v", in.Seniority)
 		}
 	})
 

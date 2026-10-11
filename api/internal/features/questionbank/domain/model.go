@@ -28,8 +28,17 @@ type ConfirmedRequirement struct {
 	EvidenceText *string `json:"evidence_text"`
 }
 
-// GenerationInput is everything the generator may use to write the bank.
+// SeniorityLevel is the JD's level (job_descriptions.level_id -> levels). It describes the whole
+// job description, so it is not part of a single requirement.
+type SeniorityLevel struct {
+	Name        string  `json:"name"`
+	Description *string `json:"description"`
+}
+
+// GenerationInput is everything the generator may use to write the bank. The seniority level and
+// the refinement note both come from the JD itself.
 type GenerationInput struct {
+	Seniority      SeniorityLevel
 	Requirements   []ConfirmedRequirement
 	RefinementNote string
 }

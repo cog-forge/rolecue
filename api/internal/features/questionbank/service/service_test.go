@@ -114,6 +114,7 @@ func readyRepo() *fakeRepository {
 	return &fakeRepository{
 		posting: domain.Posting{JDID: uuid.New(), Status: domain.PostingPending},
 		input: domain.GenerationInput{
+			Seniority:      domain.SeniorityLevel{Name: "Senior"},
 			Requirements:   []domain.ConfirmedRequirement{{Name: "Go", Target: "backend", Type: "required"}},
 			RefinementNote: "skip Docker",
 		},
@@ -165,6 +166,9 @@ func TestGenerateSuccessUsesOwnerAndSize(t *testing.T) {
 	}
 	if repo.gotRecruit != recruiter {
 		t.Fatal("owner did not reach the repository")
+	}
+	if gen.gotIn.Seniority.Name != "Senior" {
+		t.Fatalf("seniority level did not reach the generator: %+v", gen.gotIn.Seniority)
 	}
 	if gen.gotNum != 3 || len(gen.gotIn.Requirements) != 1 || gen.gotIn.RefinementNote != "skip Docker" {
 		t.Fatalf("generator got count=%d input=%+v", gen.gotNum, gen.gotIn)

@@ -58,17 +58,20 @@ func (r *Repository) GenerationInput(ctx context.Context, jdID uuid.UUID) (domai
 	if err != nil {
 		return domain.GenerationInput{}, persistenceError(err)
 	}
-	note, err := r.queries.GetJDRefinementNote(ctx, jdID)
+	jd, err := r.queries.GetJDGenerationContext(ctx, jdID)
 	if err != nil {
 		return domain.GenerationInput{}, persistenceError(err)
 	}
-	in := domain.GenerationInput{Requirements: make([]domain.ConfirmedRequirement, 0, len(rows))}
+	in := domain.GenerationInput{
+		Seniority:    domain.SeniorityLevel{Name: jd.LevelName, Description: jd.LevelDescription},
+		Requirements: make([]domain.ConfirmedRequirement, 0, len(rows)),
+	}
 	for _, row := range rows {
 		in.Requirements = append(in.Requirements, domain.ConfirmedRequirement{
 			Name: row.Name, Target: row.Target, Type: row.Type, EvidenceText: row.EvidenceText})
 	}
-	if note != nil {
-		in.RefinementNote = *note
+	if jd.RefinementNote != nil {
+		in.RefinementNote = *jd.RefinementNote
 	}
 	return in, nil
 }

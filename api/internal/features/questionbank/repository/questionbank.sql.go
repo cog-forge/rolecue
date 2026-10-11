@@ -91,15 +91,24 @@ func (q *Queries) DeleteCoreQuestion(ctx context.Context, arg DeleteCoreQuestion
 	return result.RowsAffected(), nil
 }
 
-const getJDRefinementNote = `-- name: GetJDRefinementNote :one
-SELECT refinement_note FROM public.job_descriptions WHERE id = $1
+const getJDGenerationContext = `-- name: GetJDGenerationContext :one
+SELECT jd.refinement_note, l.name AS level_name, l.description AS level_description
+FROM public.job_descriptions jd
+JOIN public.levels l ON l.id = jd.level_id
+WHERE jd.id = $1
 `
 
-func (q *Queries) GetJDRefinementNote(ctx context.Context, id uuid.UUID) (*string, error) {
-	row := q.db.QueryRow(ctx, getJDRefinementNote, id)
-	var refinement_note *string
-	err := row.Scan(&refinement_note)
-	return refinement_note, err
+type GetJDGenerationContextRow struct {
+	RefinementNote   *string
+	LevelName        string
+	LevelDescription *string
+}
+
+func (q *Queries) GetJDGenerationContext(ctx context.Context, id uuid.UUID) (GetJDGenerationContextRow, error) {
+	row := q.db.QueryRow(ctx, getJDGenerationContext, id)
+	var i GetJDGenerationContextRow
+	err := row.Scan(&i.RefinementNote, &i.LevelName, &i.LevelDescription)
+	return i, err
 }
 
 const getRecruiterPosting = `-- name: GetRecruiterPosting :one

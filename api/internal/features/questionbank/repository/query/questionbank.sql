@@ -20,8 +20,11 @@ FROM public.requirements
 WHERE jd_id = @jd_id
 ORDER BY name, id;
 
--- name: GetJDRefinementNote :one
-SELECT refinement_note FROM public.job_descriptions WHERE id = @id;
+-- name: GetJDGenerationContext :one
+SELECT jd.refinement_note, l.name AS level_name, l.description AS level_description
+FROM public.job_descriptions jd
+JOIN public.levels l ON l.id = jd.level_id
+WHERE jd.id = @id;
 
 -- name: AddCoreQuestion :one
 INSERT INTO public.core_questions (jd_id, content)

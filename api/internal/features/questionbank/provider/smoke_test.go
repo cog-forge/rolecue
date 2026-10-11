@@ -35,6 +35,7 @@ func TestLLMSmoke(t *testing.T) {
 	}
 	evidence := "payment platform handling high-volume transactions"
 	in := domain.GenerationInput{
+		Seniority: domain.SeniorityLevel{Name: "Senior"},
 		Requirements: []domain.ConfirmedRequirement{
 			{Name: "Go", Target: "backend services", Type: "required", EvidenceText: &evidence},
 			{Name: "PostgreSQL", Target: "data storage", Type: "required"},
