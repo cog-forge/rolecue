@@ -5,3 +5,7 @@
 
 # Keep environment template tracked
 !/.env.example
+
+# Local Claude Code config
+.claude/
+CLAUDE.md

@@ -17,6 +17,15 @@ definitions:
     - JD_TOO_LONG
     - EXTRACTION_FAILED
     - INVALID_EXTRACTION_OUTPUT
+    - JOB_POSTING_NOT_FOUND
+    - CORE_QUESTION_NOT_FOUND
+    - QUESTION_BANK_EXISTS
+    - QUESTION_BANK_LOCKED
+    - CORE_QUESTION_IN_USE
+    - REQUIREMENTS_NOT_CONFIRMED
+    - QUESTION_GENERATION_FAILED
+    - INVALID_QUESTION_GENERATION_OUTPUT
+    - QUESTION_BANK_UNAVAILABLE
     type: string
     x-enum-varnames:
     - CodeJDInUse
@@ -34,6 +43,22 @@ definitions:
     - CodeJDTooLong
     - CodeExtractionFailed
     - CodeInvalidExtractionOutput
+    - CodeJobPostingNotFound
+    - CodeCoreQuestionNotFound
+    - CodeQuestionBankExists
+    - CodeQuestionBankLocked
+    - CodeCoreQuestionInUse
+    - CodeRequirementsNotConfirmed
+    - CodeQuestionGenerationFailed
+    - CodeInvalidQuestionGenerationOutput
+    - CodeQuestionBankUnavailable
+  domain.CoreQuestion:
+    properties:
+      content:
+        type: string
+      id:
+        type: string
+    type: object
   domain.ExtractedSkill:
     properties:
       category:
@@ -219,6 +244,20 @@ definitions:
         $ref: '#/definitions/domain.StructuredJD'
       updatedAt:
         type: string
+    type: object
+  handler.QuestionBankResponse:
+    properties:
+      questions:
+        items:
+          $ref: '#/definitions/domain.CoreQuestion'
+        type: array
+    type: object
+  handler.QuestionRequest:
+    properties:
+      content:
+        type: string
+    required:
+    - content
     type: object
   handler.UpdateJDRequest:
     properties:
@@ -574,6 +613,317 @@ paths:
       summary: Analyze a raw JD without saving
       tags:
       - jds
+  /job-postings/{id}/questions:
+    get:
+      description: Recruiter only. Candidates never receive the bank.
+      parameters:
+      - description: Job posting ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.QuestionBankResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List the core-question bank of your own job posting
+      tags:
+      - job-posting-questions
+    post:
+      consumes:
+      - application/json
+      description: Recruiter only, while the posting is pending. Trusted Origin required.
+        Unknown fields reject the whole request.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Job posting ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Question; body limit 16 KiB
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.QuestionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.CoreQuestion'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Add a question to the bank of your own job posting
+      tags:
+      - job-posting-questions
+  /job-postings/{id}/questions/{questionId}:
+    delete:
+      description: Recruiter only, while the posting is pending. A question already
+        used by an interview cannot be deleted. Trusted Origin required.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Job posting ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Question ID
+        in: path
+        name: questionId
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Delete a question from the bank of your own job posting
+      tags:
+      - job-posting-questions
+    patch:
+      consumes:
+      - application/json
+      description: Recruiter only, while the posting is pending. Trusted Origin required.
+        Unknown fields reject the whole request.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Job posting ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Question ID
+        in: path
+        name: questionId
+        required: true
+        type: string
+      - description: Question; body limit 16 KiB
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.QuestionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.CoreQuestion'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Edit a question in the bank of your own job posting
+      tags:
+      - job-posting-questions
+  /job-postings/{id}/questions/generate:
+    post:
+      description: 'Recruiter only. Runs only while the bank is empty: a posting that
+        already has questions returns 409 (a bank emptied by deleting every question
+        can be generated again). Only while the posting is pending. Requires confirmed
+        requirements. Trusted Origin required.'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Job posting ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.QuestionBankResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Generate the core-question bank of your own job posting
+      tags:
+      - job-posting-questions
   /profile:
     get:
       produces:
