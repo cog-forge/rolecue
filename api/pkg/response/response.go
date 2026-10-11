@@ -37,6 +37,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeQuestionGenerationFailed:        http.StatusBadGateway,
 	apperror.CodeInvalidQuestionGenerationOutput: http.StatusBadGateway,
 	apperror.CodeQuestionBankUnavailable:         http.StatusServiceUnavailable,
+	apperror.CodeJobPostingNotPending:            http.StatusConflict,
 	apperror.CodeInvalidCredentials:              http.StatusUnauthorized,
 	apperror.CodeAccountNotFound:                 http.StatusNotFound,
 	apperror.CodeAccountLocked:                   http.StatusForbidden,

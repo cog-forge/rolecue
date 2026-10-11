@@ -15,6 +15,416 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/job-postings": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Newest first. Without status, returns the pending queue; status=all removes the filter. The date window is [from, to) on created_at.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-job-postings"
+                ],
+                "summary": "List Job Postings for moderation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "pending (default), open, intake_closed, closed, rejected or all",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Recruiter user ID",
+                        "name": "recruiter_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Created at or after (RFC 3339)",
+                        "name": "from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Created before (RFC 3339)",
+                        "name": "to",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Number of items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-domain_PostingSummary"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/job-postings/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Read-only: the Admin cannot edit posting content, the 3D interviewer or the voice.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-job-postings"
+                ],
+                "summary": "Get a Job Posting for review",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ReviewPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/job-postings/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Trusted Origin required. Moves pending to open, which makes the posting available. Approving an already open posting returns it unchanged; any other non-pending state is 409.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-job-postings"
+                ],
+                "summary": "Approve a pending Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ReviewPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/job-postings/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Trusted Origin required. Moves pending to rejected and stores reject_reason (1-1000 characters) for the Recruiter. Rejecting an already rejected posting returns it unchanged and keeps the first reason; any other non-pending state is 409. Unknown fields reject the whole request.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-job-postings"
+                ],
+                "summary": "Reject a pending Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Reject reason; body limit 16 KiB",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RejectPostingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.ReviewPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/me": {
             "get": {
                 "security": [
@@ -1191,7 +1601,8 @@ const docTemplate = `{
                 "REQUIREMENTS_NOT_CONFIRMED",
                 "QUESTION_GENERATION_FAILED",
                 "INVALID_QUESTION_GENERATION_OUTPUT",
-                "QUESTION_BANK_UNAVAILABLE"
+                "QUESTION_BANK_UNAVAILABLE",
+                "JOB_POSTING_NOT_PENDING"
             ],
             "x-enum-varnames": [
                 "CodeJDInUse",
@@ -1217,7 +1628,8 @@ const docTemplate = `{
                 "CodeRequirementsNotConfirmed",
                 "CodeQuestionGenerationFailed",
                 "CodeInvalidQuestionGenerationOutput",
-                "CodeQuestionBankUnavailable"
+                "CodeQuestionBankUnavailable",
+                "CodeJobPostingNotPending"
             ]
         },
         "domain.CoreQuestion": {
@@ -1273,6 +1685,17 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.NamedRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Patch": {
             "type": "object",
             "properties": {
@@ -1290,6 +1713,43 @@ const docTemplate = `{
                 "image": {
                     "type": "string",
                     "x-nullable": true
+                }
+            }
+        },
+        "domain.PostingStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "open",
+                "intake_closed",
+                "closed",
+                "rejected"
+            ],
+            "x-enum-varnames": [
+                "PostingStatusPending",
+                "PostingStatusOpen",
+                "PostingStatusIntakeClosed",
+                "PostingStatusClosed",
+                "PostingStatusRejected"
+            ]
+        },
+        "domain.PostingSummary": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "recruiter": {
+                    "$ref": "#/definitions/domain.Recruiter"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.PostingStatus"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
@@ -1328,6 +1788,20 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Recruiter": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Requirement": {
             "type": "string",
             "enum": [
@@ -1338,6 +1812,53 @@ const docTemplate = `{
                 "Required",
                 "Preferred"
             ]
+        },
+        "domain.ReviewPosting": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "employment_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_duration": {
+                    "type": "integer"
+                },
+                "interview_slot": {
+                    "type": "integer"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "recruiter": {
+                    "$ref": "#/definitions/domain.Recruiter"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "required_avatar": {
+                    "$ref": "#/definitions/domain.NamedRef"
+                },
+                "required_voice": {
+                    "$ref": "#/definitions/domain.NamedRef"
+                },
+                "salary_max": {
+                    "type": "integer"
+                },
+                "salary_min": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.PostingStatus"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
         },
         "domain.Seniority": {
             "type": "string",
@@ -1520,6 +2041,17 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.RejectPostingRequest": {
+            "type": "object",
+            "required": [
+                "reject_reason"
+            ],
+            "properties": {
+                "reject_reason": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.UpdateJDRequest": {
             "type": "object",
             "required": [
@@ -1561,6 +2093,20 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.ListItem"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
+        "response.Page-domain_PostingSummary": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.PostingSummary"
                     }
                 },
                 "pagination": {
