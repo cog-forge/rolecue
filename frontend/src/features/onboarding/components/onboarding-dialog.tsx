@@ -18,7 +18,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { OnboardingForm as OnboardingFormFrame } from "@/components/ui/onboarding-form";
+import { OnboardingFrame } from "./onboarding-frame";
 import {
   getMyProfile,
   updateMyProfile,
@@ -90,7 +90,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
           overlayClassName="bg-[#172342]/20 dark:bg-black/45 backdrop-blur-[2px] supports-backdrop-filter:backdrop-blur-[2px]"
           className="max-h-[calc(100dvh-1.5rem)] max-w-[calc(100%_-_1.5rem)] gap-0 overflow-y-auto rounded-[27px] border-0 bg-transparent p-0 shadow-none sm:max-w-[640px]"
         >
-          <OnboardingFormFrame
+          <OnboardingFrame
             imageSrc="/images/onboarding-art-blue.webp"
             topBar={
               <Button
@@ -264,7 +264,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                 Sign-out failed. Please try again.
               </p>
             )}
-          </OnboardingFormFrame>
+          </OnboardingFrame>
         </DialogContent>
       </Dialog>
     </main>

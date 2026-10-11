@@ -5,7 +5,7 @@ import Image from "next/image";
 import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-type OnboardingFormProps = HTMLAttributes<HTMLDivElement> & {
+type OnboardingFrameProps = HTMLAttributes<HTMLDivElement> & {
   imageSrc: string;
   imageAlt?: string;
   topBar?: ReactNode;
@@ -16,7 +16,7 @@ type OnboardingFormProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 /** Visual shell only; the feature owns form state, validation, and submission. */
-export function OnboardingForm({
+export function OnboardingFrame({
   imageSrc,
   imageAlt = "",
   topBar,
@@ -26,7 +26,7 @@ export function OnboardingForm({
   children,
   className,
   ...props
-}: OnboardingFormProps) {
+}: OnboardingFrameProps) {
   const reduceMotion = useReducedMotion();
 
   return (

@@ -23,6 +23,7 @@ async function fixture(
     updated_at: "2026-10-08T00:00:00Z",
   };
   let profilePatchCalls = 0;
+  let profileGetCalls = 0;
   await page.route("**/auth/me", (r) =>
     r.fulfill({ json: { success: true, data: user } }),
   );
@@ -33,15 +34,21 @@ async function fixture(
     await r.fulfill({ json: { success: true, data: user } });
   });
   await page.route("**/profile**", async (r) => {
+    if (r.request().isNavigationRequest()) {
+      await r.fallback();
+      return;
+    }
     if (r.request().method() === "PATCH") {
       profilePatchCalls++;
       const patch = r.request().postDataJSON();
       profile = { ...profile, ...patch, onboarding_completed: true };
       user = { ...user, ...patch, onboarding_completed: true };
+    } else {
+      profileGetCalls++;
     }
     await r.fulfill({ json: { success: true, data: profile } });
   });
-  return () => ({ user, profile, profilePatchCalls });
+  return () => ({ user, profile, profilePatchCalls, profileGetCalls });
 }
 test("candidate: mandatory dialog, Peek, completion and reload", async ({
   page,
@@ -96,6 +103,45 @@ test("recruiter: resume metadata, website preview, correct sidebar", async ({
   ).toBeVisible();
   expect(state().profilePatchCalls).toBe(1);
   expect(state().profile.company_website).toBe("https://acme.example");
+});
+test("recruiter can submit a bare website with Enter before blur", async ({
+  page,
+}) => {
+  const state = await fixture(page, "recruiter", true);
+  await page.goto("/dashboard");
+  await page.getByLabel("Display name").fill("Riley Recruiter");
+  await page.getByLabel("Company name").fill("Acme");
+  const website = page.getByLabel("Company website", { exact: true });
+  await website.fill("acme.example");
+  await expect(website).toBeFocused();
+  await expect(website).toHaveValue("acme.example");
+  await website.press("Enter");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/recruiter\/dashboard$/);
+  expect(state().profilePatchCalls).toBe(1);
+  expect(state().profile.company_website).toBe("https://acme.example");
+});
+
+test("profile page waits for onboarding instead of fetching behind the dialog", async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto("/profile");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(state().profileGetCalls).toBe(0);
+  await expect(
+    page.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("radio", { name: /^candidate /i }).press("Space");
+  await page.getByRole("button", { name: "Continue as candidate" }).click();
+  await page.getByLabel("Display name").fill("Alex Candidate");
+  expect(state().profileGetCalls).toBe(1);
+  await page.getByRole("button", { name: "Open my workspace" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.goto("/profile");
+  await expect(
+    page.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
 });
 test("mobile: all fields fit and dialog keeps outside click out", async ({
   page,
