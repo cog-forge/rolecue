@@ -138,9 +138,11 @@ type LLMConfig struct {
 }
 
 type PayOSConfig struct {
-	ClientID    string `mapstructure:"client_id"`
-	APIKey      string `mapstructure:"api_key"`
-	ChecksumKey string `mapstructure:"checksum_key"`
+	ClientID    string        `mapstructure:"client_id"`
+	APIKey      string        `mapstructure:"api_key"`
+	ChecksumKey string        `mapstructure:"checksum_key"`
+	Timeout     time.Duration `mapstructure:"timeout"`
+	MaxRetries  int           `mapstructure:"max_retries"`
 }
 
 // Load loads configuration from file and overrides with environment variables
@@ -192,6 +194,8 @@ func Load(configPath string) (*Config, error) {
 		"payos.client_id":     "PAYOS_CLIENT_ID",
 		"payos.api_key":       "PAYOS_API_KEY",
 		"payos.checksum_key":  "PAYOS_CHECKSUM_KEY",
+		"payos.timeout":       "PAYOS_TIMEOUT",
+		"payos.max_retries":   "PAYOS_MAX_RETRIES",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -266,6 +270,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("llm.model", "gemini-3.1-flash-lite")
 	v.SetDefault("llm.timeout", "30s")
 	v.SetDefault("llm.max_retries", 1)
+
+	// PayOS defaults
+	v.SetDefault("payos.timeout", "30s")
+	v.SetDefault("payos.max_retries", 2)
 }
 
 // Validate checks configuration integrity and security constraints.
@@ -304,6 +312,22 @@ func (c *Config) Validate() error {
 		if c.Tracer.SampleRate < 0.0 || c.Tracer.SampleRate > 1.0 {
 			return fmt.Errorf("tracer.sample_rate must be between 0.0 and 1.0, got %f", c.Tracer.SampleRate)
 		}
+	}
+
+	if strings.TrimSpace(c.PayOS.ClientID) == "" {
+		return errors.New("payos.client_id is required")
+	}
+	if strings.TrimSpace(c.PayOS.APIKey) == "" {
+		return errors.New("payos.api_key is required")
+	}
+	if strings.TrimSpace(c.PayOS.ChecksumKey) == "" {
+		return errors.New("payos.checksum_key is required")
+	}
+	if c.PayOS.Timeout < 0 {
+		return errors.New("payos.timeout must not be negative")
+	}
+	if c.PayOS.MaxRetries < 0 {
+		return errors.New("payos.max_retries must not be negative")
 	}
 
 	return nil
