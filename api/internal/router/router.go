@@ -20,6 +20,7 @@ type Router struct {
 	jdHandler           *handler.JDHandler
 	profileHandler      *handler.ProfileHandler
 	questionBankHandler *handler.QuestionBankHandler
+	moderationHandler   *handler.ModerationHandler
 }
 
 func NewRouter(
@@ -30,6 +31,7 @@ func NewRouter(
 	jdHandler *handler.JDHandler,
 	profileHandler *handler.ProfileHandler,
 	questionBankHandler *handler.QuestionBankHandler,
+	moderationHandler *handler.ModerationHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -39,6 +41,7 @@ func NewRouter(
 		jdHandler:           jdHandler,
 		profileHandler:      profileHandler,
 		questionBankHandler: questionBankHandler,
+		moderationHandler:   moderationHandler,
 	}
 }
 
@@ -80,5 +83,12 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
 	jobPostings.PATCH("/:id/questions/:questionId", r.questionBankHandler.Update)
 	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)
+
+	// Every admin route sits under /admin so one role check guards the whole group.
+	admin := router.Group("/admin", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("admin"))
+	admin.GET("/job-postings", r.moderationHandler.List)
+	admin.GET("/job-postings/:id", r.moderationHandler.Get)
+	admin.POST("/job-postings/:id/approve", r.moderationHandler.Approve)
+	admin.POST("/job-postings/:id/reject", r.moderationHandler.Reject)
 	return router
 }

@@ -18,8 +18,9 @@ func ProvideRouter(
 	jdHandler *handler.JDHandler,
 	profileHandler *handler.ProfileHandler,
 	questionBankHandler *handler.QuestionBankHandler,
+	moderationHandler *handler.ModerationHandler,
 ) *gin.Engine {
-	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, jdHandler, profileHandler, questionBankHandler)
+	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, jdHandler, profileHandler, questionBankHandler, moderationHandler)
 	return appRouter.Setup()
 }
 

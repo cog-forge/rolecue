@@ -30,6 +30,9 @@ const (
 	CodeQuestionGenerationFailed        Code = "QUESTION_GENERATION_FAILED"
 	CodeInvalidQuestionGenerationOutput Code = "INVALID_QUESTION_GENERATION_OUTPUT"
 	CodeQuestionBankUnavailable         Code = "QUESTION_BANK_UNAVAILABLE"
+
+	CodeJobPostingNotPending Code = "JOB_POSTING_NOT_PENDING"
+	CodeQuestionBankNotReady Code = "QUESTION_BANK_NOT_READY"
 )
 
 type AppError struct {

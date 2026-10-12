@@ -54,7 +54,15 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	questionBankHandler := provider.ProvideQuestionBankHandler(serviceService)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, questionBankHandler)
+	repository4 := provider.ProvideModerationRepository(pool)
+	service2, err := provider.ProvideModerationService(repository4, logger)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	moderationHandler := provider.ProvideModerationHandler(service2)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, questionBankHandler, moderationHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {

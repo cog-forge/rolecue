@@ -26,6 +26,8 @@ definitions:
     - QUESTION_GENERATION_FAILED
     - INVALID_QUESTION_GENERATION_OUTPUT
     - QUESTION_BANK_UNAVAILABLE
+    - JOB_POSTING_NOT_PENDING
+    - QUESTION_BANK_NOT_READY
     type: string
     x-enum-varnames:
     - CodeJDInUse
@@ -52,6 +54,8 @@ definitions:
     - CodeQuestionGenerationFailed
     - CodeInvalidQuestionGenerationOutput
     - CodeQuestionBankUnavailable
+    - CodeJobPostingNotPending
+    - CodeQuestionBankNotReady
   domain.CoreQuestion:
     properties:
       content:
@@ -86,6 +90,13 @@ definitions:
       updatedAt:
         type: string
     type: object
+  domain.NamedRef:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   domain.Patch:
     properties:
       company_name:
@@ -99,6 +110,33 @@ definitions:
       image:
         type: string
         x-nullable: true
+    type: object
+  domain.PostingStatus:
+    enum:
+    - pending
+    - open
+    - intake_closed
+    - closed
+    - rejected
+    type: string
+    x-enum-varnames:
+    - PostingStatusPending
+    - PostingStatusOpen
+    - PostingStatusIntakeClosed
+    - PostingStatusClosed
+    - PostingStatusRejected
+  domain.PostingSummary:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      recruiter:
+        $ref: '#/definitions/domain.Recruiter'
+      status:
+        $ref: '#/definitions/domain.PostingStatus'
+      title:
+        type: string
     type: object
   domain.Profile:
     properties:
@@ -123,6 +161,15 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.Recruiter:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   domain.Requirement:
     enum:
     - required
@@ -131,6 +178,45 @@ definitions:
     x-enum-varnames:
     - Required
     - Preferred
+  domain.ReviewPosting:
+    properties:
+      content_path:
+        description: ContentPath is the URL of the JD content (job_descriptions.content_path),
+          the text the Admin reviews.
+        type: string
+      core_question_count:
+        description: CoreQuestionCount tells the Admin whether the posting can be
+          approved (it needs at least one).
+        type: integer
+      created_at:
+        type: string
+      employment_type:
+        type: string
+      id:
+        type: string
+      interview_duration:
+        type: integer
+      interview_slot:
+        type: integer
+      location:
+        type: string
+      recruiter:
+        $ref: '#/definitions/domain.Recruiter'
+      reject_reason:
+        type: string
+      required_avatar:
+        $ref: '#/definitions/domain.NamedRef'
+      required_voice:
+        $ref: '#/definitions/domain.NamedRef'
+      salary_max:
+        type: integer
+      salary_min:
+        type: integer
+      status:
+        $ref: '#/definitions/domain.PostingStatus'
+      title:
+        type: string
+    type: object
   domain.Seniority:
     enum:
     - intern
@@ -259,6 +345,13 @@ definitions:
     required:
     - content
     type: object
+  handler.RejectPostingRequest:
+    properties:
+      reject_reason:
+        type: string
+    required:
+    - reject_reason
+    type: object
   handler.UpdateJDRequest:
     properties:
       structuredJD:
@@ -290,6 +383,15 @@ definitions:
       pagination:
         $ref: '#/definitions/response.Pagination'
     type: object
+  response.Page-domain_PostingSummary:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.PostingSummary'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
   response.Pagination:
     properties:
       limit:
@@ -306,6 +408,276 @@ info:
   title: AI Interview Practice API
   version: 1.0.0
 paths:
+  /admin/job-postings:
+    get:
+      consumes:
+      - application/json
+      description: Admin only. Newest first. Without status, returns the pending queue;
+        status=all removes the filter. The date window is [from, to) on created_at.
+      parameters:
+      - description: pending (default), open, intake_closed, closed, rejected or all
+        in: query
+        name: status
+        type: string
+      - description: Recruiter user ID
+        format: uuid
+        in: query
+        name: recruiter_id
+        type: string
+      - description: Created at or after (RFC 3339)
+        format: date-time
+        in: query
+        name: from
+        type: string
+      - description: Created before (RFC 3339)
+        format: date-time
+        in: query
+        name: to
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Number of items to skip
+        in: query
+        maximum: 2147483647
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-domain_PostingSummary'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List Job Postings for moderation
+      tags:
+      - admin-job-postings
+  /admin/job-postings/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 'Admin only. Read-only: the Admin cannot edit posting content,
+        the 3D interviewer or the voice. content_path is the URL of the JD content
+        the Admin reviews; core_question_count shows whether the posting can be approved
+        (it needs at least one).'
+      parameters:
+      - description: Job posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ReviewPosting'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get a Job Posting for review
+      tags:
+      - admin-job-postings
+  /admin/job-postings/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Admin only. Trusted Origin required. Moves pending to open, which
+        makes the posting available. The posting needs at least one core question
+        (409 QUESTION_BANK_NOT_READY otherwise), because its question bank is locked
+        once it leaves pending. Approving an already open posting returns it unchanged;
+        any other non-pending state is 409 JOB_POSTING_NOT_PENDING.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Job posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ReviewPosting'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Approve a pending Job Posting
+      tags:
+      - admin-job-postings
+  /admin/job-postings/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Admin only. Trusted Origin required. Moves pending to rejected
+        and stores reject_reason (1-1000 characters) for the Recruiter. Rejecting
+        an already rejected posting returns it unchanged and keeps the first reason;
+        any other non-pending state is 409. Unknown fields reject the whole request.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Job posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Reject reason; body limit 16 KiB
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RejectPostingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.ReviewPosting'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Reject a pending Job Posting
+      tags:
+      - admin-job-postings
   /auth/me:
     get:
       produces:
