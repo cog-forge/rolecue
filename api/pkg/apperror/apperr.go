@@ -8,6 +8,9 @@ import (
 type Code string
 
 const (
+	CodeAvatarNotFound          Code = "AVATAR_NOT_FOUND"
+	CodeAvatarInUse             Code = "AVATAR_IN_USE"
+	CodeAvatarAssetUnavailable  Code = "AVATAR_ASSET_UNAVAILABLE"
 	CodeJDInUse                 Code = "JD_IN_USE"
 	CodeJDNotFound              Code = "JD_NOT_FOUND"
 	CodeInvalidCredentials      Code = "INVALID_CREDENTIALS"

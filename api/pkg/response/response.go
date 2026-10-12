@@ -21,6 +21,9 @@ type ErrorBody struct {
 }
 
 var httpStatusByCode = map[apperror.Code]int{
+	apperror.CodeAvatarNotFound:                  http.StatusNotFound,
+	apperror.CodeAvatarInUse:                     http.StatusConflict,
+	apperror.CodeAvatarAssetUnavailable:          http.StatusServiceUnavailable,
 	apperror.CodeJDInUse:                         http.StatusConflict,
 	apperror.CodeJDNotFound:                      http.StatusNotFound,
 	apperror.CodeInvalidJDInput:                  http.StatusBadRequest,
