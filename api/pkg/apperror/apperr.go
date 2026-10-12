@@ -44,6 +44,9 @@ const (
 	CodePaymentGatewayError     Code = "PAYMENT_GATEWAY_ERROR"
 	CodePayOSError              Code = "PAYOS_ERROR"
 	CodeWebhookSignatureInvalid Code = "WEBHOOK_SIGNATURE_INVALID"
+
+	CodeJobPostingNotPending Code = "JOB_POSTING_NOT_PENDING"
+	CodeQuestionBankNotReady Code = "QUESTION_BANK_NOT_READY"
 )
 
 type AppError struct {
