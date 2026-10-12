@@ -1,6 +1,9 @@
 package apperror
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type Code string
 
@@ -21,6 +24,7 @@ const (
 	CodeExtractionFailed        Code = "EXTRACTION_FAILED"
 	CodeInvalidExtractionOutput Code = "INVALID_EXTRACTION_OUTPUT"
 
+	// Question bank domain codes.
 	CodeJobPostingNotFound              Code = "JOB_POSTING_NOT_FOUND"
 	CodeCoreQuestionNotFound            Code = "CORE_QUESTION_NOT_FOUND"
 	CodeQuestionBankExists              Code = "QUESTION_BANK_EXISTS"
@@ -30,6 +34,16 @@ const (
 	CodeQuestionGenerationFailed        Code = "QUESTION_GENERATION_FAILED"
 	CodeInvalidQuestionGenerationOutput Code = "INVALID_QUESTION_GENERATION_OUTPUT"
 	CodeQuestionBankUnavailable         Code = "QUESTION_BANK_UNAVAILABLE"
+
+	// Wallet / payment domain codes.
+	CodeWalletNotFound          Code = "WALLET_NOT_FOUND"
+	CodeInsufficientBalance     Code = "INSUFFICIENT_BALANCE"
+	CodePackageNotFound         Code = "PACKAGE_NOT_FOUND"
+	CodeCoinPackageNotFound     Code = "COIN_PACKAGE_NOT_FOUND"
+	CodeTransactionNotFound     Code = "TRANSACTION_NOT_FOUND"
+	CodePaymentGatewayError     Code = "PAYMENT_GATEWAY_ERROR"
+	CodePayOSError              Code = "PAYOS_ERROR"
+	CodeWebhookSignatureInvalid Code = "WEBHOOK_SIGNATURE_INVALID"
 
 	CodeJobPostingNotPending Code = "JOB_POSTING_NOT_PENDING"
 	CodeQuestionBankNotReady Code = "QUESTION_BANK_NOT_READY"
@@ -78,4 +92,12 @@ func (e *AppError) Unwrap() error {
 	}
 
 	return e.Err
+}
+
+func IsCode(err error, code Code) bool {
+	var appErr *AppError
+	if errors.As(err, &appErr) && appErr != nil {
+		return appErr.Code == code
+	}
+	return false
 }

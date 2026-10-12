@@ -46,23 +46,27 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository2 := provider.ProvideProfileRepository(pool)
 	service := provider.ProvideProfileService(repository2)
 	profileHandler := provider.ProvideProfileHandler(service)
-	repository3 := provider.ProvideQuestionBankRepository(pool)
-	serviceService, err := provider.ProvideQuestionBankService(config, repository3)
+	repository3 := provider.ProvideWalletRepository(pool)
+	client := provider.ProvidePayOSClient(config)
+	serviceService := provider.ProvideWalletService(repository3, client)
+	walletHandler := provider.ProvideWalletHandler(serviceService)
+	repository4 := provider.ProvideQuestionBankRepository(pool)
+	service2, err := provider.ProvideQuestionBankService(config, repository4)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	questionBankHandler := provider.ProvideQuestionBankHandler(serviceService)
-	repository4 := provider.ProvideModerationRepository(pool)
-	service2, err := provider.ProvideModerationService(repository4, logger)
+	questionBankHandler := provider.ProvideQuestionBankHandler(service2)
+	repository5 := provider.ProvideModerationRepository(pool)
+	service3, err := provider.ProvideModerationService(repository5, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	moderationHandler := provider.ProvideModerationHandler(service2)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, questionBankHandler, moderationHandler)
+	moderationHandler := provider.ProvideModerationHandler(service3)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {

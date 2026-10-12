@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/subosito/gotenv"
 )
 
 // Config holds the entire system configuration
@@ -22,7 +23,7 @@ type Config struct {
 	Logger   LoggerConfig   `mapstructure:"logger"`
 	Tracer   TracerConfig   `mapstructure:"tracer"`
 	LLM      LLMConfig      `mapstructure:"llm"`
-
+	PayOS        PayOSConfig        `mapstructure:"payos"`
 	QuestionBank QuestionBankConfig `mapstructure:"question_bank"`
 }
 
@@ -137,6 +138,14 @@ type LLMConfig struct {
 	MaxRetries int           `mapstructure:"max_retries"`
 }
 
+type PayOSConfig struct {
+	ClientID    string        `mapstructure:"client_id"`
+	APIKey      string        `mapstructure:"api_key"`
+	ChecksumKey string        `mapstructure:"checksum_key"`
+	Timeout     time.Duration `mapstructure:"timeout"`
+	MaxRetries  int           `mapstructure:"max_retries"`
+}
+
 // QuestionBankConfig holds the core-question bank settings. Size is the number of questions
 // generated per bank. The team chose a large bank (50) so any interview duration is covered,
 // because one interview only asks fewer than ten core questions. 0 disables generation.
@@ -146,9 +155,11 @@ type QuestionBankConfig struct {
 
 // MaxQuestionBankSize bounds QUESTION_BANK_SIZE to a sane technical range.
 const MaxQuestionBankSize = 100
-
 // Load loads configuration from file and overrides with environment variables
 func Load(configPath string) (*Config, error) {
+	_ = gotenv.Load("../.env")
+	_ = gotenv.Load(".env")
+
 	v := viper.New()
 
 	setDefaults(v)
@@ -190,6 +201,11 @@ func Load(configPath string) (*Config, error) {
 		"llm.model":           "LLM_MODEL",
 		"llm.timeout":         "LLM_TIMEOUT",
 		"llm.max_retries":     "LLM_MAX_RETRIES",
+		"payos.client_id":     "PAYOS_CLIENT_ID",
+		"payos.api_key":       "PAYOS_API_KEY",
+		"payos.checksum_key":  "PAYOS_CHECKSUM_KEY",
+		"payos.timeout":       "PAYOS_TIMEOUT",
+		"payos.max_retries":   "PAYOS_MAX_RETRIES",
 		"question_bank.size":  "QUESTION_BANK_SIZE",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
@@ -266,6 +282,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("llm.timeout", "30s")
 	v.SetDefault("llm.max_retries", 1)
 
+	// PayOS defaults
+	v.SetDefault("payos.timeout", "30s")
+	v.SetDefault("payos.max_retries", 2)
+
 	// Question bank defaults: 50 questions per bank, as agreed by the team.
 	v.SetDefault("question_bank.size", 50)
 }
@@ -310,6 +330,22 @@ func (c *Config) Validate() error {
 		if c.Tracer.SampleRate < 0.0 || c.Tracer.SampleRate > 1.0 {
 			return fmt.Errorf("tracer.sample_rate must be between 0.0 and 1.0, got %f", c.Tracer.SampleRate)
 		}
+	}
+
+	if strings.TrimSpace(c.PayOS.ClientID) == "" {
+		return errors.New("payos.client_id is required")
+	}
+	if strings.TrimSpace(c.PayOS.APIKey) == "" {
+		return errors.New("payos.api_key is required")
+	}
+	if strings.TrimSpace(c.PayOS.ChecksumKey) == "" {
+		return errors.New("payos.checksum_key is required")
+	}
+	if c.PayOS.Timeout < 0 {
+		return errors.New("payos.timeout must not be negative")
+	}
+	if c.PayOS.MaxRetries < 0 {
+		return errors.New("payos.max_retries must not be negative")
 	}
 
 	return nil
