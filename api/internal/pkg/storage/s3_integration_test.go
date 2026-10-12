@@ -1,4 +1,4 @@
-//go:build integration
+//go:build storage_integration
 
 package storage
 
