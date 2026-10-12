@@ -85,6 +85,46 @@ describe("LoginForm", () => {
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
+  it("keeps a visible lock notice after credential sign-in is rejected", async () => {
+    emailSignIn.mockResolvedValue({
+      data: null,
+      error: { code: "BANNED_USER", status: 403 },
+    });
+    render(<LoginForm enabledProviders={configuredProviders} />);
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "candidate@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "passphrase" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Account locked",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Contact support");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("explains a blocked social sign-in using Better Auth's callback code", () => {
+    render(
+      <LoginForm
+        oauthFailed
+        oauthError="BANNED_USER"
+        enabledProviders={configuredProviders}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Account locked");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Please try again");
+  });
+
+  it("does not describe an ended session as a confirmed account lock", () => {
+    render(<LoginForm sessionEnded />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your session has ended",
+    );
+    expect(screen.queryByText("Account locked")).not.toBeInTheDocument();
+  });
+
   it("offers verification resend after an unverified email cannot sign in", async () => {
     emailSignIn.mockResolvedValue({
       data: null,
