@@ -69,7 +69,10 @@ func TestS3RoundTrip(t *testing.T) {
 		if status != http.StatusForbidden {
 			t.Fatalf("anonymous GET allowed: %d", status)
 		}
-		put, err := store.PresignPut(ctx, "text/plain", time.Minute)
+		if payload == "" {
+			continue
+		}
+		put, err := store.PresignPut(ctx, "text/plain", int64(len(payload)), time.Minute)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -90,7 +93,14 @@ func TestS3RoundTrip(t *testing.T) {
 		if status != 200 || body != payload || headers.Get("Access-Control-Allow-Origin") != "http://localhost:3000" {
 			t.Fatal("direct PUT → GET with CORS failed")
 		}
-		assertTamperingRejected(t, get, put.Request)
+		assertTamperingRejected(t, get, put.Request, payload)
+		for _, wrongSize := range []string{payload + "x", payload[:len(payload)-1]} {
+			status, _, _ = requestGrant(t, put.Request, wrongSize, "")
+			if status != http.StatusForbidden {
+				t.Fatalf("upload with wrong byte size accepted: %d", status)
+			}
+		}
+		assertObject(t, ctx, store, put.Key, payload)
 		assertPreflight(t, put.Request, "http://localhost:3000")
 		status, _, headers = requestGrant(t, get, "", "https://untrusted.example.test")
 		if status != 200 || headers.Get("Access-Control-Allow-Origin") != "" {
@@ -101,7 +111,7 @@ func TestS3RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	put, err := store.PresignPut(ctx, "text/plain", time.Second)
+	put, err := store.PresignPut(ctx, "text/plain", int64(len("expired")), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,14 +174,14 @@ func requestGrant(t *testing.T, grant SignedRequest, payload, origin string) (in
 	return resp.StatusCode, string(body), resp.Header
 }
 
-func assertTamperingRejected(t *testing.T, get, put SignedRequest) {
+func assertTamperingRejected(t *testing.T, get, put SignedRequest, payload string) {
 	t.Helper()
 	for _, original := range []SignedRequest{get, put} {
 		u, _ := url.Parse(original.URL)
 		u.Path += "-changed"
 		changed := original
 		changed.URL = u.String()
-		status, _, _ := requestGrant(t, changed, "tampered", "")
+		status, _, _ := requestGrant(t, changed, payload, "")
 		if status != http.StatusForbidden {
 			t.Fatal("changed object key accepted")
 		}
@@ -180,7 +190,7 @@ func assertTamperingRejected(t *testing.T, get, put SignedRequest) {
 		q.Set("X-Amz-Signature", strings.Repeat("0", 64))
 		u.RawQuery = q.Encode()
 		changed.URL = u.String()
-		status, _, _ = requestGrant(t, changed, "tampered", "")
+		status, _, _ = requestGrant(t, changed, payload, "")
 		if status != http.StatusForbidden {
 			t.Fatal("changed signature accepted")
 		}
@@ -190,7 +200,7 @@ func assertTamperingRejected(t *testing.T, get, put SignedRequest) {
 		} else {
 			changed.Method = "GET"
 		}
-		status, _, _ = requestGrant(t, changed, "tampered", "")
+		status, _, _ = requestGrant(t, changed, payload, "")
 		if status != http.StatusForbidden {
 			t.Fatal("changed request method accepted")
 		}
@@ -201,12 +211,12 @@ func assertTamperingRejected(t *testing.T, get, put SignedRequest) {
 		changed.Headers[name] = value
 	}
 	changed.Headers["Content-Type"] = "application/octet-stream"
-	status, _, _ := requestGrant(t, changed, "tampered", "")
+	status, _, _ := requestGrant(t, changed, payload, "")
 	if status != http.StatusForbidden {
 		t.Fatal("changed signed Content-Type accepted")
 	}
 	delete(changed.Headers, "Content-Type")
-	status, _, _ = requestGrant(t, changed, "tampered", "")
+	status, _, _ = requestGrant(t, changed, payload, "")
 	if status != http.StatusBadRequest && status != http.StatusForbidden {
 		t.Fatalf("missing signed Content-Type was not rejected as an unsigned header: %d", status)
 	}

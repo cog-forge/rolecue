@@ -18,11 +18,15 @@ type Store interface {
 	Upload(ctx context.Context, body io.ReadSeeker, contentType string) (string, error)
 	Download(ctx context.Context, key string) (Object, error)
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (SignedRequest, error)
-	PresignPut(ctx context.Context, contentType string, ttl time.Duration) (UploadGrant, error)
+	// PresignPut binds a positive byte size and permits TTLs up to 15 minutes.
+	// The caller must validate size and MIME against the feature policy before
+	// issuing a grant, then verify the stored object during finalization.
+	PresignPut(ctx context.Context, contentType string, size int64, ttl time.Duration) (UploadGrant, error)
 }
 
 // SignedRequest is a bearer grant. It may be reused before expiration; do not log
-// it. Headers contains client-settable headers; Host is taken from URL.
+// it. Headers contains client-settable headers. Host and Content-Length are
+// managed by the HTTP client/browser.
 type SignedRequest struct {
 	URL     string
 	Method  string

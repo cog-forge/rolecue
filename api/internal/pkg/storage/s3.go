@@ -120,18 +120,24 @@ func (s *s3Store) PresignGet(ctx context.Context, key string, ttl time.Duration)
 	return signedRequest(out, ttl)
 }
 
-func (s *s3Store) PresignPut(ctx context.Context, contentType string, ttl time.Duration) (UploadGrant, error) {
+func (s *s3Store) PresignPut(ctx context.Context, contentType string, size int64, ttl time.Duration) (UploadGrant, error) {
 	if err := ctx.Err(); err != nil {
 		return UploadGrant{}, err
 	}
 	if err := validateContentType(contentType); err != nil {
 		return UploadGrant{}, err
 	}
+	if size <= 0 {
+		return UploadGrant{}, fmt.Errorf("%w: upload grant size must be positive", ErrInvalidInput)
+	}
 	if err := validateTTL(ttl); err != nil {
 		return UploadGrant{}, err
 	}
+	if ttl > 15*time.Minute {
+		return UploadGrant{}, fmt.Errorf("%w: upload grant TTL must not exceed 15 minutes", ErrInvalidInput)
+	}
 	key := uuid.NewString()
-	out, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key), ContentType: aws.String(contentType)}, func(o *s3.PresignOptions) { o.Expires = ttl })
+	out, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key), ContentType: aws.String(contentType), ContentLength: aws.Int64(size)}, func(o *s3.PresignOptions) { o.Expires = ttl })
 	if err != nil {
 		return UploadGrant{}, fmt.Errorf("presign PUT: %w", err)
 	}
@@ -160,7 +166,7 @@ func signedRequest(out *v4.PresignedHTTPRequest, ttl time.Duration) (SignedReque
 	}
 	headers := make(map[string]string, len(out.SignedHeader))
 	for name, values := range out.SignedHeader {
-		if !strings.EqualFold(name, "Host") {
+		if !strings.EqualFold(name, "Host") && !strings.EqualFold(name, "Content-Length") {
 			headers[http.CanonicalHeaderKey(name)] = strings.Join(values, ",")
 		}
 	}

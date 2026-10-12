@@ -47,7 +47,7 @@ func TestPresignUsesConfiguredSDK(t *testing.T) {
 	if _, ok := get.Headers["Host"]; ok {
 		t.Fatal("grant requires browser to override Host")
 	}
-	put, err := store.PresignPut(context.Background(), "text/plain", time.Minute)
+	put, err := store.PresignPut(context.Background(), "text/plain", 3, time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,13 @@ func TestPresignUsesConfiguredSDK(t *testing.T) {
 	if !strings.Contains(putURL.Query().Get("X-Amz-SignedHeaders"), "content-type") {
 		t.Fatal("pinned SDK did not sign the requested content type")
 	}
-	other, err := store.PresignPut(context.Background(), "text/plain", time.Minute)
+	if !strings.Contains(putURL.Query().Get("X-Amz-SignedHeaders"), "content-length") {
+		t.Fatal("SDK did not bind the upload byte size")
+	}
+	if _, ok := put.Request.Headers["Content-Length"]; ok {
+		t.Fatal("grant requires browser to set a forbidden Content-Length header")
+	}
+	other, err := store.PresignPut(context.Background(), "text/plain", 3, time.Minute)
 	if err != nil || other.Key == put.Key {
 		t.Fatal("independent grants share an upload key")
 	}
@@ -76,19 +82,47 @@ func TestPresignRejectsInvalidInput(t *testing.T) {
 		if _, err := store.PresignGet(context.Background(), "key", ttl); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("GET accepted TTL %s", ttl)
 		}
-		if _, err := store.PresignPut(context.Background(), "text/plain", ttl); !errors.Is(err, ErrInvalidInput) {
+		if _, err := store.PresignPut(context.Background(), "text/plain", 3, ttl); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("PUT accepted TTL %s", ttl)
 		}
 	}
 	if _, err := store.PresignGet(context.Background(), "", time.Minute); !errors.Is(err, ErrInvalidInput) {
 		t.Fatal("GET accepted empty key")
 	}
-	if _, err := store.PresignPut(context.Background(), "", time.Minute); !errors.Is(err, ErrInvalidInput) {
+	if _, err := store.PresignPut(context.Background(), "", 3, time.Minute); !errors.Is(err, ErrInvalidInput) {
 		t.Fatal("PUT accepted empty content type")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := store.PresignGet(ctx, "key", time.Minute); !errors.Is(err, context.Canceled) {
 		t.Fatal("GET signing ignored canceled context")
+	}
+}
+
+func TestPresignPutRejectsLongTTL(t *testing.T) {
+	store, err := New(testConfig("http://localhost:9000"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.PresignPut(context.Background(), "text/plain", 3, 15*time.Minute+time.Second); !errors.Is(err, ErrInvalidInput) {
+		t.Fatal("upload grant accepted TTL longer than 15 minutes")
+	}
+}
+
+func TestPresignPutSizeAndTTLBounds(t *testing.T) {
+	store, err := New(testConfig("http://localhost:9000"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, size := range []int64{-1, 0} {
+		if _, err := store.PresignPut(context.Background(), "text/plain", size, time.Minute); !errors.Is(err, ErrInvalidInput) {
+			t.Fatal("upload grant accepted a nonpositive size")
+		}
+	}
+	if _, err := store.PresignPut(context.Background(), "text/plain", 1, 15*time.Minute); err != nil {
+		t.Fatal("upload grant rejected the allowed TTL boundary")
+	}
+	if _, err := store.PresignGet(context.Background(), "key", 7*24*time.Hour); err != nil {
+		t.Fatal("upload-specific TTL limit changed GET grants")
 	}
 }
