@@ -39,8 +39,11 @@ func TestListScopesThroughPosting(t *testing.T) {
 	repo.existing = []domain.CoreQuestion{{ID: uuid.New(), Content: "q"}}
 	svc := newService(t, repo, &fakeGenerator{}, 0, 3)
 	got, err := svc.List(context.Background(), uuid.New(), "recruiter", uuid.New())
-	if err != nil || len(got) != 1 {
+	if err != nil || len(got.Questions) != 1 {
 		t.Fatalf("got %v, %v", got, err)
+	}
+	if !got.Editable || got.PostingStatus != domain.PostingPending || got.MaxQuestionLength != domain.MaxQuestionRunes || got.GenerationSize != 3 {
+		t.Fatalf("bank state = %+v, want an editable pending bank with the server limits", got)
 	}
 	_, err = svc.List(context.Background(), uuid.New(), "candidate", uuid.New())
 	assertCode(t, err, apperror.CodeForbidden)
@@ -49,6 +52,21 @@ func TestListScopesThroughPosting(t *testing.T) {
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
 	if repo.listCalls != 1 {
 		t.Fatalf("list calls = %d; a missing posting must not read any bank", repo.listCalls)
+	}
+}
+
+func TestListReportsLockedBank(t *testing.T) {
+	repo := readyRepo()
+	repo.posting.Status = "open"
+	got, err := newService(t, repo, &fakeGenerator{}, 0, 0).List(context.Background(), uuid.New(), "recruiter", uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Editable || got.PostingStatus != "open" || got.GenerationSize != 0 {
+		t.Fatalf("bank state = %+v, want a read-only open bank with generation off", got)
+	}
+	if got.Questions == nil {
+		t.Fatal("an empty bank must be [], not null")
 	}
 }
 

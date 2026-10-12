@@ -15,7 +15,7 @@ import (
 )
 
 type QuestionBankService interface {
-	List(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.CoreQuestion, error)
+	List(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.Bank, error)
 	Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.CoreQuestion, error)
 	Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.CoreQuestion, error)
 	Update(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID, content string) (domain.CoreQuestion, error)
@@ -92,12 +92,12 @@ func questionBankContent(c *gin.Context) (string, bool) {
 
 // List godoc
 // @Summary List the core-question bank of your own job posting
-// @Description Recruiter only. Candidates never receive the bank.
+// @Description Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (only while the posting is pending) and the server limits.
 // @Tags job-posting-questions
 // @Produce json
 // @Security SessionCookie
 // @Param id path string true "Job posting ID"
-// @Success 200 {object} response.Envelope{data=QuestionBankResponse}
+// @Success 200 {object} response.Envelope{data=domain.Bank}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
@@ -114,12 +114,12 @@ func (h *QuestionBankHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	questions, err := h.service.List(c.Request.Context(), userID, role, postingID)
+	bank, err := h.service.List(c.Request.Context(), userID, role, postingID)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-	response.OK(c, questionBankResponse(questions))
+	response.OK(c, bank)
 }
 
 // Generate godoc

@@ -14,6 +14,17 @@ type CoreQuestion struct {
 	Content string    `json:"content"`
 }
 
+// Bank is a Recruiter's view of a posting's bank. Editable and the limits come from the server, so
+// the screen never guesses whether the bank is locked or how long a question may be.
+type Bank struct {
+	Questions         []CoreQuestion `json:"questions"`
+	PostingStatus     string         `json:"posting_status"`
+	Editable          bool           `json:"editable"`
+	MaxQuestionLength int            `json:"max_question_length"`
+	// GenerationSize is how many questions Generate writes; 0 means generation is not configured.
+	GenerationSize int `json:"generation_size"`
+}
+
 // Posting is the part of a Job Posting the bank needs: its JD and its lifecycle status.
 type Posting struct {
 	JDID   uuid.UUID
