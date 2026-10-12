@@ -27,6 +27,7 @@ func (q *Queries) CountTransactionsByUserID(ctx context.Context, txUserID string
 const createWallet = `-- name: CreateWallet :one
 INSERT INTO public.wallets (user_id, balance)
 VALUES ($1, 0)
+ON CONFLICT (user_id) DO UPDATE SET balance = wallets.balance
 RETURNING id, user_id, balance
 `
 

@@ -12,6 +12,7 @@ FOR UPDATE;
 -- name: CreateWallet :one
 INSERT INTO public.wallets (user_id, balance)
 VALUES (@user_id, 0)
+ON CONFLICT (user_id) DO UPDATE SET balance = wallets.balance
 RETURNING id, user_id, balance;
 
 -- name: UpdateWalletBalance :one

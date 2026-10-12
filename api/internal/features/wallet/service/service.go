@@ -3,8 +3,11 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
+	"math"
 	"math/big"
-	"time"
+	"strconv"
+	"strings"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
@@ -16,7 +19,7 @@ import (
 type WalletRepository interface {
 	ExecTx(ctx context.Context, fn func(q *repository.Queries) error) error
 	GetWalletByUserID(ctx context.Context, userID uuid.UUID) (domain.Wallet, error)
-	CreateWallet(ctx context.Context, userID uuid.UUID) (domain.Wallet, error)
+	CreateWallet(ctx context.Context, q *repository.Queries, userID uuid.UUID) (domain.Wallet, error)
 	GetWalletForUpdate(ctx context.Context, q *repository.Queries, userID uuid.UUID) (domain.Wallet, error)
 	UpdateWalletBalance(ctx context.Context, q *repository.Queries, walletID uuid.UUID, amount int32) (domain.Wallet, error)
 	InsertTransaction(ctx context.Context, q *repository.Queries, tx domain.Transaction) (domain.Transaction, error)
@@ -51,7 +54,7 @@ func (s *Service) GetWallet(ctx context.Context, userID uuid.UUID) (domain.Walle
 	w, err := s.repo.GetWalletByUserID(ctx, userID)
 	if err != nil {
 		if apperror.IsCode(err, apperror.CodeWalletNotFound) {
-			return s.repo.CreateWallet(ctx, userID)
+			return s.repo.CreateWallet(ctx, nil, userID)
 		}
 		return domain.Wallet{}, err
 	}
@@ -64,6 +67,9 @@ func (s *Service) ListTransactions(ctx context.Context, userID uuid.UUID, page, 
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
+	}
+	if page > 10_000 {
+		return []domain.Transaction{}, 0, nil
 	}
 	offset := (page - 1) * pageSize
 	return s.repo.ListTransactionsByUserID(ctx, userID, pageSize, offset)
@@ -78,16 +84,23 @@ func (s *Service) CreateDepositCheckout(ctx context.Context, userID uuid.UUID, p
 	if err != nil {
 		return domain.DepositCheckoutResponse{}, err
 	}
+	if !cp.IsActive {
+		return domain.DepositCheckoutResponse{}, apperror.New(apperror.CodeCoinPackageNotFound, "coin package is inactive")
+	}
 
 	orderCode, err := generateOrderCode()
 	if err != nil {
 		return domain.DepositCheckoutResponse{}, apperror.Wrap(apperror.CodeInternal, "failed to generate order code", err)
 	}
 
-	description := cp.Name
-	if len(description) > 25 {
-		description = description[:25]
+	// PayOS description has a 25-character limit.
+	payosDesc := cp.Name
+	if len(payosDesc) > 25 {
+		payosDesc = payosDesc[:25]
 	}
+
+	// Internal transaction description stores package name and expected price for verification.
+	dbDescription := fmt.Sprintf("Deposit: %s (%d VND)", cp.Name, cp.PriceVND)
 
 	// Create pending transaction record first
 	var txRecord domain.Transaction
@@ -97,7 +110,7 @@ func (s *Service) CreateDepositCheckout(ctx context.Context, userID uuid.UUID, p
 			To:             &userID,
 			Amount:         cp.CoinAmount,
 			Currency:       "VND",
-			Description:    description,
+			Description:    dbDescription,
 			Status:         domain.StatusPending,
 			PayOSOrderCode: &orderCode,
 		})
@@ -114,13 +127,18 @@ func (s *Service) CreateDepositCheckout(ctx context.Context, userID uuid.UUID, p
 	payosReq := payos.CreateLinkRequest{
 		OrderCode:   orderCode,
 		Amount:      int(cp.PriceVND),
-		Description: description,
+		Description: payosDesc,
 		ReturnURL:   returnURL,
 		CancelURL:   cancelURL,
 	}
 
 	linkData, err := s.payos.CreatePaymentLink(ctx, payosReq)
 	if err != nil {
+		// Mark transaction failed to prevent leaving dangling pending transactions
+		_ = s.repo.ExecTx(ctx, func(q *repository.Queries) error {
+			_, updateErr := s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
+			return updateErr
+		})
 		return domain.DepositCheckoutResponse{}, apperror.Wrap(apperror.CodePayOSError, "failed to create PayOS payment link", err)
 	}
 
@@ -164,6 +182,11 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 			if payment.Amount <= 0 || payment.AmountPaid < payment.Amount {
 				return apperror.New(apperror.CodePayOSError, "payment amount is invalid or underpaid")
 			}
+			if expectedVND, ok := parseExpectedVND(txRecord.Description); ok {
+				if payment.AmountPaid < expectedVND {
+					return apperror.New(apperror.CodePayOSError, fmt.Sprintf("amount paid %d VND is less than expected %d VND", payment.AmountPaid, expectedVND))
+				}
+			}
 			// Payment confirmed by PayOS.
 			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusSuccess)
 			if err != nil {
@@ -173,13 +196,16 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 				wallet, err := s.repo.GetWalletForUpdate(ctx, q, *txRecord.To)
 				if err != nil {
 					if apperror.IsCode(err, apperror.CodeWalletNotFound) {
-						wallet, err = s.repo.CreateWallet(ctx, *txRecord.To)
+						wallet, err = s.repo.CreateWallet(ctx, q, *txRecord.To)
 						if err != nil {
 							return err
 						}
 					} else {
 						return err
 					}
+				}
+				if int64(wallet.Balance)+int64(txRecord.Amount) > math.MaxInt32 {
+					return apperror.New(apperror.CodeValidation, "wallet balance overflow")
 				}
 				newBalance := wallet.Balance + txRecord.Amount
 				_, err = s.repo.UpdateWalletBalance(ctx, q, wallet.ID, newBalance)
@@ -193,14 +219,24 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 			if err != nil {
 				return err
 			}
-		case payos.PaymentLinkStatusPending:
-			return apperror.New(apperror.CodePayOSError, "payment link is not paid: status is pending")
-		default:
-			// Any other non-success status (FAILED, EXPIRED, etc.)
+		case payos.PaymentLinkStatusExpired, payos.PaymentLinkStatusFailed:
+			// Terminal failure states.
 			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
 			if err != nil {
 				return err
 			}
+		case payos.PaymentLinkStatusUnderpaid:
+			// Insufficient amount transferred by user.
+			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
+			if err != nil {
+				return err
+			}
+		case payos.PaymentLinkStatusPending, payos.PaymentLinkStatusProcessing:
+			// Transient in-progress states: do not mark failed, return error to allow retry.
+			return apperror.New(apperror.CodePayOSError, fmt.Sprintf("payment is in progress (status: %s)", payment.Status))
+		default:
+			// Unknown status: do not mark failed destructively.
+			return apperror.New(apperror.CodePayOSError, fmt.Sprintf("unhandled payment link status: %s", payment.Status))
 		}
 		return nil
 	})
@@ -215,17 +251,24 @@ func (s *Service) ChargeRecruitmentCapacity(ctx context.Context, recruiterID uui
 }
 
 func (s *Service) RefundRecruitmentCapacity(ctx context.Context, recruiterID uuid.UUID, amount int32) error {
+	if amount <= 0 {
+		return apperror.New(apperror.CodeValidation, "refund amount must be positive")
+	}
 	return s.repo.ExecTx(ctx, func(q *repository.Queries) error {
 		wallet, err := s.repo.GetWalletForUpdate(ctx, q, recruiterID)
 		if err != nil {
 			if apperror.IsCode(err, apperror.CodeWalletNotFound) {
-				wallet, err = s.repo.CreateWallet(ctx, recruiterID)
+				wallet, err = s.repo.CreateWallet(ctx, q, recruiterID)
 				if err != nil {
 					return err
 				}
 			} else {
 				return err
 			}
+		}
+
+		if int64(wallet.Balance)+int64(amount) > math.MaxInt32 {
+			return apperror.New(apperror.CodeValidation, "wallet balance overflow")
 		}
 
 		_, err = s.repo.UpdateWalletBalance(ctx, q, wallet.ID, wallet.Balance+amount)
@@ -250,6 +293,9 @@ func (s *Service) ChargeAvatarCapacity(ctx context.Context, recruiterID uuid.UUI
 }
 
 func (s *Service) deductBalance(ctx context.Context, userID uuid.UUID, amount int32, description string) error {
+	if amount <= 0 {
+		return apperror.New(apperror.CodeValidation, "charge amount must be positive")
+	}
 	return s.repo.ExecTx(ctx, func(q *repository.Queries) error {
 		wallet, err := s.repo.GetWalletForUpdate(ctx, q, userID)
 		if err != nil {
@@ -291,8 +337,25 @@ func generateOrderCode() (int64, error) {
 	)
 	nBig, err := rand.Int(rand.Reader, big.NewInt(range_))
 	if err != nil {
-		// Fallback: derive from nanosecond timestamp, keeping it in range.
-		return min + (time.Now().UnixNano()%range_ + range_)%range_, nil
+		return 0, err
 	}
 	return min + nBig.Int64(), nil
 }
+
+func parseExpectedVND(desc string) (int, bool) {
+	idx := strings.LastIndex(desc, " VND)")
+	if idx == -1 {
+		return 0, false
+	}
+	start := strings.LastIndex(desc[:idx], "(")
+	if start == -1 {
+		return 0, false
+	}
+	numStr := strings.TrimSpace(desc[start+1 : idx])
+	val, err := strconv.Atoi(numStr)
+	if err != nil || val <= 0 {
+		return 0, false
+	}
+	return val, true
+}
+

@@ -62,8 +62,11 @@ func (r *Repository) GetWalletByUserID(ctx context.Context, userID uuid.UUID) (d
 	}, nil
 }
 
-func (r *Repository) CreateWallet(ctx context.Context, userID uuid.UUID) (domain.Wallet, error) {
-	row, err := r.queries.CreateWallet(ctx, userID)
+func (r *Repository) CreateWallet(ctx context.Context, q *Queries, userID uuid.UUID) (domain.Wallet, error) {
+	if q == nil {
+		q = r.queries
+	}
+	row, err := q.CreateWallet(ctx, userID)
 	if err != nil {
 		return domain.Wallet{}, apperror.Wrap(apperror.CodeInternal, "failed to create wallet", err)
 	}

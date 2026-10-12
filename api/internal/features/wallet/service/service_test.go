@@ -32,8 +32,8 @@ func (m *MockRepo) GetWalletByUserID(ctx context.Context, userID uuid.UUID) (dom
 	return args.Get(0).(domain.Wallet), args.Error(1)
 }
 
-func (m *MockRepo) CreateWallet(ctx context.Context, userID uuid.UUID) (domain.Wallet, error) {
-	args := m.Called(ctx, userID)
+func (m *MockRepo) CreateWallet(ctx context.Context, q *repository.Queries, userID uuid.UUID) (domain.Wallet, error) {
+	args := m.Called(ctx, q, userID)
 	return args.Get(0).(domain.Wallet), args.Error(1)
 }
 
@@ -145,7 +145,7 @@ func TestGetWallet_NotFound_AutoCreate(t *testing.T) {
 	expected := domain.Wallet{ID: uuid.New(), UserID: userID, Balance: 0}
 
 	mockRepo.On("GetWalletByUserID", mock.Anything, userID).Return(domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "wallet not found"))
-	mockRepo.On("CreateWallet", mock.Anything, userID).Return(expected, nil)
+	mockRepo.On("CreateWallet", mock.Anything, (*repository.Queries)(nil), userID).Return(expected, nil)
 
 	w, err := svc.GetWallet(context.Background(), userID)
 	assert.NoError(t, err)
@@ -232,13 +232,14 @@ func TestCreateDepositCheckout_PayOSError(t *testing.T) {
 	txID := uuid.New()
 
 	pkg := domain.CoinPackage{
-		ID: packageID, Name: "Pack", PriceVND: 20000, CoinAmount: 50, Currency: "VND",
+		ID: packageID, Name: "Pack", PriceVND: 20000, CoinAmount: 50, Currency: "VND", IsActive: true,
 	}
 	createdTx := domain.Transaction{ID: txID, To: &userID, Amount: 50, Status: domain.StatusPending}
 
 	mockRepo.On("GetCoinPackageByID", mock.Anything, packageID).Return(pkg, nil)
 	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.Anything).Return(createdTx, nil)
 	mockPayOS.On("CreatePaymentLink", mock.Anything, mock.Anything).Return(payos.CreateLinkResponse{}, errors.New("gateway timeout"))
+	mockRepo.On("UpdateTransactionStatus", mock.Anything, (*repository.Queries)(nil), txID, domain.StatusFailed).Return(domain.Transaction{ID: txID, Status: domain.StatusFailed}, nil)
 
 	_, err := svc.CreateDepositCheckout(context.Background(), userID, packageID, "", "")
 	assert.Error(t, err)
@@ -556,7 +557,7 @@ func TestHandlePayOSWebhook_WalletAutoCreated_OnSuccess(t *testing.T) {
 	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).
 		Return(domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "not found"))
 	newWallet := domain.Wallet{ID: newWalletID, UserID: userID, Balance: 0}
-	mockRepo.On("CreateWallet", mock.Anything, userID).Return(newWallet, nil)
+	mockRepo.On("CreateWallet", mock.Anything, (*repository.Queries)(nil), userID).Return(newWallet, nil)
 	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), newWalletID, int32(50)).
 		Return(domain.Wallet{ID: newWalletID, Balance: 50}, nil)
 
@@ -697,7 +698,7 @@ func TestHandlePayOSWebhook_PendingStatus_ReturnsError(t *testing.T) {
 	err := svc.HandlePayOSWebhook(context.Background(), body)
 	assert.Error(t, err)
 	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
-	assert.Contains(t, err.Error(), "status is pending")
+	assert.Contains(t, err.Error(), "payment is in progress")
 	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
 	mockPayOS.AssertExpectations(t)
 }
@@ -804,7 +805,7 @@ func TestRefundRecruitmentCapacity_WalletAutoCreated(t *testing.T) {
 	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).
 		Return(domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "not found"))
 	newWallet := domain.Wallet{ID: newWalletID, UserID: recruiterID, Balance: 0}
-	mockRepo.On("CreateWallet", mock.Anything, recruiterID).Return(newWallet, nil)
+	mockRepo.On("CreateWallet", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(newWallet, nil)
 	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), newWalletID, int32(30)).
 		Return(domain.Wallet{ID: newWalletID, Balance: 30}, nil)
 	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.Anything).
@@ -1169,4 +1170,127 @@ func TestListPackages_RepoError(t *testing.T) {
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, dbErr)
 	mockRepo.AssertExpectations(t)
+}
+
+func TestChargePracticeInterview_NegativeOrZeroAmount(t *testing.T) {
+	svc := service.NewService(new(MockRepo), new(MockPayOS))
+	err := svc.ChargePracticeInterview(context.Background(), uuid.New(), 0)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
+
+	err = svc.ChargePracticeInterview(context.Background(), uuid.New(), -10)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
+}
+
+func TestRefundRecruitmentCapacity_NegativeOrZeroAmount(t *testing.T) {
+	svc := service.NewService(new(MockRepo), new(MockPayOS))
+	err := svc.RefundRecruitmentCapacity(context.Background(), uuid.New(), 0)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
+
+	err = svc.RefundRecruitmentCapacity(context.Background(), uuid.New(), -50)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
+}
+
+func TestRefundRecruitmentCapacity_BalanceOverflow(t *testing.T) {
+	mockRepo := new(MockRepo)
+	svc := service.NewService(mockRepo, new(MockPayOS))
+	recruiterID := uuid.New()
+
+	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(domain.Wallet{
+		ID:      uuid.New(),
+		UserID:  recruiterID,
+		Balance: 2000000000,
+	}, nil)
+
+	err := svc.RefundRecruitmentCapacity(context.Background(), recruiterID, 500000000)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
+	assert.Contains(t, err.Error(), "overflow")
+}
+
+func TestHandlePayOSWebhook_ProcessingStatus_ReturnsError(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	orderCode := int64(123456789012)
+	body := []byte(`{"code":"00","success":true,"data":{"orderCode":123456789012}}`)
+	webhookPayload := &payos.WebhookData{Code: "00", Success: true}
+	webhookPayload.Data.OrderCode = orderCode
+
+	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode: orderCode,
+		Status:    payos.PaymentLinkStatusProcessing,
+	}, nil)
+
+	pendingTx := domain.Transaction{
+		ID:             uuid.New(),
+		Amount:         100,
+		Status:         domain.StatusPending,
+		PayOSOrderCode: &orderCode,
+	}
+	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
+
+	err := svc.HandlePayOSWebhook(context.Background(), body)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
+	assert.Contains(t, err.Error(), "payment is in progress")
+	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
+}
+
+func TestHandlePayOSWebhook_PriceMismatch_AgainstExpectedVND(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	orderCode := int64(123456789012)
+	body := []byte(`{"code":"00","success":true,"data":{"orderCode":123456789012}}`)
+	webhookPayload := &payos.WebhookData{Code: "00", Success: true}
+	webhookPayload.Data.OrderCode = orderCode
+
+	mockPayOS.On("VerifyWebhookData", body).Return(webhookPayload, nil)
+	// Customer paid 20,000 VND but package was 50,000 VND
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode:  orderCode,
+		Amount:     20000,
+		AmountPaid: 20000,
+		Status:     payos.PaymentLinkStatusPaid,
+	}, nil)
+
+	pendingTx := domain.Transaction{
+		ID:             uuid.New(),
+		Amount:         100,
+		Description:    "Deposit: Starter Pack (50000 VND)",
+		Status:         domain.StatusPending,
+		PayOSOrderCode: &orderCode,
+	}
+	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
+
+	err := svc.HandlePayOSWebhook(context.Background(), body)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
+	assert.Contains(t, err.Error(), "less than expected 50000 VND")
+	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
+}
+
+func TestCreateDepositCheckout_InactivePackage(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	packageID := uuid.New()
+	mockRepo.On("GetCoinPackageByID", mock.Anything, packageID).Return(domain.CoinPackage{
+		ID:       packageID,
+		Name:     "Disabled Pack",
+		IsActive: false,
+	}, nil)
+
+	_, err := svc.CreateDepositCheckout(context.Background(), uuid.New(), packageID, "", "")
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeCoinPackageNotFound))
+	assert.Contains(t, err.Error(), "inactive")
 }
