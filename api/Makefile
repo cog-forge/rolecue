@@ -63,7 +63,7 @@ migrate-version: db-up $(MIGRATE)
 	@set -eu; set -a; . "$(ENV_FILE)"; set +a; : "$${DATABASE_URL:?DATABASE_URL must be set in $(ENV_FILE)}"; "$(MIGRATE)" -path "$(MIGRATION_DIR)" -database "$$DATABASE_URL" version
 
 swagger: $(SWAG)
-	$(SWAG) init -g main.go -d cmd/api,internal/handler,internal/features/auth/domain,internal/features/profile/domain,internal/features/jd/domain,pkg/response,pkg/apperror --parseInternal -o docs
+	$(SWAG) init -g main.go -d cmd/api,internal/handler,internal/features/auth/domain,internal/features/profile/domain,internal/features/jd/domain,internal/features/admin/accounts/domain,internal/features/admin/moderation/domain,internal/features/questionbank/domain,internal/features/wallet/domain,pkg/response,pkg/apperror --parseInternal -o docs
 
 test-integration:
 	go test -tags=integration -count=1 -timeout=5m ./internal/...

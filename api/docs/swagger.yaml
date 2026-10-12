@@ -72,6 +72,31 @@ definitions:
     - CodeWebhookSignatureInvalid
     - CodeJobPostingNotPending
     - CodeQuestionBankNotReady
+  domain.Account:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      email_verified:
+        type: boolean
+      id:
+        type: string
+      image:
+        type: string
+      is_locked:
+        type: boolean
+      lock_expires_at:
+        type: string
+      lock_reason:
+        type: string
+      name:
+        type: string
+      role:
+        type: string
+      updated_at:
+        type: string
+    type: object
   domain.Bank:
     properties:
       editable:
@@ -108,6 +133,15 @@ definitions:
         description: Empty means the JD does not state whether the skill is required
           or preferred.
     type: object
+  domain.List:
+    properties:
+      total:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/domain.Account'
+        type: array
+    type: object
   domain.ListItem:
     properties:
       createdAt:
@@ -119,11 +153,23 @@ definitions:
       title:
         type: string
     type: object
+  domain.LockRequest:
+    properties:
+      expires_in:
+        type: integer
+      reason:
+        type: string
+    type: object
   domain.NamedRef:
     properties:
       id:
         type: string
       name:
+        type: string
+    type: object
+  domain.Notification:
+    properties:
+      status:
         type: string
     type: object
   domain.Patch:
@@ -294,6 +340,15 @@ definitions:
         type: array
       title:
         type: string
+    type: object
+  domain.Transition:
+    properties:
+      changed:
+        type: boolean
+      notification:
+        $ref: '#/definitions/domain.Notification'
+      user:
+        $ref: '#/definitions/domain.Account'
     type: object
   domain.User:
     properties:
@@ -687,6 +742,211 @@ paths:
       summary: Reject a pending Job Posting
       tags:
       - admin-job-postings
+  /admin/users:
+    get:
+      parameters:
+      - description: Name or email substring
+        in: query
+        name: search
+        type: string
+      - description: all, locked, candidate, recruiter, admin
+        in: query
+        name: filter
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Page offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.List'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List system accounts
+      tags:
+      - admin-users
+  /admin/users/{id}:
+    get:
+      parameters:
+      - description: Account ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Account'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get system account details
+      tags:
+      - admin-users
+  /admin/users/{id}/lock:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Account ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User-visible reason and optional expiry in seconds
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/domain.LockRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Transition'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Lock a Candidate or Recruiter account
+      tags:
+      - admin-users
+  /admin/users/{id}/unlock:
+    post:
+      parameters:
+      - description: Account ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Transition'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Unlock a Candidate or Recruiter account
+      tags:
+      - admin-users
   /auth/me:
     get:
       produces:
