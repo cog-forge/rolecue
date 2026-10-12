@@ -22,13 +22,16 @@ COMPOSE_ARGS := -f "$(COMPOSE_FILE)"
 MIGRATION_DIR ?= $(CURDIR)/migrations
 GO_FILES := $(shell find . -type d \( -name .tools -o -name tmp -o -name vendor \) -prune -o -type f -name '*.go' -print)
 
-.PHONY: fmt fmt-check vet test test-race test-integration swagger build lint vuln check ensure-env db-up migrate migrate-up migrate-down migrate-down-all migrate-force migrate-version run dev sqlc
+.PHONY: fmt fmt-check vet test test-race test-integration swagger build lint vuln check ensure-env db-up storage-test migrate migrate-up migrate-down migrate-down-all migrate-force migrate-version run dev sqlc
 
 ensure-env:
 	@test -f "$(ENV_FILE)" || { printf '%s\n' "Missing $(ENV_FILE); copy ../.env.example to ../.env and set local values."; exit 1; }
 
 db-up: ensure-env
 	docker compose -p rolecue --env-file "$(ENV_FILE)" $(COMPOSE_ARGS) up -d --wait
+
+storage-test: ensure-env
+	@set -eu; set -a; . "$(ENV_FILE)"; set +a; go test -tags=storage_integration -count=1 -timeout=2m ./internal/pkg/storage/...
 
 # Applies all pending migrations from MIGRATION_DIR (defaults to migrations), then starts the API.
 run: migrate

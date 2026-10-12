@@ -9,22 +9,25 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
 	"github.com/cog-forge/rolecue/api/internal/provider"
 	"github.com/cog-forge/rolecue/api/internal/server"
 )
 
 type Application struct {
-	Server *server.Server
-	Pool   *pgxpool.Pool
-	Logger *logger.Logger
-	Tracer *tracer.Tracer
-	Config *config.Config
+	Server  *server.Server
+	Pool    *pgxpool.Pool
+	Logger  *logger.Logger
+	Tracer  *tracer.Tracer
+	Config  *config.Config
+	Storage storage.Store
 }
 
 func InitializeApplication(configPath string) (*Application, func(), error) {
 	wire.Build(
 		provider.ProvideConfig,
+		provider.ProvideStorage,
 		provider.ProvideLogger,
 		provider.ProvideTracer,
 		provider.ProvideDatabasePool,

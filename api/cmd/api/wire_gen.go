@@ -9,6 +9,7 @@ package main
 import (
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
 	"github.com/cog-forge/rolecue/api/internal/provider"
 	"github.com/cog-forge/rolecue/api/internal/server"
@@ -74,12 +75,20 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
+	store, err := provider.ProvideStorage(config)
+	if err != nil {
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	mainApplication := &Application{
-		Server: server,
-		Pool:   pool,
-		Logger: logger,
-		Tracer: tracer,
-		Config: config,
+		Server:  server,
+		Pool:    pool,
+		Logger:  logger,
+		Tracer:  tracer,
+		Config:  config,
+		Storage: store,
 	}
 	return mainApplication, func() {
 		cleanup3()
@@ -91,9 +100,10 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 // wire.go:
 
 type Application struct {
-	Server *server.Server
-	Pool   *pgxpool.Pool
-	Logger *logger.Logger
-	Tracer *tracer.Tracer
-	Config *config.Config
+	Server  *server.Server
+	Pool    *pgxpool.Pool
+	Logger  *logger.Logger
+	Tracer  *tracer.Tracer
+	Config  *config.Config
+	Storage storage.Store
 }
