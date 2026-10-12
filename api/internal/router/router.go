@@ -22,6 +22,7 @@ type Router struct {
 	walletHandler       *handler.WalletHandler
 	questionBankHandler *handler.QuestionBankHandler
 	moderationHandler   *handler.ModerationHandler
+	inventoryHandler    *handler.InventoryHandler
 }
 
 func NewRouter(
@@ -34,6 +35,7 @@ func NewRouter(
 	walletHandler *handler.WalletHandler,
 	questionBankHandler *handler.QuestionBankHandler,
 	moderationHandler *handler.ModerationHandler,
+	inventoryHandler *handler.InventoryHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -45,6 +47,7 @@ func NewRouter(
 		walletHandler:       walletHandler,
 		questionBankHandler: questionBankHandler,
 		moderationHandler:   moderationHandler,
+		inventoryHandler:    inventoryHandler,
 	}
 }
 
@@ -71,6 +74,12 @@ func (r *Router) Setup() *gin.Engine {
 	profiles := router.Group("/profile", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
 	profiles.GET("", r.profileHandler.Get)
 	profiles.PATCH("", r.profileHandler.Update)
+
+	inventory := router.Group("/inventory", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("candidate", "recruiter"))
+	inventory.GET("", r.inventoryHandler.Summary)
+	inventory.GET("/avatars", r.inventoryHandler.List)
+	inventory.GET("/avatars/:id", r.inventoryHandler.Get)
+	inventory.DELETE("/avatars/:id", r.inventoryHandler.Delete)
 
 	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
 	jds.POST("/analyze", r.jdHandler.Analyze)
