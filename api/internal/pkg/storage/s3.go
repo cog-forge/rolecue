@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
@@ -40,11 +41,14 @@ func newClient(cfg config.StorageConfig) (*s3.Client, error) {
 		return nil, fmt.Errorf("configure storage: %w", err)
 	}
 	return s3.New(s3.Options{
-		BaseEndpoint:               aws.String(cfg.Endpoint),
-		Region:                     cfg.Region,
-		UsePathStyle:               true,
-		Credentials:                credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SessionToken),
-		HTTPClient:                 &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+		BaseEndpoint: aws.String(cfg.Endpoint),
+		Region:       cfg.Region,
+		UsePathStyle: true,
+		Credentials:  credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SessionToken),
+		HTTPClient: &http.Client{
+			Transport:     awshttp.NewBuildableClient().GetTransport(),
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
 		Retryer:                    retry.NewStandard(func(o *retry.StandardOptions) { o.MaxAttempts = 3 }),
 		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
 		ResponseChecksumValidation: aws.ResponseChecksumValidationWhenRequired,
