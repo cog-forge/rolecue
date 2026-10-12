@@ -48,6 +48,7 @@ export const routes = {
     billing: "/admin/billing",
     settings: "/admin/settings",
     jobPostings: "/admin/job-postings",
+    jobPosting: (id: string) => `/admin/job-postings/${segment(id)}`,
     aiBehaviour: "/admin/ai-behaviour",
     evaluationCriteria: "/admin/evaluation-criteria",
     revenue: "/admin/revenue",
