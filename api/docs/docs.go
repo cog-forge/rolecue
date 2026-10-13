@@ -1716,13 +1716,7 @@ const docTemplate = `{
                 "seniorityLevel": {
                     "$ref": "#/definitions/domain.Seniority"
                 },
-                "status": {
-                    "$ref": "#/definitions/domain.Status"
-                },
                 "title": {
-                    "type": "string"
-                },
-                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -1946,25 +1940,6 @@ const docTemplate = `{
                 "Other"
             ]
         },
-        "domain.Status": {
-            "type": "string",
-            "enum": [
-                "uploaded",
-                "parsing",
-                "parsed",
-                "customized",
-                "locked",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "StatusUploaded",
-                "StatusParsing",
-                "StatusParsed",
-                "StatusCustomized",
-                "StatusLocked",
-                "StatusFailed"
-            ]
-        },
         "domain.StructuredJD": {
             "type": "object",
             "properties": {
@@ -2058,14 +2033,8 @@ const docTemplate = `{
                 "rawText": {
                     "type": "string"
                 },
-                "status": {
-                    "$ref": "#/definitions/domain.Status"
-                },
                 "structuredJD": {
                     "$ref": "#/definitions/domain.StructuredJD"
-                },
-                "updatedAt": {
-                    "type": "string"
                 }
             }
         },

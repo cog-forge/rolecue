@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/cog-forge/rolecue/api/pkg/response"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type JDService interface {
@@ -42,13 +42,11 @@ type JDResponse struct {
 	ID           uuid.UUID           `json:"id"`
 	RawText      string              `json:"rawText"`
 	StructuredJD domain.StructuredJD `json:"structuredJD"`
-	Status       domain.Status       `json:"status"`
 	CreatedAt    time.Time           `json:"createdAt"`
-	UpdatedAt    time.Time           `json:"updatedAt"`
 }
 
 func jdResponse(jd domain.JD) JDResponse {
-	return JDResponse{ID: jd.ID, RawText: jd.RawText, StructuredJD: jd.StructuredJD, Status: jd.Status, CreatedAt: jd.CreatedAt, UpdatedAt: jd.UpdatedAt}
+	return JDResponse{ID: jd.ID, RawText: jd.RawText, StructuredJD: jd.StructuredJD, CreatedAt: jd.CreatedAt}
 }
 func jdUser(c *gin.Context) (uuid.UUID, bool) {
 	id, ok := middleware.CurrentUserID(c)
@@ -65,7 +63,13 @@ func jdID(c *gin.Context) (uuid.UUID, bool) {
 	}
 	return id, true
 }
+
+// jdBodyLimit fits a JD at the storage cap (80,000 bytes) even after JSON escaping, plus the
+// reviewed structure, while still refusing unbounded bodies.
+const jdBodyLimit = 512 << 10
+
 func jdJSON(c *gin.Context, target any) bool {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, jdBodyLimit)
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {

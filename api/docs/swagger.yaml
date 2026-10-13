@@ -116,11 +116,7 @@ definitions:
         type: string
       seniorityLevel:
         $ref: '#/definitions/domain.Seniority'
-      status:
-        $ref: '#/definitions/domain.Status'
       title:
-        type: string
-      updatedAt:
         type: string
     type: object
   domain.NamedRef:
@@ -280,22 +276,6 @@ definitions:
     - Tool
     - Technology
     - Other
-  domain.Status:
-    enum:
-    - uploaded
-    - parsing
-    - parsed
-    - customized
-    - locked
-    - failed
-    type: string
-    x-enum-varnames:
-    - StatusUploaded
-    - StatusParsing
-    - StatusParsed
-    - StatusCustomized
-    - StatusLocked
-    - StatusFailed
   domain.StructuredJD:
     properties:
       domainKnowledge:
@@ -357,12 +337,8 @@ definitions:
         type: string
       rawText:
         type: string
-      status:
-        $ref: '#/definitions/domain.Status'
       structuredJD:
         $ref: '#/definitions/domain.StructuredJD'
-      updatedAt:
-        type: string
     type: object
   handler.QuestionBankResponse:
     properties:

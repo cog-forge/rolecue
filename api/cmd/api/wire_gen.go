@@ -37,7 +37,13 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	authHandler := provider.ProvideAuthHandler(authService)
 	healthHandler := provider.ProvideHealthHandler()
 	repositoryRepository := provider.ProvideJDRepository(pool)
-	application, err := provider.ProvideJDService(config, repositoryRepository)
+	store, err := provider.ProvideStorage(config)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	application, err := provider.ProvideJDService(config, repositoryRepository, store)
 	if err != nil {
 		cleanup2()
 		cleanup()
@@ -71,13 +77,6 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	store, err := provider.ProvideStorage(config)
-	if err != nil {
-		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err

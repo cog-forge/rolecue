@@ -1709,13 +1709,7 @@
                 "seniorityLevel": {
                     "$ref": "#/definitions/domain.Seniority"
                 },
-                "status": {
-                    "$ref": "#/definitions/domain.Status"
-                },
                 "title": {
-                    "type": "string"
-                },
-                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -1939,25 +1933,6 @@
                 "Other"
             ]
         },
-        "domain.Status": {
-            "type": "string",
-            "enum": [
-                "uploaded",
-                "parsing",
-                "parsed",
-                "customized",
-                "locked",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "StatusUploaded",
-                "StatusParsing",
-                "StatusParsed",
-                "StatusCustomized",
-                "StatusLocked",
-                "StatusFailed"
-            ]
-        },
         "domain.StructuredJD": {
             "type": "object",
             "properties": {
@@ -2051,14 +2026,8 @@
                 "rawText": {
                     "type": "string"
                 },
-                "status": {
-                    "$ref": "#/definitions/domain.Status"
-                },
                 "structuredJD": {
                     "$ref": "#/definitions/domain.StructuredJD"
-                },
-                "updatedAt": {
-                    "type": "string"
                 }
             }
         },
