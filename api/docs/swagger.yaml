@@ -2,6 +2,11 @@ basePath: /
 definitions:
   apperror.Code:
     enum:
+    - ROLE_PROFILE_CONFLICT
+    - INVALID_PDF
+    - PDF_TOO_LARGE
+    - PDF_UNAVAILABLE
+    - DOCUMENT_STORAGE_UNAVAILABLE
     - JD_IN_USE
     - JD_NOT_FOUND
     - INVALID_CREDENTIALS
@@ -38,6 +43,11 @@ definitions:
     - QUESTION_BANK_NOT_READY
     type: string
     x-enum-varnames:
+    - CodeRoleConflict
+    - CodeInvalidPDF
+    - CodePDFTooLarge
+    - CodePDFUnavailable
+    - CodeDocumentStorage
     - CodeJDInUse
     - CodeJDNotFound
     - CodeInvalidCredentials
@@ -94,29 +104,6 @@ definitions:
       content:
         type: string
       id:
-        type: string
-    type: object
-  domain.ExtractedSkill:
-    properties:
-      category:
-        $ref: '#/definitions/domain.SkillCategory'
-      name:
-        type: string
-      requirement:
-        allOf:
-        - $ref: '#/definitions/domain.Requirement'
-        description: Empty means the JD does not state whether the skill is required
-          or preferred.
-    type: object
-  domain.ListItem:
-    properties:
-      createdAt:
-        type: string
-      id:
-        type: string
-      seniorityLevel:
-        $ref: '#/definitions/domain.Seniority'
-      title:
         type: string
     type: object
   domain.NamedRef:
@@ -190,6 +177,18 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.ProfileStatus:
+    enum:
+    - draft
+    - analyzing
+    - review
+    - confirmed
+    type: string
+    x-enum-varnames:
+    - Draft
+    - Analyzing
+    - Review
+    - Confirmed
   domain.Recruiter:
     properties:
       email:
@@ -246,6 +245,57 @@ definitions:
       title:
         type: string
     type: object
+  domain.RoleProfile:
+    properties:
+      createdAt:
+        type: string
+      hasOriginalDocument:
+        type: boolean
+      id:
+        type: string
+      rawText:
+        type: string
+      refinementNote:
+        type: string
+      requirements:
+        items:
+          $ref: '#/definitions/domain.RoleRequirement'
+        type: array
+      seniorityLevel:
+        $ref: '#/definitions/domain.Seniority'
+      status:
+        $ref: '#/definitions/domain.ProfileStatus'
+      title:
+        type: string
+    type: object
+  domain.RoleRequirement:
+    properties:
+      category:
+        $ref: '#/definitions/domain.SkillCategory'
+      evidenceText:
+        type: string
+      kind:
+        type: string
+      name:
+        type: string
+      target:
+        type: string
+      type:
+        $ref: '#/definitions/domain.Requirement'
+    type: object
+  domain.SaveRoleProfile:
+    properties:
+      refinementNote:
+        type: string
+      requirements:
+        items:
+          $ref: '#/definitions/domain.RoleRequirement'
+        type: array
+      seniorityLevel:
+        $ref: '#/definitions/domain.Seniority'
+      title:
+        type: string
+    type: object
   domain.Seniority:
     enum:
     - intern
@@ -276,25 +326,6 @@ definitions:
     - Tool
     - Technology
     - Other
-  domain.StructuredJD:
-    properties:
-      domainKnowledge:
-        items:
-          type: string
-        type: array
-      seniorityLevel:
-        $ref: '#/definitions/domain.Seniority'
-      skills:
-        items:
-          $ref: '#/definitions/domain.ExtractedSkill'
-        type: array
-      technologies:
-        items:
-          type: string
-        type: array
-      title:
-        type: string
-    type: object
   domain.User:
     properties:
       email:
@@ -312,33 +343,10 @@ definitions:
       role:
         type: string
     type: object
-  handler.AnalyzeJDRequest:
+  handler.CreateRoleProfileRequest:
     properties:
       rawText:
         type: string
-    required:
-    - rawText
-    type: object
-  handler.CreateJDRequest:
-    properties:
-      rawText:
-        type: string
-      structuredJD:
-        $ref: '#/definitions/domain.StructuredJD'
-    required:
-    - rawText
-    - structuredJD
-    type: object
-  handler.JDResponse:
-    properties:
-      createdAt:
-        type: string
-      id:
-        type: string
-      rawText:
-        type: string
-      structuredJD:
-        $ref: '#/definitions/domain.StructuredJD'
     type: object
   handler.QuestionBankResponse:
     properties:
@@ -361,12 +369,18 @@ definitions:
     required:
     - reject_reason
     type: object
-  handler.UpdateJDRequest:
+  handler.RoleProfileSummary:
     properties:
-      structuredJD:
-        $ref: '#/definitions/domain.StructuredJD'
-    required:
-    - structuredJD
+      createdAt:
+        type: string
+      id:
+        type: string
+      seniorityLevel:
+        $ref: '#/definitions/domain.Seniority'
+      status:
+        $ref: '#/definitions/domain.ProfileStatus'
+      title:
+        type: string
     type: object
   response.Envelope:
     properties:
@@ -383,20 +397,20 @@ definitions:
       message:
         type: string
     type: object
-  response.Page-domain_ListItem:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/domain.ListItem'
-        type: array
-      pagination:
-        $ref: '#/definitions/response.Pagination'
-    type: object
   response.Page-domain_PostingSummary:
     properties:
       items:
         items:
           $ref: '#/definitions/domain.PostingSummary'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
+  response.Page-handler_RoleProfileSummary:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/handler.RoleProfileSummary'
         type: array
       pagination:
         $ref: '#/definitions/response.Pagination'
@@ -409,6 +423,37 @@ definitions:
         type: integer
       total:
         type: integer
+    type: object
+  service.UploadRequest:
+    properties:
+      contentType:
+        type: string
+      fileName:
+        type: string
+      sizeBytes:
+        type: integer
+    type: object
+  service.UploadTicket:
+    properties:
+      request:
+        $ref: '#/definitions/storage.SignedRequest'
+      uploadId:
+        type: string
+    type: object
+  storage.SignedRequest:
+    properties:
+      expiresAt:
+        description: ExpiresAt is nominal; revocation/credential expiry may invalidate
+          it earlier.
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      method:
+        type: string
+      url:
+        type: string
     type: object
 info:
   contact: {}
@@ -733,267 +778,6 @@ paths:
       summary: Check process liveness
       tags:
       - health
-  /jds:
-    get:
-      consumes:
-      - application/json
-      parameters:
-      - default: 20
-        description: Page size
-        in: query
-        maximum: 100
-        minimum: 1
-        name: limit
-        type: integer
-      - default: 0
-        description: Number of items to skip
-        in: query
-        maximum: 2147483647
-        minimum: 0
-        name: offset
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.Envelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/response.Page-domain_ListItem'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.Envelope'
-      security:
-      - SessionCookie: []
-      summary: List current user's JDs
-      tags:
-      - jds
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: JD request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/handler.CreateJDRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.Envelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/handler.JDResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.Envelope'
-      security:
-      - SessionCookie: []
-      summary: Save a reviewed JD
-      tags:
-      - jds
-  /jds/{id}:
-    delete:
-      consumes:
-      - application/json
-      parameters:
-      - description: JD UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: Deleted
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "409":
-          description: Conflict
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.Envelope'
-      security:
-      - SessionCookie: []
-      summary: Delete an owned JD
-      tags:
-      - jds
-    get:
-      consumes:
-      - application/json
-      parameters:
-      - description: JD UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.Envelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/handler.JDResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.Envelope'
-      security:
-      - SessionCookie: []
-      summary: Get an owned JD
-      tags:
-      - jds
-    put:
-      consumes:
-      - application/json
-      parameters:
-      - description: JD request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/handler.UpdateJDRequest'
-      - description: JD UUID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.Envelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/handler.JDResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.Envelope'
-      security:
-      - SessionCookie: []
-      summary: Update reviewed fields; original raw text is immutable
-      tags:
-      - jds
-  /jds/analyze:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: JD request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/handler.AnalyzeJDRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/response.Envelope'
-            - properties:
-                data:
-                  $ref: '#/definitions/domain.StructuredJD'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "502":
-          description: Bad Gateway
-          schema:
-            $ref: '#/definitions/response.Envelope'
-      security:
-      - SessionCookie: []
-      summary: Analyze a raw JD without saving
-      tags:
-      - jds
   /job-postings/{id}/questions:
     get:
       description: Recruiter only. Candidates never receive the bank. Also returns
@@ -1405,6 +1189,504 @@ paths:
       summary: Update allowed fields in your own profile
       tags:
       - profile
+  /role-profiles:
+    get:
+      parameters:
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Items to skip
+        in: query
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-handler_RoleProfileSummary'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List current candidate Role Profiles
+      tags:
+      - role-profiles
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Raw JD text
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateRoleProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RoleProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Create a private Role Profile draft
+      tags:
+      - role-profiles
+  /role-profiles/{id}:
+    delete:
+      parameters:
+      - description: Role Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Delete an unused owned Role Profile
+      tags:
+      - role-profiles
+    get:
+      parameters:
+      - description: Role Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RoleProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read an owned Role Profile without hidden questions
+      tags:
+      - role-profiles
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Role Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Review
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.SaveRoleProfile'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RoleProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Save reviewed requirements and refinement note
+      tags:
+      - role-profiles
+  /role-profiles/{id}/analyze:
+    post:
+      parameters:
+      - description: Role Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RoleProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Extract requirements for a persisted Role Profile
+      tags:
+      - role-profiles
+  /role-profiles/{id}/confirm:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Role Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RoleProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Confirm reviewed requirements
+      tags:
+      - role-profiles
+  /role-profiles/{id}/document:
+    get:
+      parameters:
+      - description: Role Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/storage.SignedRequest'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get a short-lived link to the candidate's original PDF
+      tags:
+      - role-profiles
+  /role-profiles/uploads:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: PDF filename, MIME and byte size (maximum 5 MiB)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.UploadRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.UploadTicket'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Start a private PDF upload
+      tags:
+      - role-profiles
+  /role-profiles/uploads/{id}/complete:
+    post:
+      parameters:
+      - description: Upload UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RoleProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Verify a PDF upload and create its Role Profile draft
+      tags:
+      - role-profiles
 securityDefinitions:
   SessionCookie:
     description: Better Auth HttpOnly session cookie. Production uses __Secure-rolecue.session_token;

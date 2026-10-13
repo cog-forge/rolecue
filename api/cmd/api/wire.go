@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
@@ -16,12 +17,13 @@ import (
 )
 
 type Application struct {
-	Server  *server.Server
-	Pool    *pgxpool.Pool
-	Logger  *logger.Logger
-	Tracer  *tracer.Tracer
-	Config  *config.Config
-	Storage storage.Store
+	Server    *server.Server
+	Pool      *pgxpool.Pool
+	Logger    *logger.Logger
+	Tracer    *tracer.Tracer
+	Config    *config.Config
+	Storage   storage.Store
+	Documents *service.RoleProfileDocumentApplication
 }
 
 func InitializeApplication(configPath string) (*Application, func(), error) {
@@ -35,9 +37,11 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideAuthService,
 		provider.ProvideAuthHandler,
 		provider.ProvideHealthHandler,
-		provider.ProvideJDRepository,
-		provider.ProvideJDService,
-		provider.ProvideJDHandler,
+		provider.ProvideRoleProfileRepository,
+		provider.ProvideRoleProfileExtraction,
+		provider.ProvideRoleProfileService,
+		provider.ProvideRoleProfileDocumentApplication,
+		provider.ProvideRoleProfileHandler,
 		provider.ProvideProfileRepository,
 		provider.ProvideProfileService,
 		provider.ProvideProfileHandler,

@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
@@ -36,44 +37,51 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	authService := provider.ProvideAuthService(config, repository)
 	authHandler := provider.ProvideAuthHandler(authService)
 	healthHandler := provider.ProvideHealthHandler()
-	repositoryRepository := provider.ProvideJDRepository(pool)
+	extractionService, err := provider.ProvideRoleProfileExtraction(config)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	roleProfileRepository := provider.ProvideRoleProfileRepository(pool)
+	roleProfileApplication, err := provider.ProvideRoleProfileService(config, extractionService, roleProfileRepository)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	store, err := provider.ProvideStorage(config)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	application, err := provider.ProvideJDService(config, repositoryRepository, store)
-	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	jdHandler := provider.ProvideJDHandler(application)
-	repository2 := provider.ProvideProfileRepository(pool)
-	service := provider.ProvideProfileService(repository2)
+	roleProfileDocumentApplication := provider.ProvideRoleProfileDocumentApplication(roleProfileRepository, store)
+	roleProfileHandler := provider.ProvideRoleProfileHandler(roleProfileApplication, roleProfileDocumentApplication)
+	repositoryRepository := provider.ProvideProfileRepository(pool)
+	service := provider.ProvideProfileService(repositoryRepository)
 	profileHandler := provider.ProvideProfileHandler(service)
-	repository3 := provider.ProvideWalletRepository(pool)
+	repository2 := provider.ProvideWalletRepository(pool)
 	client := provider.ProvidePayOSClient(config)
-	serviceService := provider.ProvideWalletService(repository3, client)
+	serviceService := provider.ProvideWalletService(repository2, client)
 	walletHandler := provider.ProvideWalletHandler(serviceService)
-	repository4 := provider.ProvideQuestionBankRepository(pool)
-	service2, err := provider.ProvideQuestionBankService(config, repository4)
+	repository3 := provider.ProvideQuestionBankRepository(pool)
+	service2, err := provider.ProvideQuestionBankService(config, repository3)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	questionBankHandler := provider.ProvideQuestionBankHandler(service2)
-	repository5 := provider.ProvideModerationRepository(pool)
-	service3, err := provider.ProvideModerationService(repository5, logger)
+	repository4 := provider.ProvideModerationRepository(pool)
+	service3, err := provider.ProvideModerationService(repository4, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	moderationHandler := provider.ProvideModerationHandler(service3)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
@@ -81,15 +89,16 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	mainApplication := &Application{
-		Server:  server,
-		Pool:    pool,
-		Logger:  logger,
-		Tracer:  tracer,
-		Config:  config,
-		Storage: store,
+	application := &Application{
+		Server:    server,
+		Pool:      pool,
+		Logger:    logger,
+		Tracer:    tracer,
+		Config:    config,
+		Storage:   store,
+		Documents: roleProfileDocumentApplication,
 	}
-	return mainApplication, func() {
+	return application, func() {
 		cleanup3()
 		cleanup2()
 		cleanup()
@@ -99,10 +108,11 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 // wire.go:
 
 type Application struct {
-	Server  *server.Server
-	Pool    *pgxpool.Pool
-	Logger  *logger.Logger
-	Tracer  *tracer.Tracer
-	Config  *config.Config
-	Storage storage.Store
+	Server    *server.Server
+	Pool      *pgxpool.Pool
+	Logger    *logger.Logger
+	Tracer    *tracer.Tracer
+	Config    *config.Config
+	Storage   storage.Store
+	Documents *service.RoleProfileDocumentApplication
 }

@@ -8,6 +8,11 @@ import (
 type Code string
 
 const (
+	CodeRoleConflict            Code = "ROLE_PROFILE_CONFLICT"
+	CodeInvalidPDF              Code = "INVALID_PDF"
+	CodePDFTooLarge             Code = "PDF_TOO_LARGE"
+	CodePDFUnavailable          Code = "PDF_UNAVAILABLE"
+	CodeDocumentStorage         Code = "DOCUMENT_STORAGE_UNAVAILABLE"
 	CodeJDInUse                 Code = "JD_IN_USE"
 	CodeJDNotFound              Code = "JD_NOT_FOUND"
 	CodeInvalidCredentials      Code = "INVALID_CREDENTIALS"
