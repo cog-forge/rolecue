@@ -73,8 +73,8 @@ test("recruiter generates the bank, adds and deletes a question", async ({ page 
 
   await expect(page.getByRole("heading", { level: 1, name: "Question bank" })).toBeVisible();
   await page.getByRole("button", { name: "Generate questions" }).click();
-  await expect(page.getByText("Explain Go channels.")).toBeVisible();
-  await expect(page.getByText("2 questions")).toBeVisible();
+  await expect(page.getByText("Explain Go channels.", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 questions", { exact: true })).toBeVisible();
 
   const form = page.getByRole("form", { name: "Add a question" });
   await form.getByLabel("Add a question").fill("What is a goroutine leak?");
@@ -84,8 +84,8 @@ test("recruiter generates the bank, adds and deletes a question", async ({ page 
 
   await page.getByRole("button", { name: "Delete question 1" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete question" }).click();
-  await expect(page.getByText("Explain Go channels.")).toBeHidden();
-  await expect(page.getByText("2 questions")).toBeVisible();
+  await expect(page.getByText("Explain Go channels.", { exact: true })).toBeHidden();
+  await expect(page.getByText("2 questions", { exact: true })).toBeVisible();
 });
 
 test("a posting that left review shows a read-only bank", async ({ page }) => {
