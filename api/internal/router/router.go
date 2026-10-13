@@ -22,6 +22,7 @@ type Router struct {
 	walletHandler       *handler.WalletHandler
 	questionBankHandler *handler.QuestionBankHandler
 	moderationHandler   *handler.ModerationHandler
+	jobPostingHandler   *handler.JobPostingHandler
 }
 
 func NewRouter(
@@ -34,6 +35,7 @@ func NewRouter(
 	walletHandler *handler.WalletHandler,
 	questionBankHandler *handler.QuestionBankHandler,
 	moderationHandler *handler.ModerationHandler,
+	jobPostingHandler *handler.JobPostingHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -45,6 +47,7 @@ func NewRouter(
 		walletHandler:       walletHandler,
 		questionBankHandler: questionBankHandler,
 		moderationHandler:   moderationHandler,
+		jobPostingHandler:   jobPostingHandler,
 	}
 }
 
@@ -91,6 +94,10 @@ func (r *Router) Setup() *gin.Engine {
 	router.POST("/wallet/webhook/payos", r.walletHandler.HandlePayOSWebhook)
 
 	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	jobPostings.POST("", r.jobPostingHandler.Create)
+	jobPostings.GET("", r.jobPostingHandler.List)
+	jobPostings.GET("/:id", r.jobPostingHandler.Get)
+	jobPostings.PATCH("/:id", r.jobPostingHandler.Update)
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
 	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)

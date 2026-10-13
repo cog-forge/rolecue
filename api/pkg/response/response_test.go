@@ -44,6 +44,7 @@ func TestError(t *testing.T) {
 		{"question bank unavailable", apperror.CodeQuestionBankUnavailable, http.StatusServiceUnavailable},
 		{"posting not pending", apperror.CodeJobPostingNotPending, http.StatusConflict},
 		{"bank not ready", apperror.CodeQuestionBankNotReady, http.StatusConflict},
+		{"requirements locked", apperror.CodeJobPostingRequirementsLocked, http.StatusConflict},
 		{"internal", apperror.CodeInternal, http.StatusInternalServerError},
 		{"unknown code", apperror.Code("FUTURE_CODE"), http.StatusInternalServerError},
 	} {

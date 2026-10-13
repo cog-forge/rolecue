@@ -39,6 +39,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeQuestionBankUnavailable:         http.StatusServiceUnavailable,
 	apperror.CodeJobPostingNotPending:            http.StatusConflict,
 	apperror.CodeQuestionBankNotReady:            http.StatusConflict,
+	apperror.CodeJobPostingRequirementsLocked:    http.StatusConflict,
 	apperror.CodeInvalidCredentials:              http.StatusUnauthorized,
 	apperror.CodeAccountNotFound:                 http.StatusNotFound,
 	apperror.CodeAccountLocked:                   http.StatusForbidden,

@@ -47,6 +47,9 @@ const (
 
 	CodeJobPostingNotPending Code = "JOB_POSTING_NOT_PENDING"
 	CodeQuestionBankNotReady Code = "QUESTION_BANK_NOT_READY"
+
+	// Job Posting domain codes.
+	CodeJobPostingRequirementsLocked Code = "JOB_POSTING_REQUIREMENTS_LOCKED"
 )
 
 type AppError struct {
