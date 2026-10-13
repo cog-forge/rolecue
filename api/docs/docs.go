@@ -1602,6 +1602,14 @@ const docTemplate = `{
                 "QUESTION_GENERATION_FAILED",
                 "INVALID_QUESTION_GENERATION_OUTPUT",
                 "QUESTION_BANK_UNAVAILABLE",
+                "WALLET_NOT_FOUND",
+                "INSUFFICIENT_BALANCE",
+                "PACKAGE_NOT_FOUND",
+                "COIN_PACKAGE_NOT_FOUND",
+                "TRANSACTION_NOT_FOUND",
+                "PAYMENT_GATEWAY_ERROR",
+                "PAYOS_ERROR",
+                "WEBHOOK_SIGNATURE_INVALID",
                 "JOB_POSTING_NOT_PENDING",
                 "QUESTION_BANK_NOT_READY"
             ],
@@ -1630,6 +1638,14 @@ const docTemplate = `{
                 "CodeQuestionGenerationFailed",
                 "CodeInvalidQuestionGenerationOutput",
                 "CodeQuestionBankUnavailable",
+                "CodeWalletNotFound",
+                "CodeInsufficientBalance",
+                "CodePackageNotFound",
+                "CodeCoinPackageNotFound",
+                "CodeTransactionNotFound",
+                "CodePaymentGatewayError",
+                "CodePayOSError",
+                "CodeWebhookSignatureInvalid",
                 "CodeJobPostingNotPending",
                 "CodeQuestionBankNotReady"
             ]
@@ -1676,13 +1692,7 @@ const docTemplate = `{
                 "seniorityLevel": {
                     "$ref": "#/definitions/domain.Seniority"
                 },
-                "status": {
-                    "$ref": "#/definitions/domain.Status"
-                },
                 "title": {
-                    "type": "string"
-                },
-                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -1906,25 +1916,6 @@ const docTemplate = `{
                 "Other"
             ]
         },
-        "domain.Status": {
-            "type": "string",
-            "enum": [
-                "uploaded",
-                "parsing",
-                "parsed",
-                "customized",
-                "locked",
-                "failed"
-            ],
-            "x-enum-varnames": [
-                "StatusUploaded",
-                "StatusParsing",
-                "StatusParsed",
-                "StatusCustomized",
-                "StatusLocked",
-                "StatusFailed"
-            ]
-        },
         "domain.StructuredJD": {
             "type": "object",
             "properties": {
@@ -2018,14 +2009,8 @@ const docTemplate = `{
                 "rawText": {
                     "type": "string"
                 },
-                "status": {
-                    "$ref": "#/definitions/domain.Status"
-                },
                 "structuredJD": {
                     "$ref": "#/definitions/domain.StructuredJD"
-                },
-                "updatedAt": {
-                    "type": "string"
                 }
             }
         },

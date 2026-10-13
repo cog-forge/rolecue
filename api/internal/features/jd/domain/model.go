@@ -61,37 +61,45 @@ type StructuredJD struct {
 	DomainKnowledge []string         `json:"domainKnowledge"`
 }
 
-// Status is the persisted lifecycle state of a job description.
-type Status string
-
-const (
-	StatusUploaded   Status = "uploaded"
-	StatusParsing    Status = "parsing"
-	StatusParsed     Status = "parsed"
-	StatusCustomized Status = "customized"
-	StatusLocked     Status = "locked"
-	StatusFailed     Status = "failed"
-)
-
-// JD is the repository-facing representation of a persisted job description.
+// JD is a Candidate's saved job description: the original text (read back from file storage)
+// plus the reviewed structure stored across job_descriptions, role_profiles and requirements.
 type JD struct {
 	ID           uuid.UUID
-	UserID       uuid.UUID
 	RawText      string
 	StructuredJD StructuredJD
-	Status       Status
 	CreatedAt    time.Time
-	UpdatedAt    time.Time
 }
+
+// Record is what the repository stores and returns. ContentPath is the storage key of the
+// original JD text; the service turns it back into RawText.
+type Record struct {
+	ID           uuid.UUID
+	ContentPath  string
+	Title        string
+	Seniority    Seniority
+	Requirements []RequirementRow
+	CreatedAt    time.Time
+}
+
+// RequirementRow is one row of the requirements table.
+type RequirementRow struct {
+	Name   string
+	Target string
+	Type   Requirement
+}
+
+// Requirement targets for the two plain-name lists; skills use their SkillCategory as target.
+const (
+	TargetTechnologies    = "technologies"
+	TargetDomainKnowledge = "domain_knowledge"
+)
 
 // ListItem contains the summary fields of a persisted job description.
 type ListItem struct {
 	ID             uuid.UUID `json:"id"`
 	Title          string    `json:"title"`
 	SeniorityLevel Seniority `json:"seniorityLevel"`
-	Status         Status    `json:"status"`
 	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 // CreateInput contains the original JD text and its reviewed structure.
