@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	qbdomain "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	qbrepository "github.com/cog-forge/rolecue/api/internal/features/questionbank/repository"
+	qbservice "github.com/cog-forge/rolecue/api/internal/features/questionbank/service"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
@@ -22,6 +24,16 @@ type fixtureAI struct{}
 func (*fixtureAI) Extract(context.Context, string) (domain.ExtractionCandidate, error) {
 	level := domain.Senior
 	return domain.ExtractionCandidate{Title: "Backend Engineer", SeniorityLevel: &level, Skills: []domain.ExtractedSkill{{Name: "Go", Category: domain.ProgrammingLanguage, Target: "Proficient", Requirement: domain.Required}}, Technologies: []string{}, DomainKnowledge: []string{}}, nil
+}
+
+type fixtureQuestionGenerator struct{}
+
+func (fixtureQuestionGenerator) Generate(_ context.Context, _ qbdomain.GenerationInput, count int) (qbdomain.GenerationCandidate, error) {
+	questions := make([]string, count)
+	for i := range questions {
+		questions[i] = "How do you use Go concurrency in a production service?"
+	}
+	return qbdomain.GenerationCandidate{Questions: questions}, nil
 }
 
 func TestRoleProfileLifecycle(t *testing.T) {
@@ -45,7 +57,14 @@ func TestRoleProfileLifecycle(t *testing.T) {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, user)
 	}()
 	extraction, _ := service.NewExtractionService(&fixtureAI{}, 0)
-	app, _ := service.NewRoleProfileApplication(extraction, repo, 5*time.Second)
+	questionBank, err := qbservice.New(qbrepository.NewRepository(pool), fixtureQuestionGenerator{}, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, err := service.NewRoleProfileApplication(extraction, repo, questionBank, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
 	raw := strings.Repeat("Senior backend engineer using Go, concurrency, caching and PostgreSQL. ", 4)
 	profile, err = app.Create(ctx, user, raw)
 	if err != nil || profile.Status != domain.Draft {
@@ -76,7 +95,7 @@ func TestRoleProfileLifecycle(t *testing.T) {
 		t.Fatal("saved review not readable", err)
 	}
 	var count int
-	if err = pool.QueryRow(ctx, `SELECT count(*) FROM core_questions WHERE jd_id=$1`, profile.JDID).Scan(&count); err != nil || count != 0 {
-		t.Fatal("unexpected question generation", err)
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM core_questions WHERE jd_id=$1`, profile.JDID).Scan(&count); err != nil || count != 1 {
+		t.Fatal("confirmed profile question bank was not generated", err)
 	}
 }

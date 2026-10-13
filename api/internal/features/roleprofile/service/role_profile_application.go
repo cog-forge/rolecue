@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	questionbankdomain "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -22,17 +23,23 @@ type RoleProfileRepository interface {
 	CompleteAnalysis(context.Context, uuid.UUID, uuid.UUID, domain.RoleReview) (domain.RoleProfile, error)
 	DeleteProfile(context.Context, uuid.UUID, uuid.UUID) error
 }
-type RoleProfileApplication struct {
-	extraction *ExtractionService
-	repository RoleProfileRepository
-	timeout    time.Duration
+
+type PracticeQuestionGenerator interface {
+	GenerateForPractice(context.Context, uuid.UUID, uuid.UUID) ([]questionbankdomain.CoreQuestion, error)
 }
 
-func NewRoleProfileApplication(extraction *ExtractionService, repo RoleProfileRepository, timeout time.Duration) (*RoleProfileApplication, error) {
-	if extraction == nil || repo == nil || timeout <= 0 {
+type RoleProfileApplication struct {
+	extraction   *ExtractionService
+	questionBank PracticeQuestionGenerator
+	repository   RoleProfileRepository
+	timeout      time.Duration
+}
+
+func NewRoleProfileApplication(extraction *ExtractionService, repo RoleProfileRepository, questionBank PracticeQuestionGenerator, timeout time.Duration) (*RoleProfileApplication, error) {
+	if extraction == nil || repo == nil || questionBank == nil || timeout <= 0 {
 		return nil, fmt.Errorf("invalid Role Profile application configuration")
 	}
-	return &RoleProfileApplication{extraction: extraction, repository: repo, timeout: timeout}, nil
+	return &RoleProfileApplication{extraction: extraction, questionBank: questionBank, repository: repo, timeout: timeout}, nil
 }
 func (a *RoleProfileApplication) Create(ctx context.Context, user uuid.UUID, raw string) (domain.RoleProfile, error) {
 	if _, err := NormalizeInput(raw); err != nil {
@@ -71,6 +78,12 @@ func (a *RoleProfileApplication) Confirm(ctx context.Context, user, id uuid.UUID
 	}
 	if _, err = ValidateRoleReview(profile.RoleReview, true); err != nil {
 		return domain.RoleProfile{}, err
+	}
+	if _, err = a.questionBank.GenerateForPractice(ctx, user, profile.JDID); err != nil {
+		var appErr *apperror.AppError
+		if !errors.As(err, &appErr) || appErr == nil || appErr.Code != apperror.CodeQuestionBankExists {
+			return domain.RoleProfile{}, err
+		}
 	}
 	return a.repository.ConfirmProfile(ctx, user, id)
 }

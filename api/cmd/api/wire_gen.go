@@ -44,7 +44,14 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	roleProfileRepository := provider.ProvideRoleProfileRepository(pool)
-	roleProfileApplication, err := provider.ProvideRoleProfileService(config, extractionService, roleProfileRepository)
+	repositoryRepository := provider.ProvideQuestionBankRepository(pool)
+	service, err := provider.ProvideQuestionBankService(config, repositoryRepository)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	roleProfileApplication, err := provider.ProvideRoleProfileService(config, extractionService, roleProfileRepository, service)
 	if err != nil {
 		cleanup2()
 		cleanup()
@@ -58,21 +65,14 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	}
 	roleProfileDocumentApplication := provider.ProvideRoleProfileDocumentApplication(roleProfileRepository, store)
 	roleProfileHandler := provider.ProvideRoleProfileHandler(roleProfileApplication, roleProfileDocumentApplication)
-	repositoryRepository := provider.ProvideProfileRepository(pool)
-	service := provider.ProvideProfileService(repositoryRepository)
-	profileHandler := provider.ProvideProfileHandler(service)
-	repository2 := provider.ProvideWalletRepository(pool)
+	repository2 := provider.ProvideProfileRepository(pool)
+	serviceService := provider.ProvideProfileService(repository2)
+	profileHandler := provider.ProvideProfileHandler(serviceService)
+	repository3 := provider.ProvideWalletRepository(pool)
 	client := provider.ProvidePayOSClient(config)
-	serviceService := provider.ProvideWalletService(repository2, client)
-	walletHandler := provider.ProvideWalletHandler(serviceService)
-	repository3 := provider.ProvideQuestionBankRepository(pool)
-	service2, err := provider.ProvideQuestionBankService(config, repository3)
-	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	questionBankHandler := provider.ProvideQuestionBankHandler(service2)
+	service2 := provider.ProvideWalletService(repository3, client)
+	walletHandler := provider.ProvideWalletHandler(service2)
+	questionBankHandler := provider.ProvideQuestionBankHandler(service)
 	repository4 := provider.ProvideModerationRepository(pool)
 	service3, err := provider.ProvideModerationService(repository4, logger)
 	if err != nil {

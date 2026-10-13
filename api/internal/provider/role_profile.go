@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
+	questionbankservice "github.com/cog-forge/rolecue/api/internal/features/questionbank/service"
 	roleprofileprovider "github.com/cog-forge/rolecue/api/internal/features/roleprofile/provider"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
@@ -27,8 +28,8 @@ func ProvideRoleProfileExtraction(cfg *config.Config) (*service.ExtractionServic
 	}
 	return service.NewExtractionService(extractor, cfg.LLM.MaxRetries)
 }
-func ProvideRoleProfileService(cfg *config.Config, extraction *service.ExtractionService, repo *repository.RoleProfileRepository) (*service.RoleProfileApplication, error) {
-	return service.NewRoleProfileApplication(extraction, repo, cfg.LLM.Timeout)
+func ProvideRoleProfileService(cfg *config.Config, extraction *service.ExtractionService, repo *repository.RoleProfileRepository, questionBank *questionbankservice.Service) (*service.RoleProfileApplication, error) {
+	return service.NewRoleProfileApplication(extraction, repo, questionBank, cfg.LLM.Timeout)
 }
 func ProvideRoleProfileDocumentApplication(repo *repository.RoleProfileRepository, store storage.Store) *service.RoleProfileDocumentApplication {
 	return service.NewRoleProfileDocumentApplication(repo, store, service.PopplerParser{})
