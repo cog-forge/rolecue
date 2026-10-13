@@ -61,16 +61,29 @@ func requireRecruiter(role string) error {
 	return nil
 }
 
-// List returns the bank of a posting owned by the Recruiter.
-func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.CoreQuestion, error) {
+// List returns the bank of a posting owned by the Recruiter, with whether it can still change.
+func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.Bank, error) {
 	if err := requireRecruiter(role); err != nil {
-		return nil, err
+		return domain.Bank{}, err
 	}
 	posting, err := s.repository.Posting(ctx, recruiterID, postingID)
 	if err != nil {
-		return nil, err
+		return domain.Bank{}, err
 	}
-	return s.repository.List(ctx, posting.JDID)
+	questions, err := s.repository.List(ctx, posting.JDID)
+	if err != nil {
+		return domain.Bank{}, err
+	}
+	if questions == nil {
+		questions = []domain.CoreQuestion{}
+	}
+	return domain.Bank{
+		Questions:         questions,
+		PostingStatus:     posting.Status,
+		Editable:          posting.Status == domain.PostingPending,
+		MaxQuestionLength: domain.MaxQuestionRunes,
+		GenerationSize:    s.size,
+	}, nil
 }
 
 // Generate writes the bank of an owned, pending posting once.

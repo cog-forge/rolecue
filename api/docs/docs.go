@@ -938,7 +938,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Candidates never receive the bank.",
+                "description": "Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (only while the posting is pending) and the server limits.",
                 "produces": [
                     "application/json"
                 ],
@@ -967,7 +967,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/handler.QuestionBankResponse"
+                                            "$ref": "#/definitions/domain.Bank"
                                         }
                                     }
                                 }
@@ -1602,6 +1602,14 @@ const docTemplate = `{
                 "QUESTION_GENERATION_FAILED",
                 "INVALID_QUESTION_GENERATION_OUTPUT",
                 "QUESTION_BANK_UNAVAILABLE",
+                "WALLET_NOT_FOUND",
+                "INSUFFICIENT_BALANCE",
+                "PACKAGE_NOT_FOUND",
+                "COIN_PACKAGE_NOT_FOUND",
+                "TRANSACTION_NOT_FOUND",
+                "PAYMENT_GATEWAY_ERROR",
+                "PAYOS_ERROR",
+                "WEBHOOK_SIGNATURE_INVALID",
                 "JOB_POSTING_NOT_PENDING",
                 "QUESTION_BANK_NOT_READY"
             ],
@@ -1630,9 +1638,41 @@ const docTemplate = `{
                 "CodeQuestionGenerationFailed",
                 "CodeInvalidQuestionGenerationOutput",
                 "CodeQuestionBankUnavailable",
+                "CodeWalletNotFound",
+                "CodeInsufficientBalance",
+                "CodePackageNotFound",
+                "CodeCoinPackageNotFound",
+                "CodeTransactionNotFound",
+                "CodePaymentGatewayError",
+                "CodePayOSError",
+                "CodeWebhookSignatureInvalid",
                 "CodeJobPostingNotPending",
                 "CodeQuestionBankNotReady"
             ]
+        },
+        "domain.Bank": {
+            "type": "object",
+            "properties": {
+                "editable": {
+                    "type": "boolean"
+                },
+                "generation_size": {
+                    "description": "GenerationSize is how many questions Generate writes; 0 means generation is not configured.",
+                    "type": "integer"
+                },
+                "max_question_length": {
+                    "type": "integer"
+                },
+                "posting_status": {
+                    "type": "string"
+                },
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.CoreQuestion"
+                    }
+                }
+            }
         },
         "domain.CoreQuestion": {
             "type": "object",
