@@ -132,8 +132,8 @@ func ToContext(ctx context.Context, logger *Logger) context.Context {
 	return context.WithValue(ctx, LoggerKey, logger)
 }
 
-func String(key, val string) zap.Field             { return zap.String(key, val) }
+func String(key, val string) zap.Field                 { return zap.String(key, val) }
 func Int(key string, val int) zap.Field                { return zap.Int(key, val) }
 func Duration(key string, val time.Duration) zap.Field { return zap.Duration(key, val) }
 func Any(key string, val any) zap.Field                { return zap.Any(key, val) }
-func Error(err error) zap.Field                       { return zap.Error(err) }
+func Error(err error) zap.Field                        { return zap.Error(err) }
