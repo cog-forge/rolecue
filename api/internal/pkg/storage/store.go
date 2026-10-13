@@ -17,6 +17,7 @@ var (
 type Store interface {
 	Upload(ctx context.Context, body io.ReadSeeker, contentType string) (string, error)
 	Download(ctx context.Context, key string) (Object, error)
+	Delete(ctx context.Context, key string) error
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (SignedRequest, error)
 	// PresignPut binds a positive byte size and permits TTLs up to 15 minutes.
 	// The caller must validate size and MIME against the feature policy before
