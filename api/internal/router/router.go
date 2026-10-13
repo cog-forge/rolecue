@@ -22,6 +22,7 @@ type Router struct {
 	walletHandler       *handler.WalletHandler
 	questionBankHandler *handler.QuestionBankHandler
 	moderationHandler   *handler.ModerationHandler
+	voiceCatalogHandler *handler.VoiceCatalogHandler
 }
 
 func NewRouter(
@@ -34,6 +35,7 @@ func NewRouter(
 	walletHandler *handler.WalletHandler,
 	questionBankHandler *handler.QuestionBankHandler,
 	moderationHandler *handler.ModerationHandler,
+	voiceCatalogHandler *handler.VoiceCatalogHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -45,6 +47,7 @@ func NewRouter(
 		walletHandler:       walletHandler,
 		questionBankHandler: questionBankHandler,
 		moderationHandler:   moderationHandler,
+		voiceCatalogHandler: voiceCatalogHandler,
 	}
 }
 
@@ -103,5 +106,8 @@ func (r *Router) Setup() *gin.Engine {
 	admin.GET("/job-postings/:id", r.moderationHandler.Get)
 	admin.POST("/job-postings/:id/approve", r.moderationHandler.Approve)
 	admin.POST("/job-postings/:id/reject", r.moderationHandler.Reject)
+	admin.GET("/voices", r.voiceCatalogHandler.List)
+	admin.GET("/voices/:id", r.voiceCatalogHandler.Get)
+	admin.DELETE("/voices/:id", r.voiceCatalogHandler.Remove)
 	return router
 }
