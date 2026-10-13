@@ -15,7 +15,7 @@ ORDER BY id;
 SELECT count(*) FROM public.core_questions WHERE jd_id = @jd_id;
 
 -- name: ListRequirementsForJD :many
-SELECT name, target, type::text AS type, evidence_text
+SELECT name, target, COALESCE(type::text, '')::text AS type, evidence_text
 FROM public.requirements
 WHERE jd_id = @jd_id
 ORDER BY name, id;
