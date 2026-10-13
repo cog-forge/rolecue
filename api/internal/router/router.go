@@ -23,6 +23,7 @@ type Router struct {
 	questionBankHandler *handler.QuestionBankHandler
 	moderationHandler   *handler.ModerationHandler
 	inventoryHandler    *handler.InventoryHandler
+	avatarCreateHandler *handler.AvatarCreateHandler
 }
 
 func NewRouter(
@@ -36,6 +37,7 @@ func NewRouter(
 	questionBankHandler *handler.QuestionBankHandler,
 	moderationHandler *handler.ModerationHandler,
 	inventoryHandler *handler.InventoryHandler,
+	avatarCreateHandler *handler.AvatarCreateHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -48,6 +50,7 @@ func NewRouter(
 		questionBankHandler: questionBankHandler,
 		moderationHandler:   moderationHandler,
 		inventoryHandler:    inventoryHandler,
+		avatarCreateHandler: avatarCreateHandler,
 	}
 }
 
@@ -80,6 +83,7 @@ func (r *Router) Setup() *gin.Engine {
 	inventory.GET("/avatars", r.inventoryHandler.List)
 	inventory.GET("/avatars/:id", r.inventoryHandler.Get)
 	inventory.DELETE("/avatars/:id", r.inventoryHandler.Delete)
+	inventory.POST("/avatars", r.avatarCreateHandler.Create)
 
 	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
 	jds.POST("/analyze", r.jdHandler.Analyze)
