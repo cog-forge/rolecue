@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -54,11 +55,15 @@ func (r *Repository) List(ctx context.Context, jdID uuid.UUID) ([]domain.CoreQue
 }
 
 func (r *Repository) GenerationInput(ctx context.Context, jdID uuid.UUID) (domain.GenerationInput, error) {
-	rows, err := r.queries.ListRequirementsForJD(ctx, jdID)
+	return generationInput(ctx, r.queries, jdID)
+}
+
+func generationInput(ctx context.Context, q *Queries, jdID uuid.UUID) (domain.GenerationInput, error) {
+	rows, err := q.ListRequirementsForJD(ctx, jdID)
 	if err != nil {
 		return domain.GenerationInput{}, persistenceError(err)
 	}
-	jd, err := r.queries.GetJDGenerationContext(ctx, jdID)
+	jd, err := q.GetJDGenerationContext(ctx, jdID)
 	if err != nil {
 		return domain.GenerationInput{}, persistenceError(err)
 	}
@@ -141,8 +146,12 @@ func (r *Repository) SaveForPosting(ctx context.Context, recruiterID, postingID 
 	return saved, nil
 }
 
-// SaveForPractice does the same for a Candidate's own practice JD.
-func (r *Repository) SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, contents []string) ([]domain.CoreQuestion, error) {
+// SaveForPractice does the same for a Candidate's own practice JD. Generation reads its input
+// without a lock and then spends seconds on the model, so a Candidate can edit the JD meanwhile.
+// Under the role-profile lock (the JD edit takes the same lock) the input is read again; questions
+// written from an older version are refused instead of locking the JD to a bank that doesn't
+// match its requirements.
+func (r *Repository) SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, from domain.GenerationInput, contents []string) ([]domain.CoreQuestion, error) {
 	var saved []domain.CoreQuestion
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
@@ -152,6 +161,13 @@ func (r *Repository) SaveForPractice(ctx context.Context, candidateID, jdID uuid
 		}
 		if err != nil {
 			return persistenceError(err)
+		}
+		current, err := generationInput(ctx, q, locked)
+		if err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(current, from) {
+			return apperror.New(apperror.CodeRequirementsChanged, "the requirements changed while the questions were being generated; generate them again")
 		}
 		saved, err = insertIfEmpty(ctx, q, locked, contents)
 		return err

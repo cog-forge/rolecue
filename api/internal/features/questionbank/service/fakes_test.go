@@ -21,6 +21,7 @@ type fakeRepository struct {
 	opErr       error
 	saved       []string
 	savedFor    string
+	savedFrom   domain.GenerationInput
 	listCalls   int
 	inputCalls  int
 	saveCalls   int
@@ -73,8 +74,9 @@ func (f *fakeRepository) SaveForPosting(_ context.Context, recruiterID, _ uuid.U
 	return toQuestions(contents), f.saveErr
 }
 
-func (f *fakeRepository) SaveForPractice(_ context.Context, _, _ uuid.UUID, contents []string) ([]domain.CoreQuestion, error) {
+func (f *fakeRepository) SaveForPractice(_ context.Context, _, _ uuid.UUID, from domain.GenerationInput, contents []string) ([]domain.CoreQuestion, error) {
 	f.saveCalls++
+	f.savedFrom = from
 	f.saved, f.savedFor = contents, "practice"
 	return toQuestions(contents), f.saveErr
 }

@@ -61,7 +61,8 @@ func (q *Queries) DeleteRoleProfile(ctx context.Context, jdID uuid.UUID) error {
 }
 
 const getJD = `-- name: GetJD :one
-SELECT jd.id, jd.content_path, rp.title, l.name AS level_name, rp.created_at
+SELECT jd.id, jd.content_path, jd.refinement_note, rp.title, l.name AS level_name, rp.created_at,
+       EXISTS(SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = jd.id) AS has_question_bank
 FROM public.role_profiles rp
 JOIN public.job_descriptions jd ON jd.id = rp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
@@ -74,11 +75,13 @@ type GetJDParams struct {
 }
 
 type GetJDRow struct {
-	ID          uuid.UUID
-	ContentPath string
-	Title       string
-	LevelName   string
-	CreatedAt   pgtype.Timestamptz
+	ID              uuid.UUID
+	ContentPath     string
+	RefinementNote  *string
+	Title           string
+	LevelName       string
+	CreatedAt       pgtype.Timestamptz
+	HasQuestionBank bool
 }
 
 func (q *Queries) GetJD(ctx context.Context, arg GetJDParams) (GetJDRow, error) {
@@ -87,9 +90,11 @@ func (q *Queries) GetJD(ctx context.Context, arg GetJDParams) (GetJDRow, error) 
 	err := row.Scan(
 		&i.ID,
 		&i.ContentPath,
+		&i.RefinementNote,
 		&i.Title,
 		&i.LevelName,
 		&i.CreatedAt,
+		&i.HasQuestionBank,
 	)
 	return i, err
 }
@@ -112,42 +117,46 @@ func (q *Queries) GetLevelIDByName(ctx context.Context, name string) (uuid.UUID,
 }
 
 const insertJobDescription = `-- name: InsertJobDescription :one
-INSERT INTO public.job_descriptions (content_path, level_id)
-VALUES ($1, $2)
+INSERT INTO public.job_descriptions (content_path, level_id, refinement_note)
+VALUES ($1, $2, $3)
 RETURNING id
 `
 
 type InsertJobDescriptionParams struct {
-	ContentPath string
-	LevelID     uuid.UUID
+	ContentPath    string
+	LevelID        uuid.UUID
+	RefinementNote *string
 }
 
 func (q *Queries) InsertJobDescription(ctx context.Context, arg InsertJobDescriptionParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, insertJobDescription, arg.ContentPath, arg.LevelID)
+	row := q.db.QueryRow(ctx, insertJobDescription, arg.ContentPath, arg.LevelID, arg.RefinementNote)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
 }
 
 const insertRequirements = `-- name: InsertRequirements :exec
-INSERT INTO public.requirements (jd_id, name, target, type)
+INSERT INTO public.requirements (jd_id, name, target, type, evidence_text)
 SELECT $1::uuid, unnest($2::text[]), unnest($3::text[]),
-       unnest($4::text[])::public.requirement_type
+       unnest($4::text[])::public.requirement_type, NULLIF(unnest($5::text[]), '')
 `
 
 type InsertRequirementsParams struct {
-	JdID    uuid.UUID
-	Names   []string
-	Targets []string
-	Types   []string
+	JdID          uuid.UUID
+	Names         []string
+	Targets       []string
+	Types         []string
+	EvidenceTexts []string
 }
 
+// A blank evidence entry stands for "no evidence" (text[] elements can't be NULL from Go).
 func (q *Queries) InsertRequirements(ctx context.Context, arg InsertRequirementsParams) error {
 	_, err := q.db.Exec(ctx, insertRequirements,
 		arg.JdID,
 		arg.Names,
 		arg.Targets,
 		arg.Types,
+		arg.EvidenceTexts,
 	)
 	return err
 }
@@ -220,16 +229,17 @@ func (q *Queries) ListJDs(ctx context.Context, arg ListJDsParams) ([]ListJDsRow,
 }
 
 const listRequirements = `-- name: ListRequirements :many
-SELECT name, target, type::text AS type
+SELECT name, target, type::text AS type, evidence_text
 FROM public.requirements
 WHERE jd_id = $1
 ORDER BY target COLLATE "C", name COLLATE "C", id
 `
 
 type ListRequirementsRow struct {
-	Name   string
-	Target string
-	Type   string
+	Name         string
+	Target       string
+	Type         string
+	EvidenceText *string
 }
 
 // There is no position column, so rows come back by target, then name. COLLATE "C" sorts
@@ -243,7 +253,12 @@ func (q *Queries) ListRequirements(ctx context.Context, jdID uuid.UUID) ([]ListR
 	var items []ListRequirementsRow
 	for rows.Next() {
 		var i ListRequirementsRow
-		if err := rows.Scan(&i.Name, &i.Target, &i.Type); err != nil {
+		if err := rows.Scan(
+			&i.Name,
+			&i.Target,
+			&i.Type,
+			&i.EvidenceText,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -255,7 +270,8 @@ func (q *Queries) ListRequirements(ctx context.Context, jdID uuid.UUID) ([]ListR
 }
 
 const lockOwnedJD = `-- name: LockOwnedJD :one
-SELECT jd.content_path
+SELECT jd.content_path,
+       EXISTS(SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = jd.id) AS has_question_bank
 FROM public.role_profiles rp
 JOIN public.job_descriptions jd ON jd.id = rp.jd_id
 WHERE rp.jd_id = $1 AND rp.candidate_id = $2
@@ -267,24 +283,34 @@ type LockOwnedJDParams struct {
 	CandidateID uuid.UUID
 }
 
-func (q *Queries) LockOwnedJD(ctx context.Context, arg LockOwnedJDParams) (string, error) {
-	row := q.db.QueryRow(ctx, lockOwnedJD, arg.ID, arg.CandidateID)
-	var content_path string
-	err := row.Scan(&content_path)
-	return content_path, err
+type LockOwnedJDRow struct {
+	ContentPath     string
+	HasQuestionBank bool
 }
 
-const updateJDLevel = `-- name: UpdateJDLevel :exec
-UPDATE public.job_descriptions SET level_id = $1 WHERE id = $2
+// Locks the role profile row; question-bank generation locks the same row, so a bank can't
+// appear between this check and the write.
+func (q *Queries) LockOwnedJD(ctx context.Context, arg LockOwnedJDParams) (LockOwnedJDRow, error) {
+	row := q.db.QueryRow(ctx, lockOwnedJD, arg.ID, arg.CandidateID)
+	var i LockOwnedJDRow
+	err := row.Scan(&i.ContentPath, &i.HasQuestionBank)
+	return i, err
+}
+
+const updateJobDescription = `-- name: UpdateJobDescription :exec
+UPDATE public.job_descriptions
+SET level_id = $1, refinement_note = $2
+WHERE id = $3
 `
 
-type UpdateJDLevelParams struct {
-	LevelID uuid.UUID
-	ID      uuid.UUID
+type UpdateJobDescriptionParams struct {
+	LevelID        uuid.UUID
+	RefinementNote *string
+	ID             uuid.UUID
 }
 
-func (q *Queries) UpdateJDLevel(ctx context.Context, arg UpdateJDLevelParams) error {
-	_, err := q.db.Exec(ctx, updateJDLevel, arg.LevelID, arg.ID)
+func (q *Queries) UpdateJobDescription(ctx context.Context, arg UpdateJobDescriptionParams) error {
+	_, err := q.db.Exec(ctx, updateJobDescription, arg.LevelID, arg.RefinementNote, arg.ID)
 	return err
 }
 

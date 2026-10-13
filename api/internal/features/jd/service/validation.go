@@ -13,6 +13,10 @@ import (
 const (
 	MinJDLength = 100
 	MaxJDLength = 20_000
+	// MaxRefinementNoteLength and MaxEvidenceLength are technical guards on free text, counted
+	// in Unicode characters like the JD itself.
+	MaxRefinementNoteLength = 2_000
+	MaxEvidenceLength       = 1_000
 
 	invalidJDInputMessage          = "Job description input is invalid."
 	jdTooShortMessage              = "Job description must contain at least 100 Unicode characters."
@@ -96,6 +100,16 @@ func validateStructure(c domain.ExtractionCandidate, reviewed bool) (domain.Stru
 		if skill.Requirement != "" && skill.Requirement != domain.Required && skill.Requirement != domain.Preferred {
 			return invalid("invalid skill requirement")
 		}
+		if reviewed {
+			evidence, err := optionalText(skill.EvidenceText, MaxEvidenceLength, "evidenceText")
+			if err != nil {
+				return invalid(err.Error())
+			}
+			skill.EvidenceText = evidence
+		} else {
+			// Evidence is the Candidate's own note; a model-supplied value is never trusted.
+			skill.EvidenceText = nil
+		}
 		if !utf8.ValidString(skill.Name) {
 			return invalid("invalid UTF-8 skill name")
 		}
@@ -162,4 +176,32 @@ func normalizeNames(names []string) ([]string, error) {
 		}
 	}
 	return result, nil
+}
+
+// optionalText trims free text and turns blank into nil. Lengths count Unicode characters.
+func optionalText(value *string, max int, field string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	if !utf8.ValidString(*value) {
+		return nil, fmt.Errorf("invalid UTF-8 %s", field)
+	}
+	text := strings.TrimSpace(*value)
+	if text == "" {
+		return nil, nil
+	}
+	if utf8.RuneCountInString(text) > max {
+		return nil, fmt.Errorf("%s must contain at most %d Unicode characters", field, max)
+	}
+	return &text, nil
+}
+
+// ValidateRefinementNote normalizes the Candidate's optional instructions for question-bank
+// generation (e.g. "Exclude C#"). Blank means no note.
+func ValidateRefinementNote(note string) (*string, error) {
+	text, err := optionalText(&note, MaxRefinementNoteLength, "refinementNote")
+	if err != nil {
+		return nil, apperror.New(apperror.CodeValidation, err.Error())
+	}
+	return text, nil
 }

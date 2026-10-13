@@ -2,14 +2,18 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // Repository is the persistence contract consumed by JD application operations. Every method is
@@ -29,6 +33,18 @@ type TextStore interface {
 	Download(ctx context.Context, key string) (storage.Object, error)
 }
 
+// QuestionBank generates the hidden core-question bank of a Candidate's own JD (KAN-79). It
+// refuses when a bank already exists, when the Candidate doesn't own the JD, and when the
+// requirements changed while it was generating.
+type QuestionBank interface {
+	GenerateForPractice(ctx context.Context, candidateID, jdID uuid.UUID) error
+	Enabled() bool
+}
+
+// generationTimeout bounds one background generation (model call plus its single retry). It is
+// longer than an HTTP request may take, which is why generation doesn't run inside one.
+const generationTimeout = 3 * time.Minute
+
 const jdTextContentType = "text/plain; charset=utf-8"
 
 // maxStoredJDBytes bounds a download: MaxJDLength runes of at most 4 bytes each.
@@ -39,20 +55,32 @@ type Application struct {
 	extraction *Service
 	repository Repository
 	texts      TextStore
+	bank       QuestionBank
+	log        *logger.Logger
+	// background runs generation off the request; tests swap it for a synchronous call.
+	background func(func())
 }
 
-func NewApplication(extraction *Service, repository Repository, texts TextStore) (*Application, error) {
-	if extraction == nil || repository == nil || texts == nil {
-		return nil, fmt.Errorf("JD extraction, repository and text store are required")
+func NewApplication(extraction *Service, repository Repository, texts TextStore, bank QuestionBank, log *logger.Logger) (*Application, error) {
+	if extraction == nil || repository == nil || texts == nil || bank == nil {
+		return nil, fmt.Errorf("JD extraction, repository, text store and question bank are required")
 	}
-	return &Application{extraction: extraction, repository: repository, texts: texts}, nil
+	if log == nil {
+		log = &logger.Logger{Logger: zap.NewNop()}
+	}
+	return &Application{extraction: extraction, repository: repository, texts: texts, bank: bank, log: log,
+		background: func(task func()) { go task() }}, nil
 }
 
 func (a *Application) Analyze(ctx context.Context, raw string) (domain.StructuredJD, error) {
 	return a.extraction.Extract(ctx, raw)
 }
 
-// Create stores the original text first and the rows second. If the rows fail, the uploaded
+// Create is the Candidate's confirmation. It stores the original text first and the rows second
+// (one transaction), then starts question-bank generation in the background and answers with
+// QuestionBankReady false. A model call can outlast the HTTP write timeout, and a confirm that
+// looked failed would be sent again and create a second JD. The client polls Get until the bank
+// is ready; GenerateQuestionBank retries a failed generation. If the rows fail, the uploaded
 // object stays behind unreferenced: the storage package has no delete operation yet.
 func (a *Application) Create(ctx context.Context, user uuid.UUID, input domain.CreateInput) (domain.JD, error) {
 	if _, err := NormalizeInput(input.RawText); err != nil {
@@ -68,15 +96,73 @@ func (a *Application) Create(ctx context.Context, user uuid.UUID, input domain.C
 	if err != nil {
 		return domain.JD{}, err
 	}
+	note, err := ValidateRefinementNote(input.RefinementNote)
+	if err != nil {
+		return domain.JD{}, err
+	}
 	key, err := a.texts.Upload(ctx, strings.NewReader(input.RawText), jdTextContentType)
 	if err != nil {
 		return domain.JD{}, storageError(err)
 	}
-	record, err := a.repository.Create(ctx, user, toRecord(reviewed, key))
+	record, err := a.repository.Create(ctx, user, toRecord(reviewed, note, key))
 	if err != nil {
 		return domain.JD{}, err
 	}
+	if a.bank.Enabled() {
+		a.startGeneration(ctx, user, record.ID)
+	} else {
+		a.log.WithContext(ctx).Warn("question bank generation is not configured; JD confirmed without a bank",
+			logger.String("jd_id", record.ID.String()))
+	}
 	return toJD(record, input.RawText)
+}
+
+// GenerateQuestionBank restarts generation for a confirmed JD whose bank is missing. Everything
+// that can fail synchronously is checked first (ownership, an existing bank, generation switched
+// off, the stored text), so the call never reports an error after it started the work.
+func (a *Application) GenerateQuestionBank(ctx context.Context, user, id uuid.UUID) (domain.JD, error) {
+	record, err := a.repository.Get(ctx, user, id)
+	if err != nil {
+		return domain.JD{}, err
+	}
+	if record.HasQuestionBank {
+		return domain.JD{}, apperror.New(apperror.CodeQuestionBankExists, "this job description already has a question bank")
+	}
+	if !a.bank.Enabled() {
+		return domain.JD{}, apperror.New(apperror.CodeQuestionBankUnavailable, "question bank generation is not configured")
+	}
+	jd, err := a.withText(ctx, record)
+	if err != nil {
+		return domain.JD{}, err
+	}
+	a.startGeneration(ctx, user, id)
+	return jd, nil
+}
+
+// startGeneration runs one generation detached from the request (it must survive the response
+// and a client disconnect) but bounded by its own deadline. Every outcome is logged, so a
+// missing bank can be traced to its cause.
+func (a *Application) startGeneration(ctx context.Context, user, id uuid.UUID) {
+	log := a.log.WithContext(ctx)
+	detached := context.WithoutCancel(ctx)
+	a.background(func() {
+		genCtx, cancel := context.WithTimeout(detached, generationTimeout)
+		defer cancel()
+		if err := a.bank.GenerateForPractice(genCtx, user, id); err != nil {
+			log.Warn("question bank generation failed", logger.String("jd_id", id.String()),
+				logger.String("code", string(errorCode(err))), logger.Error(err))
+			return
+		}
+		log.Info("question bank generated", logger.String("jd_id", id.String()))
+	})
+}
+
+func errorCode(err error) apperror.Code {
+	var appErr *apperror.AppError
+	if errors.As(err, &appErr) {
+		return appErr.Code
+	}
+	return apperror.CodeInternal
 }
 
 func (a *Application) List(ctx context.Context, user uuid.UUID, limit, offset int32) ([]domain.ListItem, int64, error) {
@@ -105,17 +191,25 @@ func (a *Application) Update(ctx context.Context, user, id uuid.UUID, input doma
 	if err != nil {
 		return domain.JD{}, err
 	}
+	note, err := ValidateRefinementNote(input.RefinementNote)
+	if err != nil {
+		return domain.JD{}, err
+	}
 	// The text never changes on update, so read it before writing: a storage failure then
 	// leaves the JD untouched instead of reporting an error for a change that was saved.
 	current, err := a.repository.Get(ctx, user, id)
 	if err != nil {
 		return domain.JD{}, err
 	}
+	// Checked again under the row lock in the repository; this saves a storage read.
+	if current.HasQuestionBank {
+		return domain.JD{}, domain.ErrRequirementsLocked
+	}
 	text, err := a.readText(ctx, current.ContentPath)
 	if err != nil {
 		return domain.JD{}, err
 	}
-	record, err := a.repository.Update(ctx, user, id, toRecord(reviewed, ""))
+	record, err := a.repository.Update(ctx, user, id, toRecord(reviewed, note, ""))
 	if err != nil {
 		return domain.JD{}, err
 	}
@@ -128,8 +222,8 @@ func (a *Application) Delete(ctx context.Context, user, id uuid.UUID) error {
 	return a.repository.Delete(ctx, user, id)
 }
 
-func toRecord(jd domain.StructuredJD, contentPath string) domain.Record {
-	return domain.Record{ContentPath: contentPath, Title: jd.Title, Seniority: *jd.SeniorityLevel, Requirements: requirementRows(jd)}
+func toRecord(jd domain.StructuredJD, note *string, contentPath string) domain.Record {
+	return domain.Record{ContentPath: contentPath, Title: jd.Title, Seniority: *jd.SeniorityLevel, RefinementNote: note, Requirements: requirementRows(jd)}
 }
 
 func (a *Application) withText(ctx context.Context, record domain.Record) (domain.JD, error) {
@@ -162,7 +256,8 @@ func toJD(record domain.Record, text string) (domain.JD, error) {
 	if err := checkSeniority(record.Seniority); err != nil {
 		return domain.JD{}, err
 	}
-	return domain.JD{ID: record.ID, RawText: text, StructuredJD: structuredJD(record), CreatedAt: record.CreatedAt}, nil
+	return domain.JD{ID: record.ID, RawText: text, StructuredJD: structuredJD(record), RefinementNote: record.RefinementNote,
+		QuestionBankReady: record.HasQuestionBank, CreatedAt: record.CreatedAt}, nil
 }
 
 // checkSeniority guards against a levels row outside the extraction values (for example one an

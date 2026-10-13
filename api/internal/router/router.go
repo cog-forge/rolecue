@@ -79,6 +79,7 @@ func (r *Router) Setup() *gin.Engine {
 	jds.GET("/:id", r.jdHandler.Get)
 	jds.PUT("/:id", r.jdHandler.Update)
 	jds.DELETE("/:id", r.jdHandler.Delete)
+	jds.POST("/:id/question-bank", r.jdHandler.GenerateQuestionBank)
 
 	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
 	{

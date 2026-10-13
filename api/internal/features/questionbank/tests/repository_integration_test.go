@@ -186,13 +186,22 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 		wantCode(t, repo.CandidateOwnsJD(ctx, otherCandidate, practiceJD), apperror.CodeJDNotFound)
-		_, err := repo.SaveForPractice(ctx, otherCandidate, practiceJD, []string{"X?"})
+		from, err := repo.GenerationInput(ctx, practiceJD)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = repo.SaveForPractice(ctx, otherCandidate, practiceJD, from, []string{"X?"})
 		wantCode(t, err, apperror.CodeJDNotFound)
-		saved, err := repo.SaveForPractice(ctx, candidate, practiceJD, []string{"P1?", "P2?"})
+		// Questions written from an older version of the JD are refused.
+		stale := from
+		stale.RefinementNote = "an older note"
+		_, err = repo.SaveForPractice(ctx, candidate, practiceJD, stale, []string{"X?"})
+		wantCode(t, err, apperror.CodeRequirementsChanged)
+		saved, err := repo.SaveForPractice(ctx, candidate, practiceJD, from, []string{"P1?", "P2?"})
 		if err != nil || len(saved) != 2 {
 			t.Fatalf("got %v, %v", saved, err)
 		}
-		_, err = repo.SaveForPractice(ctx, candidate, practiceJD, []string{"P3?"})
+		_, err = repo.SaveForPractice(ctx, candidate, practiceJD, from, []string{"P3?"})
 		wantCode(t, err, apperror.CodeQuestionBankExists)
 	})
 }

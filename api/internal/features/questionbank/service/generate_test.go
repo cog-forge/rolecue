@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -144,6 +145,10 @@ func TestGenerateForPractice(t *testing.T) {
 		if err != nil || len(got) != 2 || repo.savedFor != "practice" {
 			t.Fatalf("got %v, %v, saved for %q", got, err, repo.savedFor)
 		}
+		// The save must be able to tell whether the JD changed during the model call.
+		if !reflect.DeepEqual(repo.savedFrom, repo.input) {
+			t.Fatalf("saved from %+v, want the generation input %+v", repo.savedFrom, repo.input)
+		}
 	})
 	t.Run("not the owner", func(t *testing.T) {
 		repo := readyRepo()
@@ -155,8 +160,12 @@ func TestGenerateForPractice(t *testing.T) {
 		}
 	})
 	t.Run("disabled", func(t *testing.T) {
-		_, err := newService(t, readyRepo(), gen, 0, 0).GenerateForPractice(context.Background(), uuid.New(), uuid.New())
+		svc := newService(t, readyRepo(), gen, 0, 0)
+		_, err := svc.GenerateForPractice(context.Background(), uuid.New(), uuid.New())
 		assertCode(t, err, apperror.CodeQuestionBankUnavailable)
+		if svc.Enabled() || !newService(t, readyRepo(), gen, 0, 2).Enabled() {
+			t.Fatal("Enabled must follow the configured bank size")
+		}
 	})
 }
 

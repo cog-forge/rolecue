@@ -43,28 +43,28 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	application, err := provider.ProvideJDService(config, repositoryRepository, store)
+	repository2 := provider.ProvideQuestionBankRepository(pool)
+	service, err := provider.ProvideQuestionBankService(config, repository2)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	application, err := provider.ProvideJDService(config, repositoryRepository, store, service, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	jdHandler := provider.ProvideJDHandler(application)
-	repository2 := provider.ProvideProfileRepository(pool)
-	service := provider.ProvideProfileService(repository2)
-	profileHandler := provider.ProvideProfileHandler(service)
-	repository3 := provider.ProvideWalletRepository(pool)
+	repository3 := provider.ProvideProfileRepository(pool)
+	serviceService := provider.ProvideProfileService(repository3)
+	profileHandler := provider.ProvideProfileHandler(serviceService)
+	repository4 := provider.ProvideWalletRepository(pool)
 	client := provider.ProvidePayOSClient(config)
-	serviceService := provider.ProvideWalletService(repository3, client)
-	walletHandler := provider.ProvideWalletHandler(serviceService)
-	repository4 := provider.ProvideQuestionBankRepository(pool)
-	service2, err := provider.ProvideQuestionBankService(config, repository4)
-	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	questionBankHandler := provider.ProvideQuestionBankHandler(service2)
+	service2 := provider.ProvideWalletService(repository4, client)
+	walletHandler := provider.ProvideWalletHandler(service2)
+	questionBankHandler := provider.ProvideQuestionBankHandler(service)
 	repository5 := provider.ProvideModerationRepository(pool)
 	service3, err := provider.ProvideModerationService(repository5, logger)
 	if err != nil {

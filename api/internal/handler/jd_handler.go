@@ -23,6 +23,7 @@ type JDService interface {
 	Get(context.Context, uuid.UUID, uuid.UUID) (domain.JD, error)
 	Update(context.Context, uuid.UUID, uuid.UUID, domain.UpdateInput) (domain.JD, error)
 	Delete(context.Context, uuid.UUID, uuid.UUID) error
+	GenerateQuestionBank(context.Context, uuid.UUID, uuid.UUID) (domain.JD, error)
 }
 type JDHandler struct{ service JDService }
 
@@ -34,19 +35,25 @@ type AnalyzeJDRequest struct {
 type CreateJDRequest struct {
 	RawText      *string              `json:"rawText" binding:"required"`
 	StructuredJD *domain.StructuredJD `json:"structuredJD" binding:"required"`
+	// RefinementNote is optional, up to 2000 characters; blank means no note.
+	RefinementNote *string `json:"refinementNote"`
 }
 type UpdateJDRequest struct {
-	StructuredJD *domain.StructuredJD `json:"structuredJD" binding:"required"`
+	StructuredJD   *domain.StructuredJD `json:"structuredJD" binding:"required"`
+	RefinementNote *string              `json:"refinementNote"`
 }
 type JDResponse struct {
-	ID           uuid.UUID           `json:"id"`
-	RawText      string              `json:"rawText"`
-	StructuredJD domain.StructuredJD `json:"structuredJD"`
-	CreatedAt    time.Time           `json:"createdAt"`
+	ID             uuid.UUID           `json:"id"`
+	RawText        string              `json:"rawText"`
+	StructuredJD   domain.StructuredJD `json:"structuredJD"`
+	RefinementNote *string             `json:"refinementNote"`
+	// QuestionBankReady says whether the hidden question bank exists; the questions are never sent.
+	QuestionBankReady bool      `json:"questionBankReady"`
+	CreatedAt         time.Time `json:"createdAt"`
 }
 
 func jdResponse(jd domain.JD) JDResponse {
-	return JDResponse{ID: jd.ID, RawText: jd.RawText, StructuredJD: jd.StructuredJD, CreatedAt: jd.CreatedAt}
+	return JDResponse{ID: jd.ID, RawText: jd.RawText, StructuredJD: jd.StructuredJD, RefinementNote: jd.RefinementNote, QuestionBankReady: jd.QuestionBankReady, CreatedAt: jd.CreatedAt}
 }
 func jdUser(c *gin.Context) (uuid.UUID, bool) {
 	id, ok := middleware.CurrentUserID(c)
@@ -83,6 +90,13 @@ func jdJSON(c *gin.Context, target any) bool {
 	}
 	return true
 }
+func jdNote(note *string) string {
+	if note == nil {
+		return ""
+	}
+	return *note
+}
+
 func jdBadRequest(c *gin.Context) {
 	response.Error(c, apperror.New(apperror.CodeValidation, "invalid request body"))
 }
@@ -121,7 +135,8 @@ func (h *JDHandler) Analyze(c *gin.Context) {
 }
 
 // Create godoc
-// @Summary Save a reviewed JD
+// @Summary Confirm a reviewed JD
+// @Description Saves the original text, the reviewed requirements, the seniority level and the optional refinement note in one transaction, then starts generating the hidden question bank in the background. The response always has questionBankReady=false; poll GET /jds/{id} until it is true. If it stays false, restart generation with POST /jds/{id}/question-bank.
 // @Tags jds
 // @Accept json
 // @Produce json
@@ -145,7 +160,7 @@ func (h *JDHandler) Create(c *gin.Context) {
 		jdBadRequest(c)
 		return
 	}
-	result, err := h.service.Create(c.Request.Context(), user, domain.CreateInput{RawText: *req.RawText, StructuredJD: *req.StructuredJD})
+	result, err := h.service.Create(c.Request.Context(), user, domain.CreateInput{RawText: *req.RawText, StructuredJD: *req.StructuredJD, RefinementNote: jdNote(req.RefinementNote)})
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -229,6 +244,7 @@ func (h *JDHandler) Get(c *gin.Context) {
 
 // Update godoc
 // @Summary Update reviewed fields; original raw text is immutable
+// @Description Replaces the reviewed requirements, seniority and refinement note as a whole: omitting refinementNote clears it, so always send the current note. Refused with 409 JD_REQUIREMENTS_LOCKED once the question bank exists.
 // @Tags jds
 // @Accept json
 // @Produce json
@@ -240,6 +256,7 @@ func (h *JDHandler) Get(c *gin.Context) {
 // @Failure 401 {object} response.Envelope
 // @Failure 500 {object} response.Envelope
 // @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
 // @Router /jds/{id} [put]
 func (h *JDHandler) Update(c *gin.Context) {
 	user, ok := jdUser(c)
@@ -258,7 +275,7 @@ func (h *JDHandler) Update(c *gin.Context) {
 		jdBadRequest(c)
 		return
 	}
-	result, err := h.service.Update(c.Request.Context(), user, id, domain.UpdateInput{StructuredJD: *req.StructuredJD})
+	result, err := h.service.Update(c.Request.Context(), user, id, domain.UpdateInput{StructuredJD: *req.StructuredJD, RefinementNote: jdNote(req.RefinementNote)})
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -294,4 +311,36 @@ func (h *JDHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// GenerateQuestionBank godoc
+// @Summary Restart question-bank generation for a confirmed JD
+// @Description Starts generation again in the background after it failed (202). Poll GET /jds/{id} until questionBankReady is true. 409 when a bank already exists, 503 when generation is not configured. The questions themselves are never sent to Candidates.
+// @Tags jds
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "JD UUID"
+// @Success 202 {object} response.Envelope{data=JDResponse}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Failure 503 {object} response.Envelope
+// @Router /jds/{id}/question-bank [post]
+func (h *JDHandler) GenerateQuestionBank(c *gin.Context) {
+	user, ok := jdUser(c)
+	if !ok {
+		return
+	}
+	id, ok := jdID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.GenerateQuestionBank(c.Request.Context(), user, id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, response.Envelope{Success: true, Data: jdResponse(result)})
 }

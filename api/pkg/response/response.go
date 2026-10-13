@@ -22,6 +22,7 @@ type ErrorBody struct {
 
 var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeJDInUse:                         http.StatusConflict,
+	apperror.CodeJDRequirementsLocked:            http.StatusConflict,
 	apperror.CodeJDNotFound:                      http.StatusNotFound,
 	apperror.CodeInvalidJDInput:                  http.StatusBadRequest,
 	apperror.CodeJDTooShort:                      http.StatusBadRequest,
@@ -34,6 +35,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeQuestionBankLocked:              http.StatusConflict,
 	apperror.CodeCoreQuestionInUse:               http.StatusConflict,
 	apperror.CodeRequirementsNotConfirmed:        http.StatusConflict,
+	apperror.CodeRequirementsChanged:             http.StatusConflict,
 	apperror.CodeQuestionGenerationFailed:        http.StatusBadGateway,
 	apperror.CodeInvalidQuestionGenerationOutput: http.StatusBadGateway,
 	apperror.CodeQuestionBankUnavailable:         http.StatusServiceUnavailable,

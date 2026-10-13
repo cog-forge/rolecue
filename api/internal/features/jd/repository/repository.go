@@ -31,7 +31,7 @@ func (r *Repository) Create(ctx context.Context, candidateID uuid.UUID, record d
 		if err != nil {
 			return err
 		}
-		id, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: record.ContentPath, LevelID: levelID})
+		id, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: record.ContentPath, LevelID: levelID, RefinementNote: record.RefinementNote})
 		if err != nil {
 			return err
 		}
@@ -76,28 +76,32 @@ func (r *Repository) Get(ctx context.Context, candidateID, id uuid.UUID) (domain
 	if err != nil {
 		return domain.Record{}, persistenceError(err)
 	}
-	record := domain.Record{ID: row.ID, ContentPath: row.ContentPath, Title: row.Title, Seniority: seniority(row.LevelName), CreatedAt: row.CreatedAt.Time,
-		Requirements: make([]domain.RequirementRow, 0, len(requirements))}
+	record := domain.Record{ID: row.ID, ContentPath: row.ContentPath, Title: row.Title, Seniority: seniority(row.LevelName), RefinementNote: row.RefinementNote,
+		HasQuestionBank: row.HasQuestionBank, CreatedAt: row.CreatedAt.Time, Requirements: make([]domain.RequirementRow, 0, len(requirements))}
 	for _, req := range requirements {
-		record.Requirements = append(record.Requirements, domain.RequirementRow{Name: req.Name, Target: req.Target, Type: domain.Requirement(req.Type)})
+		record.Requirements = append(record.Requirements, domain.RequirementRow{Name: req.Name, Target: req.Target, Type: domain.Requirement(req.Type), EvidenceText: req.EvidenceText})
 	}
 	return record, nil
 }
 
 // Update replaces the reviewed fields. The requirements are rewritten as a whole, the same way
-// the Candidate edits them in review.
+// the Candidate edits them in review. Once a question bank exists they are locked: the bank was
+// generated from exactly these requirements and note.
 func (r *Repository) Update(ctx context.Context, candidateID, id uuid.UUID, record domain.Record) (domain.Record, error) {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
-		contentPath, err := q.LockOwnedJD(ctx, LockOwnedJDParams{ID: id, CandidateID: candidateID})
+		owned, err := q.LockOwnedJD(ctx, LockOwnedJDParams{ID: id, CandidateID: candidateID})
 		if err != nil {
 			return err
+		}
+		if owned.HasQuestionBank {
+			return domain.ErrRequirementsLocked
 		}
 		levelID, err := levelID(ctx, q, record.Seniority)
 		if err != nil {
 			return err
 		}
-		if err := q.UpdateJDLevel(ctx, UpdateJDLevelParams{ID: id, LevelID: levelID}); err != nil {
+		if err := q.UpdateJobDescription(ctx, UpdateJobDescriptionParams{ID: id, LevelID: levelID, RefinementNote: record.RefinementNote}); err != nil {
 			return err
 		}
 		createdAt, err := q.UpdateRoleProfileTitle(ctx, UpdateRoleProfileTitleParams{JdID: id, Title: record.Title})
@@ -110,7 +114,7 @@ func (r *Repository) Update(ctx context.Context, candidateID, id uuid.UUID, reco
 		if err := saveRequirements(ctx, q, id, record.Requirements); err != nil {
 			return err
 		}
-		record.ID, record.ContentPath, record.CreatedAt = id, contentPath, createdAt.Time
+		record.ID, record.ContentPath, record.CreatedAt = id, owned.ContentPath, createdAt.Time
 		return nil
 	})
 	if err != nil {
@@ -160,6 +164,11 @@ func saveRequirements(ctx context.Context, q *Queries, jdID uuid.UUID, rows []do
 		params.Names = append(params.Names, row.Name)
 		params.Targets = append(params.Targets, row.Target)
 		params.Types = append(params.Types, string(row.Type))
+		evidence := ""
+		if row.EvidenceText != nil {
+			evidence = *row.EvidenceText
+		}
+		params.EvidenceTexts = append(params.EvidenceTexts, evidence)
 	}
 	return q.InsertRequirements(ctx, params)
 }

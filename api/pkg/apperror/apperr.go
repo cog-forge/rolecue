@@ -10,6 +10,7 @@ type Code string
 const (
 	CodeJDInUse                 Code = "JD_IN_USE"
 	CodeJDNotFound              Code = "JD_NOT_FOUND"
+	CodeJDRequirementsLocked    Code = "JD_REQUIREMENTS_LOCKED"
 	CodeInvalidCredentials      Code = "INVALID_CREDENTIALS"
 	CodeAccountNotFound         Code = "USER_NOT_FOUND"
 	CodeAccountLocked           Code = "USER_INACTIVE"
@@ -31,6 +32,7 @@ const (
 	CodeQuestionBankLocked              Code = "QUESTION_BANK_LOCKED"
 	CodeCoreQuestionInUse               Code = "CORE_QUESTION_IN_USE"
 	CodeRequirementsNotConfirmed        Code = "REQUIREMENTS_NOT_CONFIRMED"
+	CodeRequirementsChanged             Code = "REQUIREMENTS_CHANGED"
 	CodeQuestionGenerationFailed        Code = "QUESTION_GENERATION_FAILED"
 	CodeInvalidQuestionGenerationOutput Code = "INVALID_QUESTION_GENERATION_OUTPUT"
 	CodeQuestionBankUnavailable         Code = "QUESTION_BANK_UNAVAILABLE"

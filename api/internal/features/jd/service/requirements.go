@@ -17,7 +17,7 @@ func requirementRows(jd domain.StructuredJD) []domain.RequirementRow {
 		if requirement == "" {
 			requirement = domain.Preferred
 		}
-		rows = append(rows, domain.RequirementRow{Name: skill.Name, Target: string(skill.Category), Type: requirement})
+		rows = append(rows, domain.RequirementRow{Name: skill.Name, Target: string(skill.Category), Type: requirement, EvidenceText: skill.EvidenceText})
 	}
 	for _, name := range jd.Technologies {
 		rows = append(rows, domain.RequirementRow{Name: name, Target: domain.TargetTechnologies, Type: domain.Preferred})
@@ -55,7 +55,7 @@ func structuredJD(record domain.Record) domain.StructuredJD {
 			if !validSkillCategory(category) {
 				category = domain.Other
 			}
-			jd.Skills = append(jd.Skills, domain.ExtractedSkill{Name: row.Name, Category: category, Requirement: row.Type})
+			jd.Skills = append(jd.Skills, domain.ExtractedSkill{Name: row.Name, Category: category, Requirement: row.Type, EvidenceText: row.EvidenceText})
 		}
 	}
 	return jd

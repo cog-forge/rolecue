@@ -9,9 +9,12 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 type fakeRepository struct {
@@ -94,14 +97,43 @@ func (f *fakeStore) Download(_ context.Context, key string) (storage.Object, err
 	return storage.Object{Body: io.NopCloser(strings.NewReader(text)), Size: int64(len(text))}, nil
 }
 
+type fakeBank struct {
+	calls    int
+	user, id uuid.UUID
+	err      error
+	disabled bool
+	ctxErr   error
+}
+
+func (f *fakeBank) GenerateForPractice(ctx context.Context, candidateID, jdID uuid.UUID) error {
+	f.calls++
+	f.user, f.id = candidateID, jdID
+	f.ctxErr = ctx.Err()
+	return f.err
+}
+
+func (f *fakeBank) Enabled() bool { return !f.disabled }
+
 func newApplication(t *testing.T, repo Repository, store TextStore) *Application {
+	t.Helper()
+	return newApplicationWithBank(t, repo, store, &fakeBank{})
+}
+
+func newApplicationWithBank(t *testing.T, repo Repository, store TextStore, bank QuestionBank) *Application {
+	t.Helper()
+	return newApplicationWithLog(t, repo, store, bank, nil)
+}
+
+// newApplicationWithLog runs background generation synchronously, so tests can assert on it.
+func newApplicationWithLog(t *testing.T, repo Repository, store TextStore, bank QuestionBank, log *logger.Logger) *Application {
 	t.Helper()
 	app, err := NewApplication(newService(t, &fakeExtractor{fn: func(context.Context, string) (domain.ExtractionCandidate, error) {
 		return validCandidate(), nil
-	}}, 0), repo, store)
+	}}, 0), repo, store, bank, log)
 	if err != nil {
 		t.Fatal(err)
 	}
+	app.background = func(task func()) { task() }
 	return app
 }
 
@@ -114,8 +146,11 @@ func reviewedJD() domain.StructuredJD {
 }
 
 func TestApplicationRequiresDependencies(t *testing.T) {
-	if _, err := NewApplication(newService(t, &fakeExtractor{}, 0), &fakeRepository{}, nil); err == nil {
+	if _, err := NewApplication(newService(t, &fakeExtractor{}, 0), &fakeRepository{}, nil, &fakeBank{}, nil); err == nil {
 		t.Fatal("a missing text store must be rejected")
+	}
+	if _, err := NewApplication(newService(t, &fakeExtractor{}, 0), &fakeRepository{}, newFakeStore(), nil, nil); err == nil {
+		t.Fatal("a missing question bank must be rejected")
 	}
 }
 
@@ -370,4 +405,244 @@ func TestUnknownLevelIsAnInternalError(t *testing.T) {
 	repo := &fakeRepository{stored: domain.Record{ContentPath: key, Title: "T", Seniority: "mid-level"}}
 	_, err := newApplication(t, repo, store).Get(context.Background(), uuid.New(), uuid.New())
 	assertCode(t, err, apperror.CodeInternal)
+}
+
+func strPtr(s string) *string { return &s }
+
+func TestConfirmSavesNoteAndEvidenceThenGeneratesTheBank(t *testing.T) {
+	repo, store, bank := &fakeRepository{}, newFakeStore(), &fakeBank{}
+	jd := reviewedJD()
+	jd.Skills[0].EvidenceText = strPtr("  5+ years of Go  ")
+	user := uuid.New()
+	got, err := newApplicationWithBank(t, repo, store, bank).Create(context.Background(), user,
+		domain.CreateInput{RawText: strings.Repeat("original ", 20), StructuredJD: jd, RefinementNote: "  Exclude C#  "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.saved.RefinementNote == nil || *repo.saved.RefinementNote != "Exclude C#" {
+		t.Fatalf("note = %v", repo.saved.RefinementNote)
+	}
+	var evidence *string
+	for _, row := range repo.saved.Requirements {
+		if row.Name == "Go" {
+			evidence = row.EvidenceText
+		}
+	}
+	if evidence == nil || *evidence != "5+ years of Go" {
+		t.Fatalf("evidence = %v", evidence)
+	}
+	if bank.calls != 1 || bank.user != user || bank.id != got.ID {
+		t.Fatalf("bank generation not started for the confirmed JD: %+v", bank)
+	}
+	// Generation runs after the response, so the confirm never claims a ready bank.
+	if got.QuestionBankReady || got.RefinementNote == nil {
+		t.Fatalf("response = %+v", got)
+	}
+}
+
+func TestBackgroundGenerationOutlivesTheRequest(t *testing.T) {
+	repo, store, bank := &fakeRepository{}, newFakeStore(), &fakeBank{}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // the client is gone by the time generation runs
+	if _, err := newApplicationWithBank(t, repo, store, bank).Create(ctx, uuid.New(),
+		domain.CreateInput{RawText: strings.Repeat("original ", 20), StructuredJD: reviewedJD()}); err != nil {
+		t.Fatal(err)
+	}
+	if bank.calls != 1 || bank.ctxErr != nil {
+		t.Fatalf("generation must not inherit the request's cancellation: %+v", bank)
+	}
+}
+
+func TestConfirmWithGenerationSwitchedOff(t *testing.T) {
+	repo, store, bank := &fakeRepository{}, newFakeStore(), &fakeBank{disabled: true}
+	core, logs := observer.New(zap.WarnLevel)
+	got, err := newApplicationWithLog(t, repo, store, bank, &logger.Logger{Logger: zap.New(core)}).Create(context.Background(), uuid.New(),
+		domain.CreateInput{RawText: strings.Repeat("original ", 20), StructuredJD: reviewedJD()})
+	if err != nil || got.QuestionBankReady || bank.calls != 0 || repo.calls != 1 {
+		t.Fatalf("got %+v, %v, bank calls %d", got, err, bank.calls)
+	}
+	if logs.FilterMessageSnippet("not configured").Len() != 1 {
+		t.Fatal("a confirm without generation must be logged")
+	}
+}
+
+func TestConfirmKeepsTheJDWhenGenerationFails(t *testing.T) {
+	repo, store := &fakeRepository{}, newFakeStore()
+	bank := &fakeBank{err: apperror.New(apperror.CodeQuestionGenerationFailed, "question generation failed")}
+	got, err := newApplicationWithBank(t, repo, store, bank).Create(context.Background(), uuid.New(),
+		domain.CreateInput{RawText: strings.Repeat("original ", 20), StructuredJD: reviewedJD()})
+	if err != nil {
+		t.Fatalf("a failed generation must not undo the confirmation: %v", err)
+	}
+	if got.QuestionBankReady || repo.calls != 1 {
+		t.Fatalf("got %+v, repo calls %d", got, repo.calls)
+	}
+}
+
+func TestFailedGenerationIsLoggedWithItsCode(t *testing.T) {
+	repo, store := &fakeRepository{}, newFakeStore()
+	bank := &fakeBank{err: apperror.New(apperror.CodeQuestionGenerationFailed, "question generation failed")}
+	core, logs := observer.New(zap.WarnLevel)
+	got, err := newApplicationWithLog(t, repo, store, bank, &logger.Logger{Logger: zap.New(core)}).Create(context.Background(), uuid.New(),
+		domain.CreateInput{RawText: strings.Repeat("original ", 20), StructuredJD: reviewedJD()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := logs.FilterMessage("question bank generation failed").All()
+	if len(entries) != 1 {
+		t.Fatalf("got %d warnings, want 1", len(entries))
+	}
+	fields := entries[0].ContextMap()
+	if fields["code"] != string(apperror.CodeQuestionGenerationFailed) || fields["jd_id"] != got.ID.String() {
+		t.Fatalf("log fields = %v", fields)
+	}
+}
+
+func TestConfirmValidationWritesNothing(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		mod  func(*domain.CreateInput)
+	}{
+		{"note too long", func(in *domain.CreateInput) { in.RefinementNote = strings.Repeat("é", MaxRefinementNoteLength+1) }},
+		{"note invalid UTF-8", func(in *domain.CreateInput) { in.RefinementNote = string([]byte{0xff}) }},
+		{"evidence too long", func(in *domain.CreateInput) {
+			in.StructuredJD.Skills[0].EvidenceText = strPtr(strings.Repeat("a", MaxEvidenceLength+1))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo, store, bank := &fakeRepository{}, newFakeStore(), &fakeBank{}
+			in := domain.CreateInput{RawText: strings.Repeat("original ", 20), StructuredJD: reviewedJD()}
+			tc.mod(&in)
+			_, err := newApplicationWithBank(t, repo, store, bank).Create(context.Background(), uuid.New(), in)
+			assertCode(t, err, apperror.CodeValidation)
+			if store.uploads != 0 || repo.calls != 0 || bank.calls != 0 {
+				t.Fatal("invalid input must write nothing")
+			}
+		})
+	}
+}
+
+func TestExtractionNeverSetsEvidence(t *testing.T) {
+	candidate := validCandidate()
+	candidate.Skills[0].EvidenceText = strPtr("model text")
+	got, err := ValidateCandidate(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Skills[0].EvidenceText != nil {
+		t.Fatal("evidence from model output must be dropped")
+	}
+}
+
+func TestUpdateIsRefusedOnceTheBankExists(t *testing.T) {
+	store := newFakeStore()
+	key, _ := store.Upload(context.Background(), strings.NewReader("text"), jdTextContentType)
+	repo := &fakeRepository{stored: domain.Record{ContentPath: key, Seniority: domain.Senior, HasQuestionBank: true}}
+	_, err := newApplication(t, repo, store).Update(context.Background(), uuid.New(), uuid.New(), domain.UpdateInput{StructuredJD: reviewedJD()})
+	assertCode(t, err, apperror.CodeJDRequirementsLocked)
+	if repo.updates != 0 {
+		t.Fatal("a locked JD must not be written")
+	}
+}
+
+func TestUpdateSavesTheNote(t *testing.T) {
+	store := newFakeStore()
+	key, _ := store.Upload(context.Background(), strings.NewReader("text"), jdTextContentType)
+	repo := &fakeRepository{stored: domain.Record{ContentPath: key, Seniority: domain.Senior}}
+	got, err := newApplication(t, repo, store).Update(context.Background(), uuid.New(), uuid.New(), domain.UpdateInput{StructuredJD: reviewedJD(), RefinementNote: " Focus on caching "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.saved.RefinementNote == nil || *repo.saved.RefinementNote != "Focus on caching" || got.RefinementNote == nil {
+		t.Fatalf("saved %+v, got %+v", repo.saved.RefinementNote, got.RefinementNote)
+	}
+}
+
+func TestGenerateQuestionBankRetry(t *testing.T) {
+	store := newFakeStore()
+	key, _ := store.Upload(context.Background(), strings.NewReader("text"), jdTextContentType)
+	user, id := uuid.New(), uuid.New()
+	missing := func() *fakeRepository {
+		return &fakeRepository{stored: domain.Record{ID: id, ContentPath: key, Title: "T", Seniority: domain.Senior}}
+	}
+
+	t.Run("starts generation and returns the JD", func(t *testing.T) {
+		bank := &fakeBank{}
+		got, err := newApplicationWithBank(t, missing(), store, bank).GenerateQuestionBank(context.Background(), user, id)
+		if err != nil || got.ID != id || got.RawText != "text" || bank.calls != 1 || bank.user != user || bank.id != id {
+			t.Fatalf("got %+v, %v, bank %+v", got, err, bank)
+		}
+	})
+	t.Run("a bank already exists", func(t *testing.T) {
+		repo, bank := missing(), &fakeBank{}
+		repo.stored.HasQuestionBank = true
+		_, err := newApplicationWithBank(t, repo, store, bank).GenerateQuestionBank(context.Background(), user, id)
+		assertCode(t, err, apperror.CodeQuestionBankExists)
+		if bank.calls != 0 {
+			t.Fatal("no generation may start")
+		}
+	})
+	t.Run("generation switched off", func(t *testing.T) {
+		bank := &fakeBank{disabled: true}
+		_, err := newApplicationWithBank(t, missing(), store, bank).GenerateQuestionBank(context.Background(), user, id)
+		assertCode(t, err, apperror.CodeQuestionBankUnavailable)
+		if bank.calls != 0 {
+			t.Fatal("no generation may start")
+		}
+	})
+	t.Run("another user's JD", func(t *testing.T) {
+		repo, bank := missing(), &fakeBank{}
+		repo.err = apperror.New(apperror.CodeJDNotFound, "job description not found")
+		_, err := newApplicationWithBank(t, repo, store, bank).GenerateQuestionBank(context.Background(), uuid.New(), id)
+		assertCode(t, err, apperror.CodeJDNotFound)
+		if bank.calls != 0 {
+			t.Fatal("no generation may start for a stranger")
+		}
+	})
+	t.Run("storage failure is reported before starting", func(t *testing.T) {
+		repo, bank := missing(), &fakeBank{}
+		repo.stored.ContentPath = "missing"
+		_, err := newApplicationWithBank(t, repo, store, bank).GenerateQuestionBank(context.Background(), user, id)
+		assertCode(t, err, apperror.CodeInternal)
+		if bank.calls != 0 {
+			t.Fatal("an error must never follow a started generation")
+		}
+	})
+}
+
+func TestUpdateRejectsInvalidInputBeforeAnyWork(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   domain.UpdateInput
+	}{
+		{"note too long", domain.UpdateInput{StructuredJD: reviewedJD(), RefinementNote: strings.Repeat("a", MaxRefinementNoteLength+1)}},
+		{"no seniority", func() domain.UpdateInput {
+			jd := reviewedJD()
+			jd.SeniorityLevel = nil
+			return domain.UpdateInput{StructuredJD: jd}
+		}()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeRepository{}
+			_, err := newApplication(t, repo, newFakeStore()).Update(context.Background(), uuid.New(), uuid.New(), tc.in)
+			assertCode(t, err, apperror.CodeValidation)
+			if repo.calls != 0 {
+				t.Fatal("invalid input must not read or write the JD")
+			}
+		})
+	}
+}
+
+func TestGetReturnsEvidenceAndNote(t *testing.T) {
+	store := newFakeStore()
+	key, _ := store.Upload(context.Background(), strings.NewReader("text"), jdTextContentType)
+	repo := &fakeRepository{stored: domain.Record{ContentPath: key, Title: "T", Seniority: domain.Senior, RefinementNote: strPtr("Exclude C#"),
+		Requirements: []domain.RequirementRow{{Name: "Go", Target: "programming_language", Type: domain.Required, EvidenceText: strPtr("5+ years")}}}}
+	got, err := newApplication(t, repo, store).Get(context.Background(), uuid.New(), uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if *got.RefinementNote != "Exclude C#" || got.StructuredJD.Skills[0].EvidenceText == nil || *got.StructuredJD.Skills[0].EvidenceText != "5+ years" || got.QuestionBankReady {
+		t.Fatalf("got %+v", got)
+	}
 }

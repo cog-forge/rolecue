@@ -21,7 +21,9 @@ type Repository interface {
 	Update(ctx context.Context, recruiterID, postingID, questionID uuid.UUID, content string) (domain.CoreQuestion, error)
 	Delete(ctx context.Context, recruiterID, postingID, questionID uuid.UUID) error
 	SaveForPosting(ctx context.Context, recruiterID, postingID uuid.UUID, contents []string) ([]domain.CoreQuestion, error)
-	SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, contents []string) ([]domain.CoreQuestion, error)
+	// SaveForPractice stores the bank only if the JD's generation input is still the one the
+	// questions were written from.
+	SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, from domain.GenerationInput, contents []string) ([]domain.CoreQuestion, error)
 }
 
 // Generator performs one attempt and must not retry internally. The input is untrusted data.
@@ -101,7 +103,7 @@ func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role stri
 	if posting.Status != domain.PostingPending {
 		return nil, apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending")
 	}
-	contents, err := s.draft(ctx, posting.JDID)
+	_, contents, err := s.draft(ctx, posting.JDID)
 	if err != nil {
 		return nil, err
 	}
@@ -117,11 +119,17 @@ func (s *Service) GenerateForPractice(ctx context.Context, candidateID, jdID uui
 	if err := s.repository.CandidateOwnsJD(ctx, candidateID, jdID); err != nil {
 		return nil, err
 	}
-	contents, err := s.draft(ctx, jdID)
+	input, contents, err := s.draft(ctx, jdID)
 	if err != nil {
 		return nil, err
 	}
-	return s.repository.SaveForPractice(ctx, candidateID, jdID, contents)
+	return s.repository.SaveForPractice(ctx, candidateID, jdID, input, contents)
+}
+
+// Enabled reports whether generation is configured, so callers can refuse up front instead of
+// starting work that is bound to fail.
+func (s *Service) Enabled() bool {
+	return s.size > 0
 }
 
 // CurrentBank is the stable read contract for the interview runtime (KAN-56). It is not scoped by
@@ -166,21 +174,23 @@ func (s *Service) requireEnabled() error {
 	return nil
 }
 
-// draft checks the cheap preconditions before spending an LLM call, then asks the model.
-func (s *Service) draft(ctx context.Context, jdID uuid.UUID) ([]string, error) {
+// draft checks the cheap preconditions before spending an LLM call, then asks the model. It also
+// returns the input it used, so the save can check that nothing changed during the call.
+func (s *Service) draft(ctx context.Context, jdID uuid.UUID) (domain.GenerationInput, []string, error) {
 	existing, err := s.repository.List(ctx, jdID)
 	if err != nil {
-		return nil, err
+		return domain.GenerationInput{}, nil, err
 	}
 	if len(existing) > 0 {
-		return nil, apperror.New(apperror.CodeQuestionBankExists, "this job description already has a question bank")
+		return domain.GenerationInput{}, nil, apperror.New(apperror.CodeQuestionBankExists, "this job description already has a question bank")
 	}
 	input, err := s.repository.GenerationInput(ctx, jdID)
 	if err != nil {
-		return nil, err
+		return domain.GenerationInput{}, nil, err
 	}
 	if len(input.Requirements) == 0 {
-		return nil, apperror.New(apperror.CodeRequirementsNotConfirmed, "confirm the job description requirements before generating questions")
+		return domain.GenerationInput{}, nil, apperror.New(apperror.CodeRequirementsNotConfirmed, "confirm the job description requirements before generating questions")
 	}
-	return s.generateWithRetry(ctx, input)
+	contents, err := s.generateWithRetry(ctx, input)
+	return input, contents, err
 }

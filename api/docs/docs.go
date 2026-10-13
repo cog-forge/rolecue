@@ -584,6 +584,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
+                "description": "Saves the original text, the reviewed requirements, the seniority level and the optional refinement note in one transaction, then starts generating the hidden question bank in the background. The response always has questionBankReady=false; poll GET /jds/{id} until it is true. If it stays false, restart generation with POST /jds/{id}/question-bank.",
                 "consumes": [
                     "application/json"
                 ],
@@ -593,7 +594,7 @@ const docTemplate = `{
                 "tags": [
                     "jds"
                 ],
-                "summary": "Save a reviewed JD",
+                "summary": "Confirm a reviewed JD",
                 "parameters": [
                     {
                         "description": "JD request",
@@ -796,6 +797,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
+                "description": "Replaces the reviewed requirements, seniority and refinement note as a whole: omitting refinementNote clears it, so always send the current note. Refused with 409 JD_REQUIREMENTS_LOCKED once the question bank exists.",
                 "consumes": [
                     "application/json"
                 ],
@@ -857,6 +859,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -924,6 +932,88 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/jds/{id}/question-bank": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Starts generation again in the background after it failed (202). Poll GET /jds/{id} until questionBankReady is true. 409 when a bank already exists, 503 when generation is not configured. The questions themselves are never sent to Candidates.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "jds"
+                ],
+                "summary": "Restart question-bank generation for a confirmed JD",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JD UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.JDResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -1580,6 +1670,7 @@ const docTemplate = `{
             "enum": [
                 "JD_IN_USE",
                 "JD_NOT_FOUND",
+                "JD_REQUIREMENTS_LOCKED",
                 "INVALID_CREDENTIALS",
                 "USER_NOT_FOUND",
                 "USER_INACTIVE",
@@ -1599,6 +1690,7 @@ const docTemplate = `{
                 "QUESTION_BANK_LOCKED",
                 "CORE_QUESTION_IN_USE",
                 "REQUIREMENTS_NOT_CONFIRMED",
+                "REQUIREMENTS_CHANGED",
                 "QUESTION_GENERATION_FAILED",
                 "INVALID_QUESTION_GENERATION_OUTPUT",
                 "QUESTION_BANK_UNAVAILABLE",
@@ -1616,6 +1708,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "CodeJDInUse",
                 "CodeJDNotFound",
+                "CodeJDRequirementsLocked",
                 "CodeInvalidCredentials",
                 "CodeAccountNotFound",
                 "CodeAccountLocked",
@@ -1635,6 +1728,7 @@ const docTemplate = `{
                 "CodeQuestionBankLocked",
                 "CodeCoreQuestionInUse",
                 "CodeRequirementsNotConfirmed",
+                "CodeRequirementsChanged",
                 "CodeQuestionGenerationFailed",
                 "CodeInvalidQuestionGenerationOutput",
                 "CodeQuestionBankUnavailable",
@@ -1690,6 +1784,10 @@ const docTemplate = `{
             "properties": {
                 "category": {
                     "$ref": "#/definitions/domain.SkillCategory"
+                },
+                "evidenceText": {
+                    "description": "EvidenceText is the Candidate's quote or note from the JD backing this skill. Only\nreviewed input may set it; extraction output never does.",
+                    "type": "string"
                 },
                 "name": {
                     "type": "string"
@@ -2016,6 +2114,10 @@ const docTemplate = `{
                 "rawText": {
                     "type": "string"
                 },
+                "refinementNote": {
+                    "description": "RefinementNote is optional, up to 2000 characters; blank means no note.",
+                    "type": "string"
+                },
                 "structuredJD": {
                     "$ref": "#/definitions/domain.StructuredJD"
                 }
@@ -2030,7 +2132,14 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "questionBankReady": {
+                    "description": "QuestionBankReady says whether the hidden question bank exists; the questions are never sent.",
+                    "type": "boolean"
+                },
                 "rawText": {
+                    "type": "string"
+                },
+                "refinementNote": {
                     "type": "string"
                 },
                 "structuredJD": {
@@ -2077,6 +2186,9 @@ const docTemplate = `{
                 "structuredJD"
             ],
             "properties": {
+                "refinementNote": {
+                    "type": "string"
+                },
                 "structuredJD": {
                     "$ref": "#/definitions/domain.StructuredJD"
                 }
