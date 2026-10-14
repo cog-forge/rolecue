@@ -96,14 +96,14 @@ func TestSelectRoleRequiresAuthentication(t *testing.T) {
 
 func TestSelectRolePropagatesRefusal(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	service := &roleSelectionSpy{err: apperror.New(apperror.CodeForbidden, "role cannot be changed")}
+	service := &roleSelectionSpy{err: apperror.New(apperror.CodeOnboardingRoleConflict, "role cannot be changed")}
 	user := authdomain.User{ID: uuid.New(), Role: "recruiter"}
 	w := selectRoleRequest(roleSelectionRouter(user, service), "application/json", `{"role":"candidate"}`)
 	var body response.Envelope
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	if w.Code != http.StatusForbidden || body.Error == nil || body.Error.Code != apperror.CodeForbidden || service.calls != 1 {
+	if w.Code != http.StatusConflict || body.Error == nil || body.Error.Code != apperror.CodeOnboardingRoleConflict || service.calls != 1 {
 		t.Fatalf("status=%d body=%s service calls=%d", w.Code, w.Body.String(), service.calls)
 	}
 }

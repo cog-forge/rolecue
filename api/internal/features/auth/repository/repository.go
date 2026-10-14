@@ -37,7 +37,19 @@ func authUser(row GetAuthUserRow) domain.User {
 func (r *Repository) SelectRole(ctx context.Context, id uuid.UUID, role string) (domain.User, error) {
 	row, err := r.queries.ChooseOnboardingRole(ctx, ChooseOnboardingRoleParams{ID: id, ChosenRole: role})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.User{}, apperror.New(apperror.CodeForbidden, "role has already been chosen or account is not eligible")
+		current, lookupErr := r.queries.GetAuthUser(ctx, id)
+		if lookupErr != nil && !errors.Is(lookupErr, pgx.ErrNoRows) {
+			return domain.User{}, apperror.Wrap(apperror.CodeInternal, "unable to check role selection", lookupErr)
+		}
+		if lookupErr == nil && !current.IsLocked && current.EmailVerified && current.Role != "admin" {
+			if current.OnboardingCompleted {
+				return domain.User{}, apperror.New(apperror.CodeOnboardingRoleConflict, "onboarding is already completed")
+			}
+			if current.OnboardingRoleSelected && current.Role != role {
+				return domain.User{}, apperror.New(apperror.CodeOnboardingRoleConflict, "role has already been selected and cannot be changed")
+			}
+		}
+		return domain.User{}, apperror.New(apperror.CodeForbidden, "account is not eligible to choose a role")
 	}
 	if err != nil {
 		return domain.User{}, apperror.Wrap(apperror.CodeInternal, "unable to choose role", err)

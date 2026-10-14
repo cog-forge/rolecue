@@ -29,7 +29,7 @@ type RoleSelection struct {
 
 // SelectRole godoc
 // @Summary Choose your onboarding role once
-// @Description Same-role retries are idempotent while onboarding is pending; changing a selected role is forbidden. Unknown fields reject the whole request.
+// @Description Same-role retries are idempotent until onboarding is completed. Changing a selected role or selecting after completion returns 409 ONBOARDING_ROLE_CONFLICT. Unknown fields reject the whole request.
 // @Tags onboarding
 // @Accept json
 // @Produce json
@@ -40,6 +40,7 @@ type RoleSelection struct {
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
 // @Failure 500 {object} response.Envelope
 // @Router /onboarding/role [post]
 func (h *OnboardingHandler) SelectRole(c *gin.Context) {

@@ -53,7 +53,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
     async (error: unknown) => {
       if (
         isAxiosError(error) &&
-        [401, 403].includes(error.response?.status ?? 0)
+        [401, 403, 409].includes(error.response?.status ?? 0)
       )
         await cache.invalidateQueries({ queryKey: ["auth", "me"] });
     },

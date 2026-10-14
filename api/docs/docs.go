@@ -1422,7 +1422,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Same-role retries are idempotent while onboarding is pending; changing a selected role is forbidden. Unknown fields reject the whole request.",
+                "description": "Same-role retries are idempotent until onboarding is completed. Changing a selected role or selecting after completion returns 409 ONBOARDING_ROLE_CONFLICT. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1484,6 +1484,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -1668,6 +1674,7 @@ const docTemplate = `{
                 "INVALID_TOKEN",
                 "AUTH_UNAVAILABLE",
                 "FORBIDDEN",
+                "ONBOARDING_ROLE_CONFLICT",
                 "VALIDATION_ERROR",
                 "INTERNAL_ERROR",
                 "INVALID_JD_INPUT",
@@ -1704,6 +1711,7 @@ const docTemplate = `{
                 "CodeInvalidToken",
                 "CodeAuthUnavailable",
                 "CodeForbidden",
+                "CodeOnboardingRoleConflict",
                 "CodeValidation",
                 "CodeInternal",
                 "CodeInvalidJDInput",
