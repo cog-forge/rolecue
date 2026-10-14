@@ -173,3 +173,27 @@ func TestRemoveKeepsReferencedVoices(t *testing.T) {
 	_, err = repo.Remove(f.ctx, unused)
 	wantCode(t, err, apperror.CodeVoiceNotFound)
 }
+
+func TestActivateUndoesDeactivation(t *testing.T) {
+	f := open(t)
+	repo := repository.NewRepository(f.pool)
+	used, unused := f.voice("reactivate", true), f.voice("gone", true)
+	f.posting(used)
+	if outcome, err := repo.Remove(f.ctx, used); err != nil || outcome != domain.VoiceDeactivated {
+		t.Fatalf("deactivate: %q, %v", outcome, err)
+	}
+	for call := 1; call <= 2; call++ {
+		if err := repo.Activate(f.ctx, used); err != nil {
+			t.Fatalf("activate call %d: %v", call, err)
+		}
+	}
+	got, err := repo.Get(f.ctx, used)
+	if err != nil || !got.IsActive || got.JobPostingCount != 1 {
+		t.Fatalf("reactivated voice: %+v, %v", got, err)
+	}
+
+	if _, err := repo.Remove(f.ctx, unused); err != nil {
+		t.Fatal(err)
+	}
+	wantCode(t, repo.Activate(f.ctx, unused), apperror.CodeVoiceNotFound)
+}

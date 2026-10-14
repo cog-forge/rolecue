@@ -16,6 +16,7 @@ type VoiceCatalogService interface {
 	List(ctx context.Context, role string, filter domain.VoiceListFilter) ([]domain.VoiceProfile, int64, error)
 	Get(ctx context.Context, role string, id uuid.UUID) (domain.VoiceProfile, error)
 	Remove(ctx context.Context, adminID uuid.UUID, role string, id uuid.UUID) (domain.VoiceDeleteResult, error)
+	Activate(ctx context.Context, adminID uuid.UUID, role string, id uuid.UUID) (domain.VoiceProfile, error)
 }
 type VoiceCatalogHandler struct{ service VoiceCatalogService }
 
@@ -178,6 +179,38 @@ func (h *VoiceCatalogHandler) Remove(c *gin.Context) {
 		return
 	}
 	result, err := h.service.Remove(c.Request.Context(), adminID, role, id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+// Activate godoc
+// @Summary Reactivate a voice profile
+// @Description Admin only. Sets is_active=true so the voice can be chosen again; repeating it on an active voice changes nothing. A voice that was deleted permanently returns 404. Trusted Origin required.
+// @Tags admin-voices
+// @Produce json
+// @Security SessionCookie
+// @Param Origin header string true "Trusted frontend origin"
+// @Param id path string true "Voice ID"
+// @Success 200 {object} response.Envelope{data=domain.VoiceProfile}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /admin/voices/{id}/activate [patch]
+func (h *VoiceCatalogHandler) Activate(c *gin.Context) {
+	adminID, role, ok := voiceCatalogUser(c)
+	if !ok {
+		return
+	}
+	id, ok := voiceCatalogID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.Activate(c.Request.Context(), adminID, role, id)
 	if err != nil {
 		response.Error(c, err)
 		return

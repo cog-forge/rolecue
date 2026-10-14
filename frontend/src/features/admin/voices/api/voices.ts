@@ -1,5 +1,9 @@
 import { apiClient } from "@/lib/api/client";
-import { removeVoiceEnvelopeSchema, voicePageEnvelopeSchema } from "../schemas/voice-schema";
+import {
+  removeVoiceEnvelopeSchema,
+  voiceEnvelopeSchema,
+  voicePageEnvelopeSchema,
+} from "../schemas/voice-schema";
 import { voiceApiParams, type VoiceFilters } from "../utils/voice-filters";
 
 export const voiceKeys = {
@@ -20,4 +24,10 @@ export async function listVoices(filters: VoiceFilters, signal?: AbortSignal) {
 export async function removeVoice(id: string) {
   const response = await apiClient.delete<unknown>(`/admin/voices/${encodeURIComponent(id)}`);
   return removeVoiceEnvelopeSchema.parse(response.data).data;
+}
+
+// Safe to repeat: reactivating an active voice changes nothing. A deleted voice is a 404.
+export async function activateVoice(id: string) {
+  const response = await apiClient.patch<unknown>(`/admin/voices/${encodeURIComponent(id)}/activate`);
+  return voiceEnvelopeSchema.parse(response.data).data;
 }

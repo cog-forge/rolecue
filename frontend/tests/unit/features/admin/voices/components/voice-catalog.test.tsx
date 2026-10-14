@@ -8,6 +8,7 @@ import { defaultVoiceFilters, type VoiceFilters } from "@/features/admin/voices/
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   delete: vi.fn(),
+  patch: vi.fn(),
   push: vi.fn(),
   toast: vi.fn(),
   user: {
@@ -20,7 +21,7 @@ const mocks = vi.hoisted(() => ({
     image: null,
   },
 }));
-vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get, delete: mocks.delete } }));
+vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get, delete: mocks.delete, patch: mocks.patch } }));
 vi.mock("@/features/auth/components/session-gate", () => ({ useSessionUser: () => mocks.user }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock("goey-toast", () => ({ gooeyToast: { success: mocks.toast } }));
@@ -61,6 +62,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.get.mockReset();
   mocks.delete.mockReset();
+  mocks.patch.mockReset();
 });
 
 describe("VoiceCatalog", () => {
@@ -74,8 +76,9 @@ describe("VoiceCatalog", () => {
     expect(within(ava).getByText("2 interviews and 1 job posting")).toBeInTheDocument();
     expect(within(screen.getByRole("row", { name: /Ben/ })).getByText("Not used")).toBeInTheDocument();
     expect(within(screen.getByRole("row", { name: /Cara/ })).getByText("Inactive")).toBeInTheDocument();
-    expect(within(screen.getByRole("row", { name: /Cara/ })).getByText("Already deactivated")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reactivate Cara" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Deactivate Cara" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reactivate Ava" })).not.toBeInTheDocument();
     expect(screen.getByText("Showing 1–3 of 3")).toBeInTheDocument();
   });
 
@@ -190,6 +193,54 @@ describe("VoiceCatalog", () => {
   it("shows an access message for a non-admin", async () => {
     mocks.get.mockRejectedValue(failure(403, "FORBIDDEN", "forbidden"));
     mount();
+    expect(await screen.findByRole("heading", { name: /don't have access to voice profiles/ })).toBeInTheDocument();
+  });
+
+  it("reactivates an inactive voice", async () => {
+    mocks.get.mockResolvedValue(page([retired]));
+    mocks.patch.mockResolvedValue({ data: { success: true, data: { ...retired, is_active: true } } });
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivate Cara" }));
+    await waitFor(() => expect(mocks.patch).toHaveBeenCalledWith(`/admin/voices/${retired.id}/activate`));
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith("Voice reactivated", expect.anything()));
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers both reactivate and remove for an inactive voice nobody uses", async () => {
+    mocks.get.mockResolvedValue(page([{ ...unused, is_active: false }]));
+    mount();
+    expect(await screen.findByRole("button", { name: "Reactivate Ben" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Ben" })).toBeInTheDocument();
+  });
+
+  it("lets the admin retry a failed reactivation", async () => {
+    mocks.get.mockResolvedValue(page([retired]));
+    mocks.patch
+      .mockRejectedValueOnce(failure(500, "INTERNAL_ERROR", "voice catalog persistence failed"))
+      .mockResolvedValue({ data: { success: true, data: { ...retired, is_active: true } } });
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivate Cara" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("voice catalog persistence failed");
+    fireEvent.click(screen.getByRole("button", { name: "Reactivate Cara" }));
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalledWith("Voice reactivated", expect.anything()));
+    expect(mocks.patch).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("refreshes when the voice to reactivate was deleted", async () => {
+    mocks.get.mockResolvedValueOnce(page([retired])).mockResolvedValue(page([]));
+    mocks.patch.mockRejectedValue(failure(404, "VOICE_NOT_FOUND", "voice not found"));
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivate Cara" }));
+    expect(await screen.findByText(/removed permanently, so it can't be reactivated/)).toBeInTheDocument();
+    expect(await screen.findByText("There are no voices in the catalog yet.")).toBeInTheDocument();
+  });
+
+  it("shows the access message when reactivating is denied", async () => {
+    mocks.get.mockResolvedValueOnce(page([retired])).mockRejectedValue(failure(403, "FORBIDDEN", "forbidden"));
+    mocks.patch.mockRejectedValue(failure(403, "FORBIDDEN", "forbidden"));
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Reactivate Cara" }));
     expect(await screen.findByRole("heading", { name: /don't have access to voice profiles/ })).toBeInTheDocument();
   });
 });

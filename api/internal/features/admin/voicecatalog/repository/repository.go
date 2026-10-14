@@ -85,6 +85,19 @@ func (r *Repository) Remove(ctx context.Context, id uuid.UUID) (domain.VoiceDele
 	return outcome, nil
 }
 
+// Activate puts a voice back into the catalog. Activating an active voice changes nothing; a
+// deleted voice is not found.
+func (r *Repository) Activate(ctx context.Context, id uuid.UUID) error {
+	rows, err := r.queries.ActivateVoice(ctx, id)
+	if err != nil {
+		return persistenceError(err)
+	}
+	if rows == 0 {
+		return domain.ErrVoiceNotFound
+	}
+	return nil
+}
+
 func voice(id uuid.UUID, name string, active bool, interviews, postings int64) domain.VoiceProfile {
 	return domain.VoiceProfile{ID: id, Name: name, IsActive: active, InterviewCount: interviews, JobPostingCount: postings,
 		InUse: interviews > 0 || postings > 0}

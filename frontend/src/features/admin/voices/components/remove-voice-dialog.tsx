@@ -45,7 +45,8 @@ export function RemoveVoiceDialog({
               <>
                 <span className="font-medium text-foreground">{voice?.name}</span>{" "}
                 is used by {usage(voice)}. It will be marked inactive instead of
-                removed, so those interviews and postings keep it.
+                removed, so those interviews and postings keep it. You can
+                reactivate it later.
               </>
             ) : (
               <>

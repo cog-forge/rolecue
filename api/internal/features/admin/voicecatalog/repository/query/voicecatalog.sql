@@ -37,3 +37,8 @@ UPDATE public.voices SET is_active = false WHERE id = @id;
 
 -- name: DeleteVoice :exec
 DELETE FROM public.voices WHERE id = @id;
+
+-- Reactivating takes the same row lock as Remove, so it waits for a removal in progress and then
+-- finds no row if the voice was deleted.
+-- name: ActivateVoice :execrows
+UPDATE public.voices SET is_active = true WHERE id = @id;

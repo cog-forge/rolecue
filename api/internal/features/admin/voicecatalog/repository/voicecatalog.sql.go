@@ -11,6 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const activateVoice = `-- name: ActivateVoice :execrows
+UPDATE public.voices SET is_active = true WHERE id = $1
+`
+
+// Reactivating takes the same row lock as Remove, so it waits for a removal in progress and then
+// finds no row if the voice was deleted.
+func (q *Queries) ActivateVoice(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, activateVoice, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countVoiceReferences = `-- name: CountVoiceReferences :one
 SELECT (SELECT count(*) FROM public.interviews WHERE voice_id = $1::uuid)
      + (SELECT count(*) FROM public.job_postings WHERE required_voice_id = $1::uuid) AS total

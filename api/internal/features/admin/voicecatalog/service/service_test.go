@@ -17,13 +17,14 @@ import (
 // fakeRepository behaves like the SQL: Remove deactivates a referenced voice, deletes an unused
 // one, and a deleted voice is gone afterwards.
 type fakeRepository struct {
-	voices    map[uuid.UUID]*domain.VoiceProfile
-	listErr   error
-	removeErr error
+	voices      map[uuid.UUID]*domain.VoiceProfile
+	listErr     error
+	removeErr   error
+	activateErr error
 
-	listCalls, removeCalls int
-	filter                 domain.VoiceListFilter
-	afterRemove            func()
+	listCalls, removeCalls, activateCalls int
+	filter                                domain.VoiceListFilter
+	afterRemove                           func()
 }
 
 func newRepo(voices ...domain.VoiceProfile) *fakeRepository {
@@ -72,6 +73,19 @@ func (f *fakeRepository) Remove(_ context.Context, id uuid.UUID) (domain.VoiceDe
 	return domain.VoiceDeleted, nil
 }
 
+func (f *fakeRepository) Activate(_ context.Context, id uuid.UUID) error {
+	f.activateCalls++
+	if f.activateErr != nil {
+		return f.activateErr
+	}
+	v, ok := f.voices[id]
+	if !ok {
+		return domain.ErrVoiceNotFound
+	}
+	v.IsActive = true
+	return nil
+}
+
 func newService(t *testing.T, repo Repository, log *logger.Logger) *Service {
 	t.Helper()
 	svc, err := New(repo, log)
@@ -114,7 +128,9 @@ func TestOnlyAdminsReachTheCatalog(t *testing.T) {
 		assertCode(t, err, apperror.CodeForbidden)
 		_, err = svc.Remove(context.Background(), uuid.New(), role, voice.ID)
 		assertCode(t, err, apperror.CodeForbidden)
-		if repo.listCalls != 0 || repo.removeCalls != 0 || !repo.voices[voice.ID].IsActive {
+		_, err = svc.Activate(context.Background(), uuid.New(), role, voice.ID)
+		assertCode(t, err, apperror.CodeForbidden)
+		if repo.listCalls != 0 || repo.removeCalls != 0 || repo.activateCalls != 0 || !repo.voices[voice.ID].IsActive {
 			t.Fatalf("role %q reached the repository", role)
 		}
 	}
@@ -252,4 +268,59 @@ func TestRemoveRepeated(t *testing.T) {
 	}
 	_, err := svc.Remove(context.Background(), uuid.New(), "admin", unused.ID)
 	assertCode(t, err, apperror.CodeVoiceNotFound)
+}
+
+func TestActivateBringsBackADeactivatedVoice(t *testing.T) {
+	voice := usedVoice()
+	voice.IsActive = false
+	repo := newRepo(voice)
+	core, logs := observer.New(zap.InfoLevel)
+	admin := uuid.New()
+	svc := newService(t, repo, &logger.Logger{Logger: zap.New(core)})
+	// Repeating it (a retry or a double click) succeeds and leaves the voice active.
+	for i := 0; i < 2; i++ {
+		got, err := svc.Activate(context.Background(), admin, "admin", voice.ID)
+		if err != nil || !got.IsActive || got.ID != voice.ID || got.InterviewCount != 2 {
+			t.Fatalf("call %d: %+v, %v", i+1, got, err)
+		}
+	}
+	entries := logs.FilterMessage("voice profile reactivated").All()
+	if len(entries) != 2 {
+		t.Fatalf("got %d audit entries, want 2", len(entries))
+	}
+	if fields := entries[0].ContextMap(); fields["voice_id"] != voice.ID.String() || fields["admin_id"] != admin.String() {
+		t.Fatalf("audit fields = %v", fields)
+	}
+}
+
+func TestActivateAfterDeactivateUndoesIt(t *testing.T) {
+	voice := usedVoice()
+	repo := newRepo(voice)
+	svc := newService(t, repo, nil)
+	if _, err := svc.Remove(context.Background(), uuid.New(), "admin", voice.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.Activate(context.Background(), uuid.New(), "admin", voice.ID)
+	if err != nil || !got.IsActive || !repo.voices[voice.ID].IsActive {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestActivateDeletedVoiceIsNotFound(t *testing.T) {
+	voice := unusedVoice()
+	repo := newRepo(voice)
+	svc := newService(t, repo, nil)
+	if _, err := svc.Remove(context.Background(), uuid.New(), "admin", voice.ID); err != nil {
+		t.Fatal(err)
+	}
+	_, err := svc.Activate(context.Background(), uuid.New(), "admin", voice.ID)
+	assertCode(t, err, apperror.CodeVoiceNotFound)
+}
+
+func TestActivateErrorPassesThrough(t *testing.T) {
+	voice := usedVoice()
+	repo := newRepo(voice)
+	repo.activateErr = apperror.New(apperror.CodeInternal, "voice catalog persistence failed")
+	_, err := newService(t, repo, nil).Activate(context.Background(), uuid.New(), "admin", voice.ID)
+	assertCode(t, err, apperror.CodeInternal)
 }

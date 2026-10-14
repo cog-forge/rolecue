@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, DownloadCloud, Search, Trash2 } from "lucide-react";
+import { CircleAlert, DownloadCloud, RotateCcw, Search, Trash2 } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { cn } from "@/lib/utils";
-import { listVoices, removeVoice, voiceKeys } from "../api/voices";
+import { activateVoice, listVoices, removeVoice, voiceKeys } from "../api/voices";
 import type { Voice } from "../schemas/voice-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
 import {
@@ -67,7 +67,28 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
       }
     },
   });
-  const denied = isAccessDenied(query.error) || isAccessDenied(remove.error);
+  const activate = useMutation({
+    mutationFn: (voice: Voice) => activateVoice(voice.id),
+    retry: false,
+    onMutate: () => setNotice(null),
+    onSuccess: (voice) => {
+      void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
+      gooeyToast.success("Voice reactivated", {
+        description: `${voice.name} is active again and can be chosen.`,
+      });
+    },
+    onError: (error, voice) => {
+      if (isAccessDenied(error)) return;
+      if (apiError(error).status === 404) {
+        setNotice(`${voice.name} was removed permanently, so it can't be reactivated. We refreshed the catalog for you.`);
+        void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
+        return;
+      }
+      setNotice(apiError(error).message ?? `We couldn't reactivate ${voice.name}. Please try again.`);
+    },
+  });
+  const denied =
+    isAccessDenied(query.error) || isAccessDenied(remove.error) || isAccessDenied(activate.error);
   useEffect(() => {
     // A role or lock change shows up as 401/403; let the session gate re-check access.
     if (denied) void cache.invalidateQueries({ queryKey: ["auth", "me"] });
@@ -220,12 +241,21 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
                       {voice.in_use ? usage(voice) : "Not used"}
                     </td>
                     <td className="py-3 text-right">
-                      {!voice.is_active && voice.in_use ? (
-                        // Nothing left to do: it is inactive and must stay for its references.
-                        <span className="inline-flex min-h-11 items-center text-xs text-muted-foreground">
-                          Already deactivated
-                        </span>
-                      ) : (
+                      <div className="inline-flex flex-wrap justify-end gap-2">
+                      {!voice.is_active && (
+                        <Button
+                          variant="outline"
+                          className="h-11"
+                          aria-label={`Reactivate ${voice.name}`}
+                          disabled={activate.isPending && activate.variables?.id === voice.id}
+                          onClick={() => activate.mutate(voice)}
+                        >
+                          <RotateCcw aria-hidden />
+                          {activate.isPending && activate.variables?.id === voice.id ? "Reactivating…" : "Reactivate"}
+                        </Button>
+                      )}
+                      {/* An inactive voice in use must stay for its references, so only reactivating is left. */}
+                      {(voice.is_active || !voice.in_use) && (
                         <Button
                           variant="outline"
                           className="h-11"
@@ -239,6 +269,7 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
                           {voice.in_use ? "Deactivate" : "Remove"}
                         </Button>
                       )}
+                      </div>
                     </td>
                   </tr>
                 ))}

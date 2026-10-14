@@ -887,6 +887,59 @@ paths:
       summary: Get a voice profile
       tags:
       - admin-voices
+  /admin/voices/{id}/activate:
+    patch:
+      description: Admin only. Sets is_active=true so the voice can be chosen again;
+        repeating it on an active voice changes nothing. A voice that was deleted
+        permanently returns 404. Trusted Origin required.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Voice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.VoiceProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Reactivate a voice profile
+      tags:
+      - admin-voices
   /auth/me:
     get:
       produces:

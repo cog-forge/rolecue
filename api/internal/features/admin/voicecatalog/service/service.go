@@ -20,6 +20,7 @@ type Repository interface {
 	List(ctx context.Context, filter domain.VoiceListFilter) ([]domain.VoiceProfile, int64, error)
 	Get(ctx context.Context, id uuid.UUID) (domain.VoiceProfile, error)
 	Remove(ctx context.Context, id uuid.UUID) (domain.VoiceDeleteOutcome, error)
+	Activate(ctx context.Context, id uuid.UUID) error
 }
 
 type Service struct {
@@ -94,6 +95,25 @@ func (s *Service) Remove(ctx context.Context, adminID uuid.UUID, role string, id
 		logger.String("admin_id", adminID.String()),
 		logger.String("outcome", string(outcome)))
 	return domain.VoiceDeleteResult{Outcome: outcome, Voice: voice}, nil
+}
+
+// Activate undoes a deactivation so the voice can be chosen again. It is safe to repeat; a voice
+// that was deleted permanently is not found.
+func (s *Service) Activate(ctx context.Context, adminID uuid.UUID, role string, id uuid.UUID) (domain.VoiceProfile, error) {
+	if err := requireAdmin(role); err != nil {
+		return domain.VoiceProfile{}, err
+	}
+	if err := s.repository.Activate(ctx, id); err != nil {
+		return domain.VoiceProfile{}, err
+	}
+	voice, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return domain.VoiceProfile{}, err
+	}
+	s.log.WithContext(ctx).Info("voice profile reactivated",
+		logger.String("voice_id", id.String()),
+		logger.String("admin_id", adminID.String()))
+	return voice, nil
 }
 
 func normalizeFilter(f domain.VoiceListFilter) (domain.VoiceListFilter, error) {

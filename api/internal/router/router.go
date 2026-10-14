@@ -109,5 +109,6 @@ func (r *Router) Setup() *gin.Engine {
 	admin.GET("/voices", r.voiceCatalogHandler.List)
 	admin.GET("/voices/:id", r.voiceCatalogHandler.Get)
 	admin.DELETE("/voices/:id", r.voiceCatalogHandler.Remove)
+	admin.PATCH("/voices/:id/activate", r.voiceCatalogHandler.Activate)
 	return router
 }
