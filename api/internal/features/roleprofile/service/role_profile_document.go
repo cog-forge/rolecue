@@ -44,7 +44,10 @@ func storageUnavailable() error {
 	return apperror.New(apperror.CodeDocumentStorage, "Document storage is unavailable. Please retry.")
 }
 
-func (a *RoleProfileDocumentApplication) Create(ctx context.Context, input UploadRequest) (UploadTicket, error) {
+func (a *RoleProfileDocumentApplication) Create(ctx context.Context, role string, input UploadRequest) (UploadTicket, error) {
+	if err := requireCandidate(role); err != nil {
+		return UploadTicket{}, err
+	}
 	if input.SizeBytes > MaxPDFBytes {
 		return UploadTicket{}, apperror.New(apperror.CodePDFTooLarge, "Choose a PDF up to 5 MB.")
 	}
@@ -65,7 +68,10 @@ func (a *RoleProfileDocumentApplication) Create(ctx context.Context, input Uploa
 	return UploadTicket{UploadID: id, Request: grant.Request}, nil
 }
 
-func (a *RoleProfileDocumentApplication) Complete(ctx context.Context, user, id uuid.UUID) (domain.RoleProfile, error) {
+func (a *RoleProfileDocumentApplication) Complete(ctx context.Context, user uuid.UUID, role string, id uuid.UUID) (domain.RoleProfile, error) {
+	if err := requireCandidate(role); err != nil {
+		return domain.RoleProfile{}, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	objectKey := id.String()
@@ -94,7 +100,10 @@ func (a *RoleProfileDocumentApplication) Complete(ctx context.Context, user, id 
 	return a.repo.CreatePDFProfile(ctx, user, raw, objectKey)
 }
 
-func (a *RoleProfileDocumentApplication) Document(ctx context.Context, user, id uuid.UUID) (storage.SignedRequest, error) {
+func (a *RoleProfileDocumentApplication) Document(ctx context.Context, user uuid.UUID, role string, id uuid.UUID) (storage.SignedRequest, error) {
+	if err := requireCandidate(role); err != nil {
+		return storage.SignedRequest{}, err
+	}
 	profile, err := a.repo.GetProfile(ctx, user, id)
 	if err != nil {
 		return storage.SignedRequest{}, err

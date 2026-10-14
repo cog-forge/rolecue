@@ -66,7 +66,7 @@ func TestRoleProfileLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw := strings.Repeat("Senior backend engineer using Go, concurrency, caching and PostgreSQL. ", 4)
-	profile, err = app.Create(ctx, user, raw)
+	profile, err = app.Create(ctx, user, "candidate", raw)
 	if err != nil || profile.Status != domain.Draft {
 		t.Fatal("draft create", err)
 	}
@@ -76,17 +76,17 @@ func TestRoleProfileLifecycle(t *testing.T) {
 		t.Fatal("PDF path persistence", err)
 	}
 	defer func() { _ = repo.DeleteProfile(context.Background(), user, pdfProfile.ID) }()
-	profile, err = app.Analyze(ctx, user, profile.ID)
+	profile, err = app.Analyze(ctx, user, "candidate", profile.ID)
 	if err != nil || profile.Status != domain.Review || len(profile.Requirements) != 1 {
 		t.Fatal("analysis", err)
 	}
 	review := profile.RoleReview
 	review.RefinementNote = "Focus on caching"
-	profile, err = app.Save(ctx, user, profile.ID, domain.SaveRoleProfile{RoleReview: review})
+	profile, err = app.Save(ctx, user, "candidate", profile.ID, domain.SaveRoleProfile{RoleReview: review})
 	if err != nil {
 		t.Fatal("save review", err)
 	}
-	profile, err = app.Confirm(ctx, user, profile.ID)
+	profile, err = app.Confirm(ctx, user, "candidate", profile.ID)
 	if err != nil || profile.Status != domain.Confirmed {
 		t.Fatal("confirm", err)
 	}

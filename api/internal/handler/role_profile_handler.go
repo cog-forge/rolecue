@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
@@ -19,18 +20,18 @@ import (
 )
 
 type RoleProfileService interface {
-	Create(context.Context, uuid.UUID, string) (domain.RoleProfile, error)
-	Get(context.Context, uuid.UUID, uuid.UUID) (domain.RoleProfile, error)
-	List(context.Context, uuid.UUID, int32, int32) ([]domain.RoleProfile, int64, error)
-	Save(context.Context, uuid.UUID, uuid.UUID, domain.SaveRoleProfile) (domain.RoleProfile, error)
-	Confirm(context.Context, uuid.UUID, uuid.UUID) (domain.RoleProfile, error)
-	Analyze(context.Context, uuid.UUID, uuid.UUID) (domain.RoleProfile, error)
-	Delete(context.Context, uuid.UUID, uuid.UUID) error
+	Create(context.Context, uuid.UUID, string, string) (domain.RoleProfile, error)
+	Get(context.Context, uuid.UUID, string, uuid.UUID) (domain.RoleProfile, error)
+	List(context.Context, uuid.UUID, string, int32, int32) ([]domain.RoleProfile, int64, error)
+	Save(context.Context, uuid.UUID, string, uuid.UUID, domain.SaveRoleProfile) (domain.RoleProfile, error)
+	Confirm(context.Context, uuid.UUID, string, uuid.UUID) (domain.RoleProfile, error)
+	Analyze(context.Context, uuid.UUID, string, uuid.UUID) (domain.RoleProfile, error)
+	Delete(context.Context, uuid.UUID, string, uuid.UUID) error
 }
 type DocumentService interface {
-	Create(context.Context, service.UploadRequest) (service.UploadTicket, error)
-	Complete(context.Context, uuid.UUID, uuid.UUID) (domain.RoleProfile, error)
-	Document(context.Context, uuid.UUID, uuid.UUID) (storage.SignedRequest, error)
+	Create(context.Context, string, service.UploadRequest) (service.UploadTicket, error)
+	Complete(context.Context, uuid.UUID, string, uuid.UUID) (domain.RoleProfile, error)
+	Document(context.Context, uuid.UUID, string, uuid.UUID) (storage.SignedRequest, error)
 }
 type RoleProfileHandler struct {
 	service   RoleProfileService
@@ -52,7 +53,7 @@ func NewRoleProfileHandler(service RoleProfileService, documents DocumentService
 // @Failure 400,401,403,409,413,500,502 {object} response.Envelope
 // @Router /role-profiles/uploads [post]
 func (h *RoleProfileHandler) CreateUpload(c *gin.Context) {
-	_, ok := roleUser(c)
+	user, ok := roleUser(c)
 	if !ok {
 		return
 	}
@@ -60,7 +61,7 @@ func (h *RoleProfileHandler) CreateUpload(c *gin.Context) {
 	if !roleJSON(c, &input) {
 		return
 	}
-	ticket, err := h.documents.Create(c.Request.Context(), input)
+	ticket, err := h.documents.Create(c.Request.Context(), user.Role, input)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -83,7 +84,10 @@ func (h *RoleProfileHandler) CompleteUpload(c *gin.Context) {
 	if !ok {
 		return
 	}
-	profile, err := h.documents.Complete(c.Request.Context(), user, id)
+	if !roleWriteDeadline(c, 50*time.Second) {
+		return
+	}
+	profile, err := h.documents.Complete(c.Request.Context(), user.ID, user.Role, id)
 	roleResult(c, profile, err)
 }
 
@@ -101,7 +105,7 @@ func (h *RoleProfileHandler) Document(c *gin.Context) {
 	if !ok {
 		return
 	}
-	request, err := h.documents.Document(c.Request.Context(), user, id)
+	request, err := h.documents.Document(c.Request.Context(), user.ID, user.Role, id)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -121,27 +125,23 @@ type RoleProfileSummary struct {
 	CreatedAt      time.Time            `json:"createdAt"`
 }
 
-func roleUser(c *gin.Context) (uuid.UUID, bool) {
+func roleUser(c *gin.Context) (authdomain.User, bool) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
 		response.Error(c, apperror.New(apperror.CodeInvalidToken, "Authentication required."))
-		return uuid.Nil, false
+		return authdomain.User{}, false
 	}
-	if user.Role != "candidate" {
-		response.Error(c, apperror.New(apperror.CodeForbidden, "Role Profiles are available to candidates."))
-		return uuid.Nil, false
-	}
-	return user.ID, true
+	return user, true
 }
-func roleResource(c *gin.Context) (uuid.UUID, uuid.UUID, bool) {
+func roleResource(c *gin.Context) (authdomain.User, uuid.UUID, bool) {
 	user, ok := roleUser(c)
 	if !ok {
-		return uuid.Nil, uuid.Nil, false
+		return authdomain.User{}, uuid.Nil, false
 	}
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.Error(c, apperror.New(apperror.CodeValidation, "Invalid Role Profile ID."))
-		return uuid.Nil, uuid.Nil, false
+		return authdomain.User{}, uuid.Nil, false
 	}
 	return user, id, true
 }
@@ -191,7 +191,7 @@ func (h *RoleProfileHandler) Create(c *gin.Context) {
 		response.Error(c, apperror.New(apperror.CodeValidation, "Raw text is required."))
 		return
 	}
-	profile, err := h.service.Create(c.Request.Context(), user, *req.RawText)
+	profile, err := h.service.Create(c.Request.Context(), user.ID, user.Role, *req.RawText)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -233,7 +233,7 @@ func (h *RoleProfileHandler) List(c *gin.Context) {
 			*param.value = int32(value)
 		}
 	}
-	profiles, total, err := h.service.List(c.Request.Context(), user, limit, offset)
+	profiles, total, err := h.service.List(c.Request.Context(), user.ID, user.Role, limit, offset)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -259,7 +259,7 @@ func (h *RoleProfileHandler) Get(c *gin.Context) {
 	if !ok {
 		return
 	}
-	p, e := h.service.Get(c.Request.Context(), user, id)
+	p, e := h.service.Get(c.Request.Context(), user.ID, user.Role, id)
 	roleResult(c, p, e)
 }
 
@@ -283,7 +283,7 @@ func (h *RoleProfileHandler) Save(c *gin.Context) {
 	if !roleJSON(c, &req) {
 		return
 	}
-	p, e := h.service.Save(c.Request.Context(), user, id, req)
+	p, e := h.service.Save(c.Request.Context(), user.ID, user.Role, id, req)
 	roleResult(c, p, e)
 }
 
@@ -301,7 +301,10 @@ func (h *RoleProfileHandler) Analyze(c *gin.Context) {
 	if !ok {
 		return
 	}
-	p, e := h.service.Analyze(c.Request.Context(), user, id)
+	if !roleWriteDeadline(c, 75*time.Second) {
+		return
+	}
+	p, e := h.service.Analyze(c.Request.Context(), user.ID, user.Role, id)
 	roleResult(c, p, e)
 }
 
@@ -320,7 +323,10 @@ func (h *RoleProfileHandler) Confirm(c *gin.Context) {
 	if !ok {
 		return
 	}
-	p, e := h.service.Confirm(c.Request.Context(), user, id)
+	if !roleWriteDeadline(c, 75*time.Second) {
+		return
+	}
+	p, e := h.service.Confirm(c.Request.Context(), user.ID, user.Role, id)
 	roleResult(c, p, e)
 }
 
@@ -337,9 +343,18 @@ func (h *RoleProfileHandler) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.service.Delete(c.Request.Context(), user, id); err != nil {
+	if err := h.service.Delete(c.Request.Context(), user.ID, user.Role, id); err != nil {
 		response.Error(c, err)
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// Slow operations get their own connection deadline; other routes retain the server default.
+func roleWriteDeadline(c *gin.Context, timeout time.Duration) bool {
+	if err := http.NewResponseController(c.Writer).SetWriteDeadline(time.Now().Add(timeout)); err != nil {
+		response.Error(c, apperror.Wrap(apperror.CodeInternal, "Could not prepare this request. Please retry.", err))
+		return false
+	}
+	return true
 }

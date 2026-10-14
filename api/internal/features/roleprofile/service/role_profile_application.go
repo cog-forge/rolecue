@@ -41,22 +41,37 @@ func NewRoleProfileApplication(extraction *ExtractionService, repo RoleProfileRe
 	}
 	return &RoleProfileApplication{extraction: extraction, questionBank: questionBank, repository: repo, timeout: timeout}, nil
 }
-func (a *RoleProfileApplication) Create(ctx context.Context, user uuid.UUID, raw string) (domain.RoleProfile, error) {
+func (a *RoleProfileApplication) Create(ctx context.Context, user uuid.UUID, role string, raw string) (domain.RoleProfile, error) {
+	if err := requireCandidate(role); err != nil {
+		return domain.RoleProfile{}, err
+	}
 	if _, err := NormalizeInput(raw); err != nil {
 		return domain.RoleProfile{}, err
 	}
 	return a.repository.CreateProfile(ctx, user, raw)
 }
-func (a *RoleProfileApplication) Get(ctx context.Context, user, id uuid.UUID) (domain.RoleProfile, error) {
+func (a *RoleProfileApplication) Get(ctx context.Context, user uuid.UUID, role string, id uuid.UUID) (domain.RoleProfile, error) {
+	if err := requireCandidate(role); err != nil {
+		return domain.RoleProfile{}, err
+	}
 	return a.repository.GetProfile(ctx, user, id)
 }
-func (a *RoleProfileApplication) List(ctx context.Context, user uuid.UUID, limit, offset int32) ([]domain.RoleProfile, int64, error) {
+func (a *RoleProfileApplication) List(ctx context.Context, user uuid.UUID, role string, limit, offset int32) ([]domain.RoleProfile, int64, error) {
+	if err := requireCandidate(role); err != nil {
+		return nil, 0, err
+	}
 	return a.repository.ListProfiles(ctx, user, limit, offset)
 }
-func (a *RoleProfileApplication) Delete(ctx context.Context, user, id uuid.UUID) error {
+func (a *RoleProfileApplication) Delete(ctx context.Context, user uuid.UUID, role string, id uuid.UUID) error {
+	if err := requireCandidate(role); err != nil {
+		return err
+	}
 	return a.repository.DeleteProfile(ctx, user, id)
 }
-func (a *RoleProfileApplication) Save(ctx context.Context, user, id uuid.UUID, input domain.SaveRoleProfile) (domain.RoleProfile, error) {
+func (a *RoleProfileApplication) Save(ctx context.Context, user uuid.UUID, role string, id uuid.UUID, input domain.SaveRoleProfile) (domain.RoleProfile, error) {
+	if err := requireCandidate(role); err != nil {
+		return domain.RoleProfile{}, err
+	}
 	review, err := ValidateRoleReview(input.RoleReview, false)
 	if err != nil {
 		return domain.RoleProfile{}, err
@@ -71,7 +86,10 @@ func (a *RoleProfileApplication) Save(ctx context.Context, user, id uuid.UUID, i
 	input.RoleReview = review
 	return a.repository.SaveProfile(ctx, user, id, input)
 }
-func (a *RoleProfileApplication) Confirm(ctx context.Context, user, id uuid.UUID) (domain.RoleProfile, error) {
+func (a *RoleProfileApplication) Confirm(ctx context.Context, user uuid.UUID, role string, id uuid.UUID) (domain.RoleProfile, error) {
+	if err := requireCandidate(role); err != nil {
+		return domain.RoleProfile{}, err
+	}
 	profile, err := a.repository.GetProfile(ctx, user, id)
 	if err != nil {
 		return domain.RoleProfile{}, err
@@ -95,7 +113,10 @@ func (a *RoleProfileApplication) release(ctx context.Context, profile domain.Rol
 	defer cancel()
 	_ = a.repository.ReleaseAnalysis(cleanup, profile.ID)
 }
-func (a *RoleProfileApplication) Analyze(ctx context.Context, user, id uuid.UUID) (domain.RoleProfile, error) {
+func (a *RoleProfileApplication) Analyze(ctx context.Context, user uuid.UUID, role string, id uuid.UUID) (domain.RoleProfile, error) {
+	if err := requireCandidate(role); err != nil {
+		return domain.RoleProfile{}, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, a.budget())
 	defer cancel()
 	profile, err := a.repository.ClaimAnalysis(ctx, user, id)
@@ -126,4 +147,11 @@ func (a *RoleProfileApplication) Analyze(ctx context.Context, user, id uuid.UUID
 		err = apperror.New(apperror.CodeInvalidExtractionOutput, "Analysis returned unusable requirements. Please retry.")
 	}
 	return domain.RoleProfile{}, err
+}
+
+func requireCandidate(role string) error {
+	if role != "candidate" {
+		return apperror.New(apperror.CodeForbidden, "Role Profiles are available to candidates.")
+	}
+	return nil
 }
