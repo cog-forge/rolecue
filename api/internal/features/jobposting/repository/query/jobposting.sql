@@ -41,9 +41,11 @@ FROM public.avatars a
 JOIN public.inventories i ON i.id = a.inventory_id
 WHERE a.id = @avatar_id AND i.user_id = @user_id;
 
--- No row means the voice is missing or inactive.
+-- No row means the voice is missing or inactive. FOR SHARE holds the voice until the posting is
+-- written: an Admin deactivating or deleting it locks the row FOR UPDATE, so either the Admin waits
+-- and then counts this posting as a reference, or this check waits and sees the voice inactive.
 -- name: ActiveVoiceName :one
-SELECT name FROM public.voices WHERE id = @id AND is_active;
+SELECT name FROM public.voices WHERE id = @id AND is_active FOR SHARE;
 
 -- name: GetOwnedPosting :one
 SELECT jp.id, jp.jd_id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
@@ -86,7 +88,7 @@ WHERE jp.recruiter_id = @recruiter_id
 -- locks the same row before saving. Anything read from other tables must be read by a later
 -- statement: one that waited for the lock still sees those tables as they were when it started.
 -- name: LockOwnedPosting :one
-SELECT jp.jd_id, jp.status::text AS status, jp.salary_min, jp.salary_max
+SELECT jp.jd_id, jp.status::text AS status, jp.salary_min, jp.salary_max, jp.required_voice_id
 FROM public.job_postings jp
 WHERE jp.id = @id AND jp.recruiter_id = @recruiter_id
 FOR UPDATE;
@@ -100,6 +102,13 @@ WHERE jd.id = @id;
 -- name: CountCoreQuestions :one
 SELECT count(*) FROM public.core_questions WHERE jd_id = @jd_id;
 
+-- A rejected posting never opened, so no interview references its questions.
+-- name: DeleteCoreQuestions :exec
+DELETE FROM public.core_questions WHERE jd_id = @jd_id;
+
+-- name: UpdateJDContentPath :exec
+UPDATE public.job_descriptions SET content_path = @content_path WHERE id = @id;
+
 -- name: UpdatePosting :exec
 UPDATE public.job_postings SET
     title = CASE WHEN sqlc.arg(set_title)::boolean THEN sqlc.arg(title)::text ELSE title END,
@@ -110,4 +119,9 @@ UPDATE public.job_postings SET
     interview_duration = CASE WHEN sqlc.arg(set_interview_duration)::boolean THEN sqlc.narg(interview_duration)::integer ELSE interview_duration END,
     required_avatar_id = CASE WHEN sqlc.arg(set_avatar)::boolean THEN sqlc.narg(required_avatar_id)::uuid ELSE required_avatar_id END,
     required_voice_id = CASE WHEN sqlc.arg(set_voice)::boolean THEN sqlc.narg(required_voice_id)::uuid ELSE required_voice_id END
-WHERE id = @id AND recruiter_id = @recruiter_id AND status = 'pending';
+WHERE id = @id AND recruiter_id = @recruiter_id AND status IN ('pending', 'rejected');
+
+-- Sends a rejected posting back to the Admin queue; the old feedback no longer applies.
+-- name: ResubmitPosting :exec
+UPDATE public.job_postings SET status = 'pending', reject_reason = NULL
+WHERE id = @id AND recruiter_id = @recruiter_id AND status = 'rejected';

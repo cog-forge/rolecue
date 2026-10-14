@@ -18,11 +18,12 @@ type fakeRepository struct {
 	err       error
 	updateErr error
 
-	createCalls, listCalls, getCalls, updateCalls int
-	recruiter                                     uuid.UUID
-	created                                       domain.NewPosting
-	filter                                        domain.ListFilter
-	patch                                         domain.Edit
+	createCalls, listCalls, getCalls, updateCalls, resubmitCalls int
+	recruiter                                                    uuid.UUID
+	created                                                      domain.NewPosting
+	filter                                                       domain.ListFilter
+	patch                                                        domain.Edit
+	contentPath                                                  *string
 }
 
 func (f *fakeRepository) Create(_ context.Context, recruiterID uuid.UUID, input domain.NewPosting) (domain.Record, error) {
@@ -50,13 +51,36 @@ func (f *fakeRepository) Get(_ context.Context, recruiterID, _ uuid.UUID) (domai
 	return f.record, f.err
 }
 
-func (f *fakeRepository) Update(_ context.Context, recruiterID, _ uuid.UUID, patch domain.Edit) error {
+func (f *fakeRepository) Update(_ context.Context, recruiterID, _ uuid.UUID, patch domain.Edit, contentPath *string) error {
 	f.updateCalls++
-	f.recruiter, f.patch = recruiterID, patch
+	f.recruiter, f.patch, f.contentPath = recruiterID, patch, contentPath
 	if f.err != nil {
 		return f.err
 	}
-	return f.updateErr
+	if f.updateErr != nil {
+		return f.updateErr
+	}
+	if contentPath != nil {
+		f.record.ContentPath = *contentPath
+	}
+	return nil
+}
+
+// Resubmit behaves like the SQL: rejected becomes pending without its reason, pending stays.
+func (f *fakeRepository) Resubmit(_ context.Context, recruiterID, _ uuid.UUID) error {
+	f.resubmitCalls++
+	f.recruiter = recruiterID
+	if f.err != nil {
+		return f.err
+	}
+	switch f.record.Status {
+	case domain.StatusPending:
+		return nil
+	case domain.StatusRejected:
+		f.record.Status, f.record.RejectReason = domain.StatusPending, nil
+		return nil
+	}
+	return domain.ErrNotRejected
 }
 
 // fakeStore keeps uploaded objects in memory.
@@ -151,7 +175,9 @@ func TestNonRecruitersAreForbidden(t *testing.T) {
 			assertCode(t, err, apperror.CodeForbidden)
 			_, err = s.Update(ctx, uuid.New(), role, id, domain.Edit{})
 			assertCode(t, err, apperror.CodeForbidden)
-			if repo.createCalls+repo.listCalls+repo.getCalls+repo.updateCalls+store.uploads != 0 {
+			_, err = s.Resubmit(ctx, uuid.New(), role, id)
+			assertCode(t, err, apperror.CodeForbidden)
+			if repo.createCalls+repo.listCalls+repo.getCalls+repo.updateCalls+repo.resubmitCalls+store.uploads != 0 {
 				t.Fatal("a non-recruiter request reached the repository or storage")
 			}
 		})

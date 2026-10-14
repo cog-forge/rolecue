@@ -50,6 +50,9 @@ const (
 
 	// Job Posting domain codes.
 	CodeJobPostingRequirementsLocked Code = "JOB_POSTING_REQUIREMENTS_LOCKED"
+	CodeJobPostingNotEditable        Code = "JOB_POSTING_NOT_EDITABLE"
+	CodeJobPostingTextLocked         Code = "JOB_POSTING_TEXT_LOCKED"
+	CodeJobPostingNotRejected        Code = "JOB_POSTING_NOT_REJECTED"
 )
 
 type AppError struct {

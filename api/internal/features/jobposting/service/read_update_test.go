@@ -84,11 +84,16 @@ func TestUpdateValidation(t *testing.T) {
 		{"cleared avatar", domain.Edit{RequiredAvatarID: domain.UUIDChange{Present: true}}},
 		{"cleared voice", domain.Edit{RequiredVoiceID: domain.UUIDChange{Present: true}}},
 		{"nil voice", domain.Edit{RequiredVoiceID: domain.UUIDChange{Present: true, Value: &uuid.Nil}}},
+		{"null text", domain.Edit{RawText: domain.StringChange{Present: true}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			repo, store := storedPosting(t, validText())
+			repo.record.Status = domain.StatusRejected
 			_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", id, tt.patch)
 			assertCode(t, err, apperror.CodeValidation)
+			if store.uploads != 0 {
+				t.Fatal("an invalid patch was uploaded")
+			}
 			if repo.updateCalls != 0 {
 				t.Fatal("an invalid patch reached the repository")
 			}
@@ -104,7 +109,8 @@ func TestUpdatePassesStateErrorsThrough(t *testing.T) {
 		err  error
 		code apperror.Code
 	}{
-		{"not pending", domain.ErrNotPending, apperror.CodeJobPostingNotPending},
+		{"not editable", domain.ErrNotEditable, apperror.CodeJobPostingNotEditable},
+		{"text locked", domain.ErrTextLocked, apperror.CodeJobPostingTextLocked},
 		{"requirements locked", domain.ErrRequirementsLocked, apperror.CodeJobPostingRequirementsLocked},
 		{"salary after merge", domain.ErrSalaryRange, apperror.CodeValidation},
 		{"voice inactive", domain.ErrVoiceNotActive, apperror.CodeValidation},
@@ -160,4 +166,98 @@ func TestUpdateReadsTextBeforeWriting(t *testing.T) {
 	if err != nil || got.RawText != validText() || repo.updateCalls != 1 {
 		t.Fatalf("err=%v updates=%d text matches=%t", err, repo.updateCalls, got.RawText == validText())
 	}
+}
+
+func correctedText() string {
+	return strings.Repeat("Design and operate Go APIs with PostgreSQL and Kafka. ", 4)
+}
+
+func TestUpdateRejectsShortText(t *testing.T) {
+	repo, store := storedPosting(t, validText())
+	repo.record.Status = domain.StatusRejected
+	_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
+		domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr("Too short.")}})
+	assertCode(t, err, apperror.CodeJDTooShort)
+	if store.uploads != 0 || repo.updateCalls != 0 {
+		t.Fatal("short text was stored")
+	}
+}
+
+func TestUpdateCorrectsTextOfRejectedPosting(t *testing.T) {
+	repo, store := storedPosting(t, validText())
+	repo.record.Status = domain.StatusRejected
+	got, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
+		domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr(correctedText())}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.uploads != 1 || repo.contentPath == nil || store.objects[*repo.contentPath] != correctedText() {
+		t.Fatalf("uploads=%d path=%v", store.uploads, repo.contentPath)
+	}
+	if got.RawText != correctedText() || got.Status != domain.StatusRejected {
+		t.Fatalf("status=%s text matches=%t", got.Status, got.RawText == correctedText())
+	}
+}
+
+// A whole-form submit resends the stored text; that is not a change and works while pending.
+func TestUpdateIgnoresUnchangedText(t *testing.T) {
+	repo, store := storedPosting(t, validText())
+	_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
+		domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr(validText())}, Title: domain.StringChange{Present: true, Value: ptr("Same text")}})
+	if err != nil || store.uploads != 0 || repo.contentPath != nil || repo.patch.RawText.Present {
+		t.Fatalf("err=%v uploads=%d path=%v", err, store.uploads, repo.contentPath)
+	}
+}
+
+func TestUpdateRefusesTextChangeUnlessRejected(t *testing.T) {
+	for _, status := range []domain.Status{domain.StatusPending, domain.StatusOpen} {
+		repo, store := storedPosting(t, validText())
+		repo.record.Status = status
+		_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
+			domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr(correctedText())}})
+		assertCode(t, err, apperror.CodeJobPostingTextLocked)
+		if store.uploads != 0 || repo.updateCalls != 0 {
+			t.Fatalf("%s: uploads=%d updates=%d", status, store.uploads, repo.updateCalls)
+		}
+	}
+}
+
+func TestUpdateDoesNotWriteWhenTextUploadFails(t *testing.T) {
+	repo, store := storedPosting(t, validText())
+	repo.record.Status = domain.StatusRejected
+	store.uploadErr = errBoom
+	_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
+		domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr(correctedText())}})
+	assertCode(t, err, apperror.CodeInternal)
+	if repo.updateCalls != 0 {
+		t.Fatal("rows were written although the text was not stored")
+	}
+}
+
+func TestResubmitRejectedPosting(t *testing.T) {
+	repo, store := storedPosting(t, validText())
+	repo.record.Status, repo.record.RejectReason = domain.StatusRejected, ptr("Too vague")
+	recruiter := uuid.New()
+	s := newService(t, repo, store)
+	// Repeating it (a retry or a double click) succeeds and stays pending.
+	for call := 1; call <= 2; call++ {
+		got, err := s.Resubmit(context.Background(), recruiter, "recruiter", repo.record.ID)
+		if err != nil || got.Status != domain.StatusPending || got.RejectReason != nil || got.RawText != validText() {
+			t.Fatalf("call %d: status=%s reason=%v err=%v", call, got.Status, got.RejectReason, err)
+		}
+	}
+	if repo.recruiter != recruiter {
+		t.Fatal("resubmit was not scoped to the session user")
+	}
+}
+
+func TestResubmitPassesStateErrorsThrough(t *testing.T) {
+	repo, store := storedPosting(t, validText())
+	repo.record.Status = domain.StatusOpen
+	_, err := newService(t, repo, store).Resubmit(context.Background(), uuid.New(), "recruiter", repo.record.ID)
+	assertCode(t, err, apperror.CodeJobPostingNotRejected)
+
+	repo = &fakeRepository{err: apperror.New(apperror.CodeJobPostingNotFound, "job posting not found")}
+	_, err = newService(t, repo, newStore()).Resubmit(context.Background(), uuid.New(), "recruiter", uuid.New())
+	assertCode(t, err, apperror.CodeJobPostingNotFound)
 }

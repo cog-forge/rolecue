@@ -98,6 +98,7 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.GET("", r.jobPostingHandler.List)
 	jobPostings.GET("/:id", r.jobPostingHandler.Get)
 	jobPostings.PATCH("/:id", r.jobPostingHandler.Update)
+	jobPostings.POST("/:id/resubmit", r.jobPostingHandler.Resubmit)
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
 	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)

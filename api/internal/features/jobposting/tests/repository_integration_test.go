@@ -224,7 +224,7 @@ func TestOtherRecruiterSeesNothing(t *testing.T) {
 	if _, err := f.repo.Get(ctx, other, id); codeOf(err) != apperror.CodeJobPostingNotFound {
 		t.Fatalf("get by another recruiter: %v", err)
 	}
-	err := f.repo.Update(ctx, other, id, domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("Hijacked")}})
+	err := f.repo.Update(ctx, other, id, domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("Hijacked")}}, nil)
 	if codeOf(err) != apperror.CodeJobPostingNotFound {
 		t.Fatalf("update by another recruiter: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestUpdate(t *testing.T) {
 		Requirements: domain.RequirementsChange{Present: true, Value: &[]domain.PostingRequirement{
 			{Name: "Rust", Target: "programming_language", Type: domain.Required},
 		}},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +300,7 @@ func TestUpdate(t *testing.T) {
 	}
 
 	// An empty edit changes nothing and succeeds.
-	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}); err != nil {
+	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, nil); err != nil {
 		t.Fatalf("empty edit: %v", err)
 	}
 }
@@ -311,14 +311,14 @@ func TestUpdateGuards(t *testing.T) {
 
 	t.Run("salary range after merge", func(t *testing.T) {
 		id := f.create(t, ctx, "Salary")
-		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{SalaryMin: domain.Int32Change{Present: true, Value: ptr(int32(5000))}})
+		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{SalaryMin: domain.Int32Change{Present: true, Value: ptr(int32(5000))}}, nil)
 		if !errors.Is(err, domain.ErrSalaryRange) {
 			t.Fatalf("error = %v", err)
 		}
 	})
 	t.Run("foreign avatar", func(t *testing.T) {
 		id, foreign := f.create(t, ctx, "Avatar"), f.seed.avatar(other)
-		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{RequiredAvatarID: domain.UUIDChange{Present: true, Value: &foreign}})
+		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{RequiredAvatarID: domain.UUIDChange{Present: true, Value: &foreign}}, nil)
 		if !errors.Is(err, domain.ErrAvatarNotOwned) {
 			t.Fatalf("error = %v", err)
 		}
@@ -326,7 +326,7 @@ func TestUpdateGuards(t *testing.T) {
 	t.Run("requirements locked by question bank", func(t *testing.T) {
 		id := f.create(t, ctx, "Locked")
 		f.seed.exec(`INSERT INTO public.core_questions (jd_id, content) SELECT jd_id, 'Explain goroutines.' FROM public.job_postings WHERE id = $1`, id)
-		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{SeniorityLevel: domain.StringChange{Present: true, Value: ptr("junior")}})
+		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{SeniorityLevel: domain.StringChange{Present: true, Value: ptr("junior")}}, nil)
 		if !errors.Is(err, domain.ErrRequirementsLocked) {
 			t.Fatalf("seniority edit: %v", err)
 		}
@@ -338,7 +338,7 @@ func TestUpdateGuards(t *testing.T) {
 				{Name: "Go", Target: "programming_language", Type: domain.Required},
 			}},
 		}
-		if err := f.repo.Update(ctx, f.recruiter, id, same); err != nil {
+		if err := f.repo.Update(ctx, f.recruiter, id, same, nil); err != nil {
 			t.Fatalf("unchanged resend: %v", err)
 		}
 		changed := same
@@ -346,19 +346,19 @@ func TestUpdateGuards(t *testing.T) {
 			{Name: "Go", Target: "programming_language", Type: domain.Preferred},
 			{Name: "Kafka", Target: "technologies", Type: domain.Preferred},
 		}}
-		if err := f.repo.Update(ctx, f.recruiter, id, changed); !errors.Is(err, domain.ErrRequirementsLocked) {
+		if err := f.repo.Update(ctx, f.recruiter, id, changed, nil); !errors.Is(err, domain.ErrRequirementsLocked) {
 			t.Fatalf("changed requirement type: %v", err)
 		}
 		// Other fields stay editable while the bank exists.
-		if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("Still pending")}}); err != nil {
+		if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("Still pending")}}, nil); err != nil {
 			t.Fatalf("title edit: %v", err)
 		}
 	})
 	t.Run("not pending", func(t *testing.T) {
 		id := f.create(t, ctx, "Approved")
 		f.seed.exec(`UPDATE public.job_postings SET status = 'open' WHERE id = $1`, id)
-		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("Too late")}})
-		if codeOf(err) != apperror.CodeJobPostingNotPending {
+		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("Too late")}}, nil)
+		if codeOf(err) != apperror.CodeJobPostingNotEditable {
 			t.Fatalf("error = %v", err)
 		}
 		got, _ := f.repo.Get(ctx, f.recruiter, id)
@@ -405,7 +405,7 @@ func TestEditWaitingOnBankSaveSeesNewQuestions(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- f.repo.Update(ctx, f.recruiter, id, domain.Edit{SeniorityLevel: domain.StringChange{Present: true, Value: ptr("intern")}})
+		done <- f.repo.Update(ctx, f.recruiter, id, domain.Edit{SeniorityLevel: domain.StringChange{Present: true, Value: ptr("intern")}}, nil)
 	}()
 	select {
 	case err := <-done:
@@ -417,5 +417,163 @@ func TestEditWaitingOnBankSaveSeesNewQuestions(t *testing.T) {
 	}
 	if err := <-done; !errors.Is(err, domain.ErrRequirementsLocked) {
 		t.Fatalf("edit after the bank was saved: %v", err)
+	}
+}
+
+// An Admin deactivating a voice locks it FOR UPDATE. A posting that selects the voice meanwhile
+// must wait for the Admin and then see it inactive, for both create and edit.
+func TestVoiceSelectionWaitsForAdminDeactivation(t *testing.T) {
+	ctx, f := newFixture(t)
+	// Seeded before any posting, so cleanup removes the postings first.
+	forCreate, forEdit := f.seed.voice(true), f.seed.voice(true)
+	id := f.create(t, ctx, "Voice race")
+
+	for _, tc := range []struct {
+		name  string
+		voice uuid.UUID
+		write func() error
+	}{
+		{"create", forCreate, func() error {
+			record, err := f.repo.Create(ctx, f.recruiter, domain.NewPosting{ContentPath: "jp/race", CreateInput: domain.CreateInput{
+				Title: "Raced", SeniorityLevel: domain.Mid, RequiredAvatarID: f.avatar, RequiredVoiceID: forCreate,
+				Requirements: []domain.PostingRequirement{{Name: "Go", Target: "tool", Type: domain.Required}},
+			}})
+			if err == nil {
+				f.seed.track(record.ID)
+			}
+			return err
+		}},
+		{"edit", forEdit, func() error {
+			return f.repo.Update(ctx, f.recruiter, id, domain.Edit{RequiredVoiceID: domain.UUIDChange{Present: true, Value: &forEdit}}, nil)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			admin, err := f.seed.pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = admin.Rollback(context.Background()) }()
+			if _, err := admin.Exec(ctx, `SELECT id FROM public.voices WHERE id = $1 FOR UPDATE`, tc.voice); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := admin.Exec(ctx, `UPDATE public.voices SET is_active = false WHERE id = $1`, tc.voice); err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			go func() { done <- tc.write() }()
+			select {
+			case err := <-done:
+				t.Fatalf("the voice check did not wait for the Admin: %v", err)
+			case <-time.After(300 * time.Millisecond):
+			}
+			if err := admin.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-done; !errors.Is(err, domain.ErrVoiceNotActive) {
+				t.Fatalf("after deactivation: %v", err)
+			}
+		})
+	}
+}
+
+// Deactivation blocks only new selections: resending the voice a posting already has still works.
+func TestUnchangedVoiceSurvivesDeactivation(t *testing.T) {
+	ctx, f := newFixture(t)
+	inactive := f.seed.voice(false)
+	id := f.create(t, ctx, "Keeps its voice")
+	f.seed.exec(`UPDATE public.voices SET is_active = false WHERE id = $1`, f.voice)
+
+	err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{
+		Title:           domain.StringChange{Present: true, Value: ptr("Renamed")},
+		RequiredVoiceID: domain.UUIDChange{Present: true, Value: &f.voice},
+	}, nil)
+	if err != nil {
+		t.Fatalf("unchanged voice: %v", err)
+	}
+	got, _ := f.repo.Get(ctx, f.recruiter, id)
+	if got.Title != "Renamed" || got.RequiredVoice.ID != f.voice {
+		t.Fatalf("title=%q voice=%v", got.Title, got.RequiredVoice.ID)
+	}
+	err = f.repo.Update(ctx, f.recruiter, id, domain.Edit{RequiredVoiceID: domain.UUIDChange{Present: true, Value: &inactive}}, nil)
+	if !errors.Is(err, domain.ErrVoiceNotActive) {
+		t.Fatalf("new inactive voice: %v", err)
+	}
+}
+
+func TestRejectedPostingCorrectionAndResubmit(t *testing.T) {
+	ctx, f := newFixture(t)
+	other := f.seed.user("recruiter")
+	id := f.create(t, ctx, "Rejected")
+	f.seed.exec(`UPDATE public.job_postings SET status = 'rejected', reject_reason = 'Too vague' WHERE id = $1`, id)
+	question := func() {
+		f.seed.exec(`INSERT INTO public.core_questions (jd_id, content) SELECT jd_id, 'Explain goroutines.' FROM public.job_postings WHERE id = $1`, id)
+	}
+	get := func() domain.Record {
+		got, err := f.repo.Get(ctx, f.recruiter, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	question()
+
+	// Unrelated metadata keeps the bank, and saving neither resubmits nor drops the feedback.
+	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("Clearer title")}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := get(); got.Status != domain.StatusRejected || got.RejectReason == nil || got.CoreQuestionCount != 1 || got.Title != "Clearer title" {
+		t.Fatalf("after metadata edit: status=%s reason=%v bank=%d", got.Status, got.RejectReason, got.CoreQuestionCount)
+	}
+
+	// A real seniority change clears the outdated bank.
+	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{SeniorityLevel: domain.StringChange{Present: true, Value: ptr("junior")}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := get(); got.SeniorityLevel != domain.Junior || got.CoreQuestionCount != 0 || got.Status != domain.StatusRejected {
+		t.Fatalf("after seniority edit: level=%s bank=%d status=%s", got.SeniorityLevel, got.CoreQuestionCount, got.Status)
+	}
+
+	// Corrected text points the JD at the new object and clears the bank too.
+	question()
+	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, ptr("jp/corrected")); err != nil {
+		t.Fatal(err)
+	}
+	if got := get(); got.ContentPath != "jp/corrected" || got.CoreQuestionCount != 0 {
+		t.Fatalf("after text edit: path=%q bank=%d", got.ContentPath, got.CoreQuestionCount)
+	}
+
+	// Only the owner can resubmit.
+	if err := f.repo.Resubmit(ctx, other, id); codeOf(err) != apperror.CodeJobPostingNotFound {
+		t.Fatalf("other recruiter: %v", err)
+	}
+	for call := 1; call <= 2; call++ {
+		if err := f.repo.Resubmit(ctx, f.recruiter, id); err != nil {
+			t.Fatalf("resubmit call %d: %v", call, err)
+		}
+		if got := get(); got.Status != domain.StatusPending || got.RejectReason != nil {
+			t.Fatalf("resubmit call %d: status=%s reason=%v", call, got.Status, got.RejectReason)
+		}
+	}
+
+	// Back in pending, the text is fixed again and the bank lock applies.
+	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, ptr("jp/late")); !errors.Is(err, domain.ErrTextLocked) {
+		t.Fatalf("text edit while pending: %v", err)
+	}
+	question()
+	err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{SeniorityLevel: domain.StringChange{Present: true, Value: ptr("lead")}}, nil)
+	if !errors.Is(err, domain.ErrRequirementsLocked) {
+		t.Fatalf("seniority edit while pending with a bank: %v", err)
+	}
+}
+
+func TestResubmitOnlyFromRejected(t *testing.T) {
+	ctx, f := newFixture(t)
+	id := f.create(t, ctx, "Open")
+	f.seed.exec(`UPDATE public.job_postings SET status = 'open' WHERE id = $1`, id)
+	if err := f.repo.Resubmit(ctx, f.recruiter, id); codeOf(err) != apperror.CodeJobPostingNotRejected {
+		t.Fatalf("open posting: %v", err)
+	}
+	if err := f.repo.Resubmit(ctx, f.recruiter, uuid.New()); codeOf(err) != apperror.CodeJobPostingNotFound {
+		t.Fatalf("missing posting: %v", err)
 	}
 }

@@ -20,6 +20,7 @@ type JobPostingService interface {
 	List(ctx context.Context, recruiterID uuid.UUID, role string, filter domain.ListFilter) ([]domain.Summary, int64, error)
 	Get(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
 	Update(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID, patch domain.Edit) (domain.JobPosting, error)
+	Resubmit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
 }
 type JobPostingHandler struct{ service JobPostingService }
 
@@ -238,8 +239,8 @@ func (h *JobPostingHandler) Get(c *gin.Context) {
 }
 
 // Update godoc
-// @Summary Edit your pending Job Posting
-// @Description Recruiter only, while the posting is pending. Absent fields are unchanged; optional details may be cleared with null. Seniority and requirements are locked once the question bank exists. The JD text never changes. Trusted Origin required.
+// @Summary Edit your pending or rejected Job Posting
+// @Description Recruiter only, while the posting is pending or rejected. Absent fields are unchanged; optional details may be cleared with null; unchanged values may be resent. raw_text can change only on a rejected posting. Changing seniority, requirements or the text while pending is refused once the question bank exists; on a rejected posting it clears the bank, which is regenerated after resubmitting. Saving does not resubmit. Trusted Origin required.
 // @Tags job-postings
 // @Accept json
 // @Produce json
@@ -270,6 +271,40 @@ func (h *JobPostingHandler) Update(c *gin.Context) {
 		return
 	}
 	result, err := h.service.Update(c.Request.Context(), userID, role, id, patch)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+// Resubmit godoc
+// @Summary Send your rejected Job Posting for review again
+// @Description Recruiter only. Moves a rejected posting back to pending and clears the rejection reason. Repeating it on a pending posting changes nothing; open or closed postings return 409. Trusted Origin required.
+// @Tags job-postings
+// @Produce json
+// @Security SessionCookie
+// @Param Origin header string true "Trusted frontend origin"
+// @Param id path string true "Job Posting ID" format(uuid)
+// @Success 200 {object} response.Envelope{data=domain.JobPosting}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Failure 503 {object} response.Envelope
+// @Router /job-postings/{id}/resubmit [post]
+func (h *JobPostingHandler) Resubmit(c *gin.Context) {
+	userID, role, ok := jobPostingUser(c)
+	if !ok {
+		return
+	}
+	id, ok := jobPostingID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.Resubmit(c.Request.Context(), userID, role, id)
 	if err != nil {
 		response.Error(c, err)
 		return

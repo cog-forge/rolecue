@@ -13,10 +13,12 @@ import (
 )
 
 const activeVoiceName = `-- name: ActiveVoiceName :one
-SELECT name FROM public.voices WHERE id = $1 AND is_active
+SELECT name FROM public.voices WHERE id = $1 AND is_active FOR SHARE
 `
 
-// No row means the voice is missing or inactive.
+// No row means the voice is missing or inactive. FOR SHARE holds the voice until the posting is
+// written: an Admin deactivating or deleting it locks the row FOR UPDATE, so either the Admin waits
+// and then counts this posting as a reference, or this check waits and sees the voice inactive.
 func (q *Queries) ActiveVoiceName(ctx context.Context, id uuid.UUID) (string, error) {
 	row := q.db.QueryRow(ctx, activeVoiceName, id)
 	var name string
@@ -54,6 +56,16 @@ func (q *Queries) CountOwnedPostings(ctx context.Context, arg CountOwnedPostings
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteCoreQuestions = `-- name: DeleteCoreQuestions :exec
+DELETE FROM public.core_questions WHERE jd_id = $1
+`
+
+// A rejected posting never opened, so no interview references its questions.
+func (q *Queries) DeleteCoreQuestions(ctx context.Context, jdID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteCoreQuestions, jdID)
+	return err
 }
 
 const deleteRequirements = `-- name: DeleteRequirements :exec
@@ -353,7 +365,7 @@ func (q *Queries) ListRequirements(ctx context.Context, jdID uuid.UUID) ([]ListR
 }
 
 const lockOwnedPosting = `-- name: LockOwnedPosting :one
-SELECT jp.jd_id, jp.status::text AS status, jp.salary_min, jp.salary_max
+SELECT jp.jd_id, jp.status::text AS status, jp.salary_min, jp.salary_max, jp.required_voice_id
 FROM public.job_postings jp
 WHERE jp.id = $1 AND jp.recruiter_id = $2
 FOR UPDATE
@@ -365,10 +377,11 @@ type LockOwnedPostingParams struct {
 }
 
 type LockOwnedPostingRow struct {
-	JdID      uuid.UUID
-	Status    string
-	SalaryMin *int32
-	SalaryMax *int32
+	JdID            uuid.UUID
+	Status          string
+	SalaryMin       *int32
+	SalaryMax       *int32
+	RequiredVoiceID uuid.UUID
 }
 
 // The row lock serializes an edit with an Admin decision and with question-bank generation, which
@@ -382,6 +395,7 @@ func (q *Queries) LockOwnedPosting(ctx context.Context, arg LockOwnedPostingPara
 		&i.Status,
 		&i.SalaryMin,
 		&i.SalaryMax,
+		&i.RequiredVoiceID,
 	)
 	return i, err
 }
@@ -404,6 +418,36 @@ func (q *Queries) OwnedAvatarName(ctx context.Context, arg OwnedAvatarNameParams
 	var name string
 	err := row.Scan(&name)
 	return name, err
+}
+
+const resubmitPosting = `-- name: ResubmitPosting :exec
+UPDATE public.job_postings SET status = 'pending', reject_reason = NULL
+WHERE id = $1 AND recruiter_id = $2 AND status = 'rejected'
+`
+
+type ResubmitPostingParams struct {
+	ID          uuid.UUID
+	RecruiterID uuid.UUID
+}
+
+// Sends a rejected posting back to the Admin queue; the old feedback no longer applies.
+func (q *Queries) ResubmitPosting(ctx context.Context, arg ResubmitPostingParams) error {
+	_, err := q.db.Exec(ctx, resubmitPosting, arg.ID, arg.RecruiterID)
+	return err
+}
+
+const updateJDContentPath = `-- name: UpdateJDContentPath :exec
+UPDATE public.job_descriptions SET content_path = $1 WHERE id = $2
+`
+
+type UpdateJDContentPathParams struct {
+	ContentPath string
+	ID          uuid.UUID
+}
+
+func (q *Queries) UpdateJDContentPath(ctx context.Context, arg UpdateJDContentPathParams) error {
+	_, err := q.db.Exec(ctx, updateJDContentPath, arg.ContentPath, arg.ID)
+	return err
 }
 
 const updateJDLevel = `-- name: UpdateJDLevel :exec
@@ -430,7 +474,7 @@ UPDATE public.job_postings SET
     interview_duration = CASE WHEN $11::boolean THEN $12::integer ELSE interview_duration END,
     required_avatar_id = CASE WHEN $13::boolean THEN $14::uuid ELSE required_avatar_id END,
     required_voice_id = CASE WHEN $15::boolean THEN $16::uuid ELSE required_voice_id END
-WHERE id = $17 AND recruiter_id = $18 AND status = 'pending'
+WHERE id = $17 AND recruiter_id = $18 AND status IN ('pending', 'rejected')
 `
 
 type UpdatePostingParams struct {

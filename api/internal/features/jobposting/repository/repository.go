@@ -118,27 +118,42 @@ func (r *Repository) Get(ctx context.Context, recruiterID, id uuid.UUID) (domain
 	return record, nil
 }
 
-// Update applies a validated patch to a pending posting. The row is locked first; the question
+// Update applies a validated patch to a pending or rejected posting. contentPath, when set, is the
+// storage key of corrected JD text (rejected postings only). The row is locked first; the question
 // count and current requirements are read by later statements, so they see whatever a concurrent
 // question-bank save committed before the lock was granted.
-func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patch domain.Edit) error {
+func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patch domain.Edit, contentPath *string) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
 		current, err := q.LockOwnedPosting(ctx, LockOwnedPostingParams{ID: id, RecruiterID: recruiterID})
 		if err != nil {
 			return err
 		}
-		if domain.Status(current.Status) != domain.StatusPending {
-			return domain.ErrNotPending
+		status := domain.Status(current.Status)
+		if status != domain.StatusPending && status != domain.StatusRejected {
+			return domain.ErrNotEditable
+		}
+		if contentPath != nil && status != domain.StatusRejected {
+			return domain.ErrTextLocked
 		}
 		if err := domain.CheckSalary(merged(patch.SalaryMin, current.SalaryMin), merged(patch.SalaryMax, current.SalaryMax)); err != nil {
 			return err
+		}
+		// Resending the voice the posting already has is not a new selection, so it stays valid
+		// even if an Admin has deactivated that voice since.
+		if patch.RequiredVoiceID.Value != nil && *patch.RequiredVoiceID.Value == current.RequiredVoiceID {
+			patch.RequiredVoiceID = domain.UUIDChange{}
 		}
 		if _, _, err := checkReferences(ctx, q, recruiterID, patch.RequiredAvatarID.Value, patch.RequiredVoiceID.Value); err != nil {
 			return err
 		}
 		if err := dropUnchangedBankInputs(ctx, q, current.JdID, &patch); err != nil {
 			return err
+		}
+		if patch.SeniorityLevel.Present || patch.Requirements.Present || contentPath != nil {
+			if err := guardQuestionBank(ctx, q, current.JdID, status); err != nil {
+				return err
+			}
 		}
 		if patch.SeniorityLevel.Present {
 			level, err := levelID(ctx, q, domain.Level(*patch.SeniorityLevel.Value))
@@ -157,18 +172,56 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 				return err
 			}
 		}
+		if contentPath != nil {
+			if err := q.UpdateJDContentPath(ctx, UpdateJDContentPathParams{ID: current.JdID, ContentPath: *contentPath}); err != nil {
+				return err
+			}
+		}
 		return q.UpdatePosting(ctx, updateParams(recruiterID, id, patch))
 	})
 	return persistenceError(err)
 }
 
-// dropUnchangedBankInputs removes seniority and requirements from the patch when they equal the
-// stored values, then refuses a real change once the question bank exists: the bank was generated
-// from them.
-func dropUnchangedBankInputs(ctx context.Context, q *Queries, jdID uuid.UUID, patch *domain.Edit) error {
-	if !patch.SeniorityLevel.Present && !patch.Requirements.Present {
-		return nil
+// Resubmit sends a rejected posting back for Admin review. Repeating it on a posting that is
+// already pending changes nothing; any other status cannot be resubmitted.
+func (r *Repository) Resubmit(ctx context.Context, recruiterID, id uuid.UUID) error {
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		current, err := q.LockOwnedPosting(ctx, LockOwnedPostingParams{ID: id, RecruiterID: recruiterID})
+		if err != nil {
+			return err
+		}
+		switch domain.Status(current.Status) {
+		case domain.StatusPending:
+			return nil
+		case domain.StatusRejected:
+			return q.ResubmitPosting(ctx, ResubmitPostingParams{ID: id, RecruiterID: recruiterID})
+		default:
+			return domain.ErrNotRejected
+		}
+	})
+	return persistenceError(err)
+}
+
+// guardQuestionBank keeps the bank from outliving the JD it was generated from. While pending, the
+// change is refused until the Recruiter deletes the questions. A rejected posting's bank cannot be
+// edited at all (the bank endpoints need a pending posting), so the outdated bank is cleared here,
+// in the same transaction; the Admin's non-empty-bank check then blocks approval until the
+// Recruiter regenerates it after resubmitting.
+func guardQuestionBank(ctx context.Context, q *Queries, jdID uuid.UUID, status domain.Status) error {
+	count, err := q.CountCoreQuestions(ctx, jdID)
+	if err != nil || count == 0 {
+		return err
 	}
+	if status == domain.StatusPending {
+		return domain.ErrRequirementsLocked
+	}
+	return q.DeleteCoreQuestions(ctx, jdID)
+}
+
+// dropUnchangedBankInputs removes seniority and requirements from the patch when they equal the
+// stored values, so only real changes reach guardQuestionBank.
+func dropUnchangedBankInputs(ctx context.Context, q *Queries, jdID uuid.UUID, patch *domain.Edit) error {
 	if patch.SeniorityLevel.Present {
 		level, err := q.GetJDLevelName(ctx, jdID)
 		if err != nil {
@@ -190,16 +243,6 @@ func dropUnchangedBankInputs(ctx context.Context, q *Queries, jdID uuid.UUID, pa
 		if domain.SameRequirements(current, *patch.Requirements.Value) {
 			patch.Requirements = domain.RequirementsChange{}
 		}
-	}
-	if !patch.SeniorityLevel.Present && !patch.Requirements.Present {
-		return nil
-	}
-	count, err := q.CountCoreQuestions(ctx, jdID)
-	if err != nil {
-		return err
-	}
-	if count > 0 {
-		return domain.ErrRequirementsLocked
 	}
 	return nil
 }

@@ -20,7 +20,8 @@ type Repository interface {
 	Create(ctx context.Context, recruiterID uuid.UUID, input domain.NewPosting) (domain.Record, error)
 	List(ctx context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.Summary, int64, error)
 	Get(ctx context.Context, recruiterID, id uuid.UUID) (domain.Record, error)
-	Update(ctx context.Context, recruiterID, id uuid.UUID, patch domain.Edit) error
+	Update(ctx context.Context, recruiterID, id uuid.UUID, patch domain.Edit, contentPath *string) error
+	Resubmit(ctx context.Context, recruiterID, id uuid.UUID) error
 }
 
 // TextStore keeps the original JD text. job_descriptions has no text column, only content_path,
@@ -100,8 +101,8 @@ func (s *Service) Update(ctx context.Context, recruiterID uuid.UUID, role string
 	if err != nil {
 		return domain.JobPosting{}, err
 	}
-	// The text never changes on edit, so read it before writing: a storage failure then leaves the
-	// posting untouched instead of reporting an error for a change that was saved.
+	// Read the stored text before writing: a storage failure then leaves the posting untouched
+	// instead of reporting an error for a change that was saved, and resent text can be compared.
 	current, err := s.repository.Get(ctx, recruiterID, id)
 	if err != nil {
 		return domain.JobPosting{}, err
@@ -110,7 +111,24 @@ func (s *Service) Update(ctx context.Context, recruiterID uuid.UUID, role string
 	if err != nil {
 		return domain.JobPosting{}, err
 	}
-	if err := s.repository.Update(ctx, recruiterID, id, patch); err != nil {
+	var contentPath *string
+	if patch.RawText.Present {
+		if *patch.RawText.Value == text {
+			patch.RawText = domain.StringChange{}
+		} else {
+			// Checked again under the row lock; this only avoids a pointless upload.
+			if current.Status != domain.StatusRejected {
+				return domain.JobPosting{}, domain.ErrTextLocked
+			}
+			// Like Create: if the rows then fail, the new object stays behind unreferenced.
+			key, err := s.texts.Upload(ctx, strings.NewReader(*patch.RawText.Value), jdTextContentType)
+			if err != nil {
+				return domain.JobPosting{}, storageError(err)
+			}
+			contentPath, text = &key, *patch.RawText.Value
+		}
+	}
+	if err := s.repository.Update(ctx, recruiterID, id, patch, contentPath); err != nil {
 		return domain.JobPosting{}, err
 	}
 	record, err := s.repository.Get(ctx, recruiterID, id)
@@ -119,6 +137,18 @@ func (s *Service) Update(ctx context.Context, recruiterID uuid.UUID, role string
 	}
 	record.RawText = text
 	return record.JobPosting, nil
+}
+
+// Resubmit sends the Recruiter's rejected posting back for Admin review, clearing the old
+// rejection reason. Saving an edit never does this on its own. Repeating it is safe.
+func (s *Service) Resubmit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error) {
+	if err := requireRecruiter(role); err != nil {
+		return domain.JobPosting{}, err
+	}
+	if err := s.repository.Resubmit(ctx, recruiterID, id); err != nil {
+		return domain.JobPosting{}, err
+	}
+	return s.read(ctx, recruiterID, id)
 }
 
 func (s *Service) read(ctx context.Context, recruiterID, id uuid.UUID) (domain.JobPosting, error) {

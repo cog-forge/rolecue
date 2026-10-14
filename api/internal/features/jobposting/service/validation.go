@@ -73,6 +73,14 @@ func validatePatch(p domain.Edit) (domain.Edit, error) {
 		}
 		p.Title.Value = &title
 	}
+	if p.RawText.Present {
+		if p.RawText.Value == nil {
+			return p, invalid("raw_text cannot be null")
+		}
+		if err := checkText(*p.RawText.Value); err != nil {
+			return p, err
+		}
+	}
 	if p.SeniorityLevel.Present {
 		if p.SeniorityLevel.Value == nil || !domain.Level(*p.SeniorityLevel.Value).Valid() {
 			return p, invalid("seniority_level must be one of intern, junior, mid, senior, lead")

@@ -1207,7 +1207,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, while the posting is pending. Absent fields are unchanged; optional details may be cleared with null. Seniority and requirements are locked once the question bank exists. The JD text never changes. Trusted Origin required.",
+                "description": "Recruiter only, while the posting is pending or rejected. Absent fields are unchanged; optional details may be cleared with null; unchanged values may be resent. raw_text can change only on a rejected posting. Changing seniority, requirements or the text while pending is refused once the question bank exists; on a rejected posting it clears the bank, which is regenerated after resubmitting. Saving does not resubmit. Trusted Origin required.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1217,7 +1217,7 @@ const docTemplate = `{
                 "tags": [
                     "job-postings"
                 ],
-                "summary": "Edit your pending Job Posting",
+                "summary": "Edit your pending or rejected Job Posting",
                 "parameters": [
                     {
                         "type": "string",
@@ -1792,6 +1792,102 @@ const docTemplate = `{
                 }
             }
         },
+        "/job-postings/{id}/resubmit": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Moves a rejected posting back to pending and clears the rejection reason. Repeating it on a pending posting changes nothing; open or closed postings return 409. Trusted Origin required.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Send your rejected Job Posting for review again",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.JobPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/profile": {
             "get": {
                 "security": [
@@ -1989,7 +2085,10 @@ const docTemplate = `{
                 "WEBHOOK_SIGNATURE_INVALID",
                 "JOB_POSTING_NOT_PENDING",
                 "QUESTION_BANK_NOT_READY",
-                "JOB_POSTING_REQUIREMENTS_LOCKED"
+                "JOB_POSTING_REQUIREMENTS_LOCKED",
+                "JOB_POSTING_NOT_EDITABLE",
+                "JOB_POSTING_TEXT_LOCKED",
+                "JOB_POSTING_NOT_REJECTED"
             ],
             "x-enum-varnames": [
                 "CodeJDInUse",
@@ -2026,7 +2125,10 @@ const docTemplate = `{
                 "CodeWebhookSignatureInvalid",
                 "CodeJobPostingNotPending",
                 "CodeQuestionBankNotReady",
-                "CodeJobPostingRequirementsLocked"
+                "CodeJobPostingRequirementsLocked",
+                "CodeJobPostingNotEditable",
+                "CodeJobPostingTextLocked",
+                "CodeJobPostingNotRejected"
             ]
         },
         "domain.Bank": {
@@ -2078,6 +2180,9 @@ const docTemplate = `{
                 "location": {
                     "type": "string",
                     "x-nullable": true
+                },
+                "raw_text": {
+                    "type": "string"
                 },
                 "required_avatar_id": {
                     "type": "string",
