@@ -1,6 +1,6 @@
 # KAN-122 implementation
 
-Status: synchronous implementation is ready for owner review; no commit created. This revision follows the simpler flow: receive GLB → Blender → private S3 → insert avatar `model_path`.
+The synchronous implementation follows this flow: receive GLB → Blender → private S3 → insert avatar `model_path`.
 
 ## Flow
 
@@ -12,7 +12,8 @@ There is no generation table, migration, worker, source GLB staging, polling, re
 
 - Blender 5.2.2 LTS and VRM Add-on 4.10.2 are installed on the local machine. Backend runs Blender headless and enables the installed add-on in each subprocess; it does not depend on an open GUI or MCP.
 - Runtime settings are in `.env.example`: enable flag, executable path, conversion timeout, input/output byte limits, and explicit VRM usage/license metadata.
-- Concurrency is naturally bounded by API capacity/deployment and is no longer configured in KAN-122. No worker concurrency setting exists.
+- A shared converter permits one conversion at a time per API instance. Additional requests receive `AVATAR_CONVERTER_UNAVAILABLE` (503), without starting another Blender process. The slot is released on both success and failure.
+- The upload route extends read/write deadlines to the conversion timeout plus 90 seconds. A real HTTP server regression test verifies a successful response after the default write deadline.
 
 ## Fixture evidence
 
@@ -25,7 +26,11 @@ The earlier async branch version passed DB/S3 worker integration, but that imple
 ## Tradeoffs
 
 - A request retry after an uncertain client timeout can create a duplicate avatar because no durable idempotency receipt remains.
-- S3 upload and DB insert are separate systems. If upload succeeds and DB insert fails, an orphan object may remain; the current storage interface has no Delete method.
+- S3 upload and DB insert are separate systems. Failed inserts trigger object deletion with a five-second cleanup context independent of request cancellation. Cleanup failures are logged for follow-up; the original insert error is preserved.
 - Only the owner-provided body/outfit is verified. Product usage policy and all-variant coverage remain open. Paid generation depends on KAN-124.
 
-The local migration 12 was rolled back (`12/d avatar_generations`); the migration files and SQLC generated table model were removed. Schema version returned to 11.
+KAN-122 introduces no migration. The inventory constraints migration is inherited from KAN-121 at version 9.
+
+## Review regression coverage
+
+Tests cover conversion overload and slot release; busy/timeout/export error mapping; successful persistence; upload failures; capacity races and database errors after upload; cleanup after request cancellation; cleanup failures; S3 deletion and invalid keys. The existing service tests from KAN-121 are preserved. Tests use a small generated GLB and do not require Blender or external storage.

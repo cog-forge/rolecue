@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/converter"
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/domain"
-	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -23,16 +24,19 @@ type AvatarCreator interface {
 	Create(context.Context, uuid.UUID, string, string, string) (domain.Avatar, error)
 }
 
+type AvatarStore interface {
+	Upload(context.Context, io.ReadSeeker, string) (string, error)
+	Delete(context.Context, string) error
+}
+
 type AvatarConversionService struct {
-	repo  AvatarCreator
-	store interface {
-		Upload(context.Context, io.ReadSeeker, string) (string, error)
-	}
+	repo   AvatarCreator
+	store  AvatarStore
 	runner AvatarConverter
 	config config.AvatarConversionConfig
 }
 
-func NewAvatarConversionService(repo AvatarCreator, store storage.Store, runner AvatarConverter, cfg config.AvatarConversionConfig) *AvatarConversionService {
+func NewAvatarConversionService(repo AvatarCreator, store AvatarStore, runner AvatarConverter, cfg config.AvatarConversionConfig) *AvatarConversionService {
 	return &AvatarConversionService{repo: repo, store: store, runner: runner, config: cfg}
 }
 
@@ -61,6 +65,9 @@ func (s *AvatarConversionService) Create(ctx context.Context, user authdomain.Us
 	}
 	asset, err := s.runner.Convert(ctx, source, metadata.Name)
 	if err != nil {
+		if errors.Is(err, converter.ErrUnavailable) {
+			return domain.Avatar{}, apperror.Wrap(apperror.CodeAvatarConverterUnavailable, "avatar converter is busy", err)
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return domain.Avatar{}, apperror.Wrap(apperror.CodeAvatarConversionTimeout, "avatar conversion timed out", err)
 		}
@@ -73,6 +80,12 @@ func (s *AvatarConversionService) Create(ctx context.Context, user authdomain.Us
 	}
 	avatar, err := s.repo.Create(ctx, user.ID, metadata.Name, metadata.Personality, key)
 	if err != nil {
+		// The request may already be cancelled; cleanup still gets a short deadline.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if cleanupErr := s.store.Delete(cleanupCtx, key); cleanupErr != nil {
+			slog.ErrorContext(cleanupCtx, "unable to delete unreferenced avatar object", "key", key, "error", cleanupErr)
+		}
 		return domain.Avatar{}, err
 	}
 	return avatar, nil

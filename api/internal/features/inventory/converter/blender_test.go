@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -43,5 +44,43 @@ func TestRealConversion(t *testing.T) {
 	cancel()
 	if _, err = b.Convert(ctx, f, "cancelled"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled conversion: %v", err)
+	}
+}
+
+// Block the first input stream to keep a conversion occupied without Blender.
+type blockedSource struct {
+	*bytes.Reader
+	started chan struct{}
+	release chan struct{}
+}
+
+func (s *blockedSource) Seek(offset int64, whence int) (int64, error) {
+	close(s.started)
+	<-s.release
+	return s.Reader.Seek(offset, whence)
+}
+func TestConcurrentConversionRejectedAndSlotReleased(t *testing.T) {
+	b := &Blender{Binary: "/does/not/exist", Timeout: time.Second}
+	source := &blockedSource{Reader: bytes.NewReader([]byte("input")), started: make(chan struct{}), release: make(chan struct{})}
+	done := make(chan error, 1)
+	go func() { _, err := b.Convert(context.Background(), source, "first"); done <- err }()
+	select {
+	case <-source.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("conversion did not start")
+	}
+	defer func() { close(source.release); <-done }()
+	_, err := b.Convert(context.Background(), bytes.NewReader(nil), "second")
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("busy converter = %v, want unavailable", err)
+	}
+}
+func TestConversionFailureReleasesSlot(t *testing.T) {
+	b := &Blender{Binary: "/does/not/exist", Timeout: time.Second}
+	for range 2 {
+		_, err := b.Convert(context.Background(), bytes.NewReader(nil), "test")
+		if err == nil || errors.Is(err, ErrUnavailable) {
+			t.Fatalf("failed conversion retained slot: %v", err)
+		}
 	}
 }

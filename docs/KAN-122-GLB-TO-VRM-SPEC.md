@@ -34,11 +34,11 @@ AVATAR_VRM_COMMERCIAL_USAGE=
 AVATAR_VRM_LICENSE_URL=
 ```
 
-Enable conversion chỉ trên host đã cài Blender/add-on. Usage metadata và license URL cần chọn theo quyền sử dụng source; không điền policy ngầm. Không còn concurrency setting vì mỗi request chạy đồng bộ trong API process.
+Enable conversion chỉ trên host đã cài Blender/add-on. Usage metadata và license URL cần chọn theo quyền sử dụng source; không điền policy ngầm. Mỗi API instance chỉ chạy một conversion tại một thời điểm; request đến khi converter bận nhận `AVATAR_CONVERTER_UNAVAILABLE` (503).
 
 ## Giới hạn được chấp nhận
 
 - Không có hàng đợi, progress polling, retry/cancel API hay chống tạo trùng bền vững. Client có thể gửi lại request sau timeout và tạo avatar trùng nếu lần trước đã insert nhưng response bị mất.
-- S3 và PostgreSQL không cùng transaction. Nếu upload xong nhưng insert DB thất bại, object có thể bị bỏ lại. Storage interface hiện chưa có Delete.
+- S3 và PostgreSQL không cùng transaction. Nếu insert DB thất bại sau upload, API xóa object bằng cleanup context tối đa 5 giây, độc lập với request cancellation. Nếu cleanup cũng lỗi thì ghi log để xử lý object còn lại.
 - Chỉ fixture Avaturn T2 owner cung cấp được xác minh; chưa claim mọi body/outfit đều hỗ trợ.
 - VRM generation chưa thu coin. Không release paid flow trước khi KAN-124 xử lý debit/receipt.

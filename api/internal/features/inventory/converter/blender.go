@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -30,6 +31,7 @@ type Asset struct {
 func (a *Asset) Close() error { return errors.Join(a.File.Close(), os.RemoveAll(a.directory)) }
 
 type Blender struct {
+	busy            atomic.Bool
 	Binary          string
 	Timeout         time.Duration
 	MaxOutput       int64
@@ -56,6 +58,15 @@ func (b *Blender) Available(ctx context.Context) error {
 }
 
 func (b *Blender) Convert(ctx context.Context, source io.ReadSeeker, name string) (*Asset, error) {
+	// One Blender process per API instance; reject overload without queuing uploads.
+	if !b.busy.CompareAndSwap(false, true) {
+		return nil, ErrUnavailable
+	}
+	defer b.busy.Store(false)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	directory, err := os.MkdirTemp("", "rolecue-avatar-")
 	if err != nil {
 		return nil, err
