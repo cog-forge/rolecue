@@ -10,6 +10,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/features/admin/accounts/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/authcookie"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -47,7 +48,12 @@ func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UU
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", a.cfg.URL)
-	req.Header.Set("Cookie", cookie)
+	incoming := &http.Request{Header: http.Header{"Cookie": []string{cookie}}}
+	for _, authCookie := range incoming.Cookies() {
+		if authcookie.Matches(authCookie.Name, a.cfg.CookiePrefix, a.cfg.SecureCookies) {
+			req.AddCookie(authCookie)
+		}
+	}
 	req.Header.Set("X-RoleCue-Admin-Secret", a.cfg.AdminSecret)
 	req.Header.Set("X-RoleCue-Account-Notification", "skip")
 	if notify {
