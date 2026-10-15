@@ -654,6 +654,109 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Converts the supplied lip-sync GLB and stores the VRM before creating an inventory entry. Candidate/Recruiter only.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "inventory"
+                ],
+                "summary": "Create a personal VRM avatar from an Avaturn T2 GLB",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Avaturn T2 binary GLB",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "JSON with name and personality",
+                        "name": "metadata",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Avatar"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
             }
         },
         "/inventory/avatars/{id}": {
@@ -1889,6 +1992,13 @@ const docTemplate = `{
         "apperror.Code": {
             "type": "string",
             "enum": [
+                "INVENTORY_FULL",
+                "AVATAR_SOURCE_TOO_LARGE",
+                "AVATAR_SOURCE_UNSUPPORTED",
+                "AVATAR_CONVERTER_UNAVAILABLE",
+                "AVATAR_CONVERSION_FAILED",
+                "AVATAR_CONVERSION_TIMEOUT",
+                "AVATAR_PERSISTENCE_FAILED",
                 "AVATAR_NOT_FOUND",
                 "AVATAR_IN_USE",
                 "AVATAR_ASSET_UNAVAILABLE",
@@ -1928,6 +2038,13 @@ const docTemplate = `{
                 "QUESTION_BANK_NOT_READY"
             ],
             "x-enum-varnames": [
+                "CodeInventoryFull",
+                "CodeAvatarSourceTooLarge",
+                "CodeAvatarSourceUnsupported",
+                "CodeAvatarConverterUnavailable",
+                "CodeAvatarConversionFailed",
+                "CodeAvatarConversionTimeout",
+                "CodeAvatarPersistenceFailed",
                 "CodeAvatarNotFound",
                 "CodeAvatarInUse",
                 "CodeAvatarAssetUnavailable",

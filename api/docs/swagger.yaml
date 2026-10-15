@@ -2,6 +2,13 @@ basePath: /
 definitions:
   apperror.Code:
     enum:
+    - INVENTORY_FULL
+    - AVATAR_SOURCE_TOO_LARGE
+    - AVATAR_SOURCE_UNSUPPORTED
+    - AVATAR_CONVERTER_UNAVAILABLE
+    - AVATAR_CONVERSION_FAILED
+    - AVATAR_CONVERSION_TIMEOUT
+    - AVATAR_PERSISTENCE_FAILED
     - AVATAR_NOT_FOUND
     - AVATAR_IN_USE
     - AVATAR_ASSET_UNAVAILABLE
@@ -41,6 +48,13 @@ definitions:
     - QUESTION_BANK_NOT_READY
     type: string
     x-enum-varnames:
+    - CodeInventoryFull
+    - CodeAvatarSourceTooLarge
+    - CodeAvatarSourceUnsupported
+    - CodeAvatarConverterUnavailable
+    - CodeAvatarConversionFailed
+    - CodeAvatarConversionTimeout
+    - CodeAvatarPersistenceFailed
     - CodeAvatarNotFound
     - CodeAvatarInUse
     - CodeAvatarAssetUnavailable
@@ -895,6 +909,72 @@ paths:
       security:
       - SessionCookie: []
       summary: List your personal avatars
+      tags:
+      - inventory
+    post:
+      consumes:
+      - multipart/form-data
+      description: Converts the supplied lip-sync GLB and stores the VRM before creating
+        an inventory entry. Candidate/Recruiter only.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Avaturn T2 binary GLB
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: JSON with name and personality
+        in: formData
+        name: metadata
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Avatar'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Create a personal VRM avatar from an Avaturn T2 GLB
       tags:
       - inventory
   /inventory/avatars/{id}:

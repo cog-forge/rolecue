@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -146,6 +147,9 @@ func TestInvalidInputsMakeNoRequest(t *testing.T) {
 	if _, err := store.Download(context.Background(), ""); !errors.Is(err, ErrInvalidInput) {
 		t.Fatal("empty key accepted")
 	}
+	if err := store.Delete(context.Background(), ""); !errors.Is(err, ErrInvalidInput) {
+		t.Fatal("empty delete key accepted")
+	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	if key, err := store.Upload(canceled, strings.NewReader("x"), "text/plain"); key != "" || !errors.Is(err, context.Canceled) {
@@ -177,5 +181,32 @@ func TestConstructorDoesNotFallBackToMachineCredentials(t *testing.T) {
 	cfg.AccessKeyID, cfg.SecretAccessKey = "", ""
 	if _, err := New(cfg); err == nil {
 		t.Fatal("constructor accepted missing configured credentials")
+	}
+}
+
+func TestDeleteObject(t *testing.T) {
+	for _, denied := range []bool{false, true} {
+		t.Run(fmt.Sprint("denied=", denied), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodDelete || r.URL.Path != "/test-bucket/converted.vrm" {
+					t.Errorf("wrong delete target: %s %s", r.Method, r.URL.Path)
+				}
+				if denied {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = io.WriteString(w, "<Error><Code>AccessDenied</Code></Error>")
+					return
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer server.Close()
+			store, err := New(testConfig(server.URL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = store.Delete(context.Background(), "converted.vrm")
+			if (err != nil) != denied {
+				t.Fatalf("delete error = %v", err)
+			}
+		})
 	}
 }

@@ -57,6 +57,31 @@ func (r *Repository) Summary(ctx context.Context, owner uuid.UUID) (domain.Capac
 	return domain.Capacity{Capacity: row.Slot, Used: row.Used, Available: available, IsFull: row.Used >= int64(row.Slot)}, nil
 }
 
+func (r *Repository) Create(ctx context.Context, owner uuid.UUID, name, personality, modelPath string) (domain.Avatar, error) {
+	tx, queries, err := r.beginOwner(ctx, owner)
+	if err != nil {
+		return domain.Avatar{}, err
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	if err := queries.EnsureInventory(ctx, EnsureInventoryParams{UserID: owner, InitialCapacity: domain.InitialCapacity}); err != nil {
+		return domain.Avatar{}, persistenceError(err)
+	}
+	if _, err := queries.LockAvatarInventory(ctx, owner); err != nil {
+		return domain.Avatar{}, persistenceError(err)
+	}
+	row, err := queries.InsertInventoryAvatar(ctx, InsertInventoryAvatarParams{UserID: owner, Name: name, Personality: personality, ModelPath: modelPath})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.Avatar{}, apperror.New(apperror.CodeInventoryFull, "avatar inventory is full")
+		}
+		return domain.Avatar{}, persistenceError(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.Avatar{}, persistenceError(err)
+	}
+	return domain.Avatar{ID: row.ID, Name: row.Name, Personality: row.Personality, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}, nil
+}
+
 func (r *Repository) List(ctx context.Context, owner uuid.UUID, limit, offset int32) ([]domain.Avatar, int64, error) {
 	// Initialize at READ COMMITTED: ON CONFLICT waits for another initializer and
 	// the next statement can see its row. Do not upsert inside REPEATABLE READ.

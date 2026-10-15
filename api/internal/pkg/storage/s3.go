@@ -96,6 +96,17 @@ func validateContentType(contentType string) error {
 	return nil
 }
 
+func (s *s3Store) Delete(ctx context.Context, key string) error {
+	if err := validateKey(key); err != nil {
+		return err
+	}
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
+	if err != nil {
+		return fmt.Errorf("delete object: %w", err)
+	}
+	return nil
+}
+
 func validateKey(key string) error {
 	if strings.TrimSpace(key) == "" || len(key) > 1024 || strings.ContainsAny(key, "\x00\r\n") {
 		return fmt.Errorf("%w: valid object key is required", ErrInvalidInput)

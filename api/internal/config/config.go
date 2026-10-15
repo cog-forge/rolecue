@@ -15,17 +15,18 @@ import (
 
 // Config holds the entire system configuration
 type Config struct {
-	App          AppConfig          `mapstructure:"app"`
-	Server       ServerConfig       `mapstructure:"server"`
-	Database     DatabaseConfig     `mapstructure:"database"`
-	Auth         AuthConfig         `mapstructure:"auth"`
-	CORS         CORSConfig         `mapstructure:"cors"`
-	Logger       LoggerConfig       `mapstructure:"logger"`
-	Tracer       TracerConfig       `mapstructure:"tracer"`
-	LLM          LLMConfig          `mapstructure:"llm"`
-	Storage      StorageConfig      `mapstructure:"storage"`
-	PayOS        PayOSConfig        `mapstructure:"payos"`
-	QuestionBank QuestionBankConfig `mapstructure:"question_bank"`
+	App              AppConfig              `mapstructure:"app"`
+	Server           ServerConfig           `mapstructure:"server"`
+	Database         DatabaseConfig         `mapstructure:"database"`
+	Auth             AuthConfig             `mapstructure:"auth"`
+	CORS             CORSConfig             `mapstructure:"cors"`
+	Logger           LoggerConfig           `mapstructure:"logger"`
+	Tracer           TracerConfig           `mapstructure:"tracer"`
+	LLM              LLMConfig              `mapstructure:"llm"`
+	Storage          StorageConfig          `mapstructure:"storage"`
+	PayOS            PayOSConfig            `mapstructure:"payos"`
+	QuestionBank     QuestionBankConfig     `mapstructure:"question_bank"`
+	AvatarConversion AvatarConversionConfig `mapstructure:"avatar_conversion"`
 }
 
 type AppConfig struct {
@@ -188,33 +189,40 @@ func Load(configPath string) (*Config, error) {
 
 	// Explicitly bind environment variables
 	for key, env := range map[string]string{
-		"storage.endpoint":          "S3_ENDPOINT",
-		"storage.region":            "S3_REGION",
-		"storage.bucket":            "S3_BUCKET",
-		"storage.access_key_id":     "S3_ACCESS_KEY_ID",
-		"storage.secret_access_key": "S3_SECRET_ACCESS_KEY",
-		"storage.session_token":     "S3_SESSION_TOKEN",
-		"database.url":              "DATABASE_URL",
-		"database.name":             "DB_DATABASE",
-		"database.user":             "DB_USERNAME",
-		"database.password":         "DB_PASSWORD",
-		"database.port":             "DB_PORT",
-		"auth.url":                  "BETTER_AUTH_URL",
-		"auth.timeout":              "AUTH_SESSION_TIMEOUT",
-		"auth.cookie_prefix":        "BETTER_AUTH_COOKIE_PREFIX",
-		"auth.cookie_domain":        "BETTER_AUTH_COOKIE_DOMAIN",
-		"auth.secure_cookies":       "AUTH_SECURE_COOKIES",
-		"llm.provider":              "LLM_PROVIDER",
-		"llm.api_key":               "LLM_API_KEY",
-		"llm.model":                 "LLM_MODEL",
-		"llm.timeout":               "LLM_TIMEOUT",
-		"llm.max_retries":           "LLM_MAX_RETRIES",
-		"payos.client_id":           "PAYOS_CLIENT_ID",
-		"payos.api_key":             "PAYOS_API_KEY",
-		"payos.checksum_key":        "PAYOS_CHECKSUM_KEY",
-		"payos.timeout":             "PAYOS_TIMEOUT",
-		"payos.max_retries":         "PAYOS_MAX_RETRIES",
-		"question_bank.size":        "QUESTION_BANK_SIZE",
+		"storage.endpoint":                   "S3_ENDPOINT",
+		"storage.region":                     "S3_REGION",
+		"storage.bucket":                     "S3_BUCKET",
+		"storage.access_key_id":              "S3_ACCESS_KEY_ID",
+		"storage.secret_access_key":          "S3_SECRET_ACCESS_KEY",
+		"storage.session_token":              "S3_SESSION_TOKEN",
+		"database.url":                       "DATABASE_URL",
+		"database.name":                      "DB_DATABASE",
+		"database.user":                      "DB_USERNAME",
+		"database.password":                  "DB_PASSWORD",
+		"database.port":                      "DB_PORT",
+		"auth.url":                           "BETTER_AUTH_URL",
+		"auth.timeout":                       "AUTH_SESSION_TIMEOUT",
+		"auth.cookie_prefix":                 "BETTER_AUTH_COOKIE_PREFIX",
+		"auth.cookie_domain":                 "BETTER_AUTH_COOKIE_DOMAIN",
+		"auth.secure_cookies":                "AUTH_SECURE_COOKIES",
+		"llm.provider":                       "LLM_PROVIDER",
+		"llm.api_key":                        "LLM_API_KEY",
+		"llm.model":                          "LLM_MODEL",
+		"llm.timeout":                        "LLM_TIMEOUT",
+		"llm.max_retries":                    "LLM_MAX_RETRIES",
+		"payos.client_id":                    "PAYOS_CLIENT_ID",
+		"payos.api_key":                      "PAYOS_API_KEY",
+		"payos.checksum_key":                 "PAYOS_CHECKSUM_KEY",
+		"payos.timeout":                      "PAYOS_TIMEOUT",
+		"payos.max_retries":                  "PAYOS_MAX_RETRIES",
+		"question_bank.size":                 "QUESTION_BANK_SIZE",
+		"avatar_conversion.enabled":          "AVATAR_CONVERSION_ENABLED",
+		"avatar_conversion.blender_binary":   "AVATAR_BLENDER_BINARY",
+		"avatar_conversion.timeout":          "AVATAR_CONVERSION_TIMEOUT",
+		"avatar_conversion.max_input_bytes":  "AVATAR_MAX_INPUT_BYTES",
+		"avatar_conversion.max_output_bytes": "AVATAR_MAX_OUTPUT_BYTES",
+		"avatar_conversion.commercial_usage": "AVATAR_VRM_COMMERCIAL_USAGE",
+		"avatar_conversion.license_url":      "AVATAR_VRM_LICENSE_URL",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -299,10 +307,18 @@ func setDefaults(v *viper.Viper) {
 
 	// Question bank defaults: 50 questions per bank, as agreed by the team.
 	v.SetDefault("question_bank.size", 50)
+	v.SetDefault("avatar_conversion.enabled", false)
+	v.SetDefault("avatar_conversion.blender_binary", "blender")
+	v.SetDefault("avatar_conversion.timeout", "120s")
+	v.SetDefault("avatar_conversion.max_input_bytes", 50<<20)
+	v.SetDefault("avatar_conversion.max_output_bytes", 100<<20)
 }
 
 // Validate checks configuration integrity and security constraints.
 func (c *Config) Validate() error {
+	if err := c.AvatarConversion.Validate(); err != nil {
+		return err
+	}
 	if c.CORS.AllowCredentials {
 		if len(c.CORS.AllowOrigins) == 0 {
 			return errors.New("credentialed CORS requires explicit allowed origins")

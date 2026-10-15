@@ -112,6 +112,48 @@ func (q *Queries) GetInventoryCapacity(ctx context.Context, userID uuid.UUID) (G
 	return i, err
 }
 
+const insertInventoryAvatar = `-- name: InsertInventoryAvatar :one
+INSERT INTO public.avatars (inventory_id, name, model_path, personality)
+SELECT i.id, $1::text, $2::text, $3::text
+FROM public.inventories i
+WHERE i.user_id = $4
+  AND (SELECT count(*) FROM public.avatars a WHERE a.inventory_id = i.id) < i.slot
+RETURNING id, name, personality, created_at, updated_at
+`
+
+type InsertInventoryAvatarParams struct {
+	Name        string
+	ModelPath   string
+	Personality string
+	UserID      uuid.UUID
+}
+
+type InsertInventoryAvatarRow struct {
+	ID          uuid.UUID
+	Name        string
+	Personality string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) InsertInventoryAvatar(ctx context.Context, arg InsertInventoryAvatarParams) (InsertInventoryAvatarRow, error) {
+	row := q.db.QueryRow(ctx, insertInventoryAvatar,
+		arg.Name,
+		arg.ModelPath,
+		arg.Personality,
+		arg.UserID,
+	)
+	var i InsertInventoryAvatarRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Personality,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listInventoryAvatars = `-- name: ListInventoryAvatars :many
 SELECT a.id, a.name, a.personality, a.created_at, a.updated_at
 FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id
@@ -158,6 +200,17 @@ func (q *Queries) ListInventoryAvatars(ctx context.Context, arg ListInventoryAva
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAvatarInventory = `-- name: LockAvatarInventory :one
+SELECT id FROM public.inventories WHERE user_id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockAvatarInventory(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockAvatarInventory, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockInventoryOwner = `-- name: LockInventoryOwner :one
