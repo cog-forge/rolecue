@@ -68,7 +68,7 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
     if (forbidden) void account.refetch();
   };
   useEffect(() => {
-    if (unauthorized) router.replace(routes.login);
+    if (unauthorized) router.replace(`${routes.login}?session=ended`);
   }, [router, unauthorized]);
   useEffect(() => {
     const validated = session.data && !session.error && !session.isFetching;

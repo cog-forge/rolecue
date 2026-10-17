@@ -1,11 +1,14 @@
 import type { BetterAuthOptions } from "better-auth";
 import { admin, twoFactor } from "better-auth/plugins";
 import { defaultAc, userAc } from "better-auth/plugins/admin/access";
+import { internalAdmin } from "./internal-admin";
+import { accountNotifications } from "./account-notifications";
 
 const timestamps = { createdAt: "created_at", updatedAt: "updated_at" };
 
 // Exported separately so generation and integration tests use the exact runtime mapping.
 export const authOptions = {
+  hooks: { before: internalAdmin, after: accountNotifications },
   user: {
     modelName: "users",
     fields: { ...timestamps, emailVerified: "email_verified" },
@@ -44,6 +47,8 @@ export const authOptions = {
   },
   advanced: { database: { generateId: "uuid" } },
   disabledPaths: [
+    "/admin/list-users",
+    "/admin/get-user",
     "/admin/impersonate-user",
     "/admin/stop-impersonating",
     "/admin/create-user",

@@ -100,6 +100,7 @@ func (d *DatabaseConfig) DSN() string {
 }
 
 type AuthConfig struct {
+	AdminSecret   string        `mapstructure:"admin_secret"`
 	URL           string        `mapstructure:"url"`
 	Timeout       time.Duration `mapstructure:"timeout"`
 	CookiePrefix  string        `mapstructure:"cookie_prefix"`
@@ -200,6 +201,7 @@ func Load(configPath string) (*Config, error) {
 		"database.password":         "DB_PASSWORD",
 		"database.port":             "DB_PORT",
 		"auth.url":                  "BETTER_AUTH_URL",
+		"auth.admin_secret":         "ADMIN_AUTH_INTERNAL_SECRET",
 		"auth.timeout":              "AUTH_SESSION_TIMEOUT",
 		"auth.cookie_prefix":        "BETTER_AUTH_COOKIE_PREFIX",
 		"auth.cookie_domain":        "BETTER_AUTH_COOKIE_DOMAIN",

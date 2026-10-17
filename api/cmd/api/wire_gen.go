@@ -74,7 +74,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	}
 	moderationHandler := provider.ProvideModerationHandler(service3)
 	onboardingHandler := provider.ProvideOnboardingHandler(authService)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler)
+	accountsHandler := provider.ProvideAccountsHandler(config, pool)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
