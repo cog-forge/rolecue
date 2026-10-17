@@ -17,7 +17,7 @@ type Router struct {
 	logger              *logger.Logger
 	authHandler         *handler.AuthHandler
 	healthHandler       *handler.HealthHandler
-	jdHandler           *handler.JDHandler
+	roleProfileHandler  *handler.RoleProfileHandler
 	profileHandler      *handler.ProfileHandler
 	walletHandler       *handler.WalletHandler
 	questionBankHandler *handler.QuestionBankHandler
@@ -33,7 +33,7 @@ func NewRouter(
 	logger *logger.Logger,
 	authHandler *handler.AuthHandler,
 	healthHandler *handler.HealthHandler,
-	jdHandler *handler.JDHandler,
+	roleProfileHandler *handler.RoleProfileHandler,
 	profileHandler *handler.ProfileHandler,
 	walletHandler *handler.WalletHandler,
 	questionBankHandler *handler.QuestionBankHandler,
@@ -48,7 +48,7 @@ func NewRouter(
 		logger:              logger,
 		authHandler:         authHandler,
 		healthHandler:       healthHandler,
-		jdHandler:           jdHandler,
+		roleProfileHandler:  roleProfileHandler,
 		profileHandler:      profileHandler,
 		walletHandler:       walletHandler,
 		questionBankHandler: questionBankHandler,
@@ -93,13 +93,17 @@ func (r *Router) Setup() *gin.Engine {
 	inventory.DELETE("/avatars/:id", r.inventoryHandler.Delete)
 	inventory.POST("/avatars", r.avatarCreateHandler.Create)
 
-	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
-	jds.POST("/analyze", r.jdHandler.Analyze)
-	jds.POST("", r.jdHandler.Create)
-	jds.GET("", r.jdHandler.List)
-	jds.GET("/:id", r.jdHandler.Get)
-	jds.PUT("/:id", r.jdHandler.Update)
-	jds.DELETE("/:id", r.jdHandler.Delete)
+	profilesJD := router.Group("/role-profiles", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
+	profilesJD.POST("", r.roleProfileHandler.Create)
+	profilesJD.POST("/uploads", r.roleProfileHandler.CreateUpload)
+	profilesJD.POST("/uploads/:id/complete", r.roleProfileHandler.CompleteUpload)
+	profilesJD.GET("", r.roleProfileHandler.List)
+	profilesJD.GET("/:id", r.roleProfileHandler.Get)
+	profilesJD.GET("/:id/document", r.roleProfileHandler.Document)
+	profilesJD.PUT("/:id", r.roleProfileHandler.Save)
+	profilesJD.DELETE("/:id", r.roleProfileHandler.Delete)
+	profilesJD.POST("/:id/analyze", r.roleProfileHandler.Analyze)
+	profilesJD.POST("/:id/confirm", r.roleProfileHandler.Confirm)
 
 	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	{

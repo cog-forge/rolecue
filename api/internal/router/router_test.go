@@ -63,7 +63,7 @@ func TestQuestionBankRoutesRequireOnboarding(t *testing.T) {
 			}
 			cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
 			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
-				handler.NewHealthHandler(), &handler.JDHandler{}, &handler.ProfileHandler{},
+				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 				handler.NewWalletHandler(nil), handler.NewQuestionBankHandler(nil),
 				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}).Setup()
 			for _, route := range routes {
@@ -151,7 +151,7 @@ func TestWalletRoutesRequireOnboarding(t *testing.T) {
 				wallet := &routerWallet{}
 				cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
 				r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
-					handler.NewHealthHandler(), &handler.JDHandler{}, &handler.ProfileHandler{},
+					handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 					handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
 					&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}).Setup()
 				for _, route := range routes {
@@ -186,7 +186,7 @@ func TestPayOSWebhookDoesNotRequireSession(t *testing.T) {
 	wallet := &routerWallet{}
 	auth := routerAuth{err: authdomain.ErrInvalidSession}
 	r := NewRouter(&config.Config{}, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
-		handler.NewHealthHandler(), &handler.JDHandler{}, &handler.ProfileHandler{},
+		handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
 		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}).Setup()
 	w := httptest.NewRecorder()

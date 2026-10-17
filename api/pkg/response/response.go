@@ -21,6 +21,11 @@ type ErrorBody struct {
 }
 
 var httpStatusByCode = map[apperror.Code]int{
+	apperror.CodeInvalidPDF:                      http.StatusBadRequest,
+	apperror.CodePDFTooLarge:                     http.StatusRequestEntityTooLarge,
+	apperror.CodePDFUnavailable:                  http.StatusServiceUnavailable,
+	apperror.CodeDocumentStorage:                 http.StatusBadGateway,
+	apperror.CodeRoleConflict:                    http.StatusConflict,
 	apperror.CodeInventoryFull:                   http.StatusConflict,
 	apperror.CodeAvatarSourceTooLarge:            http.StatusRequestEntityTooLarge,
 	apperror.CodeAvatarSourceUnsupported:         http.StatusUnprocessableEntity,

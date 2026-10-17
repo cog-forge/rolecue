@@ -1,11 +1,5 @@
 package domain
 
-import (
-	"time"
-
-	"github.com/google/uuid"
-)
-
 // Seniority is optional: nil means the JD supplies insufficient evidence.
 type Seniority string
 
@@ -36,8 +30,10 @@ const (
 )
 
 type ExtractedSkill struct {
-	Name     string        `json:"name"`
-	Category SkillCategory `json:"category"`
+	Target       string        `json:"target,omitempty"`
+	EvidenceText *string       `json:"evidenceText,omitempty"`
+	Name         string        `json:"name"`
+	Category     SkillCategory `json:"category"`
 	// Empty means the JD does not state whether the skill is required or preferred.
 	Requirement Requirement `json:"requirement,omitempty"`
 }
@@ -59,56 +55,4 @@ type StructuredJD struct {
 	Skills          []ExtractedSkill `json:"skills"`
 	Technologies    []string         `json:"technologies"`
 	DomainKnowledge []string         `json:"domainKnowledge"`
-}
-
-// JD is a Candidate's saved job description: the original text (read back from file storage)
-// plus the reviewed structure stored across job_descriptions, role_profiles and requirements.
-type JD struct {
-	ID           uuid.UUID
-	RawText      string
-	StructuredJD StructuredJD
-	CreatedAt    time.Time
-}
-
-// Record is what the repository stores and returns. ContentPath is the storage key of the
-// original JD text; the service turns it back into RawText.
-type Record struct {
-	ID           uuid.UUID
-	ContentPath  string
-	Title        string
-	Seniority    Seniority
-	Requirements []RequirementRow
-	CreatedAt    time.Time
-}
-
-// RequirementRow is one row of the requirements table.
-type RequirementRow struct {
-	Name   string
-	Target string
-	Type   Requirement
-}
-
-// Requirement targets for the two plain-name lists; skills use their SkillCategory as target.
-const (
-	TargetTechnologies    = "technologies"
-	TargetDomainKnowledge = "domain_knowledge"
-)
-
-// ListItem contains the summary fields of a persisted job description.
-type ListItem struct {
-	ID             uuid.UUID `json:"id"`
-	Title          string    `json:"title"`
-	SeniorityLevel Seniority `json:"seniorityLevel"`
-	CreatedAt      time.Time `json:"createdAt"`
-}
-
-// CreateInput contains the original JD text and its reviewed structure.
-type CreateInput struct {
-	RawText      string
-	StructuredJD StructuredJD
-}
-
-// UpdateInput contains only fields which may change after JD creation.
-type UpdateInput struct {
-	StructuredJD StructuredJD
 }

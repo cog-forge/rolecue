@@ -32,7 +32,7 @@ func TestRoleSelectionLifecycle(t *testing.T) {
 		}
 	}
 	_, err = auth.SelectRole(ctx, id, "candidate")
-	wantCode(t, err, apperror.CodeForbidden)
+	wantCode(t, err, apperror.CodeOnboardingRoleConflict)
 	other, err := auth.Get(ctx, otherID)
 	if err != nil || other.Role != "candidate" || other.OnboardingRoleSelected {
 		t.Fatalf("another account changed: user=%+v error=%v", other, err)
@@ -46,7 +46,7 @@ func TestRoleSelectionLifecycle(t *testing.T) {
 		}
 	}
 	_, err = auth.SelectRole(ctx, id, "recruiter")
-	wantCode(t, err, apperror.CodeForbidden)
+	wantCode(t, err, apperror.CodeOnboardingRoleConflict)
 }
 
 func TestRoleSelectionRejectsIneligibleAccounts(t *testing.T) {

@@ -1,6 +1,6 @@
 //go:build llm_smoke
 
-package provider
+package tests
 
 import (
 	"context"
@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
-	"github.com/cog-forge/rolecue/api/internal/features/jd/service"
+	roleprofileprovider "github.com/cog-forge/rolecue/api/internal/features/roleprofile/provider"
+	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ai"
 )
 
@@ -25,11 +26,11 @@ func TestLLMSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatal("invalid Gemini configuration; check provider, API key, model and timeout")
 	}
-	adapter, err := New(chatModel)
+	adapter, err := roleprofileprovider.New(chatModel)
 	if err != nil {
 		t.Fatal("invalid JD adapter configuration")
 	}
-	s, err := service.New(adapter, cfg.LLM.MaxRetries)
+	s, err := service.NewExtractionService(adapter, cfg.LLM.MaxRetries)
 	if err != nil {
 		t.Fatal("invalid LLM retry budget")
 	}

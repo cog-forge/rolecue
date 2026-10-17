@@ -10,7 +10,7 @@ import (
 
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-	"github.com/cog-forge/rolecue/api/internal/features/jd/service"
+	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
@@ -120,7 +120,7 @@ func TestServiceOwnsRegenerationAndValidation(t *testing.T) {
 				}
 				return &schema.Message{Content: candidateJSON}, nil
 			}
-			s, err := service.New(adapter(t, f), retries)
+			s, err := service.NewExtractionService(adapter(t, f), retries)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -152,7 +152,7 @@ func TestModelErrorCausesAndCancellation(t *testing.T) {
 		f := &fakeChatModel{fn: func(context.Context, []*schema.Message, ...model.Option) (*schema.Message, error) {
 			return nil, fmt.Errorf("model: %w", cause)
 		}}
-		s, err := service.New(adapter(t, f), 1)
+		s, err := service.NewExtractionService(adapter(t, f), 1)
 		if err != nil {
 			t.Fatal(err)
 		}

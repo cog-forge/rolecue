@@ -123,12 +123,12 @@ sql:
               import: "github.com/google/uuid"
               type: "UUID"
   - engine: "postgresql"
-    queries: "internal/features/jd/repository/query/"
+    queries: "internal/features/roleprofile/repository/query/"
     schema: "migrations/"
     gen:
       go:
         package: "repository"
-        out: "internal/features/jd/repository"
+        out: "internal/features/roleprofile/repository"
         sql_package: "pgx/v5"
         emit_pointers_for_null_types: true
         omit_unused_structs: true

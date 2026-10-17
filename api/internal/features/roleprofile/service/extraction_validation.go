@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/cog-forge/rolecue/api/internal/features/jd/domain"
+	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
@@ -100,6 +100,24 @@ func validateStructure(c domain.ExtractionCandidate, reviewed bool) (domain.Stru
 			return invalid("invalid UTF-8 skill name")
 		}
 		skill.Name = strings.TrimSpace(skill.Name)
+		if isSoftSkill(skill.Name) {
+			return invalid("soft skills are not technical competencies")
+		}
+		if skill.Target != "" && !boundedText(skill.Target, 1, 2000) {
+			return invalid("invalid technical target")
+		}
+		if strings.TrimSpace(skill.Target) != "" {
+			normalized := strings.ToLower(strings.TrimSpace(skill.Target))
+			switch normalized {
+			case "new", "familiar", "proficient", "expert", "unspecified":
+				skill.Target = strings.ToUpper(normalized[:1]) + normalized[1:]
+			default:
+				return invalid("skill target must be a JD proficiency level")
+			}
+		}
+		if skill.EvidenceText != nil && !boundedText(*skill.EvidenceText, 0, 4000) {
+			return invalid("invalid skill evidence")
+		}
 		if skill.Name == "" {
 			continue
 		}

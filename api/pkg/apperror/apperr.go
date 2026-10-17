@@ -8,6 +8,11 @@ import (
 type Code string
 
 const (
+	CodeRoleConflict               Code = "ROLE_PROFILE_CONFLICT"
+	CodeInvalidPDF                 Code = "INVALID_PDF"
+	CodePDFTooLarge                Code = "PDF_TOO_LARGE"
+	CodePDFUnavailable             Code = "PDF_UNAVAILABLE"
+	CodeDocumentStorage            Code = "DOCUMENT_STORAGE_UNAVAILABLE"
 	CodeInventoryFull              Code = "INVENTORY_FULL"
 	CodeAvatarSourceTooLarge       Code = "AVATAR_SOURCE_TOO_LARGE"
 	CodeAvatarSourceUnsupported    Code = "AVATAR_SOURCE_UNSUPPORTED"
