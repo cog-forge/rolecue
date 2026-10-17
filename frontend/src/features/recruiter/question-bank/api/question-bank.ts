@@ -17,17 +17,23 @@ const questionPath = (postingId: string, questionId: string) =>
   `${bankPath(postingId)}/${encodeURIComponent(questionId)}`;
 
 export async function getBank(postingId: string, signal?: AbortSignal) {
-  const response = await apiClient.get<unknown>(bankPath(postingId), { signal });
+  const response = await apiClient.get<unknown>(bankPath(postingId), {
+    signal,
+  });
   return bankEnvelopeSchema.parse(response.data).data;
 }
 
 export async function generateBank(postingId: string) {
-  const response = await apiClient.post<unknown>(`${bankPath(postingId)}/generate`);
+  const response = await apiClient.post<unknown>(
+    `${bankPath(postingId)}/generate`,
+  );
   return generatedEnvelopeSchema.parse(response.data).data.questions;
 }
 
 export async function addQuestion(postingId: string, content: string) {
-  const response = await apiClient.post<unknown>(bankPath(postingId), { content });
+  const response = await apiClient.post<unknown>(bankPath(postingId), {
+    content,
+  });
   return questionEnvelopeSchema.parse(response.data).data;
 }
 

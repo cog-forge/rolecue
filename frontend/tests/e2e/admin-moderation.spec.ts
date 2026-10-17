@@ -42,7 +42,10 @@ async function mockModeration(page: Page) {
     core_question_count: 50,
   });
   await page.route("https://files.example.com/**", (route) =>
-    route.fulfill({ headers: { "content-type": "application/pdf" }, body: "%PDF-1.4\n%%EOF\n" }),
+    route.fulfill({
+      headers: { "content-type": "application/pdf" },
+      body: "%PDF-1.4\n%%EOF\n",
+    }),
   );
   await page.route("http://localhost:8080/**", async (route) => {
     const url = new URL(route.request().url());
@@ -74,29 +77,46 @@ async function mockModeration(page: Page) {
         headers,
         json: {
           success: true,
-          data: { items, pagination: { limit: 20, offset: 0, total: items.length } },
+          data: {
+            items,
+            pagination: { limit: 20, offset: 0, total: items.length },
+          },
         },
       });
     }
     if (url.pathname === `/admin/job-postings/${postingId}`)
-      return route.fulfill({ headers, json: { success: true, data: posting() } });
-    if (url.pathname === `/admin/job-postings/${postingId}/reject` && method === "POST") {
+      return route.fulfill({
+        headers,
+        json: { success: true, data: posting() },
+      });
+    if (
+      url.pathname === `/admin/job-postings/${postingId}/reject` &&
+      method === "POST"
+    ) {
       const body = route.request().postDataJSON() as { reject_reason: string };
       rejectBodies.push(body);
       status = "rejected";
       rejectReason = body.reject_reason;
-      return route.fulfill({ headers, json: { success: true, data: posting() } });
+      return route.fulfill({
+        headers,
+        json: { success: true, data: posting() },
+      });
     }
     return route.fulfill({
       status: 404,
       headers,
-      json: { success: false, error: { code: "NOT_FOUND", message: "unmocked" } },
+      json: {
+        success: false,
+        error: { code: "NOT_FOUND", message: "unmocked" },
+      },
     });
   });
   return { rejectBodies };
 }
 
-test("admin reviews a pending posting and rejects it with a reason", async ({ page }) => {
+test("admin reviews a pending posting and rejects it with a reason", async ({
+  page,
+}) => {
   const api = await mockModeration(page);
   await page.goto("/admin/job-postings");
 
@@ -112,21 +132,31 @@ test("admin reviews a pending posting and rejects it with a reason", async ({ pa
     "src",
     "https://files.example.com/jd/go-backend.pdf",
   );
-  await expect(page.getByText(/core questions in the question bank/)).toContainText("50");
+  await expect(
+    page.getByText(/core questions in the question bank/),
+  ).toContainText("50");
 
   await page.getByRole("button", { name: "Reject" }).click();
   const dialog = page.getByRole("dialog", { name: "Reject this posting?" });
   await dialog.getByRole("button", { name: "Reject posting" }).click();
-  await expect(dialog.getByRole("alert")).toContainText("Tell the recruiter why");
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Tell the recruiter why",
+  );
 
-  await dialog.getByLabel(/Reason for the recruiter/).fill("Salary range is missing.");
+  await dialog
+    .getByLabel(/Reason for the recruiter/)
+    .fill("Salary range is missing.");
   await dialog.getByRole("button", { name: "Reject posting" }).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByText("“Salary range is missing.”")).toBeVisible();
-  expect(api.rejectBodies).toEqual([{ reject_reason: "Salary range is missing." }]);
+  expect(api.rejectBodies).toEqual([
+    { reject_reason: "Salary range is missing." },
+  ]);
 
   await page.getByRole("link", { name: "Back to moderation queue" }).click();
-  await expect(page.getByText("No postings are waiting for review.")).toBeVisible();
+  await expect(
+    page.getByText("No postings are waiting for review."),
+  ).toBeVisible();
 });
 
 test("queue filters live in the URL", async ({ page }) => {
@@ -134,7 +164,13 @@ test("queue filters live in the URL", async ({ page }) => {
   await page.goto("/admin/job-postings");
   await page.getByRole("link", { name: "All" }).click();
   await expect(page).toHaveURL(/status=all/);
-  await expect(page.getByRole("link", { name: "All" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "All" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   await page.reload();
-  await expect(page.getByRole("link", { name: "All" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "All" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
 });

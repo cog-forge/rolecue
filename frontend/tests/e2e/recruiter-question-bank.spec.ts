@@ -17,7 +17,8 @@ async function mockBank(page: Page, options: { editable?: boolean } = {}) {
   let questions: { id: string; content: string }[] = [];
   let next = 1;
   const bodies: unknown[] = [];
-  const id = () => `44444444-4444-4444-8444-${String(next++).padStart(12, "0")}`;
+  const id = () =>
+    `44444444-4444-4444-8444-${String(next++).padStart(12, "0")}`;
   const bank = () => ({
     questions,
     posting_status: editable ? "pending" : "open",
@@ -36,7 +37,10 @@ async function mockBank(page: Page, options: { editable?: boolean } = {}) {
     };
     if (method === "OPTIONS") return route.fulfill({ status: 204, headers });
     if (url.pathname === "/auth/me")
-      return route.fulfill({ headers, json: { success: true, data: recruiter } });
+      return route.fulfill({
+        headers,
+        json: { success: true, data: recruiter },
+      });
     if (url.pathname === bankPath && method === "GET")
       return route.fulfill({ headers, json: { success: true, data: bank() } });
     if (url.pathname === `${bankPath}/generate` && method === "POST") {
@@ -44,14 +48,22 @@ async function mockBank(page: Page, options: { editable?: boolean } = {}) {
         { id: id(), content: "Explain Go channels." },
         { id: id(), content: "How do you index a table?" },
       ];
-      return route.fulfill({ status: 201, headers, json: { success: true, data: { questions } } });
+      return route.fulfill({
+        status: 201,
+        headers,
+        json: { success: true, data: { questions } },
+      });
     }
     if (url.pathname === bankPath && method === "POST") {
       const body = route.request().postDataJSON() as { content: string };
       bodies.push(body);
       const question = { id: id(), content: body.content };
       questions = [...questions, question];
-      return route.fulfill({ status: 201, headers, json: { success: true, data: question } });
+      return route.fulfill({
+        status: 201,
+        headers,
+        json: { success: true, data: question },
+      });
     }
     const match = url.pathname.match(new RegExp(`^${bankPath}/(.+)$`));
     if (match && method === "DELETE") {
@@ -61,19 +73,28 @@ async function mockBank(page: Page, options: { editable?: boolean } = {}) {
     return route.fulfill({
       status: 404,
       headers,
-      json: { success: false, error: { code: "NOT_FOUND", message: "unmocked" } },
+      json: {
+        success: false,
+        error: { code: "NOT_FOUND", message: "unmocked" },
+      },
     });
   });
   return { bodies };
 }
 
-test("recruiter generates the bank, adds and deletes a question", async ({ page }) => {
+test("recruiter generates the bank, adds and deletes a question", async ({
+  page,
+}) => {
   const api = await mockBank(page);
   await page.goto(`/recruiter/job-postings/${postingId}/questions`);
 
-  await expect(page.getByRole("heading", { level: 1, name: "Question bank" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Question bank" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Generate questions" }).click();
-  await expect(page.getByText("Explain Go channels.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Explain Go channels.", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("2 questions", { exact: true })).toBeVisible();
 
   const form = page.getByRole("form", { name: "Add a question" });
@@ -83,14 +104,23 @@ test("recruiter generates the bank, adds and deletes a question", async ({ page 
   expect(api.bodies).toEqual([{ content: "What is a goroutine leak?" }]);
 
   await page.getByRole("button", { name: "Delete question 1" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Delete question" }).click();
-  await expect(page.getByText("Explain Go channels.", { exact: true })).toBeHidden();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Delete question" })
+    .click();
+  await expect(
+    page.getByText("Explain Go channels.", { exact: true }),
+  ).toBeHidden();
   await expect(page.getByText("2 questions", { exact: true })).toBeVisible();
 });
 
 test("a posting that left review shows a read-only bank", async ({ page }) => {
   await mockBank(page, { editable: false });
   await page.goto(`/recruiter/job-postings/${postingId}/questions`);
-  await expect(page.getByText(/so the question bank is read-only/)).toBeVisible();
-  await expect(page.getByRole("form", { name: "Add a question" })).toHaveCount(0);
+  await expect(
+    page.getByText(/so the question bank is read-only/),
+  ).toBeVisible();
+  await expect(page.getByRole("form", { name: "Add a question" })).toHaveCount(
+    0,
+  );
 });

@@ -4,7 +4,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, DownloadCloud, RotateCcw, Search, Trash2 } from "lucide-react";
+import {
+  CircleAlert,
+  DownloadCloud,
+  RotateCcw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +18,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { cn } from "@/lib/utils";
-import { activateVoice, listVoices, removeVoice, voiceKeys } from "../api/voices";
+import {
+  activateVoice,
+  listVoices,
+  removeVoice,
+  voiceKeys,
+} from "../api/voices";
 import type { Voice } from "../schemas/voice-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
 import {
@@ -29,7 +40,8 @@ const tabs: { status: VoiceStatus; label: string }[] = [
   { status: "active", label: "Active" },
   { status: "inactive", label: "Inactive" },
 ];
-const catalogHref = (filters: VoiceFilters) => `${routes.admin.voices}${voiceSearch(filters)}`;
+const catalogHref = (filters: VoiceFilters) =>
+  `${routes.admin.voices}${voiceSearch(filters)}`;
 
 export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
   const user = useSessionUser();
@@ -49,12 +61,15 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
       setRemoving(null);
       setNotice(null);
       void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
-      gooeyToast.success(result.outcome === "deleted" ? "Voice removed" : "Voice deactivated", {
-        description:
-          result.outcome === "deleted"
-            ? `${result.voice.name} is no longer in the catalog.`
-            : `${result.voice.name} is now inactive; interviews and postings that use it keep it.`,
-      });
+      gooeyToast.success(
+        result.outcome === "deleted" ? "Voice removed" : "Voice deactivated",
+        {
+          description:
+            result.outcome === "deleted"
+              ? `${result.voice.name} is no longer in the catalog.`
+              : `${result.voice.name} is now inactive; interviews and postings that use it keep it.`,
+        },
+      );
     },
     onError: (error) => {
       // The page body shows the access message; a dialog left open would hide it.
@@ -62,7 +77,9 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
       if (apiError(error).status === 404) {
         // Someone else removed it first: close the dialog and show the current catalog.
         setRemoving(null);
-        setNotice("That voice was already removed. We refreshed the catalog for you.");
+        setNotice(
+          "That voice was already removed. We refreshed the catalog for you.",
+        );
         void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
       }
     },
@@ -80,15 +97,22 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
     onError: (error, voice) => {
       if (isAccessDenied(error)) return;
       if (apiError(error).status === 404) {
-        setNotice(`${voice.name} was removed permanently, so it can't be reactivated. We refreshed the catalog for you.`);
+        setNotice(
+          `${voice.name} was removed permanently, so it can't be reactivated. We refreshed the catalog for you.`,
+        );
         void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
         return;
       }
-      setNotice(apiError(error).message ?? `We couldn't reactivate ${voice.name}. Please try again.`);
+      setNotice(
+        apiError(error).message ??
+          `We couldn't reactivate ${voice.name}. Please try again.`,
+      );
     },
   });
   const denied =
-    isAccessDenied(query.error) || isAccessDenied(remove.error) || isAccessDenied(activate.error);
+    isAccessDenied(query.error) ||
+    isAccessDenied(remove.error) ||
+    isAccessDenied(activate.error);
   useEffect(() => {
     // A role or lock change shows up as 401/403; let the session gate re-check access.
     if (denied) void cache.invalidateQueries({ queryKey: ["auth", "me"] });
@@ -99,8 +123,12 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
   const firstRow = total === 0 ? 0 : (filters.page - 1) * VOICE_PAGE_SIZE + 1;
   const lastRow = Math.min(filters.page * VOICE_PAGE_SIZE, total);
   const dialogError =
-    removing && remove.isError && !isAccessDenied(remove.error) && apiError(remove.error).status !== 404
-      ? (apiError(remove.error).message ?? "We couldn't remove the voice. Please try again.")
+    removing &&
+    remove.isError &&
+    !isAccessDenied(remove.error) &&
+    apiError(remove.error).status !== 404
+      ? (apiError(remove.error).message ??
+        "We couldn't remove the voice. Please try again.")
       : null;
 
   return (
@@ -110,14 +138,21 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
           <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
             Governance
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Voice Profiles</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            Voice Profiles
+          </h1>
           <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            The text-to-speech voices recruiters and candidates can choose for the
-            AI interviewer.
+            The text-to-speech voices recruiters and candidates can choose for
+            the AI interviewer.
           </p>
         </div>
         <div className="space-y-1 text-right">
-          <Button variant="outline" className="h-11" disabled aria-describedby="fetch-voices-hint">
+          <Button
+            variant="outline"
+            className="h-11"
+            disabled
+            aria-describedby="fetch-voices-hint"
+          >
             <DownloadCloud className="size-4" aria-hidden />
             Fetch from provider
           </Button>
@@ -135,7 +170,11 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
               return (
                 <li key={tab.status}>
                   <Link
-                    href={catalogHref({ ...filters, status: tab.status, page: 1 })}
+                    href={catalogHref({
+                      ...filters,
+                      status: tab.status,
+                      page: 1,
+                    })}
                     scroll={false}
                     aria-current={active ? "page" : undefined}
                     className={cn(
@@ -154,8 +193,14 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
       </div>
 
       {notice && (
-        <p role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 p-3 text-sm">
-          <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+        <p
+          role="alert"
+          className="flex items-start gap-2 rounded-lg border border-destructive/30 p-3 text-sm"
+        >
+          <CircleAlert
+            className="mt-0.5 size-4 shrink-0 text-destructive"
+            aria-hidden
+          />
           {notice}
         </p>
       )}
@@ -169,7 +214,9 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">You don&apos;t have access to voice profiles</h2>
+          <h2 className="font-semibold">
+            You don&apos;t have access to voice profiles
+          </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Checking your account access… If this stays, sign in again with an
             administrator account.
@@ -177,8 +224,12 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
         </div>
       ) : query.isError ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">We couldn&apos;t load the voice profiles</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Please try again in a moment.</p>
+          <h2 className="font-semibold">
+            We couldn&apos;t load the voice profiles
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Please try again in a moment.
+          </p>
           <Button
             className="mt-4 h-11"
             variant="outline"
@@ -222,9 +273,15 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
               </caption>
               <thead>
                 <tr className="border-b text-xs tracking-[0.08em] text-muted-foreground uppercase">
-                  <th scope="col" className="py-3 pr-4 font-medium">Voice</th>
-                  <th scope="col" className="py-3 pr-4 font-medium">Status</th>
-                  <th scope="col" className="py-3 pr-4 font-medium">In use</th>
+                  <th scope="col" className="py-3 pr-4 font-medium">
+                    Voice
+                  </th>
+                  <th scope="col" className="py-3 pr-4 font-medium">
+                    Status
+                  </th>
+                  <th scope="col" className="py-3 pr-4 font-medium">
+                    In use
+                  </th>
                   <th scope="col" className="py-3 text-right font-medium">
                     <span className="sr-only">Action</span>
                   </th>
@@ -232,8 +289,13 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
               </thead>
               <tbody>
                 {page.items.map((voice) => (
-                  <tr key={voice.id} className="border-b align-top last:border-b-0">
-                    <td className="py-3 pr-4 font-medium [overflow-wrap:anywhere]">{voice.name}</td>
+                  <tr
+                    key={voice.id}
+                    className="border-b align-top last:border-b-0"
+                  >
+                    <td className="py-3 pr-4 font-medium [overflow-wrap:anywhere]">
+                      {voice.name}
+                    </td>
                     <td className="py-3 pr-4">
                       <VoiceStatusLabel active={voice.is_active} />
                     </td>
@@ -242,33 +304,39 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
                     </td>
                     <td className="py-3 text-right">
                       <div className="inline-flex flex-wrap justify-end gap-2">
-                      {!voice.is_active && (
-                        <Button
-                          variant="outline"
-                          className="h-11"
-                          aria-label={`Reactivate ${voice.name}`}
-                          disabled={activate.isPending && activate.variables?.id === voice.id}
-                          onClick={() => activate.mutate(voice)}
-                        >
-                          <RotateCcw aria-hidden />
-                          {activate.isPending && activate.variables?.id === voice.id ? "Reactivating…" : "Reactivate"}
-                        </Button>
-                      )}
-                      {/* An inactive voice in use must stay for its references, so only reactivating is left. */}
-                      {(voice.is_active || !voice.in_use) && (
-                        <Button
-                          variant="outline"
-                          className="h-11"
-                          aria-label={`${voice.in_use ? "Deactivate" : "Remove"} ${voice.name}`}
-                          onClick={() => {
-                            remove.reset();
-                            setRemoving(voice);
-                          }}
-                        >
-                          <Trash2 aria-hidden />
-                          {voice.in_use ? "Deactivate" : "Remove"}
-                        </Button>
-                      )}
+                        {!voice.is_active && (
+                          <Button
+                            variant="outline"
+                            className="h-11"
+                            aria-label={`Reactivate ${voice.name}`}
+                            disabled={
+                              activate.isPending &&
+                              activate.variables?.id === voice.id
+                            }
+                            onClick={() => activate.mutate(voice)}
+                          >
+                            <RotateCcw aria-hidden />
+                            {activate.isPending &&
+                            activate.variables?.id === voice.id
+                              ? "Reactivating…"
+                              : "Reactivate"}
+                          </Button>
+                        )}
+                        {/* An inactive voice in use must stay for its references, so only reactivating is left. */}
+                        {(voice.is_active || !voice.in_use) && (
+                          <Button
+                            variant="outline"
+                            className="h-11"
+                            aria-label={`${voice.in_use ? "Deactivate" : "Remove"} ${voice.name}`}
+                            onClick={() => {
+                              remove.reset();
+                              setRemoving(voice);
+                            }}
+                          >
+                            <Trash2 aria-hidden />
+                            {voice.in_use ? "Deactivate" : "Remove"}
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -276,7 +344,10 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
               </tbody>
             </table>
           </div>
-          <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3 text-sm">
+          <nav
+            aria-label="Pagination"
+            className="flex flex-wrap items-center justify-between gap-3 text-sm"
+          >
             <p className="text-muted-foreground tabular-nums">
               Showing {firstRow}–{lastRow} of {total}
             </p>
@@ -313,14 +384,25 @@ function VoiceStatusLabel({ active }: { active: boolean }) {
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <span
         aria-hidden
-        className={cn("size-2 shrink-0 rounded-full", active ? "bg-foreground" : "bg-muted-foreground")}
+        className={cn(
+          "size-2 shrink-0 rounded-full",
+          active ? "bg-foreground" : "bg-muted-foreground",
+        )}
       />
       {active ? "Active" : "Inactive"}
     </span>
   );
 }
 
-function PageLink({ label, href, disabled }: { label: string; href: string; disabled: boolean }) {
+function PageLink({
+  label,
+  href,
+  disabled,
+}: {
+  label: string;
+  href: string;
+  disabled: boolean;
+}) {
   if (disabled)
     return (
       <Button variant="outline" className="h-11" disabled>
@@ -343,10 +425,18 @@ function SearchForm({ filters }: { filters: VoiceFilters }) {
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (tooLong) return;
-    router.push(catalogHref({ ...filters, q: q.trim(), page: 1 }), { scroll: false });
+    router.push(catalogHref({ ...filters, q: q.trim(), page: 1 }), {
+      scroll: false,
+    });
   };
   return (
-    <form noValidate role="search" aria-label="Search voices" onSubmit={submit} className="flex flex-wrap items-end gap-2">
+    <form
+      noValidate
+      role="search"
+      aria-label="Search voices"
+      onSubmit={submit}
+      className="flex flex-wrap items-end gap-2"
+    >
       <div className="space-y-1">
         <label htmlFor="voice-search" className="text-xs font-medium">
           Search by name
@@ -361,19 +451,31 @@ function SearchForm({ filters }: { filters: VoiceFilters }) {
           aria-describedby={tooLong ? "voice-search-error" : undefined}
         />
       </div>
-      <Button type="submit" variant="outline" className="h-11" disabled={tooLong}>
+      <Button
+        type="submit"
+        variant="outline"
+        className="h-11"
+        disabled={tooLong}
+      >
         <Search className="size-4" aria-hidden />
         Search
       </Button>
       {filters.q && (
         <Button asChild variant="ghost" className="h-11">
-          <Link href={catalogHref({ ...filters, q: "", page: 1 })} scroll={false}>
+          <Link
+            href={catalogHref({ ...filters, q: "", page: 1 })}
+            scroll={false}
+          >
             Clear search
           </Link>
         </Button>
       )}
       {tooLong && (
-        <p id="voice-search-error" role="alert" className="w-full text-xs text-destructive">
+        <p
+          id="voice-search-error"
+          role="alert"
+          className="w-full text-xs text-destructive"
+        >
           Keep the search to {MAX_VOICE_QUERY} characters or fewer.
         </p>
       )}

@@ -35,7 +35,8 @@ export const generatedEnvelopeSchema = envelope(
 export const questionEnvelopeSchema = envelope(coreQuestionSchema);
 
 // Go counts runes, so the limit counts Unicode code points, after trimming like the server does.
-export const questionLength = (value: string) => Array.from(value.trim()).length;
+export const questionLength = (value: string) =>
+  Array.from(value.trim()).length;
 
 export const questionFormSchema = (max: number) =>
   z.object({

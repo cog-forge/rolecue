@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CircleAlert, LoaderCircle, Lock, Pencil, Sparkles, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CircleAlert,
+  LoaderCircle,
+  Lock,
+  Pencil,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +26,11 @@ import {
   questionBankKeys,
   updateQuestion,
 } from "../api/question-bank";
-import type { Bank, CoreQuestion, PostingStatus } from "../schemas/question-bank-schema";
+import type {
+  Bank,
+  CoreQuestion,
+  PostingStatus,
+} from "../schemas/question-bank-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
 import { DeleteQuestionDialog } from "./delete-question-dialog";
 import { QuestionEditor } from "./question-editor";
@@ -59,7 +71,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
   const onStale = (error: unknown) => {
     const { code, message } = apiError(error);
     if (!code || !staleCodes.has(code)) return false;
-    setNotice(message ?? "This question bank changed. We refreshed it for you.");
+    setNotice(
+      message ?? "This question bank changed. We refreshed it for you.",
+    );
     setEditingId(null);
     setDeleting(null);
     void cache.invalidateQueries({ queryKey: key });
@@ -81,7 +95,8 @@ export function QuestionBank({ postingId }: { postingId: string }) {
   const add = useMutation({
     mutationFn: (content: string) => addQuestion(postingId, content),
     retry: false,
-    onSuccess: (question) => patch((bank) => ({ ...bank, questions: [...bank.questions, question] })),
+    onSuccess: (question) =>
+      patch((bank) => ({ ...bank, questions: [...bank.questions, question] })),
     onError: onStale,
   });
   const update = useMutation({
@@ -91,7 +106,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
     onSuccess: (question) => {
       patch((bank) => ({
         ...bank,
-        questions: bank.questions.map((q) => (q.id === question.id ? question : q)),
+        questions: bank.questions.map((q) =>
+          q.id === question.id ? question : q,
+        ),
       }));
       setEditingId(null);
     },
@@ -101,7 +118,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
     mutationFn: (id: string) => deleteQuestion(postingId, id),
     retry: false,
     onSuccess: (_, id) => {
-      patch((bank) => ({ ...bank, questions: bank.questions.filter((q) => q.id !== id) }));
+      patch((bank) => ({
+        ...bank,
+        questions: bank.questions.filter((q) => q.id !== id),
+      }));
       setDeleting(null);
       gooeyToast.success("Question deleted");
     },
@@ -116,7 +136,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
   }, [cache, denied]);
 
   // Mutation errors that the stale handler didn't take over are shown next to the form they came from.
-  const formError = (state: { isError: boolean; error: unknown }, fallback: string) => {
+  const formError = (
+    state: { isError: boolean; error: unknown },
+    fallback: string,
+  ) => {
     if (!state.isError || isAccessDenied(state.error)) return null;
     const { code, message } = apiError(state.error);
     if (code && staleCodes.has(code)) return null;
@@ -149,7 +172,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">You don&apos;t have access to this question bank</h1>
+          <h1 className="text-xl font-semibold">
+            You don&apos;t have access to this question bank
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Checking your account access… Only the recruiter who owns this job
             posting can manage its questions.
@@ -184,7 +209,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
             <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
               Job posting
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Question bank</h1>
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              Question bank
+            </h1>
             <p className="text-sm text-muted-foreground">
               The core questions the AI interviewer asks every applicant to this
               posting. Candidates never see them.
@@ -196,7 +223,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
               role="status"
               className="flex items-start gap-2 rounded-lg border p-3 text-sm"
             >
-              <Lock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <Lock
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                aria-hidden
+              />
               <span>
                 This posting is{" "}
                 <span className="font-medium">
@@ -213,7 +243,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
               role="alert"
               className="flex items-start gap-2 rounded-lg border border-destructive/30 p-3 text-sm"
             >
-              <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+              <CircleAlert
+                className="mt-0.5 size-4 shrink-0 text-destructive"
+                aria-hidden
+              />
               {notice}
             </p>
           )}
@@ -250,7 +283,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                           initial={question.content}
                           maxLength={query.data.max_question_length}
                           pending={update.isPending}
-                          error={formError(update, "We couldn't save the question. Your edit is still here.")}
+                          error={formError(
+                            update,
+                            "We couldn't save the question. Your edit is still here.",
+                          )}
                           submitLabel="Save question"
                           pendingLabel="Saving…"
                           onCancel={() => {
@@ -258,7 +294,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                             setEditingId(null);
                           }}
                           onSubmit={(content) =>
-                            submit(() => update.mutateAsync({ id: question.id, content }))
+                            submit(() =>
+                              update.mutateAsync({ id: question.id, content }),
+                            )
                           }
                         />
                       ) : (
@@ -311,7 +349,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                   label="Add a question"
                   maxLength={query.data.max_question_length}
                   pending={add.isPending}
-                  error={formError(add, "We couldn't add the question. Your draft is still here.")}
+                  error={formError(
+                    add,
+                    "We couldn't add the question. Your draft is still here.",
+                  )}
                   submitLabel="Add question"
                   pendingLabel="Adding…"
                   onSubmit={(content) => submit(() => add.mutateAsync(content))}
@@ -323,7 +364,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
           <DeleteQuestionDialog
             question={deleting}
             pending={remove.isPending}
-            error={formError(remove, "We couldn't delete the question. Please try again.")}
+            error={formError(
+              remove,
+              "We couldn't delete the question. Please try again.",
+            )}
             onCancel={() => setDeleting(null)}
             onConfirm={() => deleting && remove.mutate(deleting.id)}
           />
@@ -345,7 +389,11 @@ function EmptyBank({
   onGenerate: () => void;
 }) {
   if (!bank.editable)
-    return <p className="text-sm text-muted-foreground">This posting has no core questions.</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        This posting has no core questions.
+      </p>
+    );
   if (bank.generation_size === 0)
     return (
       <p className="text-sm text-muted-foreground">
@@ -359,16 +407,30 @@ function EmptyBank({
         No questions yet. Generate {bank.generation_size} questions from the
         confirmed requirements of this posting, or add your own below.
       </p>
-      <Button className="h-11" disabled={generating} aria-busy={generating} onClick={onGenerate}>
+      <Button
+        className="h-11"
+        disabled={generating}
+        aria-busy={generating}
+        onClick={onGenerate}
+      >
         {generating ? (
-          <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden />
+          <LoaderCircle
+            className="size-4 animate-spin motion-reduce:animate-none"
+            aria-hidden
+          />
         ) : (
           <Sparkles className="size-4" aria-hidden />
         )}
         {generating ? "Generating questions…" : "Generate questions"}
       </Button>
-      <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
-        {generating ? "This can take up to a minute. You can stay on this page." : ""}
+      <p
+        role="status"
+        aria-live="polite"
+        className="text-xs text-muted-foreground"
+      >
+        {generating
+          ? "This can take up to a minute. You can stay on this page."
+          : ""}
       </p>
       {error && (
         <p role="alert" className="text-sm text-destructive">

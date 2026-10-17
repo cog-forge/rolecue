@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { QuestionBank } from "@/features/recruiter/question-bank/components/question-bank";
@@ -21,7 +27,12 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 vi.mock("@/lib/api/client", () => ({
-  apiClient: { get: mocks.get, post: mocks.post, patch: mocks.patch, delete: mocks.delete },
+  apiClient: {
+    get: mocks.get,
+    post: mocks.post,
+    patch: mocks.patch,
+    delete: mocks.delete,
+  },
 }));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
@@ -29,8 +40,14 @@ vi.mock("@/features/auth/components/session-gate", () => ({
 vi.mock("goey-toast", () => ({ gooeyToast: { success: mocks.toast } }));
 
 const postingId = "33333333-3333-4333-8333-333333333333";
-const q1 = { id: "44444444-4444-4444-8444-444444444441", content: "Explain Go channels." };
-const q2 = { id: "44444444-4444-4444-8444-444444444442", content: "How do you index a table?" };
+const q1 = {
+  id: "44444444-4444-4444-8444-444444444441",
+  content: "Explain Go channels.",
+};
+const q2 = {
+  id: "44444444-4444-4444-8444-444444444442",
+  content: "How do you index a table?",
+};
 const bank = (overrides: Record<string, unknown> = {}) => ({
   questions: [q1, q2],
   posting_status: "pending",
@@ -51,7 +68,10 @@ function failure(status: number, code: string, message: string) {
 }
 function mount() {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity },
+      mutations: { retry: false },
+    },
   });
   client.setQueryData(["auth", "me"], mocks.user);
   render(
@@ -65,29 +85,42 @@ const path = `/job-postings/${postingId}/questions`;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  for (const fn of [mocks.get, mocks.post, mocks.patch, mocks.delete]) fn.mockReset();
+  for (const fn of [mocks.get, mocks.post, mocks.patch, mocks.delete])
+    fn.mockReset();
 });
 
 describe("QuestionBank", () => {
   it("lists the questions of an editable bank", async () => {
     mocks.get.mockResolvedValue(envelope(bank()));
     mount();
-    expect(await screen.findByRole("heading", { level: 1, name: "Question bank" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Question bank" }),
+    ).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith(path, expect.anything());
     expect(screen.getByText("Explain Go channels.")).toBeInTheDocument();
     expect(screen.getByText("2 questions")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Edit question 1" })).toBeInTheDocument();
-    expect(screen.getByRole("form", { name: "Add a question" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Edit question 1" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("form", { name: "Add a question" }),
+    ).toBeInTheDocument();
   });
 
   it("is read-only with the reason when the posting is no longer pending", async () => {
-    mocks.get.mockResolvedValue(envelope(bank({ posting_status: "open", editable: false })));
-    mount();
-    expect(await screen.findByText(/so the question bank is read-only/i)).toHaveTextContent(
-      "This posting is approved",
+    mocks.get.mockResolvedValue(
+      envelope(bank({ posting_status: "open", editable: false })),
     );
-    expect(screen.queryByRole("button", { name: /edit question/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("form", { name: "Add a question" })).not.toBeInTheDocument();
+    mount();
+    expect(
+      await screen.findByText(/so the question bank is read-only/i),
+    ).toHaveTextContent("This posting is approved");
+    expect(
+      screen.queryByRole("button", { name: /edit question/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("form", { name: "Add a question" }),
+    ).not.toBeInTheDocument();
   });
 
   it("generates an empty bank once and shows the progress", async () => {
@@ -95,44 +128,77 @@ describe("QuestionBank", () => {
     let resolve: (value: unknown) => void = () => {};
     mocks.post.mockReturnValue(new Promise((r) => (resolve = r)));
     mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Generate questions" }));
-    expect(await screen.findByRole("button", { name: "Generating questions…" })).toBeDisabled();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Generate questions" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Generating questions…" }),
+    ).toBeDisabled();
     expect(mocks.post).toHaveBeenCalledWith(`${path}/generate`);
     resolve(envelope({ questions: [q1] }));
     expect(await screen.findByText("Explain Go channels.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /generate/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /generate/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the server message when generation fails", async () => {
     mocks.get.mockResolvedValue(envelope(bank({ questions: [] })));
     mocks.post.mockRejectedValue(
-      failure(409, "REQUIREMENTS_NOT_CONFIRMED", "confirm the job description requirements before generating questions"),
+      failure(
+        409,
+        "REQUIREMENTS_NOT_CONFIRMED",
+        "confirm the job description requirements before generating questions",
+      ),
     );
     mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Generate questions" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("confirm the job description requirements");
-    expect(screen.getByRole("button", { name: "Generate questions" })).toBeEnabled();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Generate questions" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "confirm the job description requirements",
+    );
+    expect(
+      screen.getByRole("button", { name: "Generate questions" }),
+    ).toBeEnabled();
   });
 
   it("offers no generation when the server has it switched off", async () => {
-    mocks.get.mockResolvedValue(envelope(bank({ questions: [], generation_size: 0 })));
+    mocks.get.mockResolvedValue(
+      envelope(bank({ questions: [], generation_size: 0 })),
+    );
     mount();
-    expect(await screen.findByText(/automatic generation isn.t available/i)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Generate questions" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(/automatic generation isn.t available/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Generate questions" }),
+    ).not.toBeInTheDocument();
   });
 
   it("adds a question with exactly the body Go accepts", async () => {
     mocks.get.mockResolvedValue(envelope(bank()));
-    const added = { id: "44444444-4444-4444-8444-444444444443", content: "What is a goroutine leak?" };
+    const added = {
+      id: "44444444-4444-4444-8444-444444444443",
+      content: "What is a goroutine leak?",
+    };
     mocks.post.mockResolvedValue(envelope(added));
     mount();
     const form = await screen.findByRole("form", { name: "Add a question" });
     fireEvent.change(within(form).getByLabelText("Add a question"), {
       target: { value: "  What is a goroutine leak?  " },
     });
-    fireEvent.click(await within(form).findByRole("button", { name: "Add question" }));
-    await waitFor(() => expect(mocks.post).toHaveBeenCalledWith(path, { content: "What is a goroutine leak?" }));
-    expect(await screen.findByText("What is a goroutine leak?")).toBeInTheDocument();
+    fireEvent.click(
+      await within(form).findByRole("button", { name: "Add question" }),
+    );
+    await waitFor(() =>
+      expect(mocks.post).toHaveBeenCalledWith(path, {
+        content: "What is a goroutine leak?",
+      }),
+    );
+    expect(
+      await screen.findByText("What is a goroutine leak?"),
+    ).toBeInTheDocument();
     expect(screen.getByText("3 questions")).toBeInTheDocument();
   });
 
@@ -143,35 +209,61 @@ describe("QuestionBank", () => {
     fireEvent.change(within(form).getByLabelText("Add a question"), {
       target: { value: "This question is too long" },
     });
-    expect(await within(form).findByRole("alert")).toHaveTextContent("10 characters or fewer");
-    expect(within(form).getByRole("button", { name: "Add question" })).toBeDisabled();
+    expect(await within(form).findByRole("alert")).toHaveTextContent(
+      "10 characters or fewer",
+    );
+    expect(
+      within(form).getByRole("button", { name: "Add question" }),
+    ).toBeDisabled();
   });
 
   it("keeps the edit draft when saving fails", async () => {
     mocks.get.mockResolvedValue(envelope(bank()));
-    mocks.patch.mockRejectedValue(failure(500, "INTERNAL_ERROR", "something went wrong"));
+    mocks.patch.mockRejectedValue(
+      failure(500, "INTERNAL_ERROR", "something went wrong"),
+    );
     mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Edit question 1" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit question 1" }),
+    );
     const field = screen.getByRole("textbox", { name: "Edit question 1" });
-    fireEvent.change(field, { target: { value: "Explain buffered channels." } });
-    fireEvent.click(await screen.findByRole("button", { name: "Save question" }));
+    fireEvent.change(field, {
+      target: { value: "Explain buffered channels." },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save question" }),
+    );
     await waitFor(() =>
-      expect(mocks.patch).toHaveBeenCalledWith(`${path}/${q1.id}`, { content: "Explain buffered channels." }),
+      expect(mocks.patch).toHaveBeenCalledWith(`${path}/${q1.id}`, {
+        content: "Explain buffered channels.",
+      }),
     );
     expect(await screen.findByText("something went wrong")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Edit question 1" })).toHaveValue("Explain buffered channels.");
+    expect(
+      screen.getByRole("textbox", { name: "Edit question 1" }),
+    ).toHaveValue("Explain buffered channels.");
   });
 
   it("shows the backend conflict when a used question can't be deleted", async () => {
     mocks.get.mockResolvedValue(envelope(bank()));
     mocks.delete.mockRejectedValue(
-      failure(409, "CORE_QUESTION_IN_USE", "this question was already used in an interview"),
+      failure(
+        409,
+        "CORE_QUESTION_IN_USE",
+        "this question was already used in an interview",
+      ),
     );
     mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Delete question 2" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete question 2" }),
+    );
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Delete question" }));
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("already used in an interview");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Delete question" }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "already used in an interview",
+    );
     expect(screen.getByText("How do you index a table?")).toBeInTheDocument();
   });
 
@@ -179,45 +271,89 @@ describe("QuestionBank", () => {
     mocks.get.mockResolvedValue(envelope(bank()));
     mocks.delete.mockResolvedValue({ status: 204 });
     mount();
-    fireEvent.click(await screen.findByRole("button", { name: "Delete question 2" }));
-    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Delete question" }));
-    await waitFor(() => expect(screen.queryByText("How do you index a table?")).not.toBeInTheDocument());
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete question 2" }),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Delete question",
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText("How do you index a table?"),
+      ).not.toBeInTheDocument(),
+    );
     expect(mocks.delete).toHaveBeenCalledWith(`${path}/${q2.id}`);
   });
 
   it("refreshes into read-only when the posting was locked meanwhile", async () => {
     mocks.get
       .mockResolvedValueOnce(envelope(bank()))
-      .mockResolvedValue(envelope(bank({ posting_status: "open", editable: false })));
+      .mockResolvedValue(
+        envelope(bank({ posting_status: "open", editable: false })),
+      );
     mocks.post.mockRejectedValue(
-      failure(409, "QUESTION_BANK_LOCKED", "the question bank can only be changed while the job posting is pending"),
+      failure(
+        409,
+        "QUESTION_BANK_LOCKED",
+        "the question bank can only be changed while the job posting is pending",
+      ),
     );
     mount();
     const form = await screen.findByRole("form", { name: "Add a question" });
-    fireEvent.change(within(form).getByLabelText("Add a question"), { target: { value: "New one?" } });
-    fireEvent.click(await within(form).findByRole("button", { name: "Add question" }));
-    expect(await screen.findByText(/can only be changed while the job posting is pending/)).toBeInTheDocument();
-    expect(await screen.findByText(/so the question bank is read-only/i)).toBeInTheDocument();
+    fireEvent.change(within(form).getByLabelText("Add a question"), {
+      target: { value: "New one?" },
+    });
+    fireEvent.click(
+      await within(form).findByRole("button", { name: "Add question" }),
+    );
+    expect(
+      await screen.findByText(
+        /can only be changed while the job posting is pending/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/so the question bank is read-only/i),
+    ).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledTimes(2);
   });
 
   it("shows access denied for a non-owner or wrong role", async () => {
-    mocks.get.mockRejectedValue(failure(403, "FORBIDDEN", "only recruiters can manage a job posting's question bank"));
+    mocks.get.mockRejectedValue(
+      failure(
+        403,
+        "FORBIDDEN",
+        "only recruiters can manage a job posting's question bank",
+      ),
+    );
     mount();
     expect(
-      await screen.findByRole("heading", { name: /don't have access to this question bank/i }),
+      await screen.findByRole("heading", {
+        name: /don't have access to this question bank/i,
+      }),
     ).toBeInTheDocument();
   });
 
   it("shows a missing posting without a retry", async () => {
-    mocks.get.mockRejectedValue(failure(404, "JOB_POSTING_NOT_FOUND", "job posting not found"));
+    mocks.get.mockRejectedValue(
+      failure(404, "JOB_POSTING_NOT_FOUND", "job posting not found"),
+    );
     mount();
-    expect(await screen.findByRole("heading", { name: "This job posting doesn't exist" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", {
+        name: "This job posting doesn't exist",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
   });
 
   it("retries after a load failure", async () => {
-    mocks.get.mockRejectedValueOnce(failure(500, "INTERNAL_ERROR", "boom")).mockResolvedValue(envelope(bank()));
+    mocks.get
+      .mockRejectedValueOnce(failure(500, "INTERNAL_ERROR", "boom"))
+      .mockResolvedValue(envelope(bank()));
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Explain Go channels.")).toBeInTheDocument();

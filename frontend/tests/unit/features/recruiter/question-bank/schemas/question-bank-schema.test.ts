@@ -6,7 +6,12 @@ import {
 } from "@/features/recruiter/question-bank/schemas/question-bank-schema";
 
 const bank = {
-  questions: [{ id: "44444444-4444-4444-8444-444444444444", content: "Explain Go channels." }],
+  questions: [
+    {
+      id: "44444444-4444-4444-8444-444444444444",
+      content: "Explain Go channels.",
+    },
+  ],
   posting_status: "pending",
   editable: true,
   max_question_length: 1000,
@@ -15,15 +20,23 @@ const bank = {
 
 describe("question bank schema", () => {
   it("accepts the Go list contract", () => {
-    expect(bankEnvelopeSchema.parse({ success: true, data: bank }).data.editable).toBe(true);
+    expect(
+      bankEnvelopeSchema.parse({ success: true, data: bank }).data.editable,
+    ).toBe(true);
   });
 
   it("rejects contract drift", () => {
     expect(() =>
-      bankEnvelopeSchema.parse({ success: true, data: { ...bank, posting_status: "draft" } }),
+      bankEnvelopeSchema.parse({
+        success: true,
+        data: { ...bank, posting_status: "draft" },
+      }),
     ).toThrow();
     expect(() =>
-      bankEnvelopeSchema.parse({ success: true, data: { questions: bank.questions } }),
+      bankEnvelopeSchema.parse({
+        success: true,
+        data: { questions: bank.questions },
+      }),
     ).toThrow();
   });
 
@@ -37,6 +50,8 @@ describe("question bank schema", () => {
     expect(schema.safeParse({ content: " 12345 " }).success).toBe(true);
     const tooLong = schema.safeParse({ content: "123456" });
     expect(tooLong.success).toBe(false);
-    expect(tooLong.error?.issues[0]?.message).toBe("Keep the question to 5 characters or fewer.");
+    expect(tooLong.error?.issues[0]?.message).toBe(
+      "Keep the question to 5 characters or fewer.",
+    );
   });
 });

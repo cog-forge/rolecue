@@ -47,10 +47,10 @@ type CreateLinkResponse struct {
 }
 
 type WebhookData struct {
-	Code      string `json:"code"`
-	Desc      string `json:"desc"`
-	Success   bool   `json:"success"`
-	Data      struct {
+	Code    string `json:"code"`
+	Desc    string `json:"desc"`
+	Success bool   `json:"success"`
+	Data    struct {
 		OrderCode       int64  `json:"orderCode"`
 		Amount          int    `json:"amount"`
 		Description     string `json:"description"`

@@ -144,98 +144,104 @@ beforeEach(() => {
 });
 
 describe("NewJobPosting", () => {
-  it("uploads the PDF, extracts, requires confirmation, then submits exactly the Go body", async () => {
-    mocks.post.mockImplementation((path: string) =>
-      Promise.resolve(
-        path === "/job-postings/documents"
-          ? uploaded
-          : path === "/job-postings/extract"
-            ? envelope({
-                title: "Backend Engineer",
-                seniority_level: "senior",
-                requirements: [
-                  {
-                    name: "Go",
-                    target: "programming_language",
-                    type: "required",
-                  },
-                ],
-              })
-            : envelope(created),
-      ),
-    );
-    const client = mount();
-    expect(
-      screen.getByRole("button", { name: "Suggest requirements" }),
-    ).toBeDisabled();
-    await fillAndExtract();
-    const [path, body] = mocks.post.mock.calls[0] as [string, FormData];
-    expect(path).toBe("/job-postings/documents");
-    expect((body.get("file") as File).name).toBe("backend.pdf");
-    expect(screen.getByText("backend.pdf")).toBeInTheDocument();
-    expect(mocks.post).toHaveBeenCalledWith("/job-postings/extract", {
-      raw_text: jdText,
-    });
-    expect(screen.getByLabelText("Title (required)")).toHaveValue(
-      "Backend Engineer",
-    );
-    expect(
-      screen.getByRole("combobox", { name: "Seniority (required)" }),
-    ).toHaveTextContent("Senior");
+  it(
+    "uploads the PDF, extracts, requires confirmation, then submits exactly the Go body",
+    async () => {
+      mocks.post.mockImplementation((path: string) =>
+        Promise.resolve(
+          path === "/job-postings/documents"
+            ? uploaded
+            : path === "/job-postings/extract"
+              ? envelope({
+                  title: "Backend Engineer",
+                  seniority_level: "senior",
+                  requirements: [
+                    {
+                      name: "Go",
+                      target: "programming_language",
+                      type: "required",
+                    },
+                  ],
+                })
+              : envelope(created),
+        ),
+      );
+      const client = mount();
+      expect(
+        screen.getByRole("button", { name: "Suggest requirements" }),
+      ).toBeDisabled();
+      await fillAndExtract();
+      const [path, body] = mocks.post.mock.calls[0] as [string, FormData];
+      expect(path).toBe("/job-postings/documents");
+      expect((body.get("file") as File).name).toBe("backend.pdf");
+      expect(screen.getByText("backend.pdf")).toBeInTheDocument();
+      expect(mocks.post).toHaveBeenCalledWith("/job-postings/extract", {
+        raw_text: jdText,
+      });
+      expect(screen.getByLabelText("Title (required)")).toHaveValue(
+        "Backend Engineer",
+      );
+      expect(
+        screen.getByRole("combobox", { name: "Seniority (required)" }),
+      ).toHaveTextContent("Senior");
 
-    await choose("Interviewer model (required)", "Linh");
-    await choose("Interviewer voice (required)", "Ava");
-    fireEvent.change(screen.getByLabelText("Interview length (minutes)"), {
-      target: { value: "45" },
-    });
+      await choose("Interviewer model (required)", "Linh");
+      await choose("Interviewer voice (required)", "Ava");
+      fireEvent.change(screen.getByLabelText("Interview length (minutes)"), {
+        target: { value: "45" },
+      });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Submit for approval" }),
-    );
-    expect(
-      await screen.findByText(
-        "Confirm that you reviewed the requirements before submitting.",
-      ),
-    ).toBeInTheDocument();
-    expect(mocks.post).toHaveBeenCalledTimes(2);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit for approval" }),
+      );
+      expect(
+        await screen.findByText(
+          "Confirm that you reviewed the requirements before submitting.",
+        ),
+      ).toBeInTheDocument();
+      expect(mocks.post).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Submit for approval" }),
-    );
-    await waitFor(() =>
-      expect(mocks.post).toHaveBeenCalledWith("/job-postings", {
-        title: "Backend Engineer",
-        document_id: documentId,
-        seniority_level: "senior",
-        requirements: [
-          { name: "Go", target: "programming_language", type: "required" },
-        ],
-        location: null,
-        employment_type: null,
-        salary_min: null,
-        salary_max: null,
-        interview_duration: 45,
-        required_avatar_id: avatarId,
-        required_voice_id: voiceId,
-      }),
-    );
-    await waitFor(() =>
-      expect(mocks.replace).toHaveBeenCalledWith(
-        `/recruiter/job-postings/${postingId}`,
-      ),
-    );
-    expect(
-      client.getQueryData([
-        "recruiter-job-postings",
-        mocks.user.id,
-        "detail",
-        postingId,
-      ]),
-    ).toEqual(created);
-  }, LONG_FLOW_MS);
+      fireEvent.click(
+        screen.getByRole("checkbox", {
+          name: /i reviewed these requirements/i,
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit for approval" }),
+      );
+      await waitFor(() =>
+        expect(mocks.post).toHaveBeenCalledWith("/job-postings", {
+          title: "Backend Engineer",
+          document_id: documentId,
+          seniority_level: "senior",
+          requirements: [
+            { name: "Go", target: "programming_language", type: "required" },
+          ],
+          location: null,
+          employment_type: null,
+          salary_min: null,
+          salary_max: null,
+          interview_duration: 45,
+          required_avatar_id: avatarId,
+          required_voice_id: voiceId,
+        }),
+      );
+      await waitFor(() =>
+        expect(mocks.replace).toHaveBeenCalledWith(
+          `/recruiter/job-postings/${postingId}`,
+        ),
+      );
+      expect(
+        client.getQueryData([
+          "recruiter-job-postings",
+          mocks.user.id,
+          "detail",
+          postingId,
+        ]),
+      ).toEqual(created);
+    },
+    LONG_FLOW_MS,
+  );
 
   it("keeps the PDF and explains when extraction fails", async () => {
     mocks.post.mockImplementation((path: string) =>
@@ -376,76 +382,81 @@ describe("NewJobPosting", () => {
     expect(screen.getByLabelText("Requirement 1")).toHaveValue("Go");
   });
 
-  it("asks for confirmation again when requirements or the JD change after ticking", async () => {
-    mocks.post.mockImplementation((path: string) =>
-      Promise.resolve(
-        path === "/job-postings/documents"
-          ? uploaded
-          : path === "/job-postings/extract"
+  it(
+    "asks for confirmation again when requirements or the JD change after ticking",
+    async () => {
+      mocks.post.mockImplementation((path: string) =>
+        Promise.resolve(
+          path === "/job-postings/documents"
+            ? uploaded
+            : path === "/job-postings/extract"
+              ? envelope({
+                  title: "Backend Engineer",
+                  seniority_level: "senior",
+                  requirements: [
+                    {
+                      name: "Go",
+                      target: "programming_language",
+                      type: "required",
+                    },
+                  ],
+                })
+              : envelope(created),
+        ),
+      );
+      mount();
+      await fillAndExtract();
+      await choose("Interviewer model (required)", "Linh");
+      await choose("Interviewer voice (required)", "Ava");
+      const confirm = () =>
+        screen.getByRole("checkbox", {
+          name: /i reviewed these requirements/i,
+        });
+
+      // Editing a requirement row clears the tick.
+      fireEvent.click(confirm());
+      expect(confirm()).toBeChecked();
+      fireEvent.change(screen.getByLabelText("Requirement 1"), {
+        target: { value: "Python" },
+      });
+      await waitFor(() => expect(confirm()).not.toBeChecked());
+
+      // Changing the seniority clears it too.
+      fireEvent.click(confirm());
+      await choose("Seniority (required)", "Junior");
+      await waitFor(() => expect(confirm()).not.toBeChecked());
+
+      // So does a different JD PDF.
+      fireEvent.click(confirm());
+      mocks.post.mockImplementation((path: string) =>
+        Promise.resolve(
+          path === "/job-postings/documents"
             ? envelope({
-                title: "Backend Engineer",
-                seniority_level: "senior",
-                requirements: [
-                  {
-                    name: "Go",
-                    target: "programming_language",
-                    type: "required",
-                  },
-                ],
+                document_id: "88888888-8888-4888-8888-888888888888",
+                raw_text:
+                  "We hire Python developers for data pipelines. ".repeat(3),
               })
             : envelope(created),
-      ),
-    );
-    mount();
-    await fillAndExtract();
-    await choose("Interviewer model (required)", "Linh");
-    await choose("Interviewer voice (required)", "Ava");
-    const confirm = () =>
-      screen.getByRole("checkbox", { name: /i reviewed these requirements/i });
+        ),
+      );
+      pickFile(pdf("python.pdf"));
+      expect(await screen.findByText("python.pdf")).toBeInTheDocument();
+      await waitFor(() => expect(confirm()).not.toBeChecked());
 
-    // Editing a requirement row clears the tick.
-    fireEvent.click(confirm());
-    expect(confirm()).toBeChecked();
-    fireEvent.change(screen.getByLabelText("Requirement 1"), {
-      target: { value: "Python" },
-    });
-    await waitFor(() => expect(confirm()).not.toBeChecked());
-
-    // Changing the seniority clears it too.
-    fireEvent.click(confirm());
-    await choose("Seniority (required)", "Junior");
-    await waitFor(() => expect(confirm()).not.toBeChecked());
-
-    // So does a different JD PDF.
-    fireEvent.click(confirm());
-    mocks.post.mockImplementation((path: string) =>
-      Promise.resolve(
-        path === "/job-postings/documents"
-          ? envelope({
-              document_id: "88888888-8888-4888-8888-888888888888",
-              raw_text: "We hire Python developers for data pipelines. ".repeat(
-                3,
-              ),
-            })
-          : envelope(created),
-      ),
-    );
-    pickFile(pdf("python.pdf"));
-    expect(await screen.findByText("python.pdf")).toBeInTheDocument();
-    await waitFor(() => expect(confirm()).not.toBeChecked());
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Submit for approval" }),
-    );
-    expect(
-      await screen.findByText(
-        "Confirm that you reviewed the requirements before submitting.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      mocks.post.mock.calls.filter(([path]) => path === "/job-postings"),
-    ).toHaveLength(0);
-  }, LONG_FLOW_MS);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit for approval" }),
+      );
+      expect(
+        await screen.findByText(
+          "Confirm that you reviewed the requirements before submitting.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        mocks.post.mock.calls.filter(([path]) => path === "/job-postings"),
+      ).toHaveLength(0);
+    },
+    LONG_FLOW_MS,
+  );
 
   it("says so when the recruiter has no interviewer model", async () => {
     mocks.get.mockImplementation((path: string) =>

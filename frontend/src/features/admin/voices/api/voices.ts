@@ -22,12 +22,16 @@ export async function listVoices(filters: VoiceFilters, signal?: AbortSignal) {
 }
 
 export async function removeVoice(id: string) {
-  const response = await apiClient.delete<unknown>(`/admin/voices/${encodeURIComponent(id)}`);
+  const response = await apiClient.delete<unknown>(
+    `/admin/voices/${encodeURIComponent(id)}`,
+  );
   return removeVoiceEnvelopeSchema.parse(response.data).data;
 }
 
 // Safe to repeat: reactivating an active voice changes nothing. A deleted voice is a 404.
 export async function activateVoice(id: string) {
-  const response = await apiClient.patch<unknown>(`/admin/voices/${encodeURIComponent(id)}/activate`);
+  const response = await apiClient.patch<unknown>(
+    `/admin/voices/${encodeURIComponent(id)}/activate`,
+  );
   return voiceEnvelopeSchema.parse(response.data).data;
 }

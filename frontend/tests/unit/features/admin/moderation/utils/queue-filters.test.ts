@@ -48,9 +48,9 @@ describe("parseQueueFilters", () => {
 describe("queueSearch", () => {
   it("leaves defaults out of the URL", () => {
     expect(queueSearch(defaultQueueFilters)).toBe("");
-    expect(queueSearch({ ...defaultQueueFilters, status: "all", page: 2 })).toBe(
-      "?status=all&page=2",
-    );
+    expect(
+      queueSearch({ ...defaultQueueFilters, status: "all", page: 2 }),
+    ).toBe("?status=all&page=2");
   });
 
   it("round-trips through parseQueueFilters", () => {

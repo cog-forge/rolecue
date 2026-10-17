@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { PostingReview } from "@/features/admin/moderation/components/posting-review";
@@ -18,7 +24,9 @@ const mocks = vi.hoisted(() => ({
     image: null,
   },
 }));
-vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get, post: mocks.post } }));
+vi.mock("@/lib/api/client", () => ({
+  apiClient: { get: mocks.get, post: mocks.post },
+}));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
 }));
@@ -63,7 +71,10 @@ function failure(status: number, code: string, message: string) {
 }
 function mount() {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity },
+      mutations: { retry: false },
+    },
   });
   client.setQueryData(["auth", "me"], mocks.user);
   render(
@@ -85,15 +96,19 @@ describe("PostingReview", () => {
     mocks.get.mockResolvedValue(envelope(posting()));
     mount();
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Go Backend Engineer" }),
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Go Backend Engineer",
+      }),
     ).toBeInTheDocument();
     expect(screen.getByTitle("Job description PDF")).toBeInTheDocument();
-    expect(screen.getByText(/core questions in the question bank/i)).toHaveTextContent("50");
+    expect(
+      screen.getByText(/core questions in the question bank/i),
+    ).toHaveTextContent("50");
     expect(screen.getByText("1,500 – 2,500")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /back to moderation queue/i })).toHaveAttribute(
-      "href",
-      "/admin/job-postings?status=all",
-    );
+    expect(
+      screen.getByRole("link", { name: /back to moderation queue/i }),
+    ).toHaveAttribute("href", "/admin/job-postings?status=all");
   });
 
   it("disables Approve with an explanation when the bank is empty", async () => {
@@ -112,25 +127,42 @@ describe("PostingReview", () => {
     mocks.post.mockResolvedValue(envelope(posting({ status: "open" })));
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
-    const dialog = await screen.findByRole("dialog", { name: /approve this posting/i });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Approve posting" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: /approve this posting/i,
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Approve posting" }),
+    );
     await waitFor(() =>
-      expect(mocks.post).toHaveBeenCalledWith(`/admin/job-postings/${id}/approve`),
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/admin/job-postings/${id}/approve`,
+      ),
     );
     expect(await screen.findByText("Approved")).toBeInTheDocument();
-    expect(mocks.toast).toHaveBeenCalledWith("Posting approved", expect.any(Object));
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(mocks.toast).toHaveBeenCalledWith(
+      "Posting approved",
+      expect.any(Object),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
   });
 
   it("requires a reason to reject and sends exactly what Go accepts", async () => {
     mocks.get.mockResolvedValue(envelope(posting()));
     mocks.post.mockResolvedValue(
-      envelope(posting({ status: "rejected", reject_reason: "Salary is missing" })),
+      envelope(
+        posting({ status: "rejected", reject_reason: "Salary is missing" }),
+      ),
     );
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
-    const dialog = await screen.findByRole("dialog", { name: /reject this posting/i });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Reject posting" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: /reject this posting/i,
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Reject posting" }),
+    );
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       /tell the recruiter why/i,
     );
@@ -138,25 +170,36 @@ describe("PostingReview", () => {
     const reason = within(dialog).getByLabelText(/reason for the recruiter/i);
     expect(reason).toHaveAttribute("aria-invalid", "true");
     fireEvent.change(reason, { target: { value: "  Salary is missing  " } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Reject posting" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Reject posting" }),
+    );
     await waitFor(() =>
-      expect(mocks.post).toHaveBeenCalledWith(`/admin/job-postings/${id}/reject`, {
-        reject_reason: "Salary is missing",
-      }),
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/admin/job-postings/${id}/reject`,
+        {
+          reject_reason: "Salary is missing",
+        },
+      ),
     );
     expect(await screen.findByText(/“Salary is missing”/)).toBeInTheDocument();
   });
 
   it("keeps the reason and shows the server message when rejecting fails", async () => {
     mocks.get.mockResolvedValue(envelope(posting()));
-    mocks.post.mockRejectedValue(failure(500, "INTERNAL_ERROR", "Database is down"));
+    mocks.post.mockRejectedValue(
+      failure(500, "INTERNAL_ERROR", "Database is down"),
+    );
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
     const dialog = await screen.findByRole("dialog");
     const reason = within(dialog).getByLabelText(/reason for the recruiter/i);
     fireEvent.change(reason, { target: { value: "Duplicate posting" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Reject posting" }));
-    expect(await within(dialog).findByText("Database is down")).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Reject posting" }),
+    );
+    expect(
+      await within(dialog).findByText("Database is down"),
+    ).toBeInTheDocument();
     expect(reason).toHaveValue("Duplicate posting");
   });
 
@@ -174,18 +217,28 @@ describe("PostingReview", () => {
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Approve posting" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Approve posting" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /only a pending job posting can be approved or rejected/i,
     );
     await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText(/already been decided/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/already been decided/i),
+    ).toBeInTheDocument();
   });
 
   it("shows not found without a retry for a missing posting", async () => {
-    mocks.get.mockRejectedValue(failure(404, "JOB_POSTING_NOT_FOUND", "job posting not found"));
+    mocks.get.mockRejectedValue(
+      failure(404, "JOB_POSTING_NOT_FOUND", "job posting not found"),
+    );
     mount();
-    expect(await screen.findByRole("alert")).toHaveTextContent(/doesn't exist/i);
-    expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /doesn't exist/i,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Try again" }),
+    ).not.toBeInTheDocument();
   });
 });
