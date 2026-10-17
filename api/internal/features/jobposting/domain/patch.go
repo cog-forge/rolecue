@@ -64,11 +64,11 @@ func decodeChange[T any](data []byte, present *bool, value **T) error {
 // be cleared; the optional details may be cleared with null. Requirements, when present, replace
 // the list. Every field may be resent unchanged (so a client can submit the whole form): an
 // unchanged seniority or requirement list does not count as a change to the question bank's
-// inputs, and an unchanged voice is not a new voice selection. RawText may change only on a
-// rejected posting, to fix what the Admin objected to.
+// inputs, and an unchanged voice is not a new voice selection. DocumentID (a newly uploaded JD PDF)
+// may change only on a rejected posting, to fix what the Admin objected to.
 type Edit struct {
 	Title             StringChange       `json:"title" swaggertype:"string"`
-	RawText           StringChange       `json:"raw_text" swaggertype:"string"`
+	DocumentID        StringChange       `json:"document_id" swaggertype:"string"`
 	SeniorityLevel    StringChange       `json:"seniority_level" swaggertype:"string" enums:"intern,junior,mid,senior,lead"`
 	Requirements      RequirementsChange `json:"requirements" swaggertype:"array,object"`
 	Location          StringChange       `json:"location" swaggertype:"string" extensions:"x-nullable"`

@@ -74,7 +74,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	walletHandler := provider.ProvideWalletHandler(service2)
 	questionBankHandler := provider.ProvideQuestionBankHandler(service)
 	repository4 := provider.ProvideModerationRepository(pool)
-	service3, err := provider.ProvideModerationService(repository4, logger)
+	service3, err := provider.ProvideModerationService(repository4, store, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()

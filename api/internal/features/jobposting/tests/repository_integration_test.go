@@ -156,7 +156,7 @@ func newFixture(t *testing.T) (context.Context, fixture) {
 func (f fixture) create(t *testing.T, ctx context.Context, title string) uuid.UUID {
 	t.Helper()
 	record, err := f.repo.Create(ctx, f.recruiter, domain.NewPosting{ContentPath: "jp/" + f.seed.tag, CreateInput: domain.CreateInput{
-		Title: title, SeniorityLevel: domain.Senior, Location: ptr("Ho Chi Minh City"), SalaryMin: ptr(int32(1000)),
+		Title: title, RawText: "JD text read from the PDF", SeniorityLevel: domain.Senior, Location: ptr("Ho Chi Minh City"), SalaryMin: ptr(int32(1000)),
 		SalaryMax: ptr(int32(2000)), InterviewDuration: ptr(int32(30)), RequiredAvatarID: f.avatar, RequiredVoiceID: f.voice,
 		Requirements: []domain.PostingRequirement{
 			{Name: "Go", Target: "programming_language", Type: domain.Required},
@@ -180,6 +180,9 @@ func TestCreateAndGet(t *testing.T) {
 	}
 	if got.Status != domain.StatusPending || got.SeniorityLevel != domain.Senior || got.ContentPath != "jp/"+f.seed.tag {
 		t.Fatalf("status=%s level=%s path=%s", got.Status, got.SeniorityLevel, got.ContentPath)
+	}
+	if got.StoredText == nil || *got.StoredText != "JD text read from the PDF" {
+		t.Fatalf("stored text = %v", got.StoredText)
 	}
 	if len(got.Requirements) != 2 || got.Requirements[0].Name != "Go" || got.Requirements[1].Type != domain.Preferred {
 		t.Fatalf("requirements = %+v", got.Requirements)
@@ -533,13 +536,13 @@ func TestRejectedPostingCorrectionAndResubmit(t *testing.T) {
 		t.Fatalf("after seniority edit: level=%s bank=%d status=%s", got.SeniorityLevel, got.CoreQuestionCount, got.Status)
 	}
 
-	// Corrected text points the JD at the new object and clears the bank too.
+	// A replacement PDF points the JD at the new object, stores its text and clears the bank too.
 	question()
-	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, ptr("jp/corrected")); err != nil {
+	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, &domain.NewDocument{ContentPath: "jp/corrected", RawText: "Corrected JD text"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := get(); got.ContentPath != "jp/corrected" || got.CoreQuestionCount != 0 {
-		t.Fatalf("after text edit: path=%q bank=%d", got.ContentPath, got.CoreQuestionCount)
+	if got := get(); got.ContentPath != "jp/corrected" || got.StoredText == nil || *got.StoredText != "Corrected JD text" || got.CoreQuestionCount != 0 {
+		t.Fatalf("after PDF edit: path=%q text=%v bank=%d", got.ContentPath, got.StoredText, got.CoreQuestionCount)
 	}
 
 	// Only the owner can resubmit.
@@ -556,7 +559,7 @@ func TestRejectedPostingCorrectionAndResubmit(t *testing.T) {
 	}
 
 	// Back in pending, the text is fixed again and the bank lock applies.
-	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, ptr("jp/late")); !errors.Is(err, domain.ErrTextLocked) {
+	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, &domain.NewDocument{ContentPath: "jp/late", RawText: "Late JD text"}); !errors.Is(err, domain.ErrTextLocked) {
 		t.Fatalf("text edit while pending: %v", err)
 	}
 	question()

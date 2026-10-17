@@ -112,7 +112,7 @@ const getOwnedPosting = `-- name: GetOwnedPosting :one
 SELECT jp.id, jp.jd_id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
        jp.salary_min, jp.salary_max, jp.interview_slot, jp.interview_duration, jp.created_at,
        jp.required_avatar_id, a.name AS avatar_name, jp.required_voice_id, v.name AS voice_name,
-       jd.content_path, lower(l.name) AS level_name,
+       jd.content_path, jd.raw_text, lower(l.name) AS level_name,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
 FROM public.job_postings jp
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
@@ -145,6 +145,7 @@ type GetOwnedPostingRow struct {
 	RequiredVoiceID   uuid.UUID
 	VoiceName         *string
 	ContentPath       *string
+	RawText           *string
 	LevelName         string
 	CoreQuestionCount int64
 }
@@ -170,6 +171,7 @@ func (q *Queries) GetOwnedPosting(ctx context.Context, arg GetOwnedPostingParams
 		&i.RequiredVoiceID,
 		&i.VoiceName,
 		&i.ContentPath,
+		&i.RawText,
 		&i.LevelName,
 		&i.CoreQuestionCount,
 	)
@@ -177,18 +179,20 @@ func (q *Queries) GetOwnedPosting(ctx context.Context, arg GetOwnedPostingParams
 }
 
 const insertJobDescription = `-- name: InsertJobDescription :one
-INSERT INTO public.job_descriptions (content_path, level_id)
-VALUES ($1, $2)
+INSERT INTO public.job_descriptions (content_path, raw_text, level_id)
+VALUES ($1, $2, $3)
 RETURNING id
 `
 
 type InsertJobDescriptionParams struct {
 	ContentPath *string
+	RawText     *string
 	LevelID     uuid.UUID
 }
 
+// content_path is the storage key of the JD PDF; raw_text is the text read from it.
 func (q *Queries) InsertJobDescription(ctx context.Context, arg InsertJobDescriptionParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, insertJobDescription, arg.ContentPath, arg.LevelID)
+	row := q.db.QueryRow(ctx, insertJobDescription, arg.ContentPath, arg.RawText, arg.LevelID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -436,17 +440,18 @@ func (q *Queries) ResubmitPosting(ctx context.Context, arg ResubmitPostingParams
 	return err
 }
 
-const updateJDContentPath = `-- name: UpdateJDContentPath :exec
-UPDATE public.job_descriptions SET content_path = $1 WHERE id = $2
+const updateJDDocument = `-- name: UpdateJDDocument :exec
+UPDATE public.job_descriptions SET content_path = $1, raw_text = $2 WHERE id = $3
 `
 
-type UpdateJDContentPathParams struct {
+type UpdateJDDocumentParams struct {
 	ContentPath *string
+	RawText     *string
 	ID          uuid.UUID
 }
 
-func (q *Queries) UpdateJDContentPath(ctx context.Context, arg UpdateJDContentPathParams) error {
-	_, err := q.db.Exec(ctx, updateJDContentPath, arg.ContentPath, arg.ID)
+func (q *Queries) UpdateJDDocument(ctx context.Context, arg UpdateJDDocumentParams) error {
+	_, err := q.db.Exec(ctx, updateJDDocument, arg.ContentPath, arg.RawText, arg.ID)
 	return err
 }
 

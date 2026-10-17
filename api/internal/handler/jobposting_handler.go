@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -22,6 +23,8 @@ type JobPostingService interface {
 	Get(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
 	Update(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID, patch domain.Edit) (domain.JobPosting, error)
 	Resubmit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
+	UploadDocument(ctx context.Context, role string, data []byte) (domain.Document, error)
+	Document(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.DocumentLink, error)
 }
 type JobPostingExtractor interface {
 	Suggest(ctx context.Context, role, raw string) (domain.Suggestion, error)
@@ -40,11 +43,11 @@ type ExtractJobPostingRequest struct {
 	RawText *string `json:"raw_text" binding:"required"`
 }
 
-// CreateJobPostingRequest carries the Recruiter's JD text and the requirements they confirmed in
-// review. Required fields are pointers so a missing field differs from a zero value.
+// CreateJobPostingRequest carries the Recruiter's uploaded JD PDF and the requirements they
+// confirmed in review. Required fields are pointers so a missing field differs from a zero value.
 type CreateJobPostingRequest struct {
 	Title             *string                      `json:"title" binding:"required"`
-	RawText           *string                      `json:"raw_text" binding:"required"`
+	DocumentID        *string                      `json:"document_id" binding:"required" format:"uuid"`
 	SeniorityLevel    *string                      `json:"seniority_level" binding:"required" enums:"intern,junior,mid,senior,lead"`
 	Requirements      *[]domain.PostingRequirement `json:"requirements" binding:"required"`
 	Location          *string                      `json:"location"`
@@ -58,6 +61,12 @@ type CreateJobPostingRequest struct {
 
 // The JD text is up to 20,000 runes; escaped in JSON, a rune can take up to 12 bytes.
 const jobPostingBodyLimit = 512 << 10
+
+// A JD PDF is up to 5 MB (the service checks it again); the rest covers the multipart framing.
+const (
+	maxJobPostingPDFBytes  = 5 << 20
+	jobPostingPDFBodyLimit = maxJobPostingPDFBytes + 16<<10
+)
 
 func jobPostingUser(c *gin.Context) (uuid.UUID, string, bool) {
 	user, ok := middleware.CurrentUser(c)
@@ -140,7 +149,7 @@ func jobPostingFilter(c *gin.Context) (domain.ListFilter, bool) {
 
 // Create godoc
 // @Summary Create a Job Posting
-// @Description Recruiter only. Stores the JD text with the requirements confirmed in review and submits the posting for Admin approval (status pending). The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.
+// @Description Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents (read again on the server) with the requirements confirmed in review and submits the posting for Admin approval (status pending). The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.
 // @Tags job-postings
 // @Accept json
 // @Produce json
@@ -163,13 +172,17 @@ func (h *JobPostingHandler) Create(c *gin.Context) {
 	if !jobPostingJSON(c, &req) {
 		return
 	}
-	if req.Title == nil || req.RawText == nil || req.SeniorityLevel == nil || req.Requirements == nil ||
+	if req.Title == nil || req.DocumentID == nil || req.SeniorityLevel == nil || req.Requirements == nil ||
 		req.RequiredAvatarID == nil || req.RequiredVoiceID == nil {
 		response.Error(c, apperror.New(apperror.CodeValidation, "invalid request body"))
 		return
 	}
+	// The PDF is read again on the server, which can outlast the default write timeout.
+	if !roleWriteDeadline(c, 45*time.Second) {
+		return
+	}
 	result, err := h.service.Create(c.Request.Context(), userID, role, domain.CreateInput{
-		Title: *req.Title, RawText: *req.RawText, SeniorityLevel: domain.Level(*req.SeniorityLevel),
+		Title: *req.Title, DocumentID: *req.DocumentID, SeniorityLevel: domain.Level(*req.SeniorityLevel),
 		Requirements: *req.Requirements, Location: req.Location, EmploymentType: req.EmploymentType,
 		SalaryMin: req.SalaryMin, SalaryMax: req.SalaryMax, InterviewDuration: req.InterviewDuration,
 		RequiredAvatarID: *req.RequiredAvatarID, RequiredVoiceID: *req.RequiredVoiceID,
@@ -294,7 +307,7 @@ func (h *JobPostingHandler) Get(c *gin.Context) {
 
 // Update godoc
 // @Summary Edit your pending or rejected Job Posting
-// @Description Recruiter only, while the posting is pending or rejected. Absent fields are unchanged; optional details may be cleared with null; unchanged values may be resent. raw_text can change only on a rejected posting. Changing seniority, requirements or the text while pending is refused once the question bank exists; on a rejected posting it clears the bank, which is regenerated after resubmitting. Saving does not resubmit. Trusted Origin required.
+// @Description Recruiter only, while the posting is pending or rejected. Absent fields are unchanged; optional details may be cleared with null; unchanged values may be resent. document_id (a new PDF from POST /job-postings/documents) can change only on a rejected posting. Changing seniority, requirements or the JD while pending is refused once the question bank exists; on a rejected posting it clears the bank, which is regenerated after resubmitting. Saving does not resubmit. Trusted Origin required.
 // @Tags job-postings
 // @Accept json
 // @Produce json
@@ -322,6 +335,10 @@ func (h *JobPostingHandler) Update(c *gin.Context) {
 	}
 	var patch domain.Edit
 	if !jobPostingJSON(c, &patch) {
+		return
+	}
+	// A new PDF is read again on the server, which can outlast the default write timeout.
+	if !roleWriteDeadline(c, 45*time.Second) {
 		return
 	}
 	result, err := h.service.Update(c.Request.Context(), userID, role, id, patch)
@@ -359,6 +376,113 @@ func (h *JobPostingHandler) Resubmit(c *gin.Context) {
 		return
 	}
 	result, err := h.service.Resubmit(c.Request.Context(), userID, role, id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+// UploadDocument godoc
+// @Summary Upload a JD PDF
+// @Description Recruiter only. Stores the PDF (up to 5 MB, with selectable text) and returns its document_id and the text read from it. Pass document_id to POST /job-postings, or to PATCH /job-postings/{id} on a rejected posting; pass raw_text to POST /job-postings/extract for suggestions. Trusted Origin required.
+// @Tags job-postings
+// @Accept multipart/form-data
+// @Produce json
+// @Security SessionCookie
+// @Param Origin header string true "Trusted frontend origin"
+// @Param file formData file true "JD PDF"
+// @Success 201 {object} response.Envelope{data=domain.Document}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 413 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Failure 503 {object} response.Envelope
+// @Router /job-postings/documents [post]
+func (h *JobPostingHandler) UploadDocument(c *gin.Context) {
+	_, role, ok := jobPostingUser(c)
+	if !ok {
+		return
+	}
+	if !roleWriteDeadline(c, 60*time.Second) {
+		return
+	}
+	data, ok := jobPostingPDF(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.UploadDocument(c.Request.Context(), role, data)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Created(c, result)
+}
+
+// jobPostingPDF reads the single "file" part of a multipart body, up to the PDF size limit.
+func jobPostingPDF(c *gin.Context) ([]byte, bool) {
+	fail := func(code apperror.Code, msg string) ([]byte, bool) {
+		response.Error(c, apperror.New(code, msg))
+		return nil, false
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, jobPostingPDFBodyLimit)
+	reader, err := c.Request.MultipartReader()
+	if err != nil {
+		return fail(apperror.CodeValidation, "a multipart body with one PDF file is required")
+	}
+	var data []byte
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			return fail(apperror.CodePDFTooLarge, "Choose a PDF up to 5 MB.")
+		}
+		if err != nil || part.FormName() != "file" || data != nil {
+			return fail(apperror.CodeValidation, "a multipart body with one PDF file is required")
+		}
+		data, err = io.ReadAll(io.LimitReader(part, maxJobPostingPDFBytes+1))
+		_ = part.Close()
+		if errors.As(err, &tooLarge) || int64(len(data)) > maxJobPostingPDFBytes {
+			return fail(apperror.CodePDFTooLarge, "Choose a PDF up to 5 MB.")
+		}
+		if err != nil || len(data) == 0 {
+			return fail(apperror.CodeInvalidPDF, "Choose a valid PDF up to 5 MB.")
+		}
+	}
+	if data == nil {
+		return fail(apperror.CodeValidation, "a multipart body with one PDF file is required")
+	}
+	return data, true
+}
+
+// Document godoc
+// @Summary Open your Job Posting's JD PDF
+// @Description Recruiter only. Returns a link to the PDF that expires after a few minutes. A posting created before PDF upload has none (404).
+// @Tags job-postings
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "Job Posting ID" format(uuid)
+// @Success 200 {object} response.Envelope{data=domain.DocumentLink}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /job-postings/{id}/document [get]
+func (h *JobPostingHandler) Document(c *gin.Context) {
+	userID, role, ok := jobPostingUser(c)
+	if !ok {
+		return
+	}
+	id, ok := jobPostingID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.Document(c.Request.Context(), userID, role, id)
 	if err != nil {
 		response.Error(c, err)
 		return

@@ -15,8 +15,10 @@ import (
 func ProvideJobPostingRepository(pool *pgxpool.Pool) *repository.Repository {
 	return repository.NewRepository(pool)
 }
+
+// ProvideJobPostingService reads JD PDFs with the same Poppler parser as Role Profiles.
 func ProvideJobPostingService(repo *repository.Repository, store storage.Store) (*service.Service, error) {
-	return service.New(repo, store)
+	return service.New(repo, store, roleprofileservice.PopplerParser{})
 }
 
 // ProvideJobPostingExtraction reuses the Role Profile extraction pipeline, with the same time budget

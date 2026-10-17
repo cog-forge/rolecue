@@ -3,10 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/moderation/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -63,9 +67,49 @@ func (f *fakeRepository) Decide(_ context.Context, _ uuid.UUID, status domain.Po
 	return nil
 }
 
+// fakeTextStore serves objects by key; a key it doesn't hold is storage.ErrNotFound. PresignGet
+// links any key.
+type fakeTextStore struct {
+	objects    map[string]string
+	err        error
+	presignErr error
+	keys       []string
+	presigned  []string
+}
+
+func (f *fakeTextStore) PresignGet(_ context.Context, key string, ttl time.Duration) (storage.SignedRequest, error) {
+	f.presigned = append(f.presigned, key)
+	if f.presignErr != nil {
+		return storage.SignedRequest{}, f.presignErr
+	}
+	return storage.SignedRequest{URL: "https://storage.example.com/" + key + "?signed", Method: "GET", ExpiresAt: time.Unix(0, 0).Add(ttl)}, nil
+}
+
+func (f *fakeTextStore) Download(_ context.Context, key string) (storage.Object, error) {
+	f.keys = append(f.keys, key)
+	if f.err != nil {
+		return storage.Object{}, f.err
+	}
+	text, ok := f.objects[key]
+	if !ok {
+		return storage.Object{}, storage.ErrNotFound
+	}
+	return storage.Object{Body: io.NopCloser(strings.NewReader(text)), Size: int64(len(text))}, nil
+}
+
+const (
+	storedKey  = "job-descriptions/stored.txt"
+	storedText = "Senior Go engineer. Builds and runs our payment APIs."
+)
+
+// storedTexts holds the JD text of every posting postingIn builds.
+func storedTexts() *fakeTextStore {
+	return &fakeTextStore{objects: map[string]string{storedKey: storedText}}
+}
+
 func newService(t *testing.T, repo Repository) *Service {
 	t.Helper()
-	s, err := New(repo, nil)
+	s, err := New(repo, storedTexts(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +120,7 @@ func newService(t *testing.T, repo Repository) *Service {
 func newObservedService(t *testing.T, repo Repository) (*Service, *observer.ObservedLogs) {
 	t.Helper()
 	core, logs := observer.New(zap.InfoLevel)
-	s, err := New(repo, &logger.Logger{Logger: zap.New(core)})
+	s, err := New(repo, storedTexts(), &logger.Logger{Logger: zap.New(core)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +129,7 @@ func newObservedService(t *testing.T, repo Repository) (*Service, *observer.Obse
 
 // postingIn returns a posting with a non-empty question bank, so approval is allowed by default.
 func postingIn(status domain.PostingStatus) *fakeRepository {
-	return &fakeRepository{posting: &domain.ReviewPosting{ID: uuid.New(), Status: status, CoreQuestionCount: 50}}
+	return &fakeRepository{posting: &domain.ReviewPosting{ID: uuid.New(), Status: status, ContentPath: storedKey, CoreQuestionCount: 50}}
 }
 
 func assertCode(t *testing.T, err error, code apperror.Code) {
@@ -96,9 +140,12 @@ func assertCode(t *testing.T, err error, code apperror.Code) {
 	}
 }
 
-func TestNewRequiresRepository(t *testing.T) {
-	if _, err := New(nil, nil); err == nil {
+func TestNewRequiresRepositoryAndTextStore(t *testing.T) {
+	if _, err := New(nil, &fakeTextStore{}, nil); err == nil {
 		t.Fatal("New accepted a nil repository")
+	}
+	if _, err := New(&fakeRepository{}, nil, nil); err == nil {
+		t.Fatal("New accepted a nil text store")
 	}
 }
 

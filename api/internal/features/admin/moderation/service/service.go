@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/moderation/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -21,21 +25,35 @@ type Repository interface {
 	Decide(ctx context.Context, id uuid.UUID, status domain.PostingStatus, rejectReason *string) error
 }
 
+// TextStore holds the JD that Job Posting creation uploaded; content_path holds its key. It is a
+// PDF, or for postings created before PDF upload, a plain-text object.
+type TextStore interface {
+	Download(ctx context.Context, key string) (storage.Object, error)
+	PresignGet(ctx context.Context, key string, ttl time.Duration) (storage.SignedRequest, error)
+}
+
+// documentLinkTTL keeps the PDF link valid long enough to read the posting and decide.
+const documentLinkTTL = 15 * time.Minute
+
+// maxJDTextBytes matches the Job Posting feature's stored-text cap (4 bytes per rune, 20,000 runes).
+const maxJDTextBytes = 4 * 20_000
+
 type Service struct {
 	repository Repository
+	texts      TextStore
 	log        *logger.Logger
 }
 
 // New builds the service. Decisions are logged because the brain asks for an admin audit trail
 // while the frozen schema has no audit table.
-func New(repository Repository, log *logger.Logger) (*Service, error) {
-	if repository == nil {
-		return nil, fmt.Errorf("moderation repository is required")
+func New(repository Repository, texts TextStore, log *logger.Logger) (*Service, error) {
+	if repository == nil || texts == nil {
+		return nil, fmt.Errorf("moderation repository and text store are required")
 	}
 	if log == nil {
 		log = &logger.Logger{Logger: zap.NewNop()}
 	}
-	return &Service{repository: repository, log: log}, nil
+	return &Service{repository: repository, texts: texts, log: log}, nil
 }
 
 func requireAdmin(role string) error {
@@ -59,7 +77,7 @@ func (s *Service) Get(ctx context.Context, role string, id uuid.UUID) (domain.Re
 	if err := requireAdmin(role); err != nil {
 		return domain.ReviewPosting{}, err
 	}
-	return s.repository.Get(ctx, id)
+	return s.review(ctx, id)
 }
 
 func (s *Service) Approve(ctx context.Context, adminID uuid.UUID, role string, id uuid.UUID) (domain.ReviewPosting, error) {
@@ -92,7 +110,7 @@ func (s *Service) decide(ctx context.Context, adminID, id uuid.UUID, status doma
 			logger.String("job_posting_id", id.String()),
 			logger.String("status", string(status)),
 		)
-		return s.repository.Get(ctx, id)
+		return s.review(ctx, id)
 	}
 	if !errors.Is(err, domain.ErrNotPending) {
 		return domain.ReviewPosting{}, err
@@ -103,11 +121,72 @@ func (s *Service) decide(ctx context.Context, adminID, id uuid.UUID, status doma
 	}
 	switch {
 	case posting.Status == status:
-		return posting, nil
+		return s.withText(ctx, posting)
 	case posting.Status == domain.PostingStatusPending && status == domain.PostingStatusOpen:
 		// Still pending, so the only guard that failed is the non-empty question bank.
 		return domain.ReviewPosting{}, domain.ErrQuestionBankNotReady
 	default:
 		return domain.ReviewPosting{}, domain.ErrNotPending
 	}
+}
+
+func (s *Service) review(ctx context.Context, id uuid.UUID) (domain.ReviewPosting, error) {
+	posting, err := s.repository.Get(ctx, id)
+	if err != nil {
+		return domain.ReviewPosting{}, err
+	}
+	return s.withText(ctx, posting)
+}
+
+// withText fills the JD the Admin reviews. A posting with a PDF gets a short-lived link to it plus
+// its stored text. Rows created before PDF upload hold a plain-text object, which is read back;
+// older rows hold a full URL, which the Admin opens instead. A missing object leaves RawText null so
+// the Admin still sees the rest of the posting and can reject it; any other storage failure fails
+// the request.
+func (s *Service) withText(ctx context.Context, posting domain.ReviewPosting) (domain.ReviewPosting, error) {
+	if posting.StoredText != nil {
+		link, err := s.texts.PresignGet(ctx, posting.ContentPath, documentLinkTTL)
+		if err != nil {
+			return domain.ReviewPosting{}, apperror.Wrap(apperror.CodeInternal, "job posting file storage failed", err)
+		}
+		posting.DocumentURL, posting.DocumentExpiresAt = &link.URL, &link.ExpiresAt
+		posting.RawText = posting.StoredText
+		return posting, nil
+	}
+	if isWebURL(posting.ContentPath) {
+		return posting, nil
+	}
+	text, err := s.readText(ctx, posting.ContentPath)
+	if errors.Is(err, storage.ErrNotFound) || errors.Is(err, storage.ErrInvalidInput) {
+		s.log.WithContext(ctx).Warn("job posting JD text not found",
+			logger.String("job_posting_id", posting.ID.String()),
+		)
+		return posting, nil
+	}
+	if err != nil {
+		return domain.ReviewPosting{}, apperror.Wrap(apperror.CodeInternal, "job posting file storage failed", err)
+	}
+	posting.RawText = &text
+	return posting, nil
+}
+
+func (s *Service) readText(ctx context.Context, key string) (string, error) {
+	object, err := s.texts.Download(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = object.Body.Close() }()
+	text, err := io.ReadAll(io.LimitReader(object.Body, maxJDTextBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if len(text) > maxJDTextBytes {
+		return "", fmt.Errorf("stored JD text exceeds %d bytes", maxJDTextBytes)
+	}
+	return string(text), nil
+}
+
+func isWebURL(contentPath string) bool {
+	u, err := url.Parse(contentPath)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }

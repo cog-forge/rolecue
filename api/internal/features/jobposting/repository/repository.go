@@ -37,7 +37,7 @@ func (r *Repository) Create(ctx context.Context, recruiterID uuid.UUID, input do
 		if err != nil {
 			return err
 		}
-		jdID, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: &input.ContentPath, LevelID: levelID})
+		jdID, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: &input.ContentPath, RawText: &input.RawText, LevelID: levelID})
 		if err != nil {
 			return err
 		}
@@ -53,7 +53,7 @@ func (r *Repository) Create(ctx context.Context, recruiterID uuid.UUID, input do
 		if err != nil {
 			return err
 		}
-		record = domain.Record{ContentPath: input.ContentPath, JobPosting: domain.JobPosting{
+		record = domain.Record{ContentPath: input.ContentPath, StoredText: &input.RawText, JobPosting: domain.JobPosting{
 			ID: row.ID, Title: input.Title, Status: domain.StatusPending, SeniorityLevel: input.SeniorityLevel,
 			Requirements: input.Requirements, Location: input.Location, EmploymentType: input.EmploymentType,
 			SalaryMin: input.SalaryMin, SalaryMax: input.SalaryMax, InterviewDuration: input.InterviewDuration,
@@ -104,7 +104,7 @@ func (r *Repository) Get(ctx context.Context, recruiterID, id uuid.UUID) (domain
 	if err != nil {
 		return domain.Record{}, persistenceError(err)
 	}
-	record := domain.Record{ContentPath: storedPath(row.ContentPath), JobPosting: domain.JobPosting{
+	record := domain.Record{ContentPath: storedPath(row.ContentPath), StoredText: row.RawText, JobPosting: domain.JobPosting{
 		ID: row.ID, Title: row.Title, Status: domain.Status(row.Status), RejectReason: row.RejectReason,
 		SeniorityLevel: domain.Level(row.LevelName), Location: row.Location, EmploymentType: row.EmploymentType,
 		SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax, InterviewDuration: row.InterviewDuration,
@@ -118,11 +118,11 @@ func (r *Repository) Get(ctx context.Context, recruiterID, id uuid.UUID) (domain
 	return record, nil
 }
 
-// Update applies a validated patch to a pending or rejected posting. contentPath, when set, is the
-// storage key of corrected JD text (rejected postings only). The row is locked first; the question
+// Update applies a validated patch to a pending or rejected posting. document, when set, is a
+// replacement JD PDF and its text (rejected postings only). The row is locked first; the question
 // count and current requirements are read by later statements, so they see whatever a concurrent
 // question-bank save committed before the lock was granted.
-func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patch domain.Edit, contentPath *string) error {
+func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patch domain.Edit, document *domain.NewDocument) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
 		current, err := q.LockOwnedPosting(ctx, LockOwnedPostingParams{ID: id, RecruiterID: recruiterID})
@@ -133,7 +133,7 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 		if status != domain.StatusPending && status != domain.StatusRejected {
 			return domain.ErrNotEditable
 		}
-		if contentPath != nil && status != domain.StatusRejected {
+		if document != nil && status != domain.StatusRejected {
 			return domain.ErrTextLocked
 		}
 		if err := domain.CheckSalary(merged(patch.SalaryMin, current.SalaryMin), merged(patch.SalaryMax, current.SalaryMax)); err != nil {
@@ -150,7 +150,7 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 		if err := dropUnchangedBankInputs(ctx, q, current.JdID, &patch); err != nil {
 			return err
 		}
-		if patch.SeniorityLevel.Present || patch.Requirements.Present || contentPath != nil {
+		if patch.SeniorityLevel.Present || patch.Requirements.Present || document != nil {
 			if err := guardQuestionBank(ctx, q, current.JdID, status); err != nil {
 				return err
 			}
@@ -172,8 +172,8 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 				return err
 			}
 		}
-		if contentPath != nil {
-			if err := q.UpdateJDContentPath(ctx, UpdateJDContentPathParams{ID: current.JdID, ContentPath: contentPath}); err != nil {
+		if document != nil {
+			if err := q.UpdateJDDocument(ctx, UpdateJDDocumentParams{ID: current.JdID, ContentPath: &document.ContentPath, RawText: &document.RawText}); err != nil {
 				return err
 			}
 		}
@@ -326,8 +326,8 @@ func saveRequirements(ctx context.Context, q *Queries, jdID uuid.UUID, rows []do
 }
 
 // storedPath reads job_descriptions.content_path, which migration 000010 made nullable for
-// Role Profiles that keep raw_text instead. A Job Posting always stores its text as an object, so
-// a missing key only shows up as a storage error when the text is read.
+// Role Profiles that keep raw_text instead. A Job Posting always stores its JD as an object, so
+// a missing key only shows up as a storage error when the JD is read.
 func storedPath(path *string) string {
 	if path == nil {
 		return ""

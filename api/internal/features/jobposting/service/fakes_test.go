@@ -1,11 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
@@ -23,7 +25,7 @@ type fakeRepository struct {
 	created                                                      domain.NewPosting
 	filter                                                       domain.ListFilter
 	patch                                                        domain.Edit
-	contentPath                                                  *string
+	document                                                     *domain.NewDocument
 }
 
 func (f *fakeRepository) Create(_ context.Context, recruiterID uuid.UUID, input domain.NewPosting) (domain.Record, error) {
@@ -32,7 +34,7 @@ func (f *fakeRepository) Create(_ context.Context, recruiterID uuid.UUID, input 
 	if f.err != nil {
 		return domain.Record{}, f.err
 	}
-	f.record = domain.Record{ContentPath: input.ContentPath, JobPosting: domain.JobPosting{
+	f.record = domain.Record{ContentPath: input.ContentPath, StoredText: &input.RawText, JobPosting: domain.JobPosting{
 		ID: uuid.New(), Title: input.Title, Status: domain.StatusPending, SeniorityLevel: input.SeniorityLevel,
 		Requirements: input.Requirements,
 	}}
@@ -51,17 +53,17 @@ func (f *fakeRepository) Get(_ context.Context, recruiterID, _ uuid.UUID) (domai
 	return f.record, f.err
 }
 
-func (f *fakeRepository) Update(_ context.Context, recruiterID, _ uuid.UUID, patch domain.Edit, contentPath *string) error {
+func (f *fakeRepository) Update(_ context.Context, recruiterID, _ uuid.UUID, patch domain.Edit, document *domain.NewDocument) error {
 	f.updateCalls++
-	f.recruiter, f.patch, f.contentPath = recruiterID, patch, contentPath
+	f.recruiter, f.patch, f.document = recruiterID, patch, document
 	if f.err != nil {
 		return f.err
 	}
 	if f.updateErr != nil {
 		return f.updateErr
 	}
-	if contentPath != nil {
-		f.record.ContentPath = *contentPath
+	if document != nil {
+		f.record.ContentPath, f.record.StoredText = document.ContentPath, &document.RawText
 	}
 	return nil
 }
@@ -83,17 +85,24 @@ func (f *fakeRepository) Resubmit(_ context.Context, recruiterID, _ uuid.UUID) e
 	return domain.ErrNotRejected
 }
 
-// fakeStore keeps uploaded objects in memory.
-type fakeStore struct {
-	objects     map[string]string
-	uploadErr   error
-	downloadErr error
-	uploads     int
+type storedObject struct {
+	data        []byte
+	contentType string
 }
 
-func newStore() *fakeStore { return &fakeStore{objects: map[string]string{}} }
+// fakeStore keeps uploaded objects in memory.
+type fakeStore struct {
+	objects     map[string]storedObject
+	uploadErr   error
+	downloadErr error
+	presignErr  error
+	uploads     int
+	downloads   int
+}
 
-func (s *fakeStore) Upload(_ context.Context, body io.ReadSeeker, _ string) (string, error) {
+func newStore() *fakeStore { return &fakeStore{objects: map[string]storedObject{}} }
+
+func (s *fakeStore) Upload(_ context.Context, body io.ReadSeeker, contentType string) (string, error) {
 	s.uploads++
 	if s.uploadErr != nil {
 		return "", s.uploadErr
@@ -103,24 +112,53 @@ func (s *fakeStore) Upload(_ context.Context, body io.ReadSeeker, _ string) (str
 		return "", err
 	}
 	key := uuid.NewString()
-	s.objects[key] = string(data)
+	s.objects[key] = storedObject{data: data, contentType: contentType}
 	return key, nil
 }
 
 func (s *fakeStore) Download(_ context.Context, key string) (storage.Object, error) {
+	s.downloads++
 	if s.downloadErr != nil {
 		return storage.Object{}, s.downloadErr
 	}
-	text, ok := s.objects[key]
+	object, ok := s.objects[key]
 	if !ok {
 		return storage.Object{}, storage.ErrNotFound
 	}
-	return storage.Object{Body: io.NopCloser(strings.NewReader(text)), Size: int64(len(text))}, nil
+	return storage.Object{Body: io.NopCloser(bytes.NewReader(object.data)), ContentType: object.contentType, Size: int64(len(object.data))}, nil
 }
 
-func newService(t *testing.T, repo Repository, store TextStore) *Service {
+func (s *fakeStore) PresignGet(_ context.Context, key string, ttl time.Duration) (storage.SignedRequest, error) {
+	if s.presignErr != nil {
+		return storage.SignedRequest{}, s.presignErr
+	}
+	return storage.SignedRequest{URL: "https://storage.example.com/" + key + "?signed", Method: "GET", ExpiresAt: time.Unix(0, 0).Add(ttl)}, nil
+}
+
+// putPDF stores a fake PDF holding text and returns its document ID.
+func (s *fakeStore) putPDF(text string) string {
+	key := uuid.NewString()
+	s.objects[key] = storedObject{data: fakePDF(text), contentType: pdfContentType}
+	return key
+}
+
+// fakeParser reads the fake PDFs fakePDF builds; anything else is not a readable PDF.
+type fakeParser struct{ calls int }
+
+func fakePDF(text string) []byte { return []byte("%PDF-fake\n" + text) }
+
+func (p *fakeParser) Parse(_ context.Context, data []byte) (string, error) {
+	p.calls++
+	text, ok := strings.CutPrefix(string(data), "%PDF-fake\n")
+	if !ok {
+		return "", apperror.New(apperror.CodeInvalidPDF, "Choose a valid PDF up to 5 MB.")
+	}
+	return text, nil
+}
+
+func newService(t *testing.T, repo Repository, store DocumentStore) *Service {
 	t.Helper()
-	s, err := New(repo, store)
+	s, err := New(repo, store, &fakeParser{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,9 +169,9 @@ var errBoom = errors.New("boom")
 
 func validText() string { return strings.Repeat("Build and run Go services on PostgreSQL. ", 5) }
 
-func validCreate() domain.CreateInput {
+func validCreate(documentID string) domain.CreateInput {
 	return domain.CreateInput{
-		Title: "Backend Engineer", RawText: validText(), SeniorityLevel: domain.Mid,
+		Title: "Backend Engineer", DocumentID: documentID, SeniorityLevel: domain.Mid,
 		Requirements: []domain.PostingRequirement{
 			{Name: "Go", Target: "programming_language", Type: domain.Required},
 			{Name: "PostgreSQL", Target: "database", Type: domain.Preferred},
@@ -153,11 +191,14 @@ func assertCode(t *testing.T, err error, code apperror.Code) {
 }
 
 func TestNewRequiresDependencies(t *testing.T) {
-	if _, err := New(nil, newStore()); err == nil {
+	if _, err := New(nil, newStore(), &fakeParser{}); err == nil {
 		t.Fatal("New accepted a nil repository")
 	}
-	if _, err := New(&fakeRepository{}, nil); err == nil {
-		t.Fatal("New accepted a nil text store")
+	if _, err := New(&fakeRepository{}, nil, &fakeParser{}); err == nil {
+		t.Fatal("New accepted a nil document store")
+	}
+	if _, err := New(&fakeRepository{}, newStore(), nil); err == nil {
+		t.Fatal("New accepted a nil PDF parser")
 	}
 }
 
@@ -167,7 +208,9 @@ func TestNonRecruitersAreForbidden(t *testing.T) {
 			repo, store := &fakeRepository{}, newStore()
 			s := newService(t, repo, store)
 			ctx, id := context.Background(), uuid.New()
-			_, err := s.Create(ctx, uuid.New(), role, validCreate())
+			_, err := s.UploadDocument(ctx, role, fakePDF(validText()))
+			assertCode(t, err, apperror.CodeForbidden)
+			_, err = s.Create(ctx, uuid.New(), role, validCreate(uuid.NewString()))
 			assertCode(t, err, apperror.CodeForbidden)
 			_, _, err = s.List(ctx, uuid.New(), role, domain.ListFilter{Limit: 20})
 			assertCode(t, err, apperror.CodeForbidden)
@@ -177,7 +220,9 @@ func TestNonRecruitersAreForbidden(t *testing.T) {
 			assertCode(t, err, apperror.CodeForbidden)
 			_, err = s.Resubmit(ctx, uuid.New(), role, id)
 			assertCode(t, err, apperror.CodeForbidden)
-			if repo.createCalls+repo.listCalls+repo.getCalls+repo.updateCalls+repo.resubmitCalls+store.uploads != 0 {
+			_, err = s.Document(ctx, uuid.New(), role, id)
+			assertCode(t, err, apperror.CodeForbidden)
+			if repo.createCalls+repo.listCalls+repo.getCalls+repo.updateCalls+repo.resubmitCalls+store.uploads+store.downloads != 0 {
 				t.Fatal("a non-recruiter request reached the repository or storage")
 			}
 		})
