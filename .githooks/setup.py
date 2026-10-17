@@ -53,6 +53,8 @@ def install():
 
 
 def main():
+    if sys.version_info < (3, 11):
+        raise SystemExit("Python 3.11 or newer is required by pre-commit 4.7.0.")
     command, *args = sys.argv[1:] or ["setup"]
     if command == "setup":
         for tool in ("git", "go", "bun"):

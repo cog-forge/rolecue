@@ -5,7 +5,7 @@ Go API (`api/`) and Next.js frontend (`frontend/`). See
 
 ## Development checks
 
-Install Git (Git for Windows on Windows), Python 3.10+ with `venv`, Go 1.27.2+,
+Install Git (Git for Windows on Windows), Python 3.11+ with `venv`, Go 1.27.2+,
 Bun 1.4.2 and Node 24.20.0+, with their executables on `PATH`.
 Run from the repository root on macOS/Linux:
 
