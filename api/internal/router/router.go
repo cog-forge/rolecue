@@ -29,6 +29,7 @@ type Router struct {
 	voiceCatalogHandler *handler.VoiceCatalogHandler
 	jobPostingHandler   *handler.JobPostingHandler
 	voiceHandler        *handler.VoiceHandler
+	jobBoardHandler     *handler.JobBoardHandler
 }
 
 func NewRouter(
@@ -48,6 +49,7 @@ func NewRouter(
 	voiceCatalogHandler *handler.VoiceCatalogHandler,
 	jobPostingHandler *handler.JobPostingHandler,
 	voiceHandler *handler.VoiceHandler,
+	jobBoardHandler *handler.JobBoardHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -66,6 +68,7 @@ func NewRouter(
 		voiceCatalogHandler: voiceCatalogHandler,
 		jobPostingHandler:   jobPostingHandler,
 		voiceHandler:        voiceHandler,
+		jobBoardHandler:     jobBoardHandler,
 	}
 }
 
@@ -140,6 +143,11 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)
 
 	router.GET("/voices", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.voiceHandler.List)
+
+	// The job board shows Candidates the open Job Postings; /job-postings stays the Recruiter's own list.
+	jobBoard := router.Group("/job-board", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate"))
+	jobBoard.GET("", r.jobBoardHandler.List)
+	jobBoard.GET("/:id", r.jobBoardHandler.Get)
 
 	// Every admin route sits under /admin so one role check guards the whole group.
 	admin := router.Group("/admin", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("admin"))
