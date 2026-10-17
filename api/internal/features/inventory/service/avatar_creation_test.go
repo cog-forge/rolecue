@@ -172,8 +172,8 @@ func TestAvatarCreationPersistence(t *testing.T) {
 					t.Fatalf("creation = %+v, %v", avatar, err)
 				}
 			}
-			if _, err := file.Stat(); !errors.Is(err, os.ErrClosed) {
-				t.Fatal("converted file not closed")
+			if err := file.Close(); !errors.Is(err, os.ErrClosed) {
+				t.Fatalf("converted file not closed: second close = %v", err)
 			}
 		})
 	}
