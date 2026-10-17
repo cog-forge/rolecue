@@ -19,7 +19,7 @@ func openTransaction(t *testing.T) (context.Context, pgx.Tx) {
 	t.Helper()
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
-		t.Skip("DATABASE_URL is not set; use a disposable migrated test database")
+		t.Fatal("DATABASE_URL is not set; use a disposable migrated test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)

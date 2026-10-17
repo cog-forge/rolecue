@@ -8,6 +8,8 @@ const recruiter = {
   role: "recruiter",
   email_verified: true,
   is_locked: false,
+  onboarding_role_selected: true,
+  onboarding_completed: true,
 };
 const postingId = "33333333-3333-4333-8333-333333333333";
 const bankPath = `/job-postings/${postingId}/questions`;

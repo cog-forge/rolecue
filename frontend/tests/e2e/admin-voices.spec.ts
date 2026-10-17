@@ -8,6 +8,8 @@ const admin = {
   role: "admin",
   email_verified: true,
   is_locked: false,
+  onboarding_role_selected: true,
+  onboarding_completed: true,
 };
 
 async function mockVoices(page: Page) {

@@ -70,6 +70,8 @@ async function mockAccounts(
           role,
           email_verified: true,
           is_locked: false,
+          onboarding_role_selected: true,
+          onboarding_completed: true,
           image: null,
         },
       }),

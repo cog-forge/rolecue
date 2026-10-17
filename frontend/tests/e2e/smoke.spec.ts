@@ -41,9 +41,9 @@ test("public navigation and protected routes enforce login", async ({
     }),
   );
   await page.goto("/interviews");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?session=ended$/);
   await page.goto("/admin/users");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?session=ended$/);
 });
 
 test("mobile navigation exposes the landing anchors", async ({ page }) => {

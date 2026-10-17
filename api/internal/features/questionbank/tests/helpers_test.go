@@ -15,12 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// openPool connects to the migrated database from DATABASE_URL, or skips the test.
+// openPool requires a reachable migrated database when integration tests are requested.
 func openPool(t *testing.T, timeout time.Duration) (context.Context, *pgxpool.Pool) {
 	t.Helper()
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
-		t.Skip("DATABASE_URL is not set (load ../.env)")
+		t.Fatal("DATABASE_URL is not set; use a disposable migrated test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	t.Cleanup(cancel)
@@ -30,7 +30,7 @@ func openPool(t *testing.T, timeout time.Duration) (context.Context, *pgxpool.Po
 	}
 	t.Cleanup(pool.Close)
 	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("database not reachable: %v", err)
+		t.Fatalf("database not reachable: %v", err)
 	}
 	return ctx, pool
 }
