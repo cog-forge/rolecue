@@ -26,6 +26,7 @@ const (
 	CodeInvalidToken               Code = "INVALID_TOKEN"
 	CodeAuthUnavailable            Code = "AUTH_UNAVAILABLE"
 	CodeForbidden                  Code = "FORBIDDEN"
+	CodeOnboardingRoleConflict     Code = "ONBOARDING_ROLE_CONFLICT"
 	CodeValidation                 Code = "VALIDATION_ERROR"
 	CodeInternal                   Code = "INTERNAL_ERROR"
 	CodeInvalidJDInput             Code = "INVALID_JD_INPUT"

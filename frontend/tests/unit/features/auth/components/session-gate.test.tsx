@@ -31,6 +31,8 @@ const user = {
   role: "candidate",
   email_verified: true,
   is_locked: false,
+  onboarding_role_selected: true,
+  onboarding_completed: true,
 };
 function Content() {
   const session = useSessionUser();
@@ -132,7 +134,9 @@ describe("validated workspace session", () => {
     mocks.get.mockRejectedValue(error);
     mount("candidate", client);
     expect(screen.queryByText(/Protected/)).not.toBeInTheDocument();
-    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith("/login"));
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith("/login?session=ended"),
+    );
     expect(screen.queryByText(/Protected/)).not.toBeInTheDocument();
   });
   it("fails closed for an unsupported backend role", async () => {
