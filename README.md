@@ -5,17 +5,35 @@ Go API (`api/`) and Next.js frontend (`frontend/`). See
 
 ## Development checks
 
-Install Git, Make, Python 3 with `venv`, Go 1.27.2+, Bun 1.4.2 and Node 24.20.0+.
-Then run from the repository root:
+Install Git (Git for Windows on Windows), Python 3.10+ with `venv`, Go 1.27.2+,
+Bun 1.4.2 and Node 24.20.0+, with their executables on `PATH`.
+Run from the repository root on macOS/Linux:
 
 ```sh
-make setup
+python3 .githooks/setup.py
 ```
 
-This installs pinned check tools, downloads dependencies with the frozen Bun lockfile,
-and enables the pre-commit hook for this Git worktree. Re-running it is safe. Existing
+On Windows, use PowerShell; WSL and Make are not required to install or run hooks:
+
+```powershell
+py .githooks/setup.py
+```
+
+`python .githooks/setup.py` also works when Python 3 is available as `python`.
+With Make installed, `make setup` calls the same script (`PYTHON=python` can override
+the default `python3`). It installs the pinned pre-commit runner, downloads frontend
+dependencies with the frozen Bun lockfile and Go module dependencies, and enables
+the hook for this Git worktree. Go lint/audit tools are installed when their Make
+checks run; `make tooling` can preinstall them. Re-running setup is safe. Existing
 custom hooks are preserved; setup stops with instructions if one needs integration.
 Setup does not start services, read credentials or apply database migrations.
+Git for Windows runs the small Git hook launcher using its bundled shell, including
+when committing from PowerShell; setup itself does not invoke a Unix shell.
+
+To check all tracked files without Make, run `py .githooks/setup.py run --all-files`
+on Windows or `python3 .githooks/setup.py run --all-files` on macOS/Linux.
+The remaining Make targets and Docker smoke scripts use a POSIX shell; the full
+application/container CI runs on Linux. Only the hook job runs on all three OSes.
 
 | Command | Purpose |
 | --- | --- |

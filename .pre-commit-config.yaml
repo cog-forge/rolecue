@@ -3,31 +3,31 @@ repos:
     hooks:
       - id: credentials
         name: Prevent credential files
-        entry: .tools/pre-commit/bin/python .githooks/check.py credentials
+        entry: python .githooks/check.py credentials
         language: system
       - id: conflicts
         name: Check conflict markers and private keys
-        entry: .tools/pre-commit/bin/python .githooks/check.py conflicts
+        entry: python .githooks/check.py conflicts
         language: system
         types: [text]
         exclude: ^\.githooks/check\.py$
       - id: syntax
         name: Validate JSON and YAML
-        entry: .tools/pre-commit/bin/python .githooks/check.py syntax
+        entry: python .githooks/check.py syntax
         language: system
         files: \.(json|ya?ml)$
       - id: gofmt
         name: Go formatting
-        entry: .tools/pre-commit/bin/python .githooks/check.py gofmt
+        entry: python .githooks/check.py gofmt
         language: system
         types: [go]
       - id: prettier
         name: Frontend formatting
-        entry: .tools/pre-commit/bin/python .githooks/check.py prettier
+        entry: python .githooks/check.py prettier
         language: system
         files: ^frontend/.*\.(tsx?|jsx?|mjs|json|md|css)$
       - id: eslint
         name: Frontend ESLint
-        entry: .tools/pre-commit/bin/python .githooks/check.py eslint
+        entry: python .githooks/check.py eslint
         language: system
         files: ^frontend/.*\.(tsx?|jsx?|mjs)$

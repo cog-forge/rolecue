@@ -1,8 +1,11 @@
 #!/bin/sh
 set -eu
 cd "$(git rev-parse --show-toplevel)"
-if [ ! -x .tools/pre-commit/bin/pre-commit ]; then
-    echo 'Run make setup before committing in this worktree.' >&2
-    exit 1
-fi
-exec .tools/pre-commit/bin/pre-commit run --hook-stage pre-commit
+# Git for Windows supplies sh even when git commit is called from PowerShell.
+for python in .tools/pre-commit/bin/python .tools/pre-commit/Scripts/python.exe; do
+    if [ -x "$python" ]; then
+        exec "$python" .githooks/setup.py run --hook-stage pre-commit
+    fi
+done
+echo 'Run python .githooks/setup.py (or make setup) before committing in this worktree.' >&2
+exit 1

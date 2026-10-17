@@ -1,26 +1,19 @@
 SHELL := /bin/sh
 .DEFAULT_GOAL := check
 
-PRE_COMMIT := $(CURDIR)/.tools/pre-commit/bin/pre-commit
-PRE_COMMIT_VERSION := 4.7.0
+PYTHON ?= python3
 TRIVY ?= trivy
 
 .PHONY: setup tooling precommit check frontend-check frontend-audit ci image-scan
 
-setup: tooling
-	sh .githooks/install.sh
+setup:
+	$(PYTHON) .githooks/setup.py
 
-tooling: $(PRE_COMMIT)
-	bun --no-env-file install --cwd frontend --frozen-lockfile --ignore-scripts
-	cd api && go mod download
+tooling: setup
 	$(MAKE) -C api tools
 
-$(PRE_COMMIT):
-	python3 -m venv .tools/pre-commit
-	.tools/pre-commit/bin/python -m pip install 'pre-commit==$(PRE_COMMIT_VERSION)'
-
-precommit: $(PRE_COMMIT)
-	$(PRE_COMMIT) run --all-files
+precommit:
+	$(PYTHON) .githooks/setup.py run --all-files
 
 frontend-check:
 	cd frontend && bun run format:check && bun run lint && bun run typecheck && bun test && bun run build
