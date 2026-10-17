@@ -34,6 +34,8 @@ export const routes = {
     root: "/recruiter",
     dashboard: "/recruiter/dashboard",
     jobPostings: "/recruiter/job-postings",
+    jobPostingNew: "/recruiter/job-postings/new",
+    jobPosting: (id: string) => `/recruiter/job-postings/${segment(id)}`,
     jobPostingQuestions: (id: string) =>
       `/recruiter/job-postings/${segment(id)}/questions`,
     applications: "/recruiter/applications",
