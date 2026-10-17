@@ -1752,6 +1752,94 @@ const docTemplate = `{
                 }
             }
         },
+        "/onboarding/role": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Same-role retries are idempotent until onboarding is completed. Changing a selected role or selecting after completion returns 409 ONBOARDING_ROLE_CONFLICT. Unknown fields reject the whole request.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "onboarding"
+                ],
+                "summary": "Choose your onboarding role once",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Candidate or recruiter; body limit 16 KiB",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RoleSelection"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.User"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/profile": {
             "get": {
                 "security": [
@@ -1823,7 +1911,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Omitted keys are unchanged. Null removes image/company values; full_name cannot be null. Only recruiters may change company fields. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "While onboarding is pending, PATCH requires full_name and (for recruiters) company_name/company_website and atomically marks completion.\nOmitted keys are unchanged. Null removes image/company values; full_name cannot be null. Only recruiters may change company fields. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1923,6 +2011,7 @@ const docTemplate = `{
                 "INVALID_TOKEN",
                 "AUTH_UNAVAILABLE",
                 "FORBIDDEN",
+                "ONBOARDING_ROLE_CONFLICT",
                 "VALIDATION_ERROR",
                 "INTERNAL_ERROR",
                 "INVALID_JD_INPUT",
@@ -1959,6 +2048,7 @@ const docTemplate = `{
                 "CodeInvalidToken",
                 "CodeAuthUnavailable",
                 "CodeForbidden",
+                "CodeOnboardingRoleConflict",
                 "CodeValidation",
                 "CodeInternal",
                 "CodeInvalidJDInput",
@@ -2224,6 +2314,12 @@ const docTemplate = `{
                 "image": {
                     "type": "string"
                 },
+                "onboarding_completed": {
+                    "type": "boolean"
+                },
+                "onboarding_role_selected": {
+                    "type": "boolean"
+                },
                 "role": {
                     "type": "string"
                 },
@@ -2412,6 +2508,12 @@ const docTemplate = `{
                 "is_locked": {
                     "type": "boolean"
                 },
+                "onboarding_completed": {
+                    "type": "boolean"
+                },
+                "onboarding_role_selected": {
+                    "type": "boolean"
+                },
                 "role": {
                     "type": "string"
                 }
@@ -2489,6 +2591,17 @@ const docTemplate = `{
             ],
             "properties": {
                 "reject_reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RoleSelection": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
                     "type": "string"
                 }
             }

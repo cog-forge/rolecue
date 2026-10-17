@@ -51,3 +51,24 @@ func validURL(s string) bool {
 	u, err := url.Parse(s)
 	return err == nil && u.Scheme == "https" && u.Hostname() != "" && u.User == nil && u.Opaque == ""
 }
+
+func validateOnboarding(current domain.Profile, patch domain.Patch) error {
+	if current.OnboardingCompleted || current.Role == "admin" {
+		return nil
+	}
+	if !current.OnboardingRoleSelected {
+		return apperror.New(apperror.CodeForbidden, "choose your role before completing your profile")
+	}
+	if !patch.FullName.Present {
+		return invalid("full_name is required to complete onboarding")
+	}
+	if current.Role == "recruiter" {
+		if !patch.CompanyName.Present || patch.CompanyName.Value == nil || strings.TrimSpace(*patch.CompanyName.Value) == "" {
+			return invalid("company_name is required to complete onboarding")
+		}
+		if !patch.CompanyWebsite.Present || patch.CompanyWebsite.Value == nil {
+			return invalid("company_website is required to complete onboarding")
+		}
+	}
+	return nil
+}

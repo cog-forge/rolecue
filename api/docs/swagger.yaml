@@ -10,6 +10,7 @@ definitions:
     - INVALID_TOKEN
     - AUTH_UNAVAILABLE
     - FORBIDDEN
+    - ONBOARDING_ROLE_CONFLICT
     - VALIDATION_ERROR
     - INTERNAL_ERROR
     - INVALID_JD_INPUT
@@ -46,6 +47,7 @@ definitions:
     - CodeInvalidToken
     - CodeAuthUnavailable
     - CodeForbidden
+    - CodeOnboardingRoleConflict
     - CodeValidation
     - CodeInternal
     - CodeInvalidJDInput
@@ -231,6 +233,10 @@ definitions:
         type: string
       image:
         type: string
+      onboarding_completed:
+        type: boolean
+      onboarding_role_selected:
+        type: boolean
       role:
         type: string
       updated_at:
@@ -364,6 +370,10 @@ definitions:
         type: string
       is_locked:
         type: boolean
+      onboarding_completed:
+        type: boolean
+      onboarding_role_selected:
+        type: boolean
       role:
         type: string
     type: object
@@ -415,6 +425,13 @@ definitions:
         type: string
     required:
     - reject_reason
+    type: object
+  handler.RoleSelection:
+    properties:
+      role:
+        type: string
+    required:
+    - role
     type: object
   handler.UpdateJDRequest:
     properties:
@@ -1567,6 +1584,62 @@ paths:
       summary: Generate the core-question bank of your own job posting
       tags:
       - job-posting-questions
+  /onboarding/role:
+    post:
+      consumes:
+      - application/json
+      description: Same-role retries are idempotent until onboarding is completed.
+        Changing a selected role or selecting after completion returns 409 ONBOARDING_ROLE_CONFLICT.
+        Unknown fields reject the whole request.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Candidate or recruiter; body limit 16 KiB
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RoleSelection'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Choose your onboarding role once
+      tags:
+      - onboarding
   /profile:
     get:
       produces:
@@ -1609,9 +1682,9 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Omitted keys are unchanged. Null removes image/company values;
-        full_name cannot be null. Only recruiters may change company fields. Trusted
-        Origin required. Unknown fields reject the whole request.
+      description: |-
+        While onboarding is pending, PATCH requires full_name and (for recruiters) company_name/company_website and atomically marks completion.
+        Omitted keys are unchanged. Null removes image/company values; full_name cannot be null. Only recruiters may change company fields. Trusted Origin required. Unknown fields reject the whole request.
       parameters:
       - description: Trusted frontend origin
         in: header

@@ -22,6 +22,7 @@ type Router struct {
 	walletHandler       *handler.WalletHandler
 	questionBankHandler *handler.QuestionBankHandler
 	moderationHandler   *handler.ModerationHandler
+	onboardingHandler   *handler.OnboardingHandler
 	accountsHandler     *handler.AccountsHandler
 }
 
@@ -35,6 +36,7 @@ func NewRouter(
 	walletHandler *handler.WalletHandler,
 	questionBankHandler *handler.QuestionBankHandler,
 	moderationHandler *handler.ModerationHandler,
+	onboardingHandler *handler.OnboardingHandler,
 	accountsHandler *handler.AccountsHandler,
 ) *Router {
 	return &Router{
@@ -47,6 +49,7 @@ func NewRouter(
 		walletHandler:       walletHandler,
 		questionBankHandler: questionBankHandler,
 		moderationHandler:   moderationHandler,
+		onboardingHandler:   onboardingHandler,
 		accountsHandler:     accountsHandler,
 	}
 }
@@ -75,7 +78,9 @@ func (r *Router) Setup() *gin.Engine {
 	profiles.GET("", r.profileHandler.Get)
 	profiles.PATCH("", r.profileHandler.Update)
 
-	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	router.POST("/onboarding/role", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), r.onboardingHandler.SelectRole)
+
+	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	jds.POST("/analyze", r.jdHandler.Analyze)
 	jds.POST("", r.jdHandler.Create)
 	jds.GET("", r.jdHandler.List)
@@ -83,7 +88,7 @@ func (r *Router) Setup() *gin.Engine {
 	jds.PUT("/:id", r.jdHandler.Update)
 	jds.DELETE("/:id", r.jdHandler.Delete)
 
-	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	{
 		wallet.GET("", r.walletHandler.GetWallet)
 		wallet.GET("/transactions", r.walletHandler.ListTransactions)
@@ -93,7 +98,7 @@ func (r *Router) Setup() *gin.Engine {
 
 	router.POST("/wallet/webhook/payos", r.walletHandler.HandlePayOSWebhook)
 
-	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
 	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
