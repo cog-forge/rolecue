@@ -1,6 +1,12 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,7 +40,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import {
@@ -42,13 +47,14 @@ import {
   jobPostingKeys,
   listAvatars,
   listVoices,
+  uploadDocument,
 } from "../api/job-postings";
 import {
   levels,
+  PDF_MAX_BYTES,
   postingFormSchema,
   requirementTargets,
   runeLength,
-  TEXT_MAX,
   TEXT_MIN,
   type JobPosting,
   type Level,
@@ -56,6 +62,7 @@ import {
   type RequirementTarget,
 } from "../schemas/job-posting-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
+import { JdDocumentLink } from "./jd-document-link";
 import { Notice } from "./notice";
 
 const levelText: Record<Level, string> = {
@@ -75,9 +82,10 @@ const targetText: Record<RequirementTarget, string> = {
   technologies: "Technology (general)",
   domain_knowledge: "Domain knowledge",
 };
-// Uploaded JD files are read in the browser as plain text; the posting stores text only.
-const TEXT_FILE_TYPES = ".txt,.md,text/plain,text/markdown";
-const TEXT_FILE_MAX_BYTES = 512 * 1024;
+// The JD is a PDF; the API stores it and reads its text.
+const PDF_FILE_TYPES = "application/pdf,.pdf";
+const isPdf = (file: File) =>
+  file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
 export type PostingFormLocks = Readonly<{
   textEditable: boolean;
@@ -167,36 +175,79 @@ export function PostingForm({
     },
   });
 
-  const rawText = useWatch({ control, name: "raw_text" });
-  const requirementValues = useWatch({ control, name: "requirements" });
-  const textLength = runeLength(rawText.trim());
-  const requirementsChanged =
-    mode === "create" ||
-    Boolean(dirtyFields.requirements) ||
-    Boolean(dirtyFields.seniority_level);
-  const busy = submitting || extract.isPending;
-  const questionCount = posting?.core_question_count ?? 0;
-
-  const loadFile = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    if (file.size > TEXT_FILE_MAX_BYTES) {
-      setFileError("That file is too large. Use a text file under 512 KB.");
-      return;
-    }
-    try {
-      const text = await file.text();
-      setFileError(null);
-      setValue("raw_text", text, {
+  const upload = useMutation({
+    mutationFn: (file: File) => uploadDocument(file),
+    retry: false,
+    onError: (error) => {
+      if (isAccessDenied(error))
+        void cache.invalidateQueries({ queryKey: ["auth", "me"] });
+    },
+    onSuccess: (document, file) => {
+      const options = {
         shouldDirty: true,
         shouldValidate: true,
         shouldTouch: true,
-      });
-    } catch {
-      setFileError("We couldn't read that file. Paste the text instead.");
+      };
+      setValue("document_id", document.document_id, options);
+      setValue("file_name", file.name, options);
+      setValue("raw_text", document.raw_text, options);
+    },
+  });
+
+  const rawText = useWatch({ control, name: "raw_text" });
+  const fileName = useWatch({ control, name: "file_name" });
+  const requirementValues = useWatch({ control, name: "requirements" });
+  const seniority = useWatch({ control, name: "seniority_level" });
+  const textLength = runeLength(rawText.trim());
+  // A new JD PDF needs its requirements reviewed again, like a seniority or requirement change.
+  const requirementsChanged =
+    mode === "create" ||
+    Boolean(dirtyFields.requirements) ||
+    Boolean(dirtyFields.seniority_level) ||
+    Boolean(dirtyFields.document_id);
+
+  // The confirmation covers the JD, seniority and requirements as they were when it was ticked;
+  // changing any of them afterwards, by hand or by suggestion, asks for it again.
+  const reviewedInputs = JSON.stringify([
+    rawText,
+    seniority,
+    requirementValues,
+  ]);
+  const confirmedInputs = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      confirmedInputs.current !== null &&
+      confirmedInputs.current !== reviewedInputs
+    ) {
+      confirmedInputs.current = null;
+      setValue("confirmed", false, { shouldDirty: true });
     }
+  }, [reviewedInputs, setValue]);
+  const busy = submitting || extract.isPending || upload.isPending;
+  const questionCount = posting?.core_question_count ?? 0;
+
+  const loadFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    upload.reset();
+    if (!isPdf(file)) {
+      setFileError("Choose a PDF file.");
+      return;
+    }
+    if (file.size > PDF_MAX_BYTES) {
+      setFileError("That PDF is too large. Choose one up to 5 MB.");
+      return;
+    }
+    setFileError(null);
+    upload.mutate(file);
   };
+
+  const uploadMessage = (() => {
+    if (!upload.isError) return null;
+    const { message } = apiError(upload.error);
+    return message ?? "We couldn't upload that PDF. Try again.";
+  })();
 
   const submit = handleSubmit((values) => {
     if (submitting) return;
@@ -214,7 +265,7 @@ export function PostingForm({
   const extractMessage = (() => {
     if (!extract.isError) return null;
     const { message } = apiError(extract.error);
-    return `${message ?? "We couldn't read requirements from this text."} Your text is still here. Try again, or add the requirements yourself.`;
+    return `${message ?? "We couldn't read requirements from this job description."} Your PDF is still uploaded. Try again, or add the requirements yourself.`;
   })();
 
   return (
@@ -231,59 +282,92 @@ export function PostingForm({
         description={
           <>
             {locks.textEditable
-              ? "Paste the job description or load it from a text file. RoleCue suggests the requirements from it."
-              : "The text is locked while the posting is pending. It can be corrected after a rejection."}
+              ? "Upload the job description as a PDF with selectable text, up to 5 MB. RoleCue reads it and suggests the requirements."
+              : "The PDF is locked while the posting is pending. It can be replaced after a rejection."}
           </>
         }
       >
+        {posting?.has_document && !dirtyFields.document_id && (
+          <JdDocumentLink postingId={posting.id} />
+        )}
         {locks.textEditable ? (
           <>
             <div className="space-y-2">
-              <label htmlFor="posting-raw-text" className="text-sm font-medium">
-                Job description text (required)
-              </label>
-              <Textarea
-                id="posting-raw-text"
-                rows={12}
-                disabled={busy}
-                className="min-h-64"
-                aria-invalid={!!errors.raw_text}
-                aria-describedby={describedBy(
-                  "posting-raw-text",
-                  true,
-                  errors.raw_text,
-                )}
-                {...register("raw_text")}
-              />
-              <p
-                id="posting-raw-text-hint"
-                className="text-xs text-muted-foreground tabular-nums"
-              >
-                {textLength.toLocaleString("en")} /{" "}
-                {TEXT_MAX.toLocaleString("en")} characters, at least {TEXT_MIN}.
-              </p>
-              <FieldErrorText id="posting-raw-text" error={errors.raw_text} />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
               <input
                 ref={fileInput}
+                id="posting-pdf"
                 type="file"
-                accept={TEXT_FILE_TYPES}
+                accept={PDF_FILE_TYPES}
                 className="sr-only"
                 tabIndex={-1}
                 aria-hidden
-                onChange={(event) => void loadFile(event)}
+                onChange={loadFile}
               />
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11"
-                disabled={busy}
-                onClick={() => fileInput.current?.click()}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant={rawText ? "outline" : "default"}
+                  className="h-11"
+                  disabled={busy}
+                  aria-busy={upload.isPending}
+                  aria-describedby={describedBy(
+                    "posting-pdf",
+                    true,
+                    errors.raw_text,
+                  )}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  {upload.isPending ? (
+                    <LoaderCircle
+                      className="size-4 animate-spin motion-reduce:animate-none"
+                      aria-hidden
+                    />
+                  ) : (
+                    <FileUp aria-hidden />
+                  )}
+                  {upload.isPending
+                    ? "Reading the PDF…"
+                    : rawText
+                      ? "Replace the PDF"
+                      : "Upload the job description PDF"}
+                </Button>
+                {fileName && !upload.isPending && (
+                  <span className="text-sm font-medium [overflow-wrap:anywhere]">
+                    {fileName}
+                  </span>
+                )}
+              </div>
+              <p
+                id="posting-pdf-hint"
+                className="text-xs text-muted-foreground"
               >
-                <FileUp aria-hidden />
-                Load from text file
-              </Button>
+                {mode === "edit"
+                  ? "A new PDF replaces the current one when you save."
+                  : "Scanned PDFs without selectable text can't be read."}
+              </p>
+              <FieldErrorText id="posting-pdf" error={errors.raw_text} />
+              {(fileError ?? uploadMessage) && (
+                <p role="alert" className="text-sm text-destructive">
+                  {fileError ?? uploadMessage}
+                </p>
+              )}
+            </div>
+            {rawText && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Text read from the PDF</p>
+                <div
+                  tabIndex={0}
+                  aria-label="Text read from the PDF"
+                  className="max-h-72 overflow-y-auto rounded-xl border bg-muted/40 p-4 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]"
+                >
+                  {rawText}
+                </div>
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {textLength.toLocaleString("en")} characters
+                </p>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -315,11 +399,6 @@ export function PostingForm({
               Suggesting again replaces the requirements below. Nothing is saved
               until you submit.
             </p>
-            {fileError && (
-              <p role="alert" className="text-sm text-destructive">
-                {fileError}
-              </p>
-            )}
             {extractMessage && (
               <p role="alert" className="text-sm text-destructive">
                 {extractMessage}
@@ -358,9 +437,10 @@ export function PostingForm({
             {mode === "edit" && questionCount > 0 && (
               <Notice tone="warning">
                 <p>
-                  Changing the job description text, seniority or requirements
-                  deletes the {questionCount} questions in this posting&apos;s
-                  question bank. You can generate them again afterwards.
+                  Replacing the job description PDF or changing the seniority or
+                  requirements deletes the {questionCount} questions in this
+                  posting&apos;s question bank. You can generate them again
+                  afterwards.
                 </p>
               </Notice>
             )}
@@ -542,6 +622,8 @@ export function PostingForm({
                         }
                         onCheckedChange={(checked) => {
                           field.onChange(checked === true);
+                          confirmedInputs.current =
+                            checked === true ? reviewedInputs : null;
                           if (checked === true) clearErrors("confirmed");
                         }}
                       />

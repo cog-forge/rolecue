@@ -42,7 +42,10 @@ export const postingSchema = z.object({
   title: z.string(),
   status: postingStatusSchema,
   reject_reason: z.string().nullable(),
+  // The text read from the JD PDF (or the stored text of a posting created before PDF upload).
   raw_text: z.string(),
+  // True when the JD is a PDF, opened through GET /job-postings/:id/document.
+  has_document: z.boolean(),
   seniority_level: levelSchema,
   requirements: z.array(requirementSchema),
   location: z.string().nullable(),
@@ -77,6 +80,19 @@ export const suggestionSchema = z.object({
 });
 export type Suggestion = z.infer<typeof suggestionSchema>;
 
+// POST /job-postings/documents: the stored PDF and the text read from it.
+export const documentSchema = z.object({
+  document_id: z.uuid(),
+  raw_text: z.string(),
+});
+export type UploadedDocument = z.infer<typeof documentSchema>;
+
+// GET /job-postings/:id/document: a link to the PDF that expires after a few minutes.
+export const documentLinkSchema = z.object({
+  url: z.url({ protocol: /^https?$/ }),
+  expires_at: z.iso.datetime({ offset: true }),
+});
+
 export const voiceSchema = z.object({ id: z.uuid(), name: z.string() });
 export type Voice = z.infer<typeof voiceSchema>;
 
@@ -105,6 +121,8 @@ const page = <T extends z.ZodType>(item: T) =>
 export const postingEnvelopeSchema = envelope(postingSchema);
 export const postingPageEnvelopeSchema = envelope(page(summarySchema));
 export const suggestionEnvelopeSchema = envelope(suggestionSchema);
+export const documentEnvelopeSchema = envelope(documentSchema);
+export const documentLinkEnvelopeSchema = envelope(documentLinkSchema);
 export const voicePageEnvelopeSchema = envelope(page(voiceSchema));
 export const avatarPageEnvelopeSchema = envelope(page(avatarSchema));
 export type PostingPage = z.infer<typeof postingPageEnvelopeSchema>["data"];
@@ -112,6 +130,7 @@ export type PostingPage = z.infer<typeof postingPageEnvelopeSchema>["data"];
 // Limits match the Go validation; lengths count Unicode code points like Go counts runes.
 export const TEXT_MIN = 100;
 export const TEXT_MAX = 20_000;
+export const PDF_MAX_BYTES = 5 * 1024 * 1024;
 export const TITLE_MAX = 200;
 export const DETAIL_MAX = 200;
 export const NAME_MAX = 200;
@@ -141,15 +160,15 @@ const optionalWhole = (message: string, min: number) =>
 
 export const postingFormSchema = z
   .object({
+    // document_id is a newly uploaded PDF ("" keeps the posting's current one); raw_text and
+    // file_name come from that upload and are shown, never typed. The server reads the PDF again.
+    document_id: z.string(),
+    file_name: z.string(),
     raw_text: z
       .string()
       .refine(
-        (value) => trimmedLength(value) >= TEXT_MIN,
-        `Paste at least ${TEXT_MIN} characters of the job description.`,
-      )
-      .refine(
-        (value) => trimmedLength(value) <= TEXT_MAX,
-        `Keep the job description to ${TEXT_MAX.toLocaleString("en")} characters or fewer.`,
+        (value) => trimmedLength(value) > 0,
+        "Upload the job description as a PDF.",
       ),
     title: z
       .string()
@@ -237,6 +256,8 @@ export const postingFormSchema = z
 export type PostingValues = z.infer<typeof postingFormSchema>;
 
 export const emptyPostingValues: PostingValues = {
+  document_id: "",
+  file_name: "",
   raw_text: "",
   title: "",
   seniority_level: "",
@@ -256,6 +277,8 @@ const numberText = (value: number | null) =>
 
 export function postingValues(posting: JobPosting): PostingValues {
   return {
+    document_id: "",
+    file_name: "",
     raw_text: posting.raw_text,
     title: posting.title,
     seniority_level: posting.seniority_level,
@@ -286,7 +309,7 @@ const requirementRows = (rows: PostingValues["requirements"]) =>
 export function createBody(values: PostingValues) {
   return {
     title: values.title.trim(),
-    raw_text: values.raw_text,
+    document_id: values.document_id,
     // Validation already rejected a blank seniority; parsing narrows the type without a cast.
     seniority_level: levelSchema.parse(values.seniority_level),
     requirements: requirementRows(values.requirements),
@@ -313,7 +336,7 @@ const sameRequirements = (a: Requirement[], b: Requirement[]) =>
   );
 
 // Body for PATCH /job-postings/:id: only what changed, so a locked field that was not touched is
-// never sent. The text is only sent when it changed (it can change only after a rejection).
+// never sent. The PDF is only sent when a new one was uploaded (possible only after a rejection).
 export function postingPatch(
   values: PostingValues,
   posting: JobPosting,
@@ -321,7 +344,7 @@ export function postingPatch(
   const next = createBody(values);
   const patch: PostingPatch = {};
   if (next.title !== posting.title) patch.title = next.title;
-  if (next.raw_text !== posting.raw_text) patch.raw_text = next.raw_text;
+  if (next.document_id) patch.document_id = next.document_id;
   if (next.seniority_level !== posting.seniority_level)
     patch.seniority_level = next.seniority_level;
   if (!sameRequirements(next.requirements, posting.requirements))

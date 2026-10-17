@@ -43,6 +43,7 @@ const base = {
   status: "pending",
   reject_reason: null as string | null,
   raw_text: "We build Go services on PostgreSQL for payments. ".repeat(3),
+  has_document: true,
   seniority_level: "senior",
   requirements: [
     { name: "Go", target: "programming_language", type: "required" },
@@ -59,6 +60,8 @@ const base = {
   created_at: "2026-10-12T08:00:00Z",
 };
 type Posting = typeof base;
+const pdfUrl = "https://storage.example.com/role-cue/jd?X-Amz-Signature=abc";
+const newDocumentId = "77777777-7777-4777-8777-777777777777";
 function failure(status: number, code: string, message: string) {
   return new AxiosError("failure", "ERR_BAD_RESPONSE", undefined, undefined, {
     status,
@@ -83,6 +86,10 @@ function serve(posting: Posting | Error) {
             updated_at: "2026-10-01T00:00:00Z",
           },
         ]),
+      );
+    if (path === `/job-postings/${postingId}/document`)
+      return Promise.resolve(
+        envelope({ url: pdfUrl, expires_at: "2026-10-17T08:05:00Z" }),
       );
     return posting instanceof Error
       ? Promise.reject(posting)
@@ -129,9 +136,12 @@ describe("JobPostingDetail", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Pending review")).toBeInTheDocument();
-    // The text is locked while pending, so it shows as text, not a field.
+    // The PDF is locked while pending: it can be opened, not replaced.
     expect(
-      screen.queryByLabelText("Job description text (required)"),
+      await screen.findByRole("link", { name: /open the pdf/i }),
+    ).toHaveAttribute("href", pdfUrl);
+    expect(
+      screen.queryByRole("button", { name: /replace the pdf/i }),
     ).not.toBeInTheDocument();
     const save = screen.getByRole("button", { name: "Save changes" });
     expect(save).toBeDisabled();
@@ -183,7 +193,7 @@ describe("JobPostingDetail", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/deletes the 3 questions/i)).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Job description text (required)"),
+      screen.getByRole("button", { name: /replace the pdf/i }),
     ).toBeEnabled();
 
     const resend = screen.getByRole("button", {
@@ -208,6 +218,74 @@ describe("JobPostingDetail", () => {
       ),
     );
     expect(await screen.findByText("Pending review")).toBeInTheDocument();
+  });
+
+  it("replaces the PDF of a rejected posting and sends only the new document", async () => {
+    serve({ ...base, status: "rejected", reject_reason: "Wrong JD." });
+    const corrected = "We run Kafka and Go services for payments. ".repeat(3);
+    mocks.post.mockResolvedValue(
+      envelope({ document_id: newDocumentId, raw_text: corrected }),
+    );
+    mocks.patch.mockResolvedValue(
+      envelope({ ...base, status: "rejected", raw_text: corrected }),
+    );
+    mount();
+    await screen.findByRole("button", { name: /replace the pdf/i });
+    const input = document.getElementById("posting-pdf");
+    if (!input) throw new Error("PDF input not found");
+    fireEvent.change(input, {
+      target: {
+        files: [new File(["%PDF"], "fixed.pdf", { type: "application/pdf" })],
+      },
+    });
+    expect(await screen.findByText("fixed.pdf")).toBeInTheDocument();
+    expect(screen.getByLabelText("Text read from the PDF")).toHaveTextContent(
+      corrected.trim(),
+    );
+    // The old PDF's link goes away once a new one is chosen.
+    expect(
+      screen.queryByRole("link", { name: /open the pdf/i }),
+    ).not.toBeInTheDocument();
+    // A new JD alone still needs the requirements confirmed against it.
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(
+      await screen.findByText(
+        "Confirm that you reviewed the requirements before submitting.",
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.patch).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() =>
+      expect(mocks.patch).toHaveBeenCalledWith(`/job-postings/${postingId}`, {
+        document_id: newDocumentId,
+      }),
+    );
+  });
+
+  it("clears the confirmation when a requirement is edited after ticking", async () => {
+    serve({ ...base, status: "rejected", reject_reason: "Too vague." });
+    mount();
+    fireEvent.change(await screen.findByLabelText("Requirement 1"), {
+      target: { value: "Golang" },
+    });
+    const confirm = () =>
+      screen.getByRole("checkbox", { name: /i reviewed these requirements/i });
+    fireEvent.click(confirm());
+    expect(confirm()).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Requirement 1"), {
+      target: { value: "Rust" },
+    });
+    await waitFor(() => expect(confirm()).not.toBeChecked());
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(
+      await screen.findByText(
+        "Confirm that you reviewed the requirements before submitting.",
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.patch).not.toHaveBeenCalled();
   });
 
   it("asks for confirmation again when requirements change", async () => {

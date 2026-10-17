@@ -24,6 +24,7 @@ import {
   type JobPosting,
 } from "../schemas/job-posting-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
+import { JdDocumentLink } from "./jd-document-link";
 import { levelText, PostingForm, targetText } from "./posting-form";
 import { headerBandClass, Notice } from "./notice";
 import { PostingStatus } from "./posting-status";
@@ -393,7 +394,8 @@ function ReadOnlyPosting({ posting }: { posting: JobPosting }) {
             <h2>Job description</h2>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          {posting.has_document && <JdDocumentLink postingId={posting.id} />}
           <div className="max-h-96 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
             {posting.raw_text}
           </div>

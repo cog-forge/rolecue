@@ -1,6 +1,8 @@
 import { apiClient } from "@/lib/api/client";
 import {
   avatarPageEnvelopeSchema,
+  documentEnvelopeSchema,
+  documentLinkEnvelopeSchema,
   postingEnvelopeSchema,
   postingPageEnvelopeSchema,
   suggestionEnvelopeSchema,
@@ -17,6 +19,8 @@ export const jobPostingKeys = {
     [...jobPostingKeys.lists(userId), filters] as const,
   detail: (userId: string, id: string) =>
     [...jobPostingKeys.all(userId), "detail", id] as const,
+  document: (userId: string, id: string) =>
+    [...jobPostingKeys.detail(userId, id), "document"] as const,
   voices: (userId: string) =>
     [...jobPostingKeys.all(userId), "voices"] as const,
   avatars: (userId: string) =>
@@ -53,6 +57,24 @@ export async function updatePosting(id: string, patch: PostingPatch) {
 export async function resubmitPosting(id: string) {
   const response = await apiClient.post<unknown>(`${postingPath(id)}/resubmit`);
   return postingEnvelopeSchema.parse(response.data).data;
+}
+
+// The browser sets the multipart boundary when the body is FormData.
+export async function uploadDocument(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await apiClient.post<unknown>(
+    "/job-postings/documents",
+    form,
+  );
+  return documentEnvelopeSchema.parse(response.data).data;
+}
+
+export async function getDocumentLink(id: string, signal?: AbortSignal) {
+  const response = await apiClient.get<unknown>(`${postingPath(id)}/document`, {
+    signal,
+  });
+  return documentLinkEnvelopeSchema.parse(response.data).data;
 }
 
 export async function extractRequirements(rawText: string) {

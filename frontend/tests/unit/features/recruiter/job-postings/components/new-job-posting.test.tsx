@@ -53,6 +53,7 @@ const created = {
   status: "pending",
   reject_reason: null,
   raw_text: jdText,
+  has_document: true,
   seniority_level: "senior",
   requirements: [
     { name: "Go", target: "programming_language", type: "required" },
@@ -100,10 +101,25 @@ async function choose(label: string, option: string) {
     key: "Enter",
   });
 }
+const documentId = "66666666-6666-4666-8666-666666666666";
+// The whole-form flows click through every step; on a busy machine they outlast the 5s default.
+const LONG_FLOW_MS = 15_000;
+const pdf = (name = "backend.pdf", size = 1024) =>
+  new File([new Uint8Array(size)], name, { type: "application/pdf" });
+const pickFile = (file: File) => {
+  const input = document.getElementById("posting-pdf");
+  if (!input) throw new Error("PDF input not found");
+  fireEvent.change(input, { target: { files: [file] } });
+};
+const uploaded = envelope({ document_id: documentId, raw_text: jdText });
+async function uploadPdf() {
+  pickFile(pdf());
+  expect(
+    await screen.findByLabelText("Text read from the PDF"),
+  ).toHaveTextContent(jdText.trim());
+}
 async function fillAndExtract() {
-  fireEvent.change(screen.getByLabelText("Job description text (required)"), {
-    target: { value: jdText },
-  });
+  await uploadPdf();
   fireEvent.click(screen.getByRole("button", { name: "Suggest requirements" }));
   expect(await screen.findByLabelText("Requirement 1")).toHaveValue("Go");
 }
@@ -128,22 +144,24 @@ beforeEach(() => {
 });
 
 describe("NewJobPosting", () => {
-  it("extracts, requires confirmation, then submits exactly the Go body", async () => {
+  it("uploads the PDF, extracts, requires confirmation, then submits exactly the Go body", async () => {
     mocks.post.mockImplementation((path: string) =>
       Promise.resolve(
-        path === "/job-postings/extract"
-          ? envelope({
-              title: "Backend Engineer",
-              seniority_level: "senior",
-              requirements: [
-                {
-                  name: "Go",
-                  target: "programming_language",
-                  type: "required",
-                },
-              ],
-            })
-          : envelope(created),
+        path === "/job-postings/documents"
+          ? uploaded
+          : path === "/job-postings/extract"
+            ? envelope({
+                title: "Backend Engineer",
+                seniority_level: "senior",
+                requirements: [
+                  {
+                    name: "Go",
+                    target: "programming_language",
+                    type: "required",
+                  },
+                ],
+              })
+            : envelope(created),
       ),
     );
     const client = mount();
@@ -151,6 +169,10 @@ describe("NewJobPosting", () => {
       screen.getByRole("button", { name: "Suggest requirements" }),
     ).toBeDisabled();
     await fillAndExtract();
+    const [path, body] = mocks.post.mock.calls[0] as [string, FormData];
+    expect(path).toBe("/job-postings/documents");
+    expect((body.get("file") as File).name).toBe("backend.pdf");
+    expect(screen.getByText("backend.pdf")).toBeInTheDocument();
     expect(mocks.post).toHaveBeenCalledWith("/job-postings/extract", {
       raw_text: jdText,
     });
@@ -175,7 +197,7 @@ describe("NewJobPosting", () => {
         "Confirm that you reviewed the requirements before submitting.",
       ),
     ).toBeInTheDocument();
-    expect(mocks.post).toHaveBeenCalledTimes(1);
+    expect(mocks.post).toHaveBeenCalledTimes(2);
 
     fireEvent.click(
       screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
@@ -186,7 +208,7 @@ describe("NewJobPosting", () => {
     await waitFor(() =>
       expect(mocks.post).toHaveBeenCalledWith("/job-postings", {
         title: "Backend Engineer",
-        raw_text: jdText,
+        document_id: documentId,
         seniority_level: "senior",
         requirements: [
           { name: "Go", target: "programming_language", type: "required" },
@@ -213,29 +235,69 @@ describe("NewJobPosting", () => {
         postingId,
       ]),
     ).toEqual(created);
-  });
+  }, LONG_FLOW_MS);
 
-  it("keeps the text and explains when extraction fails", async () => {
-    mocks.post.mockRejectedValue(
-      failure(502, "EXTRACTION_FAILED", "Job description extraction failed."),
+  it("keeps the PDF and explains when extraction fails", async () => {
+    mocks.post.mockImplementation((path: string) =>
+      path === "/job-postings/documents"
+        ? Promise.resolve(uploaded)
+        : Promise.reject(
+            failure(
+              502,
+              "EXTRACTION_FAILED",
+              "Job description extraction failed.",
+            ),
+          ),
     );
     mount();
-    fireEvent.change(screen.getByLabelText("Job description text (required)"), {
-      target: { value: jdText },
-    });
+    await uploadPdf();
     fireEvent.click(
       screen.getByRole("button", { name: "Suggest requirements" }),
     );
     expect(
       await screen.findByText(
-        /job description extraction failed\. your text is still here/i,
+        /job description extraction failed\. your pdf is still uploaded/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Text read from the PDF")).toHaveTextContent(
+      jdText.trim(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Add requirement" }),
+    ).toBeEnabled();
+  });
+
+  it("refuses non-PDF and oversized files without uploading", async () => {
+    mount();
+    pickFile(new File(["hello"], "jd.txt", { type: "text/plain" }));
+    expect(await screen.findByText("Choose a PDF file.")).toBeInTheDocument();
+    pickFile(pdf("big.pdf", 5 * 1024 * 1024 + 1));
+    expect(
+      await screen.findByText("That PDF is too large. Choose one up to 5 MB."),
+    ).toBeInTheDocument();
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's reason when a PDF can't be read", async () => {
+    mocks.post.mockRejectedValue(
+      failure(
+        400,
+        "INVALID_PDF",
+        "This PDF has no readable text. Scanned PDFs need OCR.",
+      ),
+    );
+    mount();
+    pickFile(pdf());
+    expect(
+      await screen.findByText(
+        "This PDF has no readable text. Scanned PDFs need OCR.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Job description text (required)"),
-    ).toHaveValue(jdText);
+      screen.queryByLabelText("Text read from the PDF"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Add requirement" }),
+      screen.getByRole("button", { name: "Upload the job description PDF" }),
     ).toBeEnabled();
   });
 
@@ -245,9 +307,7 @@ describe("NewJobPosting", () => {
       screen.getByRole("button", { name: "Submit for approval" }),
     );
     expect(
-      await screen.findByText(
-        "Paste at least 100 characters of the job description.",
-      ),
+      await screen.findByText("Upload the job description as a PDF."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Choose the interviewer model candidates will meet."),
@@ -265,23 +325,25 @@ describe("NewJobPosting", () => {
   it("sends one request on a double click and keeps the draft when the server refuses", async () => {
     let reject: (reason: unknown) => void = () => {};
     mocks.post.mockImplementation((path: string) =>
-      path === "/job-postings/extract"
-        ? Promise.resolve(
-            envelope({
-              title: "Backend Engineer",
-              seniority_level: "mid",
-              requirements: [
-                {
-                  name: "Go",
-                  target: "programming_language",
-                  type: "required",
-                },
-              ],
+      path === "/job-postings/documents"
+        ? Promise.resolve(uploaded)
+        : path === "/job-postings/extract"
+          ? Promise.resolve(
+              envelope({
+                title: "Backend Engineer",
+                seniority_level: "mid",
+                requirements: [
+                  {
+                    name: "Go",
+                    target: "programming_language",
+                    type: "required",
+                  },
+                ],
+              }),
+            )
+          : new Promise((_, fail) => {
+              reject = fail;
             }),
-          )
-        : new Promise((_, fail) => {
-            reject = fail;
-          }),
     );
     mount();
     await fillAndExtract();
@@ -313,6 +375,77 @@ describe("NewJobPosting", () => {
     ).toHaveLength(1);
     expect(screen.getByLabelText("Requirement 1")).toHaveValue("Go");
   });
+
+  it("asks for confirmation again when requirements or the JD change after ticking", async () => {
+    mocks.post.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/job-postings/documents"
+          ? uploaded
+          : path === "/job-postings/extract"
+            ? envelope({
+                title: "Backend Engineer",
+                seniority_level: "senior",
+                requirements: [
+                  {
+                    name: "Go",
+                    target: "programming_language",
+                    type: "required",
+                  },
+                ],
+              })
+            : envelope(created),
+      ),
+    );
+    mount();
+    await fillAndExtract();
+    await choose("Interviewer model (required)", "Linh");
+    await choose("Interviewer voice (required)", "Ava");
+    const confirm = () =>
+      screen.getByRole("checkbox", { name: /i reviewed these requirements/i });
+
+    // Editing a requirement row clears the tick.
+    fireEvent.click(confirm());
+    expect(confirm()).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Requirement 1"), {
+      target: { value: "Python" },
+    });
+    await waitFor(() => expect(confirm()).not.toBeChecked());
+
+    // Changing the seniority clears it too.
+    fireEvent.click(confirm());
+    await choose("Seniority (required)", "Junior");
+    await waitFor(() => expect(confirm()).not.toBeChecked());
+
+    // So does a different JD PDF.
+    fireEvent.click(confirm());
+    mocks.post.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/job-postings/documents"
+          ? envelope({
+              document_id: "88888888-8888-4888-8888-888888888888",
+              raw_text: "We hire Python developers for data pipelines. ".repeat(
+                3,
+              ),
+            })
+          : envelope(created),
+      ),
+    );
+    pickFile(pdf("python.pdf"));
+    expect(await screen.findByText("python.pdf")).toBeInTheDocument();
+    await waitFor(() => expect(confirm()).not.toBeChecked());
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Submit for approval" }),
+    );
+    expect(
+      await screen.findByText(
+        "Confirm that you reviewed the requirements before submitting.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      mocks.post.mock.calls.filter(([path]) => path === "/job-postings"),
+    ).toHaveLength(0);
+  }, LONG_FLOW_MS);
 
   it("says so when the recruiter has no interviewer model", async () => {
     mocks.get.mockImplementation((path: string) =>

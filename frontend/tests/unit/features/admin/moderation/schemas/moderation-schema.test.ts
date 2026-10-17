@@ -26,6 +26,9 @@ const review = {
   required_voice: { id: "44444444-4444-4444-8444-444444444444", name: "Ava" },
   created_at: "2026-10-12T08:00:00Z",
   content_path: "https://files.example.com/jd/go.pdf",
+  document_url: null,
+  document_expires_at: null,
+  raw_text: null,
   core_question_count: 50,
 };
 
@@ -51,6 +54,36 @@ describe("moderation wire schemas", () => {
     expect(
       reviewPostingEnvelopeSchema.safeParse({ success: true, data: review }).success,
     ).toBe(true);
+    expect(
+      reviewPostingEnvelopeSchema.safeParse({
+        success: true,
+        data: {
+          ...review,
+          content_path: "job-descriptions/a.txt",
+          raw_text: "JD text",
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      reviewPostingEnvelopeSchema.safeParse({
+        success: true,
+        data: {
+          ...review,
+          content_path: "0b6c3a52-6a3d-4b7e-9d55-8c1f2a3b4c5d",
+          document_url:
+            "https://storage.example.com/role-cue/key?X-Amz-Signature=s",
+          document_expires_at: "2026-10-17T08:15:00Z",
+          raw_text: "JD text",
+        },
+      }).success,
+    ).toBe(true);
+    // Only a web link is embedded.
+    expect(
+      reviewPostingEnvelopeSchema.safeParse({
+        success: true,
+        data: { ...review, document_url: "javascript:alert(1)" },
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects contract drift", () => {
@@ -65,6 +98,14 @@ describe("moderation wire schemas", () => {
     expect(
       reviewPostingEnvelopeSchema.safeParse({ success: true, data: withoutPath })
         .success,
+    ).toBe(false);
+    const { raw_text: _noText, ...withoutText } = review;
+    void _noText;
+    expect(
+      reviewPostingEnvelopeSchema.safeParse({
+        success: true,
+        data: withoutText,
+      }).success,
     ).toBe(false);
     expect(
       reviewPostingEnvelopeSchema.safeParse({ success: false, data: review }).success,

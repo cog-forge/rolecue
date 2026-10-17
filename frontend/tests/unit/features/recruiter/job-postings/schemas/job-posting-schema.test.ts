@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createBody,
+  documentEnvelopeSchema,
+  documentLinkEnvelopeSchema,
   emptyPostingValues,
   postingEnvelopeSchema,
   postingFormSchema,
@@ -21,6 +23,7 @@ const posting: JobPosting = {
   status: "pending",
   reject_reason: null,
   raw_text: "We build Go services. ".repeat(10),
+  has_document: true,
   seniority_level: "senior",
   requirements: [
     { name: "Go", target: "programming_language", type: "required" },
@@ -37,8 +40,12 @@ const posting: JobPosting = {
   created_at: "2026-10-12T08:00:00Z",
 };
 
+const documentId = "66666666-6666-4666-8666-666666666666";
+
 const valid: PostingValues = {
   ...emptyPostingValues,
+  document_id: documentId,
+  file_name: "backend.pdf",
   raw_text: "a".repeat(100),
   title: " Backend Engineer ",
   seniority_level: "mid",
@@ -79,6 +86,34 @@ describe("job posting wire schemas", () => {
     ).toBe(false);
   });
 
+  it("parses an uploaded document and a PDF link", () => {
+    expect(
+      documentEnvelopeSchema.safeParse({
+        success: true,
+        data: { document_id: documentId, raw_text: "JD text" },
+      }).success,
+    ).toBe(true);
+    expect(
+      documentLinkEnvelopeSchema.safeParse({
+        success: true,
+        data: {
+          url: "https://hcm.example.com/role-cue/key?X-Amz-Signature=abc",
+          expires_at: "2026-10-17T08:05:00Z",
+        },
+      }).success,
+    ).toBe(true);
+    // Only web links are opened.
+    expect(
+      documentLinkEnvelopeSchema.safeParse({
+        success: true,
+        data: {
+          url: "javascript:alert(1)",
+          expires_at: "2026-10-17T08:05:00Z",
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("parses a suggestion with no seniority", () => {
     const data = { title: "Engineer", seniority_level: null, requirements: [] };
     expect(
@@ -92,14 +127,10 @@ describe("postingFormSchema", () => {
     expect(issues(valid)).toEqual([]);
   });
 
-  it("counts the JD text in Unicode characters, trimmed like Go", () => {
-    expect(issues({ ...valid, raw_text: "ệ".repeat(100) })).toEqual([]);
-    expect(issues({ ...valid, raw_text: `  ${"ệ".repeat(99)}  ` })).toEqual([
-      "raw_text",
-    ]);
-    expect(issues({ ...valid, raw_text: "a".repeat(20_001) })).toEqual([
-      "raw_text",
-    ]);
+  // The server checks the PDF text length when it reads the PDF; the form only needs an upload.
+  it("requires an uploaded PDF", () => {
+    expect(issues({ ...valid, raw_text: "" })).toEqual(["raw_text"]);
+    expect(issues({ ...valid, raw_text: "   " })).toEqual(["raw_text"]);
   });
 
   it("requires a title, seniority, a requirement, an interviewer and a voice", () => {
@@ -156,7 +187,7 @@ describe("request bodies", () => {
       createBody({ ...valid, salary_min: " 1000 ", location: "  " }),
     ).toEqual({
       title: "Backend Engineer",
-      raw_text: valid.raw_text,
+      document_id: documentId,
       seniority_level: "mid",
       requirements: [
         { name: "Go", target: "programming_language", type: "required" },
@@ -191,6 +222,13 @@ describe("request bodies", () => {
     ).toEqual({
       requirements,
     });
+    // A new PDF is sent only when one was uploaded.
+    expect(
+      postingPatch(
+        { ...postingValues(posting), document_id: documentId, raw_text: "New" },
+        posting,
+      ),
+    ).toEqual({ document_id: documentId });
   });
 });
 
