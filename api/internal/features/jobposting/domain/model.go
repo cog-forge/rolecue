@@ -75,13 +75,16 @@ type Ref struct {
 	Name *string   `json:"name"`
 }
 
-// JobPosting is the owning Recruiter's full view of a posting.
+// JobPosting is the owning Recruiter's full view of a posting. RawText is the JD text read from the
+// uploaded PDF (or the stored text of a posting created before PDF upload); HasDocument is true
+// when the JD is a PDF, which GET /job-postings/{id}/document opens.
 type JobPosting struct {
 	ID                uuid.UUID            `json:"id"`
 	Title             string               `json:"title"`
 	Status            Status               `json:"status"`
 	RejectReason      *string              `json:"reject_reason"`
 	RawText           string               `json:"raw_text"`
+	HasDocument       bool                 `json:"has_document"`
 	SeniorityLevel    Level                `json:"seniority_level"`
 	Requirements      []PostingRequirement `json:"requirements"`
 	Location          *string              `json:"location"`
@@ -109,16 +112,32 @@ type Summary struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
-// Record is what the repository stores and returns. ContentPath is the storage key of the original
-// JD text; the service turns it back into RawText.
+// Record is what the repository stores and returns. ContentPath is the storage key of the JD PDF,
+// whose text is StoredText. Postings created before PDF upload have no StoredText: their key holds
+// the JD as a plain-text object, which the service reads back.
 type Record struct {
 	JobPosting
 	ContentPath string
+	StoredText  *string
 }
 
-// CreateInput holds only client-controlled fields; the owner comes from the session.
+// Document is an uploaded JD PDF and the text read from it. DocumentID is passed to Create or Edit.
+type Document struct {
+	DocumentID string `json:"document_id"`
+	RawText    string `json:"raw_text"`
+}
+
+// DocumentLink is a short-lived link to open a posting's JD PDF.
+type DocumentLink struct {
+	URL       string    `json:"url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// CreateInput holds only client-controlled fields; the owner comes from the session. DocumentID is
+// the uploaded JD PDF; RawText is filled by the service from that PDF, never by the client.
 type CreateInput struct {
 	Title             string
+	DocumentID        string
 	RawText           string
 	SeniorityLevel    Level
 	Requirements      []PostingRequirement
@@ -131,10 +150,24 @@ type CreateInput struct {
 	RequiredVoiceID   uuid.UUID
 }
 
-// NewPosting is a validated CreateInput plus the storage key of its text.
+// NewPosting is a validated CreateInput plus the storage key of its PDF.
 type NewPosting struct {
 	CreateInput
 	ContentPath string
+}
+
+// NewDocument replaces the JD of a rejected posting: the PDF key and the text read from it.
+type NewDocument struct {
+	ContentPath string
+	RawText     string
+}
+
+// Suggestion is what AI extraction read from a JD, for the Recruiter to review and confirm before
+// creating the posting. Nothing is stored. SeniorityLevel is nil when the JD does not say.
+type Suggestion struct {
+	Title          string               `json:"title"`
+	SeniorityLevel *Level               `json:"seniority_level"`
+	Requirements   []PostingRequirement `json:"requirements"`
 }
 
 // ListFilter narrows the Recruiter's list. A nil field means "no filter".

@@ -56,6 +56,7 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.ReviewPostin
 		RequiredVoice:     namedRef(row.RequiredVoiceID, row.VoiceName),
 		CreatedAt:         row.CreatedAt.Time,
 		ContentPath:       row.ContentPath,
+		StoredText:        row.RawText,
 		CoreQuestionCount: row.CoreQuestionCount,
 	}, nil
 }

@@ -179,7 +179,11 @@ export function PostingReview({
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <Card>
               <CardContent className="pt-6">
-                <JdViewer contentPath={query.data.content_path} />
+                <JdViewer
+                  contentPath={query.data.content_path}
+                  documentUrl={query.data.document_url}
+                  rawText={query.data.raw_text}
+                />
               </CardContent>
             </Card>
             <div className="space-y-6">

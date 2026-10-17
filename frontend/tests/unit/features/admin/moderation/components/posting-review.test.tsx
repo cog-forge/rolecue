@@ -45,6 +45,9 @@ const posting = (overrides: Record<string, unknown> = {}) => ({
   required_voice: null,
   created_at: "2026-10-12T08:00:00Z",
   content_path: "https://files.example.com/jd/go.pdf",
+  document_url: null,
+  document_expires_at: null,
+  raw_text: null,
   core_question_count: 50,
   ...overrides,
 });

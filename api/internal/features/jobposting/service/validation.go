@@ -29,7 +29,7 @@ func validateCreate(in domain.CreateInput) (domain.CreateInput, error) {
 	if in.Title, err = requiredText(in.Title, "title", maxTitleLength); err != nil {
 		return in, err
 	}
-	if err := checkText(in.RawText); err != nil {
+	if err := checkDocumentID(in.DocumentID); err != nil {
 		return in, err
 	}
 	if !in.SeniorityLevel.Valid() {
@@ -73,11 +73,11 @@ func validatePatch(p domain.Edit) (domain.Edit, error) {
 		}
 		p.Title.Value = &title
 	}
-	if p.RawText.Present {
-		if p.RawText.Value == nil {
-			return p, invalid("raw_text cannot be null")
+	if p.DocumentID.Present {
+		if p.DocumentID.Value == nil {
+			return p, invalid("document_id cannot be null")
 		}
-		if err := checkText(*p.RawText.Value); err != nil {
+		if err := checkDocumentID(*p.DocumentID.Value); err != nil {
 			return p, err
 		}
 	}
@@ -129,6 +129,15 @@ func validateFilter(f domain.ListFilter) (domain.ListFilter, error) {
 		f.Search = &escaped
 	}
 	return f, nil
+}
+
+// checkDocumentID accepts only the UUID keys UploadDocument hands out, so a client cannot point a
+// posting at an arbitrary storage path.
+func checkDocumentID(id string) error {
+	if _, err := uuid.Parse(id); err != nil || len(id) != 36 {
+		return invalid("document_id must be the ID of an uploaded JD PDF")
+	}
+	return nil
 }
 
 // checkText bounds the JD text the same way the Candidate JD flow does. Whitespace is not trimmed:

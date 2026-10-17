@@ -41,6 +41,13 @@ describe("workspace navigation", () => {
       "/admin/users",
     );
     expect(getActiveNavigation("admin", "/admin")).toBeUndefined();
+    expect(
+      getActiveNavigation("recruiter", "/recruiter/job-postings/new")?.href,
+    ).toBe("/recruiter/job-postings");
+    expect(
+      getActiveNavigation("recruiter", "/recruiter/job-postings/123?status=open")
+        ?.href,
+    ).toBe("/recruiter/job-postings");
     expect(getActiveNavigation("candidate", "/profile")).toBeUndefined();
   });
 });

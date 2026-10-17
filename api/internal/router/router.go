@@ -28,6 +28,7 @@ type Router struct {
 	avatarCreateHandler *handler.AvatarCreateHandler
 	voiceCatalogHandler *handler.VoiceCatalogHandler
 	jobPostingHandler   *handler.JobPostingHandler
+	voiceHandler        *handler.VoiceHandler
 }
 
 func NewRouter(
@@ -46,6 +47,7 @@ func NewRouter(
 	avatarCreateHandler *handler.AvatarCreateHandler,
 	voiceCatalogHandler *handler.VoiceCatalogHandler,
 	jobPostingHandler *handler.JobPostingHandler,
+	voiceHandler *handler.VoiceHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -63,6 +65,7 @@ func NewRouter(
 		avatarCreateHandler: avatarCreateHandler,
 		voiceCatalogHandler: voiceCatalogHandler,
 		jobPostingHandler:   jobPostingHandler,
+		voiceHandler:        voiceHandler,
 	}
 }
 
@@ -123,15 +126,20 @@ func (r *Router) Setup() *gin.Engine {
 
 	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	jobPostings.POST("", r.jobPostingHandler.Create)
+	jobPostings.POST("/extract", r.jobPostingHandler.Extract)
+	jobPostings.POST("/documents", r.jobPostingHandler.UploadDocument)
 	jobPostings.GET("", r.jobPostingHandler.List)
 	jobPostings.GET("/:id", r.jobPostingHandler.Get)
 	jobPostings.PATCH("/:id", r.jobPostingHandler.Update)
 	jobPostings.POST("/:id/resubmit", r.jobPostingHandler.Resubmit)
+	jobPostings.GET("/:id/document", r.jobPostingHandler.Document)
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
 	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
 	jobPostings.PATCH("/:id/questions/:questionId", r.questionBankHandler.Update)
 	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)
+
+	router.GET("/voices", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.voiceHandler.List)
 
 	// Every admin route sits under /admin so one role check guards the whole group.
 	admin := router.Group("/admin", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("admin"))

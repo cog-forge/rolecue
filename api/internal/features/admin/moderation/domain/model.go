@@ -49,7 +49,7 @@ type PostingSummary struct {
 }
 
 // ReviewPosting is the read-only review view; the Admin can only decide, never edit it. The Admin
-// moderates the JD content candidates will read, reached through ContentPath.
+// moderates the JD content candidates will read: RawText, or the file ContentPath links to.
 type ReviewPosting struct {
 	ID                uuid.UUID     `json:"id"`
 	Title             string        `json:"title"`
@@ -65,8 +65,19 @@ type ReviewPosting struct {
 	RequiredAvatar    *NamedRef     `json:"required_avatar"`
 	RequiredVoice     *NamedRef     `json:"required_voice"`
 	CreatedAt         time.Time     `json:"created_at"`
-	// ContentPath is the URL of the JD content (job_descriptions.content_path), the text the Admin reviews.
+	// ContentPath is job_descriptions.content_path: the storage key of the JD PDF for postings
+	// created through POST /job-postings, or a full http(s) URL for older rows.
 	ContentPath string `json:"content_path"`
+	// DocumentURL is a short-lived link to the JD PDF (see DocumentExpiresAt); null when the posting
+	// has no stored PDF.
+	DocumentURL       *string    `json:"document_url"`
+	DocumentExpiresAt *time.Time `json:"document_expires_at"`
+	// RawText is the JD text: read from the PDF, or for postings created before PDF upload, the
+	// plain-text object under ContentPath. It is null when ContentPath is a URL (the Admin opens the
+	// file instead) or when the stored JD is missing.
+	RawText *string `json:"raw_text"`
+	// StoredText is job_descriptions.raw_text, present only for postings with a PDF.
+	StoredText *string `json:"-"`
 	// CoreQuestionCount tells the Admin whether the posting can be approved (it needs at least one).
 	CoreQuestionCount int64 `json:"core_question_count"`
 }

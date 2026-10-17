@@ -59,7 +59,13 @@ export const reviewPostingEnvelopeSchema = z.object({
     required_avatar: namedRefSchema,
     required_voice: namedRefSchema,
     created_at: z.iso.datetime({ offset: true }),
+    // A storage key for postings created in the app, or a full URL for older rows.
     content_path: z.string(),
+    // A short-lived link to the JD PDF; null when the posting has no stored PDF.
+    document_url: z.url({ protocol: /^https?$/ }).nullable(),
+    document_expires_at: z.iso.datetime({ offset: true }).nullable(),
+    // The JD text; null when content_path is a URL or the stored JD is missing.
+    raw_text: z.string().nullable(),
     core_question_count: z.number().int().nonnegative(),
   }),
 });

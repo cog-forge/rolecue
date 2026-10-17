@@ -1767,6 +1767,94 @@
                 }
             }
         },
+        "/job-postings/extract": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. AI extraction reads the JD text and suggests a title, seniority and requirements for the Recruiter to review before creating the posting. Nothing is stored. seniority_level is null when the JD does not say. Trusted Origin required.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Suggest requirements from JD text",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "JD text",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ExtractJobPostingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Suggestion"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/job-postings/{id}": {
             "get": {
                 "security": [
@@ -3596,6 +3684,87 @@
                     }
                 }
             }
+        },
+        "/voices": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidates and Recruiters. Only active voices, sorted by name, so they can be chosen for a practice interview or required by a Job Posting.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "voices"
+                ],
+                "summary": "List active voice profiles",
+                "parameters": [
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Number of items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-domain_Voice"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -4405,6 +4574,23 @@
                 "StatusRejected"
             ]
         },
+        "domain.Suggestion": {
+            "type": "object",
+            "properties": {
+                "requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.PostingRequirement"
+                    }
+                },
+                "seniority_level": {
+                    "$ref": "#/definitions/domain.Level"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Summary": {
             "type": "object",
             "properties": {
@@ -4476,6 +4662,17 @@
                     "type": "boolean"
                 },
                 "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Voice": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }
@@ -4585,6 +4782,17 @@
             "type": "object",
             "properties": {
                 "rawText": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.ExtractJobPostingRequest": {
+            "type": "object",
+            "required": [
+                "raw_text"
+            ],
+            "properties": {
+                "raw_text": {
                     "type": "string"
                 }
             }
@@ -4711,6 +4919,20 @@
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.Summary"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
+        "response.Page-domain_Voice": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Voice"
                     }
                 },
                 "pagination": {

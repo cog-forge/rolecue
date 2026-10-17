@@ -1,9 +1,15 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import {
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGroup, motion } from "motion/react";
+import { animate, LayoutGroup, motion } from "motion/react";
 import {
   ChevronsUpDown,
   LogOut,
@@ -106,6 +112,8 @@ export function WorkspaceSidebar({
   const preferences = useWorkspacePreferences();
   const { reducedMotion } = preferences;
   const layoutId = useId();
+  // Where the active highlight last was, inside the sidebar.
+  const activeTop = useRef<number | null>(null);
   const accountTrigger = useRef<HTMLButtonElement>(null);
   const labelClass = cn(
     "min-w-0 truncate whitespace-nowrap transition-opacity duration-200 motion-reduce:transition-none",
@@ -230,6 +238,7 @@ export function WorkspaceSidebar({
                             <motion.span
                               aria-hidden
                               layoutId="hover"
+                              layoutDependency={hovered}
                               initial={false}
                               transition={{
                                 duration: reducedMotion ? 0 : 0.25,
@@ -238,14 +247,9 @@ export function WorkspaceSidebar({
                             />
                           )}
                           {selected && (
-                            <motion.span
-                              aria-hidden
-                              layoutId="active"
-                              initial={false}
-                              transition={{
-                                duration: reducedMotion ? 0 : 0.35,
-                                ease: [0.32, 0.72, 0, 1],
-                              }}
+                            <ActiveHighlight
+                              lastTopRef={activeTop}
+                              reducedMotion={reducedMotion}
                               className={cn(
                                 "pointer-events-none absolute inset-0 rounded-xl bg-sidebar-accent",
                                 collapsed && "bg-transparent",
@@ -415,4 +419,39 @@ export function WorkspaceSidebar({
       </div>
     </div>
   );
+}
+
+// The active highlight slides from the previously selected item. It is positioned from offsets
+// inside the sidebar rather than with a shared layout animation: the sidebar is sticky, and a
+// layout animation measures page coordinates, so a page that scrolls back to the top on
+// navigation made the highlight fly in from far below.
+function ActiveHighlight({
+  lastTopRef,
+  reducedMotion,
+  className,
+}: {
+  lastTopRef: RefObject<number | null>;
+  reducedMotion: boolean;
+  className: string;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  // Captured once per highlight, so a repeated effect run (React Strict Mode) slides from the
+  // previous item rather than from itself.
+  const origin = useRef<number | null | undefined>(undefined);
+  useLayoutEffect(() => {
+    const item = ref.current?.parentElement;
+    if (!ref.current || !item) return;
+    const top = item.offsetTop;
+    if (origin.current === undefined) origin.current = lastTopRef.current;
+    const from = origin.current;
+    lastTopRef.current = top;
+    if (from === null || from === top || reducedMotion) return;
+    const controls = animate(
+      ref.current,
+      { y: [from - top, 0] },
+      { duration: 0.35, ease: [0.32, 0.72, 0, 1] },
+    );
+    return () => controls.stop();
+  }, [lastTopRef, reducedMotion]);
+  return <span ref={ref} aria-hidden className={className} />;
 }

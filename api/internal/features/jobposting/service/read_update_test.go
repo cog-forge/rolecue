@@ -10,29 +10,49 @@ import (
 	"github.com/google/uuid"
 )
 
-// storedPosting puts a posting and its JD text in the fakes.
-func storedPosting(t *testing.T, text string) (*fakeRepository, *fakeStore) {
+// pdfPosting puts a posting with a JD PDF in the fakes.
+func pdfPosting(t *testing.T, text string) (*fakeRepository, *fakeStore) {
 	t.Helper()
 	store := newStore()
-	store.objects["key"] = text
+	key := store.putPDF(text)
+	repo := &fakeRepository{record: domain.Record{ContentPath: key, StoredText: &text, JobPosting: domain.JobPosting{ID: uuid.New(), Status: domain.StatusPending}}}
+	return repo, store
+}
+
+// textPosting puts a posting created before PDF upload in the fakes: its JD is a plain-text object.
+func textPosting(t *testing.T, text string) (*fakeRepository, *fakeStore) {
+	t.Helper()
+	store := newStore()
+	store.objects["key"] = storedObject{data: []byte(text), contentType: "text/plain; charset=utf-8"}
 	repo := &fakeRepository{record: domain.Record{ContentPath: "key", JobPosting: domain.JobPosting{ID: uuid.New(), Status: domain.StatusPending}}}
 	return repo, store
 }
 
-func TestGetReadsTextBack(t *testing.T) {
-	repo, store := storedPosting(t, validText())
+func TestGetUsesStoredPDFText(t *testing.T) {
+	repo, store := pdfPosting(t, validText())
 	recruiter := uuid.New()
 	got, err := newService(t, repo, store).Get(context.Background(), recruiter, "recruiter", repo.record.ID)
-	if err != nil || got.RawText != validText() {
-		t.Fatalf("text matches=%t err=%v", got.RawText == validText(), err)
+	if err != nil || got.RawText != validText() || !got.HasDocument {
+		t.Fatalf("has_document=%t text matches=%t err=%v", got.HasDocument, got.RawText == validText(), err)
+	}
+	if store.downloads != 0 {
+		t.Fatal("the PDF was downloaded to show text that is already stored")
 	}
 	if repo.recruiter != recruiter {
 		t.Fatal("the read was not scoped to the session user")
 	}
 }
 
+func TestGetReadsOlderTextObjectBack(t *testing.T) {
+	repo, store := textPosting(t, validText())
+	got, err := newService(t, repo, store).Get(context.Background(), uuid.New(), "recruiter", repo.record.ID)
+	if err != nil || got.RawText != validText() || got.HasDocument {
+		t.Fatalf("has_document=%t text matches=%t err=%v", got.HasDocument, got.RawText == validText(), err)
+	}
+}
+
 func TestGetRejectsOversizedStoredText(t *testing.T) {
-	repo, store := storedPosting(t, strings.Repeat("a", maxStoredTextBytes+1))
+	repo, store := textPosting(t, strings.Repeat("a", maxStoredTextBytes+1))
 	_, err := newService(t, repo, store).Get(context.Background(), uuid.New(), "recruiter", repo.record.ID)
 	assertCode(t, err, apperror.CodeInternal)
 }
@@ -43,8 +63,31 @@ func TestGetPassesNotFoundThrough(t *testing.T) {
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
 }
 
+func TestDocumentLinksPDF(t *testing.T) {
+	repo, store := pdfPosting(t, validText())
+	got, err := newService(t, repo, store).Document(context.Background(), uuid.New(), "recruiter", repo.record.ID)
+	if err != nil || !strings.Contains(got.URL, repo.record.ContentPath) || got.ExpiresAt.IsZero() {
+		t.Fatalf("link=%+v err=%v", got, err)
+	}
+}
+
+func TestDocumentErrors(t *testing.T) {
+	repo, store := textPosting(t, validText())
+	_, err := newService(t, repo, store).Document(context.Background(), uuid.New(), "recruiter", repo.record.ID)
+	assertCode(t, err, apperror.CodeJDNotFound)
+
+	repo, store = pdfPosting(t, validText())
+	store.presignErr = errBoom
+	_, err = newService(t, repo, store).Document(context.Background(), uuid.New(), "recruiter", repo.record.ID)
+	assertCode(t, err, apperror.CodeInternal)
+
+	repo = &fakeRepository{err: apperror.New(apperror.CodeJobPostingNotFound, "job posting not found")}
+	_, err = newService(t, repo, newStore()).Document(context.Background(), uuid.New(), "recruiter", uuid.New())
+	assertCode(t, err, apperror.CodeJobPostingNotFound)
+}
+
 func TestUpdateNormalizesPatch(t *testing.T) {
-	repo, store := storedPosting(t, validText())
+	repo, store := pdfPosting(t, validText())
 	patch := domain.Edit{
 		Title:    domain.StringChange{Present: true, Value: ptr("  Senior Backend Engineer ")},
 		Location: domain.StringChange{Present: true, Value: ptr("   ")},
@@ -52,7 +95,7 @@ func TestUpdateNormalizesPatch(t *testing.T) {
 			{Name: " Kafka ", Target: "technology", Type: domain.Required},
 		}},
 	}
-	_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID, patch)
+	got, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID, patch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,6 +107,9 @@ func TestUpdateNormalizesPatch(t *testing.T) {
 	}
 	if (*repo.patch.Requirements.Value)[0].Name != "Kafka" {
 		t.Fatal("requirements were not trimmed")
+	}
+	if repo.document != nil || got.RawText != validText() {
+		t.Fatalf("document=%v text matches=%t", repo.document, got.RawText == validText())
 	}
 }
 
@@ -84,25 +130,23 @@ func TestUpdateValidation(t *testing.T) {
 		{"cleared avatar", domain.Edit{RequiredAvatarID: domain.UUIDChange{Present: true}}},
 		{"cleared voice", domain.Edit{RequiredVoiceID: domain.UUIDChange{Present: true}}},
 		{"nil voice", domain.Edit{RequiredVoiceID: domain.UUIDChange{Present: true, Value: &uuid.Nil}}},
-		{"null text", domain.Edit{RawText: domain.StringChange{Present: true}}},
+		{"null document", domain.Edit{DocumentID: domain.StringChange{Present: true}}},
+		{"document path", domain.Edit{DocumentID: domain.StringChange{Present: true, Value: ptr("some/other/key")}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, store := storedPosting(t, validText())
+			repo, store := pdfPosting(t, validText())
 			repo.record.Status = domain.StatusRejected
 			_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", id, tt.patch)
 			assertCode(t, err, apperror.CodeValidation)
-			if store.uploads != 0 {
-				t.Fatal("an invalid patch was uploaded")
-			}
-			if repo.updateCalls != 0 {
-				t.Fatal("an invalid patch reached the repository")
+			if store.downloads != 0 || repo.updateCalls != 0 {
+				t.Fatal("an invalid patch reached storage or the repository")
 			}
 		})
 	}
 }
 
 // The repository enforces pending-only edits and the requirements lock under a row lock; the
-// service must report them unchanged and must not read the posting again after the failed write.
+// service must report them unchanged and must not read the posting after the failed write.
 func TestUpdatePassesStateErrorsThrough(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -116,13 +160,13 @@ func TestUpdatePassesStateErrorsThrough(t *testing.T) {
 		{"voice inactive", domain.ErrVoiceNotActive, apperror.CodeValidation},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, store := storedPosting(t, validText())
+			repo, store := pdfPosting(t, validText())
 			repo.updateErr = tt.err
 			_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", uuid.New(),
 				domain.Edit{SeniorityLevel: domain.StringChange{Present: true, Value: ptr("senior")}})
 			assertCode(t, err, tt.code)
-			if repo.getCalls != 1 {
-				t.Fatalf("get calls = %d, want only the read before the write", repo.getCalls)
+			if repo.getCalls != 0 {
+				t.Fatalf("get calls = %d, want none after a failed write", repo.getCalls)
 			}
 		})
 	}
@@ -149,93 +193,76 @@ func TestListFilter(t *testing.T) {
 	}
 }
 
-// The JD text is read before the write, so a storage outage cannot report a saved edit as failed.
-func TestUpdateReadsTextBeforeWriting(t *testing.T) {
-	repo, store := storedPosting(t, validText())
-	store.downloadErr = errBoom
-	_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", uuid.New(),
-		domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("New title")}})
-	assertCode(t, err, apperror.CodeInternal)
-	if repo.updateCalls != 0 {
-		t.Fatal("the edit was written although the response could not be built")
-	}
-
-	repo, store = storedPosting(t, validText())
-	got, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", uuid.New(),
-		domain.Edit{Title: domain.StringChange{Present: true, Value: ptr("New title")}})
-	if err != nil || got.RawText != validText() || repo.updateCalls != 1 {
-		t.Fatalf("err=%v updates=%d text matches=%t", err, repo.updateCalls, got.RawText == validText())
-	}
-}
-
 func correctedText() string {
 	return strings.Repeat("Design and operate Go APIs with PostgreSQL and Kafka. ", 4)
 }
 
-func TestUpdateRejectsShortText(t *testing.T) {
-	repo, store := storedPosting(t, validText())
+func TestUpdateReplacesPDFOfRejectedPosting(t *testing.T) {
+	// An older text posting can be moved to a PDF too.
+	for name, setup := range map[string]func(*testing.T, string) (*fakeRepository, *fakeStore){"pdf": pdfPosting, "text": textPosting} {
+		t.Run(name, func(t *testing.T) {
+			repo, store := setup(t, validText())
+			repo.record.Status = domain.StatusRejected
+			newID := store.putPDF(correctedText())
+			got, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
+				domain.Edit{DocumentID: domain.StringChange{Present: true, Value: &newID}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if repo.document == nil || repo.document.ContentPath != newID || repo.document.RawText != correctedText() {
+				t.Fatalf("document = %+v", repo.document)
+			}
+			if got.RawText != correctedText() || !got.HasDocument || got.Status != domain.StatusRejected {
+				t.Fatalf("status=%s has_document=%t text matches=%t", got.Status, got.HasDocument, got.RawText == correctedText())
+			}
+		})
+	}
+}
+
+func TestUpdateRefusesUnreadableReplacementPDF(t *testing.T) {
+	repo, store := pdfPosting(t, validText())
 	repo.record.Status = domain.StatusRejected
+	shortID := store.putPDF("Too short.")
 	_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
-		domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr("Too short.")}})
+		domain.Edit{DocumentID: domain.StringChange{Present: true, Value: &shortID}})
 	assertCode(t, err, apperror.CodeJDTooShort)
-	if store.uploads != 0 || repo.updateCalls != 0 {
-		t.Fatal("short text was stored")
+
+	missing := uuid.NewString()
+	_, err = newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
+		domain.Edit{DocumentID: domain.StringChange{Present: true, Value: &missing}})
+	assertCode(t, err, apperror.CodeInvalidPDF)
+	if repo.updateCalls != 0 {
+		t.Fatal("rows were written without a readable PDF")
 	}
 }
 
-func TestUpdateCorrectsTextOfRejectedPosting(t *testing.T) {
-	repo, store := storedPosting(t, validText())
-	repo.record.Status = domain.StatusRejected
-	got, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
-		domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr(correctedText())}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if store.uploads != 1 || repo.contentPath == nil || store.objects[*repo.contentPath] != correctedText() {
-		t.Fatalf("uploads=%d path=%v", store.uploads, repo.contentPath)
-	}
-	if got.RawText != correctedText() || got.Status != domain.StatusRejected {
-		t.Fatalf("status=%s text matches=%t", got.Status, got.RawText == correctedText())
-	}
-}
-
-// A whole-form submit resends the stored text; that is not a change and works while pending.
-func TestUpdateIgnoresUnchangedText(t *testing.T) {
-	repo, store := storedPosting(t, validText())
+// A whole-form submit resends the current PDF; that is not a change and works while pending.
+func TestUpdateIgnoresUnchangedDocument(t *testing.T) {
+	repo, store := pdfPosting(t, validText())
+	current := repo.record.ContentPath
 	_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
-		domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr(validText())}, Title: domain.StringChange{Present: true, Value: ptr("Same text")}})
-	if err != nil || store.uploads != 0 || repo.contentPath != nil || repo.patch.RawText.Present {
-		t.Fatalf("err=%v uploads=%d path=%v", err, store.uploads, repo.contentPath)
+		domain.Edit{DocumentID: domain.StringChange{Present: true, Value: &current}, Title: domain.StringChange{Present: true, Value: ptr("Same PDF")}})
+	if err != nil || store.downloads != 0 || repo.document != nil || repo.updateCalls != 1 {
+		t.Fatalf("err=%v downloads=%d document=%v updates=%d", err, store.downloads, repo.document, repo.updateCalls)
 	}
 }
 
-func TestUpdateRefusesTextChangeUnlessRejected(t *testing.T) {
+func TestUpdateRefusesDocumentChangeUnlessRejected(t *testing.T) {
 	for _, status := range []domain.Status{domain.StatusPending, domain.StatusOpen} {
-		repo, store := storedPosting(t, validText())
+		repo, store := pdfPosting(t, validText())
 		repo.record.Status = status
+		newID := store.putPDF(correctedText())
 		_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
-			domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr(correctedText())}})
+			domain.Edit{DocumentID: domain.StringChange{Present: true, Value: &newID}})
 		assertCode(t, err, apperror.CodeJobPostingTextLocked)
-		if store.uploads != 0 || repo.updateCalls != 0 {
-			t.Fatalf("%s: uploads=%d updates=%d", status, store.uploads, repo.updateCalls)
+		if store.downloads != 0 || repo.updateCalls != 0 {
+			t.Fatalf("%s: downloads=%d updates=%d", status, store.downloads, repo.updateCalls)
 		}
 	}
 }
 
-func TestUpdateDoesNotWriteWhenTextUploadFails(t *testing.T) {
-	repo, store := storedPosting(t, validText())
-	repo.record.Status = domain.StatusRejected
-	store.uploadErr = errBoom
-	_, err := newService(t, repo, store).Update(context.Background(), uuid.New(), "recruiter", repo.record.ID,
-		domain.Edit{RawText: domain.StringChange{Present: true, Value: ptr(correctedText())}})
-	assertCode(t, err, apperror.CodeInternal)
-	if repo.updateCalls != 0 {
-		t.Fatal("rows were written although the text was not stored")
-	}
-}
-
 func TestResubmitRejectedPosting(t *testing.T) {
-	repo, store := storedPosting(t, validText())
+	repo, store := pdfPosting(t, validText())
 	repo.record.Status, repo.record.RejectReason = domain.StatusRejected, ptr("Too vague")
 	recruiter := uuid.New()
 	s := newService(t, repo, store)
@@ -252,7 +279,7 @@ func TestResubmitRejectedPosting(t *testing.T) {
 }
 
 func TestResubmitPassesStateErrorsThrough(t *testing.T) {
-	repo, store := storedPosting(t, validText())
+	repo, store := pdfPosting(t, validText())
 	repo.record.Status = domain.StatusOpen
 	_, err := newService(t, repo, store).Resubmit(context.Background(), uuid.New(), "recruiter", repo.record.ID)
 	assertCode(t, err, apperror.CodeJobPostingNotRejected)

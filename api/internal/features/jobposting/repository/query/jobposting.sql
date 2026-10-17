@@ -7,9 +7,10 @@ WHERE lower(name) = @name::text
 ORDER BY id
 LIMIT 1;
 
+-- content_path is the storage key of the JD PDF; raw_text is the text read from it.
 -- name: InsertJobDescription :one
-INSERT INTO public.job_descriptions (content_path, level_id)
-VALUES (@content_path, @level_id)
+INSERT INTO public.job_descriptions (content_path, raw_text, level_id)
+VALUES (@content_path, @raw_text, @level_id)
 RETURNING id;
 
 -- name: InsertRequirements :exec
@@ -51,7 +52,7 @@ SELECT name FROM public.voices WHERE id = @id AND is_active FOR SHARE;
 SELECT jp.id, jp.jd_id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
        jp.salary_min, jp.salary_max, jp.interview_slot, jp.interview_duration, jp.created_at,
        jp.required_avatar_id, a.name AS avatar_name, jp.required_voice_id, v.name AS voice_name,
-       jd.content_path, lower(l.name) AS level_name,
+       jd.content_path, jd.raw_text, lower(l.name) AS level_name,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
 FROM public.job_postings jp
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
@@ -106,8 +107,8 @@ SELECT count(*) FROM public.core_questions WHERE jd_id = @jd_id;
 -- name: DeleteCoreQuestions :exec
 DELETE FROM public.core_questions WHERE jd_id = @jd_id;
 
--- name: UpdateJDContentPath :exec
-UPDATE public.job_descriptions SET content_path = @content_path WHERE id = @id;
+-- name: UpdateJDDocument :exec
+UPDATE public.job_descriptions SET content_path = @content_path, raw_text = @raw_text WHERE id = @id;
 
 -- name: UpdatePosting :exec
 UPDATE public.job_postings SET
