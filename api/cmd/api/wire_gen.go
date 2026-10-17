@@ -89,7 +89,15 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	blender := provider.ProvideAvatarConverter(config)
 	avatarConversionService := provider.ProvideAvatarConversionService(repository5, store, blender, config)
 	avatarCreateHandler := provider.ProvideAvatarCreateHandler(avatarConversionService, config)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler)
+	repository6 := provider.ProvideVoiceCatalogRepository(pool)
+	service5, err := provider.ProvideVoiceCatalogService(repository6, logger)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	voiceCatalogHandler := provider.ProvideVoiceCatalogHandler(service5)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {

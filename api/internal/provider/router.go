@@ -24,8 +24,9 @@ func ProvideRouter(
 	accountsHandler *handler.AccountsHandler,
 	inventoryHandler *handler.InventoryHandler,
 	avatarCreateHandler *handler.AvatarCreateHandler,
+	voiceCatalogHandler *handler.VoiceCatalogHandler,
 ) *gin.Engine {
-	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler)
+	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler)
 	return appRouter.Setup()
 }
 

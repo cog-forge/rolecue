@@ -34,6 +34,7 @@ definitions:
     - EXTRACTION_FAILED
     - INVALID_EXTRACTION_OUTPUT
     - JOB_POSTING_NOT_FOUND
+    - VOICE_NOT_FOUND
     - CORE_QUESTION_NOT_FOUND
     - QUESTION_BANK_EXISTS
     - QUESTION_BANK_LOCKED
@@ -86,6 +87,7 @@ definitions:
     - CodeExtractionFailed
     - CodeInvalidExtractionOutput
     - CodeJobPostingNotFound
+    - CodeVoiceNotFound
     - CodeCoreQuestionNotFound
     - CodeQuestionBankExists
     - CodeQuestionBankLocked
@@ -480,6 +482,36 @@ definitions:
       role:
         type: string
     type: object
+  domain.VoiceDeleteOutcome:
+    enum:
+    - deactivated
+    - deleted
+    type: string
+    x-enum-varnames:
+    - VoiceDeactivated
+    - VoiceDeleted
+  domain.VoiceDeleteResult:
+    properties:
+      outcome:
+        $ref: '#/definitions/domain.VoiceDeleteOutcome'
+      voice:
+        $ref: '#/definitions/domain.VoiceProfile'
+    type: object
+  domain.VoiceProfile:
+    properties:
+      id:
+        type: string
+      in_use:
+        type: boolean
+      interview_count:
+        type: integer
+      is_active:
+        type: boolean
+      job_posting_count:
+        type: integer
+      name:
+        type: string
+    type: object
   handler.CreateRoleProfileRequest:
     properties:
       rawText:
@@ -555,6 +587,15 @@ definitions:
       items:
         items:
           $ref: '#/definitions/domain.PostingSummary'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
+  response.Page-domain_VoiceProfile:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.VoiceProfile'
         type: array
       pagination:
         $ref: '#/definitions/response.Pagination'
@@ -1090,6 +1131,218 @@ paths:
       summary: Unlock a Candidate or Recruiter account
       tags:
       - admin-users
+  /admin/voices:
+    get:
+      description: Admin only. Sorted by name. Each voice says how many interviews
+        and Job Postings reference it; a referenced voice can only be deactivated.
+      parameters:
+      - description: all (default), active or inactive
+        in: query
+        name: status
+        type: string
+      - description: Case-insensitive name search, up to 100 characters
+        in: query
+        name: q
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Number of items to skip
+        in: query
+        maximum: 2147483647
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-domain_VoiceProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List voice profiles
+      tags:
+      - admin-voices
+  /admin/voices/{id}:
+    delete:
+      description: Admin only. A voice referenced by any interview or Job Posting
+        is deactivated (is_active=false) so past sessions keep it; an unreferenced
+        voice is deleted. outcome says which happened. Repeating the call on a deactivated
+        voice returns "deactivated" again. Trusted Origin required.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Voice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.VoiceDeleteResult'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Remove a voice profile from the catalog
+      tags:
+      - admin-voices
+    get:
+      description: Admin only.
+      parameters:
+      - description: Voice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.VoiceProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get a voice profile
+      tags:
+      - admin-voices
+  /admin/voices/{id}/activate:
+    patch:
+      description: Admin only. Sets is_active=true so the voice can be chosen again;
+        repeating it on an active voice changes nothing. A voice that was deleted
+        permanently returns 404. Trusted Origin required.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Voice ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.VoiceProfile'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Reactivate a voice profile
+      tags:
+      - admin-voices
   /auth/me:
     get:
       produces:

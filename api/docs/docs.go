@@ -762,6 +762,339 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/voices": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Sorted by name. Each voice says how many interviews and Job Postings reference it; a referenced voice can only be deactivated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-voices"
+                ],
+                "summary": "List voice profiles",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "all (default), active or inactive",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Case-insensitive name search, up to 100 characters",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Number of items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-domain_VoiceProfile"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/voices/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-voices"
+                ],
+                "summary": "Get a voice profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Voice ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.VoiceProfile"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. A voice referenced by any interview or Job Posting is deactivated (is_active=false) so past sessions keep it; an unreferenced voice is deleted. outcome says which happened. Repeating the call on a deactivated voice returns \"deactivated\" again. Trusted Origin required.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-voices"
+                ],
+                "summary": "Remove a voice profile from the catalog",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Voice ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.VoiceDeleteResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/voices/{id}/activate": {
+            "patch": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Sets is_active=true so the voice can be chosen again; repeating it on an active voice changes nothing. A voice that was deleted permanently returns 404. Trusted Origin required.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-voices"
+                ],
+                "summary": "Reactivate a voice profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Voice ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.VoiceProfile"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/me": {
             "get": {
                 "security": [
@@ -2835,6 +3168,7 @@ const docTemplate = `{
                 "EXTRACTION_FAILED",
                 "INVALID_EXTRACTION_OUTPUT",
                 "JOB_POSTING_NOT_FOUND",
+                "VOICE_NOT_FOUND",
                 "CORE_QUESTION_NOT_FOUND",
                 "QUESTION_BANK_EXISTS",
                 "QUESTION_BANK_LOCKED",
@@ -2887,6 +3221,7 @@ const docTemplate = `{
                 "CodeExtractionFailed",
                 "CodeInvalidExtractionOutput",
                 "CodeJobPostingNotFound",
+                "CodeVoiceNotFound",
                 "CodeCoreQuestionNotFound",
                 "CodeQuestionBankExists",
                 "CodeQuestionBankLocked",
@@ -3457,6 +3792,51 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.VoiceDeleteOutcome": {
+            "type": "string",
+            "enum": [
+                "deactivated",
+                "deleted"
+            ],
+            "x-enum-varnames": [
+                "VoiceDeactivated",
+                "VoiceDeleted"
+            ]
+        },
+        "domain.VoiceDeleteResult": {
+            "type": "object",
+            "properties": {
+                "outcome": {
+                    "$ref": "#/definitions/domain.VoiceDeleteOutcome"
+                },
+                "voice": {
+                    "$ref": "#/definitions/domain.VoiceProfile"
+                }
+            }
+        },
+        "domain.VoiceProfile": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "in_use": {
+                    "type": "boolean"
+                },
+                "interview_count": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "job_posting_count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.CreateRoleProfileRequest": {
             "type": "object",
             "properties": {
@@ -3573,6 +3953,20 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.PostingSummary"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
+        "response.Page-domain_VoiceProfile": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.VoiceProfile"
                     }
                 },
                 "pagination": {
