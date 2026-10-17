@@ -2,6 +2,16 @@ basePath: /
 definitions:
   apperror.Code:
     enum:
+    - INVENTORY_FULL
+    - AVATAR_SOURCE_TOO_LARGE
+    - AVATAR_SOURCE_UNSUPPORTED
+    - AVATAR_CONVERTER_UNAVAILABLE
+    - AVATAR_CONVERSION_FAILED
+    - AVATAR_CONVERSION_TIMEOUT
+    - AVATAR_PERSISTENCE_FAILED
+    - AVATAR_NOT_FOUND
+    - AVATAR_IN_USE
+    - AVATAR_ASSET_UNAVAILABLE
     - JD_IN_USE
     - JD_NOT_FOUND
     - INVALID_CREDENTIALS
@@ -39,6 +49,16 @@ definitions:
     - QUESTION_BANK_NOT_READY
     type: string
     x-enum-varnames:
+    - CodeInventoryFull
+    - CodeAvatarSourceTooLarge
+    - CodeAvatarSourceUnsupported
+    - CodeAvatarConverterUnavailable
+    - CodeAvatarConversionFailed
+    - CodeAvatarConversionTimeout
+    - CodeAvatarPersistenceFailed
+    - CodeAvatarNotFound
+    - CodeAvatarInUse
+    - CodeAvatarAssetUnavailable
     - CodeJDInUse
     - CodeJDNotFound
     - CodeInvalidCredentials
@@ -99,6 +119,34 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.Avatar:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      personality:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  domain.AvatarDetail:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      model_access:
+        $ref: '#/definitions/domain.ModelAccess'
+      name:
+        type: string
+      personality:
+        type: string
+      updated_at:
+        type: string
+    type: object
   domain.Bank:
     properties:
       editable:
@@ -115,6 +163,17 @@ definitions:
         items:
           $ref: '#/definitions/domain.CoreQuestion'
         type: array
+    type: object
+  domain.Capacity:
+    properties:
+      available:
+        type: integer
+      capacity:
+        type: integer
+      is_full:
+        type: boolean
+      used:
+        type: integer
     type: object
   domain.CoreQuestion:
     properties:
@@ -160,6 +219,19 @@ definitions:
       expires_in:
         type: integer
       reason:
+        type: string
+    type: object
+  domain.ModelAccess:
+    properties:
+      expires_at:
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      method:
+        type: string
+      url:
         type: string
     type: object
   domain.NamedRef:
@@ -454,6 +526,15 @@ definitions:
         $ref: '#/definitions/apperror.Code'
       message:
         type: string
+    type: object
+  response.Page-domain_Avatar:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.Avatar'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
     type: object
   response.Page-domain_ListItem:
     properties:
@@ -1010,6 +1091,271 @@ paths:
       summary: Check process liveness
       tags:
       - health
+  /inventory:
+    get:
+      description: Candidate/Recruiter only. Initializes a missing inventory with
+        3 slots; preserves existing capacity.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Capacity'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get your personal avatar capacity
+      tags:
+      - inventory
+  /inventory/avatars:
+    get:
+      description: Candidate/Recruiter only. Ordered by created_at DESC and id DESC.
+        No storage lookup; no system avatars.
+      parameters:
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Number of items to skip
+        in: query
+        maximum: 2147483647
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-domain_Avatar'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List your personal avatars
+      tags:
+      - inventory
+    post:
+      consumes:
+      - multipart/form-data
+      description: Converts the supplied lip-sync GLB and stores the VRM before creating
+        an inventory entry. Candidate/Recruiter only.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Avaturn T2 binary GLB
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: JSON with name and personality
+        in: formData
+        name: metadata
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Avatar'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Create a personal VRM avatar from an Avaturn T2 GLB
+      tags:
+      - inventory
+  /inventory/avatars/{id}:
+    delete:
+      description: Rejects avatars referenced by any posting or interview with AVATAR_IN_USE.
+        Frees an inventory slot without changing capacity; does not physically purge
+        the VRM object. Repeated deletion returns 404.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Avatar UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Delete an unused personal avatar
+      tags:
+      - inventory
+    get:
+      description: Returns metadata and a presigned VRM GET valid for five minutes.
+        An unowned avatar is indistinguishable from a missing avatar.
+      parameters:
+      - description: Avatar UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.AvatarDetail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: View your personal avatar
+      tags:
+      - inventory
   /jds:
     get:
       consumes:

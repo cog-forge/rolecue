@@ -28,6 +28,12 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	wire.Build(
 		provider.ProvideConfig,
 		provider.ProvideStorage,
+		provider.ProvideInventoryRepository,
+		provider.ProvideInventoryService,
+		provider.ProvideInventoryHandler,
+		provider.ProvideAvatarConverter,
+		provider.ProvideAvatarConversionService,
+		provider.ProvideAvatarCreateHandler,
 		provider.ProvideLogger,
 		provider.ProvideTracer,
 		provider.ProvideDatabasePool,

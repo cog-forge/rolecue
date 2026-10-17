@@ -24,6 +24,8 @@ type Router struct {
 	moderationHandler   *handler.ModerationHandler
 	onboardingHandler   *handler.OnboardingHandler
 	accountsHandler     *handler.AccountsHandler
+	inventoryHandler    *handler.InventoryHandler
+	avatarCreateHandler *handler.AvatarCreateHandler
 }
 
 func NewRouter(
@@ -38,6 +40,8 @@ func NewRouter(
 	moderationHandler *handler.ModerationHandler,
 	onboardingHandler *handler.OnboardingHandler,
 	accountsHandler *handler.AccountsHandler,
+	inventoryHandler *handler.InventoryHandler,
+	avatarCreateHandler *handler.AvatarCreateHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -51,6 +55,8 @@ func NewRouter(
 		moderationHandler:   moderationHandler,
 		onboardingHandler:   onboardingHandler,
 		accountsHandler:     accountsHandler,
+		inventoryHandler:    inventoryHandler,
+		avatarCreateHandler: avatarCreateHandler,
 	}
 }
 
@@ -79,6 +85,13 @@ func (r *Router) Setup() *gin.Engine {
 	profiles.PATCH("", r.profileHandler.Update)
 
 	router.POST("/onboarding/role", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), r.onboardingHandler.SelectRole)
+
+	inventory := router.Group("/inventory", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate", "recruiter"))
+	inventory.GET("", r.inventoryHandler.Summary)
+	inventory.GET("/avatars", r.inventoryHandler.List)
+	inventory.GET("/avatars/:id", r.inventoryHandler.Get)
+	inventory.DELETE("/avatars/:id", r.inventoryHandler.Delete)
+	inventory.POST("/avatars", r.avatarCreateHandler.Create)
 
 	jds := router.Group("/jds", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	jds.POST("/analyze", r.jdHandler.Analyze)
