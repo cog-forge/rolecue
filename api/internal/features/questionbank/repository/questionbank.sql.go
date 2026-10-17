@@ -205,7 +205,7 @@ func (q *Queries) ListCoreQuestions(ctx context.Context, jdID uuid.UUID) ([]List
 }
 
 const listRequirementsForJD = `-- name: ListRequirementsForJD :many
-SELECT name, target, type::text AS type, evidence_text
+SELECT name, target, COALESCE(type::text, '')::text AS type, evidence_text
 FROM public.requirements
 WHERE jd_id = $1
 ORDER BY name, id

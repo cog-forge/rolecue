@@ -358,4 +358,3 @@ func parseExpectedVND(desc string) (int, bool) {
 	}
 	return val, true
 }
-

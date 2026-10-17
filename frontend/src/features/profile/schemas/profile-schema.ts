@@ -39,7 +39,13 @@ export function profileValues(profile: Profile): ProfileValues {
 }
 
 const length = (value: string) => Array.from(value).length;
-function httpsUrl(value: string) {
+export function normalizeHttpsProfileUrlInput(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed.replace(/^\/+/, "")}`;
+}
+
+export function isHttpsProfileUrl(value: string) {
   if (length(value) > 2048) return false;
   try {
     const url = new URL(value);
@@ -72,7 +78,7 @@ export function createProfileFormSchema(profile: Profile) {
       if (
         values.image !== (profile.image ?? "") &&
         values.image.trim() &&
-        !httpsUrl(values.image.trim())
+        !isHttpsProfileUrl(values.image.trim())
       )
         ctx.addIssue({
           code: "custom",
@@ -90,7 +96,7 @@ export function createProfileFormSchema(profile: Profile) {
       if (
         values.company_website !== (profile.company_website ?? "") &&
         values.company_website.trim() &&
-        !httpsUrl(values.company_website.trim())
+        !isHttpsProfileUrl(values.company_website.trim())
       )
         ctx.addIssue({
           code: "custom",

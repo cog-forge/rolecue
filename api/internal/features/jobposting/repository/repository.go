@@ -37,7 +37,7 @@ func (r *Repository) Create(ctx context.Context, recruiterID uuid.UUID, input do
 		if err != nil {
 			return err
 		}
-		jdID, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: input.ContentPath, LevelID: levelID})
+		jdID, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: &input.ContentPath, LevelID: levelID})
 		if err != nil {
 			return err
 		}
@@ -104,7 +104,7 @@ func (r *Repository) Get(ctx context.Context, recruiterID, id uuid.UUID) (domain
 	if err != nil {
 		return domain.Record{}, persistenceError(err)
 	}
-	record := domain.Record{ContentPath: row.ContentPath, JobPosting: domain.JobPosting{
+	record := domain.Record{ContentPath: storedPath(row.ContentPath), JobPosting: domain.JobPosting{
 		ID: row.ID, Title: row.Title, Status: domain.Status(row.Status), RejectReason: row.RejectReason,
 		SeniorityLevel: domain.Level(row.LevelName), Location: row.Location, EmploymentType: row.EmploymentType,
 		SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax, InterviewDuration: row.InterviewDuration,
@@ -173,7 +173,7 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 			}
 		}
 		if contentPath != nil {
-			if err := q.UpdateJDContentPath(ctx, UpdateJDContentPathParams{ID: current.JdID, ContentPath: *contentPath}); err != nil {
+			if err := q.UpdateJDContentPath(ctx, UpdateJDContentPathParams{ID: current.JdID, ContentPath: contentPath}); err != nil {
 				return err
 			}
 		}
@@ -323,6 +323,16 @@ func saveRequirements(ctx context.Context, q *Queries, jdID uuid.UUID, rows []do
 		params.Types = append(params.Types, string(row.Type))
 	}
 	return q.InsertRequirements(ctx, params)
+}
+
+// storedPath reads job_descriptions.content_path, which migration 000010 made nullable for
+// Role Profiles that keep raw_text instead. A Job Posting always stores its text as an object, so
+// a missing key only shows up as a storage error when the text is read.
+func storedPath(path *string) string {
+	if path == nil {
+		return ""
+	}
+	return *path
 }
 
 // namedRef turns a nullable reference into nil. The uuid override maps NULL to uuid.Nil.

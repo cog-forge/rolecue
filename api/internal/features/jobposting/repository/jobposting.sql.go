@@ -144,7 +144,7 @@ type GetOwnedPostingRow struct {
 	AvatarName        *string
 	RequiredVoiceID   uuid.UUID
 	VoiceName         *string
-	ContentPath       string
+	ContentPath       *string
 	LevelName         string
 	CoreQuestionCount int64
 }
@@ -183,7 +183,7 @@ RETURNING id
 `
 
 type InsertJobDescriptionParams struct {
-	ContentPath string
+	ContentPath *string
 	LevelID     uuid.UUID
 }
 
@@ -441,7 +441,7 @@ UPDATE public.job_descriptions SET content_path = $1 WHERE id = $2
 `
 
 type UpdateJDContentPathParams struct {
-	ContentPath string
+	ContentPath *string
 	ID          uuid.UUID
 }
 

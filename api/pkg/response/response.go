@@ -21,6 +21,21 @@ type ErrorBody struct {
 }
 
 var httpStatusByCode = map[apperror.Code]int{
+	apperror.CodeInvalidPDF:                      http.StatusBadRequest,
+	apperror.CodePDFTooLarge:                     http.StatusRequestEntityTooLarge,
+	apperror.CodePDFUnavailable:                  http.StatusServiceUnavailable,
+	apperror.CodeDocumentStorage:                 http.StatusBadGateway,
+	apperror.CodeRoleConflict:                    http.StatusConflict,
+	apperror.CodeInventoryFull:                   http.StatusConflict,
+	apperror.CodeAvatarSourceTooLarge:            http.StatusRequestEntityTooLarge,
+	apperror.CodeAvatarSourceUnsupported:         http.StatusUnprocessableEntity,
+	apperror.CodeAvatarConverterUnavailable:      http.StatusServiceUnavailable,
+	apperror.CodeAvatarConversionFailed:          http.StatusBadGateway,
+	apperror.CodeAvatarConversionTimeout:         http.StatusGatewayTimeout,
+	apperror.CodeAvatarPersistenceFailed:         http.StatusServiceUnavailable,
+	apperror.CodeAvatarNotFound:                  http.StatusNotFound,
+	apperror.CodeAvatarInUse:                     http.StatusConflict,
+	apperror.CodeAvatarAssetUnavailable:          http.StatusServiceUnavailable,
 	apperror.CodeJDInUse:                         http.StatusConflict,
 	apperror.CodeJDNotFound:                      http.StatusNotFound,
 	apperror.CodeInvalidJDInput:                  http.StatusBadRequest,
@@ -49,6 +64,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeInvalidToken:                    http.StatusUnauthorized,
 	apperror.CodeAuthUnavailable:                 http.StatusServiceUnavailable,
 	apperror.CodeForbidden:                       http.StatusForbidden,
+	apperror.CodeOnboardingRoleConflict:          http.StatusConflict,
 	apperror.CodeValidation:                      http.StatusBadRequest,
 	apperror.CodeInternal:                        http.StatusInternalServerError,
 

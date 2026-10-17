@@ -71,7 +71,7 @@ SELECT jp.id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location
        jp.salary_min, jp.salary_max, jp.interview_slot, jp.interview_duration, jp.created_at,
        u.id AS recruiter_id, u.name AS recruiter_name, u.email AS recruiter_email,
        jp.required_avatar_id, a.name AS avatar_name,
-       jp.required_voice_id, v.name AS voice_name, jd.content_path,
+       jp.required_voice_id, v.name AS voice_name, COALESCE(jd.content_path, '')::text AS content_path,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id

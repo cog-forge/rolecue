@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import {
   createProfileFormSchema,
+  normalizeHttpsProfileUrlInput,
   profilePatch,
   profileValues,
   type Profile,
@@ -94,12 +95,14 @@ export function ProfileForm({
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isDirty, isValid },
   } = useForm<ProfileValues>({
     resolver: zodResolver(createProfileFormSchema(profile)),
     defaultValues: profileValues(profile),
     mode: "onChange",
   });
+  const companyWebsiteRegistration = register("company_website");
   useEffect(() => {
     // New server data reconciles pristine forms; a dirty draft stays untouched.
     if (savedProfile && savedProfile !== lastSaved.current) {
@@ -107,8 +110,13 @@ export function ProfileForm({
       baseline.current = savedProfile;
       reset(profileValues(savedProfile));
     } else if (profile !== baseline.current && !isDirty) {
+      // Query structural sharing can clone a saved response. Updating only the
+      // object identity must not schedule another reset over the next draft.
+      const values = profileValues(profile);
+      const changed =
+        Object.keys(profilePatch(values, baseline.current)).length > 0;
       baseline.current = profile;
-      reset(profileValues(profile));
+      if (changed) reset(values);
     }
   }, [profile, savedProfile, isDirty, reset]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -190,8 +198,22 @@ export function ProfileForm({
               id="profile-website"
               label="Company website"
               type="url"
-              hint="Use the full HTTPS address. Company details are optional."
-              registration={register("company_website")}
+              hint="We’ll add https:// if you enter a domain without it."
+              registration={{
+                ...companyWebsiteRegistration,
+                onBlur: async (event) => {
+                  const normalized = normalizeHttpsProfileUrlInput(
+                    (event.target as HTMLInputElement).value,
+                  );
+                  if (normalized !== (event.target as HTMLInputElement).value)
+                    setValue("company_website", normalized, {
+                      shouldDirty: true,
+                      shouldTouch: true,
+                      shouldValidate: true,
+                    });
+                  await companyWebsiteRegistration.onBlur(event);
+                },
+              }}
               disabled={saving}
               error={errors.company_website?.message}
             />

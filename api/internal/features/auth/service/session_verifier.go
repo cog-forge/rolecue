@@ -10,6 +10,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/features/auth/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/authcookie"
 	"github.com/google/uuid"
 )
 
@@ -32,11 +33,7 @@ func NewHTTPVerifier(cfg config.AuthConfig) *HTTPVerifier {
 }
 
 func (v *HTTPVerifier) authCookieName(name string) bool {
-	prefix := v.cfg.CookiePrefix + "."
-	if v.cfg.SecureCookies {
-		prefix = "__Secure-" + prefix
-	}
-	return name == prefix+"session_token" || name == prefix+"dont_remember" || name == prefix+"session_data"
+	return authcookie.Matches(name, v.cfg.CookiePrefix, v.cfg.SecureCookies)
 }
 
 func (v *HTTPVerifier) Verify(ctx context.Context, incoming *http.Request) (VerifiedSession, error) {
