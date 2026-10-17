@@ -1586,6 +1586,383 @@ const docTemplate = `{
                 }
             }
         },
+        "/job-postings": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Newest first. Filter by status and search the title.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "List your Job Postings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size (1-100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "pending",
+                            "open",
+                            "intake_closed",
+                            "closed",
+                            "rejected"
+                        ],
+                        "type": "string",
+                        "description": "Status filter",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Case-insensitive title search",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-domain_Summary"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Stores the JD text with the requirements confirmed in review and submits the posting for Admin approval (status pending). The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Create a Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Job Posting",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateJobPostingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.JobPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Includes the JD text, confirmed requirements and whether the question bank exists. Another Recruiter's posting is not found.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Get your Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.JobPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, while the posting is pending or rejected. Absent fields are unchanged; optional details may be cleared with null; unchanged values may be resent. raw_text can change only on a rejected posting. Changing seniority, requirements or the text while pending is refused once the question bank exists; on a rejected posting it clears the bank, which is regenerated after resubmitting. Saving does not resubmit. Trusted Origin required.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Edit your pending or rejected Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to change",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.Edit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.JobPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/job-postings/{id}/questions": {
             "get": {
                 "security": [
@@ -2019,6 +2396,102 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/domain.CoreQuestion"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/resubmit": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Moves a rejected posting back to pending and clears the rejection reason. Repeating it on a pending posting changes nothing; open or closed postings return 409. Trusted Origin required.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Send your rejected Job Posting for review again",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.JobPosting"
                                         }
                                     }
                                 }
@@ -3186,7 +3659,11 @@ const docTemplate = `{
                 "PAYOS_ERROR",
                 "WEBHOOK_SIGNATURE_INVALID",
                 "JOB_POSTING_NOT_PENDING",
-                "QUESTION_BANK_NOT_READY"
+                "QUESTION_BANK_NOT_READY",
+                "JOB_POSTING_REQUIREMENTS_LOCKED",
+                "JOB_POSTING_NOT_EDITABLE",
+                "JOB_POSTING_TEXT_LOCKED",
+                "JOB_POSTING_NOT_REJECTED"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -3239,7 +3716,11 @@ const docTemplate = `{
                 "CodePayOSError",
                 "CodeWebhookSignatureInvalid",
                 "CodeJobPostingNotPending",
-                "CodeQuestionBankNotReady"
+                "CodeQuestionBankNotReady",
+                "CodeJobPostingRequirementsLocked",
+                "CodeJobPostingNotEditable",
+                "CodeJobPostingTextLocked",
+                "CodeJobPostingNotRejected"
             ]
         },
         "domain.Account": {
@@ -3375,6 +3856,138 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Edit": {
+            "type": "object",
+            "properties": {
+                "employment_type": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "interview_duration": {
+                    "type": "integer",
+                    "x-nullable": true
+                },
+                "location": {
+                    "type": "string",
+                    "x-nullable": true
+                },
+                "raw_text": {
+                    "type": "string"
+                },
+                "required_avatar_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "required_voice_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "requirements": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    }
+                },
+                "salary_max": {
+                    "type": "integer",
+                    "x-nullable": true
+                },
+                "salary_min": {
+                    "type": "integer",
+                    "x-nullable": true
+                },
+                "seniority_level": {
+                    "type": "string",
+                    "enum": [
+                        "intern",
+                        "junior",
+                        "mid",
+                        "senior",
+                        "lead"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.JobPosting": {
+            "type": "object",
+            "properties": {
+                "core_question_count": {
+                    "description": "CoreQuestionCount shows whether the question bank exists; requirements lock once it does.",
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "employment_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_duration": {
+                    "type": "integer"
+                },
+                "interview_slot": {
+                    "type": "integer"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "raw_text": {
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "required_avatar": {
+                    "$ref": "#/definitions/domain.Ref"
+                },
+                "required_voice": {
+                    "$ref": "#/definitions/domain.Ref"
+                },
+                "requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.PostingRequirement"
+                    }
+                },
+                "salary_max": {
+                    "type": "integer"
+                },
+                "salary_min": {
+                    "type": "integer"
+                },
+                "seniority_level": {
+                    "$ref": "#/definitions/domain.Level"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.Status"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Level": {
+            "type": "string",
+            "enum": [
+                "intern",
+                "junior",
+                "mid",
+                "senior",
+                "lead"
+            ],
+            "x-enum-varnames": [
+                "Intern",
+                "Junior",
+                "Mid",
+                "Senior",
+                "Lead"
+            ]
+        },
         "domain.List": {
             "type": "object",
             "properties": {
@@ -3456,6 +4069,20 @@ const docTemplate = `{
                 "image": {
                     "type": "string",
                     "x-nullable": true
+                }
+            }
+        },
+        "domain.PostingRequirement": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/domain.RequirementType"
                 }
             }
         },
@@ -3566,7 +4193,29 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Ref": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Requirement": {
+            "type": "string",
+            "enum": [
+                "required",
+                "preferred"
+            ],
+            "x-enum-varnames": [
+                "Required",
+                "Preferred"
+            ]
+        },
+        "domain.RequirementType": {
             "type": "string",
             "enum": [
                 "required",
@@ -3746,6 +4395,52 @@ const docTemplate = `{
                 "Other"
             ]
         },
+        "domain.Status": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "open",
+                "intake_closed",
+                "closed",
+                "rejected"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusOpen",
+                "StatusIntakeClosed",
+                "StatusClosed",
+                "StatusRejected"
+            ]
+        },
+        "domain.Summary": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "employment_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_slot": {
+                    "type": "integer"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.Status"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Transition": {
             "type": "object",
             "properties": {
@@ -3833,6 +4528,62 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.CreateJobPostingRequest": {
+            "type": "object",
+            "required": [
+                "raw_text",
+                "required_avatar_id",
+                "required_voice_id",
+                "requirements",
+                "seniority_level",
+                "title"
+            ],
+            "properties": {
+                "employment_type": {
+                    "type": "string"
+                },
+                "interview_duration": {
+                    "type": "integer"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "raw_text": {
+                    "type": "string"
+                },
+                "required_avatar_id": {
+                    "type": "string"
+                },
+                "required_voice_id": {
+                    "type": "string"
+                },
+                "requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.PostingRequirement"
+                    }
+                },
+                "salary_max": {
+                    "type": "integer"
+                },
+                "salary_min": {
+                    "type": "integer"
+                },
+                "seniority_level": {
+                    "type": "string",
+                    "enum": [
+                        "intern",
+                        "junior",
+                        "mid",
+                        "senior",
+                        "lead"
+                    ]
+                },
+                "title": {
                     "type": "string"
                 }
             }
@@ -3953,6 +4704,20 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.PostingSummary"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
+        "response.Page-domain_Summary": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Summary"
                     }
                 },
                 "pagination": {

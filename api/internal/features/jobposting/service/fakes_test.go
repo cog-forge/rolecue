@@ -1,0 +1,185 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strings"
+	"testing"
+
+	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
+	"github.com/google/uuid"
+)
+
+type fakeRepository struct {
+	record    domain.Record
+	err       error
+	updateErr error
+
+	createCalls, listCalls, getCalls, updateCalls, resubmitCalls int
+	recruiter                                                    uuid.UUID
+	created                                                      domain.NewPosting
+	filter                                                       domain.ListFilter
+	patch                                                        domain.Edit
+	contentPath                                                  *string
+}
+
+func (f *fakeRepository) Create(_ context.Context, recruiterID uuid.UUID, input domain.NewPosting) (domain.Record, error) {
+	f.createCalls++
+	f.recruiter, f.created = recruiterID, input
+	if f.err != nil {
+		return domain.Record{}, f.err
+	}
+	f.record = domain.Record{ContentPath: input.ContentPath, JobPosting: domain.JobPosting{
+		ID: uuid.New(), Title: input.Title, Status: domain.StatusPending, SeniorityLevel: input.SeniorityLevel,
+		Requirements: input.Requirements,
+	}}
+	return f.record, nil
+}
+
+func (f *fakeRepository) List(_ context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.Summary, int64, error) {
+	f.listCalls++
+	f.recruiter, f.filter = recruiterID, filter
+	return []domain.Summary{}, 0, f.err
+}
+
+func (f *fakeRepository) Get(_ context.Context, recruiterID, _ uuid.UUID) (domain.Record, error) {
+	f.getCalls++
+	f.recruiter = recruiterID
+	return f.record, f.err
+}
+
+func (f *fakeRepository) Update(_ context.Context, recruiterID, _ uuid.UUID, patch domain.Edit, contentPath *string) error {
+	f.updateCalls++
+	f.recruiter, f.patch, f.contentPath = recruiterID, patch, contentPath
+	if f.err != nil {
+		return f.err
+	}
+	if f.updateErr != nil {
+		return f.updateErr
+	}
+	if contentPath != nil {
+		f.record.ContentPath = *contentPath
+	}
+	return nil
+}
+
+// Resubmit behaves like the SQL: rejected becomes pending without its reason, pending stays.
+func (f *fakeRepository) Resubmit(_ context.Context, recruiterID, _ uuid.UUID) error {
+	f.resubmitCalls++
+	f.recruiter = recruiterID
+	if f.err != nil {
+		return f.err
+	}
+	switch f.record.Status {
+	case domain.StatusPending:
+		return nil
+	case domain.StatusRejected:
+		f.record.Status, f.record.RejectReason = domain.StatusPending, nil
+		return nil
+	}
+	return domain.ErrNotRejected
+}
+
+// fakeStore keeps uploaded objects in memory.
+type fakeStore struct {
+	objects     map[string]string
+	uploadErr   error
+	downloadErr error
+	uploads     int
+}
+
+func newStore() *fakeStore { return &fakeStore{objects: map[string]string{}} }
+
+func (s *fakeStore) Upload(_ context.Context, body io.ReadSeeker, _ string) (string, error) {
+	s.uploads++
+	if s.uploadErr != nil {
+		return "", s.uploadErr
+	}
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return "", err
+	}
+	key := uuid.NewString()
+	s.objects[key] = string(data)
+	return key, nil
+}
+
+func (s *fakeStore) Download(_ context.Context, key string) (storage.Object, error) {
+	if s.downloadErr != nil {
+		return storage.Object{}, s.downloadErr
+	}
+	text, ok := s.objects[key]
+	if !ok {
+		return storage.Object{}, storage.ErrNotFound
+	}
+	return storage.Object{Body: io.NopCloser(strings.NewReader(text)), Size: int64(len(text))}, nil
+}
+
+func newService(t *testing.T, repo Repository, store TextStore) *Service {
+	t.Helper()
+	s, err := New(repo, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+var errBoom = errors.New("boom")
+
+func validText() string { return strings.Repeat("Build and run Go services on PostgreSQL. ", 5) }
+
+func validCreate() domain.CreateInput {
+	return domain.CreateInput{
+		Title: "Backend Engineer", RawText: validText(), SeniorityLevel: domain.Mid,
+		Requirements: []domain.PostingRequirement{
+			{Name: "Go", Target: "programming_language", Type: domain.Required},
+			{Name: "PostgreSQL", Target: "database", Type: domain.Preferred},
+		},
+		RequiredAvatarID: uuid.New(), RequiredVoiceID: uuid.New(),
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func assertCode(t *testing.T, err error, code apperror.Code) {
+	t.Helper()
+	var got *apperror.AppError
+	if !errors.As(err, &got) || got.Code != code {
+		t.Fatalf("error = %v, want code %s", err, code)
+	}
+}
+
+func TestNewRequiresDependencies(t *testing.T) {
+	if _, err := New(nil, newStore()); err == nil {
+		t.Fatal("New accepted a nil repository")
+	}
+	if _, err := New(&fakeRepository{}, nil); err == nil {
+		t.Fatal("New accepted a nil text store")
+	}
+}
+
+func TestNonRecruitersAreForbidden(t *testing.T) {
+	for _, role := range []string{"candidate", "admin", ""} {
+		t.Run(role, func(t *testing.T) {
+			repo, store := &fakeRepository{}, newStore()
+			s := newService(t, repo, store)
+			ctx, id := context.Background(), uuid.New()
+			_, err := s.Create(ctx, uuid.New(), role, validCreate())
+			assertCode(t, err, apperror.CodeForbidden)
+			_, _, err = s.List(ctx, uuid.New(), role, domain.ListFilter{Limit: 20})
+			assertCode(t, err, apperror.CodeForbidden)
+			_, err = s.Get(ctx, uuid.New(), role, id)
+			assertCode(t, err, apperror.CodeForbidden)
+			_, err = s.Update(ctx, uuid.New(), role, id, domain.Edit{})
+			assertCode(t, err, apperror.CodeForbidden)
+			_, err = s.Resubmit(ctx, uuid.New(), role, id)
+			assertCode(t, err, apperror.CodeForbidden)
+			if repo.createCalls+repo.listCalls+repo.getCalls+repo.updateCalls+repo.resubmitCalls+store.uploads != 0 {
+				t.Fatal("a non-recruiter request reached the repository or storage")
+			}
+		})
+	}
+}

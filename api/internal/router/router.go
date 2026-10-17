@@ -27,6 +27,7 @@ type Router struct {
 	inventoryHandler    *handler.InventoryHandler
 	avatarCreateHandler *handler.AvatarCreateHandler
 	voiceCatalogHandler *handler.VoiceCatalogHandler
+	jobPostingHandler   *handler.JobPostingHandler
 }
 
 func NewRouter(
@@ -44,6 +45,7 @@ func NewRouter(
 	inventoryHandler *handler.InventoryHandler,
 	avatarCreateHandler *handler.AvatarCreateHandler,
 	voiceCatalogHandler *handler.VoiceCatalogHandler,
+	jobPostingHandler *handler.JobPostingHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -60,6 +62,7 @@ func NewRouter(
 		inventoryHandler:    inventoryHandler,
 		avatarCreateHandler: avatarCreateHandler,
 		voiceCatalogHandler: voiceCatalogHandler,
+		jobPostingHandler:   jobPostingHandler,
 	}
 }
 
@@ -119,6 +122,11 @@ func (r *Router) Setup() *gin.Engine {
 	router.POST("/wallet/webhook/payos", r.walletHandler.HandlePayOSWebhook)
 
 	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
+	jobPostings.POST("", r.jobPostingHandler.Create)
+	jobPostings.GET("", r.jobPostingHandler.List)
+	jobPostings.GET("/:id", r.jobPostingHandler.Get)
+	jobPostings.PATCH("/:id", r.jobPostingHandler.Update)
+	jobPostings.POST("/:id/resubmit", r.jobPostingHandler.Resubmit)
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
 	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
