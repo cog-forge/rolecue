@@ -73,7 +73,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	moderationHandler := provider.ProvideModerationHandler(service3)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler)
+	onboardingHandler := provider.ProvideOnboardingHandler(authService)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {

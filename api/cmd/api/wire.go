@@ -51,6 +51,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideModerationRepository,
 		provider.ProvideModerationService,
 		provider.ProvideModerationHandler,
+		provider.ProvideOnboardingHandler,
 		provider.ProvideRouter,
 		provider.ProvideHTTPServer,
 		wire.Struct(new(Application), "*"),
