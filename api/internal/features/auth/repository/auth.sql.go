@@ -11,21 +11,74 @@ import (
 	"github.com/google/uuid"
 )
 
+const chooseOnboardingRole = `-- name: ChooseOnboardingRole :one
+UPDATE public.users SET role = $1::text,
+    onboarding_status = 'role_selected',
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $2 AND coalesce(role, 'candidate') <> 'admin'
+    AND NOT coalesce(is_locked, false) AND email_verified
+    AND (onboarding_status = 'pending' OR (
+        onboarding_status = 'role_selected' AND role = $1::text
+    ))
+RETURNING id, email, name, coalesce(role, 'candidate')::text AS role,
+    email_verified, coalesce(is_locked, false)::boolean AS is_locked, image,
+    (coalesce(role, 'candidate') = 'admin' OR onboarding_status IN ('role_selected', 'completed'))::boolean AS onboarding_role_selected,
+    (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed')::boolean AS onboarding_completed
+`
+
+type ChooseOnboardingRoleParams struct {
+	ChosenRole string
+	ID         uuid.UUID
+}
+
+type ChooseOnboardingRoleRow struct {
+	ID                     uuid.UUID
+	Email                  string
+	Name                   string
+	Role                   string
+	EmailVerified          bool
+	IsLocked               bool
+	Image                  *string
+	OnboardingRoleSelected bool
+	OnboardingCompleted    bool
+}
+
+func (q *Queries) ChooseOnboardingRole(ctx context.Context, arg ChooseOnboardingRoleParams) (ChooseOnboardingRoleRow, error) {
+	row := q.db.QueryRow(ctx, chooseOnboardingRole, arg.ChosenRole, arg.ID)
+	var i ChooseOnboardingRoleRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.Role,
+		&i.EmailVerified,
+		&i.IsLocked,
+		&i.Image,
+		&i.OnboardingRoleSelected,
+		&i.OnboardingCompleted,
+	)
+	return i, err
+}
+
 const getAuthUser = `-- name: GetAuthUser :one
 SELECT id, email, name, coalesce(role, 'candidate')::text AS role,
-       email_verified, coalesce(is_locked, false)::boolean AS is_locked, image
+       email_verified, coalesce(is_locked, false)::boolean AS is_locked, image,
+       (coalesce(role, 'candidate') = 'admin' OR onboarding_status IN ('role_selected', 'completed'))::boolean AS onboarding_role_selected,
+       (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed')::boolean AS onboarding_completed
 FROM public.users
 WHERE id = $1
 `
 
 type GetAuthUserRow struct {
-	ID            uuid.UUID
-	Email         string
-	Name          string
-	Role          string
-	EmailVerified bool
-	IsLocked      bool
-	Image         *string
+	ID                     uuid.UUID
+	Email                  string
+	Name                   string
+	Role                   string
+	EmailVerified          bool
+	IsLocked               bool
+	Image                  *string
+	OnboardingRoleSelected bool
+	OnboardingCompleted    bool
 }
 
 func (q *Queries) GetAuthUser(ctx context.Context, id uuid.UUID) (GetAuthUserRow, error) {
@@ -39,6 +92,8 @@ func (q *Queries) GetAuthUser(ctx context.Context, id uuid.UUID) (GetAuthUserRow
 		&i.EmailVerified,
 		&i.IsLocked,
 		&i.Image,
+		&i.OnboardingRoleSelected,
+		&i.OnboardingCompleted,
 	)
 	return i, err
 }

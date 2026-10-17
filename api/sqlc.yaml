@@ -1,6 +1,22 @@
 version: "2"
 sql:
   - engine: "postgresql"
+    queries: "internal/features/inventory/repository/query/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/features/inventory/repository"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "uuid"
+            nullable: false
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+  - engine: "postgresql"
     queries: "internal/features/auth/repository/query/"
     schema: "migrations/"
     gen:
@@ -107,12 +123,12 @@ sql:
               import: "github.com/google/uuid"
               type: "UUID"
   - engine: "postgresql"
-    queries: "internal/features/jd/repository/query/"
+    queries: "internal/features/roleprofile/repository/query/"
     schema: "migrations/"
     gen:
       go:
         package: "repository"
-        out: "internal/features/jd/repository"
+        out: "internal/features/roleprofile/repository"
         sql_package: "pgx/v5"
         emit_pointers_for_null_types: true
         omit_unused_structs: true
@@ -124,6 +140,22 @@ sql:
               type: "UUID"
           - db_type: "uuid"
             nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+  - engine: "postgresql"
+    queries: "internal/features/admin/accounts/repository/query/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/features/admin/accounts/repository"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "uuid"
+            nullable: false
             go_type:
               import: "github.com/google/uuid"
               type: "UUID"

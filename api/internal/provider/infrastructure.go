@@ -3,11 +3,11 @@ package provider
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/database"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func ProvideLogger(cfg *config.Config) (*logger.Logger, func(), error) {

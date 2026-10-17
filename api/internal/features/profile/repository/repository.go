@@ -15,7 +15,7 @@ type Repository struct{ queries *Queries }
 func NewRepository(db DBTX) *Repository { return &Repository{queries: New(db)} }
 
 func toProfile(row GetProfileRow) domain.Profile {
-	p := domain.Profile{ID: row.ID, FullName: row.Name, Email: row.Email, Image: row.Image,
+	p := domain.Profile{OnboardingRoleSelected: row.OnboardingRoleSelected, OnboardingCompleted: row.OnboardingCompleted, ID: row.ID, FullName: row.Name, Email: row.Email, Image: row.Image,
 		Role: row.Role, EmailVerified: row.EmailVerified,
 		CompanyName: row.CompanyName, CompanyWebsite: row.CompanyWebsite,
 		CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}

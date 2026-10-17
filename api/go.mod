@@ -14,6 +14,7 @@ require (
 	github.com/google/wire v0.7.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/payOSHQ/payos-lib-golang/v2 v2.0.1
+	github.com/qmuntal/gltf v0.29.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
 	github.com/subosito/gotenv v1.6.0

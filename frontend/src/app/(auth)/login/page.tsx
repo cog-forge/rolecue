@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
-  const { oauth, error } = await searchParams;
+  const { oauth, error, session } = await searchParams;
   const enabledProviders = (
     [
       ["google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
@@ -25,6 +25,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       <LoginForm
         oauthFailed={oauth === "failed"}
         oauthError={typeof error === "string" ? error : undefined}
+        sessionEnded={session === "ended"}
         enabledProviders={enabledProviders}
       />
     </LoginView>

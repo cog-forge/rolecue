@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
@@ -36,52 +37,67 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	authService := provider.ProvideAuthService(config, repository)
 	authHandler := provider.ProvideAuthHandler(authService)
 	healthHandler := provider.ProvideHealthHandler()
-	repositoryRepository := provider.ProvideJDRepository(pool)
+	extractionService, err := provider.ProvideRoleProfileExtraction(config)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	roleProfileRepository := provider.ProvideRoleProfileRepository(pool)
+	repositoryRepository := provider.ProvideQuestionBankRepository(pool)
+	service, err := provider.ProvideQuestionBankService(config, repositoryRepository)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	roleProfileApplication, err := provider.ProvideRoleProfileService(config, extractionService, roleProfileRepository, service)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	store, err := provider.ProvideStorage(config)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	application, err := provider.ProvideJDService(config, repositoryRepository, store)
-	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	jdHandler := provider.ProvideJDHandler(application)
+	roleProfileDocumentApplication := provider.ProvideRoleProfileDocumentApplication(roleProfileRepository, store)
+	roleProfileHandler := provider.ProvideRoleProfileHandler(roleProfileApplication, roleProfileDocumentApplication)
 	repository2 := provider.ProvideProfileRepository(pool)
-	service := provider.ProvideProfileService(repository2)
-	profileHandler := provider.ProvideProfileHandler(service)
+	serviceService := provider.ProvideProfileService(repository2)
+	profileHandler := provider.ProvideProfileHandler(serviceService)
 	repository3 := provider.ProvideWalletRepository(pool)
 	client := provider.ProvidePayOSClient(config)
-	serviceService := provider.ProvideWalletService(repository3, client)
-	walletHandler := provider.ProvideWalletHandler(serviceService)
-	repository4 := provider.ProvideQuestionBankRepository(pool)
-	service2, err := provider.ProvideQuestionBankService(config, repository4)
-	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	questionBankHandler := provider.ProvideQuestionBankHandler(service2)
-	repository5 := provider.ProvideModerationRepository(pool)
-	service3, err := provider.ProvideModerationService(repository5, logger)
+	service2 := provider.ProvideWalletService(repository3, client)
+	walletHandler := provider.ProvideWalletHandler(service2)
+	questionBankHandler := provider.ProvideQuestionBankHandler(service)
+	repository4 := provider.ProvideModerationRepository(pool)
+	service3, err := provider.ProvideModerationService(repository4, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	moderationHandler := provider.ProvideModerationHandler(service3)
+	onboardingHandler := provider.ProvideOnboardingHandler(authService)
+	accountsHandler := provider.ProvideAccountsHandler(config, pool)
+	repository5 := provider.ProvideInventoryRepository(pool)
+	service4 := provider.ProvideInventoryService(repository5, store)
+	inventoryHandler := provider.ProvideInventoryHandler(service4)
+	blender := provider.ProvideAvatarConverter(config)
+	avatarConversionService := provider.ProvideAvatarConversionService(repository5, store, blender, config)
+	avatarCreateHandler := provider.ProvideAvatarCreateHandler(avatarConversionService, config)
 	repository6 := provider.ProvideVoiceCatalogRepository(pool)
-	service4, err := provider.ProvideVoiceCatalogService(repository6, logger)
+	service5, err := provider.ProvideVoiceCatalogService(repository6, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	voiceCatalogHandler := provider.ProvideVoiceCatalogHandler(service4)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, jdHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, voiceCatalogHandler)
+	voiceCatalogHandler := provider.ProvideVoiceCatalogHandler(service5)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
@@ -89,15 +105,16 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	mainApplication := &Application{
-		Server:  server,
-		Pool:    pool,
-		Logger:  logger,
-		Tracer:  tracer,
-		Config:  config,
-		Storage: store,
+	application := &Application{
+		Server:    server,
+		Pool:      pool,
+		Logger:    logger,
+		Tracer:    tracer,
+		Config:    config,
+		Storage:   store,
+		Documents: roleProfileDocumentApplication,
 	}
-	return mainApplication, func() {
+	return application, func() {
 		cleanup3()
 		cleanup2()
 		cleanup()
@@ -107,10 +124,11 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 // wire.go:
 
 type Application struct {
-	Server  *server.Server
-	Pool    *pgxpool.Pool
-	Logger  *logger.Logger
-	Tracer  *tracer.Tracer
-	Config  *config.Config
-	Storage storage.Store
+	Server    *server.Server
+	Pool      *pgxpool.Pool
+	Logger    *logger.Logger
+	Tracer    *tracer.Tracer
+	Config    *config.Config
+	Storage   storage.Store
+	Documents *service.RoleProfileDocumentApplication
 }

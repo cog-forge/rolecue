@@ -174,3 +174,16 @@ func TestPayOSConfigValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultWriteTimeout(t *testing.T) {
+	t.Setenv("PAYOS_CLIENT_ID", "test-client-id")
+	t.Setenv("PAYOS_API_KEY", "test-api-key")
+	t.Setenv("PAYOS_CHECKSUM_KEY", "test-checksum-key")
+	cfg, err := Load(writeConfig(t, minimalYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.WriteTimeout != 30*time.Second {
+		t.Fatalf("write timeout = %v, want 30s", cfg.Server.WriteTimeout)
+	}
+}

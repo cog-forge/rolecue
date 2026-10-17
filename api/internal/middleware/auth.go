@@ -15,7 +15,7 @@ import (
 const currentUserIDKey = "auth.middleware.currentUserID"
 const currentUserKey = "auth.middleware.currentUser"
 
-func RequireAuth(service authservice.AuthService, cors config.CORSConfig) gin.HandlerFunc {
+func RequireAuth(service authservice.Authenticator, cors config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store")
 		switch c.Request.Method {
@@ -63,4 +63,17 @@ func CurrentUserID(c *gin.Context) (uuid.UUID, bool) {
 	value, exists := c.Get(currentUserIDKey)
 	id, ok := value.(uuid.UUID)
 	return id, exists && ok
+}
+
+// RequireOnboarding protects business APIs; bootstrap/profile remain available.
+func RequireOnboarding() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := CurrentUser(c)
+		if !ok || (user.Role != "admin" && !user.OnboardingCompleted) {
+			response.Error(c, apperror.New(apperror.CodeForbidden, "complete onboarding before using your workspace"))
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
 }
