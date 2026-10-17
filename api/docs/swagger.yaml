@@ -184,6 +184,84 @@ definitions:
           $ref: '#/definitions/domain.CoreQuestion'
         type: array
     type: object
+  domain.BoardPosting:
+    properties:
+      company_name:
+        type: string
+      created_at:
+        type: string
+      employment_type:
+        type: string
+      id:
+        type: string
+      location:
+        type: string
+      salary_max:
+        type: integer
+      salary_min:
+        type: integer
+      seniority_level:
+        enum:
+        - intern
+        - junior
+        - mid
+        - senior
+        - lead
+        type: string
+      title:
+        type: string
+    type: object
+  domain.BoardPostingDetail:
+    properties:
+      already_applied:
+        type: boolean
+      company_name:
+        type: string
+      company_website:
+        type: string
+      created_at:
+        type: string
+      employment_type:
+        type: string
+      id:
+        type: string
+      interview_duration:
+        type: integer
+      location:
+        type: string
+      raw_text:
+        type: string
+      requirements:
+        items:
+          $ref: '#/definitions/domain.BoardRequirement'
+        type: array
+      salary_max:
+        type: integer
+      salary_min:
+        type: integer
+      seniority_level:
+        enum:
+        - intern
+        - junior
+        - mid
+        - senior
+        - lead
+        type: string
+      title:
+        type: string
+    type: object
+  domain.BoardRequirement:
+    properties:
+      name:
+        type: string
+      target:
+        type: string
+      type:
+        enum:
+        - required
+        - preferred
+        type: string
+    type: object
   domain.Capacity:
     properties:
       available:
@@ -202,8 +280,24 @@ definitions:
       id:
         type: string
     type: object
+  domain.Document:
+    properties:
+      document_id:
+        type: string
+      raw_text:
+        type: string
+    type: object
+  domain.DocumentLink:
+    properties:
+      expires_at:
+        type: string
+      url:
+        type: string
+    type: object
   domain.Edit:
     properties:
+      document_id:
+        type: string
       employment_type:
         type: string
         x-nullable: true
@@ -213,8 +307,6 @@ definitions:
       location:
         type: string
         x-nullable: true
-      raw_text:
-        type: string
       required_avatar_id:
         format: uuid
         type: string
@@ -252,6 +344,8 @@ definitions:
         type: string
       employment_type:
         type: string
+      has_document:
+        type: boolean
       id:
         type: string
       interview_duration:
@@ -462,14 +556,22 @@ definitions:
   domain.ReviewPosting:
     properties:
       content_path:
-        description: ContentPath is the URL of the JD content (job_descriptions.content_path),
-          the text the Admin reviews.
+        description: |-
+          ContentPath is job_descriptions.content_path: the storage key of the JD PDF for postings
+          created through POST /job-postings, or a full http(s) URL for older rows.
         type: string
       core_question_count:
         description: CoreQuestionCount tells the Admin whether the posting can be
           approved (it needs at least one).
         type: integer
       created_at:
+        type: string
+      document_expires_at:
+        type: string
+      document_url:
+        description: |-
+          DocumentURL is a short-lived link to the JD PDF (see DocumentExpiresAt); null when the posting
+          has no stored PDF.
         type: string
       employment_type:
         type: string
@@ -480,6 +582,12 @@ definitions:
       interview_slot:
         type: integer
       location:
+        type: string
+      raw_text:
+        description: |-
+          RawText is the JD text: read from the PDF, or for postings created before PDF upload, the
+          plain-text object under ContentPath. It is null when ContentPath is a URL (the Admin opens the
+          file instead) or when the stored JD is missing.
         type: string
       recruiter:
         $ref: '#/definitions/domain.Recruiter'
@@ -692,13 +800,14 @@ definitions:
     type: object
   handler.CreateJobPostingRequest:
     properties:
+      document_id:
+        format: uuid
+        type: string
       employment_type:
         type: string
       interview_duration:
         type: integer
       location:
-        type: string
-      raw_text:
         type: string
       required_avatar_id:
         type: string
@@ -723,7 +832,7 @@ definitions:
       title:
         type: string
     required:
-    - raw_text
+    - document_id
     - required_avatar_id
     - required_voice_id
     - requirements
@@ -803,6 +912,15 @@ definitions:
       items:
         items:
           $ref: '#/definitions/domain.Avatar'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
+  response.Page-domain_BoardPosting:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.BoardPosting'
         type: array
       pagination:
         $ref: '#/definitions/response.Pagination'
@@ -1897,6 +2015,125 @@ paths:
       summary: View your personal avatar
       tags:
       - inventory
+  /job-board:
+    get:
+      description: Candidate only. Job Postings an Admin approved that still accept
+        Applications, newest first. Search the title and location (case-insensitive,
+        part of the text) and filter by employment type (case-insensitive, whole value).
+        Never includes the question bank, evaluation weights, interview capacity or
+        the reject reason.
+      parameters:
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Number of items to skip
+        in: query
+        maximum: 2147483647
+        minimum: 0
+        name: offset
+        type: integer
+      - description: Part of the title
+        in: query
+        maxLength: 200
+        name: search
+        type: string
+      - description: Part of the location
+        in: query
+        maxLength: 200
+        name: location
+        type: string
+      - description: Employment type, e.g. Full-time
+        in: query
+        maxLength: 200
+        name: employment_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-domain_BoardPosting'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Browse open Job Postings
+      tags:
+      - job-board
+  /job-board/{id}:
+    get:
+      description: 'Candidate only. The public content of an open Job Posting: company,
+        details, JD text and requirements, plus whether you already applied. A posting
+        that does not exist or is not open returns the same 404.'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.BoardPostingDetail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: View an open Job Posting
+      tags:
+      - job-board
   /job-postings:
     get:
       description: Recruiter only. Newest first. Filter by status and search the title.
@@ -1965,10 +2202,11 @@ paths:
     post:
       consumes:
       - application/json
-      description: Recruiter only. Stores the JD text with the requirements confirmed
-        in review and submits the posting for Admin approval (status pending). The
-        interviewer avatar must be one of the Recruiter's own avatars and the voice
-        must be active. Trusted Origin required. Unknown fields reject the whole request.
+      description: Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents
+        (read again on the server) with the requirements confirmed in review and submits
+        the posting for Admin approval (status pending). The interviewer avatar must
+        be one of the Recruiter's own avatars and the voice must be active. Trusted
+        Origin required. Unknown fields reject the whole request.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -2075,10 +2313,11 @@ paths:
       - application/json
       description: Recruiter only, while the posting is pending or rejected. Absent
         fields are unchanged; optional details may be cleared with null; unchanged
-        values may be resent. raw_text can change only on a rejected posting. Changing
-        seniority, requirements or the text while pending is refused once the question
-        bank exists; on a rejected posting it clears the bank, which is regenerated
-        after resubmitting. Saving does not resubmit. Trusted Origin required.
+        values may be resent. document_id (a new PDF from POST /job-postings/documents)
+        can change only on a rejected posting. Changing seniority, requirements or
+        the JD while pending is refused once the question bank exists; on a rejected
+        posting it clears the bank, which is regenerated after resubmitting. Saving
+        does not resubmit. Trusted Origin required.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -2140,6 +2379,54 @@ paths:
       security:
       - SessionCookie: []
       summary: Edit your pending or rejected Job Posting
+      tags:
+      - job-postings
+  /job-postings/{id}/document:
+    get:
+      description: Recruiter only. Returns a link to the PDF that expires after a
+        few minutes. A posting created before PDF upload has none (404).
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.DocumentLink'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Open your Job Posting's JD PDF
       tags:
       - job-postings
   /job-postings/{id}/questions:
@@ -2515,6 +2802,67 @@ paths:
       security:
       - SessionCookie: []
       summary: Send your rejected Job Posting for review again
+      tags:
+      - job-postings
+  /job-postings/documents:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Recruiter only. Stores the PDF (up to 5 MB, with selectable text)
+        and returns its document_id and the text read from it. Pass document_id to
+        POST /job-postings, or to PATCH /job-postings/{id} on a rejected posting;
+        pass raw_text to POST /job-postings/extract for suggestions. Trusted Origin
+        required.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: JD PDF
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Document'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Upload a JD PDF
       tags:
       - job-postings
   /job-postings/extract:
