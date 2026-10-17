@@ -3,8 +3,8 @@ package middleware
 import (
 	"time"
 
-	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 )
 
 // LoggingMiddleware automatically logs requests using the Zap logger

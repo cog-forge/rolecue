@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/cog-forge/rolecue/api/internal/config"
 )
 
 // NewDatabasePool initializes pgxpool.Pool from DatabaseConfig

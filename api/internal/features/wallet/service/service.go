@@ -332,7 +332,7 @@ func (s *Service) deductBalance(ctx context.Context, userID uuid.UUID, amount in
 // negligible collision probability.
 func generateOrderCode() (int64, error) {
 	const (
-		min    int64 = 100_000_000_000
+		min   int64 = 100_000_000_000
 		range_ int64 = 899_999_999_999
 	)
 	nBig, err := rand.Int(rand.Reader, big.NewInt(range_))
