@@ -41,6 +41,7 @@ func TestError(t *testing.T) {
 		{"extraction", apperror.CodeExtractionFailed, http.StatusBadGateway},
 		{"invalid output", apperror.CodeInvalidExtractionOutput, http.StatusBadGateway},
 		{"posting missing", apperror.CodeJobPostingNotFound, http.StatusNotFound},
+		{"voice missing", apperror.CodeVoiceNotFound, http.StatusNotFound},
 		{"question missing", apperror.CodeCoreQuestionNotFound, http.StatusNotFound},
 		{"bank exists", apperror.CodeQuestionBankExists, http.StatusConflict},
 		{"bank locked", apperror.CodeQuestionBankLocked, http.StatusConflict},
