@@ -593,6 +593,17 @@ definitions:
     - StatusIntakeClosed
     - StatusClosed
     - StatusRejected
+  domain.Suggestion:
+    properties:
+      requirements:
+        items:
+          $ref: '#/definitions/domain.PostingRequirement'
+        type: array
+      seniority_level:
+        $ref: '#/definitions/domain.Level'
+      title:
+        type: string
+    type: object
   domain.Summary:
     properties:
       created_at:
@@ -640,6 +651,13 @@ definitions:
       onboarding_role_selected:
         type: boolean
       role:
+        type: string
+    type: object
+  domain.Voice:
+    properties:
+      id:
+        type: string
+      name:
         type: string
     type: object
   domain.VoiceDeleteOutcome:
@@ -716,6 +734,13 @@ definitions:
     properties:
       rawText:
         type: string
+    type: object
+  handler.ExtractJobPostingRequest:
+    properties:
+      raw_text:
+        type: string
+    required:
+    - raw_text
     type: object
   handler.QuestionBankResponse:
     properties:
@@ -796,6 +821,15 @@ definitions:
       items:
         items:
           $ref: '#/definitions/domain.Summary'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
+  response.Page-domain_Voice:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.Voice'
         type: array
       pagination:
         $ref: '#/definitions/response.Pagination'
@@ -2483,6 +2517,63 @@ paths:
       summary: Send your rejected Job Posting for review again
       tags:
       - job-postings
+  /job-postings/extract:
+    post:
+      consumes:
+      - application/json
+      description: Recruiter only. AI extraction reads the JD text and suggests a
+        title, seniority and requirements for the Recruiter to review before creating
+        the posting. Nothing is stored. seniority_level is null when the JD does not
+        say. Trusted Origin required.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: JD text
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ExtractJobPostingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Suggestion'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Suggest requirements from JD text
+      tags:
+      - job-postings
   /onboarding/role:
     post:
       consumes:
@@ -3135,6 +3226,58 @@ paths:
       summary: Verify a PDF upload and create its Role Profile draft
       tags:
       - role-profiles
+  /voices:
+    get:
+      description: Candidates and Recruiters. Only active voices, sorted by name,
+        so they can be chosen for a practice interview or required by a Job Posting.
+      parameters:
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Number of items to skip
+        in: query
+        maximum: 2147483647
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-domain_Voice'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List active voice profiles
+      tags:
+      - voices
 securityDefinitions:
   SessionCookie:
     description: Better Auth HttpOnly session cookie. Production uses __Secure-rolecue.session_token;

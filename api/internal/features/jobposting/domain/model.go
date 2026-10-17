@@ -137,6 +137,14 @@ type NewPosting struct {
 	ContentPath string
 }
 
+// Suggestion is what AI extraction read from a JD, for the Recruiter to review and confirm before
+// creating the posting. Nothing is stored. SeniorityLevel is nil when the JD does not say.
+type Suggestion struct {
+	Title          string               `json:"title"`
+	SeniorityLevel *Level               `json:"seniority_level"`
+	Requirements   []PostingRequirement `json:"requirements"`
+}
+
 // ListFilter narrows the Recruiter's list. A nil field means "no filter".
 type ListFilter struct {
 	Status *Status

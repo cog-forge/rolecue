@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
@@ -22,10 +23,21 @@ type JobPostingService interface {
 	Update(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID, patch domain.Edit) (domain.JobPosting, error)
 	Resubmit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
 }
-type JobPostingHandler struct{ service JobPostingService }
+type JobPostingExtractor interface {
+	Suggest(ctx context.Context, role, raw string) (domain.Suggestion, error)
+}
+type JobPostingHandler struct {
+	service    JobPostingService
+	extraction JobPostingExtractor
+}
 
-func NewJobPostingHandler(service JobPostingService) *JobPostingHandler {
-	return &JobPostingHandler{service: service}
+func NewJobPostingHandler(service JobPostingService, extraction JobPostingExtractor) *JobPostingHandler {
+	return &JobPostingHandler{service: service, extraction: extraction}
+}
+
+// ExtractJobPostingRequest carries the JD text to read requirements from.
+type ExtractJobPostingRequest struct {
+	RawText *string `json:"raw_text" binding:"required"`
 }
 
 // CreateJobPostingRequest carries the Recruiter's JD text and the requirements they confirmed in
@@ -167,6 +179,48 @@ func (h *JobPostingHandler) Create(c *gin.Context) {
 		return
 	}
 	response.Created(c, result)
+}
+
+// Extract godoc
+// @Summary Suggest requirements from JD text
+// @Description Recruiter only. AI extraction reads the JD text and suggests a title, seniority and requirements for the Recruiter to review before creating the posting. Nothing is stored. seniority_level is null when the JD does not say. Trusted Origin required.
+// @Tags job-postings
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param Origin header string true "Trusted frontend origin"
+// @Param request body ExtractJobPostingRequest true "JD text"
+// @Success 200 {object} response.Envelope{data=domain.Suggestion}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Failure 502 {object} response.Envelope
+// @Router /job-postings/extract [post]
+func (h *JobPostingHandler) Extract(c *gin.Context) {
+	_, role, ok := jobPostingUser(c)
+	if !ok {
+		return
+	}
+	var req ExtractJobPostingRequest
+	if !jobPostingJSON(c, &req) {
+		return
+	}
+	if req.RawText == nil {
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid request body"))
+		return
+	}
+	// Extraction can outlast the server's default write timeout; give it the same deadline as
+	// Role Profile analysis, which runs the same pipeline.
+	if !roleWriteDeadline(c, 75*time.Second) {
+		return
+	}
+	result, err := h.extraction.Suggest(c.Request.Context(), role, *req.RawText)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, result)
 }
 
 // List godoc
