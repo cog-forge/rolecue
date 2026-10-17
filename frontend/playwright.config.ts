@@ -14,7 +14,8 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "bun run start --port 3100",
+    command:
+      "cp -R public .next/standalone/ && cp -R .next/static .next/standalone/.next/ && PORT=3100 HOSTNAME=127.0.0.1 node .next/standalone/server.js",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: false,
     timeout: 60_000,

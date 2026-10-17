@@ -31,7 +31,7 @@ func open(t *testing.T) *fixture {
 	t.Helper()
 	url := os.Getenv("DATABASE_URL")
 	if url == "" {
-		t.Skip("DATABASE_URL is not set (load ../.env)")
+		t.Fatal("DATABASE_URL is not set; use a disposable migrated test database")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
@@ -41,7 +41,7 @@ func open(t *testing.T) *fixture {
 	}
 	t.Cleanup(pool.Close)
 	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("database not reachable: %v", err)
+		t.Fatalf("database not reachable: %v", err)
 	}
 	f := &fixture{t: t, ctx: ctx, pool: pool, tag: "vc-" + uuid.NewString()[:8]}
 	t.Cleanup(func() {

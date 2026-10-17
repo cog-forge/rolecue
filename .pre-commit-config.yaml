@@ -1,0 +1,33 @@
+repos:
+  - repo: local
+    hooks:
+      - id: credentials
+        name: Prevent credential files
+        entry: python .githooks/check.py credentials
+        language: system
+      - id: conflicts
+        name: Check conflict markers and private keys
+        entry: python .githooks/check.py conflicts
+        language: system
+        types: [text]
+        exclude: ^\.githooks/check\.py$
+      - id: syntax
+        name: Validate JSON and YAML
+        entry: python .githooks/check.py syntax
+        language: system
+        files: \.(json|ya?ml)$
+      - id: gofmt
+        name: Go formatting
+        entry: python .githooks/check.py gofmt
+        language: system
+        types: [go]
+      - id: prettier
+        name: Frontend formatting
+        entry: python .githooks/check.py prettier
+        language: system
+        files: ^frontend/.*\.(tsx?|jsx?|mjs|json|md|css)$
+      - id: eslint
+        name: Frontend ESLint
+        entry: python .githooks/check.py eslint
+        language: system
+        files: ^frontend/.*\.(tsx?|jsx?|mjs)$

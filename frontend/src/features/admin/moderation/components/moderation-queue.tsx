@@ -87,7 +87,11 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
               return (
                 <li key={tab.status}>
                   <Link
-                    href={queueHref({ ...filters, status: tab.status, page: 1 })}
+                    href={queueHref({
+                      ...filters,
+                      status: tab.status,
+                      page: 1,
+                    })}
                     scroll={false}
                     aria-current={active ? "page" : undefined}
                     className={cn(
@@ -128,7 +132,9 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">You don&apos;t have access to moderation</h2>
+          <h2 className="font-semibold">
+            You don&apos;t have access to moderation
+          </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Checking your account access… If this stays, sign in again with an
             administrator account.
@@ -136,7 +142,9 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
         </div>
       ) : query.isError ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">We couldn&apos;t load the job postings</h2>
+          <h2 className="font-semibold">
+            We couldn&apos;t load the job postings
+          </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Please try again in a moment.
           </p>
@@ -240,7 +248,11 @@ function QueueRow({
       </td>
       <td className="py-3 pr-4">
         <Link
-          href={queueHref({ ...filters, recruiterId: posting.recruiter.id, page: 1 })}
+          href={queueHref({
+            ...filters,
+            recruiterId: posting.recruiter.id,
+            page: 1,
+          })}
           scroll={false}
           className="rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           title={`Show only postings by ${posting.recruiter.name}`}
@@ -345,18 +357,30 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
           aria-describedby={invalid ? "queue-date-error" : undefined}
         />
       </div>
-      <Button type="submit" variant="outline" className="h-11" disabled={invalid}>
+      <Button
+        type="submit"
+        variant="outline"
+        className="h-11"
+        disabled={invalid}
+      >
         Apply
       </Button>
       {(filters.from || filters.to) && (
         <Button asChild variant="ghost" className="h-11">
-          <Link href={queueHref({ ...filters, from: null, to: null, page: 1 })} scroll={false}>
+          <Link
+            href={queueHref({ ...filters, from: null, to: null, page: 1 })}
+            scroll={false}
+          >
             Clear dates
           </Link>
         </Button>
       )}
       {invalid && (
-        <p id="queue-date-error" role="alert" className="w-full text-xs text-destructive">
+        <p
+          id="queue-date-error"
+          role="alert"
+          className="w-full text-xs text-destructive"
+        >
           The start date must be on or before the end date.
         </p>
       )}

@@ -1,4 +1,7 @@
-import { postingStatuses, type PostingStatus } from "../schemas/moderation-schema";
+import {
+  postingStatuses,
+  type PostingStatus,
+} from "../schemas/moderation-schema";
 
 // The queue filters live in the URL so reload, back and sharing keep them.
 export const QUEUE_PAGE_SIZE = 20;
@@ -30,7 +33,8 @@ function single(value: string | string[] | undefined) {
 function validDate(value: string | null) {
   if (!value || !datePattern.test(value)) return null;
   const date = new Date(`${value}T00:00:00Z`);
-  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value
+  return Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== value
     ? null
     : value;
 }
@@ -45,7 +49,8 @@ export function parseQueueFilters(params: SearchParams): QueueFilters {
       status === "all" || postingStatuses.includes(status as PostingStatus)
         ? (status as QueueStatus)
         : "pending",
-    recruiterId: recruiterId && uuidPattern.test(recruiterId) ? recruiterId : null,
+    recruiterId:
+      recruiterId && uuidPattern.test(recruiterId) ? recruiterId : null,
     from: validDate(single(params.from)),
     to: validDate(single(params.to)),
     page: Number.isInteger(page) && page > 0 ? page : 1,

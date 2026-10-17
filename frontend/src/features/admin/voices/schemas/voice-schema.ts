@@ -31,7 +31,9 @@ export const removeVoiceEnvelopeSchema = z.object({
     voice: voiceSchema,
   }),
 });
-export type RemoveVoiceResult = z.infer<typeof removeVoiceEnvelopeSchema>["data"];
+export type RemoveVoiceResult = z.infer<
+  typeof removeVoiceEnvelopeSchema
+>["data"];
 
 export const voiceEnvelopeSchema = z.object({
   success: z.literal(true),

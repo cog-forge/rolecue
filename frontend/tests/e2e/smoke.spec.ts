@@ -41,9 +41,9 @@ test("public navigation and protected routes enforce login", async ({
     }),
   );
   await page.goto("/interviews");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?session=ended$/);
   await page.goto("/admin/users");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?session=ended$/);
 });
 
 test("mobile navigation exposes the landing anchors", async ({ page }) => {
@@ -62,11 +62,9 @@ test("FAQ honors reduced-motion preferences", async ({ page }) => {
 
   await page.getByRole("button", { name: "Can I start for free?" }).click();
 
-  const content = page
-    .locator('[data-slot="accordion-content"]')
-    .filter({
-      hasText: /you can create an account and start practicing for free/i,
-    });
+  const content = page.locator('[data-slot="accordion-content"]').filter({
+    hasText: /you can create an account and start practicing for free/i,
+  });
 
   await expect(content).toBeVisible();
   await expect(content).toHaveCSS("animation-name", "none");

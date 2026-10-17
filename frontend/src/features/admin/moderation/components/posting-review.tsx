@@ -90,7 +90,9 @@ export function PostingReview({
             "This posting can't be decided right now. We refreshed it for you.",
         );
         void cache.invalidateQueries({ queryKey: key });
-        void cache.invalidateQueries({ queryKey: moderationKeys.lists(user.id) });
+        void cache.invalidateQueries({
+          queryKey: moderationKeys.lists(user.id),
+        });
       }
     },
   });
@@ -125,7 +127,9 @@ export function PostingReview({
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">You don&apos;t have access to this posting</h1>
+          <h1 className="text-xl font-semibold">
+            You don&apos;t have access to this posting
+          </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Checking your account access… If this stays, sign in again with an
             administrator account.
@@ -171,7 +175,10 @@ export function PostingReview({
               role="alert"
               className="flex items-start gap-2 rounded-lg border border-destructive/30 p-3 text-sm"
             >
-              <CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+              <CircleAlert
+                className="mt-0.5 size-4 shrink-0 text-destructive"
+                aria-hidden
+              />
               {notice}
             </p>
           )}
@@ -234,7 +241,8 @@ function DecisionPanel({
           <span className="font-medium tabular-nums">
             {numberFormat.format(count)}
           </span>{" "}
-          {count === 1 ? "core question" : "core questions"} in the question bank
+          {count === 1 ? "core question" : "core questions"} in the question
+          bank
         </p>
         {posting.status !== "pending" ? (
           <p className="text-sm text-muted-foreground">
@@ -253,8 +261,8 @@ function DecisionPanel({
           <>
             {noQuestions && (
               <p id="approve-blocked" className="text-sm text-muted-foreground">
-                The recruiter must add core questions before this posting can
-                be approved.
+                The recruiter must add core questions before this posting can be
+                approved.
               </p>
             )}
             <div className="flex flex-col gap-2">
@@ -326,10 +334,15 @@ function DetailsCard({ posting }: { posting: ReviewPosting }) {
       <CardContent>
         <dl className="divide-y text-sm">
           {rows.map(([label, value]) => (
-            <div key={label} className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-3 py-2.5">
+            <div
+              key={label}
+              className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-3 py-2.5"
+            >
               <dt className="text-muted-foreground">{label}</dt>
               <dd className="[overflow-wrap:anywhere]">
-                {value ?? <span className="text-muted-foreground">Not set</span>}
+                {value ?? (
+                  <span className="text-muted-foreground">Not set</span>
+                )}
               </dd>
             </div>
           ))}

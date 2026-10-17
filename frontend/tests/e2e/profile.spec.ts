@@ -248,7 +248,7 @@ test("expired session during save hides profile and returns to login", async ({
   await page.getByLabel("Display name").fill("Draft");
   api.expire();
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?session=ended$/);
   await expect(page.getByLabel("Display name")).toHaveCount(0);
 });
 for (const width of [390, 768, 1440]) {

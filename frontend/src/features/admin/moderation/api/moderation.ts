@@ -17,7 +17,10 @@ export const moderationKeys = {
 const postingPath = (id: string) =>
   `/admin/job-postings/${encodeURIComponent(id)}`;
 
-export async function listPostings(filters: QueueFilters, signal?: AbortSignal) {
+export async function listPostings(
+  filters: QueueFilters,
+  signal?: AbortSignal,
+) {
   const response = await apiClient.get<unknown>("/admin/job-postings", {
     params: queueApiParams(filters),
     signal,

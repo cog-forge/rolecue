@@ -13,7 +13,11 @@ export type VoiceFilters = Readonly<{
 }>;
 export type SearchParams = Record<string, string | string[] | undefined>;
 
-export const defaultVoiceFilters: VoiceFilters = { status: "all", q: "", page: 1 };
+export const defaultVoiceFilters: VoiceFilters = {
+  status: "all",
+  q: "",
+  page: 1,
+};
 
 function single(value: string | string[] | undefined) {
   return typeof value === "string" ? value : null;
@@ -26,7 +30,9 @@ export function parseVoiceFilters(params: SearchParams): VoiceFilters {
   const page = /^\d{1,6}$/.test(rawPage) ? Number(rawPage) : 1;
   const q = (single(params.q) ?? "").trim();
   return {
-    status: voiceStatuses.includes(status as VoiceStatus) ? (status as VoiceStatus) : "all",
+    status: voiceStatuses.includes(status as VoiceStatus)
+      ? (status as VoiceStatus)
+      : "all",
     q: Array.from(q).length <= MAX_VOICE_QUERY ? q : "",
     page: page >= 1 && page <= MAX_PAGE ? page : 1,
   };

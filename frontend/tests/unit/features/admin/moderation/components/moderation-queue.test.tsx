@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { ModerationQueue } from "@/features/admin/moderation/components/moderation-queue";
@@ -33,7 +39,11 @@ const page = (count: number, total = count) => ({
         id: `33333333-3333-4333-8333-${String(i).padStart(12, "0")}`,
         title: `Posting ${i + 1}`,
         status: "pending",
-        recruiter: { id: recruiterId, name: "Rec Ruiter", email: "rec@example.com" },
+        recruiter: {
+          id: recruiterId,
+          name: "Rec Ruiter",
+          email: "rec@example.com",
+        },
         created_at: "2026-10-12T08:00:00Z",
       })),
       pagination: { limit: 20, offset: 0, total },
@@ -44,7 +54,10 @@ function failure(status: number) {
   return new AxiosError("failure", "ERR_BAD_RESPONSE", undefined, undefined, {
     status,
     statusText: "Error",
-    data: { success: false, error: { code: "INTERNAL_ERROR", message: "boom" } },
+    data: {
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "boom" },
+    },
     headers: new AxiosHeaders(),
     config: { headers: new AxiosHeaders() },
   });
@@ -71,7 +84,9 @@ describe("ModerationQueue", () => {
   it("loads the pending queue, then lists postings with status text", async () => {
     mocks.get.mockResolvedValue(page(2, 2));
     mount();
-    expect(screen.getByRole("status")).toHaveTextContent(/loading job postings/i);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /loading job postings/i,
+    );
     const table = await screen.findByRole("table");
     expect(within(table).getByText("Posting 1")).toBeInTheDocument();
     expect(within(table).getAllByText("Pending review")).toHaveLength(2);
@@ -89,7 +104,9 @@ describe("ModerationQueue", () => {
   it("links each row to its review page and keeps the filters for the way back", async () => {
     mocks.get.mockResolvedValue(page(1));
     mount({ ...defaultQueueFilters, status: "all", page: 1 });
-    const review = await screen.findByRole("link", { name: /review posting 1/i });
+    const review = await screen.findByRole("link", {
+      name: /review posting 1/i,
+    });
     expect(review.getAttribute("href")).toBe(
       "/admin/job-postings/33333333-3333-4333-8333-000000000000?back=status%3Dall",
     );
@@ -142,10 +159,16 @@ describe("ModerationQueue", () => {
     fireEvent.change(screen.getByLabelText("Submitted from"), {
       target: { value: "2026-10-10" },
     });
-    fireEvent.change(screen.getByLabelText("to"), { target: { value: "2026-10-01" } });
-    expect(screen.getByRole("alert")).toHaveTextContent(/start date must be on or before/i);
+    fireEvent.change(screen.getByLabelText("to"), {
+      target: { value: "2026-10-01" },
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /start date must be on or before/i,
+    );
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("to"), { target: { value: "2026-10-20" } });
+    fireEvent.change(screen.getByLabelText("to"), {
+      target: { value: "2026-10-20" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(mocks.push).toHaveBeenCalledWith(
       "/admin/job-postings?from=2026-10-10&to=2026-10-20",

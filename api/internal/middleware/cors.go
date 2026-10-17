@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/gin-gonic/gin"
 )
 
 // CORSMiddleware dynamically handles CORS based on config.CORSConfig

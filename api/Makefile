@@ -1,9 +1,9 @@
 SHELL := /bin/sh
 .DEFAULT_GOAL := check
 
-GOLANGCI_VERSION := v2.13.2
+GOLANGCI_VERSION := v2.15.0
 GOLANGCI_COMMIT := 27774aaf853a4fd21f1dd5e69439459dc1b26e68
-GOVULNCHECK_VERSION := v1.8.0
+GOVULNCHECK_VERSION := v1.9.0
 SWAG_VERSION := v1.16.6
 AIR_VERSION := v1.67.4
 SQLC_VERSION := v1.31.1
@@ -22,7 +22,9 @@ COMPOSE_ARGS := -f "$(COMPOSE_FILE)"
 MIGRATION_DIR ?= $(CURDIR)/migrations
 GO_FILES := $(shell find . -type d \( -name .tools -o -name tmp -o -name vendor \) -prune -o -type f -name '*.go' -print)
 
-.PHONY: fmt fmt-check vet test test-race test-integration swagger build lint vuln check ensure-env db-up storage-test migrate migrate-up migrate-down migrate-down-all migrate-force migrate-version run dev sqlc
+.PHONY: tools fmt fmt-check vet test test-race test-integration swagger build lint vuln check ensure-env db-up storage-test migrate migrate-up migrate-down migrate-down-all migrate-force migrate-version run dev sqlc
+
+tools: $(GOLANGCI) $(GOVULNCHECK) $(MIGRATE)
 
 ensure-env:
 	@test -f "$(ENV_FILE)" || { printf '%s\n' "Missing $(ENV_FILE); copy ../.env.example to ../.env and set local values."; exit 1; }

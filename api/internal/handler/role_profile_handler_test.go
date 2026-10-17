@@ -79,7 +79,7 @@ func TestRoleProfileWriteDeadline(t *testing.T) {
 			start := time.Now()
 			r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/"+uuid.NewString(), nil))
 			end := time.Now()
-			if !(service.called || documents.called) || w.Code != http.StatusOK {
+			if (!service.called && !documents.called) || w.Code != http.StatusOK {
 				t.Fatalf("called=%t status=%d", service.called, w.Code)
 			}
 			if operation == "get" {

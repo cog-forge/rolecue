@@ -181,7 +181,7 @@ test("expired session while loading metadata returns to login", async ({
     route.fulfill({ status: 401, json: { success: false } }),
   );
   await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?session=ended$/);
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 

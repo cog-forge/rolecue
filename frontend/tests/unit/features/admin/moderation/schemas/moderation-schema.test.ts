@@ -52,7 +52,8 @@ describe("moderation wire schemas", () => {
       }).success,
     ).toBe(true);
     expect(
-      reviewPostingEnvelopeSchema.safeParse({ success: true, data: review }).success,
+      reviewPostingEnvelopeSchema.safeParse({ success: true, data: review })
+        .success,
     ).toBe(true);
     expect(
       reviewPostingEnvelopeSchema.safeParse({
@@ -96,8 +97,10 @@ describe("moderation wire schemas", () => {
     const { content_path: _unused, ...withoutPath } = review;
     void _unused;
     expect(
-      reviewPostingEnvelopeSchema.safeParse({ success: true, data: withoutPath })
-        .success,
+      reviewPostingEnvelopeSchema.safeParse({
+        success: true,
+        data: withoutPath,
+      }).success,
     ).toBe(false);
     const { raw_text: _noText, ...withoutText } = review;
     void _noText;
@@ -108,7 +111,8 @@ describe("moderation wire schemas", () => {
       }).success,
     ).toBe(false);
     expect(
-      reviewPostingEnvelopeSchema.safeParse({ success: false, data: review }).success,
+      reviewPostingEnvelopeSchema.safeParse({ success: false, data: review })
+        .success,
     ).toBe(false);
   });
 });

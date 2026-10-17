@@ -69,14 +69,18 @@ export function QuestionEditor({
         rows={3}
         disabled={pending}
         aria-invalid={!!fieldError}
-        aria-describedby={[hintId, fieldError ? errorId : ""].filter(Boolean).join(" ")}
+        aria-describedby={[hintId, fieldError ? errorId : ""]
+          .filter(Boolean)
+          .join(" ")}
         {...register("content")}
       />
       <p
         id={hintId}
         className="flex justify-between gap-3 text-xs text-muted-foreground"
       >
-        <span>Candidates never see this bank. It only guides the interviewer.</span>
+        <span>
+          Candidates never see this bank. It only guides the interviewer.
+        </span>
         <span className="tabular-nums">
           {questionLength(content ?? "").toLocaleString("en")}/
           {maxLength.toLocaleString("en")}
