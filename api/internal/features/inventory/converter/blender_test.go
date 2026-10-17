@@ -69,7 +69,12 @@ func TestConcurrentConversionRejectedAndSlotReleased(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("conversion did not start")
 	}
-	defer func() { close(source.release); <-done }()
+	defer func() {
+		close(source.release)
+		if err := <-done; err == nil {
+			t.Error("conversion with a missing Blender binary unexpectedly succeeded")
+		}
+	}()
 	_, err := b.Convert(context.Background(), bytes.NewReader(nil), "second")
 	if !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("busy converter = %v, want unavailable", err)

@@ -82,7 +82,7 @@ func (a *RoleProfileDocumentApplication) Complete(ctx context.Context, user uuid
 	if err != nil {
 		return domain.RoleProfile{}, storageUnavailable()
 	}
-	defer object.Body.Close()
+	defer func() { _ = object.Body.Close() }()
 	if object.Size <= 0 || object.Size > MaxPDFBytes || !strings.EqualFold(object.ContentType, "application/pdf") {
 		return domain.RoleProfile{}, apperror.New(apperror.CodeInvalidPDF, "Choose a valid PDF up to 5 MB.")
 	}
