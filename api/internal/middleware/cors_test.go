@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/gin-gonic/gin"
 )
 
 func TestCORS(t *testing.T) {

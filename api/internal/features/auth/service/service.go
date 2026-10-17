@@ -9,19 +9,31 @@ import (
 	"github.com/google/uuid"
 )
 
-type UserReader interface {
+type UserRepository interface {
 	Get(context.Context, uuid.UUID) (domain.User, error)
+	SelectRole(context.Context, uuid.UUID, string) (domain.User, error)
+}
+type Authenticator interface {
+	Authenticate(context.Context, *http.Request) (domain.User, []string, error)
 }
 type AuthService interface {
-	Authenticate(context.Context, *http.Request) (domain.User, []string, error)
+	Authenticator
+	SelectRole(context.Context, uuid.UUID, string) (domain.User, error)
 }
 type Service struct {
 	verifier SessionVerifier
-	users    UserReader
+	users    UserRepository
 }
 
-func NewService(verifier SessionVerifier, users UserReader) AuthService {
+func NewService(verifier SessionVerifier, users UserRepository) AuthService {
 	return &Service{verifier: verifier, users: users}
+}
+
+func (s *Service) SelectRole(ctx context.Context, id uuid.UUID, role string) (domain.User, error) {
+	if role != "candidate" && role != "recruiter" {
+		return domain.User{}, apperror.New(apperror.CodeValidation, "role must be candidate or recruiter")
+	}
+	return s.users.SelectRole(ctx, id, role)
 }
 
 func (s *Service) Authenticate(ctx context.Context, req *http.Request) (domain.User, []string, error) {

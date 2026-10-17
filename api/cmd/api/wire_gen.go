@@ -81,7 +81,15 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	moderationHandler := provider.ProvideModerationHandler(service3)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler)
+	onboardingHandler := provider.ProvideOnboardingHandler(authService)
+	accountsHandler := provider.ProvideAccountsHandler(config, pool)
+	repository5 := provider.ProvideInventoryRepository(pool)
+	service4 := provider.ProvideInventoryService(repository5, store)
+	inventoryHandler := provider.ProvideInventoryHandler(service4)
+	blender := provider.ProvideAvatarConverter(config)
+	avatarConversionService := provider.ProvideAvatarConversionService(repository5, store, blender, config)
+	avatarCreateHandler := provider.ProvideAvatarCreateHandler(avatarConversionService, config)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {

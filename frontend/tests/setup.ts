@@ -4,20 +4,21 @@ import { afterEach } from "vitest";
 
 // jsdom has no media queries. Use reduced motion for component tests;
 // animation behavior is checked in a real browser.
-Object.defineProperty(window, "matchMedia", {
-  configurable: true,
-  writable: true,
-  value: (query: string): MediaQueryList => ({
-    matches: query === "(prefers-reduced-motion: reduce)",
-    media: query,
-    onchange: null,
-    addListener() {},
-    removeListener() {},
-    addEventListener() {},
-    removeEventListener() {},
-    dispatchEvent: () => true,
-  }),
-});
+if (typeof window !== "undefined")
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string): MediaQueryList => ({
+      matches: query === "(prefers-reduced-motion: reduce)",
+      media: query,
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent: () => true,
+    }),
+  });
 
 class TestIntersectionObserver {
   readonly root = null;

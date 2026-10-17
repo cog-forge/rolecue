@@ -12,6 +12,13 @@ function getErrorCode(error: unknown) {
   return record?.code ?? details?.code;
 }
 
+export const accountLockedMessage =
+  "Your account has been locked by an administrator. Contact support to request a review. You can sign in again once the lock expires or an administrator unlocks your account.";
+
+export function isAccountLockedError(error: unknown) {
+  return getErrorCode(error) === "BANNED_USER";
+}
+
 export function isEmailVerificationError(error: unknown) {
   const code = getErrorCode(error);
   const message = asRecord(error)?.message;
@@ -23,6 +30,8 @@ export function isEmailVerificationError(error: unknown) {
 
 export function getAuthErrorMessage(error: unknown, fallback: string) {
   switch (getErrorCode(error)) {
+    case "BANNED_USER":
+      return accountLockedMessage;
     case "INVALID_EMAIL_OR_PASSWORD":
       return "Email or password is incorrect.";
     case "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL":

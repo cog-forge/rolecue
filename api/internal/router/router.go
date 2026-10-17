@@ -22,6 +22,10 @@ type Router struct {
 	walletHandler       *handler.WalletHandler
 	questionBankHandler *handler.QuestionBankHandler
 	moderationHandler   *handler.ModerationHandler
+	onboardingHandler   *handler.OnboardingHandler
+	accountsHandler     *handler.AccountsHandler
+	inventoryHandler    *handler.InventoryHandler
+	avatarCreateHandler *handler.AvatarCreateHandler
 }
 
 func NewRouter(
@@ -34,6 +38,10 @@ func NewRouter(
 	walletHandler *handler.WalletHandler,
 	questionBankHandler *handler.QuestionBankHandler,
 	moderationHandler *handler.ModerationHandler,
+	onboardingHandler *handler.OnboardingHandler,
+	accountsHandler *handler.AccountsHandler,
+	inventoryHandler *handler.InventoryHandler,
+	avatarCreateHandler *handler.AvatarCreateHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -45,6 +53,10 @@ func NewRouter(
 		walletHandler:       walletHandler,
 		questionBankHandler: questionBankHandler,
 		moderationHandler:   moderationHandler,
+		onboardingHandler:   onboardingHandler,
+		accountsHandler:     accountsHandler,
+		inventoryHandler:    inventoryHandler,
+		avatarCreateHandler: avatarCreateHandler,
 	}
 }
 
@@ -72,7 +84,16 @@ func (r *Router) Setup() *gin.Engine {
 	profiles.GET("", r.profileHandler.Get)
 	profiles.PATCH("", r.profileHandler.Update)
 
-	profilesJD := router.Group("/role-profiles", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	router.POST("/onboarding/role", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), r.onboardingHandler.SelectRole)
+
+	inventory := router.Group("/inventory", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate", "recruiter"))
+	inventory.GET("", r.inventoryHandler.Summary)
+	inventory.GET("/avatars", r.inventoryHandler.List)
+	inventory.GET("/avatars/:id", r.inventoryHandler.Get)
+	inventory.DELETE("/avatars/:id", r.inventoryHandler.Delete)
+	inventory.POST("/avatars", r.avatarCreateHandler.Create)
+
+	profilesJD := router.Group("/role-profiles", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	profilesJD.POST("", r.roleProfileHandler.Create)
 	profilesJD.POST("/uploads", r.roleProfileHandler.CreateUpload)
 	profilesJD.POST("/uploads/:id/complete", r.roleProfileHandler.CompleteUpload)
@@ -84,7 +105,7 @@ func (r *Router) Setup() *gin.Engine {
 	profilesJD.POST("/:id/analyze", r.roleProfileHandler.Analyze)
 	profilesJD.POST("/:id/confirm", r.roleProfileHandler.Confirm)
 
-	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	{
 		wallet.GET("", r.walletHandler.GetWallet)
 		wallet.GET("/transactions", r.walletHandler.ListTransactions)
@@ -94,7 +115,7 @@ func (r *Router) Setup() *gin.Engine {
 
 	router.POST("/wallet/webhook/payos", r.walletHandler.HandlePayOSWebhook)
 
-	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
 	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
@@ -103,6 +124,10 @@ func (r *Router) Setup() *gin.Engine {
 
 	// Every admin route sits under /admin so one role check guards the whole group.
 	admin := router.Group("/admin", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("admin"))
+	admin.GET("/users", r.accountsHandler.List)
+	admin.GET("/users/:id", r.accountsHandler.Get)
+	admin.POST("/users/:id/lock", r.accountsHandler.Lock)
+	admin.POST("/users/:id/unlock", r.accountsHandler.Unlock)
 	admin.GET("/job-postings", r.moderationHandler.List)
 	admin.GET("/job-postings/:id", r.moderationHandler.Get)
 	admin.POST("/job-postings/:id/approve", r.moderationHandler.Approve)

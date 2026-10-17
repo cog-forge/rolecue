@@ -1,10 +1,4 @@
-import { AccountManagement } from "@/features/auth/components/account-management";
-import { AdminSection } from "@/features/admin/components/admin-section";
+import { AccountManagement } from "@/features/admin/accounts/components/account-management";
 export default function Page() {
-  return (
-    <>
-      <AdminSection title="Users" description="Manage platform users." />
-      <AccountManagement />
-    </>
-  );
+  return <AccountManagement />;
 }

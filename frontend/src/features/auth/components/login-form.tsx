@@ -13,10 +13,12 @@ import { routes } from "@/config/routes";
 import {
   getAuthErrorMessage,
   isEmailVerificationError,
+  isAccountLockedError,
+  accountLockedMessage,
 } from "@/features/auth/utils/get-auth-error-message";
 import { authClient } from "@/lib/auth/client";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, LockKeyhole } from "lucide-react";
 import { PasswordVisibilityIcon } from "@/components/icons/password-visibility-icon";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -42,11 +44,13 @@ export function LoginForm({
   defaultEmail = "",
   oauthFailed = false,
   oauthError,
+  sessionEnded = false,
   enabledProviders = [],
 }: {
   defaultEmail?: string;
   oauthFailed?: boolean;
   oauthError?: string;
+  sessionEnded?: boolean;
   enabledProviders?: readonly SocialProvider[];
 }) {
   const [showPassword, setShowPassword] = useState(false);
@@ -54,6 +58,9 @@ export function LoginForm({
     useState<SocialProvider | null>(null);
   const [verificationEmail, setVerificationEmail] = useState("");
   const [verificationMessage, setVerificationMessage] = useState("");
+  const [locked, setLocked] = useState(
+    oauthFailed && isAccountLockedError({ code: oauthError }),
+  );
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const {
@@ -69,6 +76,8 @@ export function LoginForm({
   const pending = isSubmitting || socialPendingProvider !== null;
 
   const submit = async (values: LoginFormValues) => {
+    setLocked(false);
+    setVerificationEmail("");
     try {
       const { error } = await authClient.signIn.email({
         ...values,
@@ -77,6 +86,7 @@ export function LoginForm({
       if (error) throw error;
       router.replace(`${routes.dashboard}?auth=signed-in`);
     } catch (error) {
+      setLocked(isAccountLockedError(error));
       toast.error("Sign-in failed", {
         description: getAuthErrorMessage(
           error,
@@ -120,7 +130,20 @@ export function LoginForm({
         </p>
       </header>
 
-      {oauthFailed && (
+      {locked ? (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm"
+        >
+          <div className="flex items-center gap-2 font-semibold">
+            <LockKeyhole className="size-4 text-destructive" aria-hidden />
+            Account locked
+          </div>
+          <p className="mt-2 leading-relaxed text-muted-foreground">
+            {accountLockedMessage}
+          </p>
+        </div>
+      ) : oauthFailed ? (
         <p
           role="alert"
           className="mb-4 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-[#5c5c5c]"
@@ -129,12 +152,19 @@ export function LoginForm({
             ? "This social account is not linked to RoleCue. Sign in with your original method first."
             : "Social sign-in could not be completed. Please try again."}
         </p>
-      )}
+      ) : sessionEnded ? (
+        <p
+          role="status"
+          className="mb-4 rounded-xl border bg-muted/40 p-3 text-sm text-muted-foreground"
+        >
+          Your session has ended. Sign in again to continue.
+        </p>
+      ) : null}
       {verificationEmail && (
         <div className="mb-4 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-[#5c5c5c]">
           <p>
-            Please verify your email before signing in. We sent a verification
-            link if your account needs one.
+            Please verify your email before signing in. You can request a new
+            verification link below.
           </p>
           <Button
             type="button"
@@ -163,6 +193,7 @@ export function LoginForm({
               disabled={pending}
               aria-label={`Continue with ${name}`}
               onClick={async () => {
+                setLocked(false);
                 setSocialPendingProvider(provider);
                 try {
                   const { error } = await authClient.signIn.social({
@@ -172,6 +203,7 @@ export function LoginForm({
                   });
                   if (error) throw error;
                 } catch (error) {
+                  setLocked(isAccountLockedError(error));
                   toast.error("Social sign-in failed", {
                     description: getAuthErrorMessage(
                       error,
