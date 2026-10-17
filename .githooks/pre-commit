@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+if [ ! -x .tools/pre-commit/bin/pre-commit ]; then
+    echo 'Run make setup before committing in this worktree.' >&2
+    exit 1
+fi
+exec .tools/pre-commit/bin/pre-commit run --hook-stage pre-commit

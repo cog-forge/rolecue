@@ -1,0 +1,234 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  BUN_VERSION: 1.4.2
+  NODE_VERSION: 24.20.0
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  hooks:
+    name: Pre-commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --cwd frontend --frozen-lockfile --ignore-scripts
+      - run: make precommit
+      - run: .tools/pre-commit/bin/python .githooks/test_hooks.py
+
+  api:
+    name: API
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: rolecue_ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci -d rolecue_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      DATABASE_URL: postgres://ci:ci-only@localhost:5432/rolecue_ci?sslmode=disable
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - run: make -C api tools check test-race vuln
+      - name: Migrate disposable database
+        run: api/.tools/migrate-v4.19.0/migrate -path api/migrations -database "$DATABASE_URL" up
+      - run: make -C api test-integration
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --cwd frontend --frozen-lockfile --ignore-scripts
+      - run: make frontend-check
+      - run: bun x --no-install playwright install --with-deps chromium
+        working-directory: frontend
+      - run: bun run test:e2e
+        working-directory: frontend
+      - name: Dependency vulnerability audit
+        run: make frontend-audit
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: failure()
+        with:
+          name: playwright-results
+          path: frontend/test-results
+          retention-days: 7
+
+  images:
+    name: Image (${{ matrix.component }})
+    needs: [hooks, api, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TRIVY_CACHE_DIR: .cache/trivy
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [api, frontend]
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: rolecue_ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci -d rolecue_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Select public API URL
+        env:
+          CONFIGURED_API_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            echo 'API_URL=http://localhost:8080' >> "$GITHUB_ENV"
+          else
+            test -n "$CONFIGURED_API_URL" || { echo 'Missing NEXT_PUBLIC_API_BASE_URL secret'; exit 1; }
+            printf 'API_URL=%s\n' "$CONFIGURED_API_URL" >> "$GITHUB_ENV"
+          fi
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.component }}
+          platforms: linux/amd64
+          load: true
+          tags: rolecue-${{ matrix.component }}:ci
+          labels: |
+            org.opencontainers.image.source=https://github.com/cog-forge/rolecue
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: NEXT_PUBLIC_API_BASE_URL=${{ env.API_URL }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+      - name: Smoke test
+        env:
+          DATABASE_URL: postgres://ci:ci-only@localhost:5432/rolecue_ci?sslmode=disable
+        run: sh .docker/smoke.sh '${{ matrix.component }}' 'rolecue-${{ matrix.component }}:ci'
+      - name: Scan final runtime image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.0
+          image-ref: rolecue-${{ matrix.component }}:ci
+          scanners: vuln
+          format: json
+          output: trivy-${{ matrix.component }}.json
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+      - name: Generate SBOM
+        run: trivy image --format cyclonedx --exit-code 0 --output sbom-${{ matrix.component }}.json rolecue-${{ matrix.component }}:ci
+      - name: Enforce vulnerability policy
+        run: make image-scan IMAGE=rolecue-${{ matrix.component }}:ci
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: scan-${{ matrix.component }}
+          path: |
+            trivy-${{ matrix.component }}.json
+            sbom-${{ matrix.component }}.json
+          retention-days: 14
+      - name: Save validated image
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: docker save rolecue-${{ matrix.component }}:ci -o image.tar
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          name: image-${{ matrix.component }}
+          path: image.tar
+          retention-days: 1
+
+  checks:
+    name: CI checks
+    if: always()
+    needs: [hooks, api, frontend, images]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every gate to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          assert all(job['result'] == 'success' for job in json.loads(os.environ['RESULTS']).values()), 'A required CI gate failed or was skipped'
+          PY
+
+  publish:
+    name: Publish GHCR
+    needs: checks
+    if: >-
+      github.repository == 'cog-forge/rolecue' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: image-*
+          path: images
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push exactly the scanned images
+        run: |
+          tag="sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for component in api frontend; do
+            docker load -i "images/image-$component/image.tar"
+            image="ghcr.io/cog-forge/rolecue-$component"
+            docker tag "rolecue-$component:ci" "$image:$tag"
+            docker push "$image:$tag"
+            digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image:$tag")
+            printf '%s\n\n' "$image:$tag" "$digest" >> "$GITHUB_STEP_SUMMARY"
+          done
+          for component in api frontend; do
+            image="ghcr.io/cog-forge/rolecue-$component"
+            docker tag "rolecue-$component:ci" "$image:latest"
+            docker push "$image:latest"
+          done

@@ -9,3 +9,8 @@
 # Local Claude Code config
 .claude/
 CLAUDE.md
+
+# Repository-local development tools and scan output
+/.tools/
+/.cache/
+/reports/
