@@ -226,6 +226,63 @@ func TestOnlyOpenPostingsAreDiscoverable(t *testing.T) {
 	}
 }
 
+func TestLockedRecruitersPostingsAreHidden(t *testing.T) {
+	ctx, b := newBoard(t)
+	lock := func(recruiter uuid.UUID, locked bool, expires *time.Time) {
+		b.seed.exec(`UPDATE public.users SET is_locked = $2, lock_expires_at = $3 WHERE id = $1`, recruiter, locked, expires)
+	}
+	postingOf := func(recruiter uuid.UUID, title string, hour int) uuid.UUID {
+		return b.seed.posting(recruiter, postingSpec{title: title, status: "open", rawText: ptr("jd"),
+			createdAt: b.base.Add(time.Duration(hour) * time.Hour)})
+	}
+	locked := b.seed.user("recruiter", ptr("Locked Co"))
+	timed := b.seed.user("recruiter", ptr("Timed Co"))
+	expired := b.seed.user("recruiter", ptr("Expired Co"))
+	lockedPosting := postingOf(locked, "locked", 1)
+	timedPosting := postingOf(timed, "timed", 2)
+	expiredPosting := postingOf(expired, "expired", 3)
+	visible := postingOf(b.recruiter, "visible", 4)
+	b.seed.application(lockedPosting, b.candidate)
+	lock(locked, true, nil)
+	lock(timed, true, ptr(time.Now().Add(time.Hour)))
+	lock(expired, true, ptr(time.Now().Add(-time.Hour)))
+
+	items, total, err := b.repo.ListOpen(ctx, b.filter(100, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameIDs(t, items, visible, expiredPosting)
+	if total != 2 {
+		t.Fatalf("total = %d, want 2 (the count hides locked Recruiters too)", total)
+	}
+	_, notOpen := b.repo.GetOpen(ctx, b.candidate, uuid.New())
+	for name, id := range map[string]uuid.UUID{"locked": lockedPosting, "timed lock": timedPosting} {
+		_, err := b.repo.GetOpen(ctx, b.candidate, id)
+		if codeOf(err) != apperror.CodeJobPostingNotFound || err.Error() != notOpen.Error() {
+			t.Fatalf("%s posting detail: error = %v, want the same 404 as a missing posting", name, err)
+		}
+	}
+	if _, err := b.repo.GetOpen(ctx, b.candidate, expiredPosting); err != nil {
+		t.Fatalf("expired lock posting detail: %v", err)
+	}
+
+	// Lifting the lock brings the posting back; the lock never changed its status or Applications.
+	lock(locked, false, nil)
+	detail, err := b.repo.GetOpen(ctx, b.candidate, lockedPosting)
+	if err != nil || !detail.AlreadyApplied {
+		t.Fatalf("posting after unlock = %+v, %v, want it visible with the Candidate's Application kept", detail, err)
+	}
+	var status string
+	if err := b.seed.pool.QueryRow(ctx, `SELECT status::text FROM public.job_postings WHERE id = $1`, lockedPosting).Scan(&status); err != nil || status != "open" {
+		t.Fatalf("posting status = %q, %v, want open (a lock never changes it)", status, err)
+	}
+	items, _, err = b.repo.ListOpen(ctx, b.filter(100, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameIDs(t, items, visible, expiredPosting, lockedPosting)
+}
+
 func TestListFiltersOrderAndPagination(t *testing.T) {
 	ctx, b := newBoard(t)
 	hanoiFull := b.seed.posting(b.recruiter, postingSpec{title: "Go Backend", status: "open", location: ptr("Ha Noi, Vietnam"),

@@ -1,5 +1,8 @@
 -- The job board is the Candidate's read-only view of Job Postings. Only status 'open' (approved by
 -- an Admin and still accepting Applications) is discoverable; every other status is not found.
+-- A posting whose Recruiter is currently locked is hidden too (is_locked with no expiry or an
+-- expiry still ahead). Nothing is written: once the lock is lifted or expires the posting shows
+-- again, and its status, Applications and refunds are untouched. Every query repeats the predicate.
 -- Queries never select the question bank, evaluation weights, capacity, the reject reason or the
 -- required avatar/voice.
 
@@ -13,6 +16,7 @@ JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
 WHERE jp.status = 'open'
+  AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
   AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%')
   AND (sqlc.narg(location)::text IS NULL OR jp.location ILIKE '%' || sqlc.narg(location)::text || '%')
   AND (sqlc.narg(employment_type)::text IS NULL OR lower(jp.employment_type) = lower(sqlc.narg(employment_type)::text))
@@ -27,6 +31,7 @@ JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
 WHERE jp.status = 'open'
+  AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
   AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%')
   AND (sqlc.narg(location)::text IS NULL OR jp.location ILIKE '%' || sqlc.narg(location)::text || '%')
   AND (sqlc.narg(employment_type)::text IS NULL OR lower(jp.employment_type) = lower(sqlc.narg(employment_type)::text));
@@ -43,7 +48,8 @@ FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
-WHERE jp.id = @id AND jp.status = 'open';
+WHERE jp.id = @id AND jp.status = 'open'
+  AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()));
 
 -- name: ListPostingRequirements :many
 SELECT name, target, type::text AS type

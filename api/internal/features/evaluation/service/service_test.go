@@ -117,8 +117,20 @@ func TestReplaceSavesTheWholeSet(t *testing.T) {
 	}
 }
 
+func TestReplaceAllowedWhileRejected(t *testing.T) {
+	repo := &fakeRepository{metrics: catalog, status: "rejected"}
+	got, err := newService(t, repo, 100).ReplaceWeights(context.Background(), recruiterID, "recruiter", postingID,
+		[]domain.WeightInput{entry(accuracy, 100)})
+	if err != nil || repo.replaceCalls != 1 || !got.Editable || got.PostingStatus != "rejected" {
+		t.Fatalf("ReplaceWeights() on a rejected posting = %+v, %v, want it saved and still editable", got, err)
+	}
+	if !domain.EditableStatus("pending") || !domain.EditableStatus("rejected") {
+		t.Fatal("EditableStatus must allow pending and rejected")
+	}
+}
+
 func TestReplaceLockedOutsideTheEditWindow(t *testing.T) {
-	for _, status := range []string{"open", "intake_closed", "closed", "rejected"} {
+	for _, status := range []string{"open", "intake_closed", "closed"} {
 		repo := &fakeRepository{metrics: catalog, status: status}
 		_, err := newService(t, repo, 100).ReplaceWeights(context.Background(), recruiterID, "recruiter", postingID,
 			[]domain.WeightInput{entry(accuracy, 100)})

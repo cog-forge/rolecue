@@ -128,7 +128,7 @@ func (h *EvaluationHandler) Weights(c *gin.Context) {
 
 // ReplaceWeights godoc
 // @Summary Replace a Job Posting's evaluation weights
-// @Description Recruiter only, own pending postings. The list replaces the whole set in one write. Errors: EVALUATION_METRIC_UNKNOWN, EVALUATION_METRIC_DUPLICATE, EVALUATION_WEIGHT_INVALID (negative or above the total), EVALUATION_WEIGHT_TOTAL_MISMATCH, EVALUATION_WEIGHTS_LOCKED (posting not pending).
+// @Description Recruiter only, own postings that are pending or rejected. The list replaces the whole set in one write. Errors: EVALUATION_METRIC_UNKNOWN, EVALUATION_METRIC_DUPLICATE, EVALUATION_WEIGHT_INVALID (negative or above the total), EVALUATION_WEIGHT_TOTAL_MISMATCH, EVALUATION_WEIGHTS_LOCKED (posting open, intake_closed or closed).
 // @Tags evaluation
 // @Accept json
 // @Produce json

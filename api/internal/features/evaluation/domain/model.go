@@ -42,12 +42,17 @@ type PostingWeights struct {
 	Weights       []Weight `json:"weights"`
 }
 
-const statusPending = "pending"
+const (
+	statusPending  = "pending"
+	statusRejected = "rejected"
+)
 
-// EditableStatus is the one place that decides in which posting statuses the weights can change.
-// The repository applies it again under the posting's row lock.
+// EditableStatus is the one place that decides in which posting statuses the weights can change:
+// before approval and in the rejected correction window, like the posting's own details. Once
+// published (open, intake_closed, closed) they are locked so every Candidate is scored alike. The
+// repository applies it again under the posting's row lock.
 func EditableStatus(status string) bool {
-	return status == statusPending
+	return status == statusPending || status == statusRejected
 }
 
-var ErrWeightsLocked = apperror.New(apperror.CodeEvaluationWeightsLocked, "evaluation weights can only be changed while the job posting is pending")
+var ErrWeightsLocked = apperror.New(apperror.CodeEvaluationWeightsLocked, "evaluation weights can only be changed while the job posting is pending or rejected")

@@ -221,16 +221,28 @@ func TestOtherRecruitersSeeNotFound(t *testing.T) {
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
 }
 
-func TestNonPendingPostingIsLockedUnderTheRowLock(t *testing.T) {
+func TestPublishedPostingIsLockedUnderTheRowLock(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
 	_, repo := newService(t, pool)
 	owner := s.recruiter()
-	for _, status := range []string{"open", "intake_closed", "closed", "rejected"} {
+	for _, status := range []string{"open", "intake_closed", "closed"} {
 		postingID, _ := s.posting(owner, status)
 		// Call the repository directly, as if the posting was approved after the service read it.
 		_, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{{MetricID: accuracyID, Percentage: 100}})
 		assertCode(t, err, apperror.CodeEvaluationWeightsLocked)
+	}
+}
+
+func TestRejectedPostingCanBeCorrectedUnderTheRowLock(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	_, repo := newService(t, pool)
+	owner := s.recruiter()
+	postingID, _ := s.posting(owner, "rejected")
+	saved, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{{MetricID: accuracyID, Percentage: 100}})
+	if err != nil || len(saved) != 1 {
+		t.Fatalf("ReplaceWeights() on a rejected posting = %+v, %v, want it saved", saved, err)
 	}
 }
 
