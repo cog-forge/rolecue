@@ -70,6 +70,13 @@ const (
 	CodeJobPostingNotEditable        Code = "JOB_POSTING_NOT_EDITABLE"
 	CodeJobPostingTextLocked         Code = "JOB_POSTING_TEXT_LOCKED"
 	CodeJobPostingNotRejected        Code = "JOB_POSTING_NOT_REJECTED"
+
+	// Evaluation weight codes.
+	CodeEvaluationMetricUnknown       Code = "EVALUATION_METRIC_UNKNOWN"
+	CodeEvaluationMetricDuplicate     Code = "EVALUATION_METRIC_DUPLICATE"
+	CodeEvaluationWeightInvalid       Code = "EVALUATION_WEIGHT_INVALID"
+	CodeEvaluationWeightTotalMismatch Code = "EVALUATION_WEIGHT_TOTAL_MISMATCH"
+	CodeEvaluationWeightsLocked       Code = "EVALUATION_WEIGHTS_LOCKED"
 )
 
 type AppError struct {

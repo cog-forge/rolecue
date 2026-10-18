@@ -1149,6 +1149,61 @@ const docTemplate = `{
                 }
             }
         },
+        "/evaluation-metrics": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "The evaluation dimensions a Recruiter can weight on a Job Posting, from the seeded metrics catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluation"
+                ],
+                "summary": "List evaluation metrics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MetricCatalog"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Does not check database or LLM readiness.",
@@ -1586,6 +1641,185 @@ const docTemplate = `{
                 }
             }
         },
+        "/job-board": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. Job Postings an Admin approved that still accept Applications, newest first. Search the title and location (case-insensitive, part of the text) and filter by employment type (case-insensitive, whole value). Never includes the question bank, evaluation weights, interview capacity or the reject reason.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-board"
+                ],
+                "summary": "Browse open Job Postings",
+                "parameters": [
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 2147483647,
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Number of items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "maxLength": 200,
+                        "type": "string",
+                        "description": "Part of the title",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "maxLength": 200,
+                        "type": "string",
+                        "description": "Part of the location",
+                        "name": "location",
+                        "in": "query"
+                    },
+                    {
+                        "maxLength": 200,
+                        "type": "string",
+                        "description": "Employment type, e.g. Full-time",
+                        "name": "employment_type",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-domain_BoardPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-board/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. The public content of an open Job Posting: company, details, JD text and requirements, plus whether you already applied. A posting that does not exist or is not open returns the same 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-board"
+                ],
+                "summary": "View an open Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.BoardPostingDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/job-postings": {
             "get": {
                 "security": [
@@ -1693,7 +1927,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Stores the JD text with the requirements confirmed in review and submits the posting for Admin approval (status pending). The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents (read again on the server) with the requirements confirmed in review and submits the posting for Admin approval (status pending). The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1755,6 +1989,98 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/documents": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Stores the PDF (up to 5 MB, with selectable text) and returns its document_id and the text read from it. Pass document_id to POST /job-postings, or to PATCH /job-postings/{id} on a rejected posting; pass raw_text to POST /job-postings/extract for suggestions. Trusted Origin required.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Upload a JD PDF",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "JD PDF",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Document"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -1950,7 +2276,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, while the posting is pending or rejected. Absent fields are unchanged; optional details may be cleared with null; unchanged values may be resent. raw_text can change only on a rejected posting. Changing seniority, requirements or the text while pending is refused once the question bank exists; on a rejected posting it clears the bank, which is regenerated after resubmitting. Saving does not resubmit. Trusted Origin required.",
+                "description": "Recruiter only, while the posting is pending or rejected. Absent fields are unchanged; optional details may be cleared with null; unchanged values may be resent. document_id (a new PDF from POST /job-postings/documents) can change only on a rejected posting. Changing seniority, requirements or the JD while pending is refused once the question bank exists; on a rejected posting it clears the bank, which is regenerated after resubmitting. Saving does not resubmit. Trusted Origin required.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2044,6 +2370,253 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/document": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Returns a link to the PDF that expires after a few minutes. A posting created before PDF upload has none (404).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Open your Job Posting's JD PDF",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.DocumentLink"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/evaluation-weights": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings. When the Recruiter set no weights, configured is false, using_defaults is true and weights holds the defaults the posting will be scored with (the total split equally across all metrics); show the Recruiter a warning. Defaults are never saved. total is the sum the weights must reach (0 = no sum rule).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluation"
+                ],
+                "summary": "View a Job Posting's evaluation weights",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.PostingWeights"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings that are pending or rejected. The list replaces the whole set in one write. Errors: EVALUATION_METRIC_UNKNOWN, EVALUATION_METRIC_DUPLICATE, EVALUATION_WEIGHT_INVALID (negative or above the total), EVALUATION_WEIGHT_TOTAL_MISMATCH, EVALUATION_WEIGHTS_LOCKED (posting open, intake_closed or closed).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluation"
+                ],
+                "summary": "Replace a Job Posting's evaluation weights",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The full weight set",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.EvaluationWeightsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.PostingWeights"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -3832,7 +4405,12 @@ const docTemplate = `{
                 "JOB_POSTING_REQUIREMENTS_LOCKED",
                 "JOB_POSTING_NOT_EDITABLE",
                 "JOB_POSTING_TEXT_LOCKED",
-                "JOB_POSTING_NOT_REJECTED"
+                "JOB_POSTING_NOT_REJECTED",
+                "EVALUATION_METRIC_UNKNOWN",
+                "EVALUATION_METRIC_DUPLICATE",
+                "EVALUATION_WEIGHT_INVALID",
+                "EVALUATION_WEIGHT_TOTAL_MISMATCH",
+                "EVALUATION_WEIGHTS_LOCKED"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -3889,7 +4467,12 @@ const docTemplate = `{
                 "CodeJobPostingRequirementsLocked",
                 "CodeJobPostingNotEditable",
                 "CodeJobPostingTextLocked",
-                "CodeJobPostingNotRejected"
+                "CodeJobPostingNotRejected",
+                "CodeEvaluationMetricUnknown",
+                "CodeEvaluationMetricDuplicate",
+                "CodeEvaluationWeightInvalid",
+                "CodeEvaluationWeightTotalMismatch",
+                "CodeEvaluationWeightsLocked"
             ]
         },
         "domain.Account": {
@@ -3997,6 +4580,120 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.BoardPosting": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "employment_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "salary_max": {
+                    "type": "integer"
+                },
+                "salary_min": {
+                    "type": "integer"
+                },
+                "seniority_level": {
+                    "type": "string",
+                    "enum": [
+                        "intern",
+                        "junior",
+                        "mid",
+                        "senior",
+                        "lead"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.BoardPostingDetail": {
+            "type": "object",
+            "properties": {
+                "already_applied": {
+                    "type": "boolean"
+                },
+                "company_name": {
+                    "type": "string"
+                },
+                "company_website": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "employment_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_duration": {
+                    "type": "integer"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "raw_text": {
+                    "type": "string"
+                },
+                "requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.BoardRequirement"
+                    }
+                },
+                "salary_max": {
+                    "type": "integer"
+                },
+                "salary_min": {
+                    "type": "integer"
+                },
+                "seniority_level": {
+                    "type": "string",
+                    "enum": [
+                        "intern",
+                        "junior",
+                        "mid",
+                        "senior",
+                        "lead"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.BoardRequirement": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "required",
+                        "preferred"
+                    ]
+                }
+            }
+        },
         "domain.Capacity": {
             "type": "object",
             "properties": {
@@ -4025,9 +4722,34 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Document": {
+            "type": "object",
+            "properties": {
+                "document_id": {
+                    "type": "string"
+                },
+                "raw_text": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.DocumentLink": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Edit": {
             "type": "object",
             "properties": {
+                "document_id": {
+                    "type": "string"
+                },
                 "employment_type": {
                     "type": "string",
                     "x-nullable": true
@@ -4039,9 +4761,6 @@ const docTemplate = `{
                 "location": {
                     "type": "string",
                     "x-nullable": true
-                },
-                "raw_text": {
-                    "type": "string"
                 },
                 "required_avatar_id": {
                     "type": "string",
@@ -4092,6 +4811,9 @@ const docTemplate = `{
                 },
                 "employment_type": {
                     "type": "string"
+                },
+                "has_document": {
+                    "type": "boolean"
                 },
                 "id": {
                     "type": "string"
@@ -4179,6 +4901,28 @@ const docTemplate = `{
                 },
                 "reason": {
                     "type": "string"
+                }
+            }
+        },
+        "domain.Metric": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.MetricCatalog": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Metric"
+                    }
                 }
             }
         },
@@ -4292,6 +5036,32 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.PostingWeights": {
+            "type": "object",
+            "properties": {
+                "configured": {
+                    "type": "boolean"
+                },
+                "editable": {
+                    "type": "boolean"
+                },
+                "posting_status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "number"
+                },
+                "using_defaults": {
+                    "type": "boolean"
+                },
+                "weights": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Weight"
+                    }
+                }
+            }
+        },
         "domain.Profile": {
             "type": "object",
             "properties": {
@@ -4399,7 +5169,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "content_path": {
-                    "description": "ContentPath is the URL of the JD content (job_descriptions.content_path), the text the Admin reviews.",
+                    "description": "ContentPath is job_descriptions.content_path: the storage key of the JD PDF for postings\ncreated through POST /job-postings, or a full http(s) URL for older rows.",
                     "type": "string"
                 },
                 "core_question_count": {
@@ -4407,6 +5177,13 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "created_at": {
+                    "type": "string"
+                },
+                "document_expires_at": {
+                    "type": "string"
+                },
+                "document_url": {
+                    "description": "DocumentURL is a short-lived link to the JD PDF (see DocumentExpiresAt); null when the posting\nhas no stored PDF.",
                     "type": "string"
                 },
                 "employment_type": {
@@ -4422,6 +5199,10 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "location": {
+                    "type": "string"
+                },
+                "raw_text": {
+                    "description": "RawText is the JD text: read from the PDF, or for postings created before PDF upload, the\nplain-text object under ContentPath. It is null when ContentPath is a URL (the Admin opens the\nfile instead) or when the stored JD is missing.",
                     "type": "string"
                 },
                 "recruiter": {
@@ -4447,6 +5228,10 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "weights_configured": {
+                    "description": "WeightsConfigured is false when the Recruiter set no evaluation weights, so the posting will\nbe scored with the default weights. It is informational and does not block approval.",
+                    "type": "boolean"
                 }
             }
         },
@@ -4729,10 +5514,24 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Weight": {
+            "type": "object",
+            "properties": {
+                "metric_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "percentage": {
+                    "type": "number"
+                }
+            }
+        },
         "handler.CreateJobPostingRequest": {
             "type": "object",
             "required": [
-                "raw_text",
+                "document_id",
                 "required_avatar_id",
                 "required_voice_id",
                 "requirements",
@@ -4740,6 +5539,10 @@ const docTemplate = `{
                 "title"
             ],
             "properties": {
+                "document_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "employment_type": {
                     "type": "string"
                 },
@@ -4747,9 +5550,6 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "location": {
-                    "type": "string"
-                },
-                "raw_text": {
                     "type": "string"
                 },
                 "required_avatar_id": {
@@ -4790,6 +5590,37 @@ const docTemplate = `{
             "properties": {
                 "rawText": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.EvaluationWeightEntry": {
+            "type": "object",
+            "required": [
+                "metric_id",
+                "percentage"
+            ],
+            "properties": {
+                "metric_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "percentage": {
+                    "type": "number"
+                }
+            }
+        },
+        "handler.EvaluationWeightsRequest": {
+            "type": "object",
+            "required": [
+                "weights"
+            ],
+            "properties": {
+                "weights": {
+                    "description": "Weights is the full set; at least one entry. Metrics left out are not weighted.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.EvaluationWeightEntry"
+                    }
                 }
             }
         },
@@ -4898,6 +5729,20 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.Avatar"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
+        "response.Page-domain_BoardPosting": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.BoardPosting"
                     }
                 },
                 "pagination": {

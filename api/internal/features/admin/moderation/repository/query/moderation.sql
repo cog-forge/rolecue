@@ -26,7 +26,8 @@ SELECT jp.id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location
        jp.required_avatar_id, a.name AS avatar_name,
        jp.required_voice_id, v.name AS voice_name, COALESCE(jd.content_path, '')::text AS content_path,
        jd.raw_text,
-       (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
+       (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count,
+       EXISTS (SELECT 1 FROM public.metrics_percentage mp WHERE mp.job_posting_id = jp.id) AS weights_configured
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id

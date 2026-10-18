@@ -224,3 +224,35 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "UUID"
+  - engine: "postgresql"
+    queries: "internal/features/jobboard/repository/query/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/features/jobboard/repository"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "uuid"
+            nullable: false
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+  - engine: "postgresql"
+    queries: "internal/features/evaluation/repository/query/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/features/evaluation/repository"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "uuid"
+            nullable: false
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"

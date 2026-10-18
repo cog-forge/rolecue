@@ -58,6 +58,7 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.ReviewPostin
 		ContentPath:       row.ContentPath,
 		StoredText:        row.RawText,
 		CoreQuestionCount: row.CoreQuestionCount,
+		WeightsConfigured: row.WeightsConfigured,
 	}, nil
 }
 

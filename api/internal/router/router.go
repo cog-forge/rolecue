@@ -29,6 +29,8 @@ type Router struct {
 	voiceCatalogHandler *handler.VoiceCatalogHandler
 	jobPostingHandler   *handler.JobPostingHandler
 	voiceHandler        *handler.VoiceHandler
+	jobBoardHandler     *handler.JobBoardHandler
+	evaluationHandler   *handler.EvaluationHandler
 }
 
 func NewRouter(
@@ -48,6 +50,8 @@ func NewRouter(
 	voiceCatalogHandler *handler.VoiceCatalogHandler,
 	jobPostingHandler *handler.JobPostingHandler,
 	voiceHandler *handler.VoiceHandler,
+	jobBoardHandler *handler.JobBoardHandler,
+	evaluationHandler *handler.EvaluationHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -66,6 +70,8 @@ func NewRouter(
 		voiceCatalogHandler: voiceCatalogHandler,
 		jobPostingHandler:   jobPostingHandler,
 		voiceHandler:        voiceHandler,
+		jobBoardHandler:     jobBoardHandler,
+		evaluationHandler:   evaluationHandler,
 	}
 }
 
@@ -138,8 +144,18 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
 	jobPostings.PATCH("/:id/questions/:questionId", r.questionBankHandler.Update)
 	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)
+	// Evaluation weights are separate from the question bank above.
+	jobPostings.GET("/:id/evaluation-weights", r.evaluationHandler.Weights)
+	jobPostings.PUT("/:id/evaluation-weights", r.evaluationHandler.ReplaceWeights)
+
+	router.GET("/evaluation-metrics", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.evaluationHandler.Metrics)
 
 	router.GET("/voices", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.voiceHandler.List)
+
+	// The job board shows Candidates the open Job Postings; /job-postings stays the Recruiter's own list.
+	jobBoard := router.Group("/job-board", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate"))
+	jobBoard.GET("", r.jobBoardHandler.List)
+	jobBoard.GET("/:id", r.jobBoardHandler.Get)
 
 	// Every admin route sits under /admin so one role check guards the whole group.
 	admin := router.Group("/admin", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("admin"))

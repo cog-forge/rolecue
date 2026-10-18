@@ -80,6 +80,9 @@ type ReviewPosting struct {
 	StoredText *string `json:"-"`
 	// CoreQuestionCount tells the Admin whether the posting can be approved (it needs at least one).
 	CoreQuestionCount int64 `json:"core_question_count"`
+	// WeightsConfigured is false when the Recruiter set no evaluation weights, so the posting will
+	// be scored with the default weights. It is informational and does not block approval.
+	WeightsConfigured bool `json:"weights_configured"`
 }
 
 // ListFilter narrows the queue. A nil field means "no filter"; the date window is [From, To).
