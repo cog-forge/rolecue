@@ -10,6 +10,7 @@ export const routes = {
   targetJds: "/target-jds",
   avatarStudio: "/avatar-studio",
   jobs: "/jobs",
+  job: (id: string) => `/jobs/${segment(id)}`,
   applications: "/applications",
   afterEmailVerification: "/dashboard?auth=email-verified",
   terms: "/terms",
