@@ -31,6 +31,7 @@ type Router struct {
 	voiceHandler        *handler.VoiceHandler
 	jobBoardHandler     *handler.JobBoardHandler
 	evaluationHandler   *handler.EvaluationHandler
+	applicationHandler  *handler.ApplicationHandler
 }
 
 func NewRouter(
@@ -52,6 +53,7 @@ func NewRouter(
 	voiceHandler *handler.VoiceHandler,
 	jobBoardHandler *handler.JobBoardHandler,
 	evaluationHandler *handler.EvaluationHandler,
+	applicationHandler *handler.ApplicationHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -72,6 +74,7 @@ func NewRouter(
 		voiceHandler:        voiceHandler,
 		jobBoardHandler:     jobBoardHandler,
 		evaluationHandler:   evaluationHandler,
+		applicationHandler:  applicationHandler,
 	}
 }
 
@@ -147,6 +150,8 @@ func (r *Router) Setup() *gin.Engine {
 	// Evaluation weights are separate from the question bank above.
 	jobPostings.GET("/:id/evaluation-weights", r.evaluationHandler.Weights)
 	jobPostings.PUT("/:id/evaluation-weights", r.evaluationHandler.ReplaceWeights)
+	jobPostings.POST("/:id/applications/:applicationId/approve-cv", r.applicationHandler.ApproveCV)
+	jobPostings.POST("/:id/applications/:applicationId/reject-cv", r.applicationHandler.RejectCV)
 
 	router.GET("/evaluation-metrics", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.evaluationHandler.Metrics)
 

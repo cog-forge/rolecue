@@ -62,6 +62,12 @@ definitions:
     - EVALUATION_WEIGHT_INVALID
     - EVALUATION_WEIGHT_TOTAL_MISMATCH
     - EVALUATION_WEIGHTS_LOCKED
+    - APPLICATION_NOT_FOUND
+    - APPLICATION_NOT_PENDING
+    - APPLICATION_NOT_ELIGIBLE
+    - INTAKE_NOT_OPEN
+    - INTERVIEW_CAPACITY_NOT_FUNDED
+    - INTERVIEW_CAPACITY_FULL
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -124,6 +130,12 @@ definitions:
     - CodeEvaluationWeightInvalid
     - CodeEvaluationWeightTotalMismatch
     - CodeEvaluationWeightsLocked
+    - CodeApplicationNotFound
+    - CodeApplicationNotPending
+    - CodeApplicationNotEligible
+    - CodeIntakeNotOpen
+    - CodeInterviewCapacityNotFunded
+    - CodeInterviewCapacityFull
   domain.Account:
     properties:
       created_at:
@@ -149,6 +161,20 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.ApplicationStatus:
+    enum:
+    - pending
+    - interview_eligible
+    - interviewed
+    - approved
+    - rejected
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusInterviewEligible
+    - StatusInterviewed
+    - StatusApproved
+    - StatusRejected
   domain.Avatar:
     properties:
       created_at:
@@ -703,6 +729,23 @@ definitions:
       title:
         type: string
     type: object
+  domain.Screening:
+    properties:
+      id:
+        type: string
+      interview_deadline:
+        description: 'InterviewDeadline is set on CV approval: approval time + 24
+          hours.'
+        type: string
+      job_posting_id:
+        type: string
+      reject_reason:
+        type: string
+      status:
+        $ref: '#/definitions/domain.ApplicationStatus'
+      updated_at:
+        type: string
+    type: object
   domain.Seniority:
     enum:
     - intern
@@ -941,6 +984,12 @@ definitions:
         type: string
     required:
     - content
+    type: object
+  handler.RejectCVRequest:
+    properties:
+      reject_reason:
+        description: RejectReason is an optional note, at most 500 characters.
+        type: string
     type: object
   handler.RejectPostingRequest:
     properties:
@@ -2491,6 +2540,138 @@ paths:
       summary: Edit your pending or rejected Job Posting
       tags:
       - job-postings
+  /job-postings/{id}/applications/{applicationId}/approve-cv:
+    post:
+      description: 'Recruiter only, own open postings. The Application moves from
+        pending to interview_eligible and gets interview_deadline = now + 24 hours.
+        No interview slot is consumed yet; at most interview_slot Applications can
+        ever be CV-approved per posting. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN
+        (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND
+        (not on this posting), APPLICATION_NOT_PENDING (already screened), INTAKE_NOT_OPEN
+        (posting not open), INTERVIEW_CAPACITY_NOT_FUNDED (interview_slot not set),
+        INTERVIEW_CAPACITY_FULL.'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        format: uuid
+        in: path
+        name: applicationId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Screening'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Approve an Application's CV
+      tags:
+      - applications
+  /job-postings/{id}/applications/{applicationId}/reject-cv:
+    post:
+      consumes:
+      - application/json
+      description: 'Recruiter only, own postings. A pending Application becomes terminally
+        rejected. The body is optional. Errors: VALIDATION_ERROR (bad IDs, body or
+        reason over 500 characters), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND
+        (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING
+        (already screened).'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        format: uuid
+        in: path
+        name: applicationId
+        required: true
+        type: string
+      - description: Optional reject reason
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handler.RejectCVRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Screening'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Reject an Application's CV
+      tags:
+      - applications
   /job-postings/{id}/document:
     get:
       description: Recruiter only. Returns a link to the PDF that expires after a

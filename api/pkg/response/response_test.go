@@ -61,6 +61,12 @@ func TestError(t *testing.T) {
 		{"evaluation weight invalid", apperror.CodeEvaluationWeightInvalid, http.StatusBadRequest},
 		{"evaluation weight total mismatch", apperror.CodeEvaluationWeightTotalMismatch, http.StatusBadRequest},
 		{"evaluation weights locked", apperror.CodeEvaluationWeightsLocked, http.StatusConflict},
+		{"application missing", apperror.CodeApplicationNotFound, http.StatusNotFound},
+		{"application not pending", apperror.CodeApplicationNotPending, http.StatusConflict},
+		{"application not eligible", apperror.CodeApplicationNotEligible, http.StatusConflict},
+		{"intake not open", apperror.CodeIntakeNotOpen, http.StatusConflict},
+		{"capacity not funded", apperror.CodeInterviewCapacityNotFunded, http.StatusConflict},
+		{"capacity full", apperror.CodeInterviewCapacityFull, http.StatusConflict},
 		{"internal", apperror.CodeInternal, http.StatusInternalServerError},
 		{"unknown code", apperror.Code("FUTURE_CODE"), http.StatusInternalServerError},
 	} {
