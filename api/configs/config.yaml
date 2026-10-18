@@ -82,3 +82,6 @@ storage:
 
 question_bank:
   size: 50  # core questions generated per bank (team decision); 0 disables generation
+
+evaluation:
+  weight_total: 100  # a posting's evaluation weights must add up to this; 0 turns the sum check off

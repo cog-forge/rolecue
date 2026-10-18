@@ -56,6 +56,11 @@ func TestError(t *testing.T) {
 		{"posting not editable", apperror.CodeJobPostingNotEditable, http.StatusConflict},
 		{"posting text locked", apperror.CodeJobPostingTextLocked, http.StatusConflict},
 		{"posting not rejected", apperror.CodeJobPostingNotRejected, http.StatusConflict},
+		{"evaluation metric unknown", apperror.CodeEvaluationMetricUnknown, http.StatusBadRequest},
+		{"evaluation metric duplicate", apperror.CodeEvaluationMetricDuplicate, http.StatusBadRequest},
+		{"evaluation weight invalid", apperror.CodeEvaluationWeightInvalid, http.StatusBadRequest},
+		{"evaluation weight total mismatch", apperror.CodeEvaluationWeightTotalMismatch, http.StatusBadRequest},
+		{"evaluation weights locked", apperror.CodeEvaluationWeightsLocked, http.StatusConflict},
 		{"internal", apperror.CodeInternal, http.StatusInternalServerError},
 		{"unknown code", apperror.Code("FUTURE_CODE"), http.StatusInternalServerError},
 	} {

@@ -1142,6 +1142,61 @@
                 }
             }
         },
+        "/evaluation-metrics": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "The evaluation dimensions a Recruiter can weight on a Job Posting, from the seeded metrics catalog.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluation"
+                ],
+                "summary": "List evaluation metrics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.MetricCatalog"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Does not check database or LLM readiness.",
@@ -2379,6 +2434,176 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/evaluation-weights": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings. When the Recruiter set no weights, configured is false, using_defaults is true and weights holds the defaults the posting will be scored with (the total split equally across all metrics); show the Recruiter a warning. Defaults are never saved. total is the sum the weights must reach (0 = no sum rule).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluation"
+                ],
+                "summary": "View a Job Posting's evaluation weights",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.PostingWeights"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own pending postings. The list replaces the whole set in one write. Errors: EVALUATION_METRIC_UNKNOWN, EVALUATION_METRIC_DUPLICATE, EVALUATION_WEIGHT_INVALID (negative or above the total), EVALUATION_WEIGHT_TOTAL_MISMATCH, EVALUATION_WEIGHTS_LOCKED (posting not pending).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "evaluation"
+                ],
+                "summary": "Replace a Job Posting's evaluation weights",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The full weight set",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.EvaluationWeightsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.PostingWeights"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -4173,7 +4398,12 @@
                 "JOB_POSTING_REQUIREMENTS_LOCKED",
                 "JOB_POSTING_NOT_EDITABLE",
                 "JOB_POSTING_TEXT_LOCKED",
-                "JOB_POSTING_NOT_REJECTED"
+                "JOB_POSTING_NOT_REJECTED",
+                "EVALUATION_METRIC_UNKNOWN",
+                "EVALUATION_METRIC_DUPLICATE",
+                "EVALUATION_WEIGHT_INVALID",
+                "EVALUATION_WEIGHT_TOTAL_MISMATCH",
+                "EVALUATION_WEIGHTS_LOCKED"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -4230,7 +4460,12 @@
                 "CodeJobPostingRequirementsLocked",
                 "CodeJobPostingNotEditable",
                 "CodeJobPostingTextLocked",
-                "CodeJobPostingNotRejected"
+                "CodeJobPostingNotRejected",
+                "CodeEvaluationMetricUnknown",
+                "CodeEvaluationMetricDuplicate",
+                "CodeEvaluationWeightInvalid",
+                "CodeEvaluationWeightTotalMismatch",
+                "CodeEvaluationWeightsLocked"
             ]
         },
         "domain.Account": {
@@ -4662,6 +4897,28 @@
                 }
             }
         },
+        "domain.Metric": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.MetricCatalog": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Metric"
+                    }
+                }
+            }
+        },
         "domain.ModelAccess": {
             "type": "object",
             "properties": {
@@ -4769,6 +5026,32 @@
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "domain.PostingWeights": {
+            "type": "object",
+            "properties": {
+                "configured": {
+                    "type": "boolean"
+                },
+                "editable": {
+                    "type": "boolean"
+                },
+                "posting_status": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "number"
+                },
+                "using_defaults": {
+                    "type": "boolean"
+                },
+                "weights": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Weight"
+                    }
                 }
             }
         },
@@ -4938,6 +5221,10 @@
                 },
                 "title": {
                     "type": "string"
+                },
+                "weights_configured": {
+                    "description": "WeightsConfigured is false when the Recruiter set no evaluation weights, so the posting will\nbe scored with the default weights. It is informational and does not block approval.",
+                    "type": "boolean"
                 }
             }
         },
@@ -5220,6 +5507,20 @@
                 }
             }
         },
+        "domain.Weight": {
+            "type": "object",
+            "properties": {
+                "metric_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "percentage": {
+                    "type": "number"
+                }
+            }
+        },
         "handler.CreateJobPostingRequest": {
             "type": "object",
             "required": [
@@ -5282,6 +5583,37 @@
             "properties": {
                 "rawText": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.EvaluationWeightEntry": {
+            "type": "object",
+            "required": [
+                "metric_id",
+                "percentage"
+            ],
+            "properties": {
+                "metric_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "percentage": {
+                    "type": "number"
+                }
+            }
+        },
+        "handler.EvaluationWeightsRequest": {
+            "type": "object",
+            "required": [
+                "weights"
+            ],
+            "properties": {
+                "weights": {
+                    "description": "Weights is the full set; at least one entry. Metrics left out are not weighted.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.EvaluationWeightEntry"
+                    }
                 }
             }
         },

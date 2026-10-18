@@ -30,6 +30,7 @@ type Router struct {
 	jobPostingHandler   *handler.JobPostingHandler
 	voiceHandler        *handler.VoiceHandler
 	jobBoardHandler     *handler.JobBoardHandler
+	evaluationHandler   *handler.EvaluationHandler
 }
 
 func NewRouter(
@@ -50,6 +51,7 @@ func NewRouter(
 	jobPostingHandler *handler.JobPostingHandler,
 	voiceHandler *handler.VoiceHandler,
 	jobBoardHandler *handler.JobBoardHandler,
+	evaluationHandler *handler.EvaluationHandler,
 ) *Router {
 	return &Router{
 		cfg:                 cfg,
@@ -69,6 +71,7 @@ func NewRouter(
 		jobPostingHandler:   jobPostingHandler,
 		voiceHandler:        voiceHandler,
 		jobBoardHandler:     jobBoardHandler,
+		evaluationHandler:   evaluationHandler,
 	}
 }
 
@@ -141,6 +144,11 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
 	jobPostings.PATCH("/:id/questions/:questionId", r.questionBankHandler.Update)
 	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)
+	// Evaluation weights are separate from the question bank above.
+	jobPostings.GET("/:id/evaluation-weights", r.evaluationHandler.Weights)
+	jobPostings.PUT("/:id/evaluation-weights", r.evaluationHandler.ReplaceWeights)
+
+	router.GET("/evaluation-metrics", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.evaluationHandler.Metrics)
 
 	router.GET("/voices", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.voiceHandler.List)
 

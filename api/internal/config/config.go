@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"strconv"
@@ -26,6 +27,7 @@ type Config struct {
 	Storage          StorageConfig          `mapstructure:"storage"`
 	PayOS            PayOSConfig            `mapstructure:"payos"`
 	QuestionBank     QuestionBankConfig     `mapstructure:"question_bank"`
+	Evaluation       EvaluationConfig       `mapstructure:"evaluation"`
 	AvatarConversion AvatarConversionConfig `mapstructure:"avatar_conversion"`
 }
 
@@ -159,6 +161,16 @@ type QuestionBankConfig struct {
 // MaxQuestionBankSize bounds QUESTION_BANK_SIZE to a sane technical range.
 const MaxQuestionBankSize = 100
 
+// EvaluationConfig holds the posting evaluation-weight settings. WeightTotal is the sum a posting's
+// weights must reach (100 = percentages); 0 turns the sum check off. It lives in configuration
+// because the scoring formula is still an open product decision.
+type EvaluationConfig struct {
+	WeightTotal float64 `mapstructure:"weight_total"`
+}
+
+// MaxEvaluationWeightTotal bounds EVALUATION_WEIGHT_TOTAL to a sane technical range.
+const MaxEvaluationWeightTotal = 1000
+
 // Load loads configuration from file and overrides with environment variables
 func Load(configPath string) (*Config, error) {
 	_ = gotenv.Load("../.env")
@@ -218,6 +230,7 @@ func Load(configPath string) (*Config, error) {
 		"payos.timeout":                      "PAYOS_TIMEOUT",
 		"payos.max_retries":                  "PAYOS_MAX_RETRIES",
 		"question_bank.size":                 "QUESTION_BANK_SIZE",
+		"evaluation.weight_total":            "EVALUATION_WEIGHT_TOTAL",
 		"avatar_conversion.enabled":          "AVATAR_CONVERSION_ENABLED",
 		"avatar_conversion.blender_binary":   "AVATAR_BLENDER_BINARY",
 		"avatar_conversion.timeout":          "AVATAR_CONVERSION_TIMEOUT",
@@ -309,6 +322,7 @@ func setDefaults(v *viper.Viper) {
 
 	// Question bank defaults: 50 questions per bank, as agreed by the team.
 	v.SetDefault("question_bank.size", 50)
+	v.SetDefault("evaluation.weight_total", 100)
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
 	v.SetDefault("avatar_conversion.timeout", "120s")
@@ -353,6 +367,9 @@ func (c *Config) Validate() error {
 
 	if c.QuestionBank.Size < 0 || c.QuestionBank.Size > MaxQuestionBankSize {
 		return fmt.Errorf("question_bank.size must be between 0 and %d", MaxQuestionBankSize)
+	}
+	if math.IsNaN(c.Evaluation.WeightTotal) || c.Evaluation.WeightTotal < 0 || c.Evaluation.WeightTotal > MaxEvaluationWeightTotal {
+		return fmt.Errorf("evaluation.weight_total must be between 0 and %d", MaxEvaluationWeightTotal)
 	}
 
 	if c.Tracer.Enabled {

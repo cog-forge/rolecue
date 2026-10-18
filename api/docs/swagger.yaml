@@ -57,6 +57,11 @@ definitions:
     - JOB_POSTING_NOT_EDITABLE
     - JOB_POSTING_TEXT_LOCKED
     - JOB_POSTING_NOT_REJECTED
+    - EVALUATION_METRIC_UNKNOWN
+    - EVALUATION_METRIC_DUPLICATE
+    - EVALUATION_WEIGHT_INVALID
+    - EVALUATION_WEIGHT_TOTAL_MISMATCH
+    - EVALUATION_WEIGHTS_LOCKED
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -114,6 +119,11 @@ definitions:
     - CodeJobPostingNotEditable
     - CodeJobPostingTextLocked
     - CodeJobPostingNotRejected
+    - CodeEvaluationMetricUnknown
+    - CodeEvaluationMetricDuplicate
+    - CodeEvaluationWeightInvalid
+    - CodeEvaluationWeightTotalMismatch
+    - CodeEvaluationWeightsLocked
   domain.Account:
     properties:
       created_at:
@@ -407,6 +417,20 @@ definitions:
       reason:
         type: string
     type: object
+  domain.Metric:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  domain.MetricCatalog:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.Metric'
+        type: array
+    type: object
   domain.ModelAccess:
     properties:
       expires_at:
@@ -481,6 +505,23 @@ definitions:
         $ref: '#/definitions/domain.PostingStatus'
       title:
         type: string
+    type: object
+  domain.PostingWeights:
+    properties:
+      configured:
+        type: boolean
+      editable:
+        type: boolean
+      posting_status:
+        type: string
+      total:
+        type: number
+      using_defaults:
+        type: boolean
+      weights:
+        items:
+          $ref: '#/definitions/domain.Weight'
+        type: array
     type: object
   domain.Profile:
     properties:
@@ -605,6 +646,11 @@ definitions:
         $ref: '#/definitions/domain.PostingStatus'
       title:
         type: string
+      weights_configured:
+        description: |-
+          WeightsConfigured is false when the Recruiter set no evaluation weights, so the posting will
+          be scored with the default weights. It is informational and does not block approval.
+        type: boolean
     type: object
   domain.RoleProfile:
     properties:
@@ -798,6 +844,15 @@ definitions:
       name:
         type: string
     type: object
+  domain.Weight:
+    properties:
+      metric_id:
+        type: string
+      name:
+        type: string
+      percentage:
+        type: number
+    type: object
   handler.CreateJobPostingRequest:
     properties:
       document_id:
@@ -843,6 +898,28 @@ definitions:
     properties:
       rawText:
         type: string
+    type: object
+  handler.EvaluationWeightEntry:
+    properties:
+      metric_id:
+        format: uuid
+        type: string
+      percentage:
+        type: number
+    required:
+    - metric_id
+    - percentage
+    type: object
+  handler.EvaluationWeightsRequest:
+    properties:
+      weights:
+        description: Weights is the full set; at least one entry. Metrics left out
+          are not weighted.
+        items:
+          $ref: '#/definitions/handler.EvaluationWeightEntry'
+        type: array
+    required:
+    - weights
     type: object
   handler.ExtractJobPostingRequest:
     properties:
@@ -1735,6 +1812,39 @@ paths:
       summary: Current application user
       tags:
       - auth
+  /evaluation-metrics:
+    get:
+      description: The evaluation dimensions a Recruiter can weight on a Job Posting,
+        from the seeded metrics catalog.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.MetricCatalog'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List evaluation metrics
+      tags:
+      - evaluation
   /health:
     get:
       description: Does not check database or LLM readiness.
@@ -2429,6 +2539,118 @@ paths:
       summary: Open your Job Posting's JD PDF
       tags:
       - job-postings
+  /job-postings/{id}/evaluation-weights:
+    get:
+      description: Recruiter only, own postings. When the Recruiter set no weights,
+        configured is false, using_defaults is true and weights holds the defaults
+        the posting will be scored with (the total split equally across all metrics);
+        show the Recruiter a warning. Defaults are never saved. total is the sum the
+        weights must reach (0 = no sum rule).
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.PostingWeights'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: View a Job Posting's evaluation weights
+      tags:
+      - evaluation
+    put:
+      consumes:
+      - application/json
+      description: 'Recruiter only, own pending postings. The list replaces the whole
+        set in one write. Errors: EVALUATION_METRIC_UNKNOWN, EVALUATION_METRIC_DUPLICATE,
+        EVALUATION_WEIGHT_INVALID (negative or above the total), EVALUATION_WEIGHT_TOTAL_MISMATCH,
+        EVALUATION_WEIGHTS_LOCKED (posting not pending).'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The full weight set
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.EvaluationWeightsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.PostingWeights'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Replace a Job Posting's evaluation weights
+      tags:
+      - evaluation
   /job-postings/{id}/questions:
     get:
       description: Recruiter only. Candidates never receive the bank. Also returns
