@@ -39,6 +39,7 @@ export const routes = {
     jobPostingQuestions: (id: string) =>
       `/recruiter/job-postings/${segment(id)}/questions`,
     applications: "/recruiter/applications",
+    billing: "/recruiter/billing",
   },
   admin: {
     root: "/admin",
