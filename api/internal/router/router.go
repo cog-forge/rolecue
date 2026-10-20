@@ -126,6 +126,7 @@ func (r *Router) Setup() *gin.Engine {
 		wallet.GET("/transactions", r.walletHandler.ListTransactions)
 		wallet.GET("/packages", r.walletHandler.ListPackages)
 		wallet.POST("/deposit/checkout", r.walletHandler.CreateDepositCheckout)
+		wallet.POST("/deposit/sync", r.walletHandler.SyncDepositStatus)
 	}
 
 	router.POST("/wallet/webhook/payos", r.walletHandler.HandlePayOSWebhook)

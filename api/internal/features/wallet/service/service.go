@@ -177,69 +177,129 @@ func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 			return nil
 		}
 
-		switch payment.Status {
-		case payos.PaymentLinkStatusPaid:
-			if payment.Amount <= 0 || payment.AmountPaid < payment.Amount {
-				return apperror.New(apperror.CodePayOSError, "payment amount is invalid or underpaid")
-			}
-			if expectedVND, ok := parseExpectedVND(txRecord.Description); ok {
-				if payment.AmountPaid < expectedVND {
-					return apperror.New(apperror.CodePayOSError, fmt.Sprintf("amount paid %d VND is less than expected %d VND", payment.AmountPaid, expectedVND))
-				}
-			}
-			// Payment confirmed by PayOS.
-			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusSuccess)
-			if err != nil {
-				return err
-			}
-			if txRecord.To != nil {
-				wallet, err := s.repo.GetWalletForUpdate(ctx, q, *txRecord.To)
-				if err != nil {
-					if apperror.IsCode(err, apperror.CodeWalletNotFound) {
-						wallet, err = s.repo.CreateWallet(ctx, q, *txRecord.To)
-						if err != nil {
-							return err
-						}
-					} else {
-						return err
-					}
-				}
-				if int64(wallet.Balance)+int64(txRecord.Amount) > math.MaxInt32 {
-					return apperror.New(apperror.CodeValidation, "wallet balance overflow")
-				}
-				newBalance := wallet.Balance + txRecord.Amount
-				_, err = s.repo.UpdateWalletBalance(ctx, q, wallet.ID, newBalance)
-				if err != nil {
-					return err
-				}
-			}
-		case payos.PaymentLinkStatusCancelled:
-			// PayOS signals payment was cancelled by the user.
-			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusCancelled)
-			if err != nil {
-				return err
-			}
-		case payos.PaymentLinkStatusExpired, payos.PaymentLinkStatusFailed:
-			// Terminal failure states.
-			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
-			if err != nil {
-				return err
-			}
-		case payos.PaymentLinkStatusUnderpaid:
-			// Insufficient amount transferred by user.
-			_, err = s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
-			if err != nil {
-				return err
-			}
-		case payos.PaymentLinkStatusPending, payos.PaymentLinkStatusProcessing:
-			// Transient in-progress states: do not mark failed, return error to allow retry.
-			return apperror.New(apperror.CodePayOSError, fmt.Sprintf("payment is in progress (status: %s)", payment.Status))
-		default:
-			// Unknown status: do not mark failed destructively.
-			return apperror.New(apperror.CodePayOSError, fmt.Sprintf("unhandled payment link status: %s", payment.Status))
+		_, err = s.processPaymentStatus(ctx, q, txRecord, payment, true)
+		return err
+	})
+}
+
+// SyncDepositStatus checks authoritative PayOS payment status and reconciles the transaction.
+func (s *Service) SyncDepositStatus(ctx context.Context, userID uuid.UUID, orderCode int64) (domain.Transaction, error) {
+	if orderCode <= 0 {
+		return domain.Transaction{}, apperror.New(apperror.CodeValidation, "invalid order code")
+	}
+
+	txRecord, err := s.repo.GetTransactionByPayOSOrderCode(ctx, orderCode)
+	if err != nil {
+		return domain.Transaction{}, err
+	}
+
+	if txRecord.To == nil || *txRecord.To != userID {
+		return domain.Transaction{}, apperror.New(apperror.CodeForbidden, "transaction does not belong to user")
+	}
+
+	if txRecord.Status != domain.StatusPending {
+		// Already in terminal state
+		return txRecord, nil
+	}
+
+	payment, err := s.payos.GetPaymentLink(ctx, orderCode)
+	if err != nil {
+		return domain.Transaction{}, apperror.Wrap(apperror.CodePayOSError, "failed to get PayOS payment link", err)
+	}
+
+	if payment.OrderCode != orderCode {
+		return domain.Transaction{}, apperror.New(apperror.CodePayOSError, "payos order code mismatch")
+	}
+
+	var updatedTx domain.Transaction
+	err = s.repo.ExecTx(ctx, func(q *repository.Queries) error {
+		lockedTx, err := s.repo.GetTransactionByPayOSOrderCodeForUpdate(ctx, q, orderCode)
+		if err != nil {
+			return err
 		}
+
+		if lockedTx.Status != domain.StatusPending {
+			updatedTx = lockedTx
+			return nil
+		}
+
+		res, err := s.processPaymentStatus(ctx, q, lockedTx, payment, false)
+		if err != nil {
+			return err
+		}
+		updatedTx = res
 		return nil
 	})
+	if err != nil {
+		return domain.Transaction{}, err
+	}
+
+	return updatedTx, nil
+}
+
+func (s *Service) processPaymentStatus(
+	ctx context.Context,
+	q *repository.Queries,
+	txRecord domain.Transaction,
+	payment *payos.PaymentLink,
+	isWebhook bool,
+) (domain.Transaction, error) {
+	switch payment.Status {
+	case payos.PaymentLinkStatusPaid:
+		if payment.Amount <= 0 || payment.AmountPaid < payment.Amount {
+			return domain.Transaction{}, apperror.New(apperror.CodePayOSError, "payment amount is invalid or underpaid")
+		}
+		if expectedVND, ok := parseExpectedVND(txRecord.Description); ok {
+			if payment.AmountPaid < expectedVND {
+				return domain.Transaction{}, apperror.New(apperror.CodePayOSError, fmt.Sprintf("amount paid %d VND is less than expected %d VND", payment.AmountPaid, expectedVND))
+			}
+		}
+		// Payment confirmed by PayOS.
+		updated, err := s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusSuccess)
+		if err != nil {
+			return domain.Transaction{}, err
+		}
+		if txRecord.To != nil {
+			wallet, err := s.repo.GetWalletForUpdate(ctx, q, *txRecord.To)
+			if err != nil {
+				if apperror.IsCode(err, apperror.CodeWalletNotFound) {
+					wallet, err = s.repo.CreateWallet(ctx, q, *txRecord.To)
+					if err != nil {
+						return domain.Transaction{}, err
+					}
+				} else {
+					return domain.Transaction{}, err
+				}
+			}
+			if int64(wallet.Balance)+int64(txRecord.Amount) > math.MaxInt32 {
+				return domain.Transaction{}, apperror.New(apperror.CodeValidation, "wallet balance overflow")
+			}
+			newBalance := wallet.Balance + txRecord.Amount
+			_, err = s.repo.UpdateWalletBalance(ctx, q, wallet.ID, newBalance)
+			if err != nil {
+				return domain.Transaction{}, err
+			}
+		}
+		return updated, nil
+	case payos.PaymentLinkStatusCancelled:
+		// PayOS signals payment was cancelled by the user.
+		return s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusCancelled)
+	case payos.PaymentLinkStatusExpired, payos.PaymentLinkStatusFailed:
+		// Terminal failure states.
+		return s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
+	case payos.PaymentLinkStatusUnderpaid:
+		// Insufficient amount transferred by user.
+		return s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
+	case payos.PaymentLinkStatusPending, payos.PaymentLinkStatusProcessing:
+		// Transient in-progress states: for webhook, return error to allow retry; for client sync, return current record.
+		if isWebhook {
+			return domain.Transaction{}, apperror.New(apperror.CodePayOSError, fmt.Sprintf("payment is in progress (status: %s)", payment.Status))
+		}
+		return txRecord, nil
+	default:
+		// Unknown status: do not mark failed destructively.
+		return domain.Transaction{}, apperror.New(apperror.CodePayOSError, fmt.Sprintf("unhandled payment link status: %s", payment.Status))
+	}
 }
 
 func (s *Service) ChargePracticeInterview(ctx context.Context, candidateID uuid.UUID, amount int32) error {

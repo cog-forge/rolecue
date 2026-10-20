@@ -116,6 +116,11 @@ func (s *routerWallet) CreateDepositCheckout(context.Context, uuid.UUID, uuid.UU
 	return walletdomain.DepositCheckoutResponse{}, nil
 }
 
+func (s *routerWallet) SyncDepositStatus(context.Context, uuid.UUID, int64) (walletdomain.Transaction, error) {
+	s.calls++
+	return walletdomain.Transaction{}, nil
+}
+
 func (s *routerWallet) HandlePayOSWebhook(context.Context, []byte) error {
 	s.calls++
 	return nil
@@ -129,6 +134,7 @@ func TestWalletRoutesRequireOnboarding(t *testing.T) {
 		{http.MethodGet, "/wallet/transactions", ""},
 		{http.MethodGet, "/wallet/packages", ""},
 		{http.MethodPost, "/wallet/deposit/checkout", `{"package_id":"00000000-0000-0000-0000-000000000001"}`},
+		{http.MethodPost, "/wallet/deposit/sync", `{"order_code":100201}`},
 	}
 	for _, role := range []string{"candidate", "recruiter"} {
 		for _, tc := range []struct {

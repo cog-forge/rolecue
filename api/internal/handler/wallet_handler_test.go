@@ -48,6 +48,11 @@ func (m *MockWalletService) CreateDepositCheckout(ctx context.Context, userID uu
 	return args.Get(0).(walletdomain.DepositCheckoutResponse), args.Error(1)
 }
 
+func (m *MockWalletService) SyncDepositStatus(ctx context.Context, userID uuid.UUID, orderCode int64) (walletdomain.Transaction, error) {
+	args := m.Called(ctx, userID, orderCode)
+	return args.Get(0).(walletdomain.Transaction), args.Error(1)
+}
+
 func (m *MockWalletService) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 	args := m.Called(ctx, body)
 	return args.Error(0)
@@ -83,6 +88,9 @@ func newRouter(h *handler.WalletHandler) *gin.Engine {
 	})
 	r.POST("/wallet/deposit/checkout", func(c *gin.Context) {
 		h.CreateDepositCheckout(c)
+	})
+	r.POST("/wallet/deposit/sync", func(c *gin.Context) {
+		h.SyncDepositStatus(c)
 	})
 	r.POST("/wallet/webhook/payos", func(c *gin.Context) {
 		h.HandlePayOSWebhook(c)
@@ -421,4 +429,56 @@ func TestGetWallet_ContextKeyConsistency(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, user.ID, extracted.ID)
 	assert.Equal(t, "candidate", extracted.Role)
+}
+
+func TestSyncDepositStatus_Success(t *testing.T) {
+	svc := new(MockWalletService)
+	h := handler.NewWalletHandler(svc)
+	r := newRouter(h)
+
+	user := candidateUser()
+	txID := uuid.New()
+	orderCode := int64(123456789)
+	body := []byte(`{"order_code":123456789}`)
+
+	svc.On("SyncDepositStatus", mock.Anything, user.ID, orderCode).
+		Return(walletdomain.Transaction{
+			ID:             txID,
+			Amount:         100,
+			Status:         walletdomain.StatusCancelled,
+			PayOSOrderCode: &orderCode,
+		}, nil)
+
+	w := performRequest(r, http.MethodPost, "/wallet/deposit/sync", body, user)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
+}
+
+func TestSyncDepositStatus_AdminForbidden(t *testing.T) {
+	svc := new(MockWalletService)
+	h := handler.NewWalletHandler(svc)
+	r := newRouter(h)
+
+	admin := adminUser()
+	body := []byte(`{"order_code":123456789}`)
+
+	w := performRequest(r, http.MethodPost, "/wallet/deposit/sync", body, admin)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	svc.AssertNotCalled(t, "SyncDepositStatus")
+}
+
+func TestSyncDepositStatus_InvalidJSON(t *testing.T) {
+	svc := new(MockWalletService)
+	h := handler.NewWalletHandler(svc)
+	r := newRouter(h)
+
+	user := candidateUser()
+	body := []byte(`{"order_code":"not-a-number"}`)
+
+	w := performRequest(r, http.MethodPost, "/wallet/deposit/sync", body, user)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	svc.AssertNotCalled(t, "SyncDepositStatus")
 }
