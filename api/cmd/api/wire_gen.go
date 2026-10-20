@@ -135,7 +135,15 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	evaluationHandler := provider.ProvideEvaluationHandler(service9)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler)
+	repository11 := provider.ProvideApplicationRepository(pool)
+	service10, err := provider.ProvideApplicationService(repository11)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	applicationHandler := provider.ProvideApplicationHandler(service10)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {

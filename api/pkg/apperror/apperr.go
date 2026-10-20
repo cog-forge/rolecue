@@ -77,6 +77,14 @@ const (
 	CodeEvaluationWeightInvalid       Code = "EVALUATION_WEIGHT_INVALID"
 	CodeEvaluationWeightTotalMismatch Code = "EVALUATION_WEIGHT_TOTAL_MISMATCH"
 	CodeEvaluationWeightsLocked       Code = "EVALUATION_WEIGHTS_LOCKED"
+
+	// Application screening codes.
+	CodeApplicationNotFound        Code = "APPLICATION_NOT_FOUND"
+	CodeApplicationNotPending      Code = "APPLICATION_NOT_PENDING"
+	CodeApplicationNotEligible     Code = "APPLICATION_NOT_ELIGIBLE"
+	CodeIntakeNotOpen              Code = "INTAKE_NOT_OPEN"
+	CodeInterviewCapacityNotFunded Code = "INTERVIEW_CAPACITY_NOT_FUNDED"
+	CodeInterviewCapacityFull      Code = "INTERVIEW_CAPACITY_FULL"
 )
 
 type AppError struct {

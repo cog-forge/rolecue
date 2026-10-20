@@ -2377,6 +2377,199 @@ const docTemplate = `{
                 }
             }
         },
+        "/job-postings/{id}/applications/{applicationId}/approve-cv": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own open postings. The Application moves from pending to interview_eligible and gets interview_deadline = now + 24 hours. No interview slot is consumed yet; at most interview_slot Applications can ever be CV-approved per posting. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened), INTAKE_NOT_OPEN (posting not open), INTERVIEW_CAPACITY_NOT_FUNDED (interview_slot not set), INTERVIEW_CAPACITY_FULL.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Approve an Application's CV",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Application ID",
+                        "name": "applicationId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Screening"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/applications/{applicationId}/reject-cv": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings. A pending Application becomes terminally rejected. The body is optional. Errors: VALIDATION_ERROR (bad IDs, body or reason over 500 characters), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Reject an Application's CV",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Application ID",
+                        "name": "applicationId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Optional reject reason",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/handler.RejectCVRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Screening"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/job-postings/{id}/document": {
             "get": {
                 "security": [
@@ -4410,7 +4603,13 @@ const docTemplate = `{
                 "EVALUATION_METRIC_DUPLICATE",
                 "EVALUATION_WEIGHT_INVALID",
                 "EVALUATION_WEIGHT_TOTAL_MISMATCH",
-                "EVALUATION_WEIGHTS_LOCKED"
+                "EVALUATION_WEIGHTS_LOCKED",
+                "APPLICATION_NOT_FOUND",
+                "APPLICATION_NOT_PENDING",
+                "APPLICATION_NOT_ELIGIBLE",
+                "INTAKE_NOT_OPEN",
+                "INTERVIEW_CAPACITY_NOT_FUNDED",
+                "INTERVIEW_CAPACITY_FULL"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -4472,7 +4671,13 @@ const docTemplate = `{
                 "CodeEvaluationMetricDuplicate",
                 "CodeEvaluationWeightInvalid",
                 "CodeEvaluationWeightTotalMismatch",
-                "CodeEvaluationWeightsLocked"
+                "CodeEvaluationWeightsLocked",
+                "CodeApplicationNotFound",
+                "CodeApplicationNotPending",
+                "CodeApplicationNotEligible",
+                "CodeIntakeNotOpen",
+                "CodeInterviewCapacityNotFunded",
+                "CodeInterviewCapacityFull"
             ]
         },
         "domain.Account": {
@@ -4512,6 +4717,23 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "domain.ApplicationStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "interview_eligible",
+                "interviewed",
+                "approved",
+                "rejected"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusInterviewEligible",
+                "StatusInterviewed",
+                "StatusApproved",
+                "StatusRejected"
+            ]
         },
         "domain.Avatar": {
             "type": "object",
@@ -5313,6 +5535,30 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Screening": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "interview_deadline": {
+                    "description": "InterviewDeadline is set on CV approval: approval time + 24 hours.",
+                    "type": "string"
+                },
+                "job_posting_id": {
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.ApplicationStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Seniority": {
             "type": "string",
             "enum": [
@@ -5653,6 +5899,15 @@ const docTemplate = `{
             ],
             "properties": {
                 "content": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RejectCVRequest": {
+            "type": "object",
+            "properties": {
+                "reject_reason": {
+                    "description": "RejectReason is an optional note, at most 500 characters.",
                     "type": "string"
                 }
             }

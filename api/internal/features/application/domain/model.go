@@ -1,0 +1,90 @@
+package domain
+
+import (
+	"time"
+
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
+	"github.com/google/uuid"
+)
+
+// ApplicationStatus is the single Application lifecycle field (applications.status).
+type ApplicationStatus string
+
+const (
+	StatusPending           ApplicationStatus = "pending"
+	StatusInterviewEligible ApplicationStatus = "interview_eligible"
+	StatusInterviewed       ApplicationStatus = "interviewed"
+	StatusApproved          ApplicationStatus = "approved"
+	StatusRejected          ApplicationStatus = "rejected"
+)
+
+// InterviewWindow is how long a CV-approved Candidate has to complete the recruitment interview.
+// The deadline itself is computed by the database clock (see ApproveCV in the queries).
+const InterviewWindow = 24 * time.Hour
+
+// MaxRejectReasonLength bounds the optional note a Recruiter leaves when rejecting a CV.
+const MaxRejectReasonLength = 500
+
+// Screening is an Application right after a CV screening decision.
+type Screening struct {
+	ID           uuid.UUID         `json:"id"`
+	JobPostingID uuid.UUID         `json:"job_posting_id"`
+	Status       ApplicationStatus `json:"status"`
+	// InterviewDeadline is set on CV approval: approval time + 24 hours.
+	InterviewDeadline *time.Time `json:"interview_deadline"`
+	RejectReason      *string    `json:"reject_reason"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
+// InterviewCapacity is the posting state a CV approval is checked against, read under the posting
+// row lock.
+type InterviewCapacity struct {
+	PostingStatus string
+	// InterviewSlot is nil until the Recruiter funds interview capacity (KAN-116).
+	InterviewSlot *int32
+	// CVApprovals counts every Application ever CV-approved on the posting, including ones later
+	// rejected or decided: a Candidate who misses the deadline does not free a slot (decided
+	// 2026-10-18).
+	CVApprovals int64
+}
+
+// CheckApproval says whether one more Candidate may be approved for interview.
+func (c InterviewCapacity) CheckApproval() error {
+	if c.PostingStatus != "open" {
+		return ErrIntakeNotOpen
+	}
+	if c.InterviewSlot == nil {
+		return ErrCapacityNotFunded
+	}
+	if c.CVApprovals >= int64(*c.InterviewSlot) {
+		return ErrCapacityFull
+	}
+	return nil
+}
+
+// Eligibility is what a recruitment interview start (KAN-50/KAN-117) needs from the Application.
+type Eligibility struct {
+	ApplicationID     uuid.UUID
+	JobPostingID      uuid.UUID
+	InterviewDeadline time.Time
+}
+
+// EligibilityRecord is the Candidate's Application as stored; WithinDeadline is computed by the
+// database clock so it agrees with the deadline written on approval.
+type EligibilityRecord struct {
+	ApplicationID     uuid.UUID
+	JobPostingID      uuid.UUID
+	Status            ApplicationStatus
+	InterviewDeadline *time.Time
+	WithinDeadline    bool
+}
+
+var (
+	ErrApplicationNotFound    = apperror.New(apperror.CodeApplicationNotFound, "application not found")
+	ErrApplicationNotPending  = apperror.New(apperror.CodeApplicationNotPending, "application was already screened")
+	ErrApplicationNotEligible = apperror.New(apperror.CodeApplicationNotEligible,
+		"application is not eligible for a recruitment interview")
+	ErrIntakeNotOpen     = apperror.New(apperror.CodeIntakeNotOpen, "job posting is not accepting CV approvals")
+	ErrCapacityNotFunded = apperror.New(apperror.CodeInterviewCapacityNotFunded, "job posting has no funded interview capacity")
+	ErrCapacityFull      = apperror.New(apperror.CodeInterviewCapacityFull, "all interview slots of this job posting are taken")
+)

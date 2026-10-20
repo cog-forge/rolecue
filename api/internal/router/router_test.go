@@ -40,6 +40,8 @@ func TestQuestionBankRoutesRequireOnboarding(t *testing.T) {
 		{http.MethodPost, "/job-postings/invalid-id/questions"},
 		{http.MethodPatch, "/job-postings/invalid-id/questions/invalid-id"},
 		{http.MethodDelete, "/job-postings/invalid-id/questions/invalid-id"},
+		{http.MethodPost, "/job-postings/invalid-id/applications/invalid-id/approve-cv"},
+		{http.MethodPost, "/job-postings/invalid-id/applications/invalid-id/reject-cv"},
 	}
 	for _, tc := range []struct {
 		name      string
@@ -65,7 +67,7 @@ func TestQuestionBankRoutesRequireOnboarding(t *testing.T) {
 			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 				handler.NewWalletHandler(nil), handler.NewQuestionBankHandler(nil),
-				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}).Setup()
+				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}).Setup()
 			for _, route := range routes {
 				t.Run(route.method+" "+route.path, func(t *testing.T) {
 					req := httptest.NewRequest(route.method, route.path, nil)
@@ -153,7 +155,7 @@ func TestWalletRoutesRequireOnboarding(t *testing.T) {
 				r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 					handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 					handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
-					&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}).Setup()
+					&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}).Setup()
 				for _, route := range routes {
 					t.Run(route.method+" "+route.path, func(t *testing.T) {
 						wallet.calls = 0
@@ -188,7 +190,7 @@ func TestPayOSWebhookDoesNotRequireSession(t *testing.T) {
 	r := NewRouter(&config.Config{}, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 		handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
-		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}).Setup()
+		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}).Setup()
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/wallet/webhook/payos", strings.NewReader(`{}`)))
 	if w.Code != http.StatusOK || wallet.calls != 1 {
