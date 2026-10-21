@@ -1,19 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import {
   Coins,
-  ExternalLink,
+  ArrowUpRight,
   Loader2,
-  Sparkles,
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { CoinIcon } from "@/components/icons/coin-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CoinPackage } from "../schemas/wallet-schema";
+import { cn } from "@/lib/utils";
 
 interface PackageGridProps {
   packages?: CoinPackage[];
@@ -38,164 +37,107 @@ export function PackageGrid({
   checkingOutPackageId,
   checkoutError,
 }: PackageGridProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const activePackages = packages?.filter((p) => p.is_active !== false) ?? [];
-
-  const formatVND = (price: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(price);
-  };
-
+  const activePackages =
+    packages?.filter((pkg) => pkg.is_active !== false) ?? [];
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold tracking-tight text-foreground">
-            Top-up Coin Packages
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            Select a package to purchase coins via PayOS (VietQR, Banking &
-            Cards).
-          </p>
-        </div>
-      </div>
-
       {checkoutError && (
         <div
           role="alert"
-          className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive"
+          className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive"
         >
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span>{checkoutError}</span>
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          {checkoutError}
         </div>
       )}
-
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="border-border/70 p-6">
-              <div className="space-y-4">
-                <Skeleton className="h-5 w-24" />
-                <Skeleton className="h-8 w-32" />
-                <Skeleton className="h-4 w-44" />
-                <Skeleton className="h-10 w-full pt-4" />
-              </div>
+            <Card key={i} className="min-h-[250px] p-5">
+              <Skeleton className="h-6 w-28 motion-reduce:animate-none" />
+              <Skeleton className="mt-8 h-16 w-36 motion-reduce:animate-none" />
+              <Skeleton className="h-8 w-28 motion-reduce:animate-none" />
+              <Skeleton className="mt-auto h-11 w-full motion-reduce:animate-none" />
             </Card>
           ))}
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 p-8 text-center">
-          <p className="text-sm font-medium text-destructive">
-            Failed to load coin packages
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {error.message || "Please check your network and try again."}
+        <div
+          role="alert"
+          className="rounded-2xl border border-dashed p-8 text-center"
+        >
+          <p className="font-medium">Unable to load coin packages</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Please try again in a moment.
           </p>
           <Button
-            type="button"
             variant="outline"
-            size="sm"
-            onClick={onRefresh}
             disabled={isFetching}
-            className="mt-4 gap-2 text-xs"
+            onClick={onRefresh}
+            className="mt-4 h-11"
           >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className="size-4" aria-hidden />
             Retry loading packages
           </Button>
         </div>
       ) : activePackages.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border/80 p-8 text-center text-muted-foreground">
-          <Coins className="mx-auto h-8 w-8 opacity-40" />
-          <p className="mt-2 text-sm font-medium">No packages available</p>
-          <p className="text-xs text-muted-foreground">
-            No active coin packages are currently listed. Please check back
-            later.
+        <div className="rounded-2xl border border-dashed p-10 text-center">
+          <Coins className="mx-auto size-8 text-muted-foreground" aria-hidden />
+          <p className="mt-3 font-medium">No packages available</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Please check back later.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {activePackages.map((pkg, idx) => {
-            const isSelected = selectedId === pkg.id;
-            const isCurrentCheckingOut =
-              isCheckingOut && checkingOutPackageId === pkg.id;
-            const isPopular = idx === 1;
-
+        <div className="grid gap-3 sm:grid-cols-3">
+          {activePackages.map((pkg, index) => {
+            const accent = index % 3 === 1;
+            const dark = index % 3 === 2;
             return (
               <Card
                 key={pkg.id}
-                onClick={() => setSelectedId(pkg.id)}
-                className={`relative flex flex-col justify-between overflow-hidden cursor-pointer rounded-xl border transition-all duration-200 hover:shadow-md ${
-                  isSelected
-                    ? "border-primary ring-2 ring-primary/20 shadow-sm bg-card"
-                    : "border-border/80 hover:border-border bg-card/60"
-                }`}
-              >
-                {isPopular && (
-                  <div className="absolute right-3 top-3">
-                    <Badge
-                      variant="secondary"
-                      className="gap-1 bg-primary/10 text-primary border-primary/20 text-[10px] font-semibold"
-                    >
-                      <Sparkles className="h-3 w-3" />
-                      Popular
-                    </Badge>
-                  </div>
+                className={cn(
+                  "group relative min-h-[250px] overflow-hidden rounded-2xl border p-0 shadow-none transition-shadow duration-200 hover:shadow-md motion-reduce:transition-none",
+                  accent
+                    ? "border-workspace-accent bg-workspace-accent text-black"
+                    : dark
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-workspace-accent/20 bg-workspace-accent/5 text-foreground",
                 )}
-
-                <CardContent className="p-6">
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="text-base font-bold text-foreground">
-                        {pkg.name}
-                      </h4>
-                      {pkg.description && (
-                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
-                          {pkg.description}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="rounded-lg bg-muted/50 p-3.5 text-center transition-colors">
-                      <div className="flex items-center justify-center gap-1.5 text-2xl font-black tracking-tight text-foreground">
-                        <Coins className="h-5 w-5 text-amber-500" />
-                        <span>{pkg.coin_amount.toLocaleString("en-US")}</span>
-                        <span className="text-xs font-bold text-muted-foreground">
-                          COINS
-                        </span>
-                      </div>
-                      <div className="mt-1 text-xs font-semibold text-muted-foreground">
-                        {formatVND(pkg.price_vnd)}
-                      </div>
-                    </div>
+              >
+                <PackageArtwork variant={index % 3} />
+                <CardContent className="relative z-10 flex h-full flex-1 flex-col p-5">
+                  <h3 className="text-sm font-medium opacity-80">{pkg.name}</h3>
+                  <div className="mt-5 flex items-center gap-2">
+                    <CoinIcon className="size-5" />
+                    <span className="text-lg font-semibold tabular-nums">
+                      {pkg.coin_amount.toLocaleString("en-US")} coins
+                    </span>
                   </div>
-
-                  <div className="mt-6 pt-2">
+                  <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums sm:text-[clamp(1.25rem,2.2vw,1.875rem)]">
+                    {new Intl.NumberFormat("vi-VN").format(pkg.price_vnd)}
+                    <span className="ml-1 text-sm font-medium">VND</span>
+                  </p>
+                  <div className="mt-auto pt-6">
                     <Button
-                      type="button"
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
+                      variant={accent || dark ? "secondary" : "default"}
                       disabled={isCheckingOut}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedId(pkg.id);
-                        onCheckout(pkg);
-                      }}
-                      className="w-full gap-2 text-xs font-semibold"
+                      onClick={() => onCheckout(pkg)}
+                      className="h-11 w-full justify-between rounded-xl"
+                      aria-label={`Buy ${pkg.name} with PayOS`}
                     >
-                      {isCurrentCheckingOut ? (
+                      {isCheckingOut && checkingOutPackageId === pkg.id ? (
                         <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span>Preparing PayOS…</span>
+                          Preparing PayOS…
+                          <Loader2
+                            className="size-4 animate-spin motion-reduce:animate-none"
+                            aria-hidden
+                          />
                         </>
                       ) : (
                         <>
-                          <span>Buy with PayOS</span>
-                          <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+                          Continue
+                          <ArrowUpRight className="size-4" aria-hidden />
                         </>
                       )}
                     </Button>
@@ -207,5 +149,53 @@ export function PackageGrid({
         </div>
       )}
     </div>
+  );
+}
+
+// Decorative geometry inspired by the supplied pricing reference; never an interactive control.
+function PackageArtwork({ variant }: { variant: number }) {
+  return (
+    <svg
+      viewBox="0 0 320 384"
+      fill="currentColor"
+      aria-hidden="true"
+      className="pointer-events-none absolute -right-16 top-4 h-full w-80 opacity-[0.08] transition-transform duration-300 group-hover:-translate-y-2 group-focus-within:-translate-y-2 motion-reduce:transform-none motion-reduce:transition-none"
+    >
+      {variant === 0 ? (
+        <>
+          <circle cx="160" cy="110" r="100" />
+          <ellipse cx="160" cy="270" rx="100" ry="44" />
+        </>
+      ) : variant === 1 ? (
+        <>
+          <rect
+            x="40"
+            y="30"
+            width="150"
+            height="150"
+            rx="20"
+            transform="rotate(15 115 105)"
+          />
+          <rect
+            x="110"
+            y="210"
+            width="150"
+            height="150"
+            rx="20"
+            transform="rotate(-15 185 285)"
+          />
+        </>
+      ) : (
+        <>
+          {[0, 65, 130].map((y) => (
+            <path
+              key={y}
+              transform={`translate(0 ${y})`}
+              d="M160 35 270 145 Q280 155 270 165 L190 245 Q160 270 130 245 L50 165 Q40 155 50 145Z"
+            />
+          ))}
+        </>
+      )}
+    </svg>
   );
 }

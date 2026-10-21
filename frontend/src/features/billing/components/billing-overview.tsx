@@ -4,21 +4,11 @@ import { Suspense, useCallback, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert, Wallet } from "lucide-react";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import {
-  getWallet,
-  getCoinPackages,
-  getTransactions,
-  createDepositCheckout,
-  syncDepositStatus,
-  walletKeys,
-} from "../api/wallet";
-import type { CoinPackage } from "../schemas/wallet-schema";
+import { getTransactions, syncDepositStatus, walletKeys } from "../api/wallet";
 import {
   PaymentStatusBanner,
   type PaymentReturnEvent,
 } from "./payment-status-banner";
-import { BalanceCard } from "./balance-card";
-import { PackageGrid } from "./package-grid";
 import { TransactionHistory } from "./transaction-history";
 
 export function BillingOverview() {
@@ -27,27 +17,6 @@ export function BillingOverview() {
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
-  const [checkingOutPackageId, setCheckingOutPackageId] = useState<
-    string | null
-  >(null);
-  const [checkoutError, setCheckoutError] = useState<string | null>(null);
-
-  // 1. Authoritative Wallet Balance Query
-  const walletQuery = useQuery({
-    queryKey: walletKeys.wallet(user.id),
-    queryFn: ({ signal }) => getWallet(signal),
-    enabled: user.role !== "admin",
-    staleTime: 30_000,
-  });
-
-  // 2. Authoritative Coin Packages Query
-  const packagesQuery = useQuery({
-    queryKey: walletKeys.packages(),
-    queryFn: ({ signal }) => getCoinPackages(signal),
-    enabled: user.role !== "admin",
-    staleTime: 60_000,
-  });
-
   // 3. Authoritative Transactions Query
   const transactionsQuery = useQuery({
     queryKey: walletKeys.transactions(user.id, page, pageSize),
@@ -55,45 +24,6 @@ export function BillingOverview() {
     enabled: user.role !== "admin",
     staleTime: 15_000,
   });
-
-  // PayOS Checkout Mutation
-  const checkoutMutation = useMutation({
-    mutationFn: async (pkg: CoinPackage) => {
-      setCheckingOutPackageId(pkg.id);
-      setCheckoutError(null);
-
-      const origin =
-        typeof window !== "undefined" ? window.location.origin : "";
-      const pathname =
-        typeof window !== "undefined" ? window.location.pathname : "/billing";
-
-      const returnUrl = `${origin}${pathname}?status=success`;
-      const cancelUrl = `${origin}${pathname}?cancel=true`;
-
-      return createDepositCheckout({
-        package_id: pkg.id,
-        return_url: returnUrl,
-        cancel_url: cancelUrl,
-      });
-    },
-    onSuccess: (data) => {
-      if (typeof window !== "undefined" && data.checkout_url) {
-        window.location.href = data.checkout_url;
-      }
-    },
-    onError: (err: unknown) => {
-      setCheckingOutPackageId(null);
-      const message =
-        err instanceof Error
-          ? err.message
-          : "Failed to initialize PayOS checkout session. Please try again.";
-      setCheckoutError(message);
-    },
-  });
-
-  const handleCheckout = (pkg: CoinPackage) => {
-    checkoutMutation.mutate(pkg);
-  };
 
   // PayOS Return State Sync Mutation
   const syncMutation = useMutation({
@@ -151,7 +81,7 @@ export function BillingOverview() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 py-6 px-4 sm:px-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       {/* Page Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -160,12 +90,11 @@ export function BillingOverview() {
               <Wallet className="h-4 w-4" />
             </span>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Coin Wallet & Top-up
+              Transaction history
             </h1>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Check your live balance, purchase coins securely through PayOS, and
-            inspect your full ledger history.
+            Track your coin purchases, spending, and refunds.
           </p>
         </div>
       </div>
@@ -177,38 +106,6 @@ export function BillingOverview() {
           onPaymentReturn={handlePaymentReturn}
         />
       </Suspense>
-
-      {/* Section 1: Current Balance Card */}
-      <section aria-labelledby="wallet-balance-heading">
-        <h2 id="wallet-balance-heading" className="sr-only">
-          Current Balance
-        </h2>
-        <BalanceCard
-          wallet={walletQuery.data}
-          isLoading={walletQuery.isLoading}
-          isFetching={walletQuery.isFetching}
-          error={walletQuery.error}
-          onRefresh={() => void walletQuery.refetch()}
-        />
-      </section>
-
-      {/* Section 2: Available Coin Packages */}
-      <section aria-labelledby="coin-packages-heading">
-        <h2 id="coin-packages-heading" className="sr-only">
-          Coin Packages
-        </h2>
-        <PackageGrid
-          packages={packagesQuery.data}
-          isLoading={packagesQuery.isLoading}
-          isFetching={packagesQuery.isFetching}
-          error={packagesQuery.error}
-          onRefresh={() => void packagesQuery.refetch()}
-          onCheckout={handleCheckout}
-          isCheckingOut={checkoutMutation.isPending}
-          checkingOutPackageId={checkingOutPackageId}
-          checkoutError={checkoutError}
-        />
-      </section>
 
       {/* Section 3: Unified Transaction History */}
       <section aria-labelledby="transaction-history-heading">
@@ -226,6 +123,6 @@ export function BillingOverview() {
           onRefresh={() => void transactionsQuery.refetch()}
         />
       </section>
-    </main>
+    </div>
   );
 }

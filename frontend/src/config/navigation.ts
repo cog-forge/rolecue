@@ -77,7 +77,7 @@ export const workspaceNavigation: Record<
       label: "Account",
       items: [
         {
-          label: "Coin Wallet",
+          label: "Transactions",
           href: routes.billing,
           icon: Wallet,
         },
@@ -109,7 +109,7 @@ export const workspaceNavigation: Record<
       label: "Account",
       items: [
         {
-          label: "Coin Wallet",
+          label: "Transactions",
           href: routes.recruiter.billing,
           icon: Wallet,
         },

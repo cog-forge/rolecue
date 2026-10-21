@@ -99,7 +99,9 @@ export function WorkspaceSidebar({
   onSignOut,
   signingOut,
   signOutError,
+  footer,
 }: {
+  footer?: React.ReactNode;
   user: WorkspaceUser;
   collapsed: boolean;
   onToggle?: () => void;
@@ -282,6 +284,7 @@ export function WorkspaceSidebar({
         </motion.nav>
       </LayoutGroup>
 
+      {footer}
       <div className="shrink-0 space-y-1 border-t pt-2">
         <DropdownMenu>
           <Hint label={user.full_name || "Your account"} enabled={collapsed}>

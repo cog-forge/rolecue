@@ -26,10 +26,12 @@ import { cn } from "@/lib/utils";
 export function ApplicationShell({
   children,
   user,
+  sidebarFooter,
   ...actions
 }: {
   children: React.ReactNode;
   user: WorkspaceUser;
+  sidebarFooter?: (collapsed: boolean) => React.ReactNode;
 } & WorkspaceAccountActions) {
   const preferences = useWorkspacePreferences();
   const pathname = usePathname();
@@ -126,6 +128,7 @@ export function ApplicationShell({
             <WorkspaceSidebar
               user={user}
               collapsed={preferences.collapsed}
+              footer={sidebarFooter?.(preferences.collapsed)}
               onToggle={preferences.toggleCollapsed}
               onSearch={openSearch}
               onNavigate={closeNavigation}
@@ -160,6 +163,7 @@ export function ApplicationShell({
                   <WorkspaceSidebar
                     user={user}
                     collapsed={false}
+                    footer={sidebarFooter?.(false)}
                     onSearch={openSearch}
                     onNavigate={closeNavigation}
                     {...actions}

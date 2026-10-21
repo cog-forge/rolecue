@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WalletPurchase } from "@/features/billing/components/wallet-purchase";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { BillingOverview } from "@/features/billing/components/billing-overview";
 
 const mocks = vi.hoisted(() => ({
@@ -45,7 +47,14 @@ function renderComponent() {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <BillingOverview />
+      <TooltipProvider>
+        <WalletPurchase
+          userId={mocks.user.id}
+          role={mocks.user.role}
+          collapsed={false}
+        />
+        <BillingOverview />
+      </TooltipProvider>
     </QueryClientProvider>,
   );
 }
@@ -162,21 +171,22 @@ describe("BillingOverview", () => {
     await waitFor(() => {
       expect(screen.getByText("250")).toBeInTheDocument();
     });
-    expect(screen.getByText("Available Coin Balance")).toBeInTheDocument();
-
-    // 2. Package grid
-    expect(screen.getByText("Basic Pack")).toBeInTheDocument();
-    expect(screen.getByText("100 practice coins")).toBeInTheDocument();
 
     // 3. Transactions ledger
     expect(screen.getByText("Deposit: Basic Pack")).toBeInTheDocument();
     expect(screen.getByText("Order #100200")).toBeInTheDocument();
-    expect(screen.getByText("+100 Coins")).toBeInTheDocument();
+    expect(
+      screen.getByRole("cell", { name: "+100 Coins" }),
+    ).toBeInTheDocument();
 
     expect(
       screen.getByText("System Design Mock Interview"),
     ).toBeInTheDocument();
-    expect(screen.getByText("-25 Coins")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "-25 Coins" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Buy coins" }));
+    await screen.findByText("Basic Pack");
+    // 2. Package grid
+    expect(screen.getByText("Basic Pack")).toBeInTheDocument();
   });
 
   it("initiates PayOS checkout when clicking a package", async () => {
@@ -238,8 +248,9 @@ describe("BillingOverview", () => {
 
     renderComponent();
 
+    fireEvent.click(screen.getByRole("button", { name: "Buy coins" }));
     const buyButton = await screen.findByRole("button", {
-      name: /Buy/i,
+      name: "Buy Pro Pack with PayOS",
     });
     fireEvent.click(buyButton);
 

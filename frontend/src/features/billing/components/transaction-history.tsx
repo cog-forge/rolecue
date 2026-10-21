@@ -17,6 +17,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Transaction, TransactionPage } from "../schemas/wallet-schema";
@@ -151,15 +159,14 @@ export function TransactionHistory({
 
   return (
     <Card className="border-border/80 shadow-sm">
-      <CardContent className="p-6">
+      <CardContent className="p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold tracking-tight text-foreground">
-              Unified Transaction Ledger
+              Your transactions
             </h3>
             <p className="text-xs text-muted-foreground">
-              Authoritative transaction history from backend operations
-              (deposits, spending, and refunds).
+              Purchases, spending, and refunds in one place.
             </p>
           </div>
 
@@ -275,76 +282,75 @@ export function TransactionHistory({
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-border/60">
-                {filteredItems.map((tx) => {
-                  const deposit = isDeposit(tx) && !isRefund(tx);
-                  const refund = isRefund(tx);
-                  const positive = deposit || refund;
-
-                  return (
-                    <div
-                      key={tx.id}
-                      className="flex flex-col gap-2 py-3.5 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-muted/20 px-2 rounded-md"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                            positive
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {refund ? (
-                            <RotateCcw className="h-4 w-4" />
-                          ) : positive ? (
-                            <ArrowDownLeft className="h-4 w-4" />
-                          ) : (
-                            <ArrowUpRight className="h-4 w-4" />
-                          )}
-                        </div>
-
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-foreground">
-                              {tx.description ||
-                                (deposit
-                                  ? "Coin Deposit"
-                                  : refund
-                                    ? "Coin Refund"
-                                    : "Coin Spending")}
+              <Table aria-label="Coin transactions" className="table-fixed">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-[50%]">Transaction</TableHead>
+                    <TableHead className="w-[25%]">Status</TableHead>
+                    <TableHead className="w-[25%] text-right">Coins</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.map((tx) => {
+                    const refund = isRefund(tx);
+                    const deposit = isDeposit(tx) && !refund;
+                    const positive = deposit || refund;
+                    const Icon = refund
+                      ? RotateCcw
+                      : positive
+                        ? ArrowDownLeft
+                        : ArrowUpRight;
+                    return (
+                      <TableRow key={tx.id}>
+                        <TableCell className="whitespace-normal py-4">
+                          <div className="flex items-start gap-3">
+                            <span className="hidden size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground sm:flex">
+                              <Icon className="size-4" aria-hidden />
                             </span>
-                            {tx.payos_order_code && (
-                              <Badge
-                                variant="secondary"
-                                className="text-[10px] font-mono px-1.5 py-0"
-                              >
-                                Order #{tx.payos_order_code}
-                              </Badge>
-                            )}
+                            <div className="min-w-0 space-y-1">
+                              <p className="break-words text-sm font-medium">
+                                {tx.description ||
+                                  (deposit
+                                    ? "Coin Deposit"
+                                    : refund
+                                      ? "Coin Refund"
+                                      : "Coin Spending")}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDate(tx.created_at)}
+                              </p>
+                              {tx.payos_order_code != null && (
+                                <p className="break-all font-mono text-[11px] text-muted-foreground">
+                                  Order #{tx.payos_order_code}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {formatDate(tx.created_at)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between sm:justify-end gap-3 pl-12 sm:pl-0">
-                        {renderStatusBadge(tx.status)}
-                        <span
-                          className={`text-sm font-bold tracking-tight ${
-                            positive
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-foreground"
-                          }`}
+                        </TableCell>
+                        <TableCell className="px-1">
+                          {renderStatusBadge(tx.status)}
+                        </TableCell>
+                        <TableCell
+                          aria-label={`${positive ? "+" : "-"}${Math.abs(tx.amount).toLocaleString("en-US")} Coins`}
+                          className="text-right font-semibold tabular-nums whitespace-normal"
                         >
-                          {positive ? "+" : "-"}
-                          {Math.abs(tx.amount).toLocaleString("en-US")} Coins
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                          <span
+                            className={
+                              positive && tx.status === "success"
+                                ? "text-emerald-700 dark:text-emerald-400"
+                                : "text-foreground"
+                            }
+                          >
+                            {positive ? "+" : "-"}
+                            {Math.abs(tx.amount).toLocaleString("en-US")}
+                            <span className="sr-only"> Coins</span>
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             )}
           </TabsContent>
         </Tabs>
@@ -357,7 +363,7 @@ export function TransactionHistory({
 
         {/* Pagination Bar */}
         {total > pageSize && (
-          <div className="mt-6 flex items-center justify-between border-t border-border/60 pt-4 text-xs text-muted-foreground">
+          <div className="mt-6 flex flex-wrap gap-3 items-center justify-between border-t border-border/60 pt-4 text-xs text-muted-foreground">
             <div>
               Showing page {page} of {totalPages} ({total} transactions across
               all types)
