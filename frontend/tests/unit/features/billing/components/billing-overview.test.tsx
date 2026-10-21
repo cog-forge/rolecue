@@ -431,8 +431,8 @@ describe("BillingOverview", () => {
     });
 
     // Switch to Coin Spending tab
-    const spendingTab = screen.getByRole("button", { name: "Coin Spending" });
-    fireEvent.click(spendingTab);
+    const spendingTab = screen.getByRole("tab", { name: "Coin Spending" });
+    fireEvent.mouseDown(spendingTab, { button: 0, ctrlKey: false });
 
     expect(
       screen.queryByText("Deposit: Starter Package"),
@@ -440,10 +440,10 @@ describe("BillingOverview", () => {
     expect(screen.getByText("Interview Practice Question")).toBeInTheDocument();
 
     // Switch to Top-ups tab
-    const topupsTab = screen.getByRole("button", {
+    const topupsTab = screen.getByRole("tab", {
       name: "Top-ups (PayOS)",
     });
-    fireEvent.click(topupsTab);
+    fireEvent.mouseDown(topupsTab, { button: 0, ctrlKey: false });
 
     expect(screen.getByText("Deposit: Starter Package")).toBeInTheDocument();
     expect(

@@ -29,10 +29,15 @@ it("scopes filters and counts to the current page, preserving access to matching
   const { rerender } = render(
     <TransactionHistory {...props} data={firstPage} />,
   );
-  fireEvent.click(screen.getByRole("button", { name: "Coin Spending" }), {
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Coin Spending" }), {
     button: 0,
     ctrlKey: false,
   });
+  expect(screen.getByRole("tab", { name: "Coin Spending" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  expect(screen.getByRole("tabpanel")).toHaveAccessibleName("Coin Spending");
   expect(
     screen.getByText(
       "No spend transactions on this page. Other pages may contain matching transactions.",
