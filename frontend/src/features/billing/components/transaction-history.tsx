@@ -180,6 +180,7 @@ export function TransactionHistory({
           </div>
         </div>
 
+        <p className="mt-4 text-xs text-muted-foreground">Filter this page only. Use pagination to browse other transactions.</p>
         {/* Sliding Tabs Filter */}
         <div className="mt-4 flex gap-1 rounded-lg bg-muted/60 p-1 text-xs">
           {(
@@ -258,8 +259,8 @@ export function TransactionHistory({
               </p>
               <p className="max-w-xs text-xs text-muted-foreground">
                 {activeTab === "all"
-                  ? "You haven't completed any coin transactions yet. Top up coins above to get started."
-                  : `No ${activeTab} transactions found in your history.`}
+                  ? (total === 0 ? "You haven't made any coin transactions yet. Top up coins above to get started." : "No transactions on this page. Try another page or refresh.")
+                  : `No ${activeTab} transactions on this page. Other pages may contain matching transactions.`}
               </p>
             </div>
           ) : (
@@ -336,11 +337,12 @@ export function TransactionHistory({
           )}
         </div>
 
+        {!isLoading && !error && <p className="mt-3 text-xs text-muted-foreground">Showing {filteredItems.length} of {items.length} transactions on this page.</p>}
         {/* Pagination Bar */}
         {total > pageSize && (
           <div className="mt-6 flex items-center justify-between border-t border-border/60 pt-4 text-xs text-muted-foreground">
             <div>
-              Showing page {page} of {totalPages} ({total} total transactions)
+              Showing page {page} of {totalPages} ({total} transactions across all types)
             </div>
 
             <div className="flex items-center gap-1.5">
