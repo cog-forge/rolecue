@@ -1294,3 +1294,88 @@ func TestCreateDepositCheckout_InactivePackage(t *testing.T) {
 	assert.True(t, apperror.IsCode(err, apperror.CodeCoinPackageNotFound))
 	assert.Contains(t, err.Error(), "inactive")
 }
+
+func TestSyncDepositStatus_Cancelled(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	txID := uuid.New()
+	orderCode := int64(888888888888)
+
+	pendingTx := domain.Transaction{
+		ID:             txID,
+		To:             &userID,
+		Amount:         100,
+		Status:         domain.StatusPending,
+		PayOSOrderCode: &orderCode,
+	}
+
+	mockRepo.On("GetTransactionByPayOSOrderCode", mock.Anything, orderCode).Return(pendingTx, nil)
+	mockPayOS.On("GetPaymentLink", mock.Anything, orderCode).Return(&payos.PaymentLink{
+		OrderCode: orderCode,
+		Status:    payos.PaymentLinkStatusCancelled,
+	}, nil)
+
+	cancelledTx := pendingTx
+	cancelledTx.Status = domain.StatusCancelled
+	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
+	mockRepo.On("UpdateTransactionStatus", mock.Anything, (*repository.Queries)(nil), txID, domain.StatusCancelled).Return(cancelledTx, nil)
+
+	res, err := svc.SyncDepositStatus(context.Background(), userID, orderCode)
+	assert.NoError(t, err)
+	assert.Equal(t, domain.StatusCancelled, res.Status)
+	mockRepo.AssertExpectations(t)
+	mockPayOS.AssertExpectations(t)
+}
+
+func TestSyncDepositStatus_AlreadyProcessed(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	userID := uuid.New()
+	txID := uuid.New()
+	orderCode := int64(888888888889)
+
+	successTx := domain.Transaction{
+		ID:             txID,
+		To:             &userID,
+		Amount:         100,
+		Status:         domain.StatusSuccess,
+		PayOSOrderCode: &orderCode,
+	}
+
+	mockRepo.On("GetTransactionByPayOSOrderCode", mock.Anything, orderCode).Return(successTx, nil)
+
+	res, err := svc.SyncDepositStatus(context.Background(), userID, orderCode)
+	assert.NoError(t, err)
+	assert.Equal(t, domain.StatusSuccess, res.Status)
+	mockPayOS.AssertNotCalled(t, "GetPaymentLink")
+	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
+}
+
+func TestSyncDepositStatus_ForbiddenUser(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	ownerID := uuid.New()
+	otherUserID := uuid.New()
+	orderCode := int64(888888888890)
+
+	pendingTx := domain.Transaction{
+		ID:             uuid.New(),
+		To:             &ownerID,
+		Amount:         100,
+		Status:         domain.StatusPending,
+		PayOSOrderCode: &orderCode,
+	}
+
+	mockRepo.On("GetTransactionByPayOSOrderCode", mock.Anything, orderCode).Return(pendingTx, nil)
+
+	_, err := svc.SyncDepositStatus(context.Background(), otherUserID, orderCode)
+	assert.Error(t, err)
+	assert.True(t, apperror.IsCode(err, apperror.CodeForbidden))
+}

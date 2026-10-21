@@ -19,6 +19,7 @@ type WalletService interface {
 	ListTransactions(ctx context.Context, userID uuid.UUID, page, pageSize int32) ([]walletdomain.Transaction, int64, error)
 	ListPackages(ctx context.Context) ([]walletdomain.CoinPackage, error)
 	CreateDepositCheckout(ctx context.Context, userID uuid.UUID, packageID uuid.UUID, returnURL, cancelURL string) (walletdomain.DepositCheckoutResponse, error)
+	SyncDepositStatus(ctx context.Context, userID uuid.UUID, orderCode int64) (walletdomain.Transaction, error)
 	HandlePayOSWebhook(ctx context.Context, body []byte) error
 }
 
@@ -34,6 +35,10 @@ type DepositCheckoutRequest struct {
 	PackageID uuid.UUID `json:"package_id" binding:"required"`
 	ReturnURL string    `json:"return_url"`
 	CancelURL string    `json:"cancel_url"`
+}
+
+type SyncDepositRequest struct {
+	OrderCode int64 `json:"order_code" binding:"required"`
 }
 
 // GetWallet handles GET /api/v1/wallet
@@ -126,6 +131,33 @@ func (h *WalletHandler) CreateDepositCheckout(c *gin.Context) {
 	}
 
 	response.OK(c, checkoutResp)
+}
+
+// SyncDepositStatus handles POST /api/v1/wallet/deposit/sync
+func (h *WalletHandler) SyncDepositStatus(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
+		return
+	}
+	if user.Role == "admin" {
+		response.Error(c, apperror.New(apperror.CodeForbidden, "admin has no wallet"))
+		return
+	}
+
+	var req SyncDepositRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid sync deposit request"))
+		return
+	}
+
+	tx, err := h.service.SyncDepositStatus(c.Request.Context(), user.ID, req.OrderCode)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+
+	response.OK(c, tx)
 }
 
 // HandlePayOSWebhook handles POST /api/v1/wallet/webhook/payos

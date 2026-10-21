@@ -14,6 +14,7 @@ import {
   ListChecks,
   AudioLines,
   ChartNoAxesCombined,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import type { ProductRole } from "./permissions";
@@ -76,9 +77,9 @@ export const workspaceNavigation: Record<
       label: "Account",
       items: [
         {
-          label: "Membership & Billing",
+          label: "Transactions",
           href: routes.billing,
-          icon: CreditCard,
+          icon: Wallet,
         },
       ],
     },
@@ -101,6 +102,16 @@ export const workspaceNavigation: Record<
           label: "Received Applications",
           href: routes.recruiter.applications,
           icon: ClipboardList,
+        },
+      ],
+    },
+    {
+      label: "Account",
+      items: [
+        {
+          label: "Transactions",
+          href: routes.recruiter.billing,
+          icon: Wallet,
         },
       ],
     },
