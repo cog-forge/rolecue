@@ -83,7 +83,7 @@ export function TransactionHistory({
   });
 
   const formatDate = (dateStr?: string) => {
-    if (!dateStr) return "—";
+    if (!dateStr || dateStr.startsWith("0001-01-01")) return "—";
     try {
       const d = new Date(dateStr);
       return new Intl.DateTimeFormat("en-US", {
@@ -94,7 +94,7 @@ export function TransactionHistory({
         minute: "2-digit",
       }).format(d);
     } catch {
-      return dateStr;
+      return "—";
     }
   };
 

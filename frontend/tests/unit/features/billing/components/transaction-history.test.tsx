@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { TransactionHistory } from "@/features/billing/components/transaction-history";
 import type { TransactionPage } from "@/features/billing/schemas/wallet-schema";
@@ -72,4 +72,39 @@ it("scopes filters and counts to the current page, preserving access to matching
   expect(
     screen.getByText("Showing 1 of 1 transactions on this page."),
   ).toBeInTheDocument();
+});
+
+describe("unavailable transaction dates", () => {
+  it.each([undefined, "0001-01-01T00:00:00Z", "invalid"])(
+    "renders a placeholder for %s",
+    (created_at) => {
+      render(
+        <TransactionHistory
+          currentUserId="user"
+          isLoading={false}
+          isFetching={false}
+          error={null}
+          page={1}
+          onPageChange={vi.fn()}
+          onRefresh={vi.fn()}
+          data={{
+            items: [
+              {
+                id: "tx",
+                amount: 1,
+                currency: "COIN",
+                status: "pending",
+                created_at,
+              },
+            ],
+            total: 1,
+            page: 1,
+            page_size: 20,
+          }}
+        />,
+      );
+      expect(screen.getByText("—")).toBeInTheDocument();
+      expect(screen.getByText("Pending")).not.toHaveClass("animate-pulse");
+    },
+  );
 });
