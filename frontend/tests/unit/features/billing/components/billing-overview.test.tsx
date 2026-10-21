@@ -55,22 +55,24 @@ describe("BillingOverview", () => {
     vi.clearAllMocks();
     mocks.user.role = "candidate";
     mocks.searchParams = new URLSearchParams();
-    mocks.post.mockImplementation((url: string) => {
-      if (url === "/wallet/deposit/sync") {
-        return Promise.resolve({
-          data: {
-            success: true,
+    mocks.post.mockImplementation(
+      (url: string, body: { order_code: number }) => {
+        if (url === "/wallet/deposit/sync") {
+          return Promise.resolve({
             data: {
-              id: "tx-sync",
-              amount: 100,
-              status: "cancelled",
-              payos_order_code: 123456,
+              success: true,
+              data: {
+                id: "tx-sync",
+                amount: 100,
+                status: "cancelled",
+                payos_order_code: body.order_code,
+              },
             },
-          },
-        });
-      }
-      return Promise.reject(new Error("unexpected post"));
-    });
+          });
+        }
+        return Promise.reject(new Error("unexpected post"));
+      },
+    );
   });
 
   it("renders Admin isolation view when user is an administrator", () => {
@@ -255,7 +257,18 @@ describe("BillingOverview", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders payment success return banner and refetches data", async () => {
+  it("renders payment success only after backend verification", async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: {
+          id: "verified",
+          amount: 100,
+          status: "success",
+          payos_order_code: 999888,
+        },
+      },
+    });
     mocks.searchParams = new URLSearchParams(
       "status=PAID&orderCode=999888&code=00",
     );
@@ -288,7 +301,7 @@ describe("BillingOverview", () => {
     renderComponent();
 
     expect(
-      screen.getByText("Payment Completed Successfully"),
+      await screen.findByText("Payment Completed Successfully"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -342,10 +355,10 @@ describe("BillingOverview", () => {
 
     renderComponent();
 
-    expect(screen.getByText("Payment Cancelled")).toBeInTheDocument();
+    expect(await screen.findByText("Payment Cancelled")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Checkout for Order #555444 was cancelled. No charges were made to your account.",
+        "Payment for Order #555444 was cancelled. No coins were credited.",
       ),
     ).toBeInTheDocument();
 

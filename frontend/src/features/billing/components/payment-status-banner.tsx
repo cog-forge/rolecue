@@ -4,79 +4,73 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, XCircle, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { Transaction } from "../schemas/wallet-schema";
 
 export interface PaymentReturnEvent {
-  type: "success" | "cancelled" | "failed";
-  orderCode?: number | null;
+  orderCode: number;
 }
 
 interface PaymentStatusBannerProps {
-  onPaymentSuccess?: () => void;
-  onPaymentReturn?: (event: PaymentReturnEvent) => void;
+  onPaymentReturn: (event: PaymentReturnEvent) => void;
+  verification: {
+    variables?: number;
+    data?: Transaction;
+    isPending: boolean;
+    isError: boolean;
+  };
 }
 
 export function PaymentStatusBanner({
-  onPaymentSuccess,
   onPaymentReturn,
+  verification,
 }: PaymentStatusBannerProps) {
   const searchParams = useSearchParams();
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const handledKeyRef = useRef<string | null>(null);
-
-  const status = searchParams.get("status");
-  const code = searchParams.get("code");
-  const cancel = searchParams.get("cancel");
   const orderCode =
     searchParams.get("orderCode") || searchParams.get("order_code");
-
-  const isSuccess =
-    status === "PAID" ||
-    status === "success" ||
-    (code === "00" && cancel !== "true");
-  const isCancelled =
-    cancel === "true" || status === "CANCELLED" || status === "cancelled";
-  const isFailed = (status === "FAILED" || status === "failed") && !isCancelled;
-
-  const hasPaymentReturn = isSuccess || isCancelled || isFailed;
-  const currentKey = `${status}:${code}:${cancel}:${orderCode}`;
+  const parsedCode =
+    orderCode && /^\d+$/.test(orderCode) ? Number(orderCode) : null;
+  const validCode =
+    parsedCode && Number.isSafeInteger(parsedCode) && parsedCode > 0
+      ? parsedCode
+      : null;
+  const hasPaymentReturn = [
+    "status",
+    "code",
+    "cancel",
+    "orderCode",
+    "order_code",
+  ].some((key) => searchParams.has(key));
+  const currentKey = searchParams.toString();
 
   useEffect(() => {
-    if (!hasPaymentReturn) return;
-    if (handledKeyRef.current === currentKey) return;
+    if (!hasPaymentReturn || !validCode || handledKeyRef.current === currentKey)
+      return;
     handledKeyRef.current = currentKey;
+    onPaymentReturn({ orderCode: validCode });
+  }, [currentKey, hasPaymentReturn, validCode, onPaymentReturn]);
 
-    if (isSuccess && onPaymentSuccess) {
-      onPaymentSuccess();
-    }
+  if (!hasPaymentReturn || dismissedKey === currentKey) return null;
 
-    if (onPaymentReturn) {
-      const parsed = orderCode ? parseInt(orderCode, 10) : null;
-      const validCode = parsed && !isNaN(parsed) && parsed > 0 ? parsed : null;
-      if (isSuccess) {
-        onPaymentReturn({ type: "success", orderCode: validCode });
-      } else if (isCancelled) {
-        onPaymentReturn({ type: "cancelled", orderCode: validCode });
-      } else if (isFailed) {
-        onPaymentReturn({ type: "failed", orderCode: validCode });
-      }
-    }
-  }, [
-    currentKey,
-    hasPaymentReturn,
-    isSuccess,
-    isCancelled,
-    isFailed,
-    orderCode,
-    onPaymentSuccess,
-    onPaymentReturn,
-  ]);
-
-  if (!hasPaymentReturn || dismissed) {
-    return null;
-  }
+  // Redirect parameters are untrusted. Only a matching backend result determines the outcome.
+  const matchesRequest =
+    validCode !== null && verification.variables === validCode;
+  const checking =
+    validCode !== null && (!matchesRequest || verification.isPending);
+  const result =
+    matchesRequest &&
+    !verification.isPending &&
+    !verification.isError &&
+    verification.data?.payos_order_code === validCode
+      ? verification.data
+      : undefined;
+  const isSuccess = result?.status === "success";
+  const isCancelled = result?.status === "cancelled";
+  const isPending = result?.status === "pending";
 
   const handleDismiss = () => {
-    setDismissed(true);
+    setDismissedKey(currentKey);
     if (typeof window !== "undefined") {
       try {
         const base =
@@ -101,6 +95,45 @@ export function PaymentStatusBanner({
       }
     }
   };
+
+  if (checking || isPending) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4"
+      >
+        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+        <div className="flex-1 space-y-1">
+          <h4 className="text-sm font-semibold">
+            {checking ? "Verifying Payment" : "Payment Pending"}
+          </h4>
+          <p className="text-sm text-muted-foreground">
+            {checking
+              ? "Checking your payment with the payment provider. Please wait."
+              : "Your payment has not been confirmed yet. Coins have not been credited."}
+          </p>
+          {isPending && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPaymentReturn({ orderCode: validCode! })}
+            >
+              Check again
+            </Button>
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDismiss}
+          aria-label="Dismiss payment notification"
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
 
   if (isSuccess) {
     return (
@@ -155,8 +188,8 @@ export function PaymentStatusBanner({
             </h4>
             <p className="text-sm text-amber-800/90 dark:text-amber-300/90">
               {orderCode
-                ? `Checkout for Order #${orderCode} was cancelled. No charges were made to your account.`
-                : "Checkout session was cancelled. No charges were made to your account."}
+                ? `Payment for Order #${orderCode} was cancelled. No coins were credited.`
+                : "Payment was cancelled. No coins were credited."}
             </p>
           </div>
           <Button
@@ -186,13 +219,24 @@ export function PaymentStatusBanner({
         </div>
         <div className="flex-1 space-y-1">
           <h4 className="text-sm font-semibold tracking-tight">
-            Payment Unsuccessful
+            {result?.status === "failed"
+              ? "Payment Unsuccessful"
+              : "Unable to Verify Payment"}
           </h4>
           <p className="text-sm opacity-90">
             {orderCode
               ? `We could not verify payment for Order #${orderCode}. If you were charged, please contact support with your order code.`
-              : "We could not verify your payment. Please try again or select another package."}
+              : "We could not verify your payment. Return with a valid order code or contact support if you were charged."}
           </p>
+          {validCode && !result && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onPaymentReturn({ orderCode: validCode })}
+            >
+              Check again
+            </Button>
+          )}
         </div>
         <Button
           type="button"

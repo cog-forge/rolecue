@@ -95,17 +95,6 @@ export function BillingOverview() {
     checkoutMutation.mutate(pkg);
   };
 
-  const handlePaymentSuccess = useCallback(() => {
-    // Invalidate queries so fresh balance & transactions are immediately loaded
-    void queryClient.invalidateQueries({ queryKey: walletKeys.all(user.id) });
-    void queryClient.invalidateQueries({
-      queryKey: walletKeys.wallet(user.id),
-    });
-    void queryClient.invalidateQueries({
-      queryKey: walletKeys.transactions(user.id, page, pageSize),
-    });
-  }, [queryClient, user.id, page, pageSize]);
-
   // PayOS Return State Sync Mutation
   const syncMutation = useMutation({
     mutationFn: (code: number) => syncDepositStatus(code),
@@ -120,23 +109,12 @@ export function BillingOverview() {
     },
   });
 
+  const { mutate: syncPayment } = syncMutation;
   const handlePaymentReturn = useCallback(
     ({ orderCode }: PaymentReturnEvent) => {
-      if (orderCode) {
-        syncMutation.mutate(orderCode);
-      } else {
-        void queryClient.invalidateQueries({
-          queryKey: walletKeys.all(user.id),
-        });
-        void queryClient.invalidateQueries({
-          queryKey: walletKeys.wallet(user.id),
-        });
-        void queryClient.invalidateQueries({
-          queryKey: walletKeys.transactions(user.id, page, pageSize),
-        });
-      }
+      if (orderCode) syncPayment(orderCode);
     },
-    [syncMutation, queryClient, user.id, page, pageSize],
+    [syncPayment],
   );
 
   // Admin has no personal wallet per contract
@@ -195,7 +173,7 @@ export function BillingOverview() {
       {/* PayOS Return State Banner */}
       <Suspense fallback={null}>
         <PaymentStatusBanner
-          onPaymentSuccess={handlePaymentSuccess}
+          verification={syncMutation}
           onPaymentReturn={handlePaymentReturn}
         />
       </Suspense>

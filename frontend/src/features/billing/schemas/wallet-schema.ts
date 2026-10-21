@@ -104,6 +104,6 @@ export const syncDepositRequestSchema = z.object({
 export type SyncDepositRequest = z.infer<typeof syncDepositRequestSchema>;
 
 export const syncDepositEnvelopeSchema = z.object({
-  success: z.boolean(),
+  success: z.literal(true),
   data: transactionSchema,
 });
