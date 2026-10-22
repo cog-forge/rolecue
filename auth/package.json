@@ -1,0 +1,32 @@
+{
+  "name": "rolecue-auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "build": "bun build src/server.ts --target=bun --packages=external --outdir=dist",
+    "start": "bun dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "better-auth": "1.7.7",
+    "pg": "8.16.3",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.1",
+    "@types/node": "26.4.1",
+    "@types/pg": "8.15.5",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0",
+    "prettier": "3.9.6",
+    "eslint": "9.39.5",
+    "typescript-eslint": "8.57.1"
+  }
+}
