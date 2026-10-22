@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AccountSecurity } from "@/features/account-security/components/account-security";
+import {
+  AccountSecurity,
+  PasswordSettings,
+} from "@/features/account-security/components/account-security";
 
 const { listAccounts, changePassword } = vi.hoisted(() => ({
   listAccounts: vi.fn(),
@@ -13,13 +16,16 @@ vi.mock("@/lib/auth/client", () => ({
 }));
 vi.mock("goey-toast", () => ({ gooeyToast: { success: vi.fn() } }));
 vi.mock("@/features/auth/components/session-gate", () => ({
-  useSessionUser: () => ({ id: "11111111-1111-4111-8111-111111111111" }),
+  useSessionUser: () => ({ id: userId, email: "alex@example.test" }),
 }));
+
+const userId = "11111111-1111-4111-8111-111111111111";
 
 function accounts(...providerIds: string[]) {
   return {
     data: providerIds.map((providerId, index) => ({
       id: String(index),
+      userId,
       providerId,
     })),
     error: null,
@@ -29,13 +35,29 @@ function accounts(...providerIds: string[]) {
 function renderPage() {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <AccountSecurity />
+      <AccountSecurity>
+        <PasswordSettings />
+      </AccountSecurity>
     </QueryClientProvider>,
   );
 }
 
 describe("AccountSecurity", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("names the screen and the account it secures", async () => {
+    listAccounts.mockResolvedValueOnce(accounts("credential"));
+    renderPage();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Account security" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("alex@example.test")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Edit profile" })).toHaveAttribute(
+      "href",
+      "/profile",
+    );
+    expect(await screen.findByText("Set")).toBeInTheDocument();
+  });
 
   it("offers the change password dialog to an account with a password", async () => {
     listAccounts.mockResolvedValueOnce(accounts("credential", "google"));

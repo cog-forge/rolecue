@@ -6,7 +6,7 @@ function asRecord(value: unknown): ErrorRecord | undefined {
     : undefined;
 }
 
-function getErrorCode(error: unknown) {
+export function getErrorCode(error: unknown) {
   const record = asRecord(error);
   const details = asRecord(record?.error);
   return record?.code ?? details?.code;
