@@ -125,6 +125,44 @@ describe("LoginForm", () => {
     expect(screen.queryByText("Account locked")).not.toBeInTheDocument();
   });
 
+  it("continues a pending second factor without navigating to a workspace", async () => {
+    emailSignIn.mockResolvedValue({
+      data: { twoFactorRedirect: true, twoFactorMethods: ["totp"] },
+      error: null,
+    });
+    render(<LoginForm enabledProviders={[]} />);
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "candidate@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "passphrase" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/two-factor"));
+    expect(replace).not.toHaveBeenCalledWith("/dashboard?auth=signed-in");
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("resolves a recruiter's completed login to their role workspace", async () => {
+    emailSignIn.mockResolvedValue({
+      data: { user: { role: "recruiter" } },
+      error: null,
+    });
+    render(<LoginForm enabledProviders={[]} />);
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "recruiter@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "passphrase" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        "/recruiter/dashboard?auth=signed-in",
+      ),
+    );
+  });
+
   it("offers verification resend after an unverified email cannot sign in", async () => {
     emailSignIn.mockResolvedValue({
       data: null,
@@ -193,5 +231,18 @@ describe("LoginForm", () => {
     expect(
       screen.queryByRole("button", { name: "Continue with Facebook" }),
     ).not.toBeInTheDocument();
+  });
+  it("preserves the allowlisted security return destination after an OAuth failure", async () => {
+    render(<LoginForm returnTo="/settings" enabledProviders={["google"]} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue with Google" }),
+    );
+    await waitFor(() =>
+      expect(socialSignIn).toHaveBeenCalledWith({
+        provider: "google",
+        callbackURL: "/settings?auth=signed-in",
+        errorCallbackURL: "/login?oauth=failed&returnTo=%2Fsettings",
+      }),
+    );
   });
 });
