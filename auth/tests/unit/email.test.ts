@@ -1,37 +1,31 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  assertAuthEmailConfigured,
+import { createMailer } from "../../src/email";
+const config = {
+  apiKey: "test-key",
+  from: "RoleCue <no-reply@auth.example.com>",
+  supportEmail: "support@example.com",
+  appURL: "https://app.example.com",
+  templates: {
+    verification: "verification-template",
+    "password-reset": "reset-template",
+    locked: "3667a438-9b17-4696-8b07-d36e382fffe2",
+    unlocked: "b7757145-fc97-4153-b926-c904af1edfdd",
+  },
+};
+const {
   sendAccountStatusEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
-} from "@/lib/email/server";
-vi.mock("server-only", () => ({}));
+} = createMailer(config);
 const fetchEmail = vi.fn();
 beforeEach(() => {
-  vi.stubEnv("RESEND_API_KEY", "test-key");
-  vi.stubEnv("RESEND_FROM_EMAIL", "RoleCue <no-reply@auth.dorriss.com>");
-  vi.stubEnv("RESEND_VERIFY_EMAIL_TEMPLATE_ID", "verification-template");
-  vi.stubEnv("RESEND_RESET_PASSWORD_TEMPLATE_ID", "reset-template");
-  vi.stubEnv(
-    "RESEND_ACCOUNT_LOCKED_TEMPLATE_ID",
-    "3667a438-9b17-4696-8b07-d36e382fffe2",
-  );
-  vi.stubEnv(
-    "RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID",
-    "b7757145-fc97-4153-b926-c904af1edfdd",
-  );
-  vi.stubEnv("SUPPORT_EMAIL", "support@example.com");
-  vi.stubEnv("BETTER_AUTH_URL", "https://app.example.com");
   fetchEmail
     .mockReset()
     .mockImplementation(async () => Response.json({ id: "email-1" }));
   vi.stubGlobal("fetch", fetchEmail);
 });
-afterEach(() => {
-  vi.unstubAllEnvs();
-  vi.unstubAllGlobals();
-});
+afterEach(() => vi.unstubAllGlobals());
 describe("auth template submission", () => {
   it("reuses published account templates and the same transport with escaped public text", async () => {
     const user = { email: "user@example.com", name: "<Alex> & Team" };
@@ -74,8 +68,17 @@ describe("auth template submission", () => {
     expect(payloads[0].from).toBe(payloads[1].from);
   });
   it("requires configuration and reports provider failure without leaking its response", async () => {
-    vi.stubEnv("RESEND_VERIFY_EMAIL_TEMPLATE_ID", "");
-    expect(() => assertAuthEmailConfigured("verification")).toThrow();
+    await expect(
+      createMailer({
+        ...config,
+        supportEmail: undefined,
+      }).sendAccountStatusEmail(
+        "unlocked",
+        { email: "a@example.com", name: "A" },
+        "",
+      ),
+    ).rejects.toThrow("Missing support email");
+    expect(fetchEmail).not.toHaveBeenCalled();
     fetchEmail.mockResolvedValue(
       Response.json({ message: "private provider data" }, { status: 500 }),
     );

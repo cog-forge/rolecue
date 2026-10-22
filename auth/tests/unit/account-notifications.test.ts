@@ -1,17 +1,22 @@
 // @vitest-environment node
-import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { betterAuth } from "better-auth";
 import { memoryAdapter } from "better-auth/adapters/memory";
-import { authOptions } from "@/lib/auth/options";
+import { authOptions } from "../../src/options";
+import { createAccountNotifications } from "../../src/account-notifications";
+import { createInternalAdmin } from "../../src/internal-admin";
 import { z } from "zod";
 
-const mail = vi.hoisted(() => ({ send: vi.fn() }));
-vi.mock("@/lib/email/server", () => ({ sendAccountStatusEmail: mail.send }));
+const mail = { send: vi.fn() };
 const base = "http://localhost:3000/api/auth";
 const password = "RoleCue-Test-Password";
 function createTestAuth() {
   return betterAuth({
     ...authOptions,
+    hooks: {
+      before: createInternalAdmin("test-internal-secret"),
+      after: createAccountNotifications(mail.send),
+    },
     baseURL: "http://localhost:3000",
     secret: "test-secret-at-least-thirty-two-characters",
     database: memoryAdapter({
@@ -50,7 +55,6 @@ async function request(
 
 beforeEach(async () => {
   mail.send.mockReset().mockResolvedValue(undefined);
-  vi.stubEnv("ADMIN_AUTH_INTERNAL_SECRET", "test-internal-secret");
   auth = createTestAuth();
   for (const role of ["admin", "candidate"]) {
     const response = await request("/sign-up/email", {
@@ -77,7 +81,6 @@ beforeEach(async () => {
     .map((cookie) => cookie.split(";")[0])
     .join("; ");
 });
-afterEach(() => vi.unstubAllEnvs());
 
 const internalHeaders = () => ({
   cookie: adminCookie,
