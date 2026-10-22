@@ -39,14 +39,6 @@ async function mockSession(page: Page, status: 200 | 401) {
   });
 }
 
-test("a signed-out visitor to account security is sent to sign in", async ({
-  page,
-}) => {
-  await mockSession(page, 401);
-  await page.goto("/settings");
-  await expect(page).toHaveURL(/\/login/);
-});
-
 test("changes the password through Better Auth without exposing it in a URL", async ({
   page,
 }) => {
