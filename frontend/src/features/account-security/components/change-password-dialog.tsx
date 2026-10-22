@@ -1,6 +1,5 @@
 "use client";
 
-import { PasswordVisibilityIcon } from "@/components/icons/password-visibility-icon";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -11,20 +10,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { credentialsKeys } from "@/features/auth/api/credentials";
+import { PasswordField } from "@/features/auth/components/password-field";
 import { useShakeInvalidFields } from "@/features/auth/hooks/use-shake-invalid-fields";
 import { authClient } from "@/lib/auth/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
-import { LoaderCircle } from "lucide-react";
+import { CircleCheck, CircleDashed, LoaderCircle } from "lucide-react";
 import { useRef, useState } from "react";
-import {
-  Controller,
-  useForm,
-  type FieldError,
-  type UseFormRegisterReturn,
-} from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import {
   changePasswordSchema,
   type ChangePasswordValues,
@@ -54,12 +49,11 @@ export function ChangePasswordDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Change password</DialogTitle>
           <DialogDescription>
-            Enter your current password, then choose a new one with at least 8
-            characters.
+            Confirm your current password, then choose a new one.
           </DialogDescription>
         </DialogHeader>
         <ChangePasswordForm
@@ -103,6 +97,22 @@ function ChangePasswordForm({
     },
   });
   useShakeInvalidFields(formRef, submitCount);
+  const [currentPassword, newPassword, confirmPassword] = useWatch({
+    control,
+    name: ["currentPassword", "newPassword", "confirmPassword"],
+  });
+  // Mirrors changePasswordSchema so the rules are visible before submitting.
+  const requirements = [
+    { label: "At least 8 characters", met: newPassword.length >= 8 },
+    {
+      label: "Different from your current password",
+      met: newPassword.length > 0 && newPassword !== currentPassword,
+    },
+    {
+      label: "Both new passwords match",
+      met: confirmPassword.length > 0 && newPassword === confirmPassword,
+    },
+  ];
 
   const submit = async ({
     currentPassword,
@@ -157,6 +167,7 @@ function ChangePasswordForm({
           : "Use your new password the next time you sign in.",
       });
       void cache.invalidateQueries({ queryKey: ["auth", "me"] });
+      void cache.invalidateQueries({ queryKey: credentialsKeys.all });
       onDone();
     } catch {
       setMessage("Your password could not be changed. Please try again.");
@@ -183,7 +194,6 @@ function ChangePasswordForm({
         id="new-password"
         label="New password"
         autoComplete="new-password"
-        help="Use at least 8 characters."
         error={errors.newPassword}
         registration={register("newPassword")}
       />
@@ -194,11 +204,32 @@ function ChangePasswordForm({
         error={errors.confirmPassword}
         registration={register("confirmPassword")}
       />
+      <ul aria-label="Password requirements" className="space-y-1.5">
+        {requirements.map((requirement) => (
+          <li
+            key={requirement.label}
+            className={`flex items-center gap-2 text-xs transition-colors duration-(--duration-quick) ${requirement.met ? "text-foreground" : "text-muted-foreground"}`}
+          >
+            {requirement.met ? (
+              <CircleCheck
+                className="size-3.5 text-rolecue-brand"
+                aria-hidden
+              />
+            ) : (
+              <CircleDashed className="size-3.5" aria-hidden />
+            )}
+            {requirement.label}
+            <span className="sr-only">
+              {requirement.met ? "(met)" : "(not met)"}
+            </span>
+          </li>
+        ))}
+      </ul>
       <Controller
         control={control}
         name="revokeOtherSessions"
         render={({ field }) => (
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-3 rounded-xl bg-muted px-4 py-3">
             <Checkbox
               id="revoke-other-sessions"
               checked={field.value}
@@ -226,12 +257,18 @@ function ChangePasswordForm({
         <Button
           type="button"
           variant="outline"
+          className="min-h-11"
           onClick={onDone}
           disabled={isSubmitting}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting} aria-busy={isSubmitting}>
+        <Button
+          type="submit"
+          className="min-h-11"
+          disabled={isSubmitting}
+          aria-busy={isSubmitting}
+        >
           {isSubmitting && (
             <LoaderCircle className="animate-spin" aria-hidden />
           )}
@@ -239,69 +276,5 @@ function ChangePasswordForm({
         </Button>
       </DialogFooter>
     </form>
-  );
-}
-
-function PasswordField({
-  id,
-  label,
-  autoComplete,
-  help,
-  error,
-  registration,
-}: {
-  id: string;
-  label: string;
-  autoComplete: "current-password" | "new-password";
-  help?: string;
-  error?: FieldError;
-  registration: UseFormRegisterReturn;
-}) {
-  const [visible, setVisible] = useState(false);
-  const describedBy = error ? `${id}-error` : help ? `${id}-help` : undefined;
-  return (
-    <div className={`t-input-wrap space-y-1.5 ${error ? "is-error" : ""}`}>
-      <label htmlFor={id} className="block text-sm font-medium">
-        {label}
-      </label>
-      <div className="relative">
-        <Input
-          id={id}
-          type={visible ? "text" : "password"}
-          autoComplete={autoComplete}
-          aria-invalid={!!error}
-          aria-describedby={describedBy}
-          className={`t-input h-10 pr-12 ${error ? "is-error" : ""}`}
-          {...registration}
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => setVisible((current) => !current)}
-          aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`}
-          aria-controls={id}
-          aria-pressed={visible}
-          className="absolute top-1/2 right-1 -translate-y-1/2 active:not-aria-[haspopup]:-translate-y-1/2 text-muted-foreground hover:text-foreground"
-        >
-          <PasswordVisibilityIcon visible={visible} />
-        </Button>
-      </div>
-      {error ? (
-        <p
-          id={`${id}-error`}
-          role="alert"
-          className="t-error-msg text-xs text-destructive"
-        >
-          {error.message}
-        </p>
-      ) : (
-        help && (
-          <p id={`${id}-help`} className="text-xs text-muted-foreground">
-            {help}
-          </p>
-        )
-      )}
-    </div>
   );
 }

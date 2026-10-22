@@ -63,9 +63,26 @@ function expectNoPasswordLeak() {
 describe("ChangePasswordDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("shows each password rule as it is met before submitting", () => {
+    renderDialog();
+    const rules = screen.getByRole("list", { name: "Password requirements" });
+    expect(rules).toHaveTextContent("At least 8 characters(not met)");
+    const type = (label: string, value: string) =>
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    type("Current password", "Current-Secret-1");
+    type("New password", "Brand-New-2");
+    expect(rules).toHaveTextContent("At least 8 characters(met)");
+    expect(rules).toHaveTextContent(
+      "Different from your current password(met)",
+    );
+    expect(rules).toHaveTextContent("Both new passwords match(not met)");
+    type("Confirm new password", "Brand-New-2");
+    expect(rules).toHaveTextContent("Both new passwords match(met)");
+  });
+
   it("changes the password, signs out other devices by default and closes", async () => {
     changePassword.mockResolvedValueOnce({ data: { token: "t" }, error: null });
-    const { onOpenChange } = renderDialog();
+    const { onOpenChange, invalidate } = renderDialog();
     fill({});
     submit();
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
@@ -76,6 +93,9 @@ describe("ChangePasswordDialog", () => {
     });
     expect(success).toHaveBeenCalledWith("Password updated", {
       description: "Your other devices have been signed out.",
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: ["auth", "credentials"],
     });
     expectNoPasswordLeak();
   });
