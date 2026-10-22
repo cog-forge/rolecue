@@ -4,7 +4,7 @@ import { defaultAc, userAc } from "better-auth/plugins/admin/access";
 
 const timestamps = { createdAt: "created_at", updatedAt: "updated_at" };
 
-// Static schema mapping; runtime config and hooks are added in createAuth.
+// Schema mapping and plugin policy; runtime config and hooks are added in createAuth.
 export const authOptions = {
   user: {
     modelName: "users",
@@ -44,6 +44,9 @@ export const authOptions = {
   },
   advanced: { database: { generateId: "uuid" } },
   disabledPaths: [
+    // Email/SMS OTP is not offered; two-factor is TOTP plus backup codes only.
+    "/two-factor/send-otp",
+    "/two-factor/verify-otp",
     "/admin/list-users",
     "/admin/get-user",
     "/admin/impersonate-user",
@@ -77,23 +80,25 @@ export const authOptions = {
         session: { fields: { impersonatedBy: "impersonated_by" } },
       },
     }),
-    // Reserve the pinned plugin schema without exposing enable/verify/recovery endpoints.
-    {
-      id: "two-factor-schema",
-      schema: twoFactor({
-        schema: {
-          user: { fields: { twoFactorEnabled: "two_factor_enabled" } },
-          twoFactor: {
-            modelName: "two_factors",
-            fields: {
-              backupCodes: "backup_codes",
-              userId: "user_id",
-              failedVerificationCount: "failed_verification_count",
-              lockedUntil: "locked_until",
-            },
+    // Defaults are pinned so a library upgrade cannot weaken enrollment or code format.
+    twoFactor({
+      issuer: "RoleCue",
+      allowPasswordless: false,
+      skipVerificationOnEnable: false,
+      totpOptions: { digits: 6, period: 30 },
+      backupCodeOptions: { storeBackupCodes: "encrypted" },
+      schema: {
+        user: { fields: { twoFactorEnabled: "two_factor_enabled" } },
+        twoFactor: {
+          modelName: "two_factors",
+          fields: {
+            backupCodes: "backup_codes",
+            userId: "user_id",
+            failedVerificationCount: "failed_verification_count",
+            lockedUntil: "locked_until",
           },
         },
-      }).schema,
-    },
+      },
+    }),
   ],
 } satisfies BetterAuthOptions;

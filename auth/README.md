@@ -93,4 +93,4 @@ Auth checks and images are not wired into CI, Git hooks or root Make checks in t
 
 Live-provider acceptance remains a separate check: use designated test accounts to receive verification/reset mail and complete Google/GitHub/Facebook consent. Fixture success is not proof of provider console configuration or email delivery. Record pass/fail only; never record tokens, cookies, password fields, mail links or provider response bodies.
 
-Account security UI from PR #43 / KAN-212 and dirty KAN-108 work is deliberately not merged here. Extract runtime first, then rebase/reconcile those changes without losing WIP. No TOTP endpoints, schema redesign or JWT authority are added.
+Two-factor authentication (KAN-108): `src/options.ts` activates the pinned two-factor plugin using the existing schema. Password confirmation and a verified authenticator code are required for enrollment; backup codes are encrypted, single-use and regenerable. Email/SMS OTP endpoints remain disabled. TOTP challenges password sign-in; OAuth keeps the provider's own security policy. Frontend provider buttons use `AUTH_SOCIAL_PROVIDERS`, never provider secrets.
