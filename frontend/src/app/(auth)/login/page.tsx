@@ -11,15 +11,13 @@ export const metadata: Metadata = {
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { oauth, error, session } = await searchParams;
-  const enabledProviders = (
-    [
-      ["google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
-      ["github", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
-      ["facebook", "FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET"],
-    ] as const
-  )
-    .filter(([, id, secret]) => process.env[id] && process.env[secret])
-    .map(([provider]) => provider) as SocialProvider[];
+  // Non-secret display allowlist; provider credentials live only in the auth service.
+  const configured = new Set(
+    (process.env.AUTH_SOCIAL_PROVIDERS || "").split(","),
+  );
+  const enabledProviders = (["google", "github", "facebook"] as const).filter(
+    (provider) => configured.has(provider),
+  ) as SocialProvider[];
   return (
     <LoginView>
       <LoginForm
