@@ -47,7 +47,7 @@ func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UU
 		return domain.Transition{}, apperror.Wrap(apperror.CodeAuthUnavailable, "account access change could not be confirmed", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Origin", a.cfg.URL)
+	req.Header.Set("Origin", a.cfg.PublicURL)
 	incoming := &http.Request{Header: http.Header{"Cookie": []string{cookie}}}
 	for _, authCookie := range incoming.Cookies() {
 		if authcookie.Matches(authCookie.Name, a.cfg.CookiePrefix, a.cfg.SecureCookies) {

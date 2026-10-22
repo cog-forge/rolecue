@@ -6,6 +6,7 @@ import (
 	"math"
 	"net"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -103,6 +104,7 @@ func (d *DatabaseConfig) DSN() string {
 }
 
 type AuthConfig struct {
+	PublicURL     string        `mapstructure:"public_url"`
 	AdminSecret   string        `mapstructure:"admin_secret"`
 	URL           string        `mapstructure:"url"`
 	Timeout       time.Duration `mapstructure:"timeout"`
@@ -213,7 +215,7 @@ func Load(configPath string) (*Config, error) {
 		"database.user":                      "DB_USERNAME",
 		"database.password":                  "DB_PASSWORD",
 		"database.port":                      "DB_PORT",
-		"auth.url":                           "BETTER_AUTH_URL",
+		"auth.public_url":                    "AUTH_BASE_URL",
 		"auth.admin_secret":                  "ADMIN_AUTH_INTERNAL_SECRET",
 		"auth.timeout":                       "AUTH_SESSION_TIMEOUT",
 		"auth.cookie_prefix":                 "BETTER_AUTH_COOKIE_PREFIX",
@@ -244,9 +246,21 @@ func Load(configPath string) (*Config, error) {
 		}
 	}
 
+	// AUTH_UPSTREAM_URL takes precedence; legacy BETTER_AUTH_URL keeps one-origin configs working.
+	if err := v.BindEnv("auth.url", "AUTH_UPSTREAM_URL", "BETTER_AUTH_URL"); err != nil {
+		return nil, fmt.Errorf("bind auth.url: %w", err)
+	}
+
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	if cfg.Auth.PublicURL == "" {
+		if os.Getenv("AUTH_UPSTREAM_URL") != "" {
+			return nil, errors.New("AUTH_BASE_URL is required with AUTH_UPSTREAM_URL")
+		}
+		cfg.Auth.PublicURL = cfg.Auth.URL
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -349,6 +363,11 @@ func (c *Config) Validate() error {
 	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
 		return errors.New("auth.url must be a fixed HTTP(S) origin without path, query or credentials")
 	}
+	u, err = url.Parse(c.Auth.PublicURL)
+	if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+		return errors.New("auth.public_url must be a fixed HTTP(S) origin")
+	}
+
 	if c.Auth.Timeout <= 0 || c.Auth.Timeout > 30*time.Second {
 		return errors.New("auth.timeout must be positive and at most 30s")
 	}
@@ -356,13 +375,13 @@ func (c *Config) Validate() error {
 		return errors.New("auth.cookie_prefix is invalid")
 	}
 	if c.Auth.SecureCookies != (u.Scheme == "https") {
-		return errors.New("auth.secure_cookies must match the auth URL scheme")
+		return errors.New("auth.secure_cookies must match the public auth URL scheme")
 	}
-	if c.Auth.CookieDomain != "" && (!c.Auth.SecureCookies || c.Auth.CookieDomain != "dorriss.com" || !strings.HasSuffix(u.Hostname(), ".dorriss.com")) {
-		return errors.New("shared auth cookies require HTTPS under dorriss.com")
+	if domain := c.Auth.CookieDomain; domain != "" && (!c.Auth.SecureCookies || (u.Hostname() != domain && !strings.HasSuffix(u.Hostname(), "."+domain))) {
+		return errors.New("shared auth cookies require HTTPS under the cookie domain")
 	}
-	if c.IsProduction() && (!c.Auth.SecureCookies || c.Auth.CookieDomain != "dorriss.com") {
-		return errors.New("production requires HTTPS and the shared dorriss.com cookie domain")
+	if c.IsProduction() && (!c.Auth.SecureCookies || c.Auth.CookieDomain == "") {
+		return errors.New("production requires HTTPS and a shared cookie domain")
 	}
 
 	if c.QuestionBank.Size < 0 || c.QuestionBank.Size > MaxQuestionBankSize {
