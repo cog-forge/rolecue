@@ -1,0 +1,39 @@
+{
+	admin off
+	auto_https off
+	# Request error logs can contain OAuth/reset tokens in URLs.
+	log default {
+		exclude http.log.error
+	}
+}
+
+:3000 {
+	bind 127.0.0.1
+	handle /_dev/health {
+		respond 200
+	}
+
+	# Preserve the full /api/auth/* path; Better Auth owns cookies and CSRF.
+	handle /api/auth/* {
+		reverse_proxy 127.0.0.1:3001 {
+			header_up -X-RoleCue-Admin-Secret
+			header_up -X-RoleCue-Account-Notification
+			# Caddy overwrites X-Forwarded-* from untrusted clients; Forwarded is not managed.
+			header_up -Forwarded
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3002
+	}
+
+	handle_errors 502 504 {
+		header Content-Type application/json
+		header Cache-Control no-store
+		respond `{"error":"Upstream service unavailable"}` 503
+	}
+}

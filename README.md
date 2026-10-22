@@ -1,7 +1,10 @@
 # RoleCue
 
 Go API (`api/`) and Next.js frontend (`frontend/`). See
-[frontend setup](frontend/README.md) for application credentials and local services.
+[frontend setup](frontend/README.md) and [auth setup](auth/README.md) for credentials and local services.
+
+Dev: `make -C api dev` runs PostgreSQL, Caddy, migrations and Go; run `cd auth && bun run dev`
+(auth :3001) and `cd frontend && bun run dev` (Next :3002) in other terminals. Open `http://localhost:3000` through Caddy (routing in root `Caddyfile`).
 
 ## Development checks
 

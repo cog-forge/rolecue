@@ -14,5 +14,16 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql
 
+  caddy:
+    image: caddy:2.10.2-alpine
+    network_mode: host
+    volumes:
+      - ../Caddyfile:/etc/caddy/Caddyfile:ro
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:3000/_dev/health]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   postgres-data:
