@@ -13,6 +13,25 @@ const user = {
 };
 
 async function mockSession(page: Page, status: 200 | 401) {
+  await page.route("**/api/auth/get-session**", (route) =>
+    route.fulfill({
+      json:
+        status === 200
+          ? {
+              user: {
+                ...user,
+                emailVerified: true,
+                twoFactorEnabled: false,
+                createdAt: "2026-01-01",
+              },
+              session: { id: "current", userId: user.id },
+            }
+          : null,
+    }),
+  );
+  await page.route("**/api/auth/list-sessions", (route) =>
+    route.fulfill({ json: [] }),
+  );
   await page.route("http://localhost:8080/**", async (route) => {
     const headers = {
       "access-control-allow-origin": "http://127.0.0.1:3100",
@@ -52,7 +71,9 @@ test("changes the password through Better Auth without exposing it in a URL", as
 }) => {
   await mockSession(page, 200);
   await page.route("**/api/auth/list-accounts", (route) =>
-    route.fulfill({ json: [{ id: "a", providerId: "credential" }] }),
+    route.fulfill({
+      json: [{ id: "a", providerId: "credential", userId: user.id }],
+    }),
   );
   const bodies: unknown[] = [];
   await page.route("**/api/auth/change-password", async (route) => {
