@@ -18,34 +18,8 @@ env:
   NODE_VERSION: 24.20.0
   NEXT_TELEMETRY_DISABLED: '1'
 
+# Pre-commit hooks run locally only; CI runs the equivalent format/lint checks per component.
 jobs:
-  hooks:
-    name: Pre-commit (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, windows-2025, macos-15]
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version-file: api/go.mod
-          cache-dependency-path: api/go.sum
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.13'
-      - run: python .githooks/setup.py
-      - run: python .githooks/setup.py run --all-files
-      - run: python .githooks/test_hooks.py
-
   api:
     name: API
     runs-on: ubuntu-24.04
@@ -69,7 +43,8 @@ jobs:
         with:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
-      - run: make -C api tools check test-race vuln
+      # `check` would run the unit tests a second time without -race.
+      - run: make -C api tools fmt-check vet lint build test-race vuln
       - name: Migrate disposable database
         run: api/.tools/migrate-v4.19.0/migrate -path api/migrations -database "$DATABASE_URL" up
       - run: make -C api test-integration
@@ -90,12 +65,33 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --cwd frontend --frozen-lockfile --ignore-scripts
       - run: make frontend-check
-      - run: bun x --no-install playwright install --with-deps chromium
-        working-directory: frontend
-      - run: bun run test:e2e
-        working-directory: frontend
       - name: Dependency vulnerability audit
         run: make frontend-audit
+
+  e2e:
+    name: Frontend E2E
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Ships Chromium and its system libraries, replacing a slow `playwright install --with-deps`.
+    # Keep the tag equal to @playwright/test in frontend/package.json; the image provides Node 24.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001
+    env:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      # setup-bun needs unzip, which the image lacks; the npm package needs no extra tools.
+      - name: Install Bun
+        run: |
+          npm install --global --prefix "$HOME/.local" --no-fund --no-audit "bun@$BUN_VERSION"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run build
+      - run: bun run test:e2e
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:
@@ -103,9 +99,29 @@ jobs:
           path: frontend/test-results
           retention-days: 7
 
+  auth:
+    name: Auth
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: auth
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - run: bun run format:check
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run test
+      - name: Dependency vulnerability audit
+        run: bun audit --audit-level=high
+
+  # Runs alongside the gates rather than after them; `publish` still waits on every gate via `checks`.
   images:
     name: Image (${{ matrix.component }})
-    needs: [hooks, api, frontend]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -113,7 +129,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [api, frontend]
+        component: [api, frontend, auth]
     services:
       postgres:
         image: postgres:18.6
@@ -189,7 +205,7 @@ jobs:
   checks:
     name: CI checks
     if: always()
-    needs: [hooks, api, frontend, images]
+    needs: [api, frontend, e2e, auth, images]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -226,7 +242,7 @@ jobs:
       - name: Push exactly the scanned images
         run: |
           tag="sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          for component in api frontend; do
+          for component in api frontend auth; do
             docker load -i "images/image-$component/image.tar"
             image="ghcr.io/cog-forge/rolecue-$component"
             docker tag "rolecue-$component:ci" "$image:$tag"
@@ -234,7 +250,7 @@ jobs:
             digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image:$tag")
             printf '%s\n\n' "$image:$tag" "$digest" >> "$GITHUB_STEP_SUMMARY"
           done
-          for component in api frontend; do
+          for component in api frontend auth; do
             image="ghcr.io/cog-forge/rolecue-$component"
             docker tag "rolecue-$component:ci" "$image:latest"
             docker push "$image:latest"
