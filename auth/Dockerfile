@@ -13,7 +13,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --production --frozen-lockfile --ignore-scripts
 
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:256c88bb066424045021090932d50be93c8e3f2ce3586707702a401b146f3e43 AS runtime
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:81211e15a86ea1d5357f284482af45730c51de45eaf10ad9ce205d6bfc2df323 AS runtime
 RUN apk add --no-cache ca-certificates libstdc++ libgcc && adduser -D -u 10001 rolecue
 COPY --from=dependencies /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app

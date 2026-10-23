@@ -1,8 +1,8 @@
 #!/bin/sh
-# Supply a disposable DATABASE_URL for the API image; never source the local .env.
+# Supply a disposable DATABASE_URL for the API and auth images; never source the local .env.
 set -eu
-component=${1:?Usage: smoke.sh api|frontend IMAGE}
-image=${2:?Usage: smoke.sh api|frontend IMAGE}
+component=${1:?Usage: smoke.sh api|frontend|auth IMAGE}
+image=${2:?Usage: smoke.sh api|frontend|auth IMAGE}
 case "$component" in
     api)
         : "${DATABASE_URL:?Use a disposable PostgreSQL instance}"
@@ -20,7 +20,18 @@ case "$component" in
         container=$(docker run -d --network host -e PORT=13000 "$image")
         url=http://127.0.0.1:13000
         ;;
-    *) echo 'Expected api or frontend' >&2; exit 1 ;;
+    auth)
+        : "${DATABASE_URL:?Use a disposable PostgreSQL instance}"
+        container=$(docker run -d --network host \
+            -e PORT=13001 -e BETTER_AUTH_DATABASE_URL="$DATABASE_URL" \
+            -e APP_URL=http://localhost:13000 -e AUTH_BASE_URL=http://localhost:13001 \
+            -e BETTER_AUTH_SECRET=ci-only-auth-secret-0123456789abcdef \
+            -e ADMIN_AUTH_INTERNAL_SECRET=ci-only-admin-secret-0123456789abcd \
+            -e RESEND_API_KEY=ci-only -e RESEND_FROM_EMAIL=ci@example.test \
+            -e RESEND_VERIFY_EMAIL_TEMPLATE_ID=ci-only -e RESEND_RESET_PASSWORD_TEMPLATE_ID=ci-only "$image")
+        url=http://127.0.0.1:13001/healthz
+        ;;
+    *) echo 'Expected api, frontend or auth' >&2; exit 1 ;;
 esac
 trap 'docker logs "$container"; docker rm -f "$container" >/dev/null' EXIT
 attempt=0
@@ -33,13 +44,16 @@ while [ "$attempt" -lt 30 ]; do
         case "$(docker inspect --format '{{.Config.User}}' "$container")" in
             ''|0|0:*|root|root:*) echo 'Image must run as non-root' >&2; exit 1 ;;
         esac
-        if [ "$component" = api ]; then
-            docker exec "$container" pdftotext -v
-            docker exec "$container" pdfinfo -v
-        else
-            asset=$(curl -fsS "$url" | python3 -c 'import re,sys; print(re.search(r"src=\"([^\"]+/_next/[^\"]+|/_next/[^\"]+)\"",sys.stdin.read()).group(1))')
-            curl --fail --silent "$url$asset" >/dev/null
-        fi
+        case "$component" in
+            api)
+                docker exec "$container" pdftotext -v
+                docker exec "$container" pdfinfo -v
+                ;;
+            frontend)
+                asset=$(curl -fsS "$url" | python3 -c 'import re,sys; print(re.search(r"src=\"([^\"]+/_next/[^\"]+|/_next/[^\"]+)\"",sys.stdin.read()).group(1))')
+                curl --fail --silent "$url$asset" >/dev/null
+                ;;
+        esac
         exit 0
     fi
     sleep 1
