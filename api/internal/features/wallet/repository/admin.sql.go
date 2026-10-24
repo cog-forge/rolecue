@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -66,9 +67,9 @@ func (t AdminTransaction) ToDomain() domain.Transaction {
 	}
 	var orderCode *int64
 	if t.PayosOrderCode != nil {
-		var oc int64
-		fmt.Sscanf(*t.PayosOrderCode, "%d", &oc)
-		orderCode = &oc
+		if oc, err := strconv.ParseInt(*t.PayosOrderCode, 10, 64); err == nil {
+			orderCode = &oc
+		}
 	}
 	return domain.Transaction{
 		ID:             t.ID,
@@ -714,9 +715,9 @@ func scanTransactionRows(rows pgx.Rows) ([]domain.AdminTransactionItem, error) {
 
 		var orderCode *int64
 		if orderCodeStr.Valid && orderCodeStr.String != "" {
-			var oc int64
-			fmt.Sscanf(orderCodeStr.String, "%d", &oc)
-			orderCode = &oc
+			if oc, err := strconv.ParseInt(orderCodeStr.String, 10, 64); err == nil {
+				orderCode = &oc
+			}
 		}
 
 		var user *domain.AdminTransactionUser
