@@ -26,6 +26,21 @@ describe("workspace navigation", () => {
     expect(links("admin")).not.toContain("/admin/questions");
   });
 
+  it("lists exactly the confirmed Admin destinations", () => {
+    const adminItems = workspaceNavigation.admin.flatMap((group) =>
+      group.items.map((item) => `${item.label} -> ${item.href}`),
+    );
+    expect(adminItems).toEqual([
+      "Dashboard -> /admin/dashboard",
+      "Accounts -> /admin/users",
+      "Job Posting Moderation -> /admin/job-postings",
+      "Interview Sessions -> /admin/interviews",
+      "Voice Profiles -> /admin/voices",
+      "Payment Transactions -> /admin/billing",
+      "Revenue Reports -> /admin/revenue",
+    ]);
+  });
+
   it("matches segment boundaries, ignores query/hash, and maps supporting flows", () => {
     expect(
       getActiveNavigation("candidate", "/jobs/123?tab=details#apply")?.href,
