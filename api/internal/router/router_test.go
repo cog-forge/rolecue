@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
@@ -128,6 +129,51 @@ func (s *routerWallet) SyncDepositStatus(context.Context, uuid.UUID, int64) (wal
 func (s *routerWallet) HandlePayOSWebhook(context.Context, []byte) error {
 	s.calls++
 	return nil
+}
+
+func (s *routerWallet) AdminListTransactions(context.Context, walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error) {
+	s.calls++
+	return walletdomain.AdminTransactionPage{}, nil
+}
+
+func (s *routerWallet) GetRevenueReport(context.Context, *time.Time, *time.Time) (walletdomain.RevenueReport, error) {
+	s.calls++
+	return walletdomain.RevenueReport{}, nil
+}
+
+func (s *routerWallet) GetBillingSummary(context.Context, walletdomain.AdminTransactionFilter) (walletdomain.BillingSummary, error) {
+	s.calls++
+	return walletdomain.BillingSummary{}, nil
+}
+
+func (s *routerWallet) GetBillingDailySeries(context.Context, walletdomain.AdminTransactionFilter) ([]walletdomain.BillingDailyItem, error) {
+	s.calls++
+	return []walletdomain.BillingDailyItem{}, nil
+}
+
+func (s *routerWallet) ListBillingTransactions(context.Context, walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error) {
+	s.calls++
+	return walletdomain.AdminTransactionPage{}, nil
+}
+
+func (s *routerWallet) GetBillingTransaction(context.Context, uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
+	s.calls++
+	return &walletdomain.AdminTransactionItem{}, nil
+}
+
+func (s *routerWallet) SyncPayOSTransaction(context.Context, uuid.UUID, uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
+	s.calls++
+	return &walletdomain.AdminTransactionItem{}, nil
+}
+
+func (s *routerWallet) CancelTransaction(context.Context, uuid.UUID, uuid.UUID, string) (*walletdomain.AdminTransactionItem, error) {
+	s.calls++
+	return &walletdomain.AdminTransactionItem{}, nil
+}
+
+func (s *routerWallet) IssueRefund(context.Context, walletdomain.IssueRefundRequest, uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
+	s.calls++
+	return &walletdomain.AdminTransactionItem{}, nil
 }
 
 func TestWalletRoutesRequireOnboarding(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -121,9 +122,22 @@ func (r *Repository) InsertTransaction(ctx context.Context, q *Queries, tx domai
 	if tx.Description != "" {
 		desc = &tx.Description
 	}
+	fromStr := formatUUIDPtr(tx.From)
+	if fromStr == "" {
+		if tx.PayOSOrderCode != nil {
+			fromStr = "Banking (PayOS)"
+		} else {
+			fromStr = "System"
+		}
+	}
+	toStr := formatUUIDPtr(tx.To)
+	if toStr == "" {
+		toStr = "System"
+	}
+
 	row, err := q.InsertTransaction(ctx, InsertTransactionParams{
-		TxFrom:         formatUUIDPtr(tx.From),
-		TxTo:           formatUUIDPtr(tx.To),
+		TxFrom:         fromStr,
+		TxTo:           toStr,
 		Amount:         tx.Amount,
 		Currency:       tx.Currency,
 		Description:    desc,
@@ -309,4 +323,92 @@ func toDomainTransaction(id uuid.UUID, fromStr, toStr string, amount int32, curr
 		Status:         domain.TransactionStatus(status),
 		PayOSOrderCode: parseInt64Ptr(orderCodePtr),
 	}
+}
+
+func (r *Repository) ListAllTransactions(ctx context.Context, arg ListAllTransactionsParams) ([]AdminTransaction, error) {
+	rows, err := r.queries.ListAllTransactions(ctx, arg)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to list all transactions", err)
+	}
+	return rows, nil
+}
+
+func (r *Repository) CountAllTransactions(ctx context.Context, arg ListAllTransactionsParams) (int64, error) {
+	count, err := r.queries.CountAllTransactions(ctx, arg)
+	if err != nil {
+		return 0, apperror.Wrap(apperror.CodeInternal, "failed to count all transactions", err)
+	}
+	return count, nil
+}
+
+func (r *Repository) GetRevenueStats(ctx context.Context, dateFrom, dateTo *time.Time) (RevenueStats, error) {
+	stats, err := r.queries.GetRevenueStats(ctx, dateFrom, dateTo)
+	if err != nil {
+		return RevenueStats{}, apperror.Wrap(apperror.CodeInternal, "failed to get revenue stats", err)
+	}
+	return stats, nil
+}
+
+func (r *Repository) GetRevenueSummary(ctx context.Context, dateFrom, dateTo *time.Time) ([]RevenueSummaryRow, error) {
+	rows, err := r.queries.GetRevenueSummary(ctx, dateFrom, dateTo)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to get revenue summary", err)
+	}
+	return rows, nil
+}
+
+func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
+	summary, err := r.queries.GetBillingSummary(ctx, filter)
+	if err != nil {
+		return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get billing summary", err)
+	}
+	return summary, nil
+}
+
+func (r *Repository) GetBillingDailySeries(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.BillingDailyItem, error) {
+	items, err := r.queries.GetBillingDailySeries(ctx, filter)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to get billing daily series", err)
+	}
+	return items, nil
+}
+
+func (r *Repository) ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.AdminTransactionItem, int64, error) {
+	items, total, err := r.queries.ListBillingTransactions(ctx, filter)
+	if err != nil {
+		return nil, 0, apperror.Wrap(apperror.CodeInternal, "failed to list billing transactions", err)
+	}
+	return items, total, nil
+}
+
+func (r *Repository) GetBillingTransactionByID(ctx context.Context, id uuid.UUID) (*domain.AdminTransactionItem, error) {
+	item, err := r.queries.GetBillingTransactionByID(ctx, id)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeTransactionNotFound, "transaction not found", err)
+	}
+	return item, nil
+}
+
+func (r *Repository) CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*domain.AdminTransactionItem, error) {
+	item, err := r.queries.CancelTransaction(ctx, id, adminID, reason)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeValidation, err.Error(), err)
+	}
+	return item, nil
+}
+
+func (r *Repository) SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
+	item, err := r.queries.SyncPayOSTransaction(ctx, id, adminID)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to sync transaction with PayOS", err)
+	}
+	return item, nil
+}
+
+func (r *Repository) CreateRefundTransaction(ctx context.Context, req domain.IssueRefundRequest, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
+	item, err := r.queries.CreateRefundTransaction(ctx, req, adminID)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to create refund transaction", err)
+	}
+	return item, nil
 }

@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
@@ -30,6 +31,18 @@ type WalletRepository interface {
 	ListTransactionsByUserID(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]domain.Transaction, int64, error)
 	ListCoinPackages(ctx context.Context) ([]domain.CoinPackage, error)
 	GetCoinPackageByID(ctx context.Context, id uuid.UUID) (domain.CoinPackage, error)
+	// Admin methods
+	ListAllTransactions(ctx context.Context, arg repository.ListAllTransactionsParams) ([]repository.AdminTransaction, error)
+	CountAllTransactions(ctx context.Context, arg repository.ListAllTransactionsParams) (int64, error)
+	GetRevenueStats(ctx context.Context, dateFrom, dateTo *time.Time) (repository.RevenueStats, error)
+	GetRevenueSummary(ctx context.Context, dateFrom, dateTo *time.Time) ([]repository.RevenueSummaryRow, error)
+	GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error)
+	GetBillingDailySeries(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.BillingDailyItem, error)
+	ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.AdminTransactionItem, int64, error)
+	GetBillingTransactionByID(ctx context.Context, id uuid.UUID) (*domain.AdminTransactionItem, error)
+	CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*domain.AdminTransactionItem, error)
+	SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*domain.AdminTransactionItem, error)
+	CreateRefundTransaction(ctx context.Context, req domain.IssueRefundRequest, adminID uuid.UUID) (*domain.AdminTransactionItem, error)
 }
 
 type PayOSClient interface {
@@ -417,4 +430,90 @@ func parseExpectedVND(desc string) (int, bool) {
 		return 0, false
 	}
 	return val, true
+}
+
+func (s *Service) AdminListTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error) {
+	return s.ListBillingTransactions(ctx, filter)
+}
+
+func (s *Service) GetRevenueReport(ctx context.Context, dateFrom, dateTo *time.Time) (domain.RevenueReport, error) {
+	stats, err := s.repo.GetRevenueStats(ctx, dateFrom, dateTo)
+	if err != nil {
+		return domain.RevenueReport{}, err
+	}
+
+	summaryRows, err := s.repo.GetRevenueSummary(ctx, dateFrom, dateTo)
+	if err != nil {
+		return domain.RevenueReport{}, err
+	}
+
+	summary := make([]domain.RevenueSummaryItem, 0, len(summaryRows))
+	for _, r := range summaryRows {
+		summary = append(summary, domain.RevenueSummaryItem{
+			Period:             r.Period,
+			Revenue:            r.Revenue,
+			SuccessfulDeposits: r.SuccessfulDeposits,
+		})
+	}
+
+	return domain.RevenueReport{
+		Stats: domain.RevenueStats{
+			TotalRevenue:    stats.TotalRevenue,
+			SuccessfulCount: stats.SuccessfulCount,
+			PendingCount:    stats.PendingCount,
+			FailedCount:     stats.FailedCount,
+			CancelledCount:  stats.CancelledCount,
+			TotalCount:      stats.TotalCount,
+		},
+		Summary: summary,
+	}, nil
+}
+
+func (s *Service) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
+	return s.repo.GetBillingSummary(ctx, filter)
+}
+
+func (s *Service) GetBillingDailySeries(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.BillingDailyItem, error) {
+	return s.repo.GetBillingDailySeries(ctx, filter)
+}
+
+func (s *Service) ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error) {
+	items, total, err := s.repo.ListBillingTransactions(ctx, filter)
+	if err != nil {
+		return domain.AdminTransactionPage{}, err
+	}
+	return domain.AdminTransactionPage{
+		Items:    items,
+		Total:    total,
+		Page:     filter.Page,
+		PageSize: filter.PageSize,
+	}, nil
+}
+
+func (s *Service) GetBillingTransaction(ctx context.Context, id uuid.UUID) (*domain.AdminTransactionItem, error) {
+	return s.repo.GetBillingTransactionByID(ctx, id)
+}
+
+func (s *Service) SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
+	return s.repo.SyncPayOSTransaction(ctx, id, adminID)
+}
+
+func (s *Service) CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*domain.AdminTransactionItem, error) {
+	if strings.TrimSpace(reason) == "" {
+		reason = "Cancelled by administrator"
+	}
+	return s.repo.CancelTransaction(ctx, id, adminID, reason)
+}
+
+func (s *Service) IssueRefund(ctx context.Context, req domain.IssueRefundRequest, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
+	if req.Amount <= 0 {
+		return nil, apperror.New(apperror.CodeValidation, "refund amount must be greater than zero")
+	}
+	if strings.TrimSpace(req.Reason) == "" {
+		return nil, apperror.New(apperror.CodeValidation, "refund reason is required")
+	}
+	if req.Currency != "VND" && req.Currency != "COIN" {
+		req.Currency = "VND"
+	}
+	return s.repo.CreateRefundTransaction(ctx, req, adminID)
 }

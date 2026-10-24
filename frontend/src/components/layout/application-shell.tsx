@@ -177,9 +177,11 @@ export function ApplicationShell({
               </p>
               <p className="mt-1 truncate text-sm font-semibold">{pageLabel}</p>
             </div>
-            <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
-              A steady place to prepare.
-            </span>
+            {user.role !== "admin" && (
+              <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
+                A steady place to prepare.
+              </span>
+            )}
           </header>
           <main
             id="main-content"

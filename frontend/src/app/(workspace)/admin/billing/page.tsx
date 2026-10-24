@@ -1,9 +1,5 @@
-import { AdminSection } from "@/features/admin/components/admin-section";
+import { AdminBillingView } from "@/features/admin/billing/components/admin-billing-view";
+
 export default function Page() {
-  return (
-    <AdminSection
-      title="Payment Transactions"
-      description="Review membership payment records when the financial ledger is connected."
-    />
-  );
+  return <AdminBillingView />;
 }

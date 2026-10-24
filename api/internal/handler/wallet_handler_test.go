@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	walletdomain "github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
@@ -56,6 +57,63 @@ func (m *MockWalletService) SyncDepositStatus(ctx context.Context, userID uuid.U
 func (m *MockWalletService) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 	args := m.Called(ctx, body)
 	return args.Error(0)
+}
+
+func (m *MockWalletService) AdminListTransactions(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).(walletdomain.AdminTransactionPage), args.Error(1)
+}
+
+func (m *MockWalletService) GetRevenueReport(ctx context.Context, dateFrom, dateTo *time.Time) (walletdomain.RevenueReport, error) {
+	args := m.Called(ctx, dateFrom, dateTo)
+	return args.Get(0).(walletdomain.RevenueReport), args.Error(1)
+}
+
+func (m *MockWalletService) GetBillingSummary(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.BillingSummary, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).(walletdomain.BillingSummary), args.Error(1)
+}
+
+func (m *MockWalletService) GetBillingDailySeries(ctx context.Context, filter walletdomain.AdminTransactionFilter) ([]walletdomain.BillingDailyItem, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).([]walletdomain.BillingDailyItem), args.Error(1)
+}
+
+func (m *MockWalletService) ListBillingTransactions(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).(walletdomain.AdminTransactionPage), args.Error(1)
+}
+
+func (m *MockWalletService) GetBillingTransaction(ctx context.Context, id uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*walletdomain.AdminTransactionItem), args.Error(1)
+}
+
+func (m *MockWalletService) SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
+	args := m.Called(ctx, id, adminID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*walletdomain.AdminTransactionItem), args.Error(1)
+}
+
+func (m *MockWalletService) CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*walletdomain.AdminTransactionItem, error) {
+	args := m.Called(ctx, id, adminID, reason)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*walletdomain.AdminTransactionItem), args.Error(1)
+}
+
+func (m *MockWalletService) IssueRefund(ctx context.Context, req walletdomain.IssueRefundRequest, adminID uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
+	args := m.Called(ctx, req, adminID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*walletdomain.AdminTransactionItem), args.Error(1)
 }
 
 // ---------------------------------------------------------------------------
