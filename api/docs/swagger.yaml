@@ -316,6 +316,55 @@ definitions:
       id:
         type: string
     type: object
+  domain.Detail:
+    properties:
+      candidate:
+        $ref: '#/definitions/domain.ListCandidate'
+      cv:
+        $ref: '#/definitions/domain.DetailCV'
+      id:
+        type: string
+      interview_deadline:
+        type: string
+      interview_eligible:
+        description: InterviewEligible is true while the Candidate is CV-approved
+          and the 24-hour deadline has not passed.
+        type: boolean
+      job_posting:
+        $ref: '#/definitions/domain.DetailJobPosting'
+      job_posting_id:
+        type: string
+      job_posting_title:
+        type: string
+      reject_reason:
+        type: string
+      status:
+        $ref: '#/definitions/domain.ApplicationStatus'
+      submitted_at:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  domain.DetailCV:
+    properties:
+      expires_at:
+        type: string
+      url:
+        type: string
+    type: object
+  domain.DetailJobPosting:
+    properties:
+      cv_approvals:
+        type: integer
+      id:
+        type: string
+      interview_slot:
+        type: integer
+      status:
+        type: string
+      title:
+        type: string
+    type: object
   domain.Document:
     properties:
       document_id:
@@ -368,6 +417,15 @@ definitions:
         - lead
         type: string
       title:
+        type: string
+    type: object
+  domain.IntakeClosure:
+    properties:
+      job_posting_id:
+        type: string
+      rejected_count:
+        type: integer
+      status:
         type: string
     type: object
   domain.JobPosting:
@@ -774,6 +832,11 @@ definitions:
           hours.'
         type: string
       job_posting_id:
+        type: string
+      job_posting_status:
+        description: |-
+          JobPostingStatus is the posting status after the decision. An approval that takes the last
+          interview slot makes it intake_closed in the same transaction (R9).
         type: string
       reject_reason:
         type: string
@@ -2666,16 +2729,78 @@ paths:
       summary: List the Applications of one Job Posting
       tags:
       - applications
+  /job-postings/{id}/applications/{applicationId}:
+    get:
+      description: 'Recruiter only, own postings. Returns the Application as the list
+        shows it, the posting block (status, interview_slot, cv_approvals: every Application
+        ever CV-approved, including ones rejected or decided later) and cv: a link
+        to the CV that expires after five minutes, or null when no CV is stored. The
+        response never carries the storage key, transcript, recording or evaluation.
+        Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND
+        (missing or not yours), APPLICATION_NOT_FOUND (not on this posting).'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        format: uuid
+        in: path
+        name: applicationId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Detail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read one Application of your Job Posting
+      tags:
+      - applications
   /job-postings/{id}/applications/{applicationId}/approve-cv:
     post:
       description: 'Recruiter only, own open postings. The Application moves from
         pending to interview_eligible and gets interview_deadline = now + 24 hours.
-        No interview slot is consumed yet; at most interview_slot Applications can
-        ever be CV-approved per posting. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN
-        (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND
-        (not on this posting), APPLICATION_NOT_PENDING (already screened), INTAKE_NOT_OPEN
-        (posting not open), INTERVIEW_CAPACITY_NOT_FUNDED (interview_slot not set),
-        INTERVIEW_CAPACITY_FULL.'
+        Every approval counts toward the posting''s interview_slot. The approval that
+        takes the last slot also closes intake in the same transaction: the posting
+        becomes intake_closed and every remaining pending Application is rejected.
+        The approved Application is still live, so the posting stays intake_closed.
+        job_posting_status is the posting status after the approval. Errors: VALIDATION_ERROR
+        (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or
+        not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING
+        (already screened), INTAKE_NOT_OPEN (posting not open), INTERVIEW_CAPACITY_NOT_FUNDED
+        (interview_slot not set), INTERVIEW_CAPACITY_FULL.'
       parameters:
       - description: Job Posting ID
         format: uuid
@@ -2735,8 +2860,9 @@ paths:
       consumes:
       - application/json
       description: 'Recruiter only, own postings. A pending Application becomes terminally
-        rejected. The body is optional. Errors: VALIDATION_ERROR (bad IDs, body or
-        reason over 500 characters), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND
+        rejected. The body is optional. Rejecting never closes intake; job_posting_status
+        is the posting''s current status. Errors: VALIDATION_ERROR (bad IDs, body
+        or reason over 500 characters), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND
         (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING
         (already screened).'
       parameters:
@@ -2796,6 +2922,63 @@ paths:
       security:
       - SessionCookie: []
       summary: Reject an Application's CV
+      tags:
+      - applications
+  /job-postings/{id}/close-intake:
+    post:
+      description: 'Recruiter only, own postings. An open posting becomes intake_closed,
+        and every pending Application on it is rejected with the reason "Intake closed
+        before this CV was screened.". Interview-eligible Applications stay eligible.
+        Closing an intake_closed posting returns the same state with rejected_count
+        0. If no Application is still live, the posting closes at once. Errors: VALIDATION_ERROR
+        (bad ID), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not
+        yours), INTAKE_NOT_OPEN (posting is neither open nor intake_closed).'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.IntakeClosure'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Close intake on a Job Posting
       tags:
       - applications
   /job-postings/{id}/document:

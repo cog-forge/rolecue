@@ -153,8 +153,10 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.PUT("/:id/evaluation-weights", r.evaluationHandler.ReplaceWeights)
 	jobPostings.DELETE("/:id/evaluation-weights", r.evaluationHandler.ResetWeights)
 	jobPostings.GET("/:id/applications", r.applicationHandler.ListForPosting)
+	jobPostings.GET("/:id/applications/:applicationId", r.applicationHandler.Detail)
 	jobPostings.POST("/:id/applications/:applicationId/approve-cv", r.applicationHandler.ApproveCV)
 	jobPostings.POST("/:id/applications/:applicationId/reject-cv", r.applicationHandler.RejectCV)
+	jobPostings.POST("/:id/close-intake", r.applicationHandler.CloseIntake)
 
 	// The Recruiter's Applications across all of their postings. /applications stays free for the
 	// Candidate's own list.

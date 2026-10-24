@@ -25,6 +25,9 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 }
 
 // ApproveCV grants interview eligibility when the posting is open and has a free interview slot.
+// The approval that takes the last slot closes intake in the same transaction (KTD2, R7): the
+// remaining pending Applications are rejected, and the terminal evaluation runs after the close. The
+// returned JobPostingStatus is the status after that.
 func (r *Repository) ApproveCV(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID) (domain.Screening, error) {
 	var screening domain.Screening
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
@@ -48,7 +51,20 @@ func (r *Repository) ApproveCV(ctx context.Context, recruiterID, postingID, appl
 		if err != nil {
 			return internal(err)
 		}
-		screening = toScreening(row.ID, row.JobPostingID, row.Status, row.InterviewDeadline, row.RejectReason, row.UpdatedAt)
+		postingStatus := posting.Status
+		// CheckApproval guarantees approvals < slot, so this approval fills the slot exactly when
+		// approvals+1 reaches it.
+		if posting.InterviewSlot != nil && approvals+1 >= int64(*posting.InterviewSlot) {
+			if _, err := closeIntake(ctx, q, postingID); err != nil {
+				return err
+			}
+			status, err := evaluateTerminalClose(ctx, q, postingID, "intake_closed")
+			if err != nil {
+				return err
+			}
+			postingStatus = status
+		}
+		screening = toScreening(row.ID, row.JobPostingID, row.Status, postingStatus, row.InterviewDeadline, row.RejectReason, row.UpdatedAt)
 		return nil
 	})
 	if err != nil {
@@ -58,12 +74,14 @@ func (r *Repository) ApproveCV(ctx context.Context, recruiterID, postingID, appl
 }
 
 // RejectCV makes a pending Application terminally rejected. It takes the same posting lock as
-// ApproveCV, so a rejection never races an approval or a later intake close on that posting.
+// ApproveCV, so a rejection never races an approval or a later intake close on that posting. It
+// never closes intake, and the posting status it returns is the locked one.
 func (r *Repository) RejectCV(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID, reason *string) (domain.Screening, error) {
 	var screening domain.Screening
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
-		if _, err := q.LockOwnedPosting(ctx, LockOwnedPostingParams{ID: postingID, RecruiterID: recruiterID}); err != nil {
+		posting, err := q.LockOwnedPosting(ctx, LockOwnedPostingParams{ID: postingID, RecruiterID: recruiterID})
+		if err != nil {
 			return postingError(err)
 		}
 		if err := lockPendingApplication(ctx, q, postingID, applicationID); err != nil {
@@ -73,13 +91,108 @@ func (r *Repository) RejectCV(ctx context.Context, recruiterID, postingID, appli
 		if err != nil {
 			return internal(err)
 		}
-		screening = toScreening(row.ID, row.JobPostingID, row.Status, row.InterviewDeadline, row.RejectReason, row.UpdatedAt)
+		screening = toScreening(row.ID, row.JobPostingID, row.Status, posting.Status, row.InterviewDeadline, row.RejectReason, row.UpdatedAt)
 		return nil
 	})
 	if err != nil {
 		return domain.Screening{}, internal(err)
 	}
 	return screening, nil
+}
+
+// CloseIntake stops a posting from taking more CVs: an open posting becomes intake_closed and its
+// pending Applications are rejected in the same transaction. Closing an intake_closed posting changes
+// nothing and reports zero rejections. The terminal close runs last, so a posting with no live
+// Application closes at once.
+func (r *Repository) CloseIntake(ctx context.Context, recruiterID, postingID uuid.UUID) (domain.IntakeClosure, error) {
+	closure := domain.IntakeClosure{JobPostingID: postingID}
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		posting, err := q.LockOwnedPosting(ctx, LockOwnedPostingParams{ID: postingID, RecruiterID: recruiterID})
+		if err != nil {
+			return postingError(err)
+		}
+		switch posting.Status {
+		case "open":
+			rejected, err := closeIntake(ctx, q, postingID)
+			if err != nil {
+				return err
+			}
+			closure.RejectedCount = rejected
+			closure.Status = "intake_closed"
+		case "intake_closed":
+			closure.Status = posting.Status
+		default:
+			return domain.ErrIntakeNotOpen
+		}
+		status, err := evaluateTerminalClose(ctx, q, postingID, closure.Status)
+		if err != nil {
+			return err
+		}
+		closure.Status = status
+		return nil
+	})
+	if err != nil {
+		return domain.IntakeClosure{}, internal(err)
+	}
+	return closure, nil
+}
+
+// EvaluateTerminalClose applies the terminal close rule to one posting for system callers, which
+// have no Recruiter to own the posting. It returns the posting status afterwards. A posting that is
+// not intake_closed, or is already closed, is left unchanged.
+func (r *Repository) EvaluateTerminalClose(ctx context.Context, postingID uuid.UUID) (string, error) {
+	var status string
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		current, err := q.LockPostingByID(ctx, postingID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperror.New(apperror.CodeJobPostingNotFound, "job posting not found")
+		}
+		if err != nil {
+			return internal(err)
+		}
+		status, err = evaluateTerminalClose(ctx, q, postingID, current)
+		return err
+	})
+	if err != nil {
+		return "", internal(err)
+	}
+	return status, nil
+}
+
+// closeIntake moves an open posting to intake_closed and rejects its pending Applications with the
+// fixed reason. The caller holds the posting lock.
+func closeIntake(ctx context.Context, q *Queries, postingID uuid.UUID) (int64, error) {
+	if _, err := q.SetPostingIntakeClosed(ctx, postingID); err != nil {
+		return 0, internal(err)
+	}
+	reason := domain.IntakeClosedRejectReason
+	rejected, err := q.RejectPendingApplications(ctx, RejectPendingApplicationsParams{RejectReason: &reason, JobPostingID: postingID})
+	if err != nil {
+		return 0, internal(err)
+	}
+	return rejected, nil
+}
+
+// evaluateTerminalClose moves an intake_closed posting to closed when it has at least one Application
+// and none is still pending, interview_eligible or interviewed. It takes the posting status the
+// caller holds the lock for and returns the status afterwards. Any other status is returned as is.
+func evaluateTerminalClose(ctx context.Context, q *Queries, postingID uuid.UUID, status string) (string, error) {
+	if status != "intake_closed" {
+		return status, nil
+	}
+	counts, err := q.CountApplicationsForClose(ctx, postingID)
+	if err != nil {
+		return "", internal(err)
+	}
+	if counts.Total == 0 || counts.NonTerminal > 0 {
+		return status, nil
+	}
+	if _, err := q.SetPostingClosed(ctx, postingID); err != nil {
+		return "", internal(err)
+	}
+	return "closed", nil
 }
 
 // CandidateEligibility reads the Candidate's own Application. Another Candidate's Application is
@@ -144,6 +257,43 @@ func (r *Repository) ListApplications(ctx context.Context, recruiterID uuid.UUID
 	return items, total, nil
 }
 
+// GetApplicationDetail reads one Application of a posting the Recruiter owns. A posting that is not
+// theirs, or does not exist, is job posting not found; an Application that is not on this posting is
+// application not found.
+func (r *Repository) GetApplicationDetail(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID) (domain.DetailRecord, error) {
+	owned, err := r.queries.IsPostingOwned(ctx, IsPostingOwnedParams{ID: postingID, RecruiterID: recruiterID})
+	if err != nil {
+		return domain.DetailRecord{}, internal(err)
+	}
+	if !owned {
+		return domain.DetailRecord{}, apperror.New(apperror.CodeJobPostingNotFound, "job posting not found")
+	}
+	row, err := r.queries.GetRecruiterApplication(ctx, GetRecruiterApplicationParams{
+		ID: applicationID, JobPostingID: postingID, RecruiterID: recruiterID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.DetailRecord{}, domain.ErrApplicationNotFound
+	}
+	if err != nil {
+		return domain.DetailRecord{}, internal(err)
+	}
+	return domain.DetailRecord{
+		Item: domain.ListItem{
+			ID: row.ID, JobPostingID: row.JobPostingID, JobPostingTitle: row.JobPostingTitle,
+			Status: domain.ApplicationStatus(row.Status), SubmittedAt: row.CreatedAt.Time,
+			Candidate: domain.ListCandidate{
+				ID: row.CandidateID, Name: row.CandidateName, Email: row.CandidateEmail, Image: row.CandidateImage,
+			},
+			InterviewEligible: row.InterviewEligible, InterviewDeadline: timePtr(row.InterviewDeadline),
+			RejectReason: row.RejectReason, UpdatedAt: row.UpdatedAt.Time,
+		},
+		CVPath:        row.CvPath,
+		PostingStatus: row.PostingStatus,
+		InterviewSlot: row.InterviewSlot,
+		CVApprovals:   row.CvApprovals,
+	}, nil
+}
+
 func postingError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.Wrap(apperror.CodeJobPostingNotFound, "job posting not found", err)
@@ -178,9 +328,9 @@ func internal(err error) error {
 	return apperror.Wrap(apperror.CodeInternal, "application screening persistence failed", err)
 }
 
-func toScreening(id, postingID uuid.UUID, status string, deadline pgtype.Timestamptz, reason *string, updatedAt pgtype.Timestamptz) domain.Screening {
+func toScreening(id, postingID uuid.UUID, status, postingStatus string, deadline pgtype.Timestamptz, reason *string, updatedAt pgtype.Timestamptz) domain.Screening {
 	return domain.Screening{
-		ID: id, JobPostingID: postingID, Status: domain.ApplicationStatus(status),
+		ID: id, JobPostingID: postingID, Status: domain.ApplicationStatus(status), JobPostingStatus: postingStatus,
 		InterviewDeadline: timePtr(deadline), RejectReason: reason, UpdatedAt: updatedAt.Time,
 	}
 }

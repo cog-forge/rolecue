@@ -25,11 +25,25 @@ const InterviewWindow = 24 * time.Hour
 // MaxRejectReasonLength bounds the optional note a Recruiter leaves when rejecting a CV.
 const MaxRejectReasonLength = 500
 
+// IntakeClosedRejectReason is stored on every pending Application that intake closure rejects (KTD4).
+// Clients display it and never match on it.
+const IntakeClosedRejectReason = "Intake closed before this CV was screened."
+
+// IntakeClosure is the posting after a Close Intake call and how many pending Applications it rejected.
+type IntakeClosure struct {
+	JobPostingID  uuid.UUID `json:"job_posting_id"`
+	Status        string    `json:"status"`
+	RejectedCount int64     `json:"rejected_count"`
+}
+
 // Screening is an Application right after a CV screening decision.
 type Screening struct {
 	ID           uuid.UUID         `json:"id"`
 	JobPostingID uuid.UUID         `json:"job_posting_id"`
 	Status       ApplicationStatus `json:"status"`
+	// JobPostingStatus is the posting status after the decision. An approval that takes the last
+	// interview slot makes it intake_closed in the same transaction (R9).
+	JobPostingStatus string `json:"job_posting_status"`
 	// InterviewDeadline is set on CV approval: approval time + 24 hours.
 	InterviewDeadline *time.Time `json:"interview_deadline"`
 	RejectReason      *string    `json:"reject_reason"`
@@ -69,6 +83,40 @@ type ListItem struct {
 	InterviewDeadline *time.Time `json:"interview_deadline"`
 	RejectReason      *string    `json:"reject_reason"`
 	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
+// DetailRecord is one Application as the Application Detail read finds it. CVPath is the storage
+// key: the service signs it and it is never part of a response.
+type DetailRecord struct {
+	Item          ListItem
+	CVPath        *string
+	PostingStatus string
+	InterviewSlot *int32
+	CVApprovals   int64
+}
+
+// DetailJobPosting is the posting block of Application Detail: the capacity the approval is checked
+// against and the count that uses it.
+type DetailJobPosting struct {
+	ID            uuid.UUID `json:"id"`
+	Title         string    `json:"title"`
+	Status        string    `json:"status"`
+	InterviewSlot *int32    `json:"interview_slot"`
+	CVApprovals   int64     `json:"cv_approvals"`
+}
+
+// DetailCV is a short-lived link to the Application's CV. It is null when no CV is stored.
+type DetailCV struct {
+	URL       string    `json:"url"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// Detail is one Application for the Recruiter's Application Detail screen. It holds the list row,
+// the posting block and the CV link, and nothing from the transcript, recording or evaluation.
+type Detail struct {
+	ListItem
+	JobPosting DetailJobPosting `json:"job_posting"`
+	CV         *DetailCV        `json:"cv"`
 }
 
 // ValidStatus reports whether value is an Application status.

@@ -38,12 +38,20 @@ func (s *screeningSpy) RejectCV(_ context.Context, userID uuid.UUID, role string
 	return applicationdomain.Screening{ID: appID, Status: applicationdomain.StatusRejected, RejectReason: reason}, s.err
 }
 
+func (s *screeningSpy) CloseIntake(_ context.Context, _ uuid.UUID, _ string, postingID uuid.UUID) (applicationdomain.IntakeClosure, error) {
+	return applicationdomain.IntakeClosure{JobPostingID: postingID, Status: "intake_closed"}, s.err
+}
+
 func (s *screeningSpy) ListForPosting(context.Context, uuid.UUID, string, uuid.UUID, applicationdomain.ListFilter) ([]applicationdomain.ListItem, int64, error) {
 	return []applicationdomain.ListItem{}, 0, s.err
 }
 
 func (s *screeningSpy) ListOwn(context.Context, uuid.UUID, string, applicationdomain.ListFilter) ([]applicationdomain.ListItem, int64, error) {
 	return []applicationdomain.ListItem{}, 0, s.err
+}
+
+func (s *screeningSpy) GetDetail(context.Context, uuid.UUID, string, uuid.UUID, uuid.UUID) (applicationdomain.Detail, error) {
+	return applicationdomain.Detail{}, s.err
 }
 
 func screeningRouter(user authdomain.User, service ApplicationService) *gin.Engine {

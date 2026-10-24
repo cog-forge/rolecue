@@ -20,8 +20,10 @@ const applicationBodyLimit = 16 << 10
 type ApplicationService interface {
 	ApproveCV(ctx context.Context, recruiterID uuid.UUID, role string, postingID, applicationID uuid.UUID) (domain.Screening, error)
 	RejectCV(ctx context.Context, recruiterID uuid.UUID, role string, postingID, applicationID uuid.UUID, reason *string) (domain.Screening, error)
+	CloseIntake(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.IntakeClosure, error)
 	ListForPosting(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, filter domain.ListFilter) ([]domain.ListItem, int64, error)
 	ListOwn(ctx context.Context, recruiterID uuid.UUID, role string, filter domain.ListFilter) ([]domain.ListItem, int64, error)
+	GetDetail(ctx context.Context, recruiterID uuid.UUID, role string, postingID, applicationID uuid.UUID) (domain.Detail, error)
 }
 type ApplicationHandler struct{ service ApplicationService }
 
@@ -212,9 +214,37 @@ func (h *ApplicationHandler) ListOwn(c *gin.Context) {
 	})
 }
 
+// Detail godoc
+// @Summary Read one Application of your Job Posting
+// @Description Recruiter only, own postings. Returns the Application as the list shows it, the posting block (status, interview_slot, cv_approvals: every Application ever CV-approved, including ones rejected or decided later) and cv: a link to the CV that expires after five minutes, or null when no CV is stored. The response never carries the storage key, transcript, recording or evaluation. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting).
+// @Tags applications
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "Job Posting ID" format(uuid)
+// @Param applicationId path string true "Application ID" format(uuid)
+// @Success 200 {object} response.Envelope{data=domain.Detail}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /job-postings/{id}/applications/{applicationId} [get]
+func (h *ApplicationHandler) Detail(c *gin.Context) {
+	userID, role, postingID, applicationID, ok := applicationTarget(c)
+	if !ok {
+		return
+	}
+	detail, err := h.service.GetDetail(c.Request.Context(), userID, role, postingID, applicationID)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, detail)
+}
+
 // ApproveCV godoc
 // @Summary Approve an Application's CV
-// @Description Recruiter only, own open postings. The Application moves from pending to interview_eligible and gets interview_deadline = now + 24 hours. No interview slot is consumed yet; at most interview_slot Applications can ever be CV-approved per posting. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened), INTAKE_NOT_OPEN (posting not open), INTERVIEW_CAPACITY_NOT_FUNDED (interview_slot not set), INTERVIEW_CAPACITY_FULL.
+// @Description Recruiter only, own open postings. The Application moves from pending to interview_eligible and gets interview_deadline = now + 24 hours. Every approval counts toward the posting's interview_slot. The approval that takes the last slot also closes intake in the same transaction: the posting becomes intake_closed and every remaining pending Application is rejected. The approved Application is still live, so the posting stays intake_closed. job_posting_status is the posting status after the approval. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened), INTAKE_NOT_OPEN (posting not open), INTERVIEW_CAPACITY_NOT_FUNDED (interview_slot not set), INTERVIEW_CAPACITY_FULL.
 // @Tags applications
 // @Produce json
 // @Security SessionCookie
@@ -241,9 +271,43 @@ func (h *ApplicationHandler) ApproveCV(c *gin.Context) {
 	response.OK(c, screening)
 }
 
+// CloseIntake godoc
+// @Summary Close intake on a Job Posting
+// @Description Recruiter only, own postings. An open posting becomes intake_closed, and every pending Application on it is rejected with the reason "Intake closed before this CV was screened.". Interview-eligible Applications stay eligible. Closing an intake_closed posting returns the same state with rejected_count 0. If no Application is still live, the posting closes at once. Errors: VALIDATION_ERROR (bad ID), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN (posting is neither open nor intake_closed).
+// @Tags applications
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "Job Posting ID" format(uuid)
+// @Success 200 {object} response.Envelope{data=domain.IntakeClosure}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /job-postings/{id}/close-intake [post]
+func (h *ApplicationHandler) CloseIntake(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
+		return
+	}
+	postingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid job posting ID"))
+		return
+	}
+	closure, err := h.service.CloseIntake(c.Request.Context(), user.ID, user.Role, postingID)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, closure)
+}
+
 // RejectCV godoc
 // @Summary Reject an Application's CV
-// @Description Recruiter only, own postings. A pending Application becomes terminally rejected. The body is optional. Errors: VALIDATION_ERROR (bad IDs, body or reason over 500 characters), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened).
+// @Description Recruiter only, own postings. A pending Application becomes terminally rejected. The body is optional. Rejecting never closes intake; job_posting_status is the posting's current status. Errors: VALIDATION_ERROR (bad IDs, body or reason over 500 characters), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened).
 // @Tags applications
 // @Accept json
 // @Produce json
