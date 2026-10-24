@@ -23,7 +23,7 @@ RUN curl -fsSL --retry 3 https://ftp.halifax.rwth-aachen.de/blender/release/Blen
 RUN /opt/blender/5.2/python/bin/python3.13 -m pip install --no-cache-dir \
     urllib3==2.8.0 setuptools==84.0.0 wheel==0.48.0 certifi==2026.10.19
 
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:81211e15a86ea1d5357f284482af45730c51de45eaf10ad9ce205d6bfc2df323 AS runtime
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:360896efb0753a5701c48f860e17130c205eae5a264797aa3e7ea126ee2923a7 AS runtime
 RUN apk add --no-cache \
     ca-certificates poppler-utils libglvnd libx11 libxxf86vm libxfixes libxi \
     libxrender libxkbcommon libsm libice libgomp dbus-libs wayland libgcc libstdc++ \
