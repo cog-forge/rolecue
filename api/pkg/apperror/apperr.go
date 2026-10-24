@@ -85,6 +85,11 @@ const (
 	CodeIntakeNotOpen              Code = "INTAKE_NOT_OPEN"
 	CodeInterviewCapacityNotFunded Code = "INTERVIEW_CAPACITY_NOT_FUNDED"
 	CodeInterviewCapacityFull      Code = "INTERVIEW_CAPACITY_FULL"
+
+	// Interview capacity funding, Candidate apply and Admin interview oversight codes.
+	CodeInterviewCapacityAlreadyFunded Code = "INTERVIEW_CAPACITY_ALREADY_FUNDED"
+	CodeAlreadyApplied                 Code = "ALREADY_APPLIED"
+	CodeInterviewNotFound              Code = "INTERVIEW_NOT_FOUND"
 )
 
 type AppError struct {
