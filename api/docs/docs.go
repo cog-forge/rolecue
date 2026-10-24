@@ -1641,6 +1641,84 @@ const docTemplate = `{
                 }
             }
         },
+        "/inventory/slots/purchase": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Spends coins for the requested number of slots.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "inventory"
+                ],
+                "summary": "Purchase inventory slots",
+                "parameters": [
+                    {
+                        "description": "Number of slots to purchase",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.SlotPurchaseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/job-board": {
             "get": {
                 "security": [
@@ -5594,6 +5672,14 @@ const docTemplate = `{
                 "Technology",
                 "Other"
             ]
+        },
+        "domain.SlotPurchaseRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                }
+            }
         },
         "domain.Status": {
             "type": "string",
