@@ -146,11 +146,19 @@ export function ScreeningActions({
   if (application.status !== "pending") {
     // The reload after a conflict (for example APPLICATION_NOT_PENDING) can leave the Application
     // decided; the reason for the failed click stays visible instead of vanishing with the card.
-    const failure = approve.isError
-      ? applicationErrorMessage(approve.error, "We couldn't approve this CV.")
-      : reject.isError
-        ? applicationErrorMessage(reject.error, "We couldn't reject this CV.")
-        : null;
+    // An approve that lost to an intake close means the CV was rejected automatically; the posting
+    // can be intake_closed because the last slot was filled or because the Recruiter closed it.
+    const closedFirst =
+      approve.isError &&
+      apiError(approve.error).code === "APPLICATION_NOT_PENDING" &&
+      application.job_posting.status !== "open";
+    const failure = closedFirst
+      ? "Intake closed first, so this CV was rejected automatically."
+      : approve.isError
+        ? applicationErrorMessage(approve.error, "We couldn't approve this CV.")
+        : reject.isError
+          ? applicationErrorMessage(reject.error, "We couldn't reject this CV.")
+          : null;
     return failure ? (
       <Notice role="alert" tone="warning" title="No change was made">
         <p className="text-muted-foreground">{failure}</p>

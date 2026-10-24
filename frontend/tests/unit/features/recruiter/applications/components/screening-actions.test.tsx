@@ -269,6 +269,46 @@ describe("ScreeningActions", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("says intake closed first when an approve loses to an intake close", async () => {
+    mocks.post.mockRejectedValue(failure(409, "APPLICATION_NOT_PENDING"));
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    client.setQueryData(["auth", "me"], mocks.user);
+    const tree = (app: ApplicationDetail) => (
+      <QueryClientProvider client={client}>
+        <ScreeningActions
+          postingId={postingId}
+          applicationId={applicationId}
+          application={app}
+        />
+      </QueryClientProvider>
+    );
+    const view = render(tree(application()));
+    fireEvent.click(screen.getByRole("button", { name: "Approve CV" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Confirm approval" }),
+    );
+    await screen.findByText(/already been decided/);
+
+    const closed = application({ status: "rejected" });
+    view.rerender(
+      tree({
+        ...closed,
+        job_posting: { ...closed.job_posting, status: "intake_closed" },
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        "Intake closed first, so this CV was rejected automatically.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("reloads the detail when the Application was already decided", async () => {
     mocks.post.mockRejectedValue(failure(409, "APPLICATION_NOT_PENDING"));
     const client = mount();
