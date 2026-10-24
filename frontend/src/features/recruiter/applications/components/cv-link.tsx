@@ -11,6 +11,7 @@ import type { ApplicationDetail } from "../schemas/application-detail-schema";
 // The API's CV links expire after five minutes, so the detail is reloaded a minute before that.
 const REFRESH_BEFORE_EXPIRY_MS = 60 * 1000;
 // Never reload more often than this, even if the expiry is already close or the clocks disagree.
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
 const MIN_REFRESH_DELAY_MS = 30 * 1000;
 
 // Opens the Application's CV in a new tab. The link comes from the detail response, so the
@@ -30,9 +31,13 @@ export function CvLink({
 
   useEffect(() => {
     if (!expiresAt) return;
-    const delay = Math.max(
-      MIN_REFRESH_DELAY_MS,
-      Date.parse(expiresAt) - Date.now() - REFRESH_BEFORE_EXPIRY_MS,
+    // setTimeout wraps around past 2^31-1 ms, which would refetch in a tight loop.
+    const delay = Math.min(
+      MAX_TIMER_DELAY_MS,
+      Math.max(
+        MIN_REFRESH_DELAY_MS,
+        Date.parse(expiresAt) - Date.now() - REFRESH_BEFORE_EXPIRY_MS,
+      ),
     );
     const timer = window.setTimeout(() => {
       void cache.invalidateQueries({

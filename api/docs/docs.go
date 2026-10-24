@@ -2777,7 +2777,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, own postings. An open posting becomes intake_closed, and every pending Application on it is rejected with the reason \"Intake closed before this CV was screened.\". Interview-eligible Applications stay eligible. Closing an intake_closed posting returns the same state with rejected_count 0. If no Application is still live, the posting closes at once. Errors: VALIDATION_ERROR (bad ID), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN (posting is neither open nor intake_closed).",
+                "description": "Recruiter only, own postings. An open posting becomes intake_closed, and every pending Application on it is rejected with the reason \"Intake closed before this CV was screened.\". Interview-eligible Applications stay eligible. Closing an intake_closed or closed posting returns the same state with rejected_count 0, so a retry after a timeout succeeds. If no Application is still live, including when none was ever submitted, the posting closes at once. Errors: VALIDATION_ERROR (bad ID), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN (posting is still pending moderation or was rejected).",
                 "produces": [
                     "application/json"
                 ],

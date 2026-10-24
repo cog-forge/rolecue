@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { ScreeningActions } from "@/features/recruiter/applications/components/screening-actions";
@@ -123,7 +129,7 @@ describe("ScreeningActions", () => {
     const dialog = await screen.findByRole("dialog", {
       name: "Approve this CV?",
     });
-    expect(dialog).toHaveTextContent(/uses one of this posting/);
+    expect(dialog).toHaveTextContent(/counts toward this posting/);
     fireEvent.click(
       await screen.findByRole("button", { name: "Confirm approval" }),
     );
@@ -148,7 +154,9 @@ describe("ScreeningActions", () => {
     mount();
     fireEvent.click(screen.getByRole("button", { name: "Reject CV" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Reject application" }),
+      within(
+        await screen.findByRole("dialog", { name: "Reject this CV?" }),
+      ).getByRole("button", { name: "Reject CV" }),
     );
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
@@ -168,7 +176,9 @@ describe("ScreeningActions", () => {
       target: { value: "  Missing Go experience  " },
     });
     fireEvent.click(
-      await screen.findByRole("button", { name: "Reject application" }),
+      within(
+        await screen.findByRole("dialog", { name: "Reject this CV?" }),
+      ).getByRole("button", { name: "Reject CV" }),
     );
 
     await waitFor(() =>
@@ -186,7 +196,9 @@ describe("ScreeningActions", () => {
 
     fireEvent.change(reason, { target: { value: "a".repeat(501) } });
     fireEvent.click(
-      await screen.findByRole("button", { name: "Reject application" }),
+      within(
+        await screen.findByRole("dialog", { name: "Reject this CV?" }),
+      ).getByRole("button", { name: "Reject CV" }),
     );
     expect(
       await screen.findByText("Keep the reason to 500 characters or fewer."),
@@ -195,7 +207,9 @@ describe("ScreeningActions", () => {
 
     fireEvent.change(reason, { target: { value: "a".repeat(500) } });
     fireEvent.click(
-      await screen.findByRole("button", { name: "Reject application" }),
+      within(
+        await screen.findByRole("dialog", { name: "Reject this CV?" }),
+      ).getByRole("button", { name: "Reject CV" }),
     );
     await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
     expect(mocks.post).toHaveBeenCalledWith(rejectPath, {
@@ -241,7 +255,9 @@ describe("ScreeningActions", () => {
     const view = render(tree(application()));
     fireEvent.click(screen.getByRole("button", { name: "Reject CV" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Reject application" }),
+      within(
+        await screen.findByRole("dialog", { name: "Reject this CV?" }),
+      ).getByRole("button", { name: "Reject CV" }),
     );
     await screen.findByText(/already been decided/);
 
@@ -258,7 +274,9 @@ describe("ScreeningActions", () => {
     const client = mount();
     fireEvent.click(screen.getByRole("button", { name: "Reject CV" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "Reject application" }),
+      within(
+        await screen.findByRole("dialog", { name: "Reject this CV?" }),
+      ).getByRole("button", { name: "Reject CV" }),
     );
 
     expect(

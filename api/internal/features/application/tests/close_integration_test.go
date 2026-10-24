@@ -124,7 +124,7 @@ func TestCloseIntakeRefusesOtherPostingStatuses(t *testing.T) {
 	s := newSeed(t, ctx, pool)
 	svc := newService(t, pool)
 	owner := s.user("recruiter")
-	for _, status := range []string{"pending", "rejected", "closed"} {
+	for _, status := range []string{"pending", "rejected"} {
 		postingID := s.posting(owner, status, slot(3))
 		appID := s.application(postingID, s.user("candidate"))
 		_, err := svc.CloseIntake(ctx, owner, "recruiter", postingID)
@@ -161,7 +161,7 @@ func TestCloseIntakeIsOwnerScoped(t *testing.T) {
 	}
 }
 
-func TestCloseWithNoApplicationsStaysIntakeClosed(t *testing.T) {
+func TestCloseWithNoApplicationsClosesTerminally(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
 	svc := newService(t, pool)
@@ -172,11 +172,35 @@ func TestCloseWithNoApplicationsStaysIntakeClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if closure.Status != "intake_closed" || closure.RejectedCount != 0 {
-		t.Fatalf("CloseIntake() = %+v, want intake_closed with 0 rejections", closure)
+	if closure.Status != "closed" || closure.RejectedCount != 0 {
+		t.Fatalf("CloseIntake() = %+v, want closed with 0 rejections", closure)
 	}
-	if got := storedPostingStatus(t, s, postingID); got != "intake_closed" {
-		t.Fatalf("posting status = %s, want intake_closed (zero Applications never close)", got)
+	if got := storedPostingStatus(t, s, postingID); got != "closed" {
+		t.Fatalf("posting status = %s, want closed (no live Application, so nothing is left to wait for)", got)
+	}
+}
+
+func TestCloseIntakeRetryAfterTerminalCloseSucceeds(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool)
+	owner := s.user("recruiter")
+	postingID := s.posting(owner, "open", slot(3))
+	appID := s.application(postingID, s.user("candidate"))
+
+	first, err := svc.CloseIntake(ctx, owner, "recruiter", postingID)
+	if err != nil || first.Status != "closed" || first.RejectedCount != 1 {
+		t.Fatalf("first CloseIntake() = %+v, %v, want closed with 1 rejection", first, err)
+	}
+	before := s.stored(appID)
+
+	retry, err := svc.CloseIntake(ctx, owner, "recruiter", postingID)
+	if err != nil || retry.Status != "closed" || retry.RejectedCount != 0 {
+		t.Fatalf("retry CloseIntake() = %+v, %v, want closed with 0 rejections and no error", retry, err)
+	}
+	after := s.stored(appID)
+	if after.status != before.status || after.reason == nil || before.reason == nil || *after.reason != *before.reason {
+		t.Fatalf("retry changed the Application: %+v -> %+v", before, after)
 	}
 }
 
@@ -241,10 +265,10 @@ func TestEvaluateTerminalCloseRules(t *testing.T) {
 		t.Fatalf("posting status = %s, want closed", got)
 	}
 
-	// An intake_closed posting with no Application is not closed.
+	// An intake_closed posting with no Application has nothing left to wait for, so it closes.
 	empty := s.posting(owner, "intake_closed", slot(3))
-	if got, err := repo.EvaluateTerminalClose(ctx, empty); err != nil || got != "intake_closed" {
-		t.Fatalf("EvaluateTerminalClose(empty) = %q, %v, want intake_closed", got, err)
+	if got, err := repo.EvaluateTerminalClose(ctx, empty); err != nil || got != "closed" {
+		t.Fatalf("EvaluateTerminalClose(empty) = %q, %v, want closed", got, err)
 	}
 
 	_, err := repo.EvaluateTerminalClose(ctx, uuid.New())

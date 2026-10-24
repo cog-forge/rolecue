@@ -50,27 +50,6 @@ func (q *Queries) ApproveCV(ctx context.Context, arg ApproveCVParams) (ApproveCV
 	return i, err
 }
 
-const countApplicationsForClose = `-- name: CountApplicationsForClose :one
-SELECT count(*) AS total,
-       count(*) FILTER (WHERE status IN ('pending', 'interview_eligible', 'interviewed'))::bigint AS non_terminal
-FROM public.applications
-WHERE job_posting_id = $1
-`
-
-type CountApplicationsForCloseRow struct {
-	Total       int64
-	NonTerminal int64
-}
-
-// total counts every Application of the posting; non_terminal counts the ones that can still move
-// (pending, interview_eligible, interviewed). The terminal close needs total >= 1 and non_terminal = 0.
-func (q *Queries) CountApplicationsForClose(ctx context.Context, jobPostingID uuid.UUID) (CountApplicationsForCloseRow, error) {
-	row := q.db.QueryRow(ctx, countApplicationsForClose, jobPostingID)
-	var i CountApplicationsForCloseRow
-	err := row.Scan(&i.Total, &i.NonTerminal)
-	return i, err
-}
-
 const countCVApprovals = `-- name: CountCVApprovals :one
 SELECT count(*) FROM public.applications
 WHERE job_posting_id = $1 AND interview_deadline IS NOT NULL
@@ -82,6 +61,22 @@ func (q *Queries) CountCVApprovals(ctx context.Context, jobPostingID uuid.UUID) 
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countLiveApplications = `-- name: CountLiveApplications :one
+SELECT count(*)::bigint AS live
+FROM public.applications
+WHERE job_posting_id = $1 AND status IN ('pending', 'interview_eligible', 'interviewed')
+`
+
+// Counts the Applications of the posting that can still move (pending, interview_eligible,
+// interviewed). The terminal close needs none: with no live Application the posting is done, which
+// also covers a posting that never received one.
+func (q *Queries) CountLiveApplications(ctx context.Context, jobPostingID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countLiveApplications, jobPostingID)
+	var live int64
+	err := row.Scan(&live)
+	return live, err
 }
 
 const countRecruiterApplications = `-- name: CountRecruiterApplications :one

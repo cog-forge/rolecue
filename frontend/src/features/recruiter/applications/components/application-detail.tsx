@@ -19,21 +19,11 @@ import {
 } from "@/features/recruiter/job-postings/utils/api-error";
 import { cn } from "@/lib/utils";
 import { applicationKeys, getApplicationDetail } from "../api/applications";
+import { formatDeadline, formatSubmitted } from "../utils/application-dates";
 import type { ApplicationDetail as ApplicationDetailRecord } from "../schemas/application-detail-schema";
 import { ApplicationStatus } from "./application-status";
 import { CvLink } from "./cv-link";
 import { ScreeningActions } from "./screening-actions";
-
-// Same wording and time zone handling as the Applications list: the deadline is a moment, shown
-// in the viewer's own time zone and named to avoid misreading.
-const timeFormat = new Intl.DateTimeFormat("en", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZoneName: "short",
-});
 
 // The label follows the list's wording: an eligible Application shows the time left to interview.
 function deadlineLabel(application: ApplicationDetailRecord) {
@@ -213,7 +203,7 @@ export function ApplicationDetail({
                   dateTime={application.submitted_at}
                   title={application.submitted_at}
                 >
-                  {timeFormat.format(new Date(application.submitted_at))}
+                  {formatSubmitted(application.submitted_at)}
                 </time>
               </dd>
             </div>
@@ -227,9 +217,7 @@ export function ApplicationDetail({
                     dateTime={application.interview_deadline}
                     title={application.interview_deadline}
                   >
-                    {timeFormat.format(
-                      new Date(application.interview_deadline),
-                    )}
+                    {formatDeadline(application.interview_deadline)}
                   </time>
                 </dd>
               </div>

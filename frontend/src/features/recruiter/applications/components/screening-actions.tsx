@@ -159,6 +159,8 @@ export function ScreeningActions({
   }
   const posting = application.job_posting;
   const intakeOpen = posting.status === "open";
+  const intakeClosed =
+    posting.status === "intake_closed" || posting.status === "closed";
   const blocked = intakeOpen ? approvalBlockReason(posting) : null;
   const approveError = approve.isError
     ? applicationErrorMessage(
@@ -176,11 +178,13 @@ export function ScreeningActions({
       </CardHeader>
       <CardContent className="space-y-4">
         {!intakeOpen ? (
-          <Notice tone="locked" title="Intake is closed">
-            <p className="text-muted-foreground">
-              This posting is no longer taking screening decisions.
-            </p>
-          </Notice>
+          intakeClosed ? (
+            <Notice tone="locked" title="Intake is closed">
+              <p className="text-muted-foreground">
+                This posting is no longer taking screening decisions.
+              </p>
+            </Notice>
+          ) : null
         ) : (
           <>
             {blocked && (
@@ -234,7 +238,7 @@ export function ScreeningActions({
             <DialogTitle>Approve this CV?</DialogTitle>
             <DialogDescription>
               {application.candidate.name} will be cleared for an interview and
-              uses one of this posting&apos;s interview slots. When the last
+              counts toward this posting&apos;s interview limit. When the last
               slot is taken, intake closes and the other pending CVs are
               rejected.
             </DialogDescription>
@@ -426,7 +430,7 @@ function RejectForm({
               aria-hidden
             />
           )}
-          {pending ? "Rejecting…" : "Reject application"}
+          {pending ? "Rejecting…" : "Reject CV"}
         </Button>
       </DialogFooter>
     </form>

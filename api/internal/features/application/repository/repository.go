@@ -101,9 +101,10 @@ func (r *Repository) RejectCV(ctx context.Context, recruiterID, postingID, appli
 }
 
 // CloseIntake stops a posting from taking more CVs: an open posting becomes intake_closed and its
-// pending Applications are rejected in the same transaction. Closing an intake_closed posting changes
-// nothing and reports zero rejections. The terminal close runs last, so a posting with no live
-// Application closes at once.
+// pending Applications are rejected in the same transaction. Closing an intake_closed or closed
+// posting changes nothing and reports zero rejections, so a retry after a timeout succeeds. The
+// terminal close runs last, so a posting with no live Application (including one that never had an
+// Application) closes at once.
 func (r *Repository) CloseIntake(ctx context.Context, recruiterID, postingID uuid.UUID) (domain.IntakeClosure, error) {
 	closure := domain.IntakeClosure{JobPostingID: postingID}
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
@@ -120,7 +121,7 @@ func (r *Repository) CloseIntake(ctx context.Context, recruiterID, postingID uui
 			}
 			closure.RejectedCount = rejected
 			closure.Status = "intake_closed"
-		case "intake_closed":
+		case "intake_closed", "closed":
 			closure.Status = posting.Status
 		default:
 			return domain.ErrIntakeNotOpen
@@ -175,18 +176,18 @@ func closeIntake(ctx context.Context, q *Queries, postingID uuid.UUID) (int64, e
 	return rejected, nil
 }
 
-// evaluateTerminalClose moves an intake_closed posting to closed when it has at least one Application
-// and none is still pending, interview_eligible or interviewed. It takes the posting status the
+// evaluateTerminalClose moves an intake_closed posting to closed when no Application is still
+// pending, interview_eligible or interviewed; a posting with no Applications qualifies. It takes the posting status the
 // caller holds the lock for and returns the status afterwards. Any other status is returned as is.
 func evaluateTerminalClose(ctx context.Context, q *Queries, postingID uuid.UUID, status string) (string, error) {
 	if status != "intake_closed" {
 		return status, nil
 	}
-	counts, err := q.CountApplicationsForClose(ctx, postingID)
+	live, err := q.CountLiveApplications(ctx, postingID)
 	if err != nil {
 		return "", internal(err)
 	}
-	if counts.Total == 0 || counts.NonTerminal > 0 {
+	if live > 0 {
 		return status, nil
 	}
 	if _, err := q.SetPostingClosed(ctx, postingID); err != nil {

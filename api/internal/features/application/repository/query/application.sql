@@ -118,13 +118,13 @@ UPDATE public.applications
 SET status = 'rejected', reject_reason = @reject_reason, updated_at = statement_timestamp()
 WHERE job_posting_id = @job_posting_id AND status = 'pending';
 
--- total counts every Application of the posting; non_terminal counts the ones that can still move
--- (pending, interview_eligible, interviewed). The terminal close needs total >= 1 and non_terminal = 0.
--- name: CountApplicationsForClose :one
-SELECT count(*) AS total,
-       count(*) FILTER (WHERE status IN ('pending', 'interview_eligible', 'interviewed'))::bigint AS non_terminal
+-- Counts the Applications of the posting that can still move (pending, interview_eligible,
+-- interviewed). The terminal close needs none: with no live Application the posting is done, which
+-- also covers a posting that never received one.
+-- name: CountLiveApplications :one
+SELECT count(*)::bigint AS live
 FROM public.applications
-WHERE job_posting_id = @job_posting_id;
+WHERE job_posting_id = @job_posting_id AND status IN ('pending', 'interview_eligible', 'interviewed');
 
 -- Locks the posting without the owner filter, for system callers that have no Recruiter.
 -- name: LockPostingByID :one

@@ -242,7 +242,7 @@ test("rejecting posts the reason and shows the rejected state", async ({
   await dialog
     .getByLabel(/Reason for the candidate/)
     .fill("Missing Go experience.");
-  await dialog.getByRole("button", { name: "Reject application" }).click();
+  await dialog.getByRole("button", { name: "Reject CV" }).click();
 
   await expect(page.getByText("Rejected", { exact: true })).toBeVisible();
   await expect(page.getByText("Missing Go experience.")).toBeVisible();
@@ -263,7 +263,7 @@ test("with every interview slot taken, Approve is disabled and explained, and Re
   await page.getByRole("button", { name: "Reject CV" }).click();
   await page
     .getByRole("dialog", { name: "Reject this CV?" })
-    .getByRole("button", { name: "Reject application" })
+    .getByRole("button", { name: "Reject CV" })
     .click();
   await expect(page.getByText("Rejected", { exact: true })).toBeVisible();
   expect(api.rejects).toHaveLength(1);
