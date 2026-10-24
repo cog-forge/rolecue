@@ -22,21 +22,21 @@ func (q *Queries) EnsureWallet(ctx context.Context, userID uuid.UUID) error {
 	return err
 }
 
-const getWalletBalance = `-- name: GetWalletBalance :one
+const getWallet = `-- name: GetWallet :one
 SELECT id, balance
 FROM public.wallets
 WHERE user_id = $1
 FOR UPDATE
 `
 
-type GetWalletBalanceRow struct {
+type GetWalletRow struct {
 	ID      uuid.UUID
 	Balance int32
 }
 
-func (q *Queries) GetWalletBalance(ctx context.Context, userID uuid.UUID) (GetWalletBalanceRow, error) {
-	row := q.db.QueryRow(ctx, getWalletBalance, userID)
-	var i GetWalletBalanceRow
+func (q *Queries) GetWallet(ctx context.Context, userID uuid.UUID) (GetWalletRow, error) {
+	row := q.db.QueryRow(ctx, getWallet, userID)
+	var i GetWalletRow
 	err := row.Scan(&i.ID, &i.Balance)
 	return i, err
 }
