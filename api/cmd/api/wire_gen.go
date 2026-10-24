@@ -136,7 +136,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	}
 	evaluationHandler := provider.ProvideEvaluationHandler(service9)
 	repository11 := provider.ProvideApplicationRepository(pool)
-	service10, err := provider.ProvideApplicationService(repository11)
+	service10, err := provider.ProvideApplicationService(repository11, store)
 	if err != nil {
 		cleanup2()
 		cleanup()

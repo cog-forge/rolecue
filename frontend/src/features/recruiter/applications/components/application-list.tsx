@@ -41,6 +41,7 @@ import {
   type ApplicationStatusFilter,
 } from "../utils/application-filters";
 import { ApplicationStatus } from "./application-status";
+import { formatDeadline, formatSubmitted } from "../utils/application-dates";
 
 const tabs: { status: ApplicationStatusFilter; label: string }[] = [
   { status: "all", label: "All" },
@@ -58,20 +59,6 @@ const emptyText: Record<ApplicationStatusFilter, string> = {
   approved: "You haven't approved anyone yet.",
   rejected: "No applications were rejected.",
 };
-const dateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
-// The deadline is a moment, so it is shown in the viewer's own time zone, named to avoid misreading.
-const deadlineFormat = new Intl.DateTimeFormat("en", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZoneName: "short",
-});
-
 // Filter changes update the URL with the History API instead of a route navigation, so the page
 // is not re-rendered by the server and the current rows stay visible while the next page loads.
 function pushFilters(href: string) {
@@ -384,9 +371,15 @@ function ApplicationRow({
       style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
     >
       <td className="py-3.5 pr-4 pl-5">
-        <span className="block font-medium [overflow-wrap:anywhere]">
+        <Link
+          href={routes.recruiter.application(
+            application.job_posting_id,
+            application.id,
+          )}
+          className="block rounded-sm font-medium underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
           {candidate.name}
-        </span>
+        </Link>
         <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">
           {candidate.email}
         </span>
@@ -406,7 +399,7 @@ function ApplicationRow({
           dateTime={application.submitted_at}
           title={application.submitted_at}
         >
-          {dateFormat.format(new Date(application.submitted_at))}
+          {formatSubmitted(application.submitted_at)}
         </time>
       </td>
       <td className="py-3.5 pr-5">
@@ -432,7 +425,7 @@ function StatusDetail({ application }: { application: Application }) {
           ? "Complete interview by "
           : "Deadline passed "}
         <time dateTime={deadline} title={deadline}>
-          {deadlineFormat.format(new Date(deadline))}
+          {formatDeadline(deadline)}
         </time>
       </p>
     );

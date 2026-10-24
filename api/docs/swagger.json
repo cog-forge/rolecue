@@ -2485,6 +2485,91 @@
                 }
             }
         },
+        "/job-postings/{id}/applications/{applicationId}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings. Returns the Application as the list shows it, the posting block (status, interview_slot, cv_approvals: every Application ever CV-approved, including ones rejected or decided later) and cv: a link to the CV that expires after five minutes, or null when no CV is stored. The response never carries the storage key, transcript, recording or evaluation. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Read one Application of your Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Application ID",
+                        "name": "applicationId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/job-postings/{id}/applications/{applicationId}/approve-cv": {
             "post": {
                 "security": [
@@ -2492,7 +2577,7 @@
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, own open postings. The Application moves from pending to interview_eligible and gets interview_deadline = now + 24 hours. No interview slot is consumed yet; at most interview_slot Applications can ever be CV-approved per posting. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened), INTAKE_NOT_OPEN (posting not open), INTERVIEW_CAPACITY_NOT_FUNDED (interview_slot not set), INTERVIEW_CAPACITY_FULL.",
+                "description": "Recruiter only, own open postings. The Application moves from pending to interview_eligible and gets interview_deadline = now + 24 hours. Every approval counts toward the posting's interview_slot. The approval that takes the last slot also closes intake in the same transaction: the posting becomes intake_closed and every remaining pending Application is rejected. The approved Application is still live, so the posting stays intake_closed. job_posting_status is the posting status after the approval. Errors: VALIDATION_ERROR (bad IDs), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened), INTAKE_NOT_OPEN (posting not open), INTERVIEW_CAPACITY_NOT_FUNDED (interview_slot not set), INTERVIEW_CAPACITY_FULL.",
                 "produces": [
                     "application/json"
                 ],
@@ -2583,7 +2668,7 @@
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, own postings. A pending Application becomes terminally rejected. The body is optional. Errors: VALIDATION_ERROR (bad IDs, body or reason over 500 characters), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened).",
+                "description": "Recruiter only, own postings. A pending Application becomes terminally rejected. The body is optional. Rejecting never closes intake; job_posting_status is the posting's current status. Errors: VALIDATION_ERROR (bad IDs, body or reason over 500 characters), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), APPLICATION_NOT_FOUND (not on this posting), APPLICATION_NOT_PENDING (already screened).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2633,6 +2718,89 @@
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/domain.Screening"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/close-intake": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings. An open posting becomes intake_closed, and every pending Application on it is rejected with the reason \"Intake closed before this CV was screened.\". Interview-eligible Applications stay eligible. Closing an intake_closed or closed posting returns the same state with rejected_count 0, so a retry after a timeout succeeds. If no Application is still live, including when none was ever submitted, the posting closes at once. Errors: VALIDATION_ERROR (bad ID), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN (posting is still pending moderation or was rejected).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Close intake on a Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.IntakeClosure"
                                         }
                                     }
                                 }
@@ -5247,6 +5415,79 @@
                 }
             }
         },
+        "domain.Detail": {
+            "type": "object",
+            "properties": {
+                "candidate": {
+                    "$ref": "#/definitions/domain.ListCandidate"
+                },
+                "cv": {
+                    "$ref": "#/definitions/domain.DetailCV"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_deadline": {
+                    "type": "string"
+                },
+                "interview_eligible": {
+                    "description": "InterviewEligible is true while the Candidate is CV-approved and the 24-hour deadline has not passed.",
+                    "type": "boolean"
+                },
+                "job_posting": {
+                    "$ref": "#/definitions/domain.DetailJobPosting"
+                },
+                "job_posting_id": {
+                    "type": "string"
+                },
+                "job_posting_title": {
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.ApplicationStatus"
+                },
+                "submitted_at": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.DetailCV": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.DetailJobPosting": {
+            "type": "object",
+            "properties": {
+                "cv_approvals": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_slot": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Document": {
             "type": "object",
             "properties": {
@@ -5320,6 +5561,20 @@
                     ]
                 },
                 "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.IntakeClosure": {
+            "type": "object",
+            "properties": {
+                "job_posting_id": {
+                    "type": "string"
+                },
+                "rejected_count": {
+                    "type": "integer"
+                },
+                "status": {
                     "type": "string"
                 }
             }
@@ -5902,6 +6157,10 @@
                     "type": "string"
                 },
                 "job_posting_id": {
+                    "type": "string"
+                },
+                "job_posting_status": {
+                    "description": "JobPostingStatus is the posting status after the decision. An approval that takes the last\ninterview slot makes it intake_closed in the same transaction (R9).",
                     "type": "string"
                 },
                 "reject_reason": {

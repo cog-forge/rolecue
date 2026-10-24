@@ -34,6 +34,26 @@ type fakeRepository struct {
 	listCalls   int
 	listFilter  domain.ListFilter
 	listRecruit uuid.UUID
+
+	closure                      domain.IntakeClosure
+	closeCalls                   int
+	closeRecruiter, closePosting uuid.UUID
+
+	detail                                    domain.DetailRecord
+	detailCalls                               int
+	detailRecruiter, detailPosting, detailApp uuid.UUID
+}
+
+func (f *fakeRepository) GetApplicationDetail(_ context.Context, recruiterID, postingID, applicationID uuid.UUID) (domain.DetailRecord, error) {
+	f.detailCalls++
+	f.detailRecruiter, f.detailPosting, f.detailApp = recruiterID, postingID, applicationID
+	return f.detail, f.err
+}
+
+func (f *fakeRepository) CloseIntake(_ context.Context, recruiterID, postingID uuid.UUID) (domain.IntakeClosure, error) {
+	f.closeCalls++
+	f.closeRecruiter, f.closePosting = recruiterID, postingID
+	return f.closure, f.err
 }
 
 func (f *fakeRepository) ListApplications(_ context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.ListItem, int64, error) {
@@ -62,7 +82,7 @@ func (f *fakeRepository) CandidateEligibility(_ context.Context, candidateID, ap
 
 func newService(t *testing.T, repo *fakeRepository) *Service {
 	t.Helper()
-	svc, err := New(repo)
+	svc, err := New(repo, &fakeCVLinker{})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -79,9 +99,12 @@ func assertCode(t *testing.T, err error, want apperror.Code) {
 
 func ptr[T any](v T) *T { return &v }
 
-func TestNewRequiresRepository(t *testing.T) {
-	if _, err := New(nil); err == nil {
-		t.Fatal("New(nil) error = nil, want an error")
+func TestNewRequiresRepositoryAndCVLinker(t *testing.T) {
+	if _, err := New(nil, &fakeCVLinker{}); err == nil {
+		t.Fatal("New(nil, linker) error = nil, want an error")
+	}
+	if _, err := New(&fakeRepository{}, nil); err == nil {
+		t.Fatal("New(repository, nil) error = nil, want an error")
 	}
 }
 

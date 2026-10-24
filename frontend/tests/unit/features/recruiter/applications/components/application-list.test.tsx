@@ -144,11 +144,16 @@ describe("ApplicationList", () => {
     );
     expect(within(table).getByText("Rejected")).toBeInTheDocument();
     expect(within(table).getByText("Reason: Not a fit")).toBeInTheDocument();
-    // The posting is already known, and a row opens nothing until Application Detail exists.
+    // The posting is already known, so the posting column is left out.
     expect(
       within(table).queryByRole("columnheader", { name: "Job posting" }),
     ).not.toBeInTheDocument();
-    expect(within(table).queryByRole("link")).not.toBeInTheDocument();
+    expect(
+      within(table).getByRole("link", { name: "Candidate 1" }),
+    ).toHaveAttribute(
+      "href",
+      `/recruiter/job-postings/${postingId}/applications/${application(1).id}`,
+    );
     expect(mocks.get).toHaveBeenCalledWith(
       `/job-postings/${postingId}/applications`,
       { params: { limit: 20, offset: 0 }, signal: expect.any(AbortSignal) },
@@ -166,6 +171,13 @@ describe("ApplicationList", () => {
     expect(
       within(table).getByRole("link", { name: "Backend Engineer" }),
     ).toHaveAttribute("href", `/recruiter/job-postings/${postingId}`);
+    // Each row opens its Application's detail, on the posting that owns it.
+    expect(
+      within(table).getByRole("link", { name: "Candidate 1" }),
+    ).toHaveAttribute(
+      "href",
+      `/recruiter/job-postings/${postingId}/applications/${application(1).id}`,
+    );
     expect(mocks.get).toHaveBeenCalledWith("/recruiter/applications", {
       params: { limit: 20, offset: 0 },
       signal: expect.any(AbortSignal),
