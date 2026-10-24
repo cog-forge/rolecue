@@ -2179,7 +2179,7 @@ paths:
       summary: View your personal avatar
       tags:
       - inventory
-  /inventory/slots/purchase:
+  /inventory/purchase:
     post:
       consumes:
       - application/json

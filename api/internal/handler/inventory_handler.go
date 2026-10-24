@@ -207,7 +207,7 @@ func (h *InventoryHandler) Get(c *gin.Context) {
 // @Failure 422 {object} response.Envelope
 // @Failure 500 {object} response.Envelope
 // @Failure 503 {object} response.Envelope
-// @Router /inventory/slots/purchase [post]
+// @Router /inventory/purchase [post]
 func (h *InventoryHandler) PurchaseSlot(c *gin.Context) {
 	user, ok := inventoryUser(c)
 	if !ok {

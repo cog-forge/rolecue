@@ -1641,7 +1641,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/inventory/slots/purchase": {
+        "/inventory/purchase": {
             "post": {
                 "security": [
                     {
