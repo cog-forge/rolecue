@@ -226,7 +226,7 @@ describe("ApplicationList", () => {
     // button, so a bare name match is ambiguous there.
     const form = screen.getByRole("search", { name: "Search applications" });
     expect(
-      within(form).getByRole("button", { name: "Search", exact: true }),
+      within(form).getByRole("button", { name: "Search" }),
     ).toHaveAttribute("type", "submit");
     expect(
       within(form).getByLabelText("Search by name or email"),
