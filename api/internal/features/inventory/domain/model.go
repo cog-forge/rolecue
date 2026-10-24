@@ -64,3 +64,7 @@ type Wallet struct {
 	ID      uuid.UUID
 	Balance int32
 }
+
+type SlotPurchaseRequest struct {
+	Amount int32 `json:"amount"`
+}
