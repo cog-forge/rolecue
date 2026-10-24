@@ -23,6 +23,7 @@ type Repository interface {
 	ApproveCV(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID) (domain.Screening, error)
 	RejectCV(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID, reason *string) (domain.Screening, error)
 	CandidateEligibility(ctx context.Context, candidateID, applicationID uuid.UUID) (domain.EligibilityRecord, error)
+	ListApplications(ctx context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.ListItem, int64, error)
 }
 
 type Service struct {
@@ -78,6 +79,70 @@ func (s *Service) InterviewEligibility(ctx context.Context, candidateID uuid.UUI
 	return domain.Eligibility{
 		ApplicationID: record.ApplicationID, JobPostingID: record.JobPostingID, InterviewDeadline: *record.InterviewDeadline,
 	}, nil
+}
+
+// ListForPosting lists the Applications of one posting the Recruiter owns. A posting that is not
+// theirs is not found, even when it has no Applications.
+func (s *Service) ListForPosting(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, filter domain.ListFilter) ([]domain.ListItem, int64, error) {
+	filter.JobPostingID = &postingID
+	return s.list(ctx, recruiterID, role, filter)
+}
+
+// ListOwn lists the Applications across all of the Recruiter's own postings, optionally narrowed to
+// one of them through filter.JobPostingID.
+func (s *Service) ListOwn(ctx context.Context, recruiterID uuid.UUID, role string, filter domain.ListFilter) ([]domain.ListItem, int64, error) {
+	return s.list(ctx, recruiterID, role, filter)
+}
+
+func (s *Service) list(ctx context.Context, recruiterID uuid.UUID, role string, filter domain.ListFilter) ([]domain.ListItem, int64, error) {
+	if role != recruiterRole {
+		return nil, 0, apperror.New(apperror.CodeForbidden, "only recruiters can list applications")
+	}
+	filter, err := validateListFilter(filter)
+	if err != nil {
+		return nil, 0, err
+	}
+	items, total, err := s.repository.ListApplications(ctx, recruiterID, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+	if items == nil {
+		items = []domain.ListItem{}
+	}
+	return items, total, nil
+}
+
+// maxSearchLength bounds the Candidate name or email search text.
+const maxSearchLength = 200
+
+var likeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// validateListFilter checks paging and the status, trims the search text and drops it when blank.
+// The search becomes an escaped LIKE pattern, so a typed % or _ matches itself.
+func validateListFilter(filter domain.ListFilter) (domain.ListFilter, error) {
+	if filter.Limit < 1 || filter.Limit > 100 || filter.Offset < 0 {
+		return domain.ListFilter{}, apperror.New(apperror.CodeValidation, "invalid pagination parameters")
+	}
+	if filter.Status != nil && !domain.ValidStatus(*filter.Status) {
+		return domain.ListFilter{}, apperror.New(apperror.CodeValidation, "invalid status")
+	}
+	if filter.Search == nil {
+		return filter, nil
+	}
+	if !utf8.ValidString(*filter.Search) || strings.ContainsRune(*filter.Search, 0) {
+		return domain.ListFilter{}, apperror.New(apperror.CodeValidation, "invalid search")
+	}
+	trimmed := strings.TrimSpace(*filter.Search)
+	if trimmed == "" {
+		filter.Search = nil
+		return filter, nil
+	}
+	if utf8.RuneCountInString(trimmed) > maxSearchLength {
+		return domain.ListFilter{}, apperror.New(apperror.CodeValidation, fmt.Sprintf("search must be at most %d characters", maxSearchLength))
+	}
+	escaped := likeEscaper.Replace(trimmed)
+	filter.Search = &escaped
+	return filter, nil
 }
 
 func normalizeReason(reason *string) (*string, error) {

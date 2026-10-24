@@ -98,6 +98,52 @@ func (r *Repository) CandidateEligibility(ctx context.Context, candidateID, appl
 	}, nil
 }
 
+// ListApplications returns one page of the Recruiter's Applications, newest first, and the total
+// that matches the filters. A posting filter on a posting the Recruiter does not own is not found,
+// the same answer as a posting that does not exist.
+func (r *Repository) ListApplications(ctx context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.ListItem, int64, error) {
+	if filter.JobPostingID != nil {
+		owned, err := r.queries.IsPostingOwned(ctx, IsPostingOwnedParams{ID: *filter.JobPostingID, RecruiterID: recruiterID})
+		if err != nil {
+			return nil, 0, internal(err)
+		}
+		if !owned {
+			return nil, 0, apperror.New(apperror.CodeJobPostingNotFound, "job posting not found")
+		}
+	}
+	var status *string
+	if filter.Status != nil {
+		value := string(*filter.Status)
+		status = &value
+	}
+	rows, err := r.queries.ListRecruiterApplications(ctx, ListRecruiterApplicationsParams{
+		RecruiterID: recruiterID, JobPostingID: filter.JobPostingID, Status: status, Search: filter.Search,
+		PageLimit: filter.Limit, PageOffset: filter.Offset,
+	})
+	if err != nil {
+		return nil, 0, internal(err)
+	}
+	total, err := r.queries.CountRecruiterApplications(ctx, CountRecruiterApplicationsParams{
+		RecruiterID: recruiterID, JobPostingID: filter.JobPostingID, Status: status, Search: filter.Search,
+	})
+	if err != nil {
+		return nil, 0, internal(err)
+	}
+	items := make([]domain.ListItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, domain.ListItem{
+			ID: row.ID, JobPostingID: row.JobPostingID, JobPostingTitle: row.JobPostingTitle,
+			Status: domain.ApplicationStatus(row.Status), SubmittedAt: row.CreatedAt.Time,
+			Candidate: domain.ListCandidate{
+				ID: row.CandidateID, Name: row.CandidateName, Email: row.CandidateEmail, Image: row.CandidateImage,
+			},
+			InterviewEligible: row.InterviewEligible, InterviewDeadline: timePtr(row.InterviewDeadline),
+			RejectReason: row.RejectReason, UpdatedAt: row.UpdatedAt.Time,
+		})
+	}
+	return items, total, nil
+}
+
 func postingError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.Wrap(apperror.CodeJobPostingNotFound, "job posting not found", err)

@@ -44,3 +44,44 @@ SELECT id, job_posting_id, status::text AS status, interview_deadline,
        COALESCE(interview_deadline > now(), false)::boolean AS within_deadline
 FROM public.applications
 WHERE id = @id AND candidate_id = @candidate_id;
+
+-- The Recruiter's Application list. It joins job_postings, so an Application is reachable only
+-- through a posting the caller owns. No column here points at the CV file, a transcript or a
+-- recording: evidence is reached through Application Detail only.
+-- Every filter is optional (a NULL argument turns it off). search is a LIKE pattern the service
+-- has already escaped.
+-- name: ListRecruiterApplications :many
+SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status, a.created_at,
+       u.id AS candidate_id, u.name AS candidate_name, u.email AS candidate_email, u.image AS candidate_image,
+       COALESCE(a.status = 'interview_eligible' AND a.interview_deadline > now(), false)::boolean AS interview_eligible,
+       a.interview_deadline, a.reject_reason, a.updated_at
+FROM public.applications a
+JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = a.candidate_id
+WHERE jp.recruiter_id = @recruiter_id
+  AND (sqlc.narg(job_posting_id)::uuid IS NULL OR a.job_posting_id = sqlc.narg(job_posting_id)::uuid)
+  AND (sqlc.narg(status)::text IS NULL OR a.status::text = sqlc.narg(status)::text)
+  AND (sqlc.narg(search)::text IS NULL
+       OR u.name ILIKE '%' || sqlc.narg(search)::text || '%'
+       OR u.email ILIKE '%' || sqlc.narg(search)::text || '%')
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT @page_limit OFFSET @page_offset;
+
+-- Same joins and filters as the list, so a row the list cannot show is not counted either.
+-- name: CountRecruiterApplications :one
+SELECT count(*)
+FROM public.applications a
+JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = a.candidate_id
+WHERE jp.recruiter_id = @recruiter_id
+  AND (sqlc.narg(job_posting_id)::uuid IS NULL OR a.job_posting_id = sqlc.narg(job_posting_id)::uuid)
+  AND (sqlc.narg(status)::text IS NULL OR a.status::text = sqlc.narg(status)::text)
+  AND (sqlc.narg(search)::text IS NULL
+       OR u.name ILIKE '%' || sqlc.narg(search)::text || '%'
+       OR u.email ILIKE '%' || sqlc.narg(search)::text || '%');
+
+-- Lets a list of one posting tell "not yours" (404) from "no Applications yet" ([]).
+-- name: IsPostingOwned :one
+SELECT EXISTS (
+    SELECT 1 FROM public.job_postings WHERE id = @id AND recruiter_id = @recruiter_id
+)::boolean AS owned;

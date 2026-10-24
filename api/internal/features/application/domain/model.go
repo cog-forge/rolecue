@@ -36,6 +36,50 @@ type Screening struct {
 	UpdatedAt         time.Time  `json:"updated_at"`
 }
 
+// ListFilter narrows the Recruiter's Application list. Every filter is optional.
+type ListFilter struct {
+	// JobPostingID limits the list to one posting. The Recruiter must own it, or the list is not found.
+	JobPostingID *uuid.UUID
+	Status       *ApplicationStatus
+	// Search is an escaped LIKE pattern over the Candidate's name and email.
+	Search *string
+	Limit  int32
+	Offset int32
+}
+
+// ListCandidate is the Candidate as the Application list shows them.
+type ListCandidate struct {
+	ID    uuid.UUID `json:"id"`
+	Name  string    `json:"name"`
+	Email string    `json:"email"`
+	Image *string   `json:"image"`
+}
+
+// ListItem is one row of the Recruiter's Application list: what Application Detail needs to be
+// opened, and nothing from the CV, transcript or recording.
+type ListItem struct {
+	ID              uuid.UUID         `json:"id"`
+	JobPostingID    uuid.UUID         `json:"job_posting_id"`
+	JobPostingTitle string            `json:"job_posting_title"`
+	Status          ApplicationStatus `json:"status"`
+	SubmittedAt     time.Time         `json:"submitted_at"`
+	Candidate       ListCandidate     `json:"candidate"`
+	// InterviewEligible is true while the Candidate is CV-approved and the 24-hour deadline has not passed.
+	InterviewEligible bool       `json:"interview_eligible"`
+	InterviewDeadline *time.Time `json:"interview_deadline"`
+	RejectReason      *string    `json:"reject_reason"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+}
+
+// ValidStatus reports whether value is an Application status.
+func ValidStatus(value ApplicationStatus) bool {
+	switch value {
+	case StatusPending, StatusInterviewEligible, StatusInterviewed, StatusApproved, StatusRejected:
+		return true
+	}
+	return false
+}
+
 // InterviewCapacity is the posting state a CV approval is checked against, read under the posting
 // row lock.
 type InterviewCapacity struct {

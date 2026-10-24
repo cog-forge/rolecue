@@ -25,6 +25,7 @@ type Repository interface {
 	PostingStatus(ctx context.Context, recruiterID, postingID uuid.UUID) (string, error)
 	ListWeights(ctx context.Context, postingID uuid.UUID) ([]domain.Weight, error)
 	ReplaceWeights(ctx context.Context, recruiterID, postingID uuid.UUID, weights []domain.Weight) ([]domain.Weight, error)
+	ClearWeights(ctx context.Context, recruiterID, postingID uuid.UUID) error
 }
 
 type Service struct {
@@ -80,6 +81,12 @@ func (s *Service) Weights(ctx context.Context, recruiterID uuid.UUID, role strin
 	if len(weights) > 0 {
 		return s.view(status, weights), nil
 	}
+	return s.defaultView(ctx, status)
+}
+
+// defaultView is the view of a posting without saved weights: the equal-split defaults, computed
+// on read and never stored.
+func (s *Service) defaultView(ctx context.Context, status string) (domain.PostingWeights, error) {
 	metrics, err := s.repository.ListMetrics(ctx)
 	if err != nil {
 		return domain.PostingWeights{}, err
@@ -133,6 +140,26 @@ func (s *Service) ReplaceWeights(ctx context.Context, recruiterID uuid.UUID, rol
 		return domain.PostingWeights{}, err
 	}
 	return s.view(status, saved), nil
+}
+
+// ResetWeights deletes the posting's saved weights, so it is scored with the equal-split defaults
+// again (Decision 13a). Resetting a posting that already uses the defaults changes nothing.
+func (s *Service) ResetWeights(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.PostingWeights, error) {
+	if err := requireRecruiter(role); err != nil {
+		return domain.PostingWeights{}, err
+	}
+	status, err := s.repository.PostingStatus(ctx, recruiterID, postingID)
+	if err != nil {
+		return domain.PostingWeights{}, err
+	}
+	// Checked again under the row lock, like a replace.
+	if !domain.EditableStatus(status) {
+		return domain.PostingWeights{}, domain.ErrWeightsLocked
+	}
+	if err := s.repository.ClearWeights(ctx, recruiterID, postingID); err != nil {
+		return domain.PostingWeights{}, err
+	}
+	return s.defaultView(ctx, status)
 }
 
 func (s *Service) view(status string, weights []domain.Weight) domain.PostingWeights {

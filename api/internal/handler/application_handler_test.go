@@ -38,6 +38,14 @@ func (s *screeningSpy) RejectCV(_ context.Context, userID uuid.UUID, role string
 	return applicationdomain.Screening{ID: appID, Status: applicationdomain.StatusRejected, RejectReason: reason}, s.err
 }
 
+func (s *screeningSpy) ListForPosting(context.Context, uuid.UUID, string, uuid.UUID, applicationdomain.ListFilter) ([]applicationdomain.ListItem, int64, error) {
+	return []applicationdomain.ListItem{}, 0, s.err
+}
+
+func (s *screeningSpy) ListOwn(context.Context, uuid.UUID, string, applicationdomain.ListFilter) ([]applicationdomain.ListItem, int64, error) {
+	return []applicationdomain.ListItem{}, 0, s.err
+}
+
 func screeningRouter(user authdomain.User, service ApplicationService) *gin.Engine {
 	r := gin.New()
 	auth := middleware.RequireAuth(onboardingSession{user}, config.CORSConfig{AllowOrigins: []string{"http://localhost:3000"}})

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
@@ -19,6 +20,8 @@ const applicationBodyLimit = 16 << 10
 type ApplicationService interface {
 	ApproveCV(ctx context.Context, recruiterID uuid.UUID, role string, postingID, applicationID uuid.UUID) (domain.Screening, error)
 	RejectCV(ctx context.Context, recruiterID uuid.UUID, role string, postingID, applicationID uuid.UUID, reason *string) (domain.Screening, error)
+	ListForPosting(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, filter domain.ListFilter) ([]domain.ListItem, int64, error)
+	ListOwn(ctx context.Context, recruiterID uuid.UUID, role string, filter domain.ListFilter) ([]domain.ListItem, int64, error)
 }
 type ApplicationHandler struct{ service ApplicationService }
 
@@ -77,6 +80,136 @@ func applicationJSON(c *gin.Context, target any) bool {
 		return false
 	}
 	return true
+}
+
+// applicationListFilter reads the list filters. Each parameter may appear at most once. The posting
+// filter is read only when allowPosting is set (the cross-posting list); the single-posting list
+// takes its posting from the path.
+func applicationListFilter(c *gin.Context, allowPosting bool) (domain.ListFilter, bool) {
+	filter := domain.ListFilter{Limit: 20}
+	fail := func(msg string) (domain.ListFilter, bool) {
+		response.Error(c, apperror.New(apperror.CodeValidation, msg))
+		return domain.ListFilter{}, false
+	}
+	for _, param := range []struct {
+		name     string
+		value    *int32
+		min, max int64
+	}{{"limit", &filter.Limit, 1, 100}, {"offset", &filter.Offset, 0, 2147483647}} {
+		raw, exists := c.GetQueryArray(param.name)
+		if !exists {
+			continue
+		}
+		value, err := strconv.ParseInt(raw[0], 10, 32)
+		if len(raw) != 1 || err != nil || value < param.min || value > param.max {
+			return fail("invalid pagination parameters")
+		}
+		*param.value = int32(value)
+	}
+	if raw, exists := c.GetQueryArray("status"); exists {
+		if len(raw) != 1 {
+			return fail("invalid status")
+		}
+		status := domain.ApplicationStatus(raw[0])
+		filter.Status = &status
+	}
+	if raw, exists := c.GetQueryArray("q"); exists {
+		if len(raw) != 1 {
+			return fail("invalid search")
+		}
+		filter.Search = &raw[0]
+	}
+	if raw, exists := c.GetQueryArray("job_posting_id"); exists && allowPosting {
+		id, err := uuid.Parse(raw[0])
+		if len(raw) != 1 || err != nil {
+			return fail("invalid job posting ID")
+		}
+		filter.JobPostingID = &id
+	}
+	return filter, true
+}
+
+// ListForPosting godoc
+// @Summary List the Applications of one Job Posting
+// @Description Recruiter only, own postings; a posting that is not yours returns 404 even when it has no Applications. Newest first. Filter by status and search the Candidate's name or email (case-insensitive, part of the text). Works while intake is open and after it closes; Applications the system rejected show as rejected. Items never carry the CV file, transcript or recording: evidence is reached through Application Detail.
+// @Tags applications
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "Job Posting ID" format(uuid)
+// @Param limit query int false "Page size" default(20) minimum(1) maximum(100)
+// @Param offset query int false "Number of items to skip" default(0) minimum(0) maximum(2147483647)
+// @Param status query string false "Application status" Enums(pending, interview_eligible, interviewed, approved, rejected)
+// @Param q query string false "Part of the Candidate's name or email" maxLength(200)
+// @Success 200 {object} response.Envelope{data=response.Page[domain.ListItem]}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /job-postings/{id}/applications [get]
+func (h *ApplicationHandler) ListForPosting(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
+		return
+	}
+	postingID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid job posting ID"))
+		return
+	}
+	filter, ok := applicationListFilter(c, false)
+	if !ok {
+		return
+	}
+	items, total, err := h.service.ListForPosting(c.Request.Context(), user.ID, user.Role, postingID, filter)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, response.Page[domain.ListItem]{
+		Items:      items,
+		Pagination: response.Pagination{Limit: filter.Limit, Offset: filter.Offset, Total: total},
+	})
+}
+
+// ListOwn godoc
+// @Summary List the Applications across your Job Postings
+// @Description Recruiter only. Every Application on the Recruiter's own postings, newest first, optionally narrowed to one of them with job_posting_id (a posting that is not yours returns 404). Same filters, ordering and redaction as the per-posting list.
+// @Tags applications
+// @Produce json
+// @Security SessionCookie
+// @Param limit query int false "Page size" default(20) minimum(1) maximum(100)
+// @Param offset query int false "Number of items to skip" default(0) minimum(0) maximum(2147483647)
+// @Param status query string false "Application status" Enums(pending, interview_eligible, interviewed, approved, rejected)
+// @Param q query string false "Part of the Candidate's name or email" maxLength(200)
+// @Param job_posting_id query string false "Only this Job Posting" format(uuid)
+// @Success 200 {object} response.Envelope{data=response.Page[domain.ListItem]}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /recruiter/applications [get]
+func (h *ApplicationHandler) ListOwn(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
+		return
+	}
+	filter, ok := applicationListFilter(c, true)
+	if !ok {
+		return
+	}
+	items, total, err := h.service.ListOwn(c.Request.Context(), user.ID, user.Role, filter)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, response.Page[domain.ListItem]{
+		Items:      items,
+		Pagination: response.Pagination{Limit: filter.Limit, Offset: filter.Offset, Total: total},
+	})
 }
 
 // ApproveCV godoc
