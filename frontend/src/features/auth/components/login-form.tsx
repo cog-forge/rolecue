@@ -27,30 +27,42 @@ import { useForm } from "react-hook-form";
 import { gooeyToast as toast } from "goey-toast";
 import { useShakeInvalidFields } from "../hooks/use-shake-invalid-fields";
 import { loginSchema, type LoginFormValues } from "../schemas/login-schema";
+import {
+  challengeDestination,
+  securityReturnTo,
+  signedInDestination,
+} from "../utils/auth-navigation";
+import { providerName, type SocialProvider } from "../utils/social-providers";
 
-const providerOptions = [
-  { name: "Google", provider: "google", Icon: GoogleIcon, className: "" },
-  { name: "GitHub", provider: "github", Icon: GitHubIcon, className: "" },
+const providerOptions: readonly {
+  name: string;
+  provider: SocialProvider;
+  Icon: typeof GoogleIcon;
+  className?: string;
+}[] = [
+  { name: providerName("google"), provider: "google", Icon: GoogleIcon },
+  { name: providerName("github"), provider: "github", Icon: GitHubIcon },
   {
-    name: "Facebook",
+    name: providerName("facebook"),
     provider: "facebook",
     Icon: FacebookIcon,
     className: "text-[#1877f2]",
   },
-] as const;
-export type SocialProvider = (typeof providerOptions)[number]["provider"];
+];
 
 export function LoginForm({
   defaultEmail = "",
   oauthFailed = false,
   oauthError,
   sessionEnded = false,
+  returnTo,
   enabledProviders = [],
 }: {
   defaultEmail?: string;
   oauthFailed?: boolean;
   oauthError?: string;
   sessionEnded?: boolean;
+  returnTo?: string;
   enabledProviders?: readonly SocialProvider[];
 }) {
   const [showPassword, setShowPassword] = useState(false);
@@ -74,17 +86,27 @@ export function LoginForm({
   });
   useShakeInvalidFields(formRef, submitCount);
   const pending = isSubmitting || socialPendingProvider !== null;
+  const securityDestination = securityReturnTo(returnTo);
+  const oauthErrorCallback = `${routes.login}?oauth=failed${
+    securityDestination
+      ? `&returnTo=${encodeURIComponent(securityDestination)}`
+      : ""
+  }`;
 
   const submit = async (values: LoginFormValues) => {
     setLocked(false);
     setVerificationEmail("");
     try {
-      const { error } = await authClient.signIn.email({
+      const { data, error } = await authClient.signIn.email({
         ...values,
-        callbackURL: `${routes.dashboard}?auth=signed-in`,
+        callbackURL: signedInDestination(undefined, returnTo),
       });
       if (error) throw error;
-      router.replace(`${routes.dashboard}?auth=signed-in`);
+      if (data && "twoFactorRedirect" in data && data.twoFactorRedirect) {
+        router.replace(challengeDestination(returnTo));
+        return;
+      }
+      router.replace(signedInDestination(data?.user?.role, returnTo));
     } catch (error) {
       setLocked(isAccountLockedError(error));
       toast.error("Sign-in failed", {
@@ -130,6 +152,14 @@ export function LoginForm({
         </p>
       </header>
 
+      {securityDestination && (
+        <p
+          role="status"
+          className="mb-4 rounded-xl border bg-muted/40 p-3 text-sm text-muted-foreground"
+        >
+          Sign in again to continue managing your account security.
+        </p>
+      )}
       {locked ? (
         <div
           role="alert"
@@ -198,8 +228,8 @@ export function LoginForm({
                 try {
                   const { error } = await authClient.signIn.social({
                     provider,
-                    callbackURL: `${routes.dashboard}?auth=signed-in`,
-                    errorCallbackURL: `${routes.login}?oauth=failed`,
+                    callbackURL: signedInDestination(undefined, returnTo),
+                    errorCallbackURL: oauthErrorCallback,
                   });
                   if (error) throw error;
                 } catch (error) {

@@ -6,6 +6,7 @@ export const routes = {
   register: "/register",
   forgotPassword: "/forgot-password",
   resetPassword: "/reset-password",
+  twoFactor: "/two-factor",
   dashboard: "/dashboard",
   targetJds: "/target-jds",
   avatarStudio: "/avatar-studio",

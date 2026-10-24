@@ -18,7 +18,16 @@ The shared users table owns application identity and FK targets; accounts now st
 
 Admin role is bootstrapped by an operator in the isolated database after verifying a user. The UI exposes paginated user listing and lock/unlock through Admin plugin only. Candidate/recruiter have no admin privileges; admin permissions are restricted to list/get/ban. Impersonation and unrelated admin endpoints are disabled. Signup/profile edits cannot set roles, bans or 2FA status. Ban revokes sessions; unban does not revive them.
 
-The two-factor table/columns come from the pinned plugin schema; no runtime 2FA routes or user enablement are exposed. Profile/onboarding, change-password UI, username and 2FA remain separate follow-ups.
+The two-factor table/columns come from the pinned plugin schema; no runtime 2FA routes or user enablement are exposed. Username and 2FA remain separate follow-ups.
+
+### Change password (KAN-212)
+
+`/settings` (Account Security) calls Better Auth's own `POST /api/auth/change-password` with `{currentPassword, newPassword, revokeOtherSessions}`; there is no Go endpoint and no second auth model.
+- **Rules:** the new password is 8–128 characters, the same as sign-up and reset. The form also refuses a new password equal to the current one, because Better Auth does not check that. A wrong current password returns `INVALID_PASSWORD` and is shown on the current-password field.
+- **Other sessions:** "Sign out of other devices" is ticked by default. When it is ticked, Better Auth deletes every session of the user, creates a new one and sets its cookie, so this device stays signed in. The new session is the standard 14-day one. When it is unticked, other sessions stay valid until they expire.
+- **Rate limit:** when Better Auth rate limiting is on (by default only in production), its built-in rule allows 3 requests per 10 seconds per client IP. It's kept in memory on each server instance. A 429 shows "Too many attempts".
+- **OAuth-only accounts:** an account with no `credential` row (from `/api/auth/list-accounts`) sees no form, only a note that it has no password, with a link to Forgot password. Better Auth's reset creates the credential account for such users and, because `revokeSessionsOnPasswordReset` is on, signs them out everywhere.
+- **Secrets:** passwords go only in the POST body; the UI never logs them, never puts them in a URL and never shows server messages. Closing the dialog unmounts the form, so typed values are dropped.
 
 ## Automated evidence
 

@@ -13,7 +13,7 @@ const minimalYAML = "app:\n  name: rolecue\n"
 func validConfig() Config {
 	return Config{
 		App:  AppConfig{Environment: "development"},
-		Auth: AuthConfig{URL: "http://localhost:3000", Timeout: 5 * time.Second, CookiePrefix: "rolecue"},
+		Auth: AuthConfig{URL: "http://localhost:3000", PublicURL: "http://localhost:3000", Timeout: 5 * time.Second, CookiePrefix: "rolecue"},
 		PayOS: PayOSConfig{
 			ClientID:    "test-client-id",
 			APIKey:      "test-api-key",
