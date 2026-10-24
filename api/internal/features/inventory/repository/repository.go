@@ -154,6 +154,9 @@ func (r *Repository) GetWallet(ctx context.Context, owner uuid.UUID) (*domain.Wa
 }
 
 func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, wallet domain.Wallet, amount int32) error {
+	if amount <= 0 {
+		return apperror.New(apperror.CodeValidation, "slot purchase amount must be positive")
+	}
 	tx, queries, err := r.beginOwner(ctx, owner)
 	if err != nil {
 		return err
@@ -193,6 +196,9 @@ func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, wallet d
 		return persistenceError(err)
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return persistenceError(err)
+	}
 	return nil
 }
 
