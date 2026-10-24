@@ -1,5 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { EvaluationCriteria } from "@/features/recruiter/evaluation/components/evaluation-criteria";
@@ -7,6 +15,9 @@ import { EvaluationCriteria } from "@/features/recruiter/evaluation/components/e
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   put: vi.fn(),
+  delete: vi.fn(),
+  push: vi.fn(),
+  replace: vi.fn(),
   toast: vi.fn(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
@@ -19,7 +30,10 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 vi.mock("@/lib/api/client", () => ({
-  apiClient: { get: mocks.get, put: mocks.put },
+  apiClient: { get: mocks.get, put: mocks.put, delete: mocks.delete },
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mocks.push, replace: mocks.replace }),
 }));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
@@ -80,7 +94,7 @@ function serve(
       : Promise.resolve(result);
   });
 }
-function mount() {
+function mount(extra?: ReactNode) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -90,6 +104,7 @@ function mount() {
   client.setQueryData(["auth", "me"], mocks.user);
   render(
     <QueryClientProvider client={client}>
+      {extra}
       <EvaluationCriteria postingId={postingId} />
     </QueryClientProvider>,
   );
@@ -103,6 +118,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.get.mockReset();
   mocks.put.mockReset();
+  mocks.delete.mockReset();
+});
+afterEach(async () => {
+  cleanup();
+  // An unmounted leave guard drops its history entry with an asynchronous Back; let it land.
+  await waitFor(() =>
+    expect(
+      (window.history.state as Record<string, unknown> | null)?.[
+        "__rolecueUnsavedChanges"
+      ],
+    ).toBeFalsy(),
+  );
 });
 
 describe("EvaluationCriteria", () => {
@@ -337,24 +364,252 @@ describe("EvaluationCriteria", () => {
     expect(field("Clarity").value).toBe("");
   });
 
-  it("asks before leaving through the back link with unsaved weights", async () => {
+  it("asks before leaving through any in-app link with unsaved weights", async () => {
     serve(envelope(custom()));
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    mount();
+    // Stands in for the workspace sidebar, which lives outside the editor.
+    mount(<a href="/recruiter/applications">Applications</a>);
     await screen.findByLabelText("Clarity");
     const back = screen.getByRole("link", { name: /Back to the job posting/ });
+    const sidebar = screen.getByRole("link", { name: "Applications" });
+    // Keeps jsdom from trying to load a link the guard lets through.
+    const stopLoad = (event: Event) => event.preventDefault();
+    document.addEventListener("click", stopLoad);
 
-    // Nothing changed yet: no question, the link works.
-    expect(fireEvent.click(back)).toBe(true);
-    expect(confirm).not.toHaveBeenCalled();
+    // Nothing changed yet: no question.
+    fireEvent.click(back);
+    expect(screen.queryByRole("dialog")).toBeNull();
 
     type("Clarity", "5");
     await waitFor(() => expect(field("Clarity").value).toBe("5"));
-    // Declining keeps the page; accepting lets the link through.
-    await waitFor(() => expect(fireEvent.click(back)).toBe(false));
-    expect(confirm).toHaveBeenCalledWith("Leave without saving your changes?");
-    confirm.mockReturnValue(true);
-    expect(fireEvent.click(back)).toBe(true);
+    fireEvent.click(sidebar);
+    const dialog = await screen.findByRole("dialog", {
+      name: "Leave without saving?",
+    });
+    // Staying keeps the page and the draft.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Stay on this page" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(field("Clarity").value).toBe("5");
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+
+    // Leaving goes where the link pointed, in place of the guard's extra history entry.
+    fireEvent.click(back);
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", { name: "Leave without saving?" }),
+      ).getByRole("button", { name: "Leave without saving" }),
+    );
+    expect(mocks.replace).toHaveBeenCalledWith(
+      `/recruiter/job-postings/${postingId}`,
+    );
+    document.removeEventListener("click", stopLoad);
+  });
+
+  it("asks before the browser's Back button leaves unsaved weights", async () => {
+    serve(envelope(custom()));
+    mount();
+    await screen.findByLabelText("Clarity");
+    type("Clarity", "5");
+    await waitFor(() => expect(field("Clarity").value).toBe("5"));
+    window.history.back();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Leave without saving?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Stay on this page" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(field("Clarity").value).toBe("5");
+  });
+
+  it("does not ask after the weights were saved", async () => {
+    serve(envelope(custom()));
+    mocks.put.mockResolvedValue(envelope(custom()));
+    mount(<a href="/recruiter/applications">Applications</a>);
+    await screen.findByLabelText("Clarity");
+    type("Technical accuracy", "50");
+    type("Clarity", "20");
+    const save = screen.getByRole("button", { name: "Save criteria" });
+    await waitFor(() => expect(save).toBeEnabled());
+    fireEvent.click(save);
+    await waitFor(() => expect(mocks.toast).toHaveBeenCalled());
+    await waitFor(() => expect(field("Clarity").value).toBe(""));
+    const stopLoad = (event: Event) => event.preventDefault();
+    document.addEventListener("click", stopLoad);
+    fireEvent.click(screen.getByRole("link", { name: "Applications" }));
+    document.removeEventListener("click", stopLoad);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const unload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(false);
+  });
+
+  it("reloads the weights and the metrics catalog when a metric no longer exists", async () => {
+    serve(envelope(custom()));
+    mocks.put.mockRejectedValue(
+      failure(400, "EVALUATION_METRIC_UNKNOWN", "unknown evaluation metric"),
+    );
+    mount();
+    await screen.findByLabelText("Clarity");
+    type("Technical accuracy", "50");
+    type("Clarity", "20");
+    const save = screen.getByRole("button", { name: "Save criteria" });
+    await waitFor(() => expect(save).toBeEnabled());
+    // Clarity was removed from the catalog meanwhile.
+    serve(
+      envelope(custom()),
+      envelope({ items: catalog.filter((m) => m.id !== clarity) }),
+    );
+    mocks.get.mockClear();
+    fireEvent.click(save);
+    expect(
+      await screen.findByText(/your unsaved changes were discarded/),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Clarity")).not.toBeInTheDocument(),
+    );
+    expect(field("Technical accuracy").value).toBe("70");
+    expect(mocks.get).toHaveBeenCalledWith("/evaluation-metrics", {
+      signal: expect.any(AbortSignal),
+    });
+    expect(mocks.get).toHaveBeenCalledWith(
+      `/job-postings/${postingId}/evaluation-weights`,
+      { signal: expect.any(AbortSignal) },
+    );
+    // The stale error is answered by the refresh, not shown as a save failure.
+    expect(screen.queryByText(/unknown evaluation metric/)).toBeNull();
+  });
+
+  it("keeps an error the API does not tie to a metric at form level", async () => {
+    serve(envelope(custom()));
+    mocks.put.mockRejectedValue(
+      failure(400, "EVALUATION_WEIGHT_INVALID", "a weight must be at most 100"),
+    );
+    mount();
+    await screen.findByLabelText("Clarity");
+    type("Technical accuracy", "50");
+    type("Clarity", "20");
+    const save = screen.getByRole("button", { name: "Save criteria" });
+    await waitFor(() => expect(save).toBeEnabled());
+    fireEvent.click(save);
+    expect(
+      await screen.findByText(
+        "a weight must be at most 100 Your changes are still here.",
+      ),
+    ).toHaveAttribute("role", "alert");
+    expect(field("Technical accuracy")).not.toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    expect(field("Clarity").value).toBe("20");
+  });
+
+  it("resets saved weights to the equal-split defaults after confirming", async () => {
+    serve(envelope(custom()));
+    mocks.delete.mockResolvedValue(envelope(weights()));
+    mount();
+    await screen.findByLabelText("Clarity");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reset to default weights" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Reset to the default weights?",
+    });
+    expect(dialog).toHaveTextContent(
+      "the total of 100 split equally across every metric",
+    );
+    // Cancelling deletes nothing.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Keep my weights" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(mocks.delete).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reset to default weights" }),
+    );
+    serve(envelope(weights()));
+    mocks.get.mockClear();
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "Reset to the default weights?",
+        }),
+      ).getByRole("button", { name: "Reset weights" }),
+    );
+    await waitFor(() =>
+      expect(mocks.delete).toHaveBeenCalledWith(
+        `/job-postings/${postingId}/evaluation-weights`,
+      ),
+    );
+    expect(
+      await screen.findByText("Using the default weights"),
+    ).toBeInTheDocument();
+    expect(mocks.toast).toHaveBeenCalledWith("Default weights restored");
+    expect(Number(field("Clarity").value)).toBeCloseTo(100 / 3, 10);
+    expect(
+      screen.queryByRole("button", { name: "Reset to default weights" }),
+    ).toBeNull();
+    // The view is refetched, not only taken from the reset response.
+    expect(mocks.get).toHaveBeenCalledWith(
+      `/job-postings/${postingId}/evaluation-weights`,
+      { signal: expect.any(AbortSignal) },
+    );
+  });
+
+  it("offers no reset while the defaults are in use", async () => {
+    serve(envelope(weights()));
+    mount();
+    await screen.findByLabelText("Clarity");
+    expect(
+      screen.queryByRole("button", { name: "Reset to default weights" }),
+    ).toBeNull();
+  });
+
+  it("refreshes into the read-only view when a reset finds the posting locked", async () => {
+    serve(envelope(custom()));
+    mocks.delete.mockRejectedValue(
+      failure(409, "EVALUATION_WEIGHTS_LOCKED", "locked"),
+    );
+    mount();
+    await screen.findByLabelText("Clarity");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reset to default weights" }),
+    );
+    serve(envelope(custom({ editable: false, posting_status: "open" })));
+    fireEvent.click(
+      within(
+        await screen.findByRole("dialog", {
+          name: "Reset to the default weights?",
+        }),
+      ).getByRole("button", { name: "Reset weights" }),
+    );
+    expect(
+      await screen.findByText(
+        /so its evaluation criteria can no longer be edited/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("keeps the reset dialog open with the server's message when a reset fails", async () => {
+    serve(envelope(custom()));
+    mocks.delete.mockRejectedValue(failure(500, "INTERNAL_ERROR", "boom"));
+    mount();
+    await screen.findByLabelText("Clarity");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reset to default weights" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Reset to the default weights?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Reset weights" }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("boom");
+    expect(field("Technical accuracy").value).toBe("70");
   });
 
   it("words the default notice from the total", async () => {

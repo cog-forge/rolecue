@@ -397,7 +397,7 @@ describe("JobPostingDetail", () => {
     mount();
     expect(
       await screen.findByText(
-        /Candidates can apply once an administrator approves/,
+        "Candidates can apply after an administrator approves this posting, you fund interview slots and open intake.",
       ),
     ).toBeInTheDocument();
     expect(

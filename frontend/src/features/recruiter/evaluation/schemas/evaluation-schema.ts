@@ -12,8 +12,9 @@ export const weightSchema = z.object({
 });
 export type Weight = z.infer<typeof weightSchema>;
 
-// `weights` holds the saved set, or the equal-split defaults when `using_defaults` is true. A saved
-// set may leave metrics out; `total` is the sum it must reach (0 = no sum rule).
+// GET, PUT and DELETE (reset) all answer with this view. `weights` holds the saved set, or the
+// equal-split defaults when `using_defaults` is true. A saved set may leave metrics out; `total`
+// is the sum it must reach (0 = no sum rule).
 export const postingWeightsSchema = z.object({
   configured: z.boolean(),
   using_defaults: z.boolean(),

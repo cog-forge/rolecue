@@ -217,6 +217,8 @@ func TestOtherRecruitersSeeNotFound(t *testing.T) {
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
 	_, err = svc.ReplaceWeights(ctx, other, "recruiter", postingID, weightsInput(accuracyID, 100.0))
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
+	_, err = svc.ResetWeights(ctx, other, "recruiter", postingID)
+	assertCode(t, err, apperror.CodeJobPostingNotFound)
 	_, err = svc.Weights(ctx, other, "recruiter", uuid.New())
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
 }
@@ -231,6 +233,7 @@ func TestPublishedPostingIsLockedUnderTheRowLock(t *testing.T) {
 		// Call the repository directly, as if the posting was approved after the service read it.
 		_, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{{MetricID: accuracyID, Percentage: 100}})
 		assertCode(t, err, apperror.CodeEvaluationWeightsLocked)
+		assertCode(t, repo.ClearWeights(ctx, owner, postingID), apperror.CodeEvaluationWeightsLocked)
 	}
 }
 
@@ -263,5 +266,31 @@ func TestFailedReplaceKeepsTheOldSet(t *testing.T) {
 	got, err := svc.Weights(ctx, owner, "recruiter", postingID)
 	if err != nil || len(got.Weights) != 2 {
 		t.Fatalf("Weights() after a failed replace = %+v, %v, want the previous two weights", got, err)
+	}
+}
+
+func TestResetDeletesTheSavedSet(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc, _ := newService(t, pool)
+	owner := s.recruiter()
+	postingID, jdID := s.posting(owner, "rejected")
+	if _, err := svc.ReplaceWeights(ctx, owner, "recruiter", postingID, weightsInput(accuracyID, 60.0, depthID, 40.0)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.ResetWeights(ctx, owner, "recruiter", postingID)
+	if err != nil || got.Configured || !got.UsingDefaults || !got.Editable || len(got.Weights) < 5 {
+		t.Fatalf("ResetWeights() = %+v, %v, want the editable default view", got, err)
+	}
+	var stored int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM public.metrics_percentage WHERE job_posting_id = $1`, postingID).Scan(&stored); err != nil || stored != 0 {
+		t.Fatalf("stored weights after a reset = %d, %v, want 0 (defaults are never saved)", stored, err)
+	}
+	// A second reset finds nothing to delete and still answers with the defaults.
+	if again, err := svc.ResetWeights(ctx, owner, "recruiter", postingID); err != nil || !again.UsingDefaults {
+		t.Fatalf("second ResetWeights() = %+v, %v, want the defaults again", again, err)
+	}
+	if questions := s.questions(jdID); len(questions) != 1 || questions[0] != "kept question" {
+		t.Fatalf("core questions = %v, want them untouched by a reset", questions)
 	}
 }

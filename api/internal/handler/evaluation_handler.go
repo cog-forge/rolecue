@@ -20,6 +20,7 @@ type EvaluationService interface {
 	Metrics(ctx context.Context) ([]domain.Metric, error)
 	Weights(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.PostingWeights, error)
 	ReplaceWeights(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, inputs []domain.WeightInput) (domain.PostingWeights, error)
+	ResetWeights(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.PostingWeights, error)
 }
 type EvaluationHandler struct{ service EvaluationService }
 
@@ -165,6 +166,38 @@ func (h *EvaluationHandler) ReplaceWeights(c *gin.Context) {
 		inputs = append(inputs, domain.WeightInput{MetricID: entry.MetricID, Percentage: entry.Percentage})
 	}
 	weights, err := h.service.ReplaceWeights(c.Request.Context(), userID, role, id, inputs)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, weights)
+}
+
+// ResetWeights godoc
+// @Summary Reset a Job Posting's evaluation weights to the defaults
+// @Description Recruiter only, own postings that are pending or rejected. Deletes the saved weights, so the posting is scored with the defaults again (the total split equally across all metrics); the response is the same view as GET with configured false and using_defaults true. Resetting a posting that already uses the defaults changes nothing. Errors: EVALUATION_WEIGHTS_LOCKED (posting open, intake_closed or closed).
+// @Tags evaluation
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "Job Posting ID" format(uuid)
+// @Success 200 {object} response.Envelope{data=domain.PostingWeights}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /job-postings/{id}/evaluation-weights [delete]
+func (h *EvaluationHandler) ResetWeights(c *gin.Context) {
+	userID, role, ok := evaluationUser(c)
+	if !ok {
+		return
+	}
+	id, ok := evaluationPostingID(c)
+	if !ok {
+		return
+	}
+	weights, err := h.service.ResetWeights(c.Request.Context(), userID, role, id)
 	if err != nil {
 		response.Error(c, err)
 		return

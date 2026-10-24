@@ -2847,6 +2847,61 @@ paths:
       tags:
       - job-postings
   /job-postings/{id}/evaluation-weights:
+    delete:
+      description: 'Recruiter only, own postings that are pending or rejected. Deletes
+        the saved weights, so the posting is scored with the defaults again (the total
+        split equally across all metrics); the response is the same view as GET with
+        configured false and using_defaults true. Resetting a posting that already
+        uses the defaults changes nothing. Errors: EVALUATION_WEIGHTS_LOCKED (posting
+        open, intake_closed or closed).'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.PostingWeights'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Reset a Job Posting's evaluation weights to the defaults
+      tags:
+      - evaluation
     get:
       description: Recruiter only, own postings. When the Recruiter set no weights,
         configured is false, using_defaults is true and weights holds the defaults

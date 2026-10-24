@@ -62,10 +62,14 @@ const dateFormat = new Intl.DateTimeFormat("en", {
   dateStyle: "medium",
   timeZone: "UTC",
 });
+// The deadline is a moment, so it is shown in the viewer's own time zone, named to avoid misreading.
 const deadlineFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "UTC",
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
 });
 
 // Filter changes update the URL with the History API instead of a route navigation, so the page
@@ -423,9 +427,12 @@ function StatusDetail({ application }: { application: Application }) {
   if (status === "interview_eligible" && deadline) {
     return (
       <p className="mt-1.5 text-xs text-muted-foreground">
-        {application.interview_eligible ? "Interview by " : "Deadline passed "}
+        {/* Decision 4: the interview must be completed, not just started, before the deadline. */}
+        {application.interview_eligible
+          ? "Complete interview by "
+          : "Deadline passed "}
         <time dateTime={deadline} title={deadline}>
-          {deadlineFormat.format(new Date(deadline))} UTC
+          {deadlineFormat.format(new Date(deadline))}
         </time>
       </p>
     );

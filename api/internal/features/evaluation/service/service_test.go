@@ -42,7 +42,9 @@ func TestOnlyRecruitersManageWeights(t *testing.T) {
 		assertCode(t, err, apperror.CodeForbidden)
 		_, err = svc.ReplaceWeights(context.Background(), recruiterID, role, postingID, []domain.WeightInput{entry(accuracy, 100)})
 		assertCode(t, err, apperror.CodeForbidden)
-		if repo.replaceCalls != 0 {
+		_, err = svc.ResetWeights(context.Background(), recruiterID, role, postingID)
+		assertCode(t, err, apperror.CodeForbidden)
+		if repo.replaceCalls != 0 || repo.clearCalls != 0 {
 			t.Fatalf("role %q wrote weights", role)
 		}
 	}
@@ -100,6 +102,11 @@ func TestNotFoundPassesThrough(t *testing.T) {
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
 	_, err = svc.ReplaceWeights(context.Background(), recruiterID, "recruiter", postingID, []domain.WeightInput{entry(accuracy, 100)})
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
+	_, err = svc.ResetWeights(context.Background(), recruiterID, "recruiter", postingID)
+	assertCode(t, err, apperror.CodeJobPostingNotFound)
+	if repo.clearCalls != 0 {
+		t.Fatal("weights of a posting that was not found were cleared")
+	}
 }
 
 func TestReplaceSavesTheWholeSet(t *testing.T) {
@@ -202,4 +209,46 @@ func TestTotalComesFromConfiguration(t *testing.T) {
 		[]domain.WeightInput{entry(accuracy, 0.25), entry(depth, 0.75)}); err != nil {
 		t.Fatalf("ReplaceWeights() with total 1 error = %v", err)
 	}
+}
+
+func TestResetReturnsTheEqualSplitDefaults(t *testing.T) {
+	for _, status := range []string{"pending", "rejected"} {
+		saved := []domain.Weight{{MetricID: accuracy.ID, Name: accuracy.Name, Percentage: 100}}
+		repo := &fakeRepository{metrics: []domain.Metric{accuracy, depth, clarity, {ID: uuid.New(), Name: "Answer Relevance"}}, status: status, weights: saved}
+		got, err := newService(t, repo, 100).ResetWeights(context.Background(), recruiterID, "recruiter", postingID)
+		if err != nil {
+			t.Fatalf("status %s: ResetWeights() error = %v", status, err)
+		}
+		if repo.clearCalls != 1 || repo.recruiterID != recruiterID || repo.postingID != postingID {
+			t.Fatalf("status %s: clear calls = %d for %s/%s, want one scoped to the recruiter's posting", status, repo.clearCalls, repo.recruiterID, repo.postingID)
+		}
+		if got.Configured || !got.UsingDefaults || !got.Editable || got.PostingStatus != status || len(got.Weights) != 4 {
+			t.Fatalf("status %s: ResetWeights() = %+v, want the editable default view", status, got)
+		}
+		for _, weight := range got.Weights {
+			if weight.Percentage != 25 {
+				t.Fatalf("status %s: default weight = %+v, want 25 (100 split across 4 metrics)", status, weight)
+			}
+		}
+		if repo.replaceCalls != 0 {
+			t.Fatalf("status %s: the defaults were saved", status)
+		}
+	}
+}
+
+func TestResetLockedOutsideTheEditWindow(t *testing.T) {
+	for _, status := range []string{"open", "intake_closed", "closed"} {
+		repo := &fakeRepository{metrics: catalog, status: status}
+		_, err := newService(t, repo, 100).ResetWeights(context.Background(), recruiterID, "recruiter", postingID)
+		assertCode(t, err, apperror.CodeEvaluationWeightsLocked)
+		if repo.clearCalls != 0 {
+			t.Fatalf("status %s: weights were cleared", status)
+		}
+	}
+}
+
+func TestResetLockedUnderTheRowLock(t *testing.T) {
+	repo := &fakeRepository{metrics: catalog, status: "pending", clearErr: domain.ErrWeightsLocked}
+	_, err := newService(t, repo, 100).ResetWeights(context.Background(), recruiterID, "recruiter", postingID)
+	assertCode(t, err, apperror.CodeEvaluationWeightsLocked)
 }

@@ -25,9 +25,12 @@ import {
   evaluationKeys,
   getMetrics,
   getWeights,
+  resetWeights,
   saveWeights,
 } from "../api/evaluation";
+import { useUnsavedChangesGuard } from "../hooks/use-unsaved-changes-guard";
 import type { Metric, PostingWeights } from "../schemas/evaluation-schema";
+import { ConfirmDialog } from "./confirm-dialog";
 import {
   evaluateDrafts,
   formatPercent,
@@ -36,8 +39,12 @@ import {
   type WeightDrafts,
 } from "../utils/weight-drafts";
 
-// Codes after which the cached weights are stale: the posting was approved, or its metrics changed.
-const staleCodes = new Set(["EVALUATION_WEIGHTS_LOCKED"]);
+// Codes after which the cached weights are stale: the posting was approved, or the metrics catalog
+// changed. Both lead to reloading the saved weights and the catalog.
+const staleCodes = new Set([
+  "EVALUATION_WEIGHTS_LOCKED",
+  "EVALUATION_METRIC_UNKNOWN",
+]);
 
 export function EvaluationCriteria({ postingId }: { postingId: string }) {
   const user = useSessionUser();
@@ -49,6 +56,8 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const weightsKey = evaluationKeys.weights(user.id, postingId);
+  const metricsKey = evaluationKeys.metrics(user.id);
+  const guard = useUnsavedChangesGuard(dirty);
 
   const weights = useQuery({
     queryKey: weightsKey,
@@ -57,7 +66,7 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
     retry: false,
   });
   const metrics = useQuery({
-    queryKey: evaluationKeys.metrics(user.id),
+    queryKey: metricsKey,
     queryFn: ({ signal }) => getMetrics(signal),
     retry: false,
   });
@@ -71,11 +80,6 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
   const back = (
     <Link
       href={routes.recruiter.jobPosting(postingId)}
-      onClick={(event) => {
-        // The beforeunload guard only covers closing the tab; this covers leaving through the page.
-        if (dirty && !window.confirm("Leave without saving your changes?"))
-          event.preventDefault();
-      }}
       className="inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <ArrowLeft className="size-4" aria-hidden />
@@ -141,6 +145,12 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
   }
 
   const saved = weights.data;
+  // Reloads the saved weights and the metrics catalog, then rebuilds the form on them.
+  const refresh = () =>
+    void Promise.all([
+      cache.refetchQueries({ queryKey: weightsKey }),
+      cache.refetchQueries({ queryKey: metricsKey }),
+    ]).then(() => setVersion((value) => value + 1));
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
       {back}
@@ -173,18 +183,30 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
             setNotice(null);
             setVersion((value) => value + 1);
           }}
+          onReset={(next) => {
+            cache.setQueryData(weightsKey, next);
+            setNotice(null);
+            refresh();
+          }}
           onStale={() => {
             setNotice(
               "This posting changed, so we refreshed the criteria and your unsaved changes were discarded.",
             );
-            void cache
-              .refetchQueries({ queryKey: weightsKey })
-              .then(() => setVersion((value) => value + 1));
+            refresh();
           }}
         />
       ) : (
         <ReadOnlyWeights saved={saved} />
       )}
+      <ConfirmDialog
+        open={guard.leaving}
+        title="Leave without saving?"
+        description="Your changes to the weights haven’t been saved. If you leave now, they will be lost."
+        cancelLabel="Stay on this page"
+        confirmLabel="Leave without saving"
+        onCancel={guard.stay}
+        onConfirm={guard.leave}
+      />
     </section>
   );
 }
@@ -194,6 +216,7 @@ function WeightsForm({
   metrics,
   saved,
   onSaved,
+  onReset,
   onStale,
   onDirtyChange,
 }: {
@@ -201,6 +224,7 @@ function WeightsForm({
   metrics: readonly Metric[];
   saved: PostingWeights;
   onSaved: (saved: PostingWeights) => void;
+  onReset: (defaults: PostingWeights) => void;
   onStale: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
@@ -228,15 +252,30 @@ function WeightsForm({
     },
   });
 
-  // Leaving with unsaved weights loses them, so ask the browser to confirm.
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  // Back to the equal-split defaults (Decision 13a): the saved set is deleted, not overwritten.
+  const [confirmReset, setConfirmReset] = useState(false);
+  const reset = useMutation({
+    mutationFn: () => resetWeights(postingId),
+    retry: false,
+    onSuccess: (next) => {
+      setConfirmReset(false);
+      onReset(next);
+      gooeyToast.success("Default weights restored");
+    },
+    onError: (failure) => {
+      if (isAccessDenied(failure))
+        void cache.invalidateQueries({ queryKey: ["auth", "me"] });
+      const { code } = apiError(failure);
+      if (code && staleCodes.has(code)) {
+        setConfirmReset(false);
+        onStale();
+      }
+    },
+  });
+  const busy = save.isPending || reset.isPending;
 
-  // Tell the page whether leaving it would lose weights; a remount of the form resets it.
+  // Tell the page whether leaving it would lose weights; a remount of the form resets it. The page
+  // owns the guard, so it survives that remount.
   useEffect(() => {
     onDirtyChange(dirty);
     return () => onDirtyChange(false);
@@ -247,6 +286,12 @@ function WeightsForm({
       ? isAccessDenied(save.error)
         ? "You don't have access to edit these criteria. Checking your account access…"
         : `${apiError(save.error).message ?? "We couldn't save the criteria."} Your changes are still here.`
+      : null;
+  const resetError =
+    reset.isError && !staleCodes.has(apiError(reset.error).code ?? "")
+      ? isAccessDenied(reset.error)
+        ? "You don't have access to edit these criteria. Checking your account access…"
+        : (apiError(reset.error).message ?? "We couldn't reset the criteria.")
       : null;
   const sumLabel =
     saved.total > 0
@@ -306,7 +351,7 @@ function WeightsForm({
                       min={0}
                       placeholder="0"
                       className="h-11 w-28 text-right tabular-nums"
-                      disabled={save.isPending}
+                      disabled={busy}
                       aria-invalid={error !== undefined}
                       aria-describedby={error ? `${id}-error` : undefined}
                       {...form.register(`drafts.${metric.id}`)}
@@ -356,10 +401,7 @@ function WeightsForm({
           type="submit"
           className="h-11"
           disabled={
-            !dirty ||
-            !evaluation.valid ||
-            save.isPending ||
-            form.formState.isSubmitting
+            !dirty || !evaluation.valid || busy || form.formState.isSubmitting
           }
           aria-busy={save.isPending}
         >
@@ -375,7 +417,7 @@ function WeightsForm({
           type="button"
           variant="ghost"
           className="h-11"
-          disabled={!dirty || save.isPending}
+          disabled={!dirty || busy}
           onClick={() => form.reset()}
         >
           Discard changes
@@ -387,7 +429,42 @@ function WeightsForm({
         >
           {save.isPending ? "Saving…" : dirty ? "Unsaved changes" : ""}
         </p>
+        {saved.configured && (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 sm:ml-auto"
+            disabled={busy}
+            onClick={() => {
+              reset.reset();
+              setConfirmReset(true);
+            }}
+          >
+            Reset to default weights
+          </Button>
+        )}
       </div>
+      <ConfirmDialog
+        open={confirmReset}
+        title="Reset to the default weights?"
+        description={
+          <>
+            Your saved weights will be deleted and interviews will be scored
+            with{" "}
+            {saved.total > 0
+              ? `the total of ${formatPercent(saved.total)} split equally across every metric`
+              : "every metric counting the same"}{" "}
+            again.{dirty && " Your unsaved changes will be discarded too."}
+          </>
+        }
+        cancelLabel="Keep my weights"
+        confirmLabel="Reset weights"
+        pendingLabel="Resetting…"
+        pending={reset.isPending}
+        error={resetError}
+        onCancel={() => setConfirmReset(false)}
+        onConfirm={() => reset.mutate()}
+      />
     </form>
   );
 }

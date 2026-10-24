@@ -9,6 +9,12 @@ import {
   type ApplicationFilters,
 } from "@/features/recruiter/applications/utils/application-filters";
 
+// Deadlines show in the viewer's time zone; pin one (before the component is imported) so the
+// rendered text is the same on every machine.
+vi.hoisted(() => {
+  process.env.TZ = "Asia/Ho_Chi_Minh";
+});
+
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   search: new URLSearchParams(),
@@ -125,10 +131,17 @@ describe("ApplicationList", () => {
       within(table).getByText("candidate1@example.com"),
     ).toBeInTheDocument();
     expect(within(table).getByText("Awaiting CV review")).toBeInTheDocument();
-    expect(within(table).getByText(/Interview by/)).toHaveTextContent(
-      "Oct 21, 2026",
+    const due = within(table).getByText(/Complete interview by/);
+    expect(due).toHaveTextContent(
+      "Complete interview by Oct 21, 2026, 3:30 PM GMT+7",
     );
-    expect(within(table).getByText(/Deadline passed/)).toBeInTheDocument();
+    expect(due.querySelector("time")).toHaveAttribute(
+      "datetime",
+      "2026-10-21T08:30:00Z",
+    );
+    expect(within(table).getByText(/Deadline passed/)).toHaveTextContent(
+      "Deadline passed Oct 19, 2026, 3:30 PM GMT+7",
+    );
     expect(within(table).getByText("Rejected")).toBeInTheDocument();
     expect(within(table).getByText("Reason: Not a fit")).toBeInTheDocument();
     // The posting is already known, and a row opens nothing until Application Detail exists.

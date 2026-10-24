@@ -34,3 +34,9 @@ export async function saveWeights(postingId: string, body: WeightsBody) {
   const response = await apiClient.put<unknown>(weightsPath(postingId), body);
   return postingWeightsEnvelopeSchema.parse(response.data).data;
 }
+
+// Deletes the saved weights, so the posting falls back to the equal-split defaults again.
+export async function resetWeights(postingId: string) {
+  const response = await apiClient.delete<unknown>(weightsPath(postingId));
+  return postingWeightsEnvelopeSchema.parse(response.data).data;
+}

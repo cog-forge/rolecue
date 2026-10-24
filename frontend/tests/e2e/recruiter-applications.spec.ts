@@ -139,7 +139,7 @@ test("recruiter searches and filters the received applications", async ({
   await expect(table.getByText("Mai Pham")).toBeVisible();
   await expect(table.getByText("Linh Tran")).toBeVisible();
   await expect(table.getByText("Bao To")).toBeVisible();
-  await expect(table.getByText(/Interview by/)).toBeVisible();
+  await expect(table.getByText(/Complete interview by/)).toBeVisible();
 
   // Search by name: the URL carries it and only the match stays.
   await page.getByLabel("Search by name or email").fill("linh");

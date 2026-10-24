@@ -40,6 +40,7 @@ func TestQuestionBankRoutesRequireOnboarding(t *testing.T) {
 		{http.MethodPost, "/job-postings/invalid-id/questions"},
 		{http.MethodPatch, "/job-postings/invalid-id/questions/invalid-id"},
 		{http.MethodDelete, "/job-postings/invalid-id/questions/invalid-id"},
+		{http.MethodDelete, "/job-postings/invalid-id/evaluation-weights"},
 		{http.MethodGet, "/job-postings/invalid-id/applications"},
 		{http.MethodPost, "/job-postings/invalid-id/applications/invalid-id/approve-cv"},
 		{http.MethodPost, "/job-postings/invalid-id/applications/invalid-id/reject-cv"},

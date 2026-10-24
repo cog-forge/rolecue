@@ -342,7 +342,8 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
         <CardContent>
           {posting.status === "pending" || posting.status === "rejected" ? (
             <p className="text-sm text-muted-foreground">
-              Candidates can apply once an administrator approves this posting.
+              Candidates can apply after an administrator approves this posting,
+              you fund interview slots and open intake.
             </p>
           ) : (
             // The list reads its filters from the URL on the client.

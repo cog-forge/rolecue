@@ -22,10 +22,17 @@ const catalog = [
   { id: clarity, name: "Clarity" },
 ];
 
-async function mockWeights(page: Page, options: { editable?: boolean } = {}) {
+async function mockWeights(
+  page: Page,
+  options: {
+    editable?: boolean;
+    saved?: { metric_id: string; name: string; percentage: number }[];
+  } = {},
+) {
   const editable = options.editable ?? true;
-  let saved: { metric_id: string; name: string; percentage: number }[] = [];
+  let saved = options.saved ?? [];
   const bodies: unknown[] = [];
+  let resets = 0;
   const view = () => ({
     configured: saved.length > 0,
     using_defaults: saved.length === 0,
@@ -47,7 +54,7 @@ async function mockWeights(page: Page, options: { editable?: boolean } = {}) {
     const headers = {
       "access-control-allow-origin": "http://127.0.0.1:3100",
       "access-control-allow-credentials": "true",
-      "access-control-allow-methods": "GET,PUT,OPTIONS",
+      "access-control-allow-methods": "GET,PUT,DELETE,OPTIONS",
       "access-control-allow-headers": "Content-Type",
     };
     if (method === "OPTIONS") return route.fulfill({ status: 204, headers });
@@ -74,6 +81,11 @@ async function mockWeights(page: Page, options: { editable?: boolean } = {}) {
       }));
       return route.fulfill({ headers, json: { success: true, data: view() } });
     }
+    if (url.pathname === weightsPath && method === "DELETE") {
+      resets += 1;
+      saved = [];
+      return route.fulfill({ headers, json: { success: true, data: view() } });
+    }
     return route.fulfill({
       status: 404,
       headers,
@@ -83,7 +95,7 @@ async function mockWeights(page: Page, options: { editable?: boolean } = {}) {
       },
     });
   });
-  return { bodies };
+  return { bodies, resets: () => resets };
 }
 
 test("recruiter replaces the default weights with their own", async ({
@@ -170,4 +182,68 @@ test("an approved posting shows its criteria read-only", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Save criteria" })).toHaveCount(
     0,
   );
+});
+
+test("recruiter resets saved weights to the equal-split defaults", async ({
+  page,
+}) => {
+  const api = await mockWeights(page, {
+    saved: [
+      { metric_id: accuracy, name: "Technical accuracy", percentage: 70 },
+      { metric_id: depth, name: "Depth of knowledge", percentage: 30 },
+    ],
+  });
+  await page.goto(`/recruiter/job-postings/${postingId}/evaluation`);
+  await expect(page.getByLabel("Technical accuracy")).toHaveValue("70");
+  await expect(page.getByText("Using the default weights")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Reset to default weights" }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "Reset to the default weights?",
+  });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Reset weights" }).click();
+
+  await expect(page.getByText("Using the default weights")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Reset to default weights" }),
+  ).toHaveCount(0);
+  expect(api.resets()).toBe(1);
+  expect(
+    Number(await page.getByLabel("Technical accuracy").inputValue()),
+  ).toBeCloseTo(100 / 3, 10);
+});
+
+test("unsaved weights are guarded against in-app links and the Back button", async ({
+  page,
+}) => {
+  await mockWeights(page);
+  const evaluation = `/recruiter/job-postings/${postingId}/evaluation`;
+  await page.goto("/recruiter/applications");
+  await page.goto(evaluation);
+  await page.getByLabel("Clarity").fill("5");
+  const leaveDialog = page.getByRole("dialog", {
+    name: "Leave without saving?",
+  });
+
+  // A sidebar link asks first; staying keeps the page and the draft.
+  await page
+    .getByRole("link", { name: "Received Applications" })
+    .first()
+    .click();
+  await expect(leaveDialog).toBeVisible();
+  await leaveDialog.getByRole("button", { name: "Stay on this page" }).click();
+  await expect(leaveDialog).toHaveCount(0);
+  await expect(page).toHaveURL(evaluation);
+  await expect(page.getByLabel("Clarity")).toHaveValue("5");
+
+  // The browser's Back button asks too; leaving goes back.
+  await page.goBack();
+  await expect(leaveDialog).toBeVisible();
+  await expect(page).toHaveURL(evaluation);
+  await expect(page.getByLabel("Clarity")).toHaveValue("5");
+  await leaveDialog
+    .getByRole("button", { name: "Leave without saving" })
+    .click();
+  await expect(page).toHaveURL("/recruiter/applications");
 });
