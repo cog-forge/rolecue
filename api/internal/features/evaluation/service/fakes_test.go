@@ -24,9 +24,11 @@ type fakeRepository struct {
 	weights    []domain.Weight
 	statusErr  error
 	replaceErr error
+	clearErr   error
 
 	replaced     []domain.Weight
 	replaceCalls int
+	clearCalls   int
 	recruiterID  uuid.UUID
 	postingID    uuid.UUID
 }
@@ -51,6 +53,16 @@ func (f *fakeRepository) ReplaceWeights(_ context.Context, _, _ uuid.UUID, weigh
 	}
 	f.replaced = weights
 	return weights, nil
+}
+
+func (f *fakeRepository) ClearWeights(_ context.Context, recruiterID, postingID uuid.UUID) error {
+	f.clearCalls++
+	if f.clearErr != nil {
+		return f.clearErr
+	}
+	f.recruiterID, f.postingID = recruiterID, postingID
+	f.weights = nil
+	return nil
 }
 
 func newService(t *testing.T, repo *fakeRepository, total float64) *Service {

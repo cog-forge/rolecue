@@ -151,8 +151,15 @@ func (r *Router) Setup() *gin.Engine {
 	// Evaluation weights are separate from the question bank above.
 	jobPostings.GET("/:id/evaluation-weights", r.evaluationHandler.Weights)
 	jobPostings.PUT("/:id/evaluation-weights", r.evaluationHandler.ReplaceWeights)
+	jobPostings.DELETE("/:id/evaluation-weights", r.evaluationHandler.ResetWeights)
+	jobPostings.GET("/:id/applications", r.applicationHandler.ListForPosting)
 	jobPostings.POST("/:id/applications/:applicationId/approve-cv", r.applicationHandler.ApproveCV)
 	jobPostings.POST("/:id/applications/:applicationId/reject-cv", r.applicationHandler.RejectCV)
+
+	// The Recruiter's Applications across all of their postings. /applications stays free for the
+	// Candidate's own list.
+	recruiter := router.Group("/recruiter", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("recruiter"))
+	recruiter.GET("/applications", r.applicationHandler.ListOwn)
 
 	router.GET("/evaluation-metrics", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.evaluationHandler.Metrics)
 

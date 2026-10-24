@@ -40,6 +40,8 @@ export const routes = {
     jobPosting: (id: string) => `/recruiter/job-postings/${segment(id)}`,
     jobPostingQuestions: (id: string) =>
       `/recruiter/job-postings/${segment(id)}/questions`,
+    jobPostingEvaluation: (id: string) =>
+      `/recruiter/job-postings/${segment(id)}/evaluation`,
     applications: "/recruiter/applications",
     billing: "/recruiter/billing",
   },

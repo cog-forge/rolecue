@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Repository reads the metrics catalog and reads or replaces a Recruiter's posting weights.
+// Repository reads the metrics catalog and reads, replaces or clears a Recruiter's posting weights.
 type Repository struct {
 	pool    *pgxpool.Pool
 	queries *Queries
@@ -79,6 +79,30 @@ func (r *Repository) ReplaceWeights(ctx context.Context, recruiterID, postingID 
 		return nil, persistenceError(err)
 	}
 	return saved, nil
+}
+
+// ClearWeights deletes the posting's whole weight set under the posting's row lock, so the posting
+// falls back to the equal-split defaults.
+func (r *Repository) ClearWeights(ctx context.Context, recruiterID, postingID uuid.UUID) error {
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		status, err := q.LockEditablePosting(ctx, LockEditablePostingParams{ID: postingID, RecruiterID: recruiterID})
+		if err != nil {
+			return persistenceError(err)
+		}
+		if !domain.EditableStatus(status) {
+			return domain.ErrWeightsLocked
+		}
+		if err := q.DeletePostingWeights(ctx, postingID); err != nil {
+			return persistenceError(err)
+		}
+		return nil
+	})
+	if err != nil {
+		// Errors from inside are already AppErrors; this maps a failed begin or commit.
+		return persistenceError(err)
+	}
+	return nil
 }
 
 func listWeights(ctx context.Context, q *Queries, postingID uuid.UUID) ([]domain.Weight, error) {

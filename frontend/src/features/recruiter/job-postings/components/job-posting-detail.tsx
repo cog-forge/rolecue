@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ListChecks, LoaderCircle, RotateCcw } from "lucide-react";
+import {
+  ArrowLeft,
+  ListChecks,
+  LoaderCircle,
+  RotateCcw,
+  Scale,
+} from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { useSessionUser } from "@/features/auth/components/session-gate";
+import { ApplicationList } from "@/features/recruiter/applications/components/application-list";
 import {
   getPosting,
   jobPostingKeys,
@@ -209,18 +216,34 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
               </time>
             </span>
           </p>
+          <p className="text-sm text-muted-foreground">
+            Interview slots:{" "}
+            <span className="font-medium text-foreground tabular-nums">
+              {posting.interview_slot === null
+                ? "not funded yet"
+                : posting.interview_slot}
+            </span>
+          </p>
         </div>
-        <Button asChild variant="outline" className="h-11 bg-background">
-          <Link href={routes.recruiter.jobPostingQuestions(posting.id)}>
-            <ListChecks aria-hidden />
-            Question bank
-            {posting.core_question_count > 0 && (
-              <span className="tabular-nums">
-                ({posting.core_question_count})
-              </span>
-            )}
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="h-11 bg-background">
+            <Link href={routes.recruiter.jobPostingQuestions(posting.id)}>
+              <ListChecks aria-hidden />
+              Question bank
+              {posting.core_question_count > 0 && (
+                <span className="tabular-nums">
+                  ({posting.core_question_count})
+                </span>
+              )}
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="h-11 bg-background">
+            <Link href={routes.recruiter.jobPostingEvaluation(posting.id)}>
+              <Scale aria-hidden />
+              Evaluation criteria
+            </Link>
+          </Button>
+        </div>
       </header>
 
       {notice && (
@@ -309,6 +332,27 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
       ) : (
         <ReadOnlyPosting posting={posting} />
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <h2>Applications</h2>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {posting.status === "pending" || posting.status === "rejected" ? (
+            <p className="text-sm text-muted-foreground">
+              Candidates can apply after an administrator approves this posting,
+              you fund interview slots and open intake.
+            </p>
+          ) : (
+            // The list reads its filters from the URL on the client.
+            <Suspense>
+              <ApplicationList postingId={posting.id} />
+            </Suspense>
+          )}
+        </CardContent>
+      </Card>
     </section>
   );
 }
