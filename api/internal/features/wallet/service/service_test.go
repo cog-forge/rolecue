@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
@@ -85,6 +86,85 @@ func (m *MockRepo) ListCoinPackages(ctx context.Context) ([]domain.CoinPackage, 
 func (m *MockRepo) GetCoinPackageByID(ctx context.Context, id uuid.UUID) (domain.CoinPackage, error) {
 	args := m.Called(ctx, id)
 	return args.Get(0).(domain.CoinPackage), args.Error(1)
+}
+
+func (m *MockRepo) ListAllTransactions(ctx context.Context, arg repository.ListAllTransactionsParams) ([]repository.AdminTransaction, error) {
+	args := m.Called(ctx, arg)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]repository.AdminTransaction), args.Error(1)
+}
+
+func (m *MockRepo) CountAllTransactions(ctx context.Context, arg repository.ListAllTransactionsParams) (int64, error) {
+	args := m.Called(ctx, arg)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockRepo) GetRevenueStats(ctx context.Context, dateFrom, dateTo *time.Time) (repository.RevenueStats, error) {
+	args := m.Called(ctx, dateFrom, dateTo)
+	return args.Get(0).(repository.RevenueStats), args.Error(1)
+}
+
+func (m *MockRepo) GetRevenueSummary(ctx context.Context, dateFrom, dateTo *time.Time) ([]repository.RevenueSummaryRow, error) {
+	args := m.Called(ctx, dateFrom, dateTo)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]repository.RevenueSummaryRow), args.Error(1)
+}
+
+func (m *MockRepo) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).(domain.BillingSummary), args.Error(1)
+}
+
+func (m *MockRepo) GetBillingDailySeries(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.BillingDailyItem, error) {
+	args := m.Called(ctx, filter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]domain.BillingDailyItem), args.Error(1)
+}
+
+func (m *MockRepo) ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.AdminTransactionItem, int64, error) {
+	args := m.Called(ctx, filter)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]domain.AdminTransactionItem), args.Get(1).(int64), args.Error(2)
+}
+
+func (m *MockRepo) GetBillingTransactionByID(ctx context.Context, id uuid.UUID) (*domain.AdminTransactionItem, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.AdminTransactionItem), args.Error(1)
+}
+
+func (m *MockRepo) CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*domain.AdminTransactionItem, error) {
+	args := m.Called(ctx, id, adminID, reason)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.AdminTransactionItem), args.Error(1)
+}
+
+func (m *MockRepo) SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
+	args := m.Called(ctx, id, adminID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.AdminTransactionItem), args.Error(1)
+}
+
+func (m *MockRepo) CreateRefundTransaction(ctx context.Context, req domain.IssueRefundRequest, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
+	args := m.Called(ctx, req, adminID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.AdminTransactionItem), args.Error(1)
 }
 
 // ---------------------------------------------------------------------------
