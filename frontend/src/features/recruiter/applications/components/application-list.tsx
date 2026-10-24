@@ -384,9 +384,15 @@ function ApplicationRow({
       style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
     >
       <td className="py-3.5 pr-4 pl-5">
-        <span className="block font-medium [overflow-wrap:anywhere]">
+        <Link
+          href={routes.recruiter.application(
+            application.job_posting_id,
+            application.id,
+          )}
+          className="block rounded-sm font-medium underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
           {candidate.name}
-        </span>
+        </Link>
         <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">
           {candidate.email}
         </span>

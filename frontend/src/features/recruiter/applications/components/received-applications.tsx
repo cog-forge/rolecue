@@ -4,8 +4,7 @@ import { headerBandClass } from "@/features/recruiter/job-postings/components/no
 import { cn } from "@/lib/utils";
 import { ApplicationList } from "./application-list";
 
-// Every Application on the Recruiter's own postings. Opening one (Application Detail) comes with
-// KAN-129, so rows are not links yet.
+// Every Application on the Recruiter's own postings. Each candidate opens the Application's detail.
 export function ReceivedApplications() {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
