@@ -26,6 +26,11 @@ vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
 }));
 vi.mock("goey-toast", () => ({ gooeyToast: { success: mocks.toast } }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () =>
+    "/recruiter/job-postings/33333333-3333-4333-8333-333333333333",
+}));
 
 const postingId = "33333333-3333-4333-8333-333333333333";
 const avatarId = "44444444-4444-4444-8444-444444444444";
@@ -53,7 +58,7 @@ const base = {
   salary_min: null,
   salary_max: null,
   interview_duration: 45,
-  interview_slot: null,
+  interview_slot: null as number | null,
   required_avatar: { id: avatarId, name: "Linh" },
   required_voice: { id: voiceId, name: "Ava" },
   core_question_count: 0,
@@ -71,6 +76,23 @@ function failure(status: number, code: string, message: string) {
     config: { headers: new AxiosHeaders() },
   });
 }
+const applicationRow = {
+  id: "88888888-8888-4888-8888-888888888888",
+  job_posting_id: postingId,
+  job_posting_title: "Backend Engineer",
+  status: "pending",
+  submitted_at: "2026-10-20T08:00:00Z",
+  candidate: {
+    id: "99999999-9999-4999-8999-999999999999",
+    name: "Linh Tran",
+    email: "linh@example.com",
+    image: null,
+  },
+  interview_eligible: false,
+  interview_deadline: null,
+  reject_reason: null,
+  updated_at: "2026-10-20T08:00:00Z",
+};
 function serve(posting: Posting | Error) {
   mocks.get.mockImplementation((path: string) => {
     if (path === "/voices")
@@ -86,6 +108,13 @@ function serve(posting: Posting | Error) {
             updated_at: "2026-10-01T00:00:00Z",
           },
         ]),
+      );
+    if (path === `/job-postings/${postingId}/applications`)
+      return Promise.resolve(
+        envelope({
+          items: [applicationRow],
+          pagination: { limit: 20, offset: 0, total: 1 },
+        }),
       );
     if (path === `/job-postings/${postingId}/document`)
       return Promise.resolve(
@@ -341,6 +370,56 @@ describe("JobPostingDetail", () => {
       screen.queryByRole("button", { name: "Save changes" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("45 minutes")).toBeInTheDocument();
+  });
+
+  it("links to the evaluation criteria and shows the interview slots", async () => {
+    serve({ ...base, interview_slot: 5 });
+    mount();
+    expect(
+      await screen.findByRole("link", { name: "Evaluation criteria" }),
+    ).toHaveAttribute(
+      "href",
+      `/recruiter/job-postings/${postingId}/evaluation`,
+    );
+    expect(screen.getByText("Interview slots:")).toHaveTextContent("5");
+  });
+
+  it("says when interview slots are not funded yet", async () => {
+    serve(base);
+    mount();
+    expect(await screen.findByText("Interview slots:")).toHaveTextContent(
+      "not funded yet",
+    );
+  });
+
+  it("does not list applications before the posting is approved", async () => {
+    serve(base);
+    mount();
+    expect(
+      await screen.findByText(
+        /Candidates can apply once an administrator approves/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      mocks.get.mock.calls.some(([path]) =>
+        String(path).endsWith("/applications"),
+      ),
+    ).toBe(false);
+  });
+
+  it("lists the applications of an approved posting", async () => {
+    serve({ ...base, status: "open" });
+    mount();
+    const table = await screen.findByRole("table");
+    expect(table).toHaveTextContent("Linh Tran");
+    expect(table).toHaveTextContent("linh@example.com");
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Applications" }),
+    ).toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledWith(
+      `/job-postings/${postingId}/applications`,
+      { params: { limit: 20, offset: 0 }, signal: expect.any(AbortSignal) },
+    );
   });
 
   it("keeps a saved voice that is no longer in the catalog", async () => {
