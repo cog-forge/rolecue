@@ -143,7 +143,11 @@ test("recruiter searches and filters the received applications", async ({
 
   // Search by name: the URL carries it and only the match stays.
   await page.getByLabel("Search by name or email").fill("linh");
-  await page.getByRole("button", { name: "Search" }).click();
+  // Scoped to the form: the sidebar also has a "Search pages" button.
+  await page
+    .getByRole("search", { name: "Search applications" })
+    .getByRole("button", { name: "Search", exact: true })
+    .click();
   await expect(page).toHaveURL(/[?&]q=linh/);
   await expect(table.getByText("Linh Tran")).toBeVisible();
   await expect(table.getByText("Mai Pham")).toHaveCount(0);
@@ -193,7 +197,11 @@ test("an approved posting lists its applications and links to the criteria", asy
   await expect(page.getByText("Interview slots:")).toContainText("5");
 
   await page.getByLabel("Search by name or email").fill("bao@");
-  await page.getByRole("button", { name: "Search" }).click();
+  // Scoped to the form: the sidebar also has a "Search pages" button.
+  await page
+    .getByRole("search", { name: "Search applications" })
+    .getByRole("button", { name: "Search", exact: true })
+    .click();
   await expect(table.getByText("Bao To")).toBeVisible();
   await expect(table.getByText("Linh Tran")).toHaveCount(0);
   expect(api.queries.some((q) => q.q === "bao@")).toBe(true);

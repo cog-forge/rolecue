@@ -218,6 +218,21 @@ describe("ApplicationList", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("exposes the search form by role and name, with one Search button inside it", async () => {
+    mocks.get.mockResolvedValue(page([application(1)]));
+    mount();
+    await screen.findByRole("table");
+    // The E2E specs reach the button through this form: the workspace also has a "Search pages"
+    // button, so a bare name match is ambiguous there.
+    const form = screen.getByRole("search", { name: "Search applications" });
+    expect(
+      within(form).getByRole("button", { name: "Search", exact: true }),
+    ).toHaveAttribute("type", "submit");
+    expect(
+      within(form).getByLabelText("Search by name or email"),
+    ).toBeVisible();
+  });
+
   it("marks the active status tab and links the others", async () => {
     mocks.get.mockResolvedValue(page([application(1)]));
     mount({}, { ...defaultApplicationFilters, status: "approved" });
