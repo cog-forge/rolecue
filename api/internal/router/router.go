@@ -106,6 +106,7 @@ func (r *Router) Setup() *gin.Engine {
 
 	inventory := router.Group("/inventory", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate", "recruiter"))
 	inventory.GET("", r.inventoryHandler.Summary)
+	inventory.POST("/purchase", r.inventoryHandler.PurchaseSlot)
 	inventory.GET("/avatars", r.inventoryHandler.List)
 	inventory.GET("/avatars/:id", r.inventoryHandler.Get)
 	inventory.DELETE("/avatars/:id", r.inventoryHandler.Delete)

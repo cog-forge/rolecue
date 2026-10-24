@@ -46,3 +46,8 @@ WHERE i.user_id = sqlc.arg(owner_id) AND a.id = sqlc.arg(avatar_id);
 DELETE FROM public.avatars a USING public.inventories i
 WHERE a.inventory_id = i.id AND i.user_id = sqlc.arg(owner_id)
   AND a.id = sqlc.arg(avatar_id);
+
+-- name: UpdateInventorySlot :exec
+UPDATE public.inventories
+SET slot = slot + @amount
+WHERE user_id = @user_id;

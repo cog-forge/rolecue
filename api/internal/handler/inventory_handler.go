@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -20,6 +21,7 @@ type InventoryService interface {
 	Summary(context.Context, authdomain.User) (domain.Capacity, error)
 	List(context.Context, authdomain.User, int32, int32) ([]domain.Avatar, int64, error)
 	Get(context.Context, authdomain.User, uuid.UUID) (domain.AvatarDetail, error)
+	PurchaseSlot(ctx context.Context, user authdomain.User, amount int32) error
 	Delete(context.Context, authdomain.User, uuid.UUID) error
 }
 
@@ -187,6 +189,52 @@ func (h *InventoryHandler) Get(c *gin.Context) {
 		return
 	}
 	response.OK(c, avatar)
+}
+
+// PurchaseSlot godoc
+// @Summary Purchase inventory slots
+// @Description Spends coins for the requested number of slots.
+// @Tags inventory
+// @Produce json
+// @Security SessionCookie
+// @Accept json
+// @Param request body domain.SlotPurchaseRequest true "Number of slots to purchase"
+// @Success 204 "Success"
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 422 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Failure 503 {object} response.Envelope
+// @Router /inventory/purchase [post]
+func (h *InventoryHandler) PurchaseSlot(c *gin.Context) {
+	user, ok := inventoryUser(c)
+	if !ok {
+		return
+	}
+	if c.Request.URL.RawQuery != "" {
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid inventory request"))
+		return
+	}
+	var request domain.SlotPurchaseRequest
+	decoder := json.NewDecoder(io.LimitReader(c.Request.Body, 4097))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil || request.Amount < 1 {
+		response.Error(c, apperror.New(apperror.CodeValidation, "amount must be greater or equal to 1"))
+		return
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid inventory request"))
+		return
+	}
+	err := h.service.PurchaseSlot(c.Request.Context(), user, request.Amount)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // Delete godoc

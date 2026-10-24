@@ -140,6 +140,68 @@ func (r *Repository) Get(ctx context.Context, owner, id uuid.UUID) (domain.Store
 	return domain.StoredAvatar{Avatar: domain.Avatar{ID: row.ID, Name: row.Name, Personality: row.Personality, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}, ModelPath: row.ModelPath}, nil
 }
 
+func (r *Repository) GetWallet(ctx context.Context, owner uuid.UUID) (*domain.Wallet, error) {
+	queries := New(r.pool)
+	raw, err := queries.GetWallet(ctx, owner)
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+
+	return &domain.Wallet{
+		ID:      raw.ID,
+		Balance: raw.Balance,
+	}, nil
+}
+
+func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, wallet domain.Wallet, amount int32) error {
+	if amount <= 0 {
+		return apperror.New(apperror.CodeValidation, "slot purchase amount must be positive")
+	}
+	tx, queries, err := r.beginOwner(ctx, owner)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+
+	if err := queries.EnsureInventory(ctx, EnsureInventoryParams{UserID: owner, InitialCapacity: domain.InitialCapacity}); err != nil {
+		return persistenceError(err)
+	}
+	if _, err := queries.LockAvatarInventory(ctx, owner); err != nil {
+		return persistenceError(err)
+	}
+
+	err = queries.UpdateInventorySlot(ctx, UpdateInventorySlotParams{
+		UserID: owner,
+		Amount: amount,
+	})
+	if err != nil {
+		return persistenceError(err)
+	}
+
+	coinAmount := domain.PricePerSlot * amount
+	newBalance := wallet.Balance - coinAmount
+	err = queries.UpdateWalletBalance(ctx, UpdateWalletBalanceParams{
+		ID:      wallet.ID,
+		Balance: newBalance,
+	})
+	if err != nil {
+		return persistenceError(err)
+	}
+
+	err = queries.CreateSlotPurchaseTransaction(ctx, CreateSlotPurchaseTransactionParams{
+		From:   owner.String(),
+		Amount: coinAmount,
+	})
+	if err != nil {
+		return persistenceError(err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return persistenceError(err)
+	}
+	return nil
+}
+
 func (r *Repository) Delete(ctx context.Context, owner, id uuid.UUID) error {
 	tx, queries, err := r.beginOwner(ctx, owner)
 	if err != nil {

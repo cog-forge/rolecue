@@ -875,6 +875,11 @@ definitions:
     - Tool
     - Technology
     - Other
+  domain.SlotPurchaseRequest:
+    properties:
+      amount:
+        type: integer
+    type: object
   domain.Status:
     enum:
     - pending
@@ -2280,6 +2285,56 @@ paths:
       security:
       - SessionCookie: []
       summary: View your personal avatar
+      tags:
+      - inventory
+  /inventory/purchase:
+    post:
+      consumes:
+      - application/json
+      description: Spends coins for the requested number of slots.
+      parameters:
+      - description: Number of slots to purchase
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.SlotPurchaseRequest'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: Success
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Purchase inventory slots
       tags:
       - inventory
   /job-board:
