@@ -63,6 +63,39 @@ func (q *Queries) CountCVApprovals(ctx context.Context, jobPostingID uuid.UUID) 
 	return count, err
 }
 
+const countRecruiterApplications = `-- name: CountRecruiterApplications :one
+SELECT count(*)
+FROM public.applications a
+JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = a.candidate_id
+WHERE jp.recruiter_id = $1
+  AND ($2::uuid IS NULL OR a.job_posting_id = $2::uuid)
+  AND ($3::text IS NULL OR a.status::text = $3::text)
+  AND ($4::text IS NULL
+       OR u.name ILIKE '%' || $4::text || '%'
+       OR u.email ILIKE '%' || $4::text || '%')
+`
+
+type CountRecruiterApplicationsParams struct {
+	RecruiterID  uuid.UUID
+	JobPostingID *uuid.UUID
+	Status       *string
+	Search       *string
+}
+
+// Same joins and filters as the list, so a row the list cannot show is not counted either.
+func (q *Queries) CountRecruiterApplications(ctx context.Context, arg CountRecruiterApplicationsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecruiterApplications,
+		arg.RecruiterID,
+		arg.JobPostingID,
+		arg.Status,
+		arg.Search,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getCandidateEligibility = `-- name: GetCandidateEligibility :one
 SELECT id, job_posting_id, status::text AS status, interview_deadline,
        COALESCE(interview_deadline > now(), false)::boolean AS within_deadline
@@ -94,6 +127,114 @@ func (q *Queries) GetCandidateEligibility(ctx context.Context, arg GetCandidateE
 		&i.WithinDeadline,
 	)
 	return i, err
+}
+
+const isPostingOwned = `-- name: IsPostingOwned :one
+SELECT EXISTS (
+    SELECT 1 FROM public.job_postings WHERE id = $1 AND recruiter_id = $2
+)::boolean AS owned
+`
+
+type IsPostingOwnedParams struct {
+	ID          uuid.UUID
+	RecruiterID uuid.UUID
+}
+
+// Lets a list of one posting tell "not yours" (404) from "no Applications yet" ([]).
+func (q *Queries) IsPostingOwned(ctx context.Context, arg IsPostingOwnedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isPostingOwned, arg.ID, arg.RecruiterID)
+	var owned bool
+	err := row.Scan(&owned)
+	return owned, err
+}
+
+const listRecruiterApplications = `-- name: ListRecruiterApplications :many
+SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status, a.created_at,
+       u.id AS candidate_id, u.name AS candidate_name, u.email AS candidate_email, u.image AS candidate_image,
+       COALESCE(a.status = 'interview_eligible' AND a.interview_deadline > now(), false)::boolean AS interview_eligible,
+       a.interview_deadline, a.reject_reason, a.updated_at
+FROM public.applications a
+JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = a.candidate_id
+WHERE jp.recruiter_id = $1
+  AND ($2::uuid IS NULL OR a.job_posting_id = $2::uuid)
+  AND ($3::text IS NULL OR a.status::text = $3::text)
+  AND ($4::text IS NULL
+       OR u.name ILIKE '%' || $4::text || '%'
+       OR u.email ILIKE '%' || $4::text || '%')
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT $6 OFFSET $5
+`
+
+type ListRecruiterApplicationsParams struct {
+	RecruiterID  uuid.UUID
+	JobPostingID *uuid.UUID
+	Status       *string
+	Search       *string
+	PageOffset   int32
+	PageLimit    int32
+}
+
+type ListRecruiterApplicationsRow struct {
+	ID                uuid.UUID
+	JobPostingID      uuid.UUID
+	JobPostingTitle   string
+	Status            string
+	CreatedAt         pgtype.Timestamptz
+	CandidateID       uuid.UUID
+	CandidateName     string
+	CandidateEmail    string
+	CandidateImage    *string
+	InterviewEligible bool
+	InterviewDeadline pgtype.Timestamptz
+	RejectReason      *string
+	UpdatedAt         pgtype.Timestamptz
+}
+
+// The Recruiter's Application list. It joins job_postings, so an Application is reachable only
+// through a posting the caller owns. No column here points at the CV file, a transcript or a
+// recording: evidence is reached through Application Detail only.
+// Every filter is optional (a NULL argument turns it off). search is a LIKE pattern the service
+// has already escaped.
+func (q *Queries) ListRecruiterApplications(ctx context.Context, arg ListRecruiterApplicationsParams) ([]ListRecruiterApplicationsRow, error) {
+	rows, err := q.db.Query(ctx, listRecruiterApplications,
+		arg.RecruiterID,
+		arg.JobPostingID,
+		arg.Status,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRecruiterApplicationsRow
+	for rows.Next() {
+		var i ListRecruiterApplicationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobPostingID,
+			&i.JobPostingTitle,
+			&i.Status,
+			&i.CreatedAt,
+			&i.CandidateID,
+			&i.CandidateName,
+			&i.CandidateEmail,
+			&i.CandidateImage,
+			&i.InterviewEligible,
+			&i.InterviewDeadline,
+			&i.RejectReason,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const lockApplication = `-- name: LockApplication :one

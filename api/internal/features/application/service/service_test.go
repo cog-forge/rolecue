@@ -28,6 +28,18 @@ type fakeRepository struct {
 	recruiterID, postingID, applicationID       uuid.UUID
 	candidateID                                 uuid.UUID
 	reason                                      *string
+
+	items       []domain.ListItem
+	total       int64
+	listCalls   int
+	listFilter  domain.ListFilter
+	listRecruit uuid.UUID
+}
+
+func (f *fakeRepository) ListApplications(_ context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.ListItem, int64, error) {
+	f.listCalls++
+	f.listRecruit, f.listFilter = recruiterID, filter
+	return f.items, f.total, f.err
 }
 
 func (f *fakeRepository) ApproveCV(_ context.Context, recruiterID, postingID, applicationID uuid.UUID) (domain.Screening, error) {
