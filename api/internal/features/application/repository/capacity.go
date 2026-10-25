@@ -77,6 +77,34 @@ func (r *Repository) FundCapacity(ctx context.Context, recruiterID, postingID uu
 	return state, nil
 }
 
+// refundUnusedCapacity credits the Recruiter for the slots no interview used, at the terminal close
+// (R5). It runs once per posting because the caller only calls it on the intake_closed to closed
+// change, under the posting lock. An unfunded posting, or one whose slots were all consumed, creates
+// no wallet row and no transaction row.
+func refundUnusedCapacity(ctx context.Context, q *Queries, postingID uuid.UUID) error {
+	basis, err := q.GetPostingRefundBasis(ctx, postingID)
+	if err != nil {
+		return internal(err)
+	}
+	if basis.InterviewSlot == nil {
+		return nil
+	}
+	consumed, err := q.CountConsumedInterviews(ctx, postingID)
+	if err != nil {
+		return internal(err)
+	}
+	unused := int64(*basis.InterviewSlot) - consumed
+	if unused <= 0 {
+		return nil
+	}
+	description := fmt.Sprintf("Refund of unused interview capacity of job posting %s, %d slots", postingID, unused)
+	coins := int32(unused) * domain.PricePerInterviewSlot
+	if err := ledger.Credit(ctx, q.db, basis.RecruiterID, coins, description); err != nil {
+		return err
+	}
+	return nil
+}
+
 // capacityState counts the approvals and consumed interviews of a locked posting and builds the
 // state from them. The caller holds the posting lock.
 func capacityState(ctx context.Context, q *Queries, postingID uuid.UUID, status string, slot *int32) (domain.CapacityState, error) {

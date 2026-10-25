@@ -32,6 +32,27 @@ func (q *Queries) CountConsumedInterviews(ctx context.Context, jobPostingID uuid
 	return consumed, err
 }
 
+const getPostingRefundBasis = `-- name: GetPostingRefundBasis :one
+SELECT recruiter_id, interview_slot
+FROM public.job_postings
+WHERE id = $1
+`
+
+type GetPostingRefundBasisRow struct {
+	RecruiterID   uuid.UUID
+	InterviewSlot *int32
+}
+
+// Funding writes the slot once: the caller holds the posting lock and has checked that the posting is
+// open and unfunded, and the IS NULL guard makes a second write a no-op.
+// The refund needs the owner and the funded slot count of a posting the caller already locked.
+func (q *Queries) GetPostingRefundBasis(ctx context.Context, id uuid.UUID) (GetPostingRefundBasisRow, error) {
+	row := q.db.QueryRow(ctx, getPostingRefundBasis, id)
+	var i GetPostingRefundBasisRow
+	err := row.Scan(&i.RecruiterID, &i.InterviewSlot)
+	return i, err
+}
+
 const setInterviewSlot = `-- name: SetInterviewSlot :execrows
 UPDATE public.job_postings
 SET interview_slot = $1
@@ -43,8 +64,6 @@ type SetInterviewSlotParams struct {
 	ID            uuid.UUID
 }
 
-// Funding writes the slot once: the caller holds the posting lock and has checked that the posting is
-// open and unfunded, and the IS NULL guard makes a second write a no-op.
 func (q *Queries) SetInterviewSlot(ctx context.Context, arg SetInterviewSlotParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setInterviewSlot, arg.InterviewSlot, arg.ID)
 	if err != nil {
