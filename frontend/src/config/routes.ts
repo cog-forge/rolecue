@@ -52,6 +52,7 @@ export const routes = {
     dashboard: "/admin/dashboard",
     users: "/admin/users",
     interviews: "/admin/interviews",
+    interview: (id: string) => `/admin/interviews/${segment(id)}`,
     voices: "/admin/voices",
     billing: "/admin/billing",
     jobPostings: "/admin/job-postings",
