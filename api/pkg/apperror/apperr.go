@@ -90,6 +90,16 @@ const (
 	CodeInterviewCapacityAlreadyFunded Code = "INTERVIEW_CAPACITY_ALREADY_FUNDED"
 	CodeAlreadyApplied                 Code = "ALREADY_APPLIED"
 	CodeInterviewNotFound              Code = "INTERVIEW_NOT_FOUND"
+
+	// Interview session, final decision and recording codes.
+	CodeRoleProfileRequired       Code = "ROLE_PROFILE_REQUIRED"
+	CodeInterviewCompleted        Code = "INTERVIEW_COMPLETED"
+	CodeInterviewTurnConflict     Code = "INTERVIEW_TURN_CONFLICT"
+	CodeInterviewNotCompleted     Code = "INTERVIEW_NOT_COMPLETED"
+	CodeFinalReviewLocked         Code = "FINAL_REVIEW_LOCKED"
+	CodeApplicationNotInterviewed Code = "APPLICATION_NOT_INTERVIEWED"
+	CodeRecordingNotFound         Code = "RECORDING_NOT_FOUND"
+	CodeRecordingNotAllowed       Code = "RECORDING_NOT_ALLOWED"
 )
 
 type AppError struct {
