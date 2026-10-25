@@ -300,3 +300,25 @@ sql:
               import: "github.com/google/uuid"
               type: "UUID"
               pointer: true
+  - engine: "postgresql"
+    queries: "internal/features/interview/repository/query/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/features/interview/repository"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "uuid"
+            nullable: false
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+              pointer: true
