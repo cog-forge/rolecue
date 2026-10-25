@@ -20,6 +20,10 @@ type fakeAdminInterviewsService struct {
 	calls  int
 	page   domain.InterviewPage
 	err    error
+
+	detail domain.InterviewDetail
+	getErr error
+	getID  uuid.UUID
 }
 
 func (f *fakeAdminInterviewsService) List(_ context.Context, role string, filter domain.ListFilter) (domain.InterviewPage, error) {
@@ -33,6 +37,16 @@ func (f *fakeAdminInterviewsService) List(_ context.Context, role string, filter
 	return f.page, f.err
 }
 
+func (f *fakeAdminInterviewsService) Get(_ context.Context, role string, id uuid.UUID) (domain.InterviewDetail, error) {
+	f.calls++
+	f.role = role
+	f.getID = id
+	if role != "admin" {
+		return domain.InterviewDetail{}, apperror.New(apperror.CodeForbidden, "only administrators can view interview sessions")
+	}
+	return f.detail, f.getErr
+}
+
 func newAdminInterviewsRouter(svc AdminInterviewsService, role string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -43,6 +57,7 @@ func newAdminInterviewsRouter(svc AdminInterviewsService, role string) *gin.Engi
 		c.Next()
 	})
 	engine.GET("/admin/interviews", NewAdminInterviewsHandler(svc).List)
+	engine.GET("/admin/interviews/:id", NewAdminInterviewsHandler(svc).Get)
 	return engine
 }
 
@@ -135,5 +150,57 @@ func TestAdminInterviewsListWithoutUserIsUnauthorized(t *testing.T) {
 	}
 	if svc.calls != 0 {
 		t.Fatal("unauthenticated request reached the service")
+	}
+}
+
+func TestAdminInterviewDetailSuccessIsAllowListOnly(t *testing.T) {
+	svc := &fakeAdminInterviewsService{detail: domain.InterviewDetail{
+		InterviewRow:  domain.InterviewRow{ID: uuid.New(), Type: domain.TypePractice, Owner: domain.OwnerRef{ID: uuid.New(), Name: "A", Email: "a@example.com"}},
+		QuestionCount: 2,
+		TurnCount:     5,
+	}}
+	id := uuid.New()
+	status, body := getInterviews(t, newAdminInterviewsRouter(svc, "admin"), "/admin/interviews/"+id.String())
+	if status != http.StatusOK {
+		t.Fatalf("status %d body %v", status, body)
+	}
+	if svc.getID != id {
+		t.Fatalf("id not passed through: %s", svc.getID)
+	}
+	data, _ := body["data"].(map[string]any)
+	for _, forbidden := range []string{"record_path", "transcript", "answer", "feedback", "recording", "path"} {
+		if _, ok := data[forbidden]; ok {
+			t.Fatalf("forbidden key %q in detail response", forbidden)
+		}
+	}
+	if data["turn_count"] != float64(5) || data["question_count"] != float64(2) {
+		t.Fatalf("counts missing: %v", data)
+	}
+}
+
+func TestAdminInterviewDetailRejectsMalformedID(t *testing.T) {
+	svc := &fakeAdminInterviewsService{}
+	status, body := getInterviews(t, newAdminInterviewsRouter(svc, "admin"), "/admin/interviews/not-a-uuid")
+	if status != http.StatusBadRequest || errorCode(body) != "VALIDATION_ERROR" {
+		t.Fatalf("status %d code %q", status, errorCode(body))
+	}
+	if svc.calls != 0 {
+		t.Fatal("malformed ID reached the service")
+	}
+}
+
+func TestAdminInterviewDetailNotFoundCode(t *testing.T) {
+	svc := &fakeAdminInterviewsService{getErr: domain.ErrInterviewNotFound}
+	_, body := getInterviews(t, newAdminInterviewsRouter(svc, "admin"), "/admin/interviews/"+uuid.New().String())
+	if errorCode(body) != "INTERVIEW_NOT_FOUND" {
+		t.Fatalf("code %q", errorCode(body))
+	}
+}
+
+func TestAdminInterviewDetailForbiddenForNonAdmin(t *testing.T) {
+	svc := &fakeAdminInterviewsService{}
+	status, body := getInterviews(t, newAdminInterviewsRouter(svc, "recruiter"), "/admin/interviews/"+uuid.New().String())
+	if status != http.StatusForbidden || errorCode(body) != "FORBIDDEN" {
+		t.Fatalf("status %d code %q", status, errorCode(body))
 	}
 }

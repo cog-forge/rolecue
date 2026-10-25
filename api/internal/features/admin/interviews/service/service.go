@@ -7,6 +7,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/interviews/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
+	"github.com/google/uuid"
 )
 
 const adminRole = "admin"
@@ -14,6 +15,7 @@ const adminRole = "admin"
 // Repository is the persistence contract consumed by the Admin interview oversight.
 type Repository interface {
 	List(ctx context.Context, filter domain.ListFilter) ([]domain.InterviewRow, int64, error)
+	Get(ctx context.Context, id uuid.UUID) (domain.InterviewDetail, error)
 }
 
 type Service struct {
@@ -53,6 +55,15 @@ func (s *Service) List(ctx context.Context, role string, filter domain.ListFilte
 		items = []domain.InterviewRow{}
 	}
 	return domain.InterviewPage{Items: items, Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
+}
+
+// Get returns one interview's operational detail. The role is checked before the lookup, so a
+// non-Admin learns nothing about whether an ID exists.
+func (s *Service) Get(ctx context.Context, role string, id uuid.UUID) (domain.InterviewDetail, error) {
+	if err := requireAdmin(role); err != nil {
+		return domain.InterviewDetail{}, err
+	}
+	return s.repository.Get(ctx, id)
 }
 
 func validateFilter(filter domain.ListFilter) error {

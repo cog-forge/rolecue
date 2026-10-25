@@ -14,6 +14,7 @@ import (
 
 type AdminInterviewsService interface {
 	List(ctx context.Context, role string, filter domain.ListFilter) (domain.InterviewPage, error)
+	Get(ctx context.Context, role string, id uuid.UUID) (domain.InterviewDetail, error)
 }
 
 type AdminInterviewsHandler struct{ service AdminInterviewsService }
@@ -114,6 +115,38 @@ func (h *AdminInterviewsHandler) List(c *gin.Context) {
 		return
 	}
 	result, err := h.service.List(c.Request.Context(), role, filter)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+// Get godoc
+// @Summary Get an interview session's operational detail
+// @Description Admin only. Read-only. Returns identifiers, names, score and counts. Never returns a recording path, audio, video, transcript, answer or feedback text.
+// @Tags admin-interviews
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "Interview ID"
+// @Success 200 {object} response.Envelope{data=domain.InterviewDetail}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /admin/interviews/{id} [get]
+func (h *AdminInterviewsHandler) Get(c *gin.Context) {
+	role, ok := adminInterviewsRole(c)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid interview ID"))
+		return
+	}
+	result, err := h.service.Get(c.Request.Context(), role, id)
 	if err != nil {
 		response.Error(c, err)
 		return

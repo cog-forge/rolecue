@@ -62,6 +62,43 @@ func (r *Repository) List(ctx context.Context, filter domain.ListFilter) ([]doma
 	return out, total, nil
 }
 
+// Get returns the operational detail of one interview. An unknown ID is ErrInterviewNotFound.
+func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.InterviewDetail, error) {
+	row, err := r.queries.GetAdminInterview(ctx, id)
+	if err != nil {
+		return domain.InterviewDetail{}, persistenceError(err)
+	}
+	return domain.InterviewDetail{
+		InterviewRow: domain.InterviewRow{
+			ID:   row.ID,
+			Type: row.Type,
+			Owner: domain.OwnerRef{
+				ID:    row.OwnerID,
+				Name:  row.OwnerName,
+				Email: row.OwnerEmail,
+			},
+			JobPosting:   jobPostingRef(row.JobPostingID, row.JobPostingTitle),
+			Score:        row.Score,
+			HasReport:    row.HasReport,
+			HasRecording: row.HasRecording,
+		},
+		RoleProfile:   domain.RoleProfileRef{ID: row.RoleProfileID, Title: row.RoleProfileTitle},
+		ApplicationID: row.ApplicationID,
+		Avatar:        namedRef(row.AvatarID, row.AvatarName),
+		Voice:         namedRef(row.VoiceID, row.VoiceName),
+		QuestionCount: row.QuestionCount,
+		TurnCount:     row.TurnCount,
+	}, nil
+}
+
+// namedRef is nil when the interview has no avatar or voice.
+func namedRef(id *uuid.UUID, name *string) *domain.NamedRef {
+	if id == nil || name == nil {
+		return nil
+	}
+	return &domain.NamedRef{ID: *id, Name: *name}
+}
+
 // typeArg turns an empty filter into a NULL argument, which disables the filter in SQL.
 func typeArg(interviewType string) *string {
 	if interviewType == "" {

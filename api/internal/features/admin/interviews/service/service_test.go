@@ -19,12 +19,23 @@ type fakeRepository struct {
 	err    error
 	calls  int
 	filter domain.ListFilter
+
+	detail   domain.InterviewDetail
+	getErr   error
+	getCalls int
+	getID    uuid.UUID
 }
 
 func (f *fakeRepository) List(_ context.Context, filter domain.ListFilter) ([]domain.InterviewRow, int64, error) {
 	f.calls++
 	f.filter = filter
 	return f.rows, f.total, f.err
+}
+
+func (f *fakeRepository) Get(_ context.Context, id uuid.UUID) (domain.InterviewDetail, error) {
+	f.getCalls++
+	f.getID = id
+	return f.detail, f.getErr
 }
 
 func assertCode(t *testing.T, err error, want apperror.Code) {
@@ -162,6 +173,86 @@ func TestInterviewRowJSONIsAllowListOnly(t *testing.T) {
 	for _, forbidden := range []string{"record_path", "transcript", "answer", "feedback", "question", "path", "audio", "video"} {
 		if _, ok := decoded.Items[0][forbidden]; ok {
 			t.Fatalf("forbidden key %q in response", forbidden)
+		}
+	}
+}
+
+func TestGetRefusesNonAdminsBeforeLookup(t *testing.T) {
+	for _, role := range []string{"candidate", "recruiter", ""} {
+		repo := &fakeRepository{}
+		svc, _ := New(repo)
+		_, err := svc.Get(context.Background(), role, uuid.New())
+		assertCode(t, err, apperror.CodeForbidden)
+		if repo.getCalls != 0 {
+			t.Fatalf("role %q reached the repository", role)
+		}
+	}
+}
+
+func TestGetPassesIDAndReturnsDetail(t *testing.T) {
+	id := uuid.New()
+	detail := domain.InterviewDetail{QuestionCount: 3, TurnCount: 7}
+	detail.ID = id
+	repo := &fakeRepository{detail: detail}
+	svc, _ := New(repo)
+	got, err := svc.Get(context.Background(), "admin", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.getID != id || got.QuestionCount != 3 || got.TurnCount != 7 {
+		t.Fatalf("unexpected detail %+v for id %s", got, repo.getID)
+	}
+}
+
+func TestGetPropagatesNotFound(t *testing.T) {
+	repo := &fakeRepository{getErr: domain.ErrInterviewNotFound}
+	svc, _ := New(repo)
+	_, err := svc.Get(context.Background(), "admin", uuid.New())
+	assertCode(t, err, domain.CodeInterviewNotFound)
+}
+
+// The detail response is an allow-list too. Serialize a fully populated detail and assert the exact
+// key set, including the embedded list fields.
+func TestInterviewDetailJSONIsAllowListOnly(t *testing.T) {
+	score := int32(5)
+	appID := uuid.New()
+	detail := domain.InterviewDetail{
+		InterviewRow: domain.InterviewRow{
+			ID:           uuid.New(),
+			Type:         domain.TypeRecruitment,
+			Owner:        domain.OwnerRef{ID: uuid.New(), Name: "A", Email: "a@example.com"},
+			JobPosting:   &domain.JobPostingRef{ID: uuid.New(), Title: "Backend"},
+			Score:        &score,
+			HasReport:    true,
+			HasRecording: true,
+		},
+		RoleProfile:   domain.RoleProfileRef{ID: uuid.New(), Title: "Go developer"},
+		ApplicationID: &appID,
+		Avatar:        &domain.NamedRef{ID: uuid.New(), Name: "Avatar"},
+		Voice:         &domain.NamedRef{ID: uuid.New(), Name: "Voice"},
+		QuestionCount: 4,
+		TurnCount:     9,
+	}
+	body, err := json.Marshal(detail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	keys := make([]string, 0, len(decoded))
+	for key := range decoded {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	want := []string{"application_id", "avatar", "has_recording", "has_report", "id", "job_posting", "owner", "question_count", "role_profile", "score", "turn_count", "type", "voice"}
+	if len(keys) != len(want) {
+		t.Fatalf("detail keys %v, want %v", keys, want)
+	}
+	for i := range want {
+		if keys[i] != want[i] {
+			t.Fatalf("detail keys %v, want %v", keys, want)
 		}
 	}
 }

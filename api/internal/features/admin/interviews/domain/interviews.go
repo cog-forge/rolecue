@@ -68,3 +68,28 @@ type InterviewPage struct {
 	Page     int32          `json:"page"`
 	PageSize int32          `json:"page_size"`
 }
+
+// NamedRef is a referenced catalog item (avatar or voice) with its display name.
+type NamedRef struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+// RoleProfileRef is the Role Profile an interview was run against.
+type RoleProfileRef struct {
+	ID    uuid.UUID `json:"id"`
+	Title string    `json:"title"`
+}
+
+// InterviewDetail is the read-only operational view of one interview. It embeds the list row so the
+// shared fields stay identical, and adds only identifiers, names and counts. It has no field for a
+// recording path, audio, video, transcript, answer or feedback text.
+type InterviewDetail struct {
+	InterviewRow
+	RoleProfile   RoleProfileRef `json:"role_profile"`
+	ApplicationID *uuid.UUID     `json:"application_id"`
+	Avatar        *NamedRef      `json:"avatar"`
+	Voice         *NamedRef      `json:"voice"`
+	QuestionCount int64          `json:"question_count"`
+	TurnCount     int64          `json:"turn_count"`
+}
