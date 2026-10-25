@@ -140,11 +140,9 @@ test("candidate searches the board, opens a posting and comes back to the same r
     page.getByRole("heading", { level: 1, name: "Go Backend Engineer" }),
   ).toBeVisible();
   await expect(page.getByText("We build reliable APIs in Go.")).toBeVisible();
-  const apply = page.getByRole("button", { name: "Apply" });
-  await expect(apply).toHaveAttribute("aria-disabled", "true");
-  await expect(apply).toHaveAccessibleDescription(
-    /Online applications open soon/,
-  );
+  await expect(
+    page.getByRole("button", { name: "Choose your CV (PDF)" }),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Back to Job Board" }).click();
   await expect(page).toHaveURL(/\/jobs\?q=go$/);

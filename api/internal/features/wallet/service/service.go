@@ -306,48 +306,6 @@ func (s *Service) ChargePracticeInterview(ctx context.Context, candidateID uuid.
 	return s.deductBalance(ctx, candidateID, amount, "Practice interview charge")
 }
 
-func (s *Service) ChargeRecruitmentCapacity(ctx context.Context, recruiterID uuid.UUID, amount int32) error {
-	return s.deductBalance(ctx, recruiterID, amount, "Recruitment interview capacity charge")
-}
-
-func (s *Service) RefundRecruitmentCapacity(ctx context.Context, recruiterID uuid.UUID, amount int32) error {
-	if amount <= 0 {
-		return apperror.New(apperror.CodeValidation, "refund amount must be positive")
-	}
-	return s.repo.ExecTx(ctx, func(q *repository.Queries) error {
-		wallet, err := s.repo.GetWalletForUpdate(ctx, q, recruiterID)
-		if err != nil {
-			if apperror.IsCode(err, apperror.CodeWalletNotFound) {
-				wallet, err = s.repo.CreateWallet(ctx, q, recruiterID)
-				if err != nil {
-					return err
-				}
-			} else {
-				return err
-			}
-		}
-
-		if int64(wallet.Balance)+int64(amount) > math.MaxInt32 {
-			return apperror.New(apperror.CodeValidation, "wallet balance overflow")
-		}
-
-		_, err = s.repo.UpdateWalletBalance(ctx, q, wallet.ID, wallet.Balance+amount)
-		if err != nil {
-			return err
-		}
-
-		_, err = s.repo.InsertTransaction(ctx, q, domain.Transaction{
-			From:        nil,
-			To:          &recruiterID,
-			Amount:      amount,
-			Currency:    "VND",
-			Description: "Recruitment interview capacity refund",
-			Status:      domain.StatusSuccess,
-		})
-		return err
-	})
-}
-
 func (s *Service) ChargeAvatarCapacity(ctx context.Context, recruiterID uuid.UUID, amount int32) error {
 	return s.deductBalance(ctx, recruiterID, amount, "Avatar capacity purchase charge")
 }

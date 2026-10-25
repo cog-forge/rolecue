@@ -9,9 +9,6 @@ import {
   UsersRound,
   ShieldCheck,
   Mic,
-  SlidersHorizontal,
-  BrainCircuit,
-  ListChecks,
   AudioLines,
   ChartNoAxesCombined,
   Wallet,
@@ -140,21 +137,6 @@ export const workspaceNavigation: Record<
           label: "Interview Sessions",
           href: routes.admin.interviews,
           icon: Mic,
-        },
-        {
-          label: "Interview Configuration",
-          href: routes.admin.settings,
-          icon: SlidersHorizontal,
-        },
-        {
-          label: "AI Behaviour",
-          href: routes.admin.aiBehaviour,
-          icon: BrainCircuit,
-        },
-        {
-          label: "Evaluation Criteria",
-          href: routes.admin.evaluationCriteria,
-          icon: ListChecks,
         },
         {
           label: "Voice Profiles",

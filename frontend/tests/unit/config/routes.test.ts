@@ -13,6 +13,10 @@ describe("routes", () => {
     );
   });
 
+  it("builds the Admin interview detail path", () => {
+    expect(routes.admin.interview("a/b")).toBe("/admin/interviews/a%2Fb");
+  });
+
   it("encodes unsafe characters in both ids", () => {
     expect(routes.recruiter.application("a/b?c#d e", "x/y?z#w %")).toBe(
       "/recruiter/job-postings/a%2Fb%3Fc%23d%20e/applications/x%2Fy%3Fz%23w%20%25",

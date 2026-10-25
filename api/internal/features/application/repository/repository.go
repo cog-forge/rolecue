@@ -177,8 +177,9 @@ func closeIntake(ctx context.Context, q *Queries, postingID uuid.UUID) (int64, e
 }
 
 // evaluateTerminalClose moves an intake_closed posting to closed when no Application is still
-// pending, interview_eligible or interviewed; a posting with no Applications qualifies. It takes the posting status the
-// caller holds the lock for and returns the status afterwards. Any other status is returned as is.
+// pending, interview_eligible or interviewed; a posting with no Applications qualifies. The close
+// also credits back the unused interview capacity. It takes the posting status the caller holds the
+// lock for and returns the status afterwards. Any other status is returned as is.
 func evaluateTerminalClose(ctx context.Context, q *Queries, postingID uuid.UUID, status string) (string, error) {
 	if status != "intake_closed" {
 		return status, nil
@@ -190,8 +191,15 @@ func evaluateTerminalClose(ctx context.Context, q *Queries, postingID uuid.UUID,
 	if live > 0 {
 		return status, nil
 	}
-	if _, err := q.SetPostingClosed(ctx, postingID); err != nil {
+	closed, err := q.SetPostingClosed(ctx, postingID)
+	if err != nil {
 		return "", internal(err)
+	}
+	// The refund rides on the one close that changed the row, so it runs once per posting (KAN-119).
+	if closed > 0 {
+		if err := refundUnusedCapacity(ctx, q, postingID); err != nil {
+			return "", err
+		}
 	}
 	return "closed", nil
 }
