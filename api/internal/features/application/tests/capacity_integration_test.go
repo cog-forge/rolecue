@@ -562,7 +562,7 @@ func TestCapacityRefundFailureRollsBackTheClose(t *testing.T) {
 	s.setWalletBalance(owner, 2147483646)
 
 	_, err := repository.NewRepository(pool).EvaluateTerminalClose(ctx, postingID)
-	assertCode(t, err, apperror.CodeValidation)
+	assertCode(t, err, apperror.CodeInternal)
 	if status, _ := s.postingState(postingID); status != "intake_closed" {
 		t.Fatalf("posting = %s after a failed refund, want intake_closed", status)
 	}

@@ -105,6 +105,8 @@ func (s *seed) posting(recruiterID uuid.UUID, status string, slot *int32) uuid.U
 	s.exec(`INSERT INTO public.job_postings (id, status, jd_id, recruiter_id, title, interview_slot)
 		VALUES ($1, $2::public.job_posting_status, $3, $4, 'app posting', $5)`, id, status, jdID, recruiterID, slot)
 	s.later(`DELETE FROM public.job_postings WHERE id = $1`, id)
+	// Applications made through the service (apply) are not registered one by one; clear them before the posting.
+	s.later(`DELETE FROM public.applications WHERE job_posting_id = $1`, id)
 	return id
 }
 
