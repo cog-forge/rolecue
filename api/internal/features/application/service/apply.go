@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -51,7 +52,10 @@ func (s *Service) Apply(ctx context.Context, candidateID uuid.UUID, role string,
 	if err != nil {
 		// The Application was not stored, so the CV object must not stay behind. The original
 		// error is the one the Candidate needs; a failed delete leaves only an orphan object.
-		_ = store.Delete(ctx, key)
+		// The request context may already be cancelled (the client dropped), which would cancel this cleanup too.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		_ = store.Delete(cleanupCtx, key)
+		cancel()
 		return domain.Submission{}, err
 	}
 	return submission, nil

@@ -4,8 +4,8 @@ import (
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
-// PricePerInterviewSlot is what one interview slot costs in coins (KTD8). It is a constant: no
-// pricing source exists in the spec.
+// PricePerInterviewSlot is what one interview slot costs in coins (KTD8). The price is fixed at
+// 1 coin system-wide (team decision), so a refund uses the same constant.
 const PricePerInterviewSlot int32 = 1
 
 // MinInterviewSlots and MaxInterviewSlots bound one funding purchase (KTD8).

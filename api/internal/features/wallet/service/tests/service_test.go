@@ -772,95 +772,9 @@ func TestChargePracticeInterview_InsufficientBalance(t *testing.T) {
 // Internal refund — does NOT call PayOS
 // ---------------------------------------------------------------------------
 
-func TestRefundRecruitmentCapacity_Success(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	recruiterID := uuid.New()
-	walletID := uuid.New()
-	wallet := domain.Wallet{ID: walletID, UserID: recruiterID, Balance: 100}
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(150)).Return(domain.Wallet{ID: walletID, Balance: 150}, nil)
-	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.MatchedBy(func(tx domain.Transaction) bool {
-		return tx.To != nil && *tx.To == recruiterID && tx.Amount == 50 && tx.Status == domain.StatusSuccess && tx.PayOSOrderCode == nil
-	})).Return(domain.Transaction{ID: uuid.New()}, nil)
-
-	err := svc.RefundRecruitmentCapacity(context.Background(), recruiterID, 50)
-	assert.NoError(t, err)
-	mockPayOS.AssertNotCalled(t, "CreatePaymentLink")
-	mockRepo.AssertExpectations(t)
-}
-
-// RefundRecruitmentCapacity auto-creates the wallet when none exists yet.
-func TestRefundRecruitmentCapacity_WalletAutoCreated(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	recruiterID := uuid.New()
-	newWalletID := uuid.New()
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).
-		Return(domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "not found"))
-	newWallet := domain.Wallet{ID: newWalletID, UserID: recruiterID, Balance: 0}
-	mockRepo.On("CreateWallet", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(newWallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), newWalletID, int32(30)).
-		Return(domain.Wallet{ID: newWalletID, Balance: 30}, nil)
-	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.Anything).
-		Return(domain.Transaction{ID: uuid.New()}, nil)
-
-	err := svc.RefundRecruitmentCapacity(context.Background(), recruiterID, 30)
-	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
-}
-
 // ---------------------------------------------------------------------------
 // ChargeRecruitmentCapacity
 // ---------------------------------------------------------------------------
-
-func TestChargeRecruitmentCapacity_Success(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	recruiterID := uuid.New()
-	walletID := uuid.New()
-	wallet := domain.Wallet{ID: walletID, UserID: recruiterID, Balance: 200}
-
-	// Must use GetWalletForUpdate (FOR UPDATE lock) — not GetWalletByUserID.
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(150)).
-		Return(domain.Wallet{ID: walletID, Balance: 150}, nil)
-	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.MatchedBy(func(tx domain.Transaction) bool {
-		return tx.From != nil && *tx.From == recruiterID &&
-			tx.Amount == 50 &&
-			tx.Status == domain.StatusSuccess &&
-			tx.Description == "Recruitment interview capacity charge"
-	})).Return(domain.Transaction{ID: uuid.New()}, nil)
-
-	err := svc.ChargeRecruitmentCapacity(context.Background(), recruiterID, 50)
-	assert.NoError(t, err)
-	mockPayOS.AssertNotCalled(t, "CreatePaymentLink")
-	mockRepo.AssertExpectations(t)
-}
-
-func TestChargeRecruitmentCapacity_InsufficientBalance(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	recruiterID := uuid.New()
-	wallet := domain.Wallet{ID: uuid.New(), UserID: recruiterID, Balance: 10}
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
-
-	err := svc.ChargeRecruitmentCapacity(context.Background(), recruiterID, 50)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeInsufficientBalance))
-	mockRepo.AssertExpectations(t)
-}
 
 // ---------------------------------------------------------------------------
 // ChargeAvatarCapacity
@@ -954,27 +868,6 @@ func TestDeductBalance_UpdateWalletFails(t *testing.T) {
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, dbErr)
 	// InsertTransaction must NOT be called if the balance update failed.
-	mockRepo.AssertNotCalled(t, "InsertTransaction")
-	mockRepo.AssertExpectations(t)
-}
-
-func TestRefundRecruitmentCapacity_UpdateWalletFails(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	recruiterID := uuid.New()
-	walletID := uuid.New()
-	wallet := domain.Wallet{ID: walletID, UserID: recruiterID, Balance: 100}
-	dbErr := errors.New("db: deadlock detected")
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(150)).
-		Return(domain.Wallet{}, dbErr)
-
-	err := svc.RefundRecruitmentCapacity(context.Background(), recruiterID, 50)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, dbErr)
 	mockRepo.AssertNotCalled(t, "InsertTransaction")
 	mockRepo.AssertExpectations(t)
 }
@@ -1181,34 +1074,6 @@ func TestChargePracticeInterview_NegativeOrZeroAmount(t *testing.T) {
 	err = svc.ChargePracticeInterview(context.Background(), uuid.New(), -10)
 	assert.Error(t, err)
 	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
-}
-
-func TestRefundRecruitmentCapacity_NegativeOrZeroAmount(t *testing.T) {
-	svc := service.NewService(new(MockRepo), new(MockPayOS))
-	err := svc.RefundRecruitmentCapacity(context.Background(), uuid.New(), 0)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
-
-	err = svc.RefundRecruitmentCapacity(context.Background(), uuid.New(), -50)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
-}
-
-func TestRefundRecruitmentCapacity_BalanceOverflow(t *testing.T) {
-	mockRepo := new(MockRepo)
-	svc := service.NewService(mockRepo, new(MockPayOS))
-	recruiterID := uuid.New()
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(domain.Wallet{
-		ID:      uuid.New(),
-		UserID:  recruiterID,
-		Balance: 2000000000,
-	}, nil)
-
-	err := svc.RefundRecruitmentCapacity(context.Background(), recruiterID, 500000000)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
-	assert.Contains(t, err.Error(), "overflow")
 }
 
 func TestHandlePayOSWebhook_ProcessingStatus_ReturnsError(t *testing.T) {

@@ -12,6 +12,7 @@ import {
   listPostingApplications,
 } from "@/features/recruiter/applications/api/applications";
 import { defaultApplicationFilters } from "@/features/recruiter/applications/utils/application-filters";
+import { walletKeys } from "@/features/billing/api/wallet";
 import { jobPostingKeys } from "@/features/recruiter/job-postings/api/job-postings";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
 import {
@@ -83,6 +84,8 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
     onSuccess: (funded) => {
       cache.setQueryData<CapacityState>(key, funded);
       refreshPosting();
+      // Funding spends coins, so the wallet balance in the header is stale until it is refetched.
+      void cache.invalidateQueries({ queryKey: walletKeys.all(user.id) });
     },
     onError: (failure) => {
       if (isAccessDenied(failure))
@@ -104,6 +107,8 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
         queryKey: jobPostingKeys.lists(user.id),
       });
       void cache.invalidateQueries({ queryKey: applicationKeys.all(user.id) });
+      // Closing can end the posting and return unused slots to the wallet.
+      void cache.invalidateQueries({ queryKey: walletKeys.all(user.id) });
     },
     onError: (failure) => {
       if (isAccessDenied(failure))
@@ -245,15 +250,26 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
           </section>
         )}
 
-        {closed && posting.refunded !== null && (
-          <Notice tone="locked" title="Interview slots refunded">
+        {closed && posting.interview_slot === null && (
+          <Notice tone="locked" title="Closed without funded slots">
             <p className="text-muted-foreground">
-              {posting.refunded === 0
-                ? "No coins were returned to your wallet when this posting closed."
-                : `${coins(posting.refunded)} were returned to your wallet when this posting closed.`}
+              This posting closed without funded interview slots, so there was
+              nothing to return to your wallet.
             </p>
           </Notice>
         )}
+
+        {closed &&
+          posting.interview_slot !== null &&
+          posting.refunded !== null && (
+            <Notice tone="locked" title="Interview slots refunded">
+              <p className="text-muted-foreground">
+                {posting.refunded === 0
+                  ? "No coins were returned to your wallet when this posting closed."
+                  : `${coins(posting.refunded)} were returned to your wallet when this posting closed.`}
+              </p>
+            </Notice>
+          )}
 
         <CloseIntakeDialog
           open={closeOpen}

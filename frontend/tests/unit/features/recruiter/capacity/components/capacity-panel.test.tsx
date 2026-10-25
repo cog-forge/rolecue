@@ -156,6 +156,29 @@ describe("CapacityPanel funding", () => {
     expect(fundingForm()).not.toBeInTheDocument();
   });
 
+  it("refreshes the wallet balance after funding", async () => {
+    serve(unfunded);
+    mocks.post.mockImplementation(() => {
+      serve(funded, 0);
+      return Promise.resolve(envelope(funded));
+    });
+    const client = mount();
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    fireEvent.change(await screen.findByLabelText("Interview slots to fund"), {
+      target: { value: "5" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Fund interview slots" }),
+    );
+
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["wallet", mocks.user.id],
+      }),
+    );
+  });
+
   it("keeps the form and explains a low balance without changing anything", async () => {
     serve(unfunded);
     mocks.post.mockRejectedValue(
@@ -353,6 +376,26 @@ describe("CapacityPanel closed posting", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(fundingForm()).not.toBeInTheDocument();
+  });
+});
+
+describe("CapacityPanel closed without funding", () => {
+  it("says nothing was funded instead of showing a refund", async () => {
+    serve({
+      ...unfunded,
+      posting_status: "closed",
+      refunded: 0,
+    });
+    mount();
+
+    expect(
+      await screen.findByText(
+        "This posting closed without funded interview slots, so there was nothing to return to your wallet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Interview slots refunded"),
+    ).not.toBeInTheDocument();
   });
 });
 
