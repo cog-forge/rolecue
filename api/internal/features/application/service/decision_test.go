@@ -20,7 +20,7 @@ type decisionFake struct {
 	decideErr   error
 }
 
-func (f *decisionFake) DecideApplication(_ context.Context, _, _, _ uuid.UUID, decision domain.Decision, reason *string, _ time.Time) error {
+func (f *decisionFake) DecideApplication(_ context.Context, _, _, _ uuid.UUID, decision domain.Decision, reason *string) error {
 	f.decideCalls++
 	f.decision = decision
 	f.reason = reason

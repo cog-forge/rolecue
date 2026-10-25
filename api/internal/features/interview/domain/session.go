@@ -43,6 +43,9 @@ type CreateInput struct {
 	ApplicationID *uuid.UUID
 	AvatarID      *uuid.UUID
 	VoiceID       *uuid.UUID
+	// IdempotencyKey is the client's optional Idempotency-Key. A practice start repeated with the same
+	// key returns the first session and charges once. Recruitment starts are already idempotent.
+	IdempotencyKey string
 }
 
 // CreateParams is CreateInput with the settings the repository needs to start a session: the question
@@ -56,6 +59,8 @@ type CreateParams struct {
 	VoiceID       *uuid.UUID
 	QuestionLimit int32
 	PracticeCoins int32
+	// StartKey is the Candidate-scoped idempotency key of a practice start, nil when none was sent.
+	StartKey *string
 }
 
 // CurrentQuestion is the one question the Candidate sees now. The full bank is never returned.

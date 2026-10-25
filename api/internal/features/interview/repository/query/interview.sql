@@ -31,10 +31,14 @@ SELECT EXISTS (SELECT 1 FROM public.avatars WHERE id = @id)::boolean AS found;
 SELECT EXISTS (SELECT 1 FROM public.voices WHERE id = @id)::boolean AS found;
 
 -- name: InsertInterview :one
-INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id)
+INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key)
 VALUES (@role_profile_id, sqlc.arg(interview_type)::text::public.interview_type,
-        sqlc.narg(application_id), sqlc.narg(avatar_id), sqlc.narg(voice_id))
+        sqlc.narg(application_id), sqlc.narg(avatar_id), sqlc.narg(voice_id), sqlc.narg(start_key))
 RETURNING id;
+
+-- The session a practice start key already created, if any.
+-- name: FindInterviewByStartKey :one
+SELECT id FROM public.interviews WHERE start_key = @start_key;
 
 -- name: InsertInterviewQuestion :exec
 INSERT INTO public.interview_questions (interview_id, position, core_question_id)

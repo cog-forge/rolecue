@@ -1,7 +1,9 @@
 BEGIN;
 
+DROP INDEX IF EXISTS public.interviews_start_key_key;
 DROP INDEX IF EXISTS public.interviews_started_at_idx;
 ALTER TABLE public.interviews
+    DROP COLUMN IF EXISTS start_key,
     DROP COLUMN IF EXISTS record_status,
     DROP COLUMN IF EXISTS evaluation_claimed_at,
     DROP COLUMN IF EXISTS evaluation_status,

@@ -146,18 +146,24 @@ func (q *Queries) GetCandidateEligibility(ctx context.Context, arg GetCandidateE
 }
 
 const getFinalReviewOpensAt = `-- name: GetFinalReviewOpensAt :one
-SELECT MAX(interview_deadline)::timestamptz AS opens_at
+SELECT MAX(interview_deadline)::timestamptz AS opens_at, statement_timestamp()::timestamptz AS db_now
 FROM public.applications
 WHERE job_posting_id = $1
 `
 
+type GetFinalReviewOpensAtRow struct {
+	OpensAt pgtype.Timestamptz
+	DbNow   pgtype.Timestamptz
+}
+
 // The moment the final decision opens: the latest interview deadline of the posting's Applications.
-// NULL when none has a deadline. Read under the posting lock.
-func (q *Queries) GetFinalReviewOpensAt(ctx context.Context, jobPostingID uuid.UUID) (pgtype.Timestamptz, error) {
+// NULL when none has a deadline. db_now is the database clock, the same one the interview start and
+// the expiry pass use. Read under the posting lock.
+func (q *Queries) GetFinalReviewOpensAt(ctx context.Context, jobPostingID uuid.UUID) (GetFinalReviewOpensAtRow, error) {
 	row := q.db.QueryRow(ctx, getFinalReviewOpensAt, jobPostingID)
-	var opens_at pgtype.Timestamptz
-	err := row.Scan(&opens_at)
-	return opens_at, err
+	var i GetFinalReviewOpensAtRow
+	err := row.Scan(&i.OpensAt, &i.DbNow)
+	return i, err
 }
 
 const getRecruiterApplication = `-- name: GetRecruiterApplication :one

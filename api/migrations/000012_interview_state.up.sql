@@ -14,4 +14,9 @@ ALTER TABLE public.interviews
 
 CREATE INDEX interviews_started_at_idx ON public.interviews(started_at);
 
+-- A practice start may carry a client idempotency key (scoped to the Candidate by the service), so a
+-- retried request returns the session it created instead of charging again.
+ALTER TABLE public.interviews ADD COLUMN start_key text;
+CREATE UNIQUE INDEX interviews_start_key_key ON public.interviews(start_key) WHERE start_key IS NOT NULL;
+
 COMMIT;

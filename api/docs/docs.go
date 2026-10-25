@@ -1669,6 +1669,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Optional. A practice start repeated with the same key returns the first session and charges once; up to 128 characters",
+                        "name": "Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
                         "description": "Session to start; body limit 16 KiB",
                         "name": "body",
                         "in": "body",

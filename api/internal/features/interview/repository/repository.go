@@ -11,6 +11,7 @@ import (
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -42,8 +43,7 @@ func (r *Repository) Create(ctx context.Context, params domain.CreateParams) (do
 		if params.Type == domain.TypeRecruitment {
 			interviewID, created, err = startRecruitment(ctx, q, params)
 		} else {
-			interviewID, err = startPractice(ctx, tx, q, params)
-			created = err == nil
+			interviewID, created, err = startPracticeOnce(ctx, tx, q, params)
 		}
 		if err != nil {
 			return err
@@ -51,10 +51,38 @@ func (r *Repository) Create(ctx context.Context, params domain.CreateParams) (do
 		session, err = readSession(ctx, q, params.CandidateID, interviewID)
 		return err
 	})
+	if err != nil && params.StartKey != nil && isUniqueViolation(err) {
+		// A concurrent start with the same key won; its transaction (and charge) is the only one kept.
+		return r.sessionOfStartKey(ctx, params)
+	}
 	if err != nil {
 		return domain.Session{}, false, internal(err)
 	}
 	return session, created, nil
+}
+
+// sessionOfStartKey returns the session a practice start key created, after losing the insert race.
+func (r *Repository) sessionOfStartKey(ctx context.Context, params domain.CreateParams) (domain.Session, bool, error) {
+	var session domain.Session
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		id, err := q.FindInterviewByStartKey(ctx, params.StartKey)
+		if err != nil {
+			return err
+		}
+		session, err = readSession(ctx, q, params.CandidateID, id)
+		return err
+	})
+	if err != nil {
+		return domain.Session{}, false, internal(err)
+	}
+	return session, false, nil
+}
+
+// isUniqueViolation reports a duplicate key, whatever the error was wrapped in.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // Get reads one of the Candidate's sessions. Another Candidate's session is not found.
@@ -170,6 +198,22 @@ func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (d
 	return session, startEvaluation, nil
 }
 
+// startPracticeOnce is startPractice behind the idempotency key: a key that already created a session
+// returns it, with created false, and charges nothing.
+func startPracticeOnce(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreateParams) (uuid.UUID, bool, error) {
+	if p.StartKey != nil {
+		existing, err := q.FindInterviewByStartKey(ctx, p.StartKey)
+		if err == nil {
+			return existing, false, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, false, internal(err)
+		}
+	}
+	id, err := startPractice(ctx, tx, q, p)
+	return id, err == nil, err
+}
+
 // startPractice creates a practice session from a confirmed role profile of the Candidate and charges the
 // practice price when it is set. A failed charge rolls back the rows written before it.
 func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreateParams) (uuid.UUID, error) {
@@ -190,7 +234,7 @@ func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreatePa
 	if err := checkReferences(ctx, q, p.AvatarID, p.VoiceID); err != nil {
 		return uuid.Nil, err
 	}
-	interviewID, err := createInterviewRow(ctx, q, p.Type, profile.ID, nil, p.AvatarID, p.VoiceID)
+	interviewID, err := createInterviewRow(ctx, q, p.Type, profile.ID, nil, p.AvatarID, p.VoiceID, p.StartKey)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -262,7 +306,7 @@ func startRecruitment(ctx context.Context, q *Queries, p domain.CreateParams) (u
 	if err := checkReferences(ctx, q, avatarID, voiceID); err != nil {
 		return uuid.Nil, false, err
 	}
-	interviewID, err := createInterviewRow(ctx, q, p.Type, roleProfileID, p.ApplicationID, avatarID, voiceID)
+	interviewID, err := createInterviewRow(ctx, q, p.Type, roleProfileID, p.ApplicationID, avatarID, voiceID, nil)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
@@ -330,10 +374,10 @@ func checkReferences(ctx context.Context, q *Queries, avatarID, voiceID *uuid.UU
 	return nil
 }
 
-func createInterviewRow(ctx context.Context, q *Queries, interviewType domain.Type, roleProfileID uuid.UUID, applicationID, avatarID, voiceID *uuid.UUID) (uuid.UUID, error) {
+func createInterviewRow(ctx context.Context, q *Queries, interviewType domain.Type, roleProfileID uuid.UUID, applicationID, avatarID, voiceID *uuid.UUID, startKey *string) (uuid.UUID, error) {
 	id, err := q.InsertInterview(ctx, InsertInterviewParams{
 		RoleProfileID: roleProfileID, InterviewType: string(interviewType), ApplicationID: applicationID,
-		AvatarID: avatarID, VoiceID: voiceID,
+		AvatarID: avatarID, VoiceID: voiceID, StartKey: startKey,
 	})
 	if err != nil {
 		return uuid.Nil, internal(err)

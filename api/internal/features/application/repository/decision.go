@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -15,11 +14,11 @@ import (
 // Lock order: the posting row (NO KEY UPDATE, as screening takes it), then the Application row. The
 // interview start locks the posting first too, so the two never wait on each other the other way.
 // Under the locks the Application must be interviewed and the review window must have opened, the
-// latest interview deadline of the posting. Then the decision is written and the terminal close is
+// latest interview deadline of the posting, read on the database clock like the interview start. Then the decision is written and the terminal close is
 // evaluated in the same transaction, so a posting never waits in intake_closed with nothing left live.
 // A posting that is not the Recruiter's answers application not found, the same as a missing
 // Application.
-func (r *Repository) DecideApplication(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID, decision domain.Decision, reason *string, now time.Time) error {
+func (r *Repository) DecideApplication(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID, decision domain.Decision, reason *string) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
 		posting, err := q.LockOwnedPosting(ctx, LockOwnedPostingParams{ID: postingID, RecruiterID: recruiterID})
@@ -39,11 +38,11 @@ func (r *Repository) DecideApplication(ctx context.Context, recruiterID, posting
 		if domain.ApplicationStatus(status) != domain.StatusInterviewed {
 			return domain.ErrApplicationNotInterviewed
 		}
-		opensAt, err := q.GetFinalReviewOpensAt(ctx, postingID)
+		gate, err := q.GetFinalReviewOpensAt(ctx, postingID)
 		if err != nil {
 			return internal(err)
 		}
-		if !domain.CanDecide(domain.StatusInterviewed, timePtr(opensAt), now) {
+		if !domain.CanDecide(domain.StatusInterviewed, timePtr(gate.OpensAt), gate.DbNow.Time) {
 			return domain.ErrFinalReviewLocked
 		}
 		written, err := q.SetApplicationDecision(ctx, SetApplicationDecisionParams{

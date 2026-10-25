@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -12,7 +11,7 @@ import (
 // DecisionRepository is the persistence contract of the final decision. The Repository implementation
 // provides it; the service asserts it at call time, as with the capacity and candidate contracts.
 type DecisionRepository interface {
-	DecideApplication(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID, decision domain.Decision, reason *string, now time.Time) error
+	DecideApplication(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID, decision domain.Decision, reason *string) error
 }
 
 // Decide records the Recruiter's final decision on an interviewed Application (KAN-115). The gate is
@@ -37,7 +36,7 @@ func (s *Service) Decide(ctx context.Context, recruiterID uuid.UUID, role string
 	if !ok {
 		return domain.Detail{}, apperror.New(apperror.CodeInternal, "final decisions are not configured")
 	}
-	if err := repository.DecideApplication(ctx, recruiterID, postingID, applicationID, decision, normalized, time.Now()); err != nil {
+	if err := repository.DecideApplication(ctx, recruiterID, postingID, applicationID, decision, normalized); err != nil {
 		return domain.Detail{}, err
 	}
 	return s.GetDetail(ctx, recruiterID, role, postingID, applicationID)

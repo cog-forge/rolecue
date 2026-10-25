@@ -79,6 +79,10 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 	}
 	if input.Type == domain.TypePractice {
 		params.PracticeCoins = s.settings.PracticeCoins
+		if input.IdempotencyKey != "" {
+			key := candidateID.String() + ":" + input.IdempotencyKey
+			params.StartKey = &key
+		}
 	}
 	session, created, err := s.repository.Create(ctx, params)
 	if err != nil {

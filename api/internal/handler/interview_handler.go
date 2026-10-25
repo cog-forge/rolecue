@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
@@ -33,6 +34,9 @@ func NewInterviewHandler(service InterviewService) *InterviewHandler {
 	return &InterviewHandler{service: service}
 }
 
+// maxIdempotencyKeyLength bounds the Idempotency-Key header of a session start.
+const maxIdempotencyKeyLength = 128
+
 // CreateInterviewRequest starts a session. type is required. role_profile_id is required for practice,
 // application_id for recruitment. avatar_id and voice_id are optional.
 type CreateInterviewRequest struct {
@@ -60,6 +64,7 @@ type AppendTurnRequest struct {
 // @Produce json
 // @Security SessionCookie
 // @Param Origin header string true "Trusted frontend origin"
+// @Param Idempotency-Key header string false "Optional. A practice start repeated with the same key returns the first session and charges once; up to 128 characters"
 // @Param body body CreateInterviewRequest true "Session to start; body limit 16 KiB"
 // @Success 200 {object} response.Envelope{data=domain.Session}
 // @Success 201 {object} response.Envelope{data=domain.Session}
@@ -80,9 +85,14 @@ func (h *InterviewHandler) Create(c *gin.Context) {
 	if !interviewJSON(c, &request) {
 		return
 	}
+	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if len(key) > maxIdempotencyKeyLength {
+		response.Error(c, apperror.New(apperror.CodeValidation, "Idempotency-Key is too long"))
+		return
+	}
 	session, created, err := h.service.Create(c.Request.Context(), user.ID, user.Role, domain.CreateInput{
 		Type: domain.Type(request.Type), RoleProfileID: request.RoleProfileID, ApplicationID: request.ApplicationID,
-		AvatarID: request.AvatarID, VoiceID: request.VoiceID,
+		AvatarID: request.AvatarID, VoiceID: request.VoiceID, IdempotencyKey: key,
 	})
 	if err != nil {
 		response.Error(c, err)

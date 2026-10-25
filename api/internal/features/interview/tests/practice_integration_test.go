@@ -3,6 +3,7 @@
 package tests
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
@@ -245,5 +246,65 @@ func TestRecruiterCannotStartPractice(t *testing.T) {
 	assertCode(t, err, apperror.CodeForbidden)
 	if n := s.interviewRows(profile); n != 0 {
 		t.Fatalf("interview rows = %d after a refused start, want 0", n)
+	}
+}
+
+// TestPracticeStartWithTheSameKeyChargesOnce proves a retried practice start (same Idempotency-Key)
+// returns the first session and charges once, also when the retries race, while another key or no key
+// is a separate start.
+func TestPracticeStartWithTheSameKeyChargesOnce(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool, 5, 3)
+	candidate := s.user("candidate")
+	s.wallet(candidate, 100)
+	profile, _ := s.confirmedProfile(candidate, 3)
+	input := practiceInput(profile)
+	input.IdempotencyKey = "retry-me"
+
+	first, created, err := svc.Create(ctx, candidate, "candidate", input)
+	if err != nil || !created {
+		t.Fatalf("first Create() created=%v error=%v", created, err)
+	}
+	again, created, err := svc.Create(ctx, candidate, "candidate", input)
+	if err != nil || created || again.ID != first.ID {
+		t.Fatalf("retry = %s created %v error %v, want the first session %s without creating", again.ID, created, err, first.ID)
+	}
+	if b := s.balance(candidate); b != 95 {
+		t.Fatalf("balance = %d after a retried start, want 95 (charged once)", b)
+	}
+
+	racing := practiceInput(profile)
+	racing.IdempotencyKey = "race"
+	ids := make([]uuid.UUID, 6)
+	var wg sync.WaitGroup
+	for i := range ids {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got, _, err := svc.Create(ctx, candidate, "candidate", racing)
+			if err != nil {
+				t.Errorf("racing Create() error = %v", err)
+				return
+			}
+			ids[i] = got.ID
+		}()
+	}
+	wg.Wait()
+	for _, id := range ids {
+		if id != ids[0] {
+			t.Fatalf("racing starts returned different sessions: %v", ids)
+		}
+	}
+	if b := s.balance(candidate); b != 90 {
+		t.Fatalf("balance = %d after racing starts, want 90 (one more charge)", b)
+	}
+
+	plain := practiceInput(profile)
+	if _, created, err := svc.Create(ctx, candidate, "candidate", plain); err != nil || !created {
+		t.Fatalf("start without a key created=%v error=%v, want a new session", created, err)
+	}
+	if b := s.balance(candidate); b != 85 {
+		t.Fatalf("balance = %d after a keyless start, want 85", b)
 	}
 }

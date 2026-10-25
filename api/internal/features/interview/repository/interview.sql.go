@@ -108,6 +108,18 @@ func (q *Queries) FindInterviewByApplication(ctx context.Context, applicationID 
 	return id, err
 }
 
+const findInterviewByStartKey = `-- name: FindInterviewByStartKey :one
+SELECT id FROM public.interviews WHERE start_key = $1
+`
+
+// The session a practice start key already created, if any.
+func (q *Queries) FindInterviewByStartKey(ctx context.Context, startKey *string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, findInterviewByStartKey, startKey)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getApplicationForInterview = `-- name: GetApplicationForInterview :one
 SELECT status::text AS status,
        COALESCE(interview_deadline > statement_timestamp(), false)::boolean AS within_deadline
@@ -253,9 +265,9 @@ func (q *Queries) GetOwnedRoleProfile(ctx context.Context, arg GetOwnedRoleProfi
 }
 
 const insertInterview = `-- name: InsertInterview :one
-INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id)
+INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key)
 VALUES ($1, $2::text::public.interview_type,
-        $3, $4, $5)
+        $3, $4, $5, $6)
 RETURNING id
 `
 
@@ -265,6 +277,7 @@ type InsertInterviewParams struct {
 	ApplicationID *uuid.UUID
 	AvatarID      *uuid.UUID
 	VoiceID       *uuid.UUID
+	StartKey      *string
 }
 
 func (q *Queries) InsertInterview(ctx context.Context, arg InsertInterviewParams) (uuid.UUID, error) {
@@ -274,6 +287,7 @@ func (q *Queries) InsertInterview(ctx context.Context, arg InsertInterviewParams
 		arg.ApplicationID,
 		arg.AvatarID,
 		arg.VoiceID,
+		arg.StartKey,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
