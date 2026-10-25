@@ -84,7 +84,7 @@ func TestScoreDecodesAStrictReply(t *testing.T) {
 
 func TestScoreSendsAnswersOnlyInsideUntrustedData(t *testing.T) {
 	chat := replying(`{"scores":[]}`)
-	adapterFor(t, chat).Score(context.Background(), scoringInput())
+	_, _ = adapterFor(t, chat).Score(context.Background(), scoringInput())
 
 	if len(chat.messages) != 2 {
 		t.Fatalf("messages = %d, want the system and the user message", len(chat.messages))

@@ -26,7 +26,7 @@ const postingId = "33333333-3333-4333-8333-333333333333";
 type Failing = "roleProfiles" | "practice" | "applications" | "wallet";
 
 type Options = {
-  // Endpoints that answer 500 for the first `failures` requests (every request when undefined).
+  // Endpoints that answer 500 for the first `failures` requests; endpoints not listed always succeed.
   failing?: Partial<Record<Failing, number>>;
 };
 
@@ -37,7 +37,7 @@ async function mockDashboard(page: Page, options: Options = {}) {
   const fail = (key: Failing) => {
     hits[key] = (hits[key] ?? 0) + 1;
     const budget = options.failing?.[key];
-    return budget === undefined || hits[key] <= budget;
+    return budget !== undefined && hits[key] <= budget;
   };
   await page.route("http://localhost:8080/**", async (route) => {
     const request = route.request();

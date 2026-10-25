@@ -105,12 +105,12 @@ test("history lists practice and recruitment interviews with their scores", asyn
     .getByRole("listitem")
     .filter({ hasText: "Frontend Developer" });
   await expect(practice).toContainText("Practice interview");
-  await expect(practice).toContainText("82/100");
+  await expect(practice).toContainText("82 / 100");
   const recruitment = list
     .getByRole("listitem")
     .filter({ hasText: "Backend Engineer" });
   await expect(recruitment).toContainText("Recruitment interview");
-  await expect(recruitment).toContainText("74/100");
+  await expect(recruitment).toContainText("74 / 100");
   await expect(recruitment).toContainText("Completed");
 });
 
@@ -214,7 +214,7 @@ test("a recruitment row links to its Application and shows only score and status
     row.getByRole("link", { name: "View application" }),
   ).toHaveAttribute("href", `/applications/${applicationId}`);
   await expect(row).toContainText("Completed");
-  await expect(row).toContainText("74/100");
+  await expect(row).toContainText("74 / 100");
   await expect(row.getByText(/transcript|recording|video|audio/i)).toHaveCount(
     0,
   );

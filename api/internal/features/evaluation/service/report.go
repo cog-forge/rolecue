@@ -83,12 +83,7 @@ func reportStatus(record domain.InterviewRecord) string {
 func reportQuestions(turns []domain.TurnRecord) []domain.ReportQuestion {
 	questions := make([]domain.ReportQuestion, 0, len(turns))
 	for _, turn := range turns {
-		questions = append(questions, domain.ReportQuestion{
-			Position: turn.Position,
-			Question: turn.Question,
-			Answer:   turn.Answer,
-			Feedback: turn.Feedback,
-		})
+		questions = append(questions, domain.ReportQuestion(turn))
 	}
 	return questions
 }
