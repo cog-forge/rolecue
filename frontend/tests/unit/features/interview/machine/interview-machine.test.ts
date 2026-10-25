@@ -3,7 +3,7 @@ import {
   transition,
   type InterviewEvent,
   type InterviewState,
-} from "./interview-machine";
+} from "@/features/interview/machine/interview-machine";
 describe("interview lifecycle", () => {
   it("progresses through an answer and completion", () => {
     const events: InterviewEvent[] = [

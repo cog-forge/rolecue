@@ -1,4 +1,4 @@
-package payos_test
+package tests
 
 import (
 	"crypto/hmac"

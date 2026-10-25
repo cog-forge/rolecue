@@ -1,9 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import { FaqSection } from "./faq-section";
-import { HeroLottieSequence } from "./hero-lottie-sequence";
-import { RoleCueLanding } from "./rolecue-landing";
-import { WorkWheelSection } from "./work-wheel-section";
+import { FaqSection } from "@/features/marketing/components/faq-section";
+import { HeroLottieSequence } from "@/features/marketing/components/hero-lottie-sequence";
+import { RoleCueLanding } from "@/features/marketing/components/rolecue-landing";
+import { WorkWheelSection } from "@/features/marketing/components/work-wheel-section";
 
 it("renders the new hero with Walk in ready headline and Start now CTA", () => {
   render(<RoleCueLanding />);

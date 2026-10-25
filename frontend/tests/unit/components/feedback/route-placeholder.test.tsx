@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { RoutePlaceholder } from "./route-placeholder";
+import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
 it("exposes an accessible page heading and description", () => {
   render(
     <RoutePlaceholder
