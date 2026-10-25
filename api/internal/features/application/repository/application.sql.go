@@ -145,6 +145,21 @@ func (q *Queries) GetCandidateEligibility(ctx context.Context, arg GetCandidateE
 	return i, err
 }
 
+const getFinalReviewOpensAt = `-- name: GetFinalReviewOpensAt :one
+SELECT MAX(interview_deadline)::timestamptz AS opens_at
+FROM public.applications
+WHERE job_posting_id = $1
+`
+
+// The moment the final decision opens: the latest interview deadline of the posting's Applications.
+// NULL when none has a deadline. Read under the posting lock.
+func (q *Queries) GetFinalReviewOpensAt(ctx context.Context, jobPostingID uuid.UUID) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, getFinalReviewOpensAt, jobPostingID)
+	var opens_at pgtype.Timestamptz
+	err := row.Scan(&opens_at)
+	return opens_at, err
+}
+
 const getRecruiterApplication = `-- name: GetRecruiterApplication :one
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status, a.created_at,
        u.id AS candidate_id, u.name AS candidate_name, u.email AS candidate_email, u.image AS candidate_image,
@@ -153,10 +168,18 @@ SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS 
        a.cv_path,
        jp.status::text AS posting_status, jp.interview_slot,
        (SELECT count(*) FROM public.applications c
-        WHERE c.job_posting_id = jp.id AND c.interview_deadline IS NOT NULL)::bigint AS cv_approvals
+        WHERE c.job_posting_id = jp.id AND c.interview_deadline IS NOT NULL)::bigint AS cv_approvals,
+       (SELECT MAX(d.interview_deadline) FROM public.applications d
+        WHERE d.job_posting_id = jp.id)::timestamptz AS final_opens_at,
+       i.id AS interview_id, i.started_at AS interview_started_at, i.completed_at AS interview_completed_at,
+       i.evaluation_status AS interview_evaluation_status, i.score AS interview_score,
+       i.record_status AS interview_record_status
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
 JOIN public.users u ON u.id = a.candidate_id
+LEFT JOIN public.interviews i ON i.application_id = a.id
+    AND EXISTS (SELECT 1 FROM public.role_profiles rp
+                WHERE rp.id = i.role_profile_id AND rp.candidate_id = a.candidate_id)
 WHERE a.id = $1 AND a.job_posting_id = $2 AND jp.recruiter_id = $3
 `
 
@@ -167,29 +190,39 @@ type GetRecruiterApplicationParams struct {
 }
 
 type GetRecruiterApplicationRow struct {
-	ID                uuid.UUID
-	JobPostingID      uuid.UUID
-	JobPostingTitle   string
-	Status            string
-	CreatedAt         pgtype.Timestamptz
-	CandidateID       uuid.UUID
-	CandidateName     string
-	CandidateEmail    string
-	CandidateImage    *string
-	InterviewEligible bool
-	InterviewDeadline pgtype.Timestamptz
-	RejectReason      *string
-	UpdatedAt         pgtype.Timestamptz
-	CvPath            *string
-	PostingStatus     string
-	InterviewSlot     *int32
-	CvApprovals       int64
+	ID                        uuid.UUID
+	JobPostingID              uuid.UUID
+	JobPostingTitle           string
+	Status                    string
+	CreatedAt                 pgtype.Timestamptz
+	CandidateID               uuid.UUID
+	CandidateName             string
+	CandidateEmail            string
+	CandidateImage            *string
+	InterviewEligible         bool
+	InterviewDeadline         pgtype.Timestamptz
+	RejectReason              *string
+	UpdatedAt                 pgtype.Timestamptz
+	CvPath                    *string
+	PostingStatus             string
+	InterviewSlot             *int32
+	CvApprovals               int64
+	FinalOpensAt              pgtype.Timestamptz
+	InterviewID               *uuid.UUID
+	InterviewStartedAt        pgtype.Timestamptz
+	InterviewCompletedAt      pgtype.Timestamptz
+	InterviewEvaluationStatus *string
+	InterviewScore            *int32
+	InterviewRecordStatus     *string
 }
 
 // One Application for Application Detail: the list columns, the CV storage key (cv_path, read by the
 // service and never returned), the posting status and capacity, and how many Applications of the
 // posting were ever CV-approved (the same definition as CountCVApprovals). Ownership is part of the
 // filter; the caller separates "not yours" from "not on this posting" with IsPostingOwned.
+// final_opens_at is MAX(interview_deadline) over the posting's Applications: the moment the Recruiter
+// may decide (KAN-115). The interview join attaches only a session whose role profile belongs to the
+// Application's Candidate, a guard on top of interviews.application_id.
 func (q *Queries) GetRecruiterApplication(ctx context.Context, arg GetRecruiterApplicationParams) (GetRecruiterApplicationRow, error) {
 	row := q.db.QueryRow(ctx, getRecruiterApplication, arg.ID, arg.JobPostingID, arg.RecruiterID)
 	var i GetRecruiterApplicationRow
@@ -211,6 +244,13 @@ func (q *Queries) GetRecruiterApplication(ctx context.Context, arg GetRecruiterA
 		&i.PostingStatus,
 		&i.InterviewSlot,
 		&i.CvApprovals,
+		&i.FinalOpensAt,
+		&i.InterviewID,
+		&i.InterviewStartedAt,
+		&i.InterviewCompletedAt,
+		&i.InterviewEvaluationStatus,
+		&i.InterviewScore,
+		&i.InterviewRecordStatus,
 	)
 	return i, err
 }
@@ -441,6 +481,36 @@ type RejectPendingApplicationsParams struct {
 // as the posting status change. statement_timestamp() for the same reason as ApproveCV.
 func (q *Queries) RejectPendingApplications(ctx context.Context, arg RejectPendingApplicationsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, rejectPendingApplications, arg.RejectReason, arg.JobPostingID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setApplicationDecision = `-- name: SetApplicationDecision :execrows
+UPDATE public.applications
+SET status = $1::text::public.application_status,
+    reject_reason = $2, updated_at = statement_timestamp()
+WHERE id = $3 AND job_posting_id = $4 AND status = 'interviewed'
+`
+
+type SetApplicationDecisionParams struct {
+	Status       string
+	RejectReason *string
+	ID           uuid.UUID
+	JobPostingID uuid.UUID
+}
+
+// The recruiter's final decision (KAN-115). The caller holds the posting lock and has read the
+// Application under its row lock; the guard keeps the write to an interviewed Application.
+// reject_reason is NULL on approval. statement_timestamp() as in the other screening writes.
+func (q *Queries) SetApplicationDecision(ctx context.Context, arg SetApplicationDecisionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setApplicationDecision,
+		arg.Status,
+		arg.RejectReason,
+		arg.ID,
+		arg.JobPostingID,
+	)
 	if err != nil {
 		return 0, err
 	}

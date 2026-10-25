@@ -19,18 +19,25 @@ import {
 } from "@/features/recruiter/job-postings/utils/api-error";
 import { cn } from "@/lib/utils";
 import { applicationKeys, getApplicationDetail } from "../api/applications";
-import { formatDeadline, formatSubmitted } from "../utils/application-dates";
+import {
+  formatDeadline,
+  formatSubmitted,
+  isDeadlineMissed,
+} from "../utils/application-dates";
 import type { ApplicationDetail as ApplicationDetailRecord } from "../schemas/application-detail-schema";
 import { ApplicationStatus } from "./application-status";
 import { CvLink } from "./cv-link";
+import { FinalDecision } from "./final-decision";
+import { InterviewResult } from "./interview-result";
 import { ScreeningActions } from "./screening-actions";
 
 // The label follows the list's wording: an eligible Application shows the time left to interview.
+// A missed deadline is shown as rejected, so its deadline is labelled as the former deadline.
 function deadlineLabel(application: ApplicationDetailRecord) {
-  if (application.status !== "interview_eligible") return "Interview deadline";
-  return application.interview_eligible
+  return application.status === "interview_eligible" &&
+    application.interview_eligible
     ? "Complete interview by"
-    : "Deadline passed";
+    : "Interview deadline";
 }
 
 // One Recruiter's Application: the Candidate, the status and CV, and the CV screening decision.
@@ -138,6 +145,10 @@ export function ApplicationDetail({
   const application = query.data;
   if (!application) return null;
   const { candidate, job_posting: posting } = application;
+  const missed = isDeadlineMissed(application);
+  const shownStatus = missed ? "rejected" : application.status;
+  const reasonText =
+    application.reject_reason ?? (missed ? "Interview deadline passed" : null);
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
       {back}
@@ -193,7 +204,7 @@ export function ApplicationDetail({
             <div>
               <dt className="text-muted-foreground">Status</dt>
               <dd className="mt-1">
-                <ApplicationStatus status={application.status} />
+                <ApplicationStatus status={shownStatus} />
               </dd>
             </div>
             <div>
@@ -222,11 +233,11 @@ export function ApplicationDetail({
                 </dd>
               </div>
             )}
-            {application.reject_reason && (
+            {reasonText && (
               <div className="sm:col-span-2">
                 <dt className="text-muted-foreground">Reject reason</dt>
                 <dd className="font-medium [overflow-wrap:anywhere]">
-                  {application.reject_reason}
+                  {reasonText}
                 </dd>
               </div>
             )}
@@ -254,6 +265,22 @@ export function ApplicationDetail({
         applicationId={applicationId}
         application={application}
       />
+
+      {application.interview && (
+        <InterviewResult
+          postingId={postingId}
+          applicationId={applicationId}
+          interview={application.interview}
+        />
+      )}
+
+      {application.status === "interviewed" && (
+        <FinalDecision
+          postingId={postingId}
+          applicationId={applicationId}
+          application={application}
+        />
+      )}
     </section>
   );
 }

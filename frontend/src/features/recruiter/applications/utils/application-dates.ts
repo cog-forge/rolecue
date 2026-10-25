@@ -20,3 +20,15 @@ export function formatSubmitted(iso: string) {
 export function formatDeadline(iso: string) {
   return deadlineFormat.format(new Date(iso));
 }
+
+// An eligible Application the server no longer clears to interview has passed its deadline. The
+// server's expiry sweep records that as rejected shortly after; the detail shows it as rejected now.
+export function isDeadlineMissed(application: {
+  status: string;
+  interview_eligible: boolean;
+}) {
+  return (
+    application.status === "interview_eligible" &&
+    !application.interview_eligible
+  );
+}

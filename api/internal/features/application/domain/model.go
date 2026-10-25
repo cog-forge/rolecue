@@ -93,6 +93,9 @@ type DetailRecord struct {
 	PostingStatus string
 	InterviewSlot *int32
 	CVApprovals   int64
+	Interview     *InterviewSummary
+	// OpensAt is the posting's latest interview deadline (FinalReview.OpensAt), nil when none.
+	OpensAt *time.Time
 }
 
 // DetailJobPosting is the posting block of Application Detail: the capacity the approval is checked
@@ -117,6 +120,9 @@ type Detail struct {
 	ListItem
 	JobPosting DetailJobPosting `json:"job_posting"`
 	CV         *DetailCV        `json:"cv"`
+	// Interview is the Application's interview result, or null before one starts (KAN-114).
+	Interview   *InterviewSummary `json:"interview"`
+	FinalReview FinalReview       `json:"final_review"`
 }
 
 // ValidStatus reports whether value is an Application status.

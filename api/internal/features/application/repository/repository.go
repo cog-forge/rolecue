@@ -300,6 +300,9 @@ func (r *Repository) GetApplicationDetail(ctx context.Context, recruiterID, post
 		PostingStatus: row.PostingStatus,
 		InterviewSlot: row.InterviewSlot,
 		CVApprovals:   row.CvApprovals,
+		Interview: recruiterInterview(row.InterviewID, row.InterviewStartedAt, row.InterviewCompletedAt,
+			row.InterviewEvaluationStatus, row.InterviewScore, row.InterviewRecordStatus),
+		OpensAt: timePtr(row.FinalOpensAt),
 	}, nil
 }
 

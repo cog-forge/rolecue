@@ -84,6 +84,9 @@ WHERE jp.recruiter_id = @recruiter_id
 -- service and never returned), the posting status and capacity, and how many Applications of the
 -- posting were ever CV-approved (the same definition as CountCVApprovals). Ownership is part of the
 -- filter; the caller separates "not yours" from "not on this posting" with IsPostingOwned.
+-- final_opens_at is MAX(interview_deadline) over the posting's Applications: the moment the Recruiter
+-- may decide (KAN-115). The interview join attaches only a session whose role profile belongs to the
+-- Application's Candidate, a guard on top of interviews.application_id.
 -- name: GetRecruiterApplication :one
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status, a.created_at,
        u.id AS candidate_id, u.name AS candidate_name, u.email AS candidate_email, u.image AS candidate_image,
@@ -92,11 +95,35 @@ SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS 
        a.cv_path,
        jp.status::text AS posting_status, jp.interview_slot,
        (SELECT count(*) FROM public.applications c
-        WHERE c.job_posting_id = jp.id AND c.interview_deadline IS NOT NULL)::bigint AS cv_approvals
+        WHERE c.job_posting_id = jp.id AND c.interview_deadline IS NOT NULL)::bigint AS cv_approvals,
+       (SELECT MAX(d.interview_deadline) FROM public.applications d
+        WHERE d.job_posting_id = jp.id)::timestamptz AS final_opens_at,
+       i.id AS interview_id, i.started_at AS interview_started_at, i.completed_at AS interview_completed_at,
+       i.evaluation_status AS interview_evaluation_status, i.score AS interview_score,
+       i.record_status AS interview_record_status
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
 JOIN public.users u ON u.id = a.candidate_id
+LEFT JOIN public.interviews i ON i.application_id = a.id
+    AND EXISTS (SELECT 1 FROM public.role_profiles rp
+                WHERE rp.id = i.role_profile_id AND rp.candidate_id = a.candidate_id)
 WHERE a.id = @id AND a.job_posting_id = @job_posting_id AND jp.recruiter_id = @recruiter_id;
+
+-- The recruiter's final decision (KAN-115). The caller holds the posting lock and has read the
+-- Application under its row lock; the guard keeps the write to an interviewed Application.
+-- reject_reason is NULL on approval. statement_timestamp() as in the other screening writes.
+-- name: SetApplicationDecision :execrows
+UPDATE public.applications
+SET status = sqlc.arg(status)::text::public.application_status,
+    reject_reason = sqlc.narg(reject_reason), updated_at = statement_timestamp()
+WHERE id = @id AND job_posting_id = @job_posting_id AND status = 'interviewed';
+
+-- The moment the final decision opens: the latest interview deadline of the posting's Applications.
+-- NULL when none has a deadline. Read under the posting lock.
+-- name: GetFinalReviewOpensAt :one
+SELECT MAX(interview_deadline)::timestamptz AS opens_at
+FROM public.applications
+WHERE job_posting_id = @job_posting_id;
 
 -- Lets a list of one posting tell "not yours" (404) from "no Applications yet" ([]).
 -- name: IsPostingOwned :one
