@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
+import { CvApplyForm } from "@/features/candidate/applications/components/cv-apply-form";
 import { isHttpsProfileUrl } from "@/features/profile/schemas/profile-schema";
 import { getJobBoardPosting, jobBoardKeys } from "../api/job-board";
 import type {
@@ -138,13 +139,22 @@ export function JobPostingDetail({
           </Button>
         </div>
       ) : (
-        <PostingContent posting={query.data} />
+        <PostingContent
+          posting={query.data}
+          canApply={user.role === "candidate"}
+        />
       )}
     </section>
   );
 }
 
-function PostingContent({ posting }: { posting: BoardPostingDetail }) {
+function PostingContent({
+  posting,
+  canApply,
+}: {
+  posting: BoardPostingDetail;
+  canApply: boolean;
+}) {
   const website = safeWebsite(posting.company_website);
   const salary = salaryText(posting);
   const required = posting.requirements.filter((r) => r.type === "required");
@@ -267,7 +277,12 @@ function PostingContent({ posting }: { posting: BoardPostingDetail }) {
                   </div>
                 ))}
               </dl>
-              <ApplyPanel applied={posting.already_applied} />
+              {canApply && (
+                <ApplyPanel
+                  applied={posting.already_applied}
+                  postingId={posting.id}
+                />
+              )}
             </CardContent>
           </Card>
         </aside>
@@ -312,39 +327,15 @@ function RequirementGroup({
 const unavailableButton =
   "h-11 w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
-// Applying online arrives with KAN-189; until then the button is honest about it.
-function ApplyPanel({ applied }: { applied: boolean }) {
-  if (applied)
-    return (
-      <div className="space-y-3 border-t pt-4">
-        <Button
-          type="button"
-          className={unavailableButton}
-          aria-disabled="true"
-          aria-describedby="apply-note"
-        >
-          <CircleCheck aria-hidden />
-          Applied
-        </Button>
-        <p
-          id="apply-note"
-          role="status"
-          className="flex items-start gap-2 text-sm"
-        >
-          <span
-            className="mt-1.5 size-2 shrink-0 rounded-full bg-emerald-500"
-            aria-hidden
-          />
-          You already applied to this posting.
-        </p>
-        <Link
-          href={routes.applications}
-          className="inline-flex min-h-11 items-center text-sm font-medium text-workspace-accent underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          View my applications
-        </Link>
-      </div>
-    );
+// Candidates apply with a CV; the upload flow lives in the candidate applications feature.
+function ApplyPanel({
+  applied,
+  postingId,
+}: {
+  applied: boolean;
+  postingId: string;
+}) {
+  if (!applied) return <CvApplyForm postingId={postingId} />;
   return (
     <div className="space-y-3 border-t pt-4">
       <Button
@@ -353,11 +344,26 @@ function ApplyPanel({ applied }: { applied: boolean }) {
         aria-disabled="true"
         aria-describedby="apply-note"
       >
-        Apply
+        <CircleCheck aria-hidden />
+        Applied
       </Button>
-      <p id="apply-note" className="text-sm text-muted-foreground">
-        Online applications open soon. Check back to apply with your CV.
+      <p
+        id="apply-note"
+        role="status"
+        className="flex items-start gap-2 text-sm"
+      >
+        <span
+          className="mt-1.5 size-2 shrink-0 rounded-full bg-emerald-500"
+          aria-hidden
+        />
+        You already applied to this posting.
       </p>
+      <Link
+        href={routes.applications}
+        className="inline-flex min-h-11 items-center text-sm font-medium text-workspace-accent underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        View my applications
+      </Link>
     </div>
   );
 }

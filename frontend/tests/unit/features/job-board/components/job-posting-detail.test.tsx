@@ -13,6 +13,7 @@ import { JobPostingDetail } from "@/features/job-board/components/job-posting-de
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  push: vi.fn(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
     full_name: "Cand",
@@ -26,6 +27,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get } }));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
+}));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mocks.push }),
 }));
 
 const id = "33333333-3333-4333-8333-333333333333";
@@ -81,6 +85,7 @@ function mount(backQuery = "", postingId = id, seed?: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.get.mockReset();
+  Object.assign(mocks.user, { role: "candidate" });
 });
 
 describe("JobPostingDetail", () => {
@@ -132,15 +137,32 @@ describe("JobPostingDetail", () => {
     expect(container.querySelector("b")).toBeNull();
   });
 
-  it("shows a disabled Apply with an honest note when not applied", async () => {
+  it("offers the CV upload to a Candidate who has not applied", async () => {
     mocks.get.mockResolvedValue(detail());
     mount();
-    const apply = await screen.findByRole("button", { name: "Apply" });
-    // aria-disabled keeps it focusable so the note is read out; it submits nothing.
-    expect(apply).toHaveAttribute("aria-disabled", "true");
-    expect(apply).toHaveAttribute("type", "button");
-    expect(apply).toHaveAccessibleDescription(/online applications open soon/i);
+    expect(
+      await screen.findByRole("heading", { name: "Apply with your CV" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Choose your CV (PDF)" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Apply" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/already applied/i)).not.toBeInTheDocument();
+  });
+
+  it("does not offer the CV upload to a Recruiter", async () => {
+    Object.assign(mocks.user, { role: "recruiter" });
+    mocks.get.mockResolvedValue(detail());
+    mount();
+    await screen.findByRole("heading", { level: 1 });
+    expect(
+      screen.queryByRole("heading", { name: "Apply with your CV" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Choose your CV (PDF)" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a disabled Applied state with a link to My Applications", async () => {
@@ -166,7 +188,9 @@ describe("JobPostingDetail", () => {
     mocks.get.mockResolvedValue(detail({ already_applied: true }));
     mount("", id, detail().data.data);
     // The cached copy shows first, then the fresh answer replaces it.
-    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Choose your CV (PDF)" }),
+    ).toBeInTheDocument();
     expect(
       await screen.findByRole("button", { name: "Applied" }),
     ).toBeInTheDocument();
