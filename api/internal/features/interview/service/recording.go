@@ -128,6 +128,8 @@ func (s *RecordingService) CompleteUpload(ctx context.Context, candidateID uuid.
 	if object.Body != nil {
 		defer func() { _ = object.Body.Close() }()
 	}
+	// The grant signs the declared content type and length into the upload URL (storage.PresignPut), so
+	// the store refuses any other body; this check is the second line, on what actually arrived.
 	if object.Size <= 0 || object.Size > domain.RecordingMaxBytes {
 		if _, err := s.repository.SetRecordingResult(ctx, candidateID, interviewID, key, domain.RecordFailed); err != nil {
 			return domain.RecordingStatus{}, err

@@ -35,6 +35,9 @@ const staleCodes = new Set([
 ]);
 // setTimeout wraps past 2^31-1 ms, which would fire straight away.
 const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+// A reload that still finds the gate locked (browser clock ahead of the server) retries this often.
+const UNLOCK_RETRY_MS = 3000;
+const MAX_UNLOCK_RELOADS = 5;
 
 // The final Approve / Reject for an interviewed Application. The gate comes from the server
 // (final_review.can_decide, opens_at); the screen only shows it. Nothing changes until the server
@@ -57,20 +60,28 @@ export function FinalDecision({
   const decidable = review?.can_decide === true;
   const opensAt = review?.opens_at ?? null;
 
-  // The controls unlock on their own when opens_at arrives: reload the detail then, once.
+  // The controls unlock on their own when opens_at arrives: reload the detail then. The server clock
+  // decides, so a browser clock that runs ahead can reload too early; the detail is then still locked
+  // and the timer re-arms a few seconds later, a bounded number of times.
+  const [reloads, setReloads] = useState(0);
   useEffect(() => {
-    if (decidable || !opensAt) return;
+    if (decidable || !opensAt || reloads > MAX_UNLOCK_RELOADS) return;
     const delay = Math.min(
       MAX_TIMER_DELAY_MS,
-      Math.max(1000, Date.parse(opensAt) - Date.now()),
+      Math.max(
+        reloads === 0 ? 1000 : UNLOCK_RETRY_MS,
+        Date.parse(opensAt) - Date.now(),
+      ),
     );
     const timer = window.setTimeout(() => {
-      void cache.invalidateQueries({
-        queryKey: applicationKeys.detail(user.id, postingId, applicationId),
-      });
+      void cache
+        .invalidateQueries({
+          queryKey: applicationKeys.detail(user.id, postingId, applicationId),
+        })
+        .then(() => setReloads((count) => count + 1));
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [cache, user.id, postingId, applicationId, decidable, opensAt]);
+  }, [cache, user.id, postingId, applicationId, decidable, opensAt, reloads]);
 
   const detailKey = applicationKeys.detail(user.id, postingId, applicationId);
   const refresh = () => {
