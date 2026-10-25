@@ -48,10 +48,12 @@ func updatedAt(t *testing.T, s *seed, applicationID uuid.UUID) time.Time {
 }
 
 // transactionRows counts the wallet transactions. Close Intake and approvals must add none.
-func transactionRows(t *testing.T, pool *pgxpool.Pool, ctx context.Context) int {
+// transactionRows counts the rows credited to one user, so tests in other packages that write
+// transactions into the shared CI database cannot change the count.
+func transactionRows(t *testing.T, pool *pgxpool.Pool, ctx context.Context, userID uuid.UUID) int {
 	t.Helper()
 	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM public.transactions`).Scan(&n); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM public.transactions WHERE "to" = $1 OR "from" = $1`, userID.String()).Scan(&n); err != nil {
 		t.Fatal(err)
 	}
 	return n
@@ -283,7 +285,7 @@ func TestIntakeChangesWriteOnlyTheRefund(t *testing.T) {
 	s := newSeed(t, ctx, pool)
 	svc := newService(t, pool)
 	owner := s.user("recruiter")
-	before := transactionRows(t, pool, ctx)
+	before := transactionRows(t, pool, ctx, owner)
 
 	closing := s.posting(owner, "open", slot(3))
 	s.application(closing, s.user("candidate"))
@@ -296,7 +298,7 @@ func TestIntakeChangesWriteOnlyTheRefund(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if after := transactionRows(t, pool, ctx); after != before+1 {
+	if after := transactionRows(t, pool, ctx, owner); after != before+1 {
 		t.Fatalf("transactions rows went from %d to %d, want exactly one refund row", before, after)
 	}
 }
