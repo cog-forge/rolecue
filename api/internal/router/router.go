@@ -13,25 +13,26 @@ import (
 )
 
 type Router struct {
-	cfg                 *config.Config
-	logger              *logger.Logger
-	authHandler         *handler.AuthHandler
-	healthHandler       *handler.HealthHandler
-	roleProfileHandler  *handler.RoleProfileHandler
-	profileHandler      *handler.ProfileHandler
-	walletHandler       *handler.WalletHandler
-	questionBankHandler *handler.QuestionBankHandler
-	moderationHandler   *handler.ModerationHandler
-	onboardingHandler   *handler.OnboardingHandler
-	accountsHandler     *handler.AccountsHandler
-	inventoryHandler    *handler.InventoryHandler
-	avatarCreateHandler *handler.AvatarCreateHandler
-	voiceCatalogHandler *handler.VoiceCatalogHandler
-	jobPostingHandler   *handler.JobPostingHandler
-	voiceHandler        *handler.VoiceHandler
-	jobBoardHandler     *handler.JobBoardHandler
-	evaluationHandler   *handler.EvaluationHandler
-	applicationHandler  *handler.ApplicationHandler
+	cfg                    *config.Config
+	logger                 *logger.Logger
+	authHandler            *handler.AuthHandler
+	healthHandler          *handler.HealthHandler
+	roleProfileHandler     *handler.RoleProfileHandler
+	profileHandler         *handler.ProfileHandler
+	walletHandler          *handler.WalletHandler
+	questionBankHandler    *handler.QuestionBankHandler
+	moderationHandler      *handler.ModerationHandler
+	onboardingHandler      *handler.OnboardingHandler
+	accountsHandler        *handler.AccountsHandler
+	inventoryHandler       *handler.InventoryHandler
+	avatarCreateHandler    *handler.AvatarCreateHandler
+	voiceCatalogHandler    *handler.VoiceCatalogHandler
+	jobPostingHandler      *handler.JobPostingHandler
+	voiceHandler           *handler.VoiceHandler
+	jobBoardHandler        *handler.JobBoardHandler
+	evaluationHandler      *handler.EvaluationHandler
+	applicationHandler     *handler.ApplicationHandler
+	adminInterviewsHandler *handler.AdminInterviewsHandler
 }
 
 func NewRouter(
@@ -54,27 +55,29 @@ func NewRouter(
 	jobBoardHandler *handler.JobBoardHandler,
 	evaluationHandler *handler.EvaluationHandler,
 	applicationHandler *handler.ApplicationHandler,
+	adminInterviewsHandler *handler.AdminInterviewsHandler,
 ) *Router {
 	return &Router{
-		cfg:                 cfg,
-		logger:              logger,
-		authHandler:         authHandler,
-		healthHandler:       healthHandler,
-		roleProfileHandler:  roleProfileHandler,
-		profileHandler:      profileHandler,
-		walletHandler:       walletHandler,
-		questionBankHandler: questionBankHandler,
-		moderationHandler:   moderationHandler,
-		onboardingHandler:   onboardingHandler,
-		accountsHandler:     accountsHandler,
-		inventoryHandler:    inventoryHandler,
-		avatarCreateHandler: avatarCreateHandler,
-		voiceCatalogHandler: voiceCatalogHandler,
-		jobPostingHandler:   jobPostingHandler,
-		voiceHandler:        voiceHandler,
-		jobBoardHandler:     jobBoardHandler,
-		evaluationHandler:   evaluationHandler,
-		applicationHandler:  applicationHandler,
+		cfg:                    cfg,
+		logger:                 logger,
+		authHandler:            authHandler,
+		healthHandler:          healthHandler,
+		roleProfileHandler:     roleProfileHandler,
+		profileHandler:         profileHandler,
+		walletHandler:          walletHandler,
+		questionBankHandler:    questionBankHandler,
+		moderationHandler:      moderationHandler,
+		onboardingHandler:      onboardingHandler,
+		accountsHandler:        accountsHandler,
+		inventoryHandler:       inventoryHandler,
+		avatarCreateHandler:    avatarCreateHandler,
+		voiceCatalogHandler:    voiceCatalogHandler,
+		jobPostingHandler:      jobPostingHandler,
+		voiceHandler:           voiceHandler,
+		jobBoardHandler:        jobBoardHandler,
+		evaluationHandler:      evaluationHandler,
+		applicationHandler:     applicationHandler,
+		adminInterviewsHandler: adminInterviewsHandler,
 	}
 }
 
@@ -172,6 +175,12 @@ func (r *Router) Setup() *gin.Engine {
 	jobBoard := router.Group("/job-board", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate"))
 	jobBoard.GET("", r.jobBoardHandler.List)
 	jobBoard.GET("/:id", r.jobBoardHandler.Get)
+	jobBoard.POST("/:id/applications", r.applicationHandler.Apply)
+
+	// The Candidate's own Applications. /recruiter/applications is the Recruiter's view.
+	candidateApplications := router.Group("/applications", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate"))
+	candidateApplications.GET("", r.applicationHandler.ListMine)
+	candidateApplications.GET("/:id", r.applicationHandler.DetailMine)
 
 	// Every admin route sits under /admin so one role check guards the whole group.
 	admin := router.Group("/admin", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("admin"))
@@ -183,6 +192,8 @@ func (r *Router) Setup() *gin.Engine {
 	admin.GET("/job-postings/:id", r.moderationHandler.Get)
 	admin.POST("/job-postings/:id/approve", r.moderationHandler.Approve)
 	admin.POST("/job-postings/:id/reject", r.moderationHandler.Reject)
+	admin.GET("/interviews", r.adminInterviewsHandler.List)
+	admin.GET("/interviews/:id", r.adminInterviewsHandler.Get)
 	admin.GET("/voices", r.voiceCatalogHandler.List)
 	admin.GET("/voices/:id", r.voiceCatalogHandler.Get)
 	admin.DELETE("/voices/:id", r.voiceCatalogHandler.Remove)

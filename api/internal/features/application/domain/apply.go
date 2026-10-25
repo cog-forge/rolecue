@@ -14,12 +14,8 @@ const MaxCVBytes int64 = 5 << 20
 // cvSignature is the prefix every PDF starts with.
 var cvSignature = []byte("%PDF-")
 
-// codeAlreadyApplied is ALREADY_APPLIED. It is defined here until the shared apperror table gains
-// the constant (plan step S0); the wire value is what clients match on.
-const codeAlreadyApplied apperror.Code = "ALREADY_APPLIED"
-
 // ErrAlreadyApplied is returned when the Candidate already has an Application to the posting.
-var ErrAlreadyApplied = apperror.New(codeAlreadyApplied, "you have already applied to this job posting")
+var ErrAlreadyApplied = apperror.New(apperror.CodeAlreadyApplied, "you have already applied to this job posting")
 
 // ErrJobPostingNotFound is the answer for a posting the Candidate cannot apply to because it is not
 // visible to them (not open, or its Recruiter is locked).

@@ -17,13 +17,8 @@ const (
 	MaxPageSize     = 100
 )
 
-// CodeInterviewNotFound is the INTERVIEW_NOT_FOUND code. It is declared here until the shared
-// apperror package gains the constant and its 404 mapping (S0); until then the status falls back
-// to 500 in the response mapping.
-const CodeInterviewNotFound apperror.Code = "INTERVIEW_NOT_FOUND"
-
 // ErrInterviewNotFound is returned for an unknown interview ID.
-var ErrInterviewNotFound = apperror.New(CodeInterviewNotFound, "interview not found")
+var ErrInterviewNotFound = apperror.New(apperror.CodeInterviewNotFound, "interview not found")
 
 // ListFilter selects interviews. An empty Type or nil ID filter matches every interview. Offset is
 // computed by the service from the page.

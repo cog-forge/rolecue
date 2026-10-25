@@ -208,7 +208,7 @@ func TestGetPropagatesNotFound(t *testing.T) {
 	repo := &fakeRepository{getErr: domain.ErrInterviewNotFound}
 	svc, _ := New(repo)
 	_, err := svc.Get(context.Background(), "admin", uuid.New())
-	assertCode(t, err, domain.CodeInterviewNotFound)
+	assertCode(t, err, apperror.CodeInterviewNotFound)
 }
 
 // The detail response is an allow-list too. Serialize a fully populated detail and assert the exact
