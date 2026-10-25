@@ -154,7 +154,7 @@ func TestCreditCreatesMissingWalletThenAddsCoins(t *testing.T) {
 
 func TestCreditPastMaxInt32ChangesNothing(t *testing.T) {
 	db := &fakeDB{wallet: walletBalance(math.MaxInt32 - 1)}
-	assertCode(t, Credit(context.Background(), db, userID, 5, "x"), apperror.CodeValidation)
+	assertCode(t, Credit(context.Background(), db, userID, 5, "x"), apperror.CodeInternal)
 	if db.count("UPDATE public.wallets") != 0 || db.count("INSERT INTO public.transactions") != 0 {
 		t.Fatalf("statements = %v, want no balance change or row on overflow", db.statements)
 	}

@@ -6,16 +6,17 @@
 -- name: LockApplyKey :exec
 SELECT pg_advisory_xact_lock(hashtextextended(@lock_key::text, 0));
 
--- FOR KEY SHARE does not conflict with the NO KEY UPDATE lock that screening takes, so a submission
--- does not wait for CV decisions. The recruiter lock check mirrors the job board: a locked
--- Recruiter's posting is hidden, not closed.
+-- FOR SHARE conflicts with the NO KEY UPDATE lock that Close Intake and screening take, so a submission
+-- waits for an in-flight close and then sees intake_closed. A weaker lock would let an Application slip
+-- in beside the close, survive its pending rejection, and keep the posting from ever closing. The
+-- recruiter lock check mirrors the job board: a locked Recruiter's posting is hidden, not closed.
 -- name: LockApplyPosting :one
 SELECT jp.status::text AS status,
        (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))::boolean AS recruiter_locked
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 WHERE jp.id = @id
-FOR KEY SHARE OF jp;
+FOR SHARE OF jp;
 
 -- name: CandidateHasApplication :one
 SELECT EXISTS (

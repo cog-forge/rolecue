@@ -67,7 +67,7 @@ func Credit(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, descri
 		return persistence(pgx.ErrNoRows)
 	}
 	if int64(balance)+int64(amount) > math.MaxInt32 {
-		return apperror.New(apperror.CodeValidation, "wallet balance would exceed the maximum")
+		return apperror.New(apperror.CodeInternal, "wallet balance would exceed the maximum")
 	}
 	if _, err := db.Exec(ctx, `UPDATE public.wallets SET balance = $2 WHERE id = $1`, walletID, balance+amount); err != nil {
 		return persistence(err)

@@ -187,7 +187,7 @@ SELECT jp.status::text AS status,
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 WHERE jp.id = $1
-FOR KEY SHARE OF jp
+FOR SHARE OF jp
 `
 
 type LockApplyPostingRow struct {
@@ -195,9 +195,10 @@ type LockApplyPostingRow struct {
 	RecruiterLocked bool
 }
 
-// FOR KEY SHARE does not conflict with the NO KEY UPDATE lock that screening takes, so a submission
-// does not wait for CV decisions. The recruiter lock check mirrors the job board: a locked
-// Recruiter's posting is hidden, not closed.
+// FOR SHARE conflicts with the NO KEY UPDATE lock that Close Intake and screening take, so a submission
+// waits for an in-flight close and then sees intake_closed. A weaker lock would let an Application slip
+// in beside the close, survive its pending rejection, and keep the posting from ever closing. The
+// recruiter lock check mirrors the job board: a locked Recruiter's posting is hidden, not closed.
 func (q *Queries) LockApplyPosting(ctx context.Context, id uuid.UUID) (LockApplyPostingRow, error) {
 	row := q.db.QueryRow(ctx, lockApplyPosting, id)
 	var i LockApplyPostingRow
