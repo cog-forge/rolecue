@@ -5,6 +5,7 @@ package tests
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -373,5 +374,62 @@ func TestPracticeCompletionLeavesApplicationsAlone(t *testing.T) {
 	}
 	if got := s.applicationStatus(eligible); got != "interview_eligible" {
 		t.Fatalf("application status = %s after a practice completion, want interview_eligible", got)
+	}
+}
+
+// TestOnlyOneCompleteClaimsAFailedOrAbandonedEvaluation proves the evaluation has one owner at a time:
+// concurrent repeats of Complete on a failed evaluation start it once, a fresh pending claim is left
+// alone, and a pending claim older than the stale window (its run died) is taken over once.
+func TestOnlyOneCompleteClaimsAFailedOrAbandonedEvaluation(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool, 5, 3)
+	evaluator := newCountingEvaluator()
+	svc.SetEvaluator(evaluator)
+	candidate := s.user("candidate")
+	s.wallet(candidate, 20)
+	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
+	if _, err := svc.Complete(ctx, candidate, "candidate", started.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitForEvaluation(t, evaluator)
+
+	completeTogether := func() {
+		var wg sync.WaitGroup
+		for range 6 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if _, err := svc.Complete(ctx, candidate, "candidate", started.ID); err != nil {
+					t.Errorf("Complete() error = %v", err)
+				}
+			}()
+		}
+		wg.Wait()
+	}
+
+	s.exec(`UPDATE public.interviews SET evaluation_status = 'failed' WHERE id = $1`, started.ID)
+	completeTogether()
+	waitForEvaluation(t, evaluator)
+	time.Sleep(200 * time.Millisecond)
+	if n := len(evaluator.done); n != 0 {
+		t.Fatalf("%d extra evaluations after concurrent repeats on a failed evaluation, want none", n)
+	}
+
+	s.exec(`UPDATE public.interviews SET evaluation_claimed_at = now() - interval '1 hour' WHERE id = $1`, started.ID)
+	completeTogether()
+	waitForEvaluation(t, evaluator)
+	time.Sleep(200 * time.Millisecond)
+	if n := len(evaluator.done); n != 0 {
+		t.Fatalf("%d extra evaluations after taking over a stale claim, want none", n)
+	}
+}
+
+func waitForEvaluation(t *testing.T, evaluator *countingEvaluator) {
+	t.Helper()
+	select {
+	case <-evaluator.done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the evaluation was not started")
 	}
 }

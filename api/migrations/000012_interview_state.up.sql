@@ -1,5 +1,5 @@
 -- Interview session state the frozen interviews table could not hold: when a session started and
--- completed, whether its evaluation is pending, finished or failed, and the state of a recruitment
+-- completed, whether its evaluation is pending, finished or failed (and when a run last claimed it), and the state of a recruitment
 -- recording. Additive only: no new table, and existing rows take the defaults.
 BEGIN;
 
@@ -8,6 +8,7 @@ ALTER TABLE public.interviews
     ADD COLUMN completed_at timestamptz,
     ADD COLUMN evaluation_status text NOT NULL DEFAULT 'pending'
         CHECK (evaluation_status IN ('pending', 'completed', 'failed')),
+    ADD COLUMN evaluation_claimed_at timestamptz,
     ADD COLUMN record_status text NOT NULL DEFAULT 'none'
         CHECK (record_status IN ('none', 'uploading', 'processing', 'ready', 'failed'));
 

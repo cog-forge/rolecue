@@ -32,7 +32,7 @@ type fakeRepository struct {
 	appendCalls     int
 
 	completeSession domain.Session
-	completeFirst   bool
+	completeFirst   bool // the repository claimed the evaluation
 	completeErr     error
 	completeCalls   int
 }
@@ -393,47 +393,20 @@ func TestCompleteStartsEvaluationOnceAfterFirstCompletion(t *testing.T) {
 	}
 }
 
-func TestCompleteRetriesAFailedEvaluationButNotPendingOrCompletedOnes(t *testing.T) {
-	for _, tt := range []struct {
-		status domain.EvaluationStatus
-		want   int
-	}{
-		{domain.EvaluationFailed, 1},
-		{domain.EvaluationPending, 0},
-		{domain.EvaluationCompleted, 0},
-	} {
-		t.Run(string(tt.status), func(t *testing.T) {
-			evaluator := newFakeEvaluator()
-			session := practiceSession()
-			session.EvaluationStatus = tt.status
-			repo := &fakeRepository{completeSession: session, completeFirst: false}
-			svc := newTestService(t, repo, Settings{})
-			svc.SetEvaluator(evaluator)
-
-			if _, err := svc.Complete(context.Background(), candidateID, "candidate", sessionID); err != nil {
-				t.Fatalf("repeat Complete: %v", err)
-			}
-			if tt.want == 1 {
-				select {
-				case <-evaluator.calls:
-				case <-time.After(5 * time.Second):
-					t.Fatal("a failed evaluation was not retried")
-				}
-				return
-			}
-			time.Sleep(50 * time.Millisecond)
-			if len(evaluator.calls) != 0 {
-				t.Fatalf("evaluator started for a %s evaluation", tt.status)
-			}
-		})
-	}
-}
-
-func TestCompleteWithoutEvaluatorDoesNotFail(t *testing.T) {
-	repo := &fakeRepository{completeSession: practiceSession(), completeFirst: true}
+func TestCompleteDoesNotStartAnEvaluationItDidNotClaim(t *testing.T) {
+	evaluator := newFakeEvaluator()
+	session := practiceSession()
+	session.EvaluationStatus = domain.EvaluationFailed
+	repo := &fakeRepository{completeSession: session, completeFirst: false}
 	svc := newTestService(t, repo, Settings{})
+	svc.SetEvaluator(evaluator)
+
 	if _, err := svc.Complete(context.Background(), candidateID, "candidate", sessionID); err != nil {
-		t.Fatalf("Complete without evaluator: %v", err)
+		t.Fatalf("repeat Complete: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if len(evaluator.calls) != 0 {
+		t.Fatal("the service started an evaluation the repository did not claim")
 	}
 }
 

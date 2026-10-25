@@ -124,12 +124,17 @@ func (r *Repository) AppendTurn(ctx context.Context, candidateID, id uuid.UUID, 
 	return session, nil
 }
 
+// evaluationStaleAfter is how long a pending evaluation may run before another Complete takes it over.
+// It is longer than the service's evaluation timeout, so a live run is never taken over.
+const evaluationStaleAfter = 3 * time.Minute
+
 // Complete sets completed_at once and, for a recruitment session, moves its Application from
-// interview_eligible to interviewed in the same transaction. The bool is true only for the call that
-// completed the session, so the caller starts the evaluation once.
+// interview_eligible to interviewed in the same transaction. The bool is true only for the one call that
+// claimed the evaluation (the first completion, a failed evaluation, or a pending one whose run died), so
+// the caller starts it once.
 func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (domain.Session, bool, error) {
 	var session domain.Session
-	firstCompletion := false
+	startEvaluation := false
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
 		header, err := lockSession(ctx, q, candidateID, id)
@@ -140,7 +145,6 @@ func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (d
 			if err := requireOpenWindow(ctx, q, header.ApplicationID); err != nil {
 				return err
 			}
-			firstCompletion = true
 			if err := q.SetInterviewCompleted(ctx, id); err != nil {
 				return internal(err)
 			}
@@ -150,13 +154,20 @@ func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (d
 				}
 			}
 		}
+		claimed, err := q.ClaimInterviewEvaluation(ctx, ClaimInterviewEvaluationParams{
+			ID: id, StaleSeconds: evaluationStaleAfter.Seconds(),
+		})
+		if err != nil {
+			return internal(err)
+		}
+		startEvaluation = claimed == 1
 		session, err = readSession(ctx, q, candidateID, id)
 		return err
 	})
 	if err != nil {
 		return domain.Session{}, false, internal(err)
 	}
-	return session, firstCompletion, nil
+	return session, startEvaluation, nil
 }
 
 // startPractice creates a practice session from a confirmed role profile of the Candidate and charges the

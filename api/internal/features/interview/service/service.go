@@ -141,13 +141,13 @@ func (s *Service) Complete(ctx context.Context, candidateID uuid.UUID, role stri
 	if role != candidateRole {
 		return domain.Session{}, apperror.New(apperror.CodeForbidden, "only candidates can complete interviews")
 	}
-	session, firstCompletion, err := s.repository.Complete(ctx, candidateID, id)
+	session, startEvaluation, err := s.repository.Complete(ctx, candidateID, id)
 	if err != nil {
 		return domain.Session{}, err
 	}
-	// A failed evaluation is retried when the Candidate completes again. A pending one is still in
-	// flight, and a completed one is never run twice.
-	if firstCompletion || session.EvaluationStatus == domain.EvaluationFailed {
+	// The repository claims the evaluation for one caller: the first completion, a failed evaluation
+	// retried by a repeat, or a pending one whose run died. A live or finished one is never run twice.
+	if startEvaluation {
 		s.startEvaluation(ctx, session.ID)
 	}
 	return presentSession(session), nil

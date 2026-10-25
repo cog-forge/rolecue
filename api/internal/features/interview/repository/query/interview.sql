@@ -133,3 +133,16 @@ SELECT (status = 'interview_eligible' AND interview_deadline > statement_timesta
 FROM public.applications
 WHERE id = @id
 FOR SHARE;
+
+-- One run owns an evaluation at a time. A completed interview is claimed when its evaluation failed, or
+-- when it is pending and was never claimed or its last claim is older than @stale_seconds (the run died
+-- with its process). Exactly one concurrent caller gets a row back and starts the evaluation.
+-- name: ClaimInterviewEvaluation :execrows
+UPDATE public.interviews
+SET evaluation_status = 'pending', evaluation_claimed_at = statement_timestamp()
+WHERE id = @id
+  AND completed_at IS NOT NULL
+  AND (evaluation_status = 'failed'
+       OR (evaluation_status = 'pending'
+           AND (evaluation_claimed_at IS NULL
+                OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8))));

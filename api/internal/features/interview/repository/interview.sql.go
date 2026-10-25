@@ -39,6 +39,33 @@ func (q *Queries) AvatarExists(ctx context.Context, id uuid.UUID) (bool, error) 
 	return found, err
 }
 
+const claimInterviewEvaluation = `-- name: ClaimInterviewEvaluation :execrows
+UPDATE public.interviews
+SET evaluation_status = 'pending', evaluation_claimed_at = statement_timestamp()
+WHERE id = $1
+  AND completed_at IS NOT NULL
+  AND (evaluation_status = 'failed'
+       OR (evaluation_status = 'pending'
+           AND (evaluation_claimed_at IS NULL
+                OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => $2::float8))))
+`
+
+type ClaimInterviewEvaluationParams struct {
+	ID           uuid.UUID
+	StaleSeconds float64
+}
+
+// One run owns an evaluation at a time. A completed interview is claimed when its evaluation failed, or
+// when it is pending and was never claimed or its last claim is older than @stale_seconds (the run died
+// with its process). Exactly one concurrent caller gets a row back and starts the evaluation.
+func (q *Queries) ClaimInterviewEvaluation(ctx context.Context, arg ClaimInterviewEvaluationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimInterviewEvaluation, arg.ID, arg.StaleSeconds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countConsumedInterviews = `-- name: CountConsumedInterviews :one
 SELECT count(*)::bigint AS consumed
 FROM public.interviews i
