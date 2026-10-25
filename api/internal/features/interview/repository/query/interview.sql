@@ -67,10 +67,12 @@ WHERE id = @id
 FOR UPDATE;
 
 -- The Application as it is under the posting lock. within_deadline uses the database clock, the same
--- clock that wrote interview_deadline on CV approval.
+-- clock that wrote interview_deadline on CV approval. It reads statement_timestamp(), not now(): now()
+-- is the transaction start, which is before the wait for the posting lock, so a start that queued behind
+-- a long transaction would otherwise be judged against a stale time.
 -- name: GetApplicationForInterview :one
 SELECT status::text AS status,
-       COALESCE(interview_deadline > now(), false)::boolean AS within_deadline
+       COALESCE(interview_deadline > statement_timestamp(), false)::boolean AS within_deadline
 FROM public.applications
 WHERE id = @id AND candidate_id = @candidate_id AND job_posting_id = @job_posting_id;
 

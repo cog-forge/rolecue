@@ -45,6 +45,11 @@ func (r *Repository) AutoRejectExpired(ctx context.Context, now time.Time) (int,
 			if err != nil {
 				return internal(err)
 			}
+			if _, err := q.LockUnfinishedInterviewsForExpiry(ctx, LockUnfinishedInterviewsForExpiryParams{
+				JobPostingID: postingID, Now: at,
+			}); err != nil {
+				return internal(err)
+			}
 			count, err := q.RejectExpiredApplications(ctx, RejectExpiredApplicationsParams{
 				RejectReason: &reason, JobPostingID: postingID, Now: at,
 			})

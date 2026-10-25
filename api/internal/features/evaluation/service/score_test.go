@@ -243,7 +243,7 @@ func TestEvaluateScorerErrorMarksFailed(t *testing.T) {
 	}
 }
 
-func TestEvaluateSaveFailureLeavesStatusPending(t *testing.T) {
+func TestEvaluateSaveFailureMarksTheEvaluationFailed(t *testing.T) {
 	saveErr := errors.New("connection reset")
 	repo := &fakeInterviewRepository{record: completedPracticeRecord(), turns: answeredTurns(), metrics: scoringCatalog, saveErr: saveErr}
 	scorer := &fakeScorer{output: domain.ScoreOutput{Scores: scoresFor(90, 90, 90)}}
@@ -252,7 +252,7 @@ func TestEvaluateSaveFailureLeavesStatusPending(t *testing.T) {
 	if !errors.Is(err, saveErr) {
 		t.Fatalf("Evaluate() error = %v, want the save error", err)
 	}
-	if repo.marked {
-		t.Fatal("a failed save must not mark the evaluation failed: a later run retries it")
+	if !repo.marked {
+		t.Fatal("a failed save must mark the evaluation failed: left pending it would look in flight forever, and a repeated Complete retries a failed one")
 	}
 }

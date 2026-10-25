@@ -16,8 +16,10 @@ import (
 )
 
 // Repository stores interview sessions. Every write runs in one transaction. A recruitment start locks
-// the posting row first and the Candidate's wallet row second, the same order the capacity funding uses,
-// so the two never wait on each other the other way round. Turns and completion lock the session row.
+// the posting row and then reads the Application, the order screening, the final decision and the expiry
+// pass use, so they never wait on each other the other way round; it takes no wallet lock because the
+// Candidate is not charged. A practice start locks only the Candidate's wallet row (through the ledger).
+// Turns and completion lock the session row.
 type Repository struct {
 	pool    *pgxpool.Pool
 	queries *Queries

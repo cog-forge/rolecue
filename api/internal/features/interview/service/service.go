@@ -145,7 +145,9 @@ func (s *Service) Complete(ctx context.Context, candidateID uuid.UUID, role stri
 	if err != nil {
 		return domain.Session{}, err
 	}
-	if firstCompletion {
+	// A failed evaluation is retried when the Candidate completes again. A pending one is still in
+	// flight, and a completed one is never run twice.
+	if firstCompletion || session.EvaluationStatus == domain.EvaluationFailed {
 		s.startEvaluation(ctx, session.ID)
 	}
 	return presentSession(session), nil

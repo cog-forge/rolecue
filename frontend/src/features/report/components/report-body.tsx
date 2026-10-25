@@ -82,7 +82,7 @@ export function ReportBody({
         </Card>
       ) : null}
 
-      {finished && report.breakdown ? (
+      {finished && report.breakdown && report.breakdown.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle>

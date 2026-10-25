@@ -45,7 +45,7 @@ export const interviewReportEnvelopeSchema = z.object({
 // Retention, consent and Admin access to recordings are open product gates; no policy is encoded here.
 export const recordingSchema = z.object({
   record_status: recordStatusSchema,
-  url: z.url().nullable(),
+  url: z.url({ protocol: /^https?$/ }).nullable(),
   expires_at: z.iso.datetime({ offset: true }).nullable(),
 });
 export type Recording = z.infer<typeof recordingSchema>;

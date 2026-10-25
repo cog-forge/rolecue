@@ -23,6 +23,21 @@ WHERE a.status = 'interview_eligible'
   )
 ORDER BY a.job_posting_id;
 
+-- Locks the unfinished interviews of the Applications that are about to be rejected. A Complete in flight
+-- holds its interview row, so this waits for it to commit; the UPDATE that follows is a new statement
+-- with a new snapshot, so it sees that completion and leaves the Application alone. Lock order: the
+-- posting (held), then interview rows, then Application rows.
+-- name: LockUnfinishedInterviewsForExpiry :many
+SELECT i.id
+FROM public.interviews i
+JOIN public.applications a ON a.id = i.application_id
+WHERE a.job_posting_id = sqlc.arg(job_posting_id)
+  AND a.status = 'interview_eligible'
+  AND a.interview_deadline < sqlc.arg(now)::timestamptz
+  AND i.completed_at IS NULL
+ORDER BY i.id
+FOR UPDATE OF i;
+
 -- Rejects the expired Applications of one posting. The predicate is repeated in the UPDATE so a row that
 -- changed after the list was read (an interview completed, a decision made) is left alone. The caller
 -- holds the posting lock.

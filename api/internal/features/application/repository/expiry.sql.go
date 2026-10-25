@@ -47,6 +47,47 @@ func (q *Queries) ListPostingsWithExpiredApplications(ctx context.Context, now p
 	return items, nil
 }
 
+const lockUnfinishedInterviewsForExpiry = `-- name: LockUnfinishedInterviewsForExpiry :many
+SELECT i.id
+FROM public.interviews i
+JOIN public.applications a ON a.id = i.application_id
+WHERE a.job_posting_id = $1
+  AND a.status = 'interview_eligible'
+  AND a.interview_deadline < $2::timestamptz
+  AND i.completed_at IS NULL
+ORDER BY i.id
+FOR UPDATE OF i
+`
+
+type LockUnfinishedInterviewsForExpiryParams struct {
+	JobPostingID uuid.UUID
+	Now          pgtype.Timestamptz
+}
+
+// Locks the unfinished interviews of the Applications that are about to be rejected. A Complete in flight
+// holds its interview row, so this waits for it to commit; the UPDATE that follows is a new statement
+// with a new snapshot, so it sees that completion and leaves the Application alone. Lock order: the
+// posting (held), then interview rows, then Application rows.
+func (q *Queries) LockUnfinishedInterviewsForExpiry(ctx context.Context, arg LockUnfinishedInterviewsForExpiryParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockUnfinishedInterviewsForExpiry, arg.JobPostingID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const rejectExpiredApplications = `-- name: RejectExpiredApplications :execrows
 UPDATE public.applications a
 SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()

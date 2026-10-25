@@ -101,7 +101,13 @@ func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 	if err != nil {
 		return s.fail(ctx, interviewID, err)
 	}
-	return s.repository.SaveInterviewEvaluation(ctx, interviewID, evaluation)
+	if err := s.repository.SaveInterviewEvaluation(ctx, interviewID, evaluation); err != nil {
+		// A failed save is marked failed too, so the report is honest and a repeated Complete can
+		// start the evaluation again (see interview service Complete); left pending it would look
+		// in flight forever.
+		return s.fail(ctx, interviewID, err)
+	}
+	return nil
 }
 
 // fail marks the evaluation failed and returns the cause as an internal error. It is logged by the caller

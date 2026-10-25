@@ -53,7 +53,7 @@ export const applicationDetailSchema = applicationSchema.extend({
   }),
   cv: z
     .object({
-      url: z.url(),
+      url: z.url({ protocol: /^https?$/ }),
       expires_at: z.iso.datetime({ offset: true }),
     })
     .nullable(),

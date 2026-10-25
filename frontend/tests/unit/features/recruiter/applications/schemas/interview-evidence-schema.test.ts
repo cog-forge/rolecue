@@ -112,6 +112,24 @@ describe("recording and transcript schemas", () => {
     expect(parsed.data.url).toContain("signature=test");
   });
 
+  it("refuses a read link that is not http or https", () => {
+    for (const url of [
+      "javascript:alert(1)",
+      "data:text/html,x",
+      "file:///x",
+    ]) {
+      expect(() =>
+        recordingEnvelopeSchema.parse(
+          envelope({
+            record_status: "ready",
+            url,
+            expires_at: "2026-10-24T10:05:00Z",
+          }),
+        ),
+      ).toThrow();
+    }
+  });
+
   it("accepts a recording that is not ready, with no link", () => {
     const parsed = recordingEnvelopeSchema.parse(
       envelope({ record_status: "uploading", url: null, expires_at: null }),

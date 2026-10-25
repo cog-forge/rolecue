@@ -178,11 +178,23 @@ function EvaluationBreakdown({
           ))}
         </dl>
       ) : (
-        <p className="text-muted-foreground">
-          {status === "failed"
-            ? "The evaluation failed, so there is no breakdown."
-            : "The breakdown is not ready yet."}
-        </p>
+        <div className="space-y-2">
+          <p className="text-muted-foreground">
+            {status === "failed"
+              ? "The evaluation failed, so there is no breakdown."
+              : "The breakdown is not ready yet."}
+          </p>
+          {status !== "failed" && (
+            <Button
+              variant="outline"
+              className="h-11 bg-background"
+              disabled={query.isFetching}
+              onClick={() => void query.refetch()}
+            >
+              Check again
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );

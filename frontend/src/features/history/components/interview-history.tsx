@@ -68,7 +68,7 @@ export function InterviewHistory() {
 
       <TypeFilter filters={filters} />
 
-      {query.isPending ? (
+      {query.isPending || query.isPlaceholderData ? (
         <div role="status" className="space-y-3">
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-20 rounded-xl" />
