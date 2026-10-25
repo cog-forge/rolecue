@@ -34,9 +34,10 @@ type Options = {
 // configured number of requests, then recovers, so a test can check Try again.
 async function mockDashboard(page: Page, options: Options = {}) {
   const hits: Record<string, number> = {};
+  const failing = { ...options.failing };
   const fail = (key: Failing) => {
     hits[key] = (hits[key] ?? 0) + 1;
-    const budget = options.failing?.[key];
+    const budget = failing[key];
     return budget !== undefined && hits[key] <= budget;
   };
   await page.route("http://localhost:8080/**", async (route) => {
@@ -127,7 +128,11 @@ async function mockDashboard(page: Page, options: Options = {}) {
       },
     });
   });
-  return { hits };
+  // Stops the endpoint from failing, whoever asks for it next (other widgets can share a request).
+  const recover = (key: Failing) => {
+    failing[key] = 0;
+  };
+  return { hits, recover };
 }
 
 test("the dashboard shows the Target JDs, practice, application and coin cards from the API", async ({
@@ -189,7 +194,9 @@ test("when the applications request fails, that card shows its error and the oth
 test("Try again reloads a failed card once the request recovers", async ({
   page,
 }) => {
-  const { hits } = await mockDashboard(page, { failing: { wallet: 1 } });
+  const { hits, recover } = await mockDashboard(page, {
+    failing: { wallet: Infinity },
+  });
   await page.goto("/dashboard");
 
   const coins = page.getByRole("region", { name: "Coin balance" });
@@ -197,6 +204,7 @@ test("Try again reloads a failed card once the request recovers", async ({
     coins.getByText("We couldn't load your coin balance."),
   ).toBeVisible();
 
+  recover("wallet");
   await coins.getByRole("button", { name: "Try again" }).click();
 
   await expect(coins).toContainText("250 coins");
