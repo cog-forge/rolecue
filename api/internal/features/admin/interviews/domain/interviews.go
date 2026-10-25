@@ -64,8 +64,8 @@ type InterviewPage struct {
 	PageSize int32          `json:"page_size"`
 }
 
-// NamedRef is a referenced catalog item (avatar or voice) with its display name.
-type NamedRef struct {
+// AssetRef is a referenced catalog item (avatar or voice) with its display name.
+type AssetRef struct {
 	ID   uuid.UUID `json:"id"`
 	Name string    `json:"name"`
 }
@@ -83,8 +83,8 @@ type InterviewDetail struct {
 	InterviewRow
 	RoleProfile   RoleProfileRef `json:"role_profile"`
 	ApplicationID *uuid.UUID     `json:"application_id"`
-	Avatar        *NamedRef      `json:"avatar"`
-	Voice         *NamedRef      `json:"voice"`
+	Avatar        *AssetRef      `json:"avatar"`
+	Voice         *AssetRef      `json:"voice"`
 	QuestionCount int64          `json:"question_count"`
 	TurnCount     int64          `json:"turn_count"`
 }

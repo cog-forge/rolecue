@@ -92,11 +92,11 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.InterviewDet
 }
 
 // namedRef is nil when the interview has no avatar or voice.
-func namedRef(id *uuid.UUID, name *string) *domain.NamedRef {
+func namedRef(id *uuid.UUID, name *string) *domain.AssetRef {
 	if id == nil || name == nil {
 		return nil
 	}
-	return &domain.NamedRef{ID: *id, Name: *name}
+	return &domain.AssetRef{ID: *id, Name: *name}
 }
 
 // typeArg turns an empty filter into a NULL argument, which disables the filter in SQL.

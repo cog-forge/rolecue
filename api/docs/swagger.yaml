@@ -68,6 +68,9 @@ definitions:
     - INTAKE_NOT_OPEN
     - INTERVIEW_CAPACITY_NOT_FUNDED
     - INTERVIEW_CAPACITY_FULL
+    - INTERVIEW_CAPACITY_ALREADY_FUNDED
+    - ALREADY_APPLIED
+    - INTERVIEW_NOT_FOUND
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -136,6 +139,9 @@ definitions:
     - CodeIntakeNotOpen
     - CodeInterviewCapacityNotFunded
     - CodeInterviewCapacityFull
+    - CodeInterviewCapacityAlreadyFunded
+    - CodeAlreadyApplied
+    - CodeInterviewNotFound
   domain.Account:
     properties:
       created_at:
@@ -175,6 +181,13 @@ definitions:
     - StatusInterviewed
     - StatusApproved
     - StatusRejected
+  domain.AssetRef:
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    type: object
   domain.Avatar:
     properties:
       created_at:
@@ -298,6 +311,43 @@ definitions:
         - preferred
         type: string
     type: object
+  domain.CandidateApplication:
+    properties:
+      can_start_interview:
+        description: |-
+          CanStartInterview is true only while the Application is interview_eligible and the deadline
+          has not passed. Start itself is checked again on the server when it exists.
+        type: boolean
+      created_at:
+        type: string
+      id:
+        type: string
+      interview_deadline:
+        description: 'InterviewDeadline is set on CV approval: approval time + 24
+          hours.'
+        type: string
+      job_posting_id:
+        type: string
+      job_posting_title:
+        type: string
+      reject_reason:
+        type: string
+      status:
+        $ref: '#/definitions/domain.ApplicationStatus'
+    type: object
+  domain.CandidatePage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.CandidateApplication'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
   domain.Capacity:
     properties:
       available:
@@ -307,6 +357,37 @@ definitions:
       is_full:
         type: boolean
       used:
+        type: integer
+    type: object
+  domain.CapacityState:
+    properties:
+      available_to_approve:
+        description: AvailableToApprove is the number of slots no CV approval has
+          taken yet.
+        type: integer
+      consumed:
+        description: Consumed counts interviews that used a slot.
+        type: integer
+      cv_approvals:
+        description: CVApprovals counts every Application ever CV-approved on the
+          posting.
+        type: integer
+      funded:
+        type: boolean
+      interview_slot:
+        description: InterviewSlot is nil until the Recruiter funds capacity.
+        type: integer
+      posting_status:
+        type: string
+      price_per_slot:
+        type: integer
+      refundable:
+        description: Refundable is the slots not consumed by an interview, in slots.
+        type: integer
+      refunded:
+        description: |-
+          Refunded is the coins credited back at terminal close. It is non-null only when the posting is
+          closed, and then equals Refundable times PricePerSlot at close.
         type: integer
     type: object
   domain.CoreQuestion:
@@ -428,6 +509,65 @@ definitions:
       status:
         type: string
     type: object
+  domain.InterviewDetail:
+    properties:
+      application_id:
+        type: string
+      avatar:
+        $ref: '#/definitions/domain.AssetRef'
+      has_recording:
+        type: boolean
+      has_report:
+        type: boolean
+      id:
+        type: string
+      job_posting:
+        $ref: '#/definitions/domain.JobPostingRef'
+      owner:
+        $ref: '#/definitions/domain.OwnerRef'
+      question_count:
+        type: integer
+      role_profile:
+        $ref: '#/definitions/domain.RoleProfileRef'
+      score:
+        type: integer
+      turn_count:
+        type: integer
+      type:
+        type: string
+      voice:
+        $ref: '#/definitions/domain.AssetRef'
+    type: object
+  domain.InterviewPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.InterviewRow'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
+  domain.InterviewRow:
+    properties:
+      has_recording:
+        type: boolean
+      has_report:
+        type: boolean
+      id:
+        type: string
+      job_posting:
+        $ref: '#/definitions/domain.JobPostingRef'
+      owner:
+        $ref: '#/definitions/domain.OwnerRef'
+      score:
+        type: integer
+      type:
+        type: string
+    type: object
   domain.JobPosting:
     properties:
       core_question_count:
@@ -468,6 +608,13 @@ definitions:
         $ref: '#/definitions/domain.Level'
       status:
         $ref: '#/definitions/domain.Status'
+      title:
+        type: string
+    type: object
+  domain.JobPostingRef:
+    properties:
+      id:
+        type: string
       title:
         type: string
     type: object
@@ -574,6 +721,15 @@ definitions:
   domain.Notification:
     properties:
       status:
+        type: string
+    type: object
+  domain.OwnerRef:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      name:
         type: string
     type: object
   domain.Patch:
@@ -795,6 +951,13 @@ definitions:
       title:
         type: string
     type: object
+  domain.RoleProfileRef:
+    properties:
+      id:
+        type: string
+      title:
+        type: string
+    type: object
   domain.RoleRequirement:
     properties:
       category:
@@ -894,6 +1057,17 @@ definitions:
     - StatusIntakeClosed
     - StatusClosed
     - StatusRejected
+  domain.Submission:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      job_posting_id:
+        type: string
+      status:
+        $ref: '#/definitions/domain.ApplicationStatus'
+    type: object
   domain.Suggestion:
     properties:
       requirements:
@@ -1074,6 +1248,13 @@ definitions:
         type: string
     required:
     - raw_text
+    type: object
+  handler.FundCapacityRequest:
+    properties:
+      slots:
+        description: Slots is the number of interview slots to buy at 1 coin each.
+        example: 5
+        type: integer
     type: object
   handler.QuestionBankResponse:
     properties:
@@ -1256,6 +1437,118 @@ info:
   title: AI Interview Practice API
   version: 1.0.0
 paths:
+  /admin/interviews:
+    get:
+      description: 'Admin only. Operational metadata only: no recording path, audio,
+        video, transcript or answer text. Sorted by interview ID. Page size is capped
+        at 100.'
+      parameters:
+      - description: practice or recruitment
+        in: query
+        name: type
+        type: string
+      - description: Candidate (owner) ID
+        in: query
+        name: candidate_id
+        type: string
+      - description: Job Posting ID
+        in: query
+        name: job_posting_id
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.InterviewPage'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List interview sessions
+      tags:
+      - admin-interviews
+  /admin/interviews/{id}:
+    get:
+      description: Admin only. Read-only. Returns identifiers, names, score and counts.
+        Never returns a recording path, audio, video, transcript, answer or feedback
+        text.
+      parameters:
+      - description: Interview ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.InterviewDetail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get an interview session's operational detail
+      tags:
+      - admin-interviews
   /admin/job-postings:
     get:
       consumes:
@@ -1943,6 +2236,109 @@ paths:
       summary: Reactivate a voice profile
       tags:
       - admin-voices
+  /applications:
+    get:
+      description: Candidate only. Your own Applications across all postings, newest
+        first, one page at a time. Each item shows the status, the rejection reason,
+        the 24-hour interview deadline and whether you can start the interview now.
+        Transcript, audio, video and CV files are never returned.
+      parameters:
+      - default: 1
+        description: Page number, starting at 1
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.CandidatePage'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List your Applications
+      tags:
+      - applications
+  /applications/{id}:
+    get:
+      description: Candidate only, your own Applications. Returns the status, the
+        rejection reason, the interview deadline (set on CV approval) and can_start_interview,
+        which is true only while the Application is interview_eligible and the deadline
+        has not passed. Another Candidate's Application is not found.
+      parameters:
+      - description: Application ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.CandidateApplication'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read one of your Applications
+      tags:
+      - applications
   /auth/me:
     get:
       produces:
@@ -2454,6 +2850,69 @@ paths:
       security:
       - SessionCookie: []
       summary: View an open Job Posting
+      tags:
+      - job-board
+  /job-board/{id}/applications:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 'Candidate only. Send one PDF as the multipart part "file" (at
+        most 5 MB). The Application starts pending, is visible to the Recruiter at
+        once and needs no interview. Submissions are not capped by interview capacity.
+        Errors: VALIDATION_ERROR (no single PDF of at most 5 MB), FORBIDDEN (not a
+        Candidate), JOB_POSTING_NOT_FOUND (not open to you), INTAKE_NOT_OPEN (intake
+        closed), ALREADY_APPLIED (you already applied to this posting).'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: CV as a PDF, at most 5 MB
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Submission'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Apply to an open Job Posting with your CV
       tags:
       - job-board
   /job-postings:
@@ -3253,6 +3712,130 @@ paths:
       summary: Replace a Job Posting's evaluation weights
       tags:
       - evaluation
+  /job-postings/{id}/interview-capacity:
+    get:
+      description: 'Recruiter only, own postings. Returns the capacity separately
+        from the submitted CV count: interview_slot (null until funded), funded, price_per_slot
+        (1 coin per slot), cv_approvals (every Application ever CV-approved), consumed
+        (interviews that used a slot), available_to_approve (slots no approval has
+        taken), refundable (slots not consumed), posting_status and refunded (coins
+        credited back, non-null only once the posting is closed). Errors: VALIDATION_ERROR
+        (bad ID), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not
+        yours).'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.CapacityState'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read the interview capacity of your Job Posting
+      tags:
+      - applications
+    post:
+      consumes:
+      - application/json
+      description: 'Recruiter only, own postings. Buys slots interview slots at 1
+        coin each in one transaction with the slot write: the coins leave the Recruiter''s
+        wallet and interview_slot is set. Funding is one-time. Sending the same slots
+        again returns the current state and charges nothing; a different count returns
+        INTERVIEW_CAPACITY_ALREADY_FUNDED. The posting must be open (INTAKE_NOT_OPEN
+        otherwise). A wallet below the price returns INSUFFICIENT_BALANCE and changes
+        nothing. Errors: VALIDATION_ERROR (bad ID or body, or slots outside 1 to 10000),
+        FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours),
+        INTAKE_NOT_OPEN, INTERVIEW_CAPACITY_ALREADY_FUNDED, INSUFFICIENT_BALANCE.'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Interview slots to buy
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.FundCapacityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.CapacityState'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Fund the interview capacity of your Job Posting
+      tags:
+      - applications
   /job-postings/{id}/questions:
     get:
       description: Recruiter only. Candidates never receive the bank. Also returns

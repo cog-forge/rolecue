@@ -228,8 +228,8 @@ func TestInterviewDetailJSONIsAllowListOnly(t *testing.T) {
 		},
 		RoleProfile:   domain.RoleProfileRef{ID: uuid.New(), Title: "Go developer"},
 		ApplicationID: &appID,
-		Avatar:        &domain.NamedRef{ID: uuid.New(), Name: "Avatar"},
-		Voice:         &domain.NamedRef{ID: uuid.New(), Name: "Voice"},
+		Avatar:        &domain.AssetRef{ID: uuid.New(), Name: "Avatar"},
+		Voice:         &domain.AssetRef{ID: uuid.New(), Name: "Voice"},
 		QuestionCount: 4,
 		TurnCount:     9,
 	}

@@ -13,6 +13,7 @@ export const routes = {
   jobs: "/jobs",
   job: (id: string) => `/jobs/${segment(id)}`,
   applications: "/applications",
+  application: (id: string) => `/applications/${segment(id)}`,
   afterEmailVerification: "/dashboard?auth=email-verified",
   terms: "/terms",
   privacy: "/privacy",

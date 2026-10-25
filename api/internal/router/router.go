@@ -161,6 +161,8 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.POST("/:id/applications/:applicationId/approve-cv", r.applicationHandler.ApproveCV)
 	jobPostings.POST("/:id/applications/:applicationId/reject-cv", r.applicationHandler.RejectCV)
 	jobPostings.POST("/:id/close-intake", r.applicationHandler.CloseIntake)
+	jobPostings.GET("/:id/interview-capacity", r.applicationHandler.CapacityState)
+	jobPostings.POST("/:id/interview-capacity", r.applicationHandler.FundCapacity)
 
 	// The Recruiter's Applications across all of their postings. /applications stays free for the
 	// Candidate's own list.
