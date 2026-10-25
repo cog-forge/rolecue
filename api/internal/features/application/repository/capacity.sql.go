@@ -31,3 +31,24 @@ func (q *Queries) CountConsumedInterviews(ctx context.Context, jobPostingID uuid
 	err := row.Scan(&consumed)
 	return consumed, err
 }
+
+const setInterviewSlot = `-- name: SetInterviewSlot :execrows
+UPDATE public.job_postings
+SET interview_slot = $1
+WHERE id = $2 AND interview_slot IS NULL
+`
+
+type SetInterviewSlotParams struct {
+	InterviewSlot *int32
+	ID            uuid.UUID
+}
+
+// Funding writes the slot once: the caller holds the posting lock and has checked that the posting is
+// open and unfunded, and the IS NULL guard makes a second write a no-op.
+func (q *Queries) SetInterviewSlot(ctx context.Context, arg SetInterviewSlotParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setInterviewSlot, arg.InterviewSlot, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}

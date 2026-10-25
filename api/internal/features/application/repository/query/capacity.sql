@@ -10,3 +10,10 @@ SELECT count(*)::bigint AS consumed
 FROM public.interviews i
 JOIN public.applications a ON a.id = i.application_id
 WHERE a.job_posting_id = @job_posting_id;
+
+-- Funding writes the slot once: the caller holds the posting lock and has checked that the posting is
+-- open and unfunded, and the IS NULL guard makes a second write a no-op.
+-- name: SetInterviewSlot :execrows
+UPDATE public.job_postings
+SET interview_slot = @interview_slot
+WHERE id = @id AND interview_slot IS NULL;
