@@ -125,3 +125,11 @@ WHERE id = @id AND completed_at IS NULL;
 UPDATE public.applications
 SET status = 'interviewed', updated_at = statement_timestamp()
 WHERE id = @id AND status = 'interview_eligible';
+
+-- An Application takes answers and a completion only while it still waits for its interview and the
+-- window is open. The statement clock matches the start check and the expiry pass.
+-- name: ApplicationAcceptsInterview :one
+SELECT (status = 'interview_eligible' AND interview_deadline > statement_timestamp())::boolean AS open
+FROM public.applications
+WHERE id = @id
+FOR SHARE;

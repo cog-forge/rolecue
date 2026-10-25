@@ -12,6 +12,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const applicationAcceptsInterview = `-- name: ApplicationAcceptsInterview :one
+SELECT (status = 'interview_eligible' AND interview_deadline > statement_timestamp())::boolean AS open
+FROM public.applications
+WHERE id = $1
+FOR SHARE
+`
+
+// An Application takes answers and a completion only while it still waits for its interview and the
+// window is open. The statement clock matches the start check and the expiry pass.
+func (q *Queries) ApplicationAcceptsInterview(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, applicationAcceptsInterview, id)
+	var open bool
+	err := row.Scan(&open)
+	return open, err
+}
+
 const avatarExists = `-- name: AvatarExists :one
 SELECT EXISTS (SELECT 1 FROM public.avatars WHERE id = $1)::boolean AS found
 `

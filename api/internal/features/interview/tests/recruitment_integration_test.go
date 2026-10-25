@@ -454,3 +454,40 @@ func TestPracticeSessionJSONShowsEmptyTurns(t *testing.T) {
 		t.Fatalf("practice turns = %#v, want an empty array", body["turns"])
 	}
 }
+
+// TestAnswersAndCompletionAreRefusedOnceTheWindowIsClosed proves a started recruitment session takes no
+// answer and cannot be completed after its deadline or after the Application left interview_eligible,
+// so a rejected Candidate cannot end with a score. A completion that already happened stays idempotent.
+func TestAnswersAndCompletionAreRefusedOnceTheWindowIsClosed(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool, 5, 3)
+	candidate := s.user("candidate")
+	s.confirmedProfile(candidate, 1)
+	_, posting, _ := s.openPosting(slotOf(2), 4)
+
+	late := s.eligibleApplication(posting, candidate)
+	started, _, err := svc.Create(ctx, candidate, "candidate", recruitmentInput(late))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.AppendTurn(ctx, candidate, "candidate", started.ID, 1, "inside the window"); err != nil {
+		t.Fatalf("AppendTurn() inside the window error = %v", err)
+	}
+	s.setDeadlineInPast(late)
+	_, err = svc.AppendTurn(ctx, candidate, "candidate", started.ID, 2, "after the deadline")
+	assertCode(t, err, apperror.CodeApplicationNotEligible)
+	_, err = svc.Complete(ctx, candidate, "candidate", started.ID)
+	assertCode(t, err, apperror.CodeApplicationNotEligible)
+
+	other := s.user("candidate")
+	s.confirmedProfile(other, 1)
+	rejected := s.eligibleApplication(posting, other)
+	again, _, err := svc.Create(ctx, other, "candidate", recruitmentInput(rejected))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.exec(`UPDATE public.applications SET status = 'rejected' WHERE id = $1`, rejected)
+	_, err = svc.Complete(ctx, other, "candidate", again.ID)
+	assertCode(t, err, apperror.CodeApplicationNotEligible)
+}

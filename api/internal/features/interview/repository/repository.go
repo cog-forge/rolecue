@@ -85,6 +85,9 @@ func (r *Repository) AppendTurn(ctx context.Context, candidateID, id uuid.UUID, 
 		if header.CompletedAt.Valid {
 			return domain.ErrInterviewCompleted
 		}
+		if err := requireOpenWindow(ctx, q, header.ApplicationID); err != nil {
+			return err
+		}
 		turns, err := listTurns(ctx, q, id)
 		if err != nil {
 			return err
@@ -134,6 +137,9 @@ func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (d
 			return err
 		}
 		if !header.CompletedAt.Valid {
+			if err := requireOpenWindow(ctx, q, header.ApplicationID); err != nil {
+				return err
+			}
 			firstCompletion = true
 			if err := q.SetInterviewCompleted(ctx, id); err != nil {
 				return internal(err)
@@ -416,4 +422,20 @@ func timePtr(value pgtype.Timestamptz) *time.Time {
 	}
 	t := value.Time
 	return &t
+}
+
+// requireOpenWindow refuses a recruitment session whose Application was decided or rejected, or whose
+// interview deadline has passed. A practice session has no Application and is never refused.
+func requireOpenWindow(ctx context.Context, q *Queries, applicationID *uuid.UUID) error {
+	if applicationID == nil {
+		return nil
+	}
+	open, err := q.ApplicationAcceptsInterview(ctx, *applicationID)
+	if err != nil {
+		return internal(err)
+	}
+	if !open {
+		return domain.ErrApplicationNotEligible
+	}
+	return nil
 }
