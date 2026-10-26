@@ -27,6 +27,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
+import { cn } from "@/lib/utils";
 import type { RoleSummary } from "../api/contract";
 import { roleProfileKeys } from "../api/keys";
 import {
@@ -80,7 +81,12 @@ export function RoleProfileLibrary() {
               aria-hidden="true"
             />
           </span>
-          <span className="mt-1 text-sm text-muted-foreground capitalize">
+          <span
+            className={cn(
+              "mt-1 text-sm text-muted-foreground",
+              profile.seniorityLevel && "capitalize",
+            )}
+          >
             {profile.seniorityLevel ?? "Seniority to review"}
           </span>
         </Link>
