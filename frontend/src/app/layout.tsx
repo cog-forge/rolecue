@@ -54,7 +54,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `var t="system";try{var p=JSON.parse(localStorage.getItem("rolecue.workspace-preferences")||"null");t=p?.state?.theme??p?.theme??t;if(t!=="light"&&t!=="dark"&&t!=="system")t="system"}catch{}var w=/^\/(admin|recruiter|dashboard|interviews|reports|target-jds|avatar-studio|jobs|applications|history|billing|profile|settings)(\/|$)/.test(location.pathname);document.documentElement.classList.toggle("dark",w&&(t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches)))`,
+            __html: String.raw`var t="system";try{var p=JSON.parse(localStorage.getItem("rolecue.workspace-preferences")||"null");t=p?.state?.theme??p?.theme??t;if(t!=="light"&&t!=="dark"&&t!=="system")t="system"}catch{}var w=/^\/(admin|recruiter|dashboard|interviews|reports|target-jds|avatar-studio|jobs|applications|history|billing|profile|settings)(\/|$)/.test(location.pathname);document.documentElement.classList.toggle("dark",w&&(t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches)))`,
           }}
         />
       </head>
