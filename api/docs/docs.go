@@ -2005,7 +2005,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents (read again on the server) with the requirements confirmed in review and submits the posting for Admin approval (status pending). The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents (read again on the server) with the requirements confirmed in review. The posting is created pending but not yet submitted: generate its question bank, then submit it for Admin approval. The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3266,7 +3266,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (only while the posting is pending) and the server limits.",
+                "description": "Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (while a confirmed bank is pending or rejected) and the server limits.",
                 "produces": [
                     "application/json"
                 ],
@@ -3346,7 +3346,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, while the posting is pending. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "Recruiter only, while the posting is pending or rejected and its current bank has been delivered. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3453,7 +3453,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending. Requires confirmed requirements. Trusted Origin required.",
+                "description": "Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. Generating never submits the posting for review. Trusted Origin required.",
                 "produces": [
                     "application/json"
                 ],
@@ -3554,7 +3554,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, while the posting is pending. A question already used by an interview cannot be deleted. Trusted Origin required.",
+                "description": "Recruiter only, while the posting is pending or rejected and its current bank has been delivered. A question already used by an interview cannot be deleted. Trusted Origin required.",
                 "tags": [
                     "job-posting-questions"
                 ],
@@ -3636,7 +3636,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, while the posting is pending. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "Recruiter only, while the posting is pending or rejected and its current bank has been delivered. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3750,7 +3750,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Moves a rejected posting back to pending and clears the rejection reason. Repeating it on a pending posting changes nothing; open or closed postings return 409. Trusted Origin required.",
+                "description": "Recruiter only. Moves a rejected posting back to pending review and clears the rejection reason. Needs a non-empty question bank. Repeating it once the posting is pending review changes nothing; open or closed postings return 409. Trusted Origin required.",
                 "produces": [
                     "application/json"
                 ],
@@ -3758,6 +3758,102 @@ const docTemplate = `{
                     "job-postings"
                 ],
                 "summary": "Send your rejected Job Posting for review again",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.JobPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Puts a pending posting in the Admin review queue. Needs a non-empty question bank; generating the bank never submits on its own. Repeating it changes nothing; a rejected posting uses resubmit. Trusted Origin required.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Submit your prepared Job Posting for Admin review",
                 "parameters": [
                     {
                         "type": "string",
@@ -5355,6 +5451,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/domain.CoreQuestion"
                     }
+                },
+                "review_submitted": {
+                    "description": "ReviewSubmitted is true once the Recruiter sent the posting to the Admin queue.",
+                    "type": "boolean"
                 }
             }
         },
@@ -5613,6 +5713,10 @@ const docTemplate = `{
                     "type": "string",
                     "x-nullable": true
                 },
+                "refinement_note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
                 "required_avatar_id": {
                     "type": "string",
                     "format": "uuid"
@@ -5668,7 +5772,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "core_question_count": {
-                    "description": "CoreQuestionCount shows whether the question bank exists; requirements lock once it does.",
+                    "description": "CoreQuestionCount shows whether the question bank exists; requirements lock once it does, and\nthe posting can be submitted only with at least one question.",
                     "type": "integer"
                 },
                 "created_at": {
@@ -5695,6 +5799,10 @@ const docTemplate = `{
                 "raw_text": {
                     "type": "string"
                 },
+                "refinement_note": {
+                    "description": "RefinementNote is the Recruiter's optional guidance for question generation.",
+                    "type": "string"
+                },
                 "reject_reason": {
                     "type": "string"
                 },
@@ -5709,6 +5817,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/domain.PostingRequirement"
                     }
+                },
+                "review_submitted": {
+                    "description": "ReviewSubmitted separates a pending posting in the Admin queue from one still being prepared.",
+                    "type": "boolean"
                 },
                 "salary_max": {
                     "type": "integer"
@@ -6135,6 +6247,10 @@ const docTemplate = `{
                 "required_voice": {
                     "$ref": "#/definitions/domain.NamedRef"
                 },
+                "review_submitted": {
+                    "description": "ReviewSubmitted is false while the Recruiter is still preparing a pending posting.",
+                    "type": "boolean"
+                },
                 "salary_max": {
                     "type": "integer"
                 },
@@ -6340,6 +6456,9 @@ const docTemplate = `{
         "domain.Summary": {
             "type": "object",
             "properties": {
+                "core_question_count": {
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -6357,6 +6476,9 @@ const docTemplate = `{
                 },
                 "reject_reason": {
                     "type": "string"
+                },
+                "review_submitted": {
+                    "type": "boolean"
                 },
                 "status": {
                     "$ref": "#/definitions/domain.Status"
@@ -6504,6 +6626,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "location": {
+                    "type": "string"
+                },
+                "refinement_note": {
                     "type": "string"
                 },
                 "required_avatar_id": {
