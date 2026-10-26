@@ -110,6 +110,9 @@ func ReviewFromExtraction(jd domain.StructuredJD) domain.RoleReview {
 		if strings.TrimSpace(target) == "" {
 			target = "Unspecified"
 		}
+		if !targetHasExplicitEvidence(target, skill.Name, skill.EvidenceText) {
+			target = "Unspecified"
+		}
 		result.Requirements = append(result.Requirements, domain.RoleRequirement{Name: skill.Name, Target: target, Kind: "skill", Category: &category, Type: requirement, EvidenceText: skill.EvidenceText})
 		seen[strings.ToLower(skill.Name)] = true
 	}
@@ -126,6 +129,38 @@ func ReviewFromExtraction(jd domain.StructuredJD) domain.RoleReview {
 		}
 	}
 	return result
+}
+
+func targetHasExplicitEvidence(target, name string, evidence *string) bool {
+	if strings.EqualFold(strings.TrimSpace(target), "Unspecified") {
+		return true
+	}
+	if evidence == nil {
+		return false
+	}
+	quote := strings.ToLower(strings.Join(strings.Fields(*evidence), " "))
+	if !strings.Contains(quote, strings.ToLower(strings.TrimSpace(name))) {
+		return false
+	}
+	var cues []string
+	switch strings.ToLower(strings.TrimSpace(target)) {
+	case "new":
+		cues = []string{"new to", "beginner in", "beginner with", "no experience with", "no prior experience with"}
+	case "familiar":
+		cues = []string{"familiar with", "familiarity with", "basic familiarity with", "basic knowledge of", "working knowledge of"}
+	case "proficient":
+		cues = []string{"proficient with", "proficient in", "proficiency with", "proficiency in"}
+	case "expert":
+		cues = []string{"expert in", "expert with", "expertise in", "expertise with", "deep expertise in"}
+	default:
+		return false
+	}
+	for _, cue := range cues {
+		if strings.Contains(quote, cue) {
+			return true
+		}
+	}
+	return false
 }
 
 // Evidence is a quote from source data, not a second source of AI-authored facts.
