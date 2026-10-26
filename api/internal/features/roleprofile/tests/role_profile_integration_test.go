@@ -76,6 +76,10 @@ func TestRoleProfileLifecycle(t *testing.T) {
 		t.Fatal("PDF path persistence", err)
 	}
 	defer func() { _ = repo.DeleteProfile(context.Background(), user, pdfProfile.ID) }()
+	pdfRetry, err := repo.CreatePDFProfile(ctx, user, raw, pdfKey)
+	if err != nil || pdfRetry.ID != pdfProfile.ID {
+		t.Fatal("PDF completion retry duplicated the profile", err)
+	}
 	profile, err = app.Analyze(ctx, user, "candidate", profile.ID)
 	if err != nil || profile.Status != domain.Review || len(profile.Requirements) != 1 {
 		t.Fatal("analysis", err)
