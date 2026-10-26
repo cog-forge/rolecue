@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
@@ -88,83 +87,19 @@ func (m *MockRepo) GetCoinPackageByID(ctx context.Context, id uuid.UUID) (domain
 	return args.Get(0).(domain.CoinPackage), args.Error(1)
 }
 
-func (m *MockRepo) ListAllTransactions(ctx context.Context, arg repository.ListAllTransactionsParams) ([]repository.AdminTransaction, error) {
-	args := m.Called(ctx, arg)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]repository.AdminTransaction), args.Error(1)
+func (m *MockRepo) ListAdminTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error) {
+	args := m.Called(ctx, filter)
+	return args.Get(0).(domain.AdminTransactionPage), args.Error(1)
 }
 
-func (m *MockRepo) CountAllTransactions(ctx context.Context, arg repository.ListAllTransactionsParams) (int64, error) {
-	args := m.Called(ctx, arg)
-	return args.Get(0).(int64), args.Error(1)
-}
-
-func (m *MockRepo) GetRevenueStats(ctx context.Context, dateFrom, dateTo *time.Time) (repository.RevenueStats, error) {
-	args := m.Called(ctx, dateFrom, dateTo)
-	return args.Get(0).(repository.RevenueStats), args.Error(1)
-}
-
-func (m *MockRepo) GetRevenueSummary(ctx context.Context, dateFrom, dateTo *time.Time) ([]repository.RevenueSummaryRow, error) {
-	args := m.Called(ctx, dateFrom, dateTo)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]repository.RevenueSummaryRow), args.Error(1)
+func (m *MockRepo) GetAdminTransactionByID(ctx context.Context, id uuid.UUID) (domain.AdminTransactionItem, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(domain.AdminTransactionItem), args.Error(1)
 }
 
 func (m *MockRepo) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
 	args := m.Called(ctx, filter)
 	return args.Get(0).(domain.BillingSummary), args.Error(1)
-}
-
-func (m *MockRepo) GetBillingDailySeries(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.BillingDailyItem, error) {
-	args := m.Called(ctx, filter)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]domain.BillingDailyItem), args.Error(1)
-}
-
-func (m *MockRepo) ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.AdminTransactionItem, int64, error) {
-	args := m.Called(ctx, filter)
-	if args.Get(0) == nil {
-		return nil, args.Get(1).(int64), args.Error(2)
-	}
-	return args.Get(0).([]domain.AdminTransactionItem), args.Get(1).(int64), args.Error(2)
-}
-
-func (m *MockRepo) GetBillingTransactionByID(ctx context.Context, id uuid.UUID) (*domain.AdminTransactionItem, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.AdminTransactionItem), args.Error(1)
-}
-
-func (m *MockRepo) CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*domain.AdminTransactionItem, error) {
-	args := m.Called(ctx, id, adminID, reason)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.AdminTransactionItem), args.Error(1)
-}
-
-func (m *MockRepo) SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
-	args := m.Called(ctx, id, adminID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.AdminTransactionItem), args.Error(1)
-}
-
-func (m *MockRepo) CreateRefundTransaction(ctx context.Context, req domain.IssueRefundRequest, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
-	args := m.Called(ctx, req, adminID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.AdminTransactionItem), args.Error(1)
 }
 
 // ---------------------------------------------------------------------------
@@ -1323,4 +1258,203 @@ func TestSyncDepositStatus_ForbiddenUser(t *testing.T) {
 	_, err := svc.SyncDepositStatus(context.Background(), otherUserID, orderCode)
 	assert.Error(t, err)
 	assert.True(t, apperror.IsCode(err, apperror.CodeForbidden))
+}
+
+// ---------------------------------------------------------------------------
+// Admin Billing & Revenue Read-Only Service Tests (KAN-191, KAN-192, KAN-241)
+// ---------------------------------------------------------------------------
+
+func TestAdminGetBillingSummary_OnlyCountsSuccessPayOSDeposits(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	expectedFilter := domain.AdminTransactionFilter{
+		Page:      1,
+		PageSize:  20,
+		SortBy:    "id",
+		SortOrder: "desc",
+		DateFrom:  "2026-10-01",
+		DateTo:    "2026-10-26",
+	}
+
+	// Sample ledger scenario:
+	// - 2 successful PayOS deposits (50,000 VND + 100,000 VND = 150,000 VND, 300 coins sold)
+	// - 1 pending PayOS deposit (200,000 VND — NOT counted in revenue)
+	// - 1 failed PayOS deposit (50,000 VND — NOT counted in revenue)
+	// - 1 cancelled PayOS deposit (50,000 VND — NOT counted in revenue)
+	// - 2 internal coin spends (40 coins — NOT subtracted from VND revenue)
+	// - 1 internal slot refund (10 coins — NOT subtracted from VND revenue)
+	expectedSummary := domain.BillingSummary{
+		TotalRevenue:       150000,
+		NetRevenue:         150000,
+		SuccessfulDeposits: 2,
+		SuccessCount:       5, // 2 topups + 2 spends + 1 refund
+		PendingCount:       1,
+		FailedCount:        1,
+		CancelledCount:     1,
+		TotalTransactions:  8,
+		AverageDeposit:     75000,
+		UniquePayers:       2,
+		CoinsSold:          300,
+		CoinsSpent:         40,
+		CoinsRefunded:      10,
+		CoinsNet:           270,
+		SuccessRate:        62.5,
+		PackageBreakdown: []domain.PackageRevenueItem{
+			{PackageName: "Pro Pack", RevenueVND: 100000, DepositCount: 1, CoinsSold: 200},
+			{PackageName: "Starter Pack", RevenueVND: 50000, DepositCount: 1, CoinsSold: 100},
+		},
+		FeatureBreakdown: []domain.FeatureCoinItem{
+			{FeatureName: "Practice interview charge", CoinsSpent: 40, SpendCount: 2},
+		},
+		SchemaLimitation: domain.FrozenSchemaTimestampNotice,
+	}
+
+	mockRepo.On("GetBillingSummary", mock.Anything, expectedFilter).Return(expectedSummary, nil)
+
+	res, err := svc.GetBillingSummary(context.Background(), domain.AdminTransactionFilter{
+		DateFrom: "2026-10-01",
+		DateTo:   "2026-10-26",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, int64(150000), res.TotalRevenue)
+	assert.Equal(t, int64(150000), res.NetRevenue)
+	assert.Equal(t, int64(2), res.SuccessfulDeposits)
+	assert.Equal(t, int64(1), res.PendingCount)
+	assert.Equal(t, int64(1), res.FailedCount)
+	assert.Equal(t, int64(1), res.CancelledCount)
+	assert.Equal(t, res.SuccessCount+res.PendingCount+res.FailedCount+res.CancelledCount, res.TotalTransactions)
+	assert.NotEmpty(t, res.SchemaLimitation)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAdminListBillingTransactions_FiltersAndPagination(t *testing.T) {
+	mockRepo := new(MockRepo)
+	mockPayOS := new(MockPayOS)
+	svc := service.NewService(mockRepo, mockPayOS)
+
+	minAmt := int64(50000)
+	maxAmt := int64(200000)
+	orderCode := int64(100201)
+	txID := uuid.New()
+
+	expectedFilter := domain.AdminTransactionFilter{
+		Page:        2,
+		PageSize:    50,
+		Search:      "alice@example.com",
+		Status:      "success",
+		Type:        "topup",
+		PackageName: "Starter",
+		AmountMin:   &minAmt,
+		AmountMax:   &maxAmt,
+		SortBy:      "amount",
+		SortOrder:   "asc",
+	}
+
+	expectedPage := domain.AdminTransactionPage{
+		Items: []domain.AdminTransactionItem{
+			{
+				ID:               txID,
+				UserID:           uuid.New().String(),
+				UserName:         "Alice Nguyen",
+				UserEmail:        "alice@example.com",
+				Type:             "topup",
+				PackageOrFeature: "Starter Pack",
+				PaidVND:          50000,
+				CoinAmount:       100,
+				Amount:           100,
+				Currency:         "VND",
+				Description:      "Deposit: Starter Pack (50000 VND)",
+				Status:           domain.StatusSuccess,
+				PayOSOrderCode:   &orderCode,
+			},
+		},
+		Total:            51,
+		Page:             2,
+		PageSize:         50,
+		SchemaLimitation: domain.FrozenSchemaTimestampNotice,
+	}
+
+	mockRepo.On("ListAdminTransactions", mock.Anything, expectedFilter).Return(expectedPage, nil)
+
+	res, err := svc.ListBillingTransactions(context.Background(), domain.AdminTransactionFilter{
+		Page:        2,
+		PageSize:    50,
+		Search:      "  alice@example.com  ",
+		Status:      "SUCCESS",
+		Type:        "TOPUP",
+		PackageName: " Starter ",
+		AmountMin:   &minAmt,
+		AmountMax:   &maxAmt,
+		SortBy:      "amount",
+		SortOrder:   "ASC",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, int64(51), res.Total)
+	assert.Len(t, res.Items, 1)
+	assert.Equal(t, int64(50000), res.Items[0].PaidVND)
+	assert.Equal(t, int64(100), res.Items[0].CoinAmount)
+	mockRepo.AssertExpectations(t)
+}
+
+func TestValidateAdminFilter_RejectsInvalidInputs(t *testing.T) {
+	neg := int64(-10)
+	high := int64(500)
+	low := int64(100)
+
+	cases := []struct {
+		name   string
+		filter domain.AdminTransactionFilter
+	}{
+		{
+			name:   "invalid status",
+			filter: domain.AdminTransactionFilter{Status: "refunded"},
+		},
+		{
+			name:   "invalid type",
+			filter: domain.AdminTransactionFilter{Type: "wire_transfer"},
+		},
+		{
+			name:   "invalid sort_by",
+			filter: domain.AdminTransactionFilter{SortBy: "user_email"},
+		},
+		{
+			name:   "invalid sort_order",
+			filter: domain.AdminTransactionFilter{SortOrder: "random"},
+		},
+		{
+			name:   "negative amount_min",
+			filter: domain.AdminTransactionFilter{AmountMin: &neg},
+		},
+		{
+			name:   "amount_min greater than amount_max",
+			filter: domain.AdminTransactionFilter{AmountMin: &high, AmountMax: &low},
+		},
+		{
+			name:   "malformed date_from",
+			filter: domain.AdminTransactionFilter{DateFrom: "26/10/2026"},
+		},
+		{
+			name:   "malformed date_to",
+			filter: domain.AdminTransactionFilter{DateTo: "not-a-date"},
+		},
+		{
+			name:   "date_from after date_to",
+			filter: domain.AdminTransactionFilter{DateFrom: "2026-10-20", DateTo: "2026-10-10"},
+		},
+		{
+			name:   "page_size exceeds max",
+			filter: domain.AdminTransactionFilter{PageSize: 101},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := tc.filter
+			err := service.ValidateAdminFilter(&f, 100)
+			assert.Error(t, err)
+			assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
+		})
+	}
 }

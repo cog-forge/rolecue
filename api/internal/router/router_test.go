@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
@@ -131,24 +130,9 @@ func (s *routerWallet) HandlePayOSWebhook(context.Context, []byte) error {
 	return nil
 }
 
-func (s *routerWallet) AdminListTransactions(context.Context, walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error) {
-	s.calls++
-	return walletdomain.AdminTransactionPage{}, nil
-}
-
-func (s *routerWallet) GetRevenueReport(context.Context, *time.Time, *time.Time) (walletdomain.RevenueReport, error) {
-	s.calls++
-	return walletdomain.RevenueReport{}, nil
-}
-
 func (s *routerWallet) GetBillingSummary(context.Context, walletdomain.AdminTransactionFilter) (walletdomain.BillingSummary, error) {
 	s.calls++
 	return walletdomain.BillingSummary{}, nil
-}
-
-func (s *routerWallet) GetBillingDailySeries(context.Context, walletdomain.AdminTransactionFilter) ([]walletdomain.BillingDailyItem, error) {
-	s.calls++
-	return []walletdomain.BillingDailyItem{}, nil
 }
 
 func (s *routerWallet) ListBillingTransactions(context.Context, walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error) {
@@ -156,24 +140,9 @@ func (s *routerWallet) ListBillingTransactions(context.Context, walletdomain.Adm
 	return walletdomain.AdminTransactionPage{}, nil
 }
 
-func (s *routerWallet) GetBillingTransaction(context.Context, uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
+func (s *routerWallet) GetBillingTransaction(context.Context, uuid.UUID) (walletdomain.AdminTransactionItem, error) {
 	s.calls++
-	return &walletdomain.AdminTransactionItem{}, nil
-}
-
-func (s *routerWallet) SyncPayOSTransaction(context.Context, uuid.UUID, uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
-	s.calls++
-	return &walletdomain.AdminTransactionItem{}, nil
-}
-
-func (s *routerWallet) CancelTransaction(context.Context, uuid.UUID, uuid.UUID, string) (*walletdomain.AdminTransactionItem, error) {
-	s.calls++
-	return &walletdomain.AdminTransactionItem{}, nil
-}
-
-func (s *routerWallet) IssueRefund(context.Context, walletdomain.IssueRefundRequest, uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
-	s.calls++
-	return &walletdomain.AdminTransactionItem{}, nil
+	return walletdomain.AdminTransactionItem{}, nil
 }
 
 func TestWalletRoutesRequireOnboarding(t *testing.T) {
@@ -249,5 +218,85 @@ func TestPayOSWebhookDoesNotRequireSession(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/wallet/webhook/payos", strings.NewReader(`{}`)))
 	if w.Code != http.StatusOK || wallet.calls != 1 {
 		t.Fatalf("status=%d calls=%d body=%s, want webhook handler to run without a session", w.Code, wallet.calls, w.Body.String())
+	}
+}
+
+func TestAdminBillingRoutesRequireAdminRoleAndDisallowMutations(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const origin = "http://localhost:3000"
+	txID := uuid.New()
+	readRoutes := []string{
+		"/admin/billing/summary",
+		"/admin/billing/transactions",
+		"/admin/billing/transactions/" + txID.String(),
+		"/admin/billing/export",
+	}
+
+	for _, tc := range []struct {
+		name      string
+		role      string
+		authErr   error
+		wantCode  int
+		wantCalls int
+	}{
+		{"unauthenticated", "", authdomain.ErrInvalidSession, http.StatusUnauthorized, 0},
+		{"candidate_forbidden", "candidate", nil, http.StatusForbidden, 0},
+		{"recruiter_forbidden", "recruiter", nil, http.StatusForbidden, 0},
+		{"admin_allowed", "admin", nil, http.StatusOK, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			auth := routerAuth{
+				user: authdomain.User{
+					ID:                     uuid.New(),
+					Role:                   tc.role,
+					EmailVerified:          true,
+					OnboardingRoleSelected: true,
+					OnboardingCompleted:    true,
+				},
+				err: tc.authErr,
+			}
+			wallet := &routerWallet{}
+			cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
+			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
+				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
+				handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
+				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}).Setup()
+
+			for _, path := range readRoutes {
+				wallet.calls = 0
+				req := httptest.NewRequest(http.MethodGet, path, nil)
+				req.Header.Set("Origin", origin)
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, req)
+				if w.Code != tc.wantCode || wallet.calls != tc.wantCalls {
+					t.Fatalf("GET %s (%s): status=%d calls=%d, want %d and %d calls", path, tc.name, w.Code, wallet.calls, tc.wantCode, tc.wantCalls)
+				}
+			}
+		})
+	}
+
+	// Verify read-only compliance (KAN-191): mutation routes must NOT exist.
+	auth := routerAuth{
+		user: authdomain.User{ID: uuid.New(), Role: "admin", EmailVerified: true},
+	}
+	wallet := &routerWallet{}
+	r := NewRouter(&config.Config{}, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
+		handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
+		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
+		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}).Setup()
+
+	removedMutationRoutes := []string{
+		"/admin/billing/transactions/" + txID.String() + "/sync",
+		"/admin/billing/transactions/" + txID.String() + "/cancel",
+		"/admin/billing/transactions/" + txID.String() + "/refund",
+		"/admin/billing/refund",
+	}
+	for _, path := range removedMutationRoutes {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("POST %s returned %d, want 404 Not Found (read-only admin billing)", path, w.Code)
+		}
 	}
 }

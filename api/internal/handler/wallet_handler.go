@@ -3,12 +3,14 @@ package handler
 import (
 	"context"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
-	"time"
+	"strings"
 
 	walletdomain "github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
+	walletservice "github.com/cog-forge/rolecue/api/internal/features/wallet/service"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/cog-forge/rolecue/api/pkg/response"
@@ -23,15 +25,9 @@ type WalletService interface {
 	CreateDepositCheckout(ctx context.Context, userID uuid.UUID, packageID uuid.UUID, returnURL, cancelURL string) (walletdomain.DepositCheckoutResponse, error)
 	SyncDepositStatus(ctx context.Context, userID uuid.UUID, orderCode int64) (walletdomain.Transaction, error)
 	HandlePayOSWebhook(ctx context.Context, body []byte) error
-	AdminListTransactions(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error)
-	GetRevenueReport(ctx context.Context, dateFrom, dateTo *time.Time) (walletdomain.RevenueReport, error)
 	GetBillingSummary(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.BillingSummary, error)
-	GetBillingDailySeries(ctx context.Context, filter walletdomain.AdminTransactionFilter) ([]walletdomain.BillingDailyItem, error)
 	ListBillingTransactions(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error)
-	GetBillingTransaction(ctx context.Context, id uuid.UUID) (*walletdomain.AdminTransactionItem, error)
-	SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*walletdomain.AdminTransactionItem, error)
-	CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*walletdomain.AdminTransactionItem, error)
-	IssueRefund(ctx context.Context, req walletdomain.IssueRefundRequest, adminID uuid.UUID) (*walletdomain.AdminTransactionItem, error)
+	GetBillingTransaction(ctx context.Context, id uuid.UUID) (walletdomain.AdminTransactionItem, error)
 }
 
 type WalletHandler struct {
@@ -187,69 +183,190 @@ func (h *WalletHandler) HandlePayOSWebhook(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": "00", "message": "success"})
 }
 
-// AdminListTransactions handles GET /admin/transactions
-func (h *WalletHandler) AdminListTransactions(c *gin.Context) {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	search := c.Query("search")
-	status := c.Query("status")
-	txType := c.Query("type")
-
-	var dateFrom, dateTo *time.Time
-	if df := c.Query("date_from"); df != "" {
-		t, err := time.Parse(time.RFC3339, df)
-		if err == nil {
-			dateFrom = &t
-		}
+func requireAdminUser(c *gin.Context) bool {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
+		return false
 	}
-	if dt := c.Query("date_to"); dt != "" {
-		t, err := time.Parse(time.RFC3339, dt)
-		if err == nil {
-			dateTo = &t
-		}
+	if user.Role != "admin" {
+		response.Error(c, apperror.New(apperror.CodeForbidden, "admin access required"))
+		return false
+	}
+	return true
+}
+
+func singleQueryParam(c *gin.Context, name string) (string, bool, bool) {
+	vals, exists := c.GetQueryArray(name)
+	if !exists {
+		return "", false, true
+	}
+	if len(vals) != 1 {
+		return "", true, false
+	}
+	return vals[0], true, true
+}
+
+func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTransactionFilter, bool) {
+	fail := func(msg string) (walletdomain.AdminTransactionFilter, bool) {
+		response.Error(c, apperror.New(apperror.CodeValidation, msg))
+		return walletdomain.AdminTransactionFilter{}, false
 	}
 
 	filter := walletdomain.AdminTransactionFilter{
-		Search:   search,
-		Status:   status,
-		TxType:   txType,
-		DateFrom: dateFrom,
-		DateTo:   dateTo,
-		Page:     int32(page),
-		PageSize: int32(pageSize),
+		Page:      1,
+		PageSize:  20,
+		SortBy:    "id",
+		SortOrder: "desc",
 	}
 
-	result, err := h.service.AdminListTransactions(c.Request.Context(), filter)
+	if rawPage, present, once := singleQueryParam(c, "page"); present {
+		if !once {
+			return fail("duplicate page parameter")
+		}
+		v, err := strconv.Atoi(strings.TrimSpace(rawPage))
+		if err != nil || v < 1 {
+			return fail("invalid page parameter: must be a positive integer")
+		}
+		filter.Page = v
+	}
+
+	if rawPageSize, present, once := singleQueryParam(c, "page_size"); present {
+		if !once {
+			return fail("duplicate page_size parameter")
+		}
+		v, err := strconv.Atoi(strings.TrimSpace(rawPageSize))
+		if err != nil || v < 1 || v > maxPageSize {
+			return fail(fmt.Sprintf("invalid page_size parameter: must be between 1 and %d", maxPageSize))
+		}
+		filter.PageSize = v
+	}
+
+	if rawMin, present, once := singleQueryParam(c, "amount_min"); present && strings.TrimSpace(rawMin) != "" {
+		if !once {
+			return fail("duplicate amount_min parameter")
+		}
+		v, err := strconv.ParseInt(strings.TrimSpace(rawMin), 10, 64)
+		if err != nil || v < 0 {
+			return fail("invalid amount_min parameter: must be a non-negative integer")
+		}
+		filter.AmountMin = &v
+	}
+
+	if rawMax, present, once := singleQueryParam(c, "amount_max"); present && strings.TrimSpace(rawMax) != "" {
+		if !once {
+			return fail("duplicate amount_max parameter")
+		}
+		v, err := strconv.ParseInt(strings.TrimSpace(rawMax), 10, 64)
+		if err != nil || v < 0 {
+			return fail("invalid amount_max parameter: must be a non-negative integer")
+		}
+		filter.AmountMax = &v
+	}
+
+	for _, param := range []struct {
+		name   string
+		target *string
+	}{
+		{"search", &filter.Search},
+		{"status", &filter.Status},
+		{"type", &filter.Type},
+		{"package", &filter.PackageName},
+		{"date_from", &filter.DateFrom},
+		{"date_to", &filter.DateTo},
+		{"sort_by", &filter.SortBy},
+		{"sort_order", &filter.SortOrder},
+	} {
+		raw, present, once := singleQueryParam(c, param.name)
+		if !present {
+			continue
+		}
+		if !once {
+			return fail("duplicate " + param.name + " parameter")
+		}
+		*param.target = raw
+	}
+
+	if err := walletservice.ValidateAdminFilter(&filter, maxPageSize); err != nil {
+		response.Error(c, err)
+		return walletdomain.AdminTransactionFilter{}, false
+	}
+
+	return filter, true
+}
+
+// AdminGetBillingSummary godoc
+// @Summary Get shared admin billing & revenue summary
+// @Description Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree.
+// @Tags admin-billing
+// @Produce json
+// @Security SessionCookie
+// @Param search query string false "Search by transaction ID, user name/email/ID, order code, or description"
+// @Param status query string false "Filter by status (pending, success, failed, cancelled)"
+// @Param type query string false "Filter by transaction type (topup, spend, refund)"
+// @Param package query string false "Filter by package or feature name"
+// @Param amount_min query int false "Minimum amount filter"
+// @Param amount_max query int false "Maximum amount filter"
+// @Param date_from query string false "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
+// @Param date_to query string false "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
+// @Success 200 {object} response.Envelope{data=walletdomain.BillingSummary}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /admin/billing/summary [get]
+func (h *WalletHandler) AdminGetBillingSummary(c *gin.Context) {
+	if !requireAdminUser(c) {
+		return
+	}
+	filter, ok := parseBillingFilter(c, 100)
+	if !ok {
+		return
+	}
+
+	summary, err := h.service.GetBillingSummary(c.Request.Context(), filter)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
 
-	response.OK(c, gin.H{
-		"items":     result.Items,
-		"total":     result.Total,
-		"page":      result.Page,
-		"page_size": result.PageSize,
-	})
+	response.OK(c, summary)
 }
 
-// AdminGetRevenueReport handles GET /admin/revenue
-func (h *WalletHandler) AdminGetRevenueReport(c *gin.Context) {
-	var dateFrom, dateTo *time.Time
-	if df := c.Query("date_from"); df != "" {
-		t, err := time.Parse(time.RFC3339, df)
-		if err == nil {
-			dateFrom = &t
-		}
+// AdminListBillingTransactions godoc
+// @Summary List admin payment and coin ledger transactions
+// @Description Admin only. Read-only paginated list of transactions enriched with user and package details.
+// @Tags admin-billing
+// @Produce json
+// @Security SessionCookie
+// @Param page query int false "Page number" default(1) minimum(1)
+// @Param page_size query int false "Page size" default(20) minimum(1) maximum(100)
+// @Param search query string false "Search by transaction ID, user name/email/ID, order code, or description"
+// @Param status query string false "Filter by status (pending, success, failed, cancelled)"
+// @Param type query string false "Filter by transaction type (topup, spend, refund)"
+// @Param package query string false "Filter by package or feature name"
+// @Param amount_min query int false "Minimum amount filter"
+// @Param amount_max query int false "Maximum amount filter"
+// @Param date_from query string false "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
+// @Param date_to query string false "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
+// @Param sort_by query string false "Sort field (id, date, amount, coins, status)" default(id)
+// @Param sort_order query string false "Sort order (asc, desc)" default(desc)
+// @Success 200 {object} response.Envelope{data=walletdomain.AdminTransactionPage}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /admin/billing/transactions [get]
+func (h *WalletHandler) AdminListBillingTransactions(c *gin.Context) {
+	if !requireAdminUser(c) {
+		return
 	}
-	if dt := c.Query("date_to"); dt != "" {
-		t, err := time.Parse(time.RFC3339, dt)
-		if err == nil {
-			dateTo = &t
-		}
+	filter, ok := parseBillingFilter(c, 100)
+	if !ok {
+		return
 	}
 
-	result, err := h.service.GetRevenueReport(c.Request.Context(), dateFrom, dateTo)
+	result, err := h.service.ListBillingTransactions(c.Request.Context(), filter)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -258,222 +375,87 @@ func (h *WalletHandler) AdminGetRevenueReport(c *gin.Context) {
 	response.OK(c, result)
 }
 
-func parseBillingFilter(c *gin.Context) walletdomain.AdminTransactionFilter {
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	search := c.Query("search")
-	status := c.Query("status")
-	txType := c.Query("type")
-	pkg := c.Query("package")
-	sortBy := c.DefaultQuery("sort_by", "created_at")
-	sortOrder := c.DefaultQuery("sort_order", "desc")
-	includeTest := c.Query("include_test") == "true" || c.Query("is_test") == "true"
-
-	var amountMin, amountMax *int64
-	if amin := c.Query("amount_min"); amin != "" {
-		if v, err := strconv.ParseInt(amin, 10, 64); err == nil {
-			amountMin = &v
-		}
-	}
-	if amax := c.Query("amount_max"); amax != "" {
-		if v, err := strconv.ParseInt(amax, 10, 64); err == nil {
-			amountMax = &v
-		}
-	}
-
-	var dateFrom, dateTo *time.Time
-	if df := c.Query("date_from"); df != "" {
-		if t, err := time.Parse(time.RFC3339, df); err == nil {
-			dateFrom = &t
-		} else if t, err := time.Parse("2006-01-02", df); err == nil {
-			dateFrom = &t
-		}
-	}
-	if dt := c.Query("date_to"); dt != "" {
-		if t, err := time.Parse(time.RFC3339, dt); err == nil {
-			dateTo = &t
-		} else if t, err := time.Parse("2006-01-02", dt); err == nil {
-			tEnd := t.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
-			dateTo = &tEnd
-		}
-	}
-
-	return walletdomain.AdminTransactionFilter{
-		Search:      search,
-		Status:      status,
-		TxType:      txType,
-		Package:     pkg,
-		AmountMin:   amountMin,
-		AmountMax:   amountMax,
-		DateFrom:    dateFrom,
-		DateTo:      dateTo,
-		IncludeTest: includeTest,
-		SortBy:      sortBy,
-		SortOrder:   sortOrder,
-		Page:        int32(page),
-		PageSize:    int32(pageSize),
-	}
-}
-
-// AdminGetBillingSummary handles GET /admin/billing/summary
-func (h *WalletHandler) AdminGetBillingSummary(c *gin.Context) {
-	filter := parseBillingFilter(c)
-	summary, err := h.service.GetBillingSummary(c.Request.Context(), filter)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.OK(c, summary)
-}
-
-// AdminGetBillingDailySeries handles GET /admin/billing/daily
-func (h *WalletHandler) AdminGetBillingDailySeries(c *gin.Context) {
-	filter := parseBillingFilter(c)
-	daily, err := h.service.GetBillingDailySeries(c.Request.Context(), filter)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.OK(c, daily)
-}
-
-// AdminListBillingTransactions handles GET /admin/billing/transactions
-func (h *WalletHandler) AdminListBillingTransactions(c *gin.Context) {
-	filter := parseBillingFilter(c)
-	result, err := h.service.ListBillingTransactions(c.Request.Context(), filter)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.OK(c, gin.H{
-		"items":     result.Items,
-		"total":     result.Total,
-		"page":      result.Page,
-		"page_size": result.PageSize,
-	})
-}
-
-// AdminGetBillingTransaction handles GET /admin/billing/transactions/:id
+// AdminGetBillingTransaction godoc
+// @Summary Get a single transaction's detail for Admin inspection
+// @Description Admin only. Read-only transaction detail by UUID.
+// @Tags admin-billing
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "Transaction UUID"
+// @Success 200 {object} response.Envelope{data=walletdomain.AdminTransactionItem}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /admin/billing/transactions/{id} [get]
 func (h *WalletHandler) AdminGetBillingTransaction(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
+	if !requireAdminUser(c) {
+		return
+	}
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		response.Error(c, apperror.New(apperror.CodeValidation, "invalid transaction ID format"))
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid transaction id"))
 		return
 	}
 
-	tx, err := h.service.GetBillingTransaction(c.Request.Context(), id)
+	item, err := h.service.GetBillingTransaction(c.Request.Context(), id)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-	response.OK(c, tx)
+
+	response.OK(c, item)
 }
 
-// AdminSyncTransaction handles POST /admin/billing/transactions/:id/sync
-func (h *WalletHandler) AdminSyncTransaction(c *gin.Context) {
-	user, ok := middleware.CurrentUser(c)
+// sanitizeCSVCell prevents CSV formula injection (CWE-1236) in spreadsheet applications
+// by prefixing cells that begin with '=', '+', '-', '@', '\t', or '\r' with a single quote.
+func sanitizeCSVCell(val string) string {
+	if val == "" {
+		return ""
+	}
+	switch val[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + val
+	default:
+		return val
+	}
+}
+
+// AdminExportBillingCSV godoc
+// @Summary Export filtered admin transactions as CSV
+// @Description Admin only. Read-only CSV export respecting active filters (up to 5,000 rows) with CSV formula-injection protection.
+// @Tags admin-billing
+// @Produce text/csv
+// @Security SessionCookie
+// @Param search query string false "Search by transaction ID, user name/email/ID, order code, or description"
+// @Param status query string false "Filter by status (pending, success, failed, cancelled)"
+// @Param type query string false "Filter by transaction type (topup, spend, refund)"
+// @Param package query string false "Filter by package or feature name"
+// @Param amount_min query int false "Minimum amount filter"
+// @Param amount_max query int false "Maximum amount filter"
+// @Param date_from query string false "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
+// @Param date_to query string false "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
+// @Param sort_by query string false "Sort field (id, date, amount, coins, status)" default(id)
+// @Param sort_order query string false "Sort order (asc, desc)" default(desc)
+// @Success 200 {file} file "CSV file"
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /admin/billing/export [get]
+func (h *WalletHandler) AdminExportBillingCSV(c *gin.Context) {
+	if !requireAdminUser(c) {
+		return
+	}
+	filter, ok := parseBillingFilter(c, 5000)
 	if !ok {
-		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
 		return
 	}
-
-	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		response.Error(c, apperror.New(apperror.CodeValidation, "invalid transaction ID format"))
-		return
-	}
-
-	tx, err := h.service.SyncPayOSTransaction(c.Request.Context(), id, user.ID)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.OK(c, tx)
-}
-
-type cancelTransactionBody struct {
-	Reason string `json:"reason"`
-}
-
-// AdminCancelTransaction handles POST /admin/billing/transactions/:id/cancel
-func (h *WalletHandler) AdminCancelTransaction(c *gin.Context) {
-	user, ok := middleware.CurrentUser(c)
-	if !ok {
-		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
-		return
-	}
-
-	idStr := c.Param("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		response.Error(c, apperror.New(apperror.CodeValidation, "invalid transaction ID format"))
-		return
-	}
-
-	var body cancelTransactionBody
-	_ = c.ShouldBindJSON(&body)
-
-	tx, err := h.service.CancelTransaction(c.Request.Context(), id, user.ID, body.Reason)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.OK(c, tx)
-}
-
-type issueRefundBody struct {
-	TransactionID *uuid.UUID `json:"transaction_id"`
-	UserID        uuid.UUID  `json:"user_id" binding:"required"`
-	Amount        int32      `json:"amount" binding:"required"`
-	Currency      string     `json:"currency"`
-	Reason        string     `json:"reason" binding:"required"`
-	ClawbackCoins bool       `json:"clawback_coins"`
-}
-
-// AdminIssueRefund handles POST /admin/billing/transactions/:id/refund or /admin/billing/refund
-func (h *WalletHandler) AdminIssueRefund(c *gin.Context) {
-	user, ok := middleware.CurrentUser(c)
-	if !ok {
-		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
-		return
-	}
-
-	var body issueRefundBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		response.Error(c, apperror.New(apperror.CodeValidation, "invalid refund request body"))
-		return
-	}
-
-	if paramID := c.Param("id"); paramID != "" {
-		if id, err := uuid.Parse(paramID); err == nil {
-			body.TransactionID = &id
-		}
-	}
-
-	req := walletdomain.IssueRefundRequest{
-		TransactionID: body.TransactionID,
-		UserID:        body.UserID,
-		Amount:        body.Amount,
-		Currency:      body.Currency,
-		Reason:        body.Reason,
-		ClawbackCoins: body.ClawbackCoins,
-	}
-
-	tx, err := h.service.IssueRefund(c.Request.Context(), req, user.ID)
-	if err != nil {
-		response.Error(c, err)
-		return
-	}
-	response.OK(c, tx)
-}
-
-// AdminExportTransactionsCSV handles GET /admin/billing/export
-func (h *WalletHandler) AdminExportTransactionsCSV(c *gin.Context) {
-	filter := parseBillingFilter(c)
 	filter.Page = 1
-	filter.PageSize = 5000 // export up to 5000 rows
+	if _, hasCustomPageSize := c.GetQuery("page_size"); !hasCustomPageSize {
+		filter.PageSize = 5000
+	}
 
 	result, err := h.service.ListBillingTransactions(c.Request.Context(), filter)
 	if err != nil {
@@ -481,73 +463,46 @@ func (h *WalletHandler) AdminExportTransactionsCSV(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Disposition", "attachment; filename=billing-transactions.csv")
 	c.Header("Content-Type", "text/csv; charset=utf-8")
-
-	// UTF-8 BOM so Excel opens it with proper encoding for Vietnamese diacritics
-	_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+	c.Header("Content-Disposition", "attachment; filename=rolecue-transactions.csv")
 
 	writer := csv.NewWriter(c.Writer)
-	defer writer.Flush()
-
-	// Write CSV Header
 	_ = writer.Write([]string{
 		"Transaction ID",
 		"Order Code",
+		"User ID",
 		"User Name",
 		"User Email",
 		"Type",
-		"Package or Feature",
+		"Package / Feature",
 		"Paid (VND)",
 		"Coins",
 		"Status",
-		"Failure Reason",
-		"Date (UTC+7)",
+		"From",
+		"To",
+		"Description",
 	})
 
-	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
-	if loc == nil {
-		loc = time.FixedZone("UTC+7", 7*3600)
-	}
-
-	for _, it := range result.Items {
+	for _, item := range result.Items {
 		orderCode := ""
-		if it.PayOSOrderCode != nil {
-			orderCode = strconv.FormatInt(*it.PayOSOrderCode, 10)
+		if item.PayOSOrderCode != nil {
+			orderCode = strconv.FormatInt(*item.PayOSOrderCode, 10)
 		}
-		userName := ""
-		userEmail := ""
-		if it.User != nil {
-			userName = it.User.Name
-			userEmail = it.User.Email
-		}
-		paidVND := ""
-		if it.PaidVND != nil {
-			paidVND = strconv.FormatInt(*it.PaidVND, 10)
-		}
-		coins := ""
-		if it.Coins != nil {
-			coins = strconv.FormatInt(int64(*it.Coins), 10)
-		}
-		failReason := ""
-		if it.FailureReason != nil {
-			failReason = *it.FailureReason
-		}
-
-		createdAt := it.CreatedAt.In(loc).Format("02/01/2006 15:04:05")
-
 		_ = writer.Write([]string{
-			it.ID.String(),
-			orderCode,
-			userName,
-			userEmail,
-			it.Type,
-			it.PackageOrFeature,
-			paidVND,
-			coins,
-			string(it.Status),
-			failReason,
-			createdAt,
+			sanitizeCSVCell(item.ID.String()),
+			sanitizeCSVCell(orderCode),
+			sanitizeCSVCell(item.UserID),
+			sanitizeCSVCell(item.UserName),
+			sanitizeCSVCell(item.UserEmail),
+			sanitizeCSVCell(item.Type),
+			sanitizeCSVCell(item.PackageOrFeature),
+			strconv.FormatInt(item.PaidVND, 10),
+			strconv.FormatInt(item.CoinAmount, 10),
+			sanitizeCSVCell(string(item.Status)),
+			sanitizeCSVCell(item.From),
+			sanitizeCSVCell(item.To),
+			sanitizeCSVCell(item.Description),
 		})
 	}
+	writer.Flush()
 }

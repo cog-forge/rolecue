@@ -7,8 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
-	"time"
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	walletdomain "github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
@@ -59,24 +59,9 @@ func (m *MockWalletService) HandlePayOSWebhook(ctx context.Context, body []byte)
 	return args.Error(0)
 }
 
-func (m *MockWalletService) AdminListTransactions(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error) {
-	args := m.Called(ctx, filter)
-	return args.Get(0).(walletdomain.AdminTransactionPage), args.Error(1)
-}
-
-func (m *MockWalletService) GetRevenueReport(ctx context.Context, dateFrom, dateTo *time.Time) (walletdomain.RevenueReport, error) {
-	args := m.Called(ctx, dateFrom, dateTo)
-	return args.Get(0).(walletdomain.RevenueReport), args.Error(1)
-}
-
 func (m *MockWalletService) GetBillingSummary(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.BillingSummary, error) {
 	args := m.Called(ctx, filter)
 	return args.Get(0).(walletdomain.BillingSummary), args.Error(1)
-}
-
-func (m *MockWalletService) GetBillingDailySeries(ctx context.Context, filter walletdomain.AdminTransactionFilter) ([]walletdomain.BillingDailyItem, error) {
-	args := m.Called(ctx, filter)
-	return args.Get(0).([]walletdomain.BillingDailyItem), args.Error(1)
 }
 
 func (m *MockWalletService) ListBillingTransactions(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error) {
@@ -84,36 +69,9 @@ func (m *MockWalletService) ListBillingTransactions(ctx context.Context, filter 
 	return args.Get(0).(walletdomain.AdminTransactionPage), args.Error(1)
 }
 
-func (m *MockWalletService) GetBillingTransaction(ctx context.Context, id uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
+func (m *MockWalletService) GetBillingTransaction(ctx context.Context, id uuid.UUID) (walletdomain.AdminTransactionItem, error) {
 	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*walletdomain.AdminTransactionItem), args.Error(1)
-}
-
-func (m *MockWalletService) SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
-	args := m.Called(ctx, id, adminID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*walletdomain.AdminTransactionItem), args.Error(1)
-}
-
-func (m *MockWalletService) CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*walletdomain.AdminTransactionItem, error) {
-	args := m.Called(ctx, id, adminID, reason)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*walletdomain.AdminTransactionItem), args.Error(1)
-}
-
-func (m *MockWalletService) IssueRefund(ctx context.Context, req walletdomain.IssueRefundRequest, adminID uuid.UUID) (*walletdomain.AdminTransactionItem, error) {
-	args := m.Called(ctx, req, adminID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*walletdomain.AdminTransactionItem), args.Error(1)
+	return args.Get(0).(walletdomain.AdminTransactionItem), args.Error(1)
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +110,18 @@ func newRouter(h *handler.WalletHandler) *gin.Engine {
 	})
 	r.POST("/wallet/webhook/payos", func(c *gin.Context) {
 		h.HandlePayOSWebhook(c)
+	})
+	r.GET("/admin/billing/summary", func(c *gin.Context) {
+		h.AdminGetBillingSummary(c)
+	})
+	r.GET("/admin/billing/transactions", func(c *gin.Context) {
+		h.AdminListBillingTransactions(c)
+	})
+	r.GET("/admin/billing/transactions/:id", func(c *gin.Context) {
+		h.AdminGetBillingTransaction(c)
+	})
+	r.GET("/admin/billing/export", func(c *gin.Context) {
+		h.AdminExportBillingCSV(c)
 	})
 	return r
 }
@@ -539,4 +509,189 @@ func TestSyncDepositStatus_InvalidJSON(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	svc.AssertNotCalled(t, "SyncDepositStatus")
+}
+
+// ---------------------------------------------------------------------------
+// Admin Billing & Revenue Read-Only Endpoints (KAN-191, KAN-192, KAN-241)
+// ---------------------------------------------------------------------------
+
+func TestAdminBillingEndpoints_RoleAuthorization(t *testing.T) {
+	txID := uuid.New()
+	endpoints := []string{
+		"/admin/billing/summary",
+		"/admin/billing/transactions",
+		"/admin/billing/transactions/" + txID.String(),
+		"/admin/billing/export",
+	}
+
+	for _, ep := range endpoints {
+		t.Run("Unauthenticated_"+ep, func(t *testing.T) {
+			svc := new(MockWalletService)
+			h := handler.NewWalletHandler(svc)
+			r := newRouter(h)
+
+			w := performRequest(r, http.MethodGet, ep, nil, nil)
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+		})
+
+		t.Run("CandidateForbidden_"+ep, func(t *testing.T) {
+			svc := new(MockWalletService)
+			h := handler.NewWalletHandler(svc)
+			r := newRouter(h)
+
+			w := performRequest(r, http.MethodGet, ep, nil, candidateUser())
+			assert.Equal(t, http.StatusForbidden, w.Code)
+		})
+
+		t.Run("RecruiterForbidden_"+ep, func(t *testing.T) {
+			svc := new(MockWalletService)
+			h := handler.NewWalletHandler(svc)
+			r := newRouter(h)
+
+			w := performRequest(r, http.MethodGet, ep, nil, recruiterUser())
+			assert.Equal(t, http.StatusForbidden, w.Code)
+		})
+	}
+}
+
+func TestAdminBillingEndpoints_StrictValidationReturns400(t *testing.T) {
+	svc := new(MockWalletService)
+	h := handler.NewWalletHandler(svc)
+	r := newRouter(h)
+	admin := adminUser()
+
+	badQueries := []string{
+		"/admin/billing/summary?date_from=2026-13-01",
+		"/admin/billing/summary?date_to=invalid",
+		"/admin/billing/summary?date_from=2026-10-20&date_to=2026-10-10",
+		"/admin/billing/summary?status=unknown_status",
+		"/admin/billing/summary?type=unknown_type",
+		"/admin/billing/transactions?page=0",
+		"/admin/billing/transactions?page=-2",
+		"/admin/billing/transactions?page_size=0",
+		"/admin/billing/transactions?page_size=101",
+		"/admin/billing/transactions?amount_min=-5",
+		"/admin/billing/transactions?amount_min=100000&amount_max=50000",
+		"/admin/billing/transactions?sort_by=drop_table",
+		"/admin/billing/transactions?sort_order=sideways",
+		"/admin/billing/transactions/not-a-uuid",
+	}
+
+	for _, q := range badQueries {
+		t.Run(q, func(t *testing.T) {
+			w := performRequest(r, http.MethodGet, q, nil, admin)
+			assert.Equal(t, http.StatusBadRequest, w.Code, "expected 400 for query %s", q)
+		})
+	}
+
+	svc.AssertNotCalled(t, "GetBillingSummary")
+	svc.AssertNotCalled(t, "ListBillingTransactions")
+	svc.AssertNotCalled(t, "GetBillingTransaction")
+}
+
+func TestAdminGetBillingSummary_Success(t *testing.T) {
+	svc := new(MockWalletService)
+	h := handler.NewWalletHandler(svc)
+	r := newRouter(h)
+	admin := adminUser()
+
+	expectedFilter := walletdomain.AdminTransactionFilter{
+		Page:      1,
+		PageSize:  20,
+		Status:    "success",
+		Type:      "topup",
+		DateFrom:  "2026-10-01",
+		DateTo:    "2026-10-26",
+		SortBy:    "id",
+		SortOrder: "desc",
+	}
+	summary := walletdomain.BillingSummary{
+		TotalRevenue:       250000,
+		NetRevenue:         250000,
+		SuccessfulDeposits: 3,
+		SuccessCount:       3,
+		TotalTransactions:  3,
+		AverageDeposit:     83333,
+		UniquePayers:       2,
+		CoinsSold:          500,
+		SchemaLimitation:   walletdomain.FrozenSchemaTimestampNotice,
+	}
+	svc.On("GetBillingSummary", mock.Anything, expectedFilter).Return(summary, nil)
+
+	w := performRequest(
+		r,
+		http.MethodGet,
+		"/admin/billing/summary?status=success&type=topup&date_from=2026-10-01&date_to=2026-10-26",
+		nil,
+		admin,
+	)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"total_revenue":250000`)
+	assert.Contains(t, w.Body.String(), `"successful_deposits":3`)
+	svc.AssertExpectations(t)
+}
+
+func TestAdminExportBillingCSV_SanitizesFormulaInjectionAndAllowsOver20Rows(t *testing.T) {
+	svc := new(MockWalletService)
+	h := handler.NewWalletHandler(svc)
+	r := newRouter(h)
+	admin := adminUser()
+
+	// Build 25 rows (> 20) including malicious formula prefixes (=, +, -, @) in user name / description
+	items := make([]walletdomain.AdminTransactionItem, 0, 25)
+	for i := 0; i < 25; i++ {
+		orderCode := int64(100000 + i)
+		name := "Normal User"
+		desc := "Deposit: Starter (50000 VND)"
+		if i == 0 {
+			name = "=CMD|' /C calc'!A0"
+			desc = "@SUM(1+1)"
+		} else if i == 1 {
+			name = "+123456"
+			desc = "-9999"
+		}
+		items = append(items, walletdomain.AdminTransactionItem{
+			ID:               uuid.New(),
+			UserID:           uuid.New().String(),
+			UserName:         name,
+			UserEmail:        "user@example.com",
+			Type:             "topup",
+			PackageOrFeature: "Starter",
+			PaidVND:          50000,
+			CoinAmount:       100,
+			Amount:           100,
+			Currency:         "VND",
+			Description:      desc,
+			Status:           walletdomain.StatusSuccess,
+			PayOSOrderCode:   &orderCode,
+		})
+	}
+
+	expectedFilter := walletdomain.AdminTransactionFilter{
+		Page:      1,
+		PageSize:  5000,
+		SortBy:    "id",
+		SortOrder: "desc",
+	}
+	svc.On("ListBillingTransactions", mock.Anything, expectedFilter).Return(walletdomain.AdminTransactionPage{
+		Items:    items,
+		Total:    25,
+		Page:     1,
+		PageSize: 5000,
+	}, nil)
+
+	w := performRequest(r, http.MethodGet, "/admin/billing/export", nil, admin)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Header().Get("Content-Type"), "text/csv")
+	csvBody := w.Body.String()
+	lines := strings.Split(strings.TrimSpace(csvBody), "\n")
+	// 1 header row + 25 data rows = 26 lines
+	assert.Len(t, lines, 26)
+	assert.Contains(t, csvBody, "'=CMD|' /C calc'!A0")
+	assert.Contains(t, csvBody, "'@SUM(1+1)")
+	assert.Contains(t, csvBody, "'+123456")
+	assert.Contains(t, csvBody, "'-9999")
+	svc.AssertExpectations(t)
 }

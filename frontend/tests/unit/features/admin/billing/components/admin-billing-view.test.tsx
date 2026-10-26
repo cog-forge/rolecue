@@ -32,7 +32,48 @@ describe("AdminBillingView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.get.mockImplementation((url: string) => {
-      if (url === "/admin/transactions") {
+      if (url === "/admin/billing/summary") {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              total_revenue: 50000,
+              net_revenue: 50000,
+              successful_deposits: 1,
+              success_count: 2,
+              pending_count: 1,
+              failed_count: 0,
+              cancelled_count: 0,
+              total_transactions: 3,
+              average_deposit: 50000,
+              unique_payers: 1,
+              coins_sold: 100,
+              coins_spent: 20,
+              coins_refunded: 0,
+              coins_net: 80,
+              success_rate: 66.7,
+              package_breakdown: [
+                {
+                  package_name: "Starter Pack",
+                  revenue_vnd: 50000,
+                  deposit_count: 1,
+                  coins_sold: 100,
+                },
+              ],
+              feature_breakdown: [
+                {
+                  feature_name: "Practice interview charge",
+                  coins_spent: 20,
+                  spend_count: 1,
+                },
+              ],
+              schema_limitation:
+                "public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp.",
+            },
+          },
+        });
+      }
+      if (url === "/admin/billing/transactions") {
         return Promise.resolve({
           data: {
             success: true,
@@ -40,56 +81,71 @@ describe("AdminBillingView", () => {
               items: [
                 {
                   id: "00000000-0000-0000-0000-000000000001",
-                  from: null,
+                  from: "",
                   to: "candidate-user-1",
+                  user_id: "candidate-user-1",
+                  user_name: "Alice Nguyen",
+                  user_email: "alice@example.com",
+                  type: "topup",
+                  package_or_feature: "Starter Pack",
+                  paid_vnd: 50000,
+                  coin_amount: 100,
                   amount: 100,
-                  currency: "COIN",
-                  description: "Deposit: Starter (10000 VND)",
+                  currency: "VND",
+                  description: "Deposit: Starter Pack (50000 VND)",
                   status: "success",
                   payos_order_code: 123456789,
-                  created_at: "2026-10-21T10:00:00Z",
-                  updated_at: "2026-10-21T10:05:00Z",
                 },
                 {
                   id: "00000000-0000-0000-0000-000000000002",
                   from: "candidate-user-1",
-                  to: null,
+                  to: "",
+                  user_id: "candidate-user-1",
+                  user_name: "Alice Nguyen",
+                  user_email: "alice@example.com",
+                  type: "spend",
+                  package_or_feature: "Practice interview charge",
+                  paid_vnd: 0,
+                  coin_amount: -20,
                   amount: 20,
-                  currency: "COIN",
+                  currency: "VND",
                   description: "Practice interview charge",
                   status: "success",
                   payos_order_code: null,
-                  created_at: "2026-10-21T11:00:00Z",
-                  updated_at: "2026-10-21T11:00:00Z",
                 },
               ],
               total: 2,
               page: 1,
               page_size: 20,
+              schema_limitation:
+                "public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp.",
             },
           },
         });
       }
-      if (url === "/admin/revenue") {
+      if (
+        url ===
+        "/admin/billing/transactions/00000000-0000-0000-0000-000000000001"
+      ) {
         return Promise.resolve({
           data: {
             success: true,
             data: {
-              stats: {
-                total_revenue: 100,
-                successful_count: 2,
-                pending_count: 0,
-                failed_count: 0,
-                cancelled_count: 0,
-                total_count: 2,
-              },
-              summary: [
-                {
-                  period: "2026-10-21T00:00:00Z",
-                  revenue: 100,
-                  successful_deposits: 1,
-                },
-              ],
+              id: "00000000-0000-0000-0000-000000000001",
+              from: "",
+              to: "candidate-user-1",
+              user_id: "candidate-user-1",
+              user_name: "Alice Nguyen",
+              user_email: "alice@example.com",
+              type: "topup",
+              package_or_feature: "Starter Pack",
+              paid_vnd: 50000,
+              coin_amount: 100,
+              amount: 100,
+              currency: "VND",
+              description: "Deposit: Starter Pack (50000 VND)",
+              status: "success",
+              payos_order_code: 123456789,
             },
           },
         });
@@ -98,77 +154,88 @@ describe("AdminBillingView", () => {
     });
   });
 
-  it("renders transactions and metrics correctly", async () => {
+  it("renders transactions, separate VND/Coins columns, and read-only metrics", async () => {
     renderComponent();
 
-    // Check heading
     expect(
       screen.getByRole("heading", { name: "Payment Transactions" }),
     ).toBeInTheDocument();
 
-    // Wait for revenue stats to load
     await waitFor(() => {
       expect(screen.getByText("Total Revenue")).toBeInTheDocument();
-      expect(screen.getByText("100 ₫")).toBeInTheDocument();
+      expect(screen.getAllByText("50.000 ₫").length).toBeGreaterThanOrEqual(1);
     });
 
-    // Check that transactions are listed
     await waitFor(() => {
-      expect(screen.getByText(/Starter/i)).toBeInTheDocument();
-      expect(
-        screen.getByText(/Practice interview charge/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Starter Pack")).toBeInTheDocument();
+      expect(screen.getByText("Practice interview charge")).toBeInTheDocument();
     });
 
-    // Verify From / To are resolved nicely and not null or 000-0-0000000...
-    expect(screen.getByText("Banking (PayOS)")).toBeInTheDocument();
-    expect(screen.getByText("System")).toBeInTheDocument();
-
-    // Check order code
     expect(screen.getByText("Order #123456789")).toBeInTheDocument();
+    expect(screen.getByText("+100 coins")).toBeInTheDocument();
+    expect(screen.getByText("-20 coins")).toBeInTheDocument();
   });
 
-  it("filters transactions via toolbar search", async () => {
+  it("filters transactions and summary with unified parameters", async () => {
     renderComponent();
 
     const searchInput = await screen.findByPlaceholderText(
-      "Search ID or description…",
+      /Search by user name, email, order code/i,
     );
-    fireEvent.change(searchInput, { target: { value: "Starter" } });
+    fireEvent.change(searchInput, { target: { value: "alice@example.com" } });
 
     await waitFor(() => {
       expect(mocks.get).toHaveBeenCalledWith(
-        "/admin/transactions",
+        "/admin/billing/transactions",
         expect.objectContaining({
           params: expect.objectContaining({
-            search: "Starter",
+            search: "alice@example.com",
+          }),
+        }),
+      );
+      expect(mocks.get).toHaveBeenCalledWith(
+        "/admin/billing/summary",
+        expect.objectContaining({
+          params: expect.objectContaining({
+            search: "alice@example.com",
           }),
         }),
       );
     });
   });
 
-  it("opens details sheet on transaction row click", async () => {
+  it("opens read-only details drawer on row click and fetches transaction detail without mutation buttons", async () => {
     renderComponent();
 
-    const row = await screen.findByText(/Starter/i);
+    const row = await screen.findByText("Starter Pack");
     fireEvent.click(row);
 
-    // Expect sheet title to appear
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "Transaction details" }),
+        screen.getByRole("heading", { name: "Transaction Details" }),
       ).toBeInTheDocument();
     });
 
+    expect(mocks.get).toHaveBeenCalledWith(
+      "/admin/billing/transactions/00000000-0000-0000-0000-000000000001",
+      expect.any(Object),
+    );
+
+    // Ensure no mutation actions exist (KAN-191 read-only enforcement)
     expect(
-      screen.getAllByText("candidate-user-1").length,
-    ).toBeGreaterThanOrEqual(1);
+      screen.queryByRole("button", { name: /re-check with payos/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /mark cancelled/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /issue refund/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("handles empty state gracefully", async () => {
     mocks.get.mockImplementation((url: string) => {
-      if (url === "/admin/transactions") {
+      if (url === "/admin/billing/transactions") {
         return Promise.resolve({
           data: {
             success: true,
@@ -177,24 +244,33 @@ describe("AdminBillingView", () => {
               total: 0,
               page: 1,
               page_size: 20,
+              schema_limitation: "",
             },
           },
         });
       }
-      if (url === "/admin/revenue") {
+      if (url === "/admin/billing/summary") {
         return Promise.resolve({
           data: {
             success: true,
             data: {
-              stats: {
-                total_revenue: 0,
-                successful_count: 0,
-                pending_count: 0,
-                failed_count: 0,
-                cancelled_count: 0,
-                total_count: 0,
-              },
-              summary: [],
+              total_revenue: 0,
+              net_revenue: 0,
+              successful_deposits: 0,
+              success_count: 0,
+              pending_count: 0,
+              failed_count: 0,
+              cancelled_count: 0,
+              total_transactions: 0,
+              average_deposit: 0,
+              unique_payers: 0,
+              coins_sold: 0,
+              coins_spent: 0,
+              coins_refunded: 0,
+              coins_net: 0,
+              success_rate: 0,
+              package_breakdown: [],
+              feature_breakdown: [],
             },
           },
         });
@@ -205,28 +281,26 @@ describe("AdminBillingView", () => {
     renderComponent();
 
     await waitFor(() => {
-      expect(screen.getByText("No transactions recorded")).toBeInTheDocument();
+      expect(
+        screen.getByText("No transactions match the current filters."),
+      ).toBeInTheDocument();
     });
   });
 
   it("handles error state with retry button", async () => {
     mocks.get.mockImplementation((url: string) => {
-      if (url === "/admin/transactions") {
+      if (url === "/admin/billing/transactions") {
         return Promise.reject(new Error("Database connection failure"));
       }
       return Promise.resolve({
         data: {
           success: true,
           data: {
-            stats: {
-              total_revenue: 0,
-              successful_count: 0,
-              pending_count: 0,
-              failed_count: 0,
-              cancelled_count: 0,
-              total_count: 0,
-            },
-            summary: [],
+            total_revenue: 0,
+            successful_deposits: 0,
+            total_transactions: 0,
+            package_breakdown: [],
+            feature_breakdown: [],
           },
         },
       });

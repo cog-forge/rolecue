@@ -31,18 +31,10 @@ type WalletRepository interface {
 	ListTransactionsByUserID(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]domain.Transaction, int64, error)
 	ListCoinPackages(ctx context.Context) ([]domain.CoinPackage, error)
 	GetCoinPackageByID(ctx context.Context, id uuid.UUID) (domain.CoinPackage, error)
-	// Admin methods
-	ListAllTransactions(ctx context.Context, arg repository.ListAllTransactionsParams) ([]repository.AdminTransaction, error)
-	CountAllTransactions(ctx context.Context, arg repository.ListAllTransactionsParams) (int64, error)
-	GetRevenueStats(ctx context.Context, dateFrom, dateTo *time.Time) (repository.RevenueStats, error)
-	GetRevenueSummary(ctx context.Context, dateFrom, dateTo *time.Time) ([]repository.RevenueSummaryRow, error)
+	// Admin read-only methods (KAN-191, KAN-192, KAN-241)
+	ListAdminTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error)
+	GetAdminTransactionByID(ctx context.Context, id uuid.UUID) (domain.AdminTransactionItem, error)
 	GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error)
-	GetBillingDailySeries(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.BillingDailyItem, error)
-	ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.AdminTransactionItem, int64, error)
-	GetBillingTransactionByID(ctx context.Context, id uuid.UUID) (*domain.AdminTransactionItem, error)
-	CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*domain.AdminTransactionItem, error)
-	SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*domain.AdminTransactionItem, error)
-	CreateRefundTransaction(ctx context.Context, req domain.IssueRefundRequest, adminID uuid.UUID) (*domain.AdminTransactionItem, error)
 }
 
 type PayOSClient interface {
@@ -390,88 +382,124 @@ func parseExpectedVND(desc string) (int, bool) {
 	return val, true
 }
 
-func (s *Service) AdminListTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error) {
-	return s.ListBillingTransactions(ctx, filter)
-}
+var vietnamTZ = time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)
 
-func (s *Service) GetRevenueReport(ctx context.Context, dateFrom, dateTo *time.Time) (domain.RevenueReport, error) {
-	stats, err := s.repo.GetRevenueStats(ctx, dateFrom, dateTo)
-	if err != nil {
-		return domain.RevenueReport{}, err
+// ValidateAdminFilter validates and normalizes read-only Admin billing/revenue filter parameters.
+func ValidateAdminFilter(filter *domain.AdminTransactionFilter, maxPageSize int) error {
+	if maxPageSize <= 0 {
+		maxPageSize = 100
+	}
+	if filter.Page == 0 {
+		filter.Page = 1
+	}
+	if filter.Page < 1 {
+		return apperror.New(apperror.CodeValidation, "page must be greater than or equal to 1")
+	}
+	if filter.PageSize == 0 {
+		filter.PageSize = 20
+	}
+	if filter.PageSize < 1 || filter.PageSize > maxPageSize {
+		return apperror.New(apperror.CodeValidation, fmt.Sprintf("page_size must be between 1 and %d", maxPageSize))
 	}
 
-	summaryRows, err := s.repo.GetRevenueSummary(ctx, dateFrom, dateTo)
-	if err != nil {
-		return domain.RevenueReport{}, err
+	status := strings.ToLower(strings.TrimSpace(filter.Status))
+	switch status {
+	case "", string(domain.StatusPending), string(domain.StatusSuccess), string(domain.StatusFailed), string(domain.StatusCancelled):
+		filter.Status = status
+	default:
+		return apperror.New(apperror.CodeValidation, "invalid status filter: must be pending, success, failed, or cancelled")
 	}
 
-	summary := make([]domain.RevenueSummaryItem, 0, len(summaryRows))
-	for _, r := range summaryRows {
-		summary = append(summary, domain.RevenueSummaryItem{
-			Period:             r.Period,
-			Revenue:            r.Revenue,
-			SuccessfulDeposits: r.SuccessfulDeposits,
-		})
+	txType := strings.ToLower(strings.TrimSpace(filter.Type))
+	switch txType {
+	case "", "topup", "spend", "refund":
+		filter.Type = txType
+	default:
+		return apperror.New(apperror.CodeValidation, "invalid type filter: must be topup, spend, or refund")
 	}
 
-	return domain.RevenueReport{
-		Stats: domain.RevenueStats{
-			TotalRevenue:    stats.TotalRevenue,
-			SuccessfulCount: stats.SuccessfulCount,
-			PendingCount:    stats.PendingCount,
-			FailedCount:     stats.FailedCount,
-			CancelledCount:  stats.CancelledCount,
-			TotalCount:      stats.TotalCount,
-		},
-		Summary: summary,
-	}, nil
+	sortBy := strings.ToLower(strings.TrimSpace(filter.SortBy))
+	switch sortBy {
+	case "", "id", "date":
+		filter.SortBy = "id"
+	case "amount", "coins", "status":
+		filter.SortBy = sortBy
+	default:
+		return apperror.New(apperror.CodeValidation, "invalid sort_by: must be id, date, amount, coins, or status")
+	}
+
+	sortOrder := strings.ToLower(strings.TrimSpace(filter.SortOrder))
+	switch sortOrder {
+	case "", "desc":
+		filter.SortOrder = "desc"
+	case "asc":
+		filter.SortOrder = "asc"
+	default:
+		return apperror.New(apperror.CodeValidation, "invalid sort_order: must be asc or desc")
+	}
+
+	if filter.AmountMin != nil && *filter.AmountMin < 0 {
+		return apperror.New(apperror.CodeValidation, "amount_min cannot be negative")
+	}
+	if filter.AmountMax != nil && *filter.AmountMax < 0 {
+		return apperror.New(apperror.CodeValidation, "amount_max cannot be negative")
+	}
+	if filter.AmountMin != nil && filter.AmountMax != nil && *filter.AmountMin > *filter.AmountMax {
+		return apperror.New(apperror.CodeValidation, "amount_min cannot be greater than amount_max")
+	}
+
+	var fromTime, toTime time.Time
+	var hasFrom, hasTo bool
+	if strings.TrimSpace(filter.DateFrom) != "" {
+		parsed, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(filter.DateFrom), vietnamTZ)
+		if err != nil {
+			return apperror.New(apperror.CodeValidation, "invalid date_from format: expected YYYY-MM-DD in Asia/Ho_Chi_Minh (UTC+7)")
+		}
+		fromTime = parsed
+		hasFrom = true
+		filter.DateFrom = parsed.Format("2006-01-02")
+	}
+	if strings.TrimSpace(filter.DateTo) != "" {
+		parsed, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(filter.DateTo), vietnamTZ)
+		if err != nil {
+			return apperror.New(apperror.CodeValidation, "invalid date_to format: expected YYYY-MM-DD in Asia/Ho_Chi_Minh (UTC+7)")
+		}
+		toTime = parsed
+		hasTo = true
+		filter.DateTo = parsed.Format("2006-01-02")
+	}
+	if hasFrom && hasTo && fromTime.After(toTime) {
+		return apperror.New(apperror.CodeValidation, "date_from cannot be after date_to")
+	}
+
+	filter.Search = strings.TrimSpace(filter.Search)
+	filter.PackageName = strings.TrimSpace(filter.PackageName)
+	return nil
 }
 
 func (s *Service) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
+	if err := ValidateAdminFilter(&filter, 100); err != nil {
+		return domain.BillingSummary{}, err
+	}
 	return s.repo.GetBillingSummary(ctx, filter)
 }
 
-func (s *Service) GetBillingDailySeries(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.BillingDailyItem, error) {
-	return s.repo.GetBillingDailySeries(ctx, filter)
-}
-
 func (s *Service) ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error) {
-	items, total, err := s.repo.ListBillingTransactions(ctx, filter)
-	if err != nil {
+	if err := ValidateAdminFilter(&filter, 5000); err != nil {
 		return domain.AdminTransactionPage{}, err
 	}
-	return domain.AdminTransactionPage{
-		Items:    items,
-		Total:    total,
-		Page:     filter.Page,
-		PageSize: filter.PageSize,
-	}, nil
+	if filter.Page > 10_000 {
+		return domain.AdminTransactionPage{
+			Items:            []domain.AdminTransactionItem{},
+			Total:            0,
+			Page:             filter.Page,
+			PageSize:         filter.PageSize,
+			SchemaLimitation: domain.FrozenSchemaTimestampNotice,
+		}, nil
+	}
+	return s.repo.ListAdminTransactions(ctx, filter)
 }
 
-func (s *Service) GetBillingTransaction(ctx context.Context, id uuid.UUID) (*domain.AdminTransactionItem, error) {
-	return s.repo.GetBillingTransactionByID(ctx, id)
-}
-
-func (s *Service) SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
-	return s.repo.SyncPayOSTransaction(ctx, id, adminID)
-}
-
-func (s *Service) CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*domain.AdminTransactionItem, error) {
-	if strings.TrimSpace(reason) == "" {
-		reason = "Cancelled by administrator"
-	}
-	return s.repo.CancelTransaction(ctx, id, adminID, reason)
-}
-
-func (s *Service) IssueRefund(ctx context.Context, req domain.IssueRefundRequest, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
-	if req.Amount <= 0 {
-		return nil, apperror.New(apperror.CodeValidation, "refund amount must be greater than zero")
-	}
-	if strings.TrimSpace(req.Reason) == "" {
-		return nil, apperror.New(apperror.CodeValidation, "refund reason is required")
-	}
-	if req.Currency != "VND" && req.Currency != "COIN" {
-		req.Currency = "VND"
-	}
-	return s.repo.CreateRefundTransaction(ctx, req, adminID)
+func (s *Service) GetBillingTransaction(ctx context.Context, id uuid.UUID) (domain.AdminTransactionItem, error) {
+	return s.repo.GetAdminTransactionByID(ctx, id)
 }

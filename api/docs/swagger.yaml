@@ -167,6 +167,54 @@ definitions:
       updated_at:
         type: string
     type: object
+  domain.AdminTransactionItem:
+    properties:
+      amount:
+        type: integer
+      coin_amount:
+        type: integer
+      currency:
+        type: string
+      description:
+        type: string
+      from:
+        type: string
+      id:
+        type: string
+      package_or_feature:
+        type: string
+      paid_vnd:
+        type: integer
+      payos_order_code:
+        type: integer
+      status:
+        $ref: '#/definitions/domain.TransactionStatus'
+      to:
+        type: string
+      type:
+        type: string
+      user_email:
+        type: string
+      user_id:
+        type: string
+      user_name:
+        type: string
+    type: object
+  domain.AdminTransactionPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.AdminTransactionItem'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      schema_limitation:
+        type: string
+      total:
+        type: integer
+    type: object
   domain.ApplicationStatus:
     enum:
     - pending
@@ -232,6 +280,49 @@ definitions:
         items:
           $ref: '#/definitions/domain.CoreQuestion'
         type: array
+    type: object
+  domain.BillingSummary:
+    properties:
+      average_deposit:
+        type: integer
+      cancelled_count:
+        type: integer
+      coins_net:
+        type: integer
+      coins_refunded:
+        type: integer
+      coins_sold:
+        type: integer
+      coins_spent:
+        type: integer
+      failed_count:
+        type: integer
+      feature_breakdown:
+        items:
+          $ref: '#/definitions/domain.FeatureCoinItem'
+        type: array
+      net_revenue:
+        type: integer
+      package_breakdown:
+        items:
+          $ref: '#/definitions/domain.PackageRevenueItem'
+        type: array
+      pending_count:
+        type: integer
+      schema_limitation:
+        type: string
+      success_count:
+        type: integer
+      success_rate:
+        type: number
+      successful_deposits:
+        type: integer
+      total_revenue:
+        type: integer
+      total_transactions:
+        type: integer
+      unique_payers:
+        type: integer
     type: object
   domain.BoardPosting:
     properties:
@@ -500,6 +591,15 @@ definitions:
       title:
         type: string
     type: object
+  domain.FeatureCoinItem:
+    properties:
+      coins_spent:
+        type: integer
+      feature_name:
+        type: string
+      spend_count:
+        type: integer
+    type: object
   domain.IntakeClosure:
     properties:
       job_posting_id:
@@ -731,6 +831,17 @@ definitions:
         type: string
       name:
         type: string
+    type: object
+  domain.PackageRevenueItem:
+    properties:
+      coins_sold:
+        type: integer
+      deposit_count:
+        type: integer
+      package_name:
+        type: string
+      revenue_vnd:
+        type: integer
     type: object
   domain.Patch:
     properties:
@@ -1098,6 +1209,18 @@ definitions:
       title:
         type: string
     type: object
+  domain.TransactionStatus:
+    enum:
+    - pending
+    - success
+    - failed
+    - cancelled
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusSuccess
+    - StatusFailed
+    - StatusCancelled
   domain.Transition:
     properties:
       changed:
@@ -1437,6 +1560,294 @@ info:
   title: AI Interview Practice API
   version: 1.0.0
 paths:
+  /admin/billing/export:
+    get:
+      description: Admin only. Read-only CSV export respecting active filters (up
+        to 5,000 rows) with CSV formula-injection protection.
+      parameters:
+      - description: Search by transaction ID, user name/email/ID, order code, or
+          description
+        in: query
+        name: search
+        type: string
+      - description: Filter by status (pending, success, failed, cancelled)
+        in: query
+        name: status
+        type: string
+      - description: Filter by transaction type (topup, spend, refund)
+        in: query
+        name: type
+        type: string
+      - description: Filter by package or feature name
+        in: query
+        name: package
+        type: string
+      - description: Minimum amount filter
+        in: query
+        name: amount_min
+        type: integer
+      - description: Maximum amount filter
+        in: query
+        name: amount_max
+        type: integer
+      - description: Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
+        in: query
+        name: date_from
+        type: string
+      - description: End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
+        in: query
+        name: date_to
+        type: string
+      - default: id
+        description: Sort field (id, date, amount, coins, status)
+        in: query
+        name: sort_by
+        type: string
+      - default: desc
+        description: Sort order (asc, desc)
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - text/csv
+      responses:
+        "200":
+          description: CSV file
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Export filtered admin transactions as CSV
+      tags:
+      - admin-billing
+  /admin/billing/summary:
+    get:
+      description: Admin only. Read-only. Computes revenue strictly from status='success'
+        transactions with payos_order_code (KAN-192). Accepts the same filters as
+        the transaction list so both pages always agree.
+      parameters:
+      - description: Search by transaction ID, user name/email/ID, order code, or
+          description
+        in: query
+        name: search
+        type: string
+      - description: Filter by status (pending, success, failed, cancelled)
+        in: query
+        name: status
+        type: string
+      - description: Filter by transaction type (topup, spend, refund)
+        in: query
+        name: type
+        type: string
+      - description: Filter by package or feature name
+        in: query
+        name: package
+        type: string
+      - description: Minimum amount filter
+        in: query
+        name: amount_min
+        type: integer
+      - description: Maximum amount filter
+        in: query
+        name: amount_max
+        type: integer
+      - description: Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
+        in: query
+        name: date_from
+        type: string
+      - description: End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
+        in: query
+        name: date_to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.BillingSummary'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get shared admin billing & revenue summary
+      tags:
+      - admin-billing
+  /admin/billing/transactions:
+    get:
+      description: Admin only. Read-only paginated list of transactions enriched with
+        user and package details.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      - description: Search by transaction ID, user name/email/ID, order code, or
+          description
+        in: query
+        name: search
+        type: string
+      - description: Filter by status (pending, success, failed, cancelled)
+        in: query
+        name: status
+        type: string
+      - description: Filter by transaction type (topup, spend, refund)
+        in: query
+        name: type
+        type: string
+      - description: Filter by package or feature name
+        in: query
+        name: package
+        type: string
+      - description: Minimum amount filter
+        in: query
+        name: amount_min
+        type: integer
+      - description: Maximum amount filter
+        in: query
+        name: amount_max
+        type: integer
+      - description: Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
+        in: query
+        name: date_from
+        type: string
+      - description: End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
+        in: query
+        name: date_to
+        type: string
+      - default: id
+        description: Sort field (id, date, amount, coins, status)
+        in: query
+        name: sort_by
+        type: string
+      - default: desc
+        description: Sort order (asc, desc)
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.AdminTransactionPage'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List admin payment and coin ledger transactions
+      tags:
+      - admin-billing
+  /admin/billing/transactions/{id}:
+    get:
+      description: Admin only. Read-only transaction detail by UUID.
+      parameters:
+      - description: Transaction UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.AdminTransactionItem'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get a single transaction's detail for Admin inspection
+      tags:
+      - admin-billing
   /admin/interviews:
     get:
       description: 'Admin only. Operational metadata only: no recording path, audio,
