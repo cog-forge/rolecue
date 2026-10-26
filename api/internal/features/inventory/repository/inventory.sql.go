@@ -226,3 +226,19 @@ func (q *Queries) LockInventoryOwner(ctx context.Context, id uuid.UUID) (uuid.UU
 	err := row.Scan(&id_2)
 	return id_2, err
 }
+
+const updateInventorySlot = `-- name: UpdateInventorySlot :exec
+UPDATE public.inventories
+SET slot = slot + $1
+WHERE user_id = $2
+`
+
+type UpdateInventorySlotParams struct {
+	Amount int32
+	UserID uuid.UUID
+}
+
+func (q *Queries) UpdateInventorySlot(ctx context.Context, arg UpdateInventorySlotParams) error {
+	_, err := q.db.Exec(ctx, updateInventorySlot, arg.Amount, arg.UserID)
+	return err
+}

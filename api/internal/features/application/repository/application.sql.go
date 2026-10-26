@@ -63,6 +63,22 @@ func (q *Queries) CountCVApprovals(ctx context.Context, jobPostingID uuid.UUID) 
 	return count, err
 }
 
+const countLiveApplications = `-- name: CountLiveApplications :one
+SELECT count(*)::bigint AS live
+FROM public.applications
+WHERE job_posting_id = $1 AND status IN ('pending', 'interview_eligible', 'interviewed')
+`
+
+// Counts the Applications of the posting that can still move (pending, interview_eligible,
+// interviewed). The terminal close needs none: with no live Application the posting is done, which
+// also covers a posting that never received one.
+func (q *Queries) CountLiveApplications(ctx context.Context, jobPostingID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countLiveApplications, jobPostingID)
+	var live int64
+	err := row.Scan(&live)
+	return live, err
+}
+
 const countRecruiterApplications = `-- name: CountRecruiterApplications :one
 SELECT count(*)
 FROM public.applications a
@@ -125,6 +141,76 @@ func (q *Queries) GetCandidateEligibility(ctx context.Context, arg GetCandidateE
 		&i.Status,
 		&i.InterviewDeadline,
 		&i.WithinDeadline,
+	)
+	return i, err
+}
+
+const getRecruiterApplication = `-- name: GetRecruiterApplication :one
+SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status, a.created_at,
+       u.id AS candidate_id, u.name AS candidate_name, u.email AS candidate_email, u.image AS candidate_image,
+       COALESCE(a.status = 'interview_eligible' AND a.interview_deadline > now(), false)::boolean AS interview_eligible,
+       a.interview_deadline, a.reject_reason, a.updated_at,
+       a.cv_path,
+       jp.status::text AS posting_status, jp.interview_slot,
+       (SELECT count(*) FROM public.applications c
+        WHERE c.job_posting_id = jp.id AND c.interview_deadline IS NOT NULL)::bigint AS cv_approvals
+FROM public.applications a
+JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = a.candidate_id
+WHERE a.id = $1 AND a.job_posting_id = $2 AND jp.recruiter_id = $3
+`
+
+type GetRecruiterApplicationParams struct {
+	ID           uuid.UUID
+	JobPostingID uuid.UUID
+	RecruiterID  uuid.UUID
+}
+
+type GetRecruiterApplicationRow struct {
+	ID                uuid.UUID
+	JobPostingID      uuid.UUID
+	JobPostingTitle   string
+	Status            string
+	CreatedAt         pgtype.Timestamptz
+	CandidateID       uuid.UUID
+	CandidateName     string
+	CandidateEmail    string
+	CandidateImage    *string
+	InterviewEligible bool
+	InterviewDeadline pgtype.Timestamptz
+	RejectReason      *string
+	UpdatedAt         pgtype.Timestamptz
+	CvPath            *string
+	PostingStatus     string
+	InterviewSlot     *int32
+	CvApprovals       int64
+}
+
+// One Application for Application Detail: the list columns, the CV storage key (cv_path, read by the
+// service and never returned), the posting status and capacity, and how many Applications of the
+// posting were ever CV-approved (the same definition as CountCVApprovals). Ownership is part of the
+// filter; the caller separates "not yours" from "not on this posting" with IsPostingOwned.
+func (q *Queries) GetRecruiterApplication(ctx context.Context, arg GetRecruiterApplicationParams) (GetRecruiterApplicationRow, error) {
+	row := q.db.QueryRow(ctx, getRecruiterApplication, arg.ID, arg.JobPostingID, arg.RecruiterID)
+	var i GetRecruiterApplicationRow
+	err := row.Scan(
+		&i.ID,
+		&i.JobPostingID,
+		&i.JobPostingTitle,
+		&i.Status,
+		&i.CreatedAt,
+		&i.CandidateID,
+		&i.CandidateName,
+		&i.CandidateEmail,
+		&i.CandidateImage,
+		&i.InterviewEligible,
+		&i.InterviewDeadline,
+		&i.RejectReason,
+		&i.UpdatedAt,
+		&i.CvPath,
+		&i.PostingStatus,
+		&i.InterviewSlot,
+		&i.CvApprovals,
 	)
 	return i, err
 }
@@ -289,6 +375,21 @@ func (q *Queries) LockOwnedPosting(ctx context.Context, arg LockOwnedPostingPara
 	return i, err
 }
 
+const lockPostingByID = `-- name: LockPostingByID :one
+SELECT status::text AS status
+FROM public.job_postings
+WHERE id = $1
+FOR NO KEY UPDATE
+`
+
+// Locks the posting without the owner filter, for system callers that have no Recruiter.
+func (q *Queries) LockPostingByID(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, lockPostingByID, id)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
 const rejectCV = `-- name: RejectCV :one
 UPDATE public.applications
 SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
@@ -323,4 +424,56 @@ func (q *Queries) RejectCV(ctx context.Context, arg RejectCVParams) (RejectCVRow
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const rejectPendingApplications = `-- name: RejectPendingApplications :execrows
+UPDATE public.applications
+SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
+WHERE job_posting_id = $2 AND status = 'pending'
+`
+
+type RejectPendingApplicationsParams struct {
+	RejectReason *string
+	JobPostingID uuid.UUID
+}
+
+// Every pending Application of the posting is rejected when intake closes, in the same transaction
+// as the posting status change. statement_timestamp() for the same reason as ApproveCV.
+func (q *Queries) RejectPendingApplications(ctx context.Context, arg RejectPendingApplicationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rejectPendingApplications, arg.RejectReason, arg.JobPostingID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setPostingClosed = `-- name: SetPostingClosed :execrows
+UPDATE public.job_postings
+SET status = 'closed'
+WHERE id = $1 AND status = 'intake_closed'
+`
+
+// The terminal close: only from intake_closed, so a repeat or an open posting changes nothing.
+func (q *Queries) SetPostingClosed(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, setPostingClosed, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setPostingIntakeClosed = `-- name: SetPostingIntakeClosed :execrows
+UPDATE public.job_postings
+SET status = 'intake_closed'
+WHERE id = $1 AND status = 'open'
+`
+
+// Intake closes only from open. The caller holds the posting lock (LockOwnedPosting or
+// LockPostingByID), so the guard reads the status that the lock protects.
+func (q *Queries) SetPostingIntakeClosed(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, setPostingIntakeClosed, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

@@ -88,6 +88,10 @@ func (s *seed) user(role string) uuid.UUID {
 	s.exec(`INSERT INTO public.users (id, name, email, role, email_verified, company_name)
 		VALUES ($1, $2, $3, $4, true, $5)`, id, "app "+role, fmt.Sprintf("app-%s@example.test", id), role, company)
 	s.later(`DELETE FROM public.users WHERE id = $1`, id)
+	// These run before the user delete: Applications made by apply and wallets created by a refund or a
+	// credit are not registered one by one.
+	s.later(`DELETE FROM public.wallets WHERE user_id = $1`, id)
+	s.later(`DELETE FROM public.applications WHERE candidate_id = $1`, id)
 	return id
 }
 
@@ -105,6 +109,8 @@ func (s *seed) posting(recruiterID uuid.UUID, status string, slot *int32) uuid.U
 	s.exec(`INSERT INTO public.job_postings (id, status, jd_id, recruiter_id, title, interview_slot)
 		VALUES ($1, $2::public.job_posting_status, $3, $4, 'app posting', $5)`, id, status, jdID, recruiterID, slot)
 	s.later(`DELETE FROM public.job_postings WHERE id = $1`, id)
+	// Applications made through the service (apply) are not registered one by one; clear them before the posting.
+	s.later(`DELETE FROM public.applications WHERE job_posting_id = $1`, id)
 	return id
 }
 
@@ -152,7 +158,7 @@ func assertCode(t *testing.T, err error, want apperror.Code) {
 
 func newService(t *testing.T, pool *pgxpool.Pool) *service.Service {
 	t.Helper()
-	svc, err := service.New(repository.NewRepository(pool))
+	svc, err := service.New(repository.NewRepository(pool), &stubCVLinker{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,20 +224,29 @@ func TestApprovalsStopAtInterviewSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	_, err := svc.ApproveCV(ctx, owner, "recruiter", postingID, apps[2])
-	assertCode(t, err, apperror.CodeInterviewCapacityFull)
-	if row := s.stored(apps[2]); row.status != "pending" || row.deadline != nil {
-		t.Fatalf("refused Application = %+v, want it still pending", row)
+	// The approval that takes the last slot closes intake and rejects what is still pending (KAN-111).
+	var postingStatus string
+	if err := pool.QueryRow(ctx, `SELECT status::text FROM public.job_postings WHERE id = $1`, postingID).Scan(&postingStatus); err != nil {
+		t.Fatal(err)
 	}
-	// On a full posting, a missing or already screened Application still gets its own error.
+	if postingStatus != "intake_closed" {
+		t.Fatalf("posting status = %s, want intake_closed after the last slot", postingStatus)
+	}
+	for _, id := range apps[2:] {
+		if row := s.stored(id); row.status != "rejected" || row.deadline != nil {
+			t.Fatalf("pending Application = %+v, want it rejected by the intake close", row)
+		}
+	}
+	// With nothing pending, approving or rejecting again reports the Application as already screened;
+	// a missing Application still gets its own error.
+	_, err := svc.ApproveCV(ctx, owner, "recruiter", postingID, apps[2])
+	assertCode(t, err, apperror.CodeApplicationNotPending)
 	_, err = svc.ApproveCV(ctx, owner, "recruiter", postingID, apps[0])
 	assertCode(t, err, apperror.CodeApplicationNotPending)
 	_, err = svc.ApproveCV(ctx, owner, "recruiter", postingID, uuid.New())
 	assertCode(t, err, apperror.CodeApplicationNotFound)
-	// Rejecting still works when the slots are full; submissions are never capped by interview_slot.
-	if _, err := svc.RejectCV(ctx, owner, "recruiter", postingID, apps[3], nil); err != nil {
-		t.Fatal(err)
-	}
+	_, err = svc.RejectCV(ctx, owner, "recruiter", postingID, apps[3], nil)
+	assertCode(t, err, apperror.CodeApplicationNotPending)
 }
 
 func TestEveryPastApprovalCountsTowardTheSlot(t *testing.T) {
@@ -251,6 +266,10 @@ func TestEveryPastApprovalCountsTowardTheSlot(t *testing.T) {
 	// One Candidate missed the deadline (KAN-214) and one was approved after interviewing (KAN-115).
 	s.exec(`UPDATE public.applications SET status = 'rejected' WHERE id = $1`, missed)
 	s.exec(`UPDATE public.applications SET status = 'approved' WHERE id = $1`, decided)
+	// The second approval closed intake and rejected `next`. Put both back to the state an open posting
+	// with a pending Application would have, to prove the count itself still refuses a third approval.
+	s.exec(`UPDATE public.job_postings SET status = 'open' WHERE id = $1`, postingID)
+	s.exec(`UPDATE public.applications SET status = 'pending', reject_reason = NULL WHERE id = $1`, next)
 
 	_, err := svc.ApproveCV(ctx, owner, "recruiter", postingID, next)
 	assertCode(t, err, apperror.CodeInterviewCapacityFull)
@@ -386,7 +405,8 @@ func TestConcurrentApprovalsNeverExceedTheSlot(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			succeeded++
-		case apperror.CodeInterviewCapacityFull:
+		case apperror.CodeInterviewCapacityFull, apperror.CodeApplicationNotPending:
+			// The approval that took the last slot closed intake and rejected the rest.
 		default:
 			t.Fatalf("unexpected error: %v", err)
 		}

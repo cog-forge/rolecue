@@ -18,6 +18,7 @@ import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { ApplicationList } from "@/features/recruiter/applications/components/application-list";
+import { CapacityPanel } from "@/features/recruiter/capacity/components/capacity-panel";
 import {
   getPosting,
   jobPostingKeys,
@@ -270,6 +271,8 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
           </p>
         </Notice>
       )}
+
+      <CapacityPanel postingId={posting.id} />
 
       {locks.editable ? (
         <PostingForm

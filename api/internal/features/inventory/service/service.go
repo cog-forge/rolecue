@@ -15,6 +15,8 @@ type Repository interface {
 	Summary(context.Context, uuid.UUID) (domain.Capacity, error)
 	List(context.Context, uuid.UUID, int32, int32) ([]domain.Avatar, int64, error)
 	Get(context.Context, uuid.UUID, uuid.UUID) (domain.StoredAvatar, error)
+	GetWallet(ctx context.Context, owner uuid.UUID) (*domain.Wallet, error)
+	PurchaseSlot(ctx context.Context, owner uuid.UUID, wallet domain.Wallet, amount int32) error
 	Delete(context.Context, uuid.UUID, uuid.UUID) error
 }
 
@@ -73,6 +75,25 @@ func (s *Service) Get(ctx context.Context, user authdomain.User, id uuid.UUID) (
 	return domain.AvatarDetail{Avatar: avatar.Avatar, ModelAccess: domain.ModelAccess{
 		URL: grant.URL, Method: grant.Method, Headers: grant.Headers, ExpiresAt: grant.ExpiresAt,
 	}}, nil
+}
+
+func (s *Service) PurchaseSlot(ctx context.Context, user authdomain.User, amount int32) error {
+	if err := authorize(user); err != nil {
+		return err
+	}
+	if amount <= 0 {
+		return apperror.New(apperror.CodeValidation, "slot purchase amount must be positive")
+	}
+
+	wallet, err := s.repository.GetWallet(ctx, user.ID)
+	if err != nil {
+		return err
+	}
+	if wallet.Balance < amount*domain.PricePerSlot {
+		return apperror.New(apperror.CodeInsufficientBalance, "not enough coins to purchase inventory slots")
+	}
+
+	return s.repository.PurchaseSlot(ctx, user.ID, *wallet, amount)
 }
 
 func (s *Service) Delete(ctx context.Context, user authdomain.User, id uuid.UUID) error {

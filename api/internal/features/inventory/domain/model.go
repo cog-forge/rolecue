@@ -10,6 +10,7 @@ import (
 )
 
 const InitialCapacity int32 = 3
+const PricePerSlot int32 = 1
 
 type Capacity struct {
 	Capacity  int32 `json:"capacity"`
@@ -57,4 +58,13 @@ type ModelAccess struct {
 type AvatarDetail struct {
 	Avatar
 	ModelAccess ModelAccess `json:"model_access"`
+}
+
+type Wallet struct {
+	ID      uuid.UUID
+	Balance int32
+}
+
+type SlotPurchaseRequest struct {
+	Amount int32 `json:"amount"`
 }

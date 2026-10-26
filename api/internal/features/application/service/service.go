@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -14,7 +16,14 @@ import (
 const (
 	recruiterRole = "recruiter"
 	candidateRole = "candidate"
+	// detailLinkTTL bounds the CV link on Application Detail, as the JD PDF link is bounded.
+	detailLinkTTL = 5 * time.Minute
 )
+
+// CVLinker signs a short-lived download link for a stored object. The storage Store satisfies it.
+type CVLinker interface {
+	PresignGet(ctx context.Context, key string, ttl time.Duration) (storage.SignedRequest, error)
+}
 
 // Repository is the persistence contract of CV screening. The capacity rule
 // (domain.InterviewCapacity) runs inside ApproveCV under the posting row lock, because only there
@@ -22,28 +31,60 @@ const (
 type Repository interface {
 	ApproveCV(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID) (domain.Screening, error)
 	RejectCV(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID, reason *string) (domain.Screening, error)
+	CloseIntake(ctx context.Context, recruiterID, postingID uuid.UUID) (domain.IntakeClosure, error)
 	CandidateEligibility(ctx context.Context, candidateID, applicationID uuid.UUID) (domain.EligibilityRecord, error)
 	ListApplications(ctx context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.ListItem, int64, error)
+	GetApplicationDetail(ctx context.Context, recruiterID, postingID, applicationID uuid.UUID) (domain.DetailRecord, error)
 }
 
 type Service struct {
 	repository Repository
+	cvLinker   CVLinker
 }
 
-func New(repository Repository) (*Service, error) {
-	if repository == nil {
-		return nil, fmt.Errorf("application repository is required")
+func New(repository Repository, cvLinker CVLinker) (*Service, error) {
+	if repository == nil || cvLinker == nil {
+		return nil, fmt.Errorf("application repository and CV link signer are required")
 	}
-	return &Service{repository: repository}, nil
+	return &Service{repository: repository, cvLinker: cvLinker}, nil
 }
 
 // ApproveCV passes CV screening: the Application becomes interview_eligible with a 24-hour
-// interview deadline. It consumes no interview slot; the first interview start does (KAN-117).
+// interview deadline. Every approval counts toward the posting's interview_slot; the approval that
+// takes the last slot also closes intake in the same transaction (R7).
 func (s *Service) ApproveCV(ctx context.Context, recruiterID uuid.UUID, role string, postingID, applicationID uuid.UUID) (domain.Screening, error) {
 	if role != recruiterRole {
 		return domain.Screening{}, apperror.New(apperror.CodeForbidden, "only recruiters can screen CVs")
 	}
 	return s.repository.ApproveCV(ctx, recruiterID, postingID, applicationID)
+}
+
+// GetDetail reads one Application of a posting the Recruiter owns for Application Detail. The CV is
+// returned as a link that expires after five minutes, or null when none is stored. A failed signing
+// returns an error and no partial detail.
+func (s *Service) GetDetail(ctx context.Context, recruiterID uuid.UUID, role string, postingID, applicationID uuid.UUID) (domain.Detail, error) {
+	if role != recruiterRole {
+		return domain.Detail{}, apperror.New(apperror.CodeForbidden, "only recruiters can read applications")
+	}
+	record, err := s.repository.GetApplicationDetail(ctx, recruiterID, postingID, applicationID)
+	if err != nil {
+		return domain.Detail{}, err
+	}
+	detail := domain.Detail{
+		ListItem: record.Item,
+		JobPosting: domain.DetailJobPosting{
+			ID: record.Item.JobPostingID, Title: record.Item.JobPostingTitle, Status: record.PostingStatus,
+			InterviewSlot: record.InterviewSlot, CVApprovals: record.CVApprovals,
+		},
+	}
+	if record.CVPath != nil {
+		link, err := s.cvLinker.PresignGet(ctx, *record.CVPath, detailLinkTTL)
+		if err != nil {
+			return domain.Detail{}, apperror.Wrap(apperror.CodeInternal, "application CV storage failed", err)
+		}
+		detail.CV = &domain.DetailCV{URL: link.URL, ExpiresAt: link.ExpiresAt}
+	}
+	return detail, nil
 }
 
 // RejectCV fails CV screening; the Application becomes terminally rejected. The reason is optional
@@ -57,6 +98,15 @@ func (s *Service) RejectCV(ctx context.Context, recruiterID uuid.UUID, role stri
 		return domain.Screening{}, err
 	}
 	return s.repository.RejectCV(ctx, recruiterID, postingID, applicationID, normalized)
+}
+
+// CloseIntake stops a posting from taking more CVs. Pending Applications are rejected with the
+// intake-closed reason; interview-eligible ones stay eligible.
+func (s *Service) CloseIntake(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.IntakeClosure, error) {
+	if role != recruiterRole {
+		return domain.IntakeClosure{}, apperror.New(apperror.CodeForbidden, "only recruiters can close intake")
+	}
+	return s.repository.CloseIntake(ctx, recruiterID, postingID)
 }
 
 // InterviewEligibility is the server-side check a recruitment interview start must pass
