@@ -228,3 +228,8 @@ func TestNonRecruitersAreForbidden(t *testing.T) {
 		})
 	}
 }
+
+// Submit behaves like Resubmit here; the status rules between them live in the repository.
+func (f *fakeRepository) Submit(ctx context.Context, recruiterID, id uuid.UUID) error {
+	return f.Resubmit(ctx, recruiterID, id)
+}

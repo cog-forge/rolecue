@@ -142,6 +142,7 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.GET("", r.jobPostingHandler.List)
 	jobPostings.GET("/:id", r.jobPostingHandler.Get)
 	jobPostings.PATCH("/:id", r.jobPostingHandler.Update)
+	jobPostings.POST("/:id/submit", r.jobPostingHandler.Submit)
 	jobPostings.POST("/:id/resubmit", r.jobPostingHandler.Resubmit)
 	jobPostings.GET("/:id/document", r.jobPostingHandler.Document)
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)

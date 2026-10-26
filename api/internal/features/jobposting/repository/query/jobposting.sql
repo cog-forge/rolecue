@@ -9,8 +9,8 @@ LIMIT 1;
 
 -- content_path is the storage key of the JD PDF; raw_text is the text read from it.
 -- name: InsertJobDescription :one
-INSERT INTO public.job_descriptions (content_path, raw_text, level_id)
-VALUES (@content_path, @raw_text, @level_id)
+INSERT INTO public.job_descriptions (content_path, raw_text, level_id, refinement_note)
+VALUES (@content_path, @raw_text, @level_id, @refinement_note)
 RETURNING id;
 
 -- name: InsertRequirements :exec
@@ -52,7 +52,8 @@ SELECT name FROM public.voices WHERE id = @id AND is_active FOR SHARE;
 SELECT jp.id, jp.jd_id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
        jp.salary_min, jp.salary_max, jp.interview_slot, jp.interview_duration, jp.created_at,
        jp.required_avatar_id, a.name AS avatar_name, jp.required_voice_id, v.name AS voice_name,
-       jd.content_path, jd.raw_text, lower(l.name) AS level_name,
+       jd.content_path, jd.raw_text, COALESCE(jd.refinement_note, '')::text AS refinement_note, lower(l.name) AS level_name,
+       jp.review_submitted,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
 FROM public.job_postings jp
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
@@ -70,7 +71,8 @@ ORDER BY name, id;
 -- Every filter is optional: a NULL argument disables it. The search matches the title.
 -- name: ListOwnedPostings :many
 SELECT jp.id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
-       jp.interview_slot, jp.created_at
+       jp.interview_slot, jp.created_at, jp.review_submitted,
+       (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
 FROM public.job_postings jp
 WHERE jp.recruiter_id = @recruiter_id
   AND (sqlc.narg(status)::text IS NULL OR jp.status::text = sqlc.narg(status)::text)
@@ -89,7 +91,8 @@ WHERE jp.recruiter_id = @recruiter_id
 -- locks the same row before saving. Anything read from other tables must be read by a later
 -- statement: one that waited for the lock still sees those tables as they were when it started.
 -- name: LockOwnedPosting :one
-SELECT jp.jd_id, jp.status::text AS status, jp.salary_min, jp.salary_max, jp.required_voice_id
+SELECT jp.jd_id, jp.status::text AS status, jp.salary_min, jp.salary_max, jp.required_voice_id, jp.required_avatar_id,
+       jp.review_submitted
 FROM public.job_postings jp
 WHERE jp.id = @id AND jp.recruiter_id = @recruiter_id
 FOR UPDATE;
@@ -122,7 +125,14 @@ UPDATE public.job_postings SET
     required_voice_id = CASE WHEN sqlc.arg(set_voice)::boolean THEN sqlc.narg(required_voice_id)::uuid ELSE required_voice_id END
 WHERE id = @id AND recruiter_id = @recruiter_id AND status IN ('pending', 'rejected');
 
--- Sends a rejected posting back to the Admin queue; the old feedback no longer applies.
--- name: ResubmitPosting :exec
-UPDATE public.job_postings SET status = 'pending', reject_reason = NULL
-WHERE id = @id AND recruiter_id = @recruiter_id AND status = 'rejected';
+-- Sends a prepared posting to the Admin queue; a rejected posting's old feedback no longer applies.
+-- Called only after LockOwnedPosting and the bank and presentation checks.
+-- name: SubmitPosting :exec
+UPDATE public.job_postings SET status = 'pending', reject_reason = NULL, review_submitted = true
+WHERE id = @id AND recruiter_id = @recruiter_id;
+
+-- name: GetJDRefinementNote :one
+SELECT COALESCE(refinement_note, '')::text AS refinement_note FROM public.job_descriptions WHERE id = @id;
+
+-- name: UpdateJDRefinementNote :exec
+UPDATE public.job_descriptions SET refinement_note = @refinement_note WHERE id = @id;
