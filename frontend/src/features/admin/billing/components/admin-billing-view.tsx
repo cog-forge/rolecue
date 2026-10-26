@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle } from "lucide-react";
+import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import {
   adminBillingKeys,
@@ -120,8 +121,9 @@ export function AdminBillingView() {
   const handleExportCSV = async () => {
     try {
       setIsExporting(true);
-      const csvText = await exportBillingCSV(queryFilter);
-      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      const { csv, totalCount, truncated } =
+        await exportBillingCSV(queryFilter);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -130,6 +132,17 @@ export function AdminBillingView() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+
+      if (truncated) {
+        gooeyToast.warning("Export truncated to 5,000 rows", {
+          description: `Only the first 5,000 of ${totalCount.toLocaleString("en-US")} matching transactions were exported. Narrow your filters to export the rest.`,
+        });
+      }
+    } catch {
+      gooeyToast.error("Unable to export CSV", {
+        description:
+          "We could not generate the CSV export. Please check your filters and try again.",
+      });
     } finally {
       setIsExporting(false);
     }

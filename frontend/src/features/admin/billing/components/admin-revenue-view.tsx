@@ -16,15 +16,12 @@ import {
 import { adminBillingKeys, getBillingSummary } from "../api/billing";
 import { BillingStatCards } from "./revenue-stat-cards";
 import { RevenueCharts } from "./revenue-charts";
-import { formatVND, formatCoins, formatPlural } from "../lib/format";
-
-function sanitizeCSVCell(val: string): string {
-  if (!val) return "";
-  if (/^[=+\-@\t\r]/.test(val)) {
-    return `'${val}`;
-  }
-  return val;
-}
+import {
+  encodeCSVRow,
+  formatVND,
+  formatCoins,
+  formatPlural,
+} from "../lib/format";
 
 export function AdminRevenueView() {
   // Uses the exact same shared summary endpoint as the Payment Transactions page.
@@ -37,26 +34,22 @@ export function AdminRevenueView() {
 
   const handleExportSummaryCSV = () => {
     if (!summary) return;
-    const rows: string[][] = [
+    const rows: (string | number)[][] = [
       ["Package Name", "Revenue (VND)", "Successful Deposits", "Coins Sold"],
       ...(summary.package_breakdown ?? []).map((p) => [
-        sanitizeCSVCell(p.package_name),
-        String(p.revenue_vnd),
-        String(p.deposit_count),
-        String(p.coins_sold),
+        p.package_name,
+        p.revenue_vnd,
+        p.deposit_count,
+        p.coins_sold,
       ]),
       [
         "TOTAL",
-        String(summary.total_revenue),
-        String(summary.successful_deposits),
-        String(summary.coins_sold),
+        summary.total_revenue,
+        summary.successful_deposits,
+        summary.coins_sold,
       ],
     ];
-    const csvContent = rows
-      .map((r) =>
-        r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-      )
-      .join("\n");
+    const csvContent = rows.map((r) => encodeCSVRow(r)).join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);

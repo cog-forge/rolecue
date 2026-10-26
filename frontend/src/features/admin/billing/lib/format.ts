@@ -117,3 +117,34 @@ export function formatPercentChange(pct: number | null | undefined): {
     isNeutral,
   };
 }
+
+/**
+ * Prevents CSV formula injection (CWE-1236) in spreadsheet applications
+ * using the exact same rules as the backend `sanitizeCSVCell` helper.
+ */
+export function sanitizeCSVCell(
+  val: string | number | null | undefined,
+): string {
+  if (val == null) return "";
+  const str = String(val);
+  if (str === "") return "";
+  switch (str[0]) {
+    case "=":
+    case "+":
+    case "-":
+    case "@":
+    case "\t":
+    case "\r":
+      return `'${str}`;
+    default:
+      return str;
+  }
+}
+
+export function encodeCSVRow(
+  cells: (string | number | null | undefined)[],
+): string {
+  return cells
+    .map((cell) => `"${sanitizeCSVCell(cell).replace(/"/g, '""')}"`)
+    .join(",");
+}

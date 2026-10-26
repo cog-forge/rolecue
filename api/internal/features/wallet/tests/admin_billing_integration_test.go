@@ -228,18 +228,18 @@ func TestAdminBillingSQLCQueries_MixedPackageInferenceAndWildcardEscape(t *testi
 	`, userID)
 	require.NoError(t, err)
 
-	// Seed two packages where Package A's coin amount (1000) equals Package B's VND price (1000),
-	// and Package C represents a renamed/repriced package ("Starter Pack v2" at 60,000 VND).
-	pkgA := uuid.New()
+	// Seed packages where "Micro Trial Pack" has VND price = 1000 and coin amount = 2,
+	// and "Starter Pack v2" represents a renamed/repriced package (amount = 100, price = 60,000 VND).
+	// Note: there is intentionally NO package with amount = 1000, so a 1000-coin transaction
+	// must NOT falsely match "Micro Trial Pack" via price = 1000.
 	pkgB := uuid.New()
 	pkgC := uuid.New()
 	_, err = tx.Exec(ctx, `
 		INSERT INTO public.coin_packages (id, name, price, description, amount, currency)
 		VALUES
-			($1, 'Mega 1000-Coin Pack', 500000, '1000 coins for 500k VND', 1000, 'VND'),
-			($2, 'Micro Trial Pack', 1000, '2 coins for 1000 VND', 2, 'VND'),
-			($3, 'Starter Pack v2', 60000, 'Renamed and repriced starter', 100, 'VND')
-	`, pkgA, pkgB, pkgC)
+			($1, 'Micro Trial Pack', 1000, '2 coins for 1000 VND', 2, 'VND'),
+			($2, 'Starter Pack v2', 60000, 'Renamed and repriced starter', 100, 'VND')
+	`, pkgB, pkgC)
 	require.NoError(t, err)
 
 	q := repository.New(tx)
@@ -274,16 +274,16 @@ func TestAdminBillingSQLCQueries_MixedPackageInferenceAndWildcardEscape(t *testi
 	})
 	require.NoError(t, err)
 
-	// Case 3: Row with empty description where coin amount (1000) equals another package's price (1000).
-	// Priority 1 (cp.amount = t.amount) must beat Priority 2 (cp.price = t.amount), picking "Mega 1000-Coin Pack" (500,000 VND).
+	// Case 3: Row where coin amount (1000) equals another package's VND price (1000 for "Micro Trial Pack").
+	// Must NOT match "Micro Trial Pack" by price; must preserve its own package name and 1000 coin amount.
 	order3 := "800003"
-	descEmpty := ""
+	descRetired := "Deposit: Retired 1000-Coin Pack (500000 VND)"
 	txCollision, err := q.InsertTransaction(ctx, repository.InsertTransactionParams{
 		TxFrom:         "",
 		TxTo:           userID.String(),
 		Amount:         1000,
 		Currency:       "VND",
-		Description:    &descEmpty,
+		Description:    &descRetired,
 		Status:         repository.TransactionStatusSuccess,
 		PayosOrderCode: &order3,
 	})
@@ -303,9 +303,9 @@ func TestAdminBillingSQLCQueries_MixedPackageInferenceAndWildcardEscape(t *testi
 
 	gotCollision, err := q.GetAdminTransactionByID(ctx, txCollision.ID)
 	require.NoError(t, err)
-	require.Equal(t, "Mega 1000-Coin Pack", gotCollision.PackageOrFeature)
+	require.Equal(t, "Retired 1000-Coin Pack", gotCollision.PackageOrFeature)
 	require.Equal(t, int64(500000), gotCollision.PaidVnd)
-	require.Equal(t, int64(1000), gotCollision.CoinAmount)
+	require.Equal(t, int64(1000), gotCollision.CoinAmount, "coin amount must not be overwritten by Micro Trial Pack's 2 coins")
 
 	// Total revenue across the 3 deposits: 40,000 + 60,000 + 500,000 = 600,000 VND
 	summary, err := q.GetAdminBillingSummary(ctx, repository.GetAdminBillingSummaryParams{})

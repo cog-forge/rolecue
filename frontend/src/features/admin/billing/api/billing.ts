@@ -84,9 +84,15 @@ export async function getBillingTransactionByID(
   return adminTransactionItemEnvelopeSchema.parse(response.data).data;
 }
 
+export type BillingCSVExportResult = {
+  csv: string;
+  totalCount: number;
+  truncated: boolean;
+};
+
 export async function exportBillingCSV(
   filter: Partial<AdminTransactionQuery> = {},
-): Promise<string> {
+): Promise<BillingCSVExportResult> {
   const params = buildBillingParams({
     ...filter,
     page: 1,
@@ -96,7 +102,20 @@ export async function exportBillingCSV(
     params,
     responseType: "text",
   });
-  return typeof response.data === "string"
-    ? response.data
-    : String(response.data ?? "");
+  const headers = (response.headers ?? {}) as Record<string, unknown>;
+  const rawTruncated = String(
+    headers["x-export-truncated"] ?? headers["X-Export-Truncated"] ?? "",
+  ).toLowerCase();
+  const rawTotal = Number(
+    headers["x-total-count"] ?? headers["X-Total-Count"] ?? 0,
+  );
+  const csv =
+    typeof response.data === "string"
+      ? response.data
+      : String(response.data ?? "");
+  return {
+    csv,
+    totalCount: Number.isFinite(rawTotal) ? rawTotal : 0,
+    truncated: rawTruncated === "true",
+  };
 }

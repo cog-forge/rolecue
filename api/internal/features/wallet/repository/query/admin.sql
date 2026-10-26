@@ -46,11 +46,7 @@ WITH enriched AS (
             ELSE 0::bigint
         END)::bigint AS paid_vnd,
         (CASE
-            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
-                CASE
-                    WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
-                    ELSE t.amount::bigint
-                END
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
             WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
             ELSE -abs(t.amount)::bigint
         END)::bigint AS coin_amount
@@ -81,13 +77,11 @@ WITH enriched AS (
           AND (
               cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
               OR cp_inner.amount = t.amount
-              OR cp_inner.price = t.amount
           )
         ORDER BY
             CASE
                 WHEN cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')) THEN 0
-                WHEN cp_inner.amount = t.amount THEN 1
-                ELSE 2
+                ELSE 1
             END,
             cp_inner.price ASC
         LIMIT 1
@@ -176,11 +170,7 @@ WITH enriched AS (
             ELSE 0::bigint
         END)::bigint AS paid_vnd,
         (CASE
-            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
-                CASE
-                    WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
-                    ELSE t.amount::bigint
-                END
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
             WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
             ELSE -abs(t.amount)::bigint
         END)::bigint AS coin_amount
@@ -211,13 +201,11 @@ WITH enriched AS (
           AND (
               cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
               OR cp_inner.amount = t.amount
-              OR cp_inner.price = t.amount
           )
         ORDER BY
             CASE
                 WHEN cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')) THEN 0
-                WHEN cp_inner.amount = t.amount THEN 1
-                ELSE 2
+                ELSE 1
             END,
             cp_inner.price ASC
         LIMIT 1
@@ -282,11 +270,7 @@ SELECT
         ELSE 0::bigint
     END)::bigint AS paid_vnd,
     (CASE
-        WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
-            CASE
-                WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
-                ELSE t.amount::bigint
-            END
+        WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
         WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
         ELSE -abs(t.amount)::bigint
     END)::bigint AS coin_amount
@@ -317,13 +301,11 @@ LEFT JOIN LATERAL (
       AND (
           cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
           OR cp_inner.amount = t.amount
-          OR cp_inner.price = t.amount
       )
     ORDER BY
         CASE
             WHEN cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')) THEN 0
-            WHEN cp_inner.amount = t.amount THEN 1
-            ELSE 2
+            ELSE 1
         END,
         cp_inner.price ASC
     LIMIT 1
@@ -371,11 +353,7 @@ WITH enriched AS (
             ELSE 0::bigint
         END)::bigint AS paid_vnd,
         (CASE
-            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
-                CASE
-                    WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
-                    ELSE t.amount::bigint
-                END
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
             WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
             ELSE -abs(t.amount)::bigint
         END)::bigint AS coin_amount
@@ -406,13 +384,11 @@ WITH enriched AS (
           AND (
               cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
               OR cp_inner.amount = t.amount
-              OR cp_inner.price = t.amount
           )
         ORDER BY
             CASE
                 WHEN cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')) THEN 0
-                WHEN cp_inner.amount = t.amount THEN 1
-                ELSE 2
+                ELSE 1
             END,
             cp_inner.price ASC
         LIMIT 1
@@ -490,11 +466,7 @@ WITH enriched AS (
             ELSE 0::bigint
         END)::bigint AS paid_vnd,
         (CASE
-            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
-                CASE
-                    WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
-                    ELSE t.amount::bigint
-                END
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
             WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
             ELSE -abs(t.amount)::bigint
         END)::bigint AS coin_amount
@@ -525,13 +497,11 @@ WITH enriched AS (
           AND (
               cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
               OR cp_inner.amount = t.amount
-              OR cp_inner.price = t.amount
           )
         ORDER BY
             CASE
                 WHEN cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')) THEN 0
-                WHEN cp_inner.amount = t.amount THEN 1
-                ELSE 2
+                ELSE 1
             END,
             cp_inner.price ASC
         LIMIT 1

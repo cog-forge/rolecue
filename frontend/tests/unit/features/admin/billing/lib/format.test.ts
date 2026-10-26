@@ -7,6 +7,8 @@ import {
   formatDateOnly,
   plural,
   formatPercentChange,
+  sanitizeCSVCell,
+  encodeCSVRow,
 } from "@/features/admin/billing/lib/format";
 
 describe("Billing Format Utilities", () => {
@@ -86,6 +88,25 @@ describe("Billing Format Utilities", () => {
       // 2026-10-24T03:00:00Z is 10:00 in UTC+7
       const formatted = formatDateTime("2026-10-24T03:00:00Z");
       expect(formatted).toBe("24/10/2026 10:00");
+    });
+  });
+
+  describe("sanitizeCSVCell and encodeCSVRow", () => {
+    it("prefixes formula injection characters with a single quote", () => {
+      expect(sanitizeCSVCell("=SUM(A1:A2)")).toBe("'=SUM(A1:A2)");
+      expect(sanitizeCSVCell("+12345")).toBe("'+12345");
+      expect(sanitizeCSVCell("-999")).toBe("'-999");
+      expect(sanitizeCSVCell("@cmd")).toBe("'@cmd");
+      expect(sanitizeCSVCell("\tmalicious")).toBe("'\tmalicious");
+      expect(sanitizeCSVCell("\rmalicious")).toBe("'\rmalicious");
+      expect(sanitizeCSVCell("Starter Pack")).toBe("Starter Pack");
+      expect(sanitizeCSVCell("")).toBe("");
+    });
+
+    it("encodes CSV rows with both formula sanitization and quote escaping", () => {
+      expect(encodeCSVRow(["=1+1", 'Pack "Pro"', 50000])).toBe(
+        '"\'=1+1","Pack ""Pro""","50000"',
+      );
     });
   });
 });

@@ -300,6 +300,9 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 		return domain.AdminTransactionPage{}, apperror.Wrap(apperror.CodeInternal, "failed to list admin transactions", err)
 	}
 
+	// When rows are returned, COUNT(*) OVER() provides the exact filtered total in a single query.
+	// When rows is empty and offset == 0 (page 1), no rows match the filter so total is 0.
+	// Only when rows is empty and offset > 0 (an out-of-range page beyond the last item) do we run CountAdminTransactions.
 	var total int64
 	if len(rows) > 0 {
 		total = rows[0].TotalCount

@@ -5,11 +5,20 @@ import { AdminBillingView } from "@/features/admin/billing/components/admin-bill
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  toastWarning: vi.fn(),
+  toastError: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     get: mocks.get,
+  },
+}));
+
+vi.mock("goey-toast", () => ({
+  gooeyToast: {
+    warning: mocks.toastWarning,
+    error: mocks.toastError,
   },
 }));
 
@@ -315,6 +324,76 @@ describe("AdminBillingView", () => {
       expect(
         screen.getByRole("button", { name: /retry/i }),
       ).toBeInTheDocument();
+    });
+  });
+
+  it("shows a warning toast when CSV export is truncated via X-Export-Truncated header", async () => {
+    const createObjectURLSpy = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:mock-url");
+    const revokeObjectURLSpy = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => {});
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+
+    const baseImpl = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation((url: string) => {
+      if (url === "/admin/billing/export") {
+        return Promise.resolve({
+          data: "Transaction ID,Order Code\n1,123",
+          headers: {
+            "x-export-truncated": "true",
+            "x-total-count": "6200",
+          },
+        });
+      }
+      return baseImpl(url);
+    });
+
+    renderComponent();
+
+    const exportBtn = await screen.findByRole("button", {
+      name: /export csv/i,
+    });
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(mocks.toastWarning).toHaveBeenCalledWith(
+        "Export truncated to 5,000 rows",
+        expect.objectContaining({
+          description: expect.stringContaining("6,200"),
+        }),
+      );
+    });
+
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+    clickSpy.mockRestore();
+  });
+
+  it("shows an error toast when CSV export fails with 400 or 500", async () => {
+    const baseImpl = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation((url: string) => {
+      if (url === "/admin/billing/export") {
+        return Promise.reject(new Error("Internal Server Error"));
+      }
+      return baseImpl(url);
+    });
+
+    renderComponent();
+
+    const exportBtn = await screen.findByRole("button", {
+      name: /export csv/i,
+    });
+    fireEvent.click(exportBtn);
+
+    await waitFor(() => {
+      expect(mocks.toastError).toHaveBeenCalledWith(
+        "Unable to export CSV",
+        expect.any(Object),
+      );
     });
   });
 });
