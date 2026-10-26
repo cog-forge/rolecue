@@ -248,8 +248,9 @@ func (s *regSeed) setDeadline(applicationID uuid.UUID, at time.Time) {
 func (s *regSeed) cleanup() {
 	ctx := context.Background()
 	byCandidate := `(SELECT i.id FROM public.interviews i
-		JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-		WHERE rp.candidate_id::text = ANY($1::text[]))`
+		LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+		LEFT JOIN public.applications a ON a.id = i.application_id
+		WHERE rp.candidate_id::text = ANY($1::text[]) OR a.candidate_id::text = ANY($1::text[]))`
 	steps := []struct {
 		sql  string
 		args []any
@@ -257,8 +258,7 @@ func (s *regSeed) cleanup() {
 		{`DELETE FROM public.score_details WHERE interview_id IN ` + byCandidate, []any{s.users}},
 		{`DELETE FROM public.conversation_turns WHERE interview_id IN ` + byCandidate, []any{s.users}},
 		{`DELETE FROM public.interview_questions WHERE interview_id IN ` + byCandidate, []any{s.users}},
-		{`DELETE FROM public.interviews WHERE role_profile_id IN
-			(SELECT id FROM public.role_profiles WHERE candidate_id::text = ANY($1::text[]))`, []any{s.users}},
+		{`DELETE FROM public.interviews WHERE id IN ` + byCandidate, []any{s.users}},
 		{`DELETE FROM public.applications WHERE candidate_id::text = ANY($1::text[])`, []any{s.users}},
 		{`DELETE FROM public.metrics_percentage WHERE job_posting_id::text = ANY($1::text[])`, []any{s.postings}},
 		{`DELETE FROM public.job_postings WHERE id::text = ANY($1::text[])`, []any{s.postings}},

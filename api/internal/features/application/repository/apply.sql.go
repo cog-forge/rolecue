@@ -50,8 +50,6 @@ SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS 
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
 LEFT JOIN public.interviews i ON i.application_id = a.id
-    AND EXISTS (SELECT 1 FROM public.role_profiles rp
-                WHERE rp.id = i.role_profile_id AND rp.candidate_id = a.candidate_id)
 WHERE a.id = $1 AND a.candidate_id = $2
 `
 
@@ -133,8 +131,6 @@ SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS 
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
 LEFT JOIN public.interviews i ON i.application_id = a.id
-    AND EXISTS (SELECT 1 FROM public.role_profiles rp
-                WHERE rp.id = i.role_profile_id AND rp.candidate_id = a.candidate_id)
 WHERE a.candidate_id = $1
 ORDER BY a.created_at DESC, a.id DESC
 LIMIT $3 OFFSET $2

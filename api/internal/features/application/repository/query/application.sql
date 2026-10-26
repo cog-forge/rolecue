@@ -105,8 +105,6 @@ FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
 JOIN public.users u ON u.id = a.candidate_id
 LEFT JOIN public.interviews i ON i.application_id = a.id
-    AND EXISTS (SELECT 1 FROM public.role_profiles rp
-                WHERE rp.id = i.role_profile_id AND rp.candidate_id = a.candidate_id)
 WHERE a.id = @id AND a.job_posting_id = @job_posting_id AND jp.recruiter_id = @recruiter_id;
 
 -- The recruiter's final decision (KAN-115). The caller holds the posting lock and has read the
