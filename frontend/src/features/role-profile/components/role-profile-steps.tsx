@@ -1,32 +1,21 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const steps = [
+  { id: "input", label: "Add JD" },
+  { id: "review", label: "Review role" },
+  { id: "confirmed", label: "Confirmed" },
+] as const;
+
 export function RoleProfileSteps({
   current,
-  audience = "candidate",
 }: {
-  current: "input" | "review" | "confirmed";
-  audience?: "candidate" | "recruiter";
+  current: (typeof steps)[number]["id"];
 }) {
-  const steps = [
-    { id: "input", label: "Add JD" },
-    {
-      id: "review",
-      label: audience === "recruiter" ? "Review requirements" : "Review role",
-    },
-    {
-      id: "confirmed",
-      label: audience === "recruiter" ? "Review questions" : "Confirmed",
-    },
-  ] as const;
   const active = steps.findIndex((step) => step.id === current);
   return (
     <ol
-      aria-label={
-        audience === "recruiter"
-          ? "Job posting progress"
-          : "Role Profile progress"
-      }
+      aria-label="Role Profile progress"
       className="flex flex-wrap items-center gap-x-5 gap-y-3 text-xs sm:gap-x-8"
     >
       {steps.map((step, index) => (

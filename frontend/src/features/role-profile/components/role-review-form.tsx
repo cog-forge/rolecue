@@ -19,7 +19,7 @@ import {
   type RoleProfile,
   type RoleReview,
 } from "../api/contract";
-import { roleError } from "../api/transport";
+import { roleError } from "../api/requests";
 import { RequirementRow } from "./requirement-row";
 
 export function RoleReviewForm({
@@ -27,10 +27,8 @@ export function RoleReviewForm({
   busy,
   onSave,
   onConfirm,
-  audience = "candidate",
 }: {
   profile: RoleProfile;
-  audience?: "candidate" | "recruiter";
   busy: boolean;
   onSave: (review: RoleReview) => Promise<RoleProfile>;
   onConfirm: (review: RoleReview) => Promise<RoleProfile>;
@@ -90,10 +88,8 @@ export function RoleReviewForm({
           aria-hidden="true"
         />
         <p>
-          Edit the role and requirements directly below. What you confirm is the{" "}
-          {audience === "recruiter"
-            ? "role context saved for this job posting."
-            : "role context saved for your practice."}
+          Edit the role and requirements directly below. What you confirm is the
+          role context saved for your practice.
         </p>
       </div>
       <fieldset disabled={disabled} className="min-w-0 space-y-7">
@@ -223,9 +219,7 @@ export function RoleReviewForm({
         </section>
         <div className="space-y-3 rounded-xl border bg-card p-5 sm:p-6">
           <label htmlFor="refinement-note" className="font-semibold">
-            {audience === "recruiter"
-              ? "Guide the interview focus."
-              : "Make the practice your own."}
+            Make the practice your own.
           </label>
           <p
             id="refinement-help"
@@ -263,9 +257,7 @@ export function RoleReviewForm({
       <footer className="flex flex-wrap items-center justify-between gap-5 border-t pt-6">
         <div className="max-w-md space-y-1">
           <p className="text-sm text-muted-foreground">
-            {audience === "recruiter"
-              ? "Confirmation prepares interview content. You’ll review the saved core questions next."
-              : "Confirmation prepares and saves interview content for this role."}
+            Confirmation prepares and saves interview content for this role.
           </p>
           <p
             role="status"
@@ -314,11 +306,7 @@ export function RoleReviewForm({
             ) : (
               <ArrowRight className="size-4" aria-hidden="true" />
             )}
-            {action === "confirm"
-              ? "Confirming…"
-              : audience === "recruiter"
-                ? "Confirm requirements"
-                : "Confirm role"}
+            {action === "confirm" ? "Confirming…" : "Confirm role"}
           </Button>
         </div>
       </footer>

@@ -14,22 +14,19 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import {
-  OriginalRoleDocument,
-  RoleProfileSteps,
-  RoleReviewForm,
-} from "@/features/job-description";
 import type { RoleProfile, RoleReview } from "../api/contract";
 import { roleProfileKeys } from "../api/keys";
 import {
   analyzeRoleProfile,
   confirmRoleProfile,
-  getOriginalDocument,
   getRoleProfile,
   roleError,
   saveRoleProfile,
 } from "../api/requests";
+import { OriginalRoleDocument } from "./original-role-document";
 import { RoleProfileStatus } from "./role-profile-status";
+import { RoleProfileSteps } from "./role-profile-steps";
+import { RoleReviewForm } from "./role-review-form";
 import { RoleReviewSummary } from "./role-review-summary";
 
 type ReviewAction = {
@@ -235,10 +232,7 @@ export function RoleProfileDetail({ id }: { id: string }) {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-      <OriginalRoleDocument
-        profile={profile}
-        getDocument={getOriginalDocument}
-      />
+      <OriginalRoleDocument profile={profile} />
     </section>
   );
 }

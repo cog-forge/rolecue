@@ -1,6 +1,6 @@
 # Candidate Role Profiles
 
-Candidates can create a Role Profile from pasted job-description text or a selectable-text PDF up to 5 MiB. Pasted text is normalized and validated at 100–20,000 characters. PDF uploads use an API-issued ticket, a direct `PUT` to the signed storage URL, and an API completion request that creates the draft. DOCX, scanned, and encrypted PDFs are not supported.
+Candidates can create a Role Profile from pasted job-description text or a selectable-text PDF up to 5 MiB. Pasted text is normalized and validated at 100–20,000 characters. PDF uploads use an API-issued ticket, a direct `PUT` to the signed storage URL, and an API completion request that creates the draft. DOCX, scanned, and encrypted PDFs are not supported. The storage `PUT` uses a separate Axios request without API cookies or interceptors. Retrying analysis reuses the saved draft, and retrying PDF completion reuses the upload ticket; the backend makes completion idempotent for the same upload and owner.
 
 The candidate reviews the extracted title, seniority, and requirements, including proficiency targets, classification, priority, and source evidence. A refinement note is saved with the review. Saving calls `PUT /role-profiles/{id}`. Confirmation saves the review first, then calls `POST /role-profiles/{id}/confirm` and waits for that request to finish before showing the confirmed state.
 

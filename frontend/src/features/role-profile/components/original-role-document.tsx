@@ -5,19 +5,13 @@ import { useMutation } from "@tanstack/react-query";
 import { ArrowUpRight, FileText, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { RoleProfile } from "../api/contract";
-import { roleError } from "../api/transport";
+import { getOriginalDocument, roleError } from "../api/requests";
 
-export function OriginalRoleDocument({
-  profile,
-  getDocument,
-}: {
-  profile: RoleProfile;
-  getDocument: (id: string) => Promise<string>;
-}) {
+export function OriginalRoleDocument({ profile }: { profile: RoleProfile }) {
   const tabRef = useRef<Window | null>(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
   const open = useMutation({
-    mutationFn: () => getDocument(profile.id),
+    mutationFn: () => getOriginalDocument(profile.id),
     onSuccess: (url) => {
       const tab = tabRef.current;
       if (!tab || tab.closed) return;
