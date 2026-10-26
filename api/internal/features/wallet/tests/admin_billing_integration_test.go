@@ -45,10 +45,10 @@ func TestAdminBillingSQLCQueries_RevenueAndFilters(t *testing.T) {
 	aliceID := uuid.New()
 	bobID := uuid.New()
 	_, err = tx.Exec(ctx, `
-		INSERT INTO public.users (id, email, password, role, name, status, is_verified)
+		INSERT INTO public.users (id, name, email, role, email_verified)
 		VALUES
-			($1, 'alice.billing@example.com', 'hash', 'candidate', 'Alice Billing', 'active', true),
-			($2, 'bob.billing@example.com', 'hash', 'recruiter', 'Bob Billing', 'active', true)
+			($1, 'Alice Billing', 'alice.billing@example.com', 'candidate', true),
+			($2, 'Bob Billing', 'bob.billing@example.com', 'recruiter', true)
 	`, aliceID, bobID)
 	require.NoError(t, err)
 
