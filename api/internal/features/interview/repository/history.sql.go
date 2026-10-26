@@ -15,8 +15,9 @@ import (
 const countCandidateInterviews = `-- name: CountCandidateInterviews :one
 SELECT count(*)::bigint AS total
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-WHERE rp.candidate_id = $1
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE COALESCE(rp.candidate_id, a.candidate_id) = $1
   AND ($2::text IS NULL OR i.type::text = $2::text)
 `
 
@@ -43,10 +44,10 @@ SELECT i.id,
        jp.title AS job_posting_title,
        i.application_id
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
 LEFT JOIN public.job_postings jp ON jp.id = a.job_posting_id
-WHERE rp.candidate_id = $1
+WHERE COALESCE(rp.candidate_id, a.candidate_id) = $1
   AND ($2::text IS NULL OR i.type::text = $2::text)
 ORDER BY i.started_at DESC, i.id DESC
 LIMIT $4 OFFSET $3
@@ -66,13 +67,13 @@ type ListCandidateInterviewsRow struct {
 	CompletedAt      pgtype.Timestamptz
 	EvaluationStatus string
 	Score            *int32
-	RoleProfileTitle string
+	RoleProfileTitle *string
 	JobPostingTitle  *string
 	ApplicationID    *uuid.UUID
 }
 
 // The Candidate's own session history, newest first. The Candidate is taken through the role profile of
-// each session, so another Candidate's sessions never match. The interview_type filter is optional: a
+// a practice session or the Application of a recruitment session, so another Candidate's sessions never match. The interview_type filter is optional: a
 // NULL argument disables it. The order ends on the id so a page boundary never splits or repeats rows.
 // Only list columns are selected; questions, turns, feedback and the recording path are never read here.
 func (q *Queries) ListCandidateInterviews(ctx context.Context, arg ListCandidateInterviewsParams) ([]ListCandidateInterviewsRow, error) {

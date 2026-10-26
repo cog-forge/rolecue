@@ -41,14 +41,14 @@ func (s *seed) interviewsOfPosting(postingID uuid.UUID) int {
 
 // TestRecruitmentCreateForEligibleApplication starts the recruitment session of an interview_eligible
 // Application within its deadline. It proves the Candidate is not charged, the session asks the bank in
-// order from the Candidate's confirmed profile, and the recruitment session carries no turns.
+// order from the posting's bank, and the recruitment session carries no turns.
 func TestRecruitmentCreateForEligibleApplication(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 10)
-	profile, _ := s.confirmedProfile(candidate, 1)
+	// The Candidate has no practice Role Profile at all: a recruitment session does not need one.
 	_, posting, bank := s.openPosting(slotOf(2), 4)
 	application := s.eligibleApplication(posting, candidate)
 
@@ -62,8 +62,8 @@ func TestRecruitmentCreateForEligibleApplication(t *testing.T) {
 	if got.Type != domain.TypeRecruitment || got.ApplicationID == nil || *got.ApplicationID != application {
 		t.Fatalf("Create() = %+v, want a recruitment session of the Application", got)
 	}
-	if got.RoleProfileID != profile {
-		t.Fatalf("role profile = %s, want the Candidate's confirmed profile %s", got.RoleProfileID, profile)
+	if got.RoleProfileID != nil {
+		t.Fatalf("role profile = %s, want none for a recruitment session", got.RoleProfileID)
 	}
 	if got.QuestionCount != 3 || got.CurrentQuestion == nil || got.CurrentQuestion.Position != 1 {
 		t.Fatalf("Create() = %+v, want 3 questions with position 1 current", got)
@@ -89,21 +89,38 @@ func TestRecruitmentCreateForEligibleApplication(t *testing.T) {
 	}
 }
 
-// TestRecruitmentRequiresConfirmedProfileWhenNoneGiven proves a Candidate with no confirmed role profile
-// cannot start a recruitment session, and no row is written.
-func TestRecruitmentRequiresConfirmedProfileWhenNoneGiven(t *testing.T) {
+// TestRecruitmentIgnoresPracticeProfilesAndRefusesOwnInterviewerChoice proves a recruitment session
+// starts with only a draft practice profile (it stores none), and that a Candidate cannot pick an avatar
+// or voice of their own: the posting fixes them.
+func TestRecruitmentIgnoresPracticeProfilesAndRefusesOwnInterviewerChoice(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.roleProfile(candidate, "draft", 1)
 	_, posting, _ := s.openPosting(slotOf(2), 4)
 	application := s.eligibleApplication(posting, candidate)
 
-	_, _, err := svc.Create(ctx, candidate, "candidate", recruitmentInput(application))
-	assertCode(t, err, apperror.CodeRoleProfileRequired)
+	own := recruitmentInput(application)
+	avatar := s.avatarOf(candidate)
+	own.AvatarID = &avatar
+	_, _, err := svc.Create(ctx, candidate, "candidate", own)
+	assertCode(t, err, apperror.CodeValidation)
+	voice := s.voice(true)
+	own = recruitmentInput(application)
+	own.VoiceID = &voice
+	_, _, err = svc.Create(ctx, candidate, "candidate", own)
+	assertCode(t, err, apperror.CodeValidation)
 	if n := s.interviewsOfApplication(application); n != 0 {
-		t.Fatalf("interview rows = %d, want 0", n)
+		t.Fatalf("interview rows = %d after refused starts, want 0", n)
+	}
+
+	got, created, err := svc.Create(ctx, candidate, "candidate", recruitmentInput(application))
+	if err != nil || !created {
+		t.Fatalf("Create() created=%v error=%v, want a session without any confirmed profile", created, err)
+	}
+	if got.RoleProfileID != nil {
+		t.Fatalf("role profile = %s, want none", got.RoleProfileID)
 	}
 }
 
@@ -112,7 +129,7 @@ func TestRecruitmentRequiresConfirmedProfileWhenNoneGiven(t *testing.T) {
 func TestRecruitmentNotEligibleStatusIsRefused(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.confirmedProfile(candidate, 1)
 	_, posting, _ := s.openPosting(slotOf(2), 4)
@@ -131,7 +148,7 @@ func TestRecruitmentNotEligibleStatusIsRefused(t *testing.T) {
 func TestRecruitmentExpiredDeadlineIsRefused(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.confirmedProfile(candidate, 1)
 	_, posting, _ := s.openPosting(slotOf(2), 4)
@@ -150,7 +167,7 @@ func TestRecruitmentExpiredDeadlineIsRefused(t *testing.T) {
 func TestRecruitmentCapacityNotFundedIsRefused(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.confirmedProfile(candidate, 1)
 	_, posting, _ := s.openPosting(nil, 4)
@@ -168,7 +185,7 @@ func TestRecruitmentCapacityNotFundedIsRefused(t *testing.T) {
 func TestRecruitmentFullCapacityIsRefused(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	_, posting, _ := s.openPosting(slotOf(1), 4)
 
 	first := s.user("candidate")
@@ -193,7 +210,7 @@ func TestRecruitmentFullCapacityIsRefused(t *testing.T) {
 func TestRecruitmentForeignApplicationIsHidden(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	owner := s.user("candidate")
 	s.confirmedProfile(owner, 1)
 	_, posting, _ := s.openPosting(slotOf(2), 4)
@@ -219,7 +236,7 @@ func TestRecruitmentForeignApplicationIsHidden(t *testing.T) {
 func TestRecruitmentRepeatReturnsSameSession(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 10)
 	s.confirmedProfile(candidate, 1)
@@ -258,7 +275,7 @@ func TestRecruitmentRepeatReturnsSameSession(t *testing.T) {
 func TestConcurrentRecruitmentCreatesForSameApplicationYieldOneRow(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.confirmedProfile(candidate, 1)
 	_, posting, _ := s.openPosting(slotOf(5), 4)
@@ -297,7 +314,7 @@ func TestConcurrentRecruitmentCreatesForSameApplicationYieldOneRow(t *testing.T)
 func TestConcurrentRecruitmentCreatesNeverExceedLastSlot(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	_, posting, _ := s.openPosting(slotOf(3), 4)
 
 	const candidates = 12
@@ -338,7 +355,7 @@ func TestConcurrentRecruitmentCreatesNeverExceedLastSlot(t *testing.T) {
 func TestRecruitmentCreateDoesNotWriteWhenRefused(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 7)
 	s.confirmedProfile(candidate, 1)
@@ -404,7 +421,7 @@ func recruitmentJSON(t *testing.T, session domain.Session) map[string]any {
 func TestRecruitmentSessionJSONIsRedacted(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.confirmedProfile(candidate, 1)
 	_, posting, bank := s.openPosting(slotOf(2), 4)
@@ -439,7 +456,7 @@ func TestRecruitmentSessionJSONIsRedacted(t *testing.T) {
 func TestPracticeSessionJSONShowsEmptyTurns(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	profile, _ := s.confirmedProfile(candidate, 4)
@@ -461,7 +478,7 @@ func TestPracticeSessionJSONShowsEmptyTurns(t *testing.T) {
 func TestAnswersAndCompletionAreRefusedOnceTheWindowIsClosed(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.confirmedProfile(candidate, 1)
 	_, posting, _ := s.openPosting(slotOf(2), 4)

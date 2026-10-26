@@ -146,7 +146,7 @@ var validUpload = domain.RecordingUploadInput{ContentType: "video/webm", Size: 1
 func TestRecordingGrantIsRecruitmentOnly(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	candidate := s.user("candidate")
@@ -168,7 +168,7 @@ func TestRecordingGrantIsRecruitmentOnly(t *testing.T) {
 func TestRecordingGrantStoresKeyAndNeverReturnsIt(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)
@@ -198,7 +198,7 @@ func TestRecordingGrantStoresKeyAndNeverReturnsIt(t *testing.T) {
 func TestRecordingFinalizeWithPresentObjectIsReady(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)
@@ -240,7 +240,7 @@ func TestRecordingFinalizeWithPresentObjectIsReady(t *testing.T) {
 func TestRecordingFinalizeMissingObjectFailsThenRegrant(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)
@@ -277,7 +277,7 @@ func TestRecordingFinalizeMissingObjectFailsThenRegrant(t *testing.T) {
 func TestRecordingReadyCannotBeReplaced(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)
@@ -303,7 +303,7 @@ func TestRecordingReadyCannotBeReplaced(t *testing.T) {
 func TestRecordingUploadRejectsBadInput(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)
@@ -327,7 +327,7 @@ func TestRecordingUploadRejectsBadInput(t *testing.T) {
 func TestRecordingIsOnlyForTheOwningCandidate(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)
@@ -347,7 +347,7 @@ func TestRecordingIsOnlyForTheOwningCandidate(t *testing.T) {
 func TestRecruiterRecordingAccessIsOwnerOnly(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)
@@ -405,7 +405,7 @@ func TestRecruiterRecordingAccessIsOwnerOnly(t *testing.T) {
 func TestRecruiterSeesNoLinkBeforeReady(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)
@@ -442,7 +442,7 @@ func (s *seed) recruiterOf(postingID uuid.UUID) uuid.UUID {
 func TestTranscriptOnlyAfterCompletion(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	store := newFakeRecordingStore()
 	recording := newRecordingService(t, pool, store)
 	fx := newRecordingFixture(t, ctx, s, svc)

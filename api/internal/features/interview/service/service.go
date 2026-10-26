@@ -34,10 +34,9 @@ type Evaluator interface {
 	Evaluate(ctx context.Context, interviewID uuid.UUID) error
 }
 
-// Settings are the configured interview rules. PracticeCoins is the price of one practice session.
+// Settings are the configured interview rules.
 // QuestionLimit is the most questions one session asks; zero uses the default.
 type Settings struct {
-	PracticeCoins int32
 	QuestionLimit int32
 }
 
@@ -78,7 +77,7 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 		QuestionLimit: s.settings.QuestionLimit,
 	}
 	if input.Type == domain.TypePractice {
-		params.PracticeCoins = s.settings.PracticeCoins
+		params.PracticeCoins = domain.PracticeInterviewCoins
 		if input.IdempotencyKey != "" {
 			key := candidateID.String() + ":" + input.IdempotencyKey
 			params.StartKey = &key
@@ -165,6 +164,13 @@ func (s *Service) startEvaluation(ctx context.Context, interviewID uuid.UUID) {
 		return
 	}
 	go func() {
+		defer func() {
+			// A panic in the scorer or its client must not take the API down. The claim goes stale and a
+			// repeated Complete takes the evaluation over.
+			if recovered := recover(); recovered != nil {
+				slog.Error("interview evaluation panicked", "interview_id", interviewID, "panic", recovered)
+			}
+		}()
 		evalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), evaluationTimeout)
 		defer cancel()
 		if err := evaluator.Evaluate(evalCtx, interviewID); err != nil {
@@ -195,6 +201,10 @@ func validateCreate(input domain.CreateInput) error {
 	case domain.TypeRecruitment:
 		if input.ApplicationID == nil {
 			return apperror.New(apperror.CodeValidation, "application_id is required for a recruitment interview")
+		}
+		// The posting fixes the interviewer and the voice; the Candidate cannot choose their own.
+		if input.AvatarID != nil || input.VoiceID != nil {
+			return apperror.New(apperror.CodeValidation, "avatar_id and voice_id are fixed by the job posting for a recruitment interview")
 		}
 	default:
 		return apperror.New(apperror.CodeValidation, "type must be practice or recruitment")

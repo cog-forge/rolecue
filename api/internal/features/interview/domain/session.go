@@ -35,6 +35,10 @@ const (
 	RecordFailed     RecordStatus = "failed"
 )
 
+// PracticeInterviewCoins is the price of one practice session, in coins. The team fixed it at 5; it is a
+// constant on purpose, not configuration.
+const PracticeInterviewCoins int32 = 5
+
 // CreateInput is what the Candidate asks for when starting a session. It is checked by the service
 // before the repository sees it.
 type CreateInput struct {
@@ -83,7 +87,7 @@ type Turn struct {
 type Session struct {
 	ID               uuid.UUID        `json:"id"`
 	Type             Type             `json:"type" enums:"practice,recruitment"`
-	RoleProfileID    uuid.UUID        `json:"role_profile_id"`
+	RoleProfileID    *uuid.UUID       `json:"role_profile_id"`
 	ApplicationID    *uuid.UUID       `json:"application_id"`
 	AvatarID         *uuid.UUID       `json:"avatar_id"`
 	VoiceID          *uuid.UUID       `json:"voice_id"`

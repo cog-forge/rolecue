@@ -28,12 +28,23 @@ func (q *Queries) ApplicationAcceptsInterview(ctx context.Context, id uuid.UUID)
 	return open, err
 }
 
-const avatarExists = `-- name: AvatarExists :one
-SELECT EXISTS (SELECT 1 FROM public.avatars WHERE id = $1)::boolean AS found
+const avatarOwnedBy = `-- name: AvatarOwnedBy :one
+SELECT EXISTS (
+    SELECT 1 FROM public.avatars av
+    JOIN public.inventories inv ON inv.id = av.inventory_id
+    WHERE av.id = $1 AND inv.user_id = $2
+)::boolean AS found
 `
 
-func (q *Queries) AvatarExists(ctx context.Context, id uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, avatarExists, id)
+type AvatarOwnedByParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// A practice session may use only an avatar in the Candidate's own inventory (no system avatars exist),
+// and only an active voice. Another user's personal avatar is their likeness and is never usable.
+func (q *Queries) AvatarOwnedBy(ctx context.Context, arg AvatarOwnedByParams) (bool, error) {
+	row := q.db.QueryRow(ctx, avatarOwnedBy, arg.ID, arg.UserID)
 	var found bool
 	err := row.Scan(&found)
 	return found, err
@@ -120,6 +131,22 @@ func (q *Queries) FindInterviewByStartKey(ctx context.Context, startKey *string)
 	return id, err
 }
 
+const findUnfinishedPractice = `-- name: FindUnfinishedPractice :one
+SELECT i.id
+FROM public.interviews i
+WHERE i.type = 'practice' AND i.role_profile_id = $1 AND i.completed_at IS NULL
+ORDER BY i.started_at DESC, i.id DESC
+LIMIT 1
+`
+
+// The unfinished practice session of the Candidate for a role profile, if any: resuming it is free.
+func (q *Queries) FindUnfinishedPractice(ctx context.Context, roleProfileID *uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, findUnfinishedPractice, roleProfileID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getApplicationForInterview = `-- name: GetApplicationForInterview :one
 SELECT status::text AS status,
        COALESCE(interview_deadline > statement_timestamp(), false)::boolean AS within_deadline
@@ -198,8 +225,9 @@ const getOwnedInterview = `-- name: GetOwnedInterview :one
 SELECT i.id, i.type::text AS type, i.role_profile_id, i.application_id, i.avatar_id, i.voice_id,
        i.started_at, i.completed_at, i.evaluation_status
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-WHERE i.id = $1 AND rp.candidate_id = $2
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE i.id = $1 AND COALESCE(rp.candidate_id, a.candidate_id) = $2
 `
 
 type GetOwnedInterviewParams struct {
@@ -210,7 +238,7 @@ type GetOwnedInterviewParams struct {
 type GetOwnedInterviewRow struct {
 	ID               uuid.UUID
 	Type             string
-	RoleProfileID    uuid.UUID
+	RoleProfileID    *uuid.UUID
 	ApplicationID    *uuid.UUID
 	AvatarID         *uuid.UUID
 	VoiceID          *uuid.UUID
@@ -254,9 +282,10 @@ type GetOwnedRoleProfileRow struct {
 	Status string
 }
 
-// Interview sessions of the Candidate. A session belongs to the Candidate through its role profile, so
-// every query that reads or writes one session joins role_profiles, and another Candidate's session is
-// not found.
+// Interview sessions of the Candidate. A practice session belongs to the Candidate through its role profile
+// and a recruitment session (no role profile) through its Application, so every query that reads or
+// writes one session resolves the owner as COALESCE(rp.candidate_id, a.candidate_id), and another
+// Candidate's session is not found.
 func (q *Queries) GetOwnedRoleProfile(ctx context.Context, arg GetOwnedRoleProfileParams) (GetOwnedRoleProfileRow, error) {
 	row := q.db.QueryRow(ctx, getOwnedRoleProfile, arg.ID, arg.CandidateID)
 	var i GetOwnedRoleProfileRow
@@ -272,7 +301,7 @@ RETURNING id
 `
 
 type InsertInterviewParams struct {
-	RoleProfileID uuid.UUID
+	RoleProfileID *uuid.UUID
 	InterviewType string
 	ApplicationID *uuid.UUID
 	AvatarID      *uuid.UUID
@@ -330,22 +359,6 @@ func (q *Queries) InsertInterviewTurn(ctx context.Context, arg InsertInterviewTu
 		arg.Answer,
 	)
 	return err
-}
-
-const latestConfirmedRoleProfile = `-- name: LatestConfirmedRoleProfile :one
-SELECT id
-FROM public.role_profiles
-WHERE candidate_id = $1 AND status = 'confirmed'
-ORDER BY created_at DESC, id DESC
-LIMIT 1
-`
-
-// The most recent confirmed role profile of the Candidate, the default for a recruitment session.
-func (q *Queries) LatestConfirmedRoleProfile(ctx context.Context, candidateID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, latestConfirmedRoleProfile, candidateID)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
 }
 
 const listInterviewTurns = `-- name: ListInterviewTurns :many
@@ -424,8 +437,9 @@ func (q *Queries) ListStartQuestions(ctx context.Context, arg ListStartQuestions
 const lockOwnedInterview = `-- name: LockOwnedInterview :one
 SELECT i.id
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-WHERE i.id = $1 AND rp.candidate_id = $2
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE i.id = $1 AND COALESCE(rp.candidate_id, a.candidate_id) = $2
 FOR UPDATE OF i
 `
 
@@ -468,6 +482,17 @@ func (q *Queries) LockPostingForInterview(ctx context.Context, id uuid.UUID) (Lo
 	return i, err
 }
 
+const lockPracticeStart = `-- name: LockPracticeStart :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+// Serializes the practice starts of one Candidate for one role profile (the key is the two ids), so two
+// concurrent starts cannot both find "no unfinished session" and both charge.
+func (q *Queries) LockPracticeStart(ctx context.Context, lockKey string) error {
+	_, err := q.db.Exec(ctx, lockPracticeStart, lockKey)
+	return err
+}
+
 const markApplicationInterviewed = `-- name: MarkApplicationInterviewed :exec
 UPDATE public.applications
 SET status = 'interviewed', updated_at = statement_timestamp()
@@ -493,12 +518,12 @@ func (q *Queries) SetInterviewCompleted(ctx context.Context, id uuid.UUID) error
 	return err
 }
 
-const voiceExists = `-- name: VoiceExists :one
-SELECT EXISTS (SELECT 1 FROM public.voices WHERE id = $1)::boolean AS found
+const voiceActive = `-- name: VoiceActive :one
+SELECT EXISTS (SELECT 1 FROM public.voices WHERE id = $1 AND is_active)::boolean AS found
 `
 
-func (q *Queries) VoiceExists(ctx context.Context, id uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, voiceExists, id)
+func (q *Queries) VoiceActive(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, voiceActive, id)
 	var found bool
 	err := row.Scan(&found)
 	return found, err

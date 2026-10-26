@@ -6,8 +6,9 @@
 SELECT i.id, i.type::text AS type, i.record_status, i.record_path,
        (i.completed_at IS NOT NULL)::boolean AS completed
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-WHERE i.id = @id AND rp.candidate_id = @candidate_id;
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE i.id = @id AND COALESCE(rp.candidate_id, a.candidate_id) = @candidate_id;
 
 -- The upload grant is one conditional UPDATE. A recording that is processing or ready is never replaced
 -- by a new upload, so the status checked in the service cannot change under the write.
@@ -17,7 +18,7 @@ SET record_path = @record_path, record_status = 'uploading'
 WHERE i.id = @id
   AND i.type = 'recruitment'
   AND i.record_status IN ('none', 'uploading', 'failed')
-  AND i.role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = @candidate_id);
+  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = @candidate_id);
 
 -- Finalization moves only the upload that was verified: the status and the key must still be the ones
 -- the Candidate uploaded to, so a newer grant is never overwritten by an older check.
@@ -27,7 +28,7 @@ SET record_status = @record_status
 WHERE i.id = @id
   AND i.record_path = @record_path
   AND i.record_status = 'uploading'
-  AND i.role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = @candidate_id);
+  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = @candidate_id);
 
 -- name: RecruiterOwnsApplication :one
 SELECT EXISTS (

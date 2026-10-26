@@ -47,7 +47,7 @@ const regAnswerMarker = "regression-answer-marker"
 
 // regPracticeCoins and regQuestionLimit are the rules of the regression run.
 const (
-	regPracticeCoins = 3
+	regPracticeCoins = domain.PracticeInterviewCoins
 	regQuestionLimit = 2
 )
 
@@ -290,7 +290,7 @@ type regServices struct {
 func regBuild(t *testing.T, ctx context.Context, pool *pgxpool.Pool) regServices {
 	t.Helper()
 	interviewRepo := repository.NewRepository(pool)
-	interviewSvc, err := service.New(interviewRepo, service.Settings{PracticeCoins: regPracticeCoins, QuestionLimit: regQuestionLimit})
+	interviewSvc, err := service.New(interviewRepo, service.Settings{QuestionLimit: regQuestionLimit})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -99,14 +99,14 @@ func assertCode(t *testing.T, err error, want apperror.Code) {
 
 func practiceSession() domain.Session {
 	turns := []domain.Turn{{Position: 1, Question: "Q1", Answer: "A1"}}
-	return domain.Session{ID: sessionID, Type: domain.TypePractice, RoleProfileID: profileID, Turns: &turns}
+	return domain.Session{ID: sessionID, Type: domain.TypePractice, RoleProfileID: &profileID, Turns: &turns}
 }
 
 func recruitmentSession() domain.Session {
 	turns := []domain.Turn{{Position: 1, Question: "Q1", Answer: "A1"}}
 	application := applicationID
 	return domain.Session{
-		ID: sessionID, Type: domain.TypeRecruitment, RoleProfileID: profileID, ApplicationID: &application,
+		ID: sessionID, Type: domain.TypeRecruitment, ApplicationID: &application,
 		Turns: &turns, CurrentQuestion: &domain.CurrentQuestion{Position: 2, Content: "Q2"},
 	}
 }
@@ -119,7 +119,7 @@ func TestNewRequiresRepository(t *testing.T) {
 
 func TestNewDefaultsQuestionLimit(t *testing.T) {
 	repo := &fakeRepository{}
-	svc := newTestService(t, repo, Settings{PracticeCoins: 5})
+	svc := newTestService(t, repo, Settings{})
 	if svc.settings.QuestionLimit != defaultQuestionLimit {
 		t.Fatalf("QuestionLimit = %d, want %d", svc.settings.QuestionLimit, defaultQuestionLimit)
 	}
@@ -187,7 +187,7 @@ func TestCreateValidatesTypeAndReferences(t *testing.T) {
 
 func TestCreatePracticeChargesConfiguredPrice(t *testing.T) {
 	repo := &fakeRepository{createSession: practiceSession(), createCreated: true}
-	svc := newTestService(t, repo, Settings{PracticeCoins: 5, QuestionLimit: 3})
+	svc := newTestService(t, repo, Settings{QuestionLimit: 3})
 	profile := profileID
 	session, created, err := svc.Create(context.Background(), candidateID, "candidate", domain.CreateInput{
 		Type: domain.TypePractice, RoleProfileID: &profile,
@@ -211,7 +211,7 @@ func TestCreatePracticeChargesConfiguredPrice(t *testing.T) {
 
 func TestCreateRecruitmentIsNeverCharged(t *testing.T) {
 	repo := &fakeRepository{createSession: recruitmentSession(), createCreated: true}
-	svc := newTestService(t, repo, Settings{PracticeCoins: 5})
+	svc := newTestService(t, repo, Settings{})
 	application := applicationID
 	if _, _, err := svc.Create(context.Background(), candidateID, "candidate", domain.CreateInput{
 		Type: domain.TypeRecruitment, ApplicationID: &application,
@@ -240,7 +240,7 @@ func TestCreateExistingRecruitmentReturnsNotCreated(t *testing.T) {
 
 func TestCreatePassesRepositoryErrorsThrough(t *testing.T) {
 	repo := &fakeRepository{createErr: apperror.New(apperror.CodeInsufficientBalance, "insufficient coin balance")}
-	svc := newTestService(t, repo, Settings{PracticeCoins: 5})
+	svc := newTestService(t, repo, Settings{})
 	profile := profileID
 	_, _, err := svc.Create(context.Background(), candidateID, "candidate", domain.CreateInput{
 		Type: domain.TypePractice, RoleProfileID: &profile,
@@ -290,7 +290,7 @@ func TestPracticeSessionReturnsTurnsWhenEmpty(t *testing.T) {
 
 func TestResumeReturnsSessionWithoutWriting(t *testing.T) {
 	repo := &fakeRepository{getSession: practiceSession()}
-	svc := newTestService(t, repo, Settings{PracticeCoins: 5})
+	svc := newTestService(t, repo, Settings{})
 	session, err := svc.Resume(context.Background(), candidateID, "candidate", sessionID)
 	if err != nil {
 		t.Fatalf("Resume: %v", err)

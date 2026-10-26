@@ -1,19 +1,12 @@
--- Interview sessions of the Candidate. A session belongs to the Candidate through its role profile, so
--- every query that reads or writes one session joins role_profiles, and another Candidate's session is
--- not found.
+-- Interview sessions of the Candidate. A practice session belongs to the Candidate through its role profile
+-- and a recruitment session (no role profile) through its Application, so every query that reads or
+-- writes one session resolves the owner as COALESCE(rp.candidate_id, a.candidate_id), and another
+-- Candidate's session is not found.
 
 -- name: GetOwnedRoleProfile :one
 SELECT id, jd_id, status
 FROM public.role_profiles
 WHERE id = @id AND candidate_id = @candidate_id;
-
--- The most recent confirmed role profile of the Candidate, the default for a recruitment session.
--- name: LatestConfirmedRoleProfile :one
-SELECT id
-FROM public.role_profiles
-WHERE candidate_id = @candidate_id AND status = 'confirmed'
-ORDER BY created_at DESC, id DESC
-LIMIT 1;
 
 -- The first core questions of a Job Description's bank, in a fixed order so a session always asks the
 -- same questions.
@@ -24,11 +17,30 @@ WHERE jd_id = @jd_id
 ORDER BY id
 LIMIT @question_limit;
 
--- name: AvatarExists :one
-SELECT EXISTS (SELECT 1 FROM public.avatars WHERE id = @id)::boolean AS found;
+-- A practice session may use only an avatar in the Candidate's own inventory (no system avatars exist),
+-- and only an active voice. Another user's personal avatar is their likeness and is never usable.
+-- name: AvatarOwnedBy :one
+SELECT EXISTS (
+    SELECT 1 FROM public.avatars av
+    JOIN public.inventories inv ON inv.id = av.inventory_id
+    WHERE av.id = @id AND inv.user_id = @user_id
+)::boolean AS found;
 
--- name: VoiceExists :one
-SELECT EXISTS (SELECT 1 FROM public.voices WHERE id = @id)::boolean AS found;
+-- name: VoiceActive :one
+SELECT EXISTS (SELECT 1 FROM public.voices WHERE id = @id AND is_active)::boolean AS found;
+
+-- Serializes the practice starts of one Candidate for one role profile (the key is the two ids), so two
+-- concurrent starts cannot both find "no unfinished session" and both charge.
+-- name: LockPracticeStart :exec
+SELECT pg_advisory_xact_lock(hashtextextended(@lock_key::text, 0));
+
+-- The unfinished practice session of the Candidate for a role profile, if any: resuming it is free.
+-- name: FindUnfinishedPractice :one
+SELECT i.id
+FROM public.interviews i
+WHERE i.type = 'practice' AND i.role_profile_id = @role_profile_id AND i.completed_at IS NULL
+ORDER BY i.started_at DESC, i.id DESC
+LIMIT 1;
 
 -- name: InsertInterview :one
 INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key)
@@ -96,16 +108,18 @@ WHERE a.job_posting_id = @job_posting_id;
 -- name: LockOwnedInterview :one
 SELECT i.id
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-WHERE i.id = @id AND rp.candidate_id = @candidate_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE i.id = @id AND COALESCE(rp.candidate_id, a.candidate_id) = @candidate_id
 FOR UPDATE OF i;
 
 -- name: GetOwnedInterview :one
 SELECT i.id, i.type::text AS type, i.role_profile_id, i.application_id, i.avatar_id, i.voice_id,
        i.started_at, i.completed_at, i.evaluation_status
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-WHERE i.id = @id AND rp.candidate_id = @candidate_id;
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE i.id = @id AND COALESCE(rp.candidate_id, a.candidate_id) = @candidate_id;
 
 -- name: ListInterviewTurns :many
 SELECT position, question, COALESCE(answer, '')::text AS answer

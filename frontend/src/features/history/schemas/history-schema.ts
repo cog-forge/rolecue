@@ -22,7 +22,7 @@ export const historyItemSchema = z.object({
   evaluation_status: historyEvaluationStatusSchema,
   status: reportStatusSchema,
   score: z.number().int().min(0).max(100).nullable(),
-  role_profile_title: z.string(),
+  role_profile_title: z.string().nullable(),
   job_posting_title: z.string().nullable(),
   application_id: z.uuid().nullable(),
 });

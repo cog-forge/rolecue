@@ -256,3 +256,21 @@ func TestEvaluateSaveFailureMarksTheEvaluationFailed(t *testing.T) {
 		t.Fatal("a failed save must mark the evaluation failed: left pending it would look in flight forever, and a repeated Complete retries a failed one")
 	}
 }
+
+type panickingScorer struct{}
+
+func (panickingScorer) Score(context.Context, domain.ScoreInput) (domain.ScoreOutput, error) {
+	panic("llm client blew up")
+}
+
+func TestEvaluateScorerPanicMarksFailedInsteadOfCrashing(t *testing.T) {
+	repo := &fakeInterviewRepository{record: completedPracticeRecord(), turns: answeredTurns(), metrics: scoringCatalog}
+
+	err := newScoringForTest(t, repo, panickingScorer{}).Evaluate(context.Background(), scoringInterviewID)
+	if !apperror.IsCode(err, apperror.CodeInternal) {
+		t.Fatalf("Evaluate() error = %v, want an internal error", err)
+	}
+	if repo.saveCalls != 0 || !repo.marked {
+		t.Fatalf("saves = %d, marked = %v; want nothing saved and marked failed", repo.saveCalls, repo.marked)
+	}
+}

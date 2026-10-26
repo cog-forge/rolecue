@@ -19,4 +19,11 @@ CREATE INDEX interviews_started_at_idx ON public.interviews(started_at);
 ALTER TABLE public.interviews ADD COLUMN start_key text;
 CREATE UNIQUE INDEX interviews_start_key_key ON public.interviews(start_key) WHERE start_key IS NOT NULL;
 
+-- A recruitment session belongs to an Application and the Recruiter's posting, not to a practice Role
+-- Profile, so it stores no role profile; ownership then comes from applications.candidate_id.
+ALTER TABLE public.interviews ALTER COLUMN role_profile_id DROP NOT NULL;
+ALTER TABLE public.interviews
+    ADD CONSTRAINT interviews_practice_has_role_profile
+    CHECK (type <> 'practice' OR role_profile_id IS NOT NULL);
+
 COMMIT;

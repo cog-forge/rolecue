@@ -14,10 +14,10 @@ import (
 const countAdminInterviews = `-- name: CountAdminInterviews :one
 SELECT count(*)
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
 WHERE ($1::text IS NULL OR i.type::text = $1::text)
-  AND ($2::uuid IS NULL OR rp.candidate_id = $2::uuid)
+  AND ($2::uuid IS NULL OR COALESCE(rp.candidate_id, a.candidate_id) = $2::uuid)
   AND ($3::uuid IS NULL OR a.job_posting_id = $3::uuid)
 `
 
@@ -55,9 +55,9 @@ SELECT i.id,
        (SELECT count(*) FROM public.interview_questions iq WHERE iq.interview_id = i.id) AS question_count,
        (SELECT count(*) FROM public.conversation_turns ct WHERE ct.interview_id = i.id) AS turn_count
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-JOIN public.users u ON u.id = rp.candidate_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
+JOIN public.users u ON u.id = COALESCE(rp.candidate_id, a.candidate_id)
 LEFT JOIN public.job_postings jp ON jp.id = a.job_posting_id
 LEFT JOIN public.avatars av ON av.id = i.avatar_id
 LEFT JOIN public.voices vo ON vo.id = i.voice_id
@@ -73,8 +73,8 @@ type GetAdminInterviewRow struct {
 	OwnerID          uuid.UUID
 	OwnerName        string
 	OwnerEmail       string
-	RoleProfileID    uuid.UUID
-	RoleProfileTitle string
+	RoleProfileID    *uuid.UUID
+	RoleProfileTitle *string
 	ApplicationID    *uuid.UUID
 	JobPostingID     *uuid.UUID
 	JobPostingTitle  *string
@@ -127,12 +127,12 @@ SELECT i.id,
        jp.id AS job_posting_id,
        jp.title AS job_posting_title
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-JOIN public.users u ON u.id = rp.candidate_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
+JOIN public.users u ON u.id = COALESCE(rp.candidate_id, a.candidate_id)
 LEFT JOIN public.job_postings jp ON jp.id = a.job_posting_id
 WHERE ($1::text IS NULL OR i.type::text = $1::text)
-  AND ($2::uuid IS NULL OR rp.candidate_id = $2::uuid)
+  AND ($2::uuid IS NULL OR COALESCE(rp.candidate_id, a.candidate_id) = $2::uuid)
   AND ($3::uuid IS NULL OR a.job_posting_id = $3::uuid)
 ORDER BY i.id
 LIMIT $5 OFFSET $4

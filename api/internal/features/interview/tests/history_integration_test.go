@@ -34,7 +34,7 @@ func allPages(page, size int32) domain.HistoryFilter {
 func TestHistoryListsOnlyOwnSessions(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	alice := s.user("candidate")
 	s.wallet(alice, 100)
 	bob := s.user("candidate")
@@ -68,7 +68,7 @@ func TestHistoryListsOnlyOwnSessions(t *testing.T) {
 func TestHistoryFiltersByType(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 100)
 	practiceSession(t, ctx, s, svc, candidate, 4)
@@ -109,7 +109,7 @@ func TestHistoryFiltersByType(t *testing.T) {
 func TestHistoryPagesInNewestFirstOrder(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 100)
 	created := map[uuid.UUID]bool{}
@@ -157,7 +157,7 @@ func TestHistoryPagesInNewestFirstOrder(t *testing.T) {
 func TestHistoryItemsCarryOnlyListFields(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 100)
 	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -198,7 +198,7 @@ func TestHistoryItemsCarryOnlyListFields(t *testing.T) {
 func TestHistoryStatusFollowsCompletionAndEvaluation(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 100)
 	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -236,7 +236,7 @@ func TestHistoryStatusFollowsCompletionAndEvaluation(t *testing.T) {
 func TestHistoryRejectsBadFiltersAndOtherRoles(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 
 	_, err := svc.ListHistory(ctx, candidate, "candidate", domain.HistoryFilter{Type: "bogus", Page: 1, PageSize: 20})
@@ -254,7 +254,7 @@ func TestHistoryRejectsBadFiltersAndOtherRoles(t *testing.T) {
 func TestHistoryEmptyListIsAnEmptyArray(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 1, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 
 	page := historyPage(t, ctx, svc, candidate, allPages(1, 20))

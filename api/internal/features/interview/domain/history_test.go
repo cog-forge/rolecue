@@ -10,6 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
+var backend = "Backend"
+
 func TestDeriveSessionStatus(t *testing.T) {
 	done := time.Date(2026, 10, 2, 10, 0, 0, 0, time.UTC)
 	tests := []struct {
@@ -41,7 +43,7 @@ func TestHistoryPageAllowList(t *testing.T) {
 	page := HistoryPage{
 		Items: []HistoryItem{{
 			ID: uuid.New(), Type: TypeRecruitment, StartedAt: time.Now(), EvaluationStatus: EvaluationCompleted,
-			Status: StatusCompleted, Score: &score, RoleProfileTitle: "Backend", JobPostingTitle: &title,
+			Status: StatusCompleted, Score: &score, RoleProfileTitle: &backend, JobPostingTitle: &title,
 		}},
 		Total: 1, Page: 1, PageSize: 20,
 	}

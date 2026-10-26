@@ -49,7 +49,7 @@ type HistoryItem struct {
 	EvaluationStatus EvaluationStatus `json:"evaluation_status" enums:"pending,completed,failed"`
 	Status           SessionStatus    `json:"status" enums:"in_progress,pending,completed,failed"`
 	Score            *int32           `json:"score"`
-	RoleProfileTitle string           `json:"role_profile_title"`
+	RoleProfileTitle *string          `json:"role_profile_title"`
 	JobPostingTitle  *string          `json:"job_posting_title"`
 	ApplicationID    *uuid.UUID       `json:"application_id"`
 }

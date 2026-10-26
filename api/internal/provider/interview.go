@@ -13,11 +13,10 @@ func ProvideInterviewRepository(pool *pgxpool.Pool) *repository.Repository {
 	return repository.NewRepository(pool)
 }
 
-// ProvideInterviewService takes the practice price and the question limit from the interview config
+// ProvideInterviewService takes the question limit from the interview config
 // and hands completed sessions to the evaluation engine.
 func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, scoring *evaluationservice.Scoring) (*service.Service, error) {
 	svc, err := service.New(repo, service.Settings{
-		PracticeCoins: cfg.Interview.PracticeCoins,
 		QuestionLimit: int32(cfg.Interview.QuestionLimit),
 	})
 	if err != nil {

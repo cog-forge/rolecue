@@ -6,9 +6,9 @@
 -- joined for recruitment sessions only, so their columns are null for practice.
 -- name: GetInterviewRecord :one
 SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.evaluation_status, i.score, i.feedback,
-       rp.candidate_id, a.job_posting_id, jp.recruiter_id
+       COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id, a.job_posting_id, jp.recruiter_id
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
 LEFT JOIN public.job_postings jp ON jp.id = a.job_posting_id
 WHERE i.id = @id;

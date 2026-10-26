@@ -198,8 +198,9 @@ func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (d
 	return session, startEvaluation, nil
 }
 
-// startPracticeOnce is startPractice behind the idempotency key: a key that already created a session
-// returns it, with created false, and charges nothing.
+// startPracticeOnce is startPractice behind two guards: an idempotency key that already created a session
+// and an unfinished session for the same role profile both return that session, with created false, and
+// charge nothing.
 func startPracticeOnce(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreateParams) (uuid.UUID, bool, error) {
 	if p.StartKey != nil {
 		existing, err := q.FindInterviewByStartKey(ctx, p.StartKey)
@@ -209,6 +210,18 @@ func startPracticeOnce(ctx context.Context, tx pgx.Tx, q *Queries, p domain.Crea
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, false, internal(err)
 		}
+	}
+	// Resuming the Candidate's unfinished session for this role profile is free, whatever the client
+	// sent: a double click or a retry never debits twice. The advisory lock serializes concurrent starts.
+	if err := q.LockPracticeStart(ctx, p.CandidateID.String()+":"+p.RoleProfileID.String()); err != nil {
+		return uuid.Nil, false, internal(err)
+	}
+	existing, err := q.FindUnfinishedPractice(ctx, p.RoleProfileID)
+	if err == nil {
+		return existing, false, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, internal(err)
 	}
 	id, err := startPractice(ctx, tx, q, p)
 	return id, err == nil, err
@@ -231,10 +244,10 @@ func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreatePa
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if err := checkReferences(ctx, q, p.AvatarID, p.VoiceID); err != nil {
+	if err := checkPracticeReferences(ctx, q, p.CandidateID, p.AvatarID, p.VoiceID); err != nil {
 		return uuid.Nil, err
 	}
-	interviewID, err := createInterviewRow(ctx, q, p.Type, profile.ID, nil, p.AvatarID, p.VoiceID, p.StartKey)
+	interviewID, err := createInterviewRow(ctx, q, p.Type, &profile.ID, nil, p.AvatarID, p.VoiceID, p.StartKey)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -288,25 +301,13 @@ func startRecruitment(ctx context.Context, q *Queries, p domain.CreateParams) (u
 	if err := domain.CheckRecruitmentStart(application.Status, application.WithinDeadline, posting.InterviewSlot, consumed); err != nil {
 		return uuid.Nil, false, err
 	}
-	roleProfileID, err := recruitmentRoleProfile(ctx, q, p)
-	if err != nil {
-		return uuid.Nil, false, err
-	}
 	questions, err := startQuestions(ctx, q, posting.JdID, p.QuestionLimit)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
-	avatarID, voiceID := p.AvatarID, p.VoiceID
-	if avatarID == nil {
-		avatarID = posting.RequiredAvatarID
-	}
-	if voiceID == nil {
-		voiceID = posting.RequiredVoiceID
-	}
-	if err := checkReferences(ctx, q, avatarID, voiceID); err != nil {
-		return uuid.Nil, false, err
-	}
-	interviewID, err := createInterviewRow(ctx, q, p.Type, roleProfileID, p.ApplicationID, avatarID, voiceID, nil)
+	// The posting's interviewer and voice are fixed by the Recruiter; the Candidate cannot override them
+	// (the service rejects a request that names its own).
+	interviewID, err := createInterviewRow(ctx, q, p.Type, nil, p.ApplicationID, posting.RequiredAvatarID, posting.RequiredVoiceID, nil)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
@@ -314,28 +315,6 @@ func startRecruitment(ctx context.Context, q *Queries, p domain.CreateParams) (u
 		return uuid.Nil, false, err
 	}
 	return interviewID, true, nil
-}
-
-// recruitmentRoleProfile uses the role profile the Candidate named when it is theirs and confirmed.
-// Otherwise it uses their most recent confirmed one. A Candidate with none cannot start.
-func recruitmentRoleProfile(ctx context.Context, q *Queries, p domain.CreateParams) (uuid.UUID, error) {
-	if p.RoleProfileID != nil {
-		profile, err := q.GetOwnedRoleProfile(ctx, GetOwnedRoleProfileParams{ID: *p.RoleProfileID, CandidateID: p.CandidateID})
-		if err == nil && profile.Status == domain.RoleProfileConfirmed {
-			return profile.ID, nil
-		}
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return uuid.Nil, internal(err)
-		}
-	}
-	id, err := q.LatestConfirmedRoleProfile(ctx, p.CandidateID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, domain.ErrRoleProfileRequired
-	}
-	if err != nil {
-		return uuid.Nil, internal(err)
-	}
-	return id, nil
 }
 
 // startQuestions reads the question bank a session asks from. An empty bank is not ready.
@@ -352,9 +331,9 @@ func startQuestions(ctx context.Context, q *Queries, jdID uuid.UUID, limit int32
 
 // checkReferences checks that a chosen avatar and voice exist. Defaults from the posting go through the
 // same check, which keeps the rule in one place.
-func checkReferences(ctx context.Context, q *Queries, avatarID, voiceID *uuid.UUID) error {
+func checkPracticeReferences(ctx context.Context, q *Queries, candidateID uuid.UUID, avatarID, voiceID *uuid.UUID) error {
 	if avatarID != nil {
-		found, err := q.AvatarExists(ctx, *avatarID)
+		found, err := q.AvatarOwnedBy(ctx, AvatarOwnedByParams{ID: *avatarID, UserID: candidateID})
 		if err != nil {
 			return internal(err)
 		}
@@ -363,7 +342,7 @@ func checkReferences(ctx context.Context, q *Queries, avatarID, voiceID *uuid.UU
 		}
 	}
 	if voiceID != nil {
-		found, err := q.VoiceExists(ctx, *voiceID)
+		found, err := q.VoiceActive(ctx, *voiceID)
 		if err != nil {
 			return internal(err)
 		}
@@ -374,7 +353,7 @@ func checkReferences(ctx context.Context, q *Queries, avatarID, voiceID *uuid.UU
 	return nil
 }
 
-func createInterviewRow(ctx context.Context, q *Queries, interviewType domain.Type, roleProfileID uuid.UUID, applicationID, avatarID, voiceID *uuid.UUID, startKey *string) (uuid.UUID, error) {
+func createInterviewRow(ctx context.Context, q *Queries, interviewType domain.Type, roleProfileID, applicationID, avatarID, voiceID *uuid.UUID, startKey *string) (uuid.UUID, error) {
 	id, err := q.InsertInterview(ctx, InsertInterviewParams{
 		RoleProfileID: roleProfileID, InterviewType: string(interviewType), ApplicationID: applicationID,
 		AvatarID: avatarID, VoiceID: voiceID, StartKey: startKey,

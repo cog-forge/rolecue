@@ -45,8 +45,9 @@ const getCandidateRecordingState = `-- name: GetCandidateRecordingState :one
 SELECT i.id, i.type::text AS type, i.record_status, i.record_path,
        (i.completed_at IS NOT NULL)::boolean AS completed
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-WHERE i.id = $1 AND rp.candidate_id = $2
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE i.id = $1 AND COALESCE(rp.candidate_id, a.candidate_id) = $2
 `
 
 type GetCandidateRecordingStateParams struct {
@@ -139,7 +140,7 @@ SET record_status = $1
 WHERE i.id = $2
   AND i.record_path = $3
   AND i.record_status = 'uploading'
-  AND i.role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = $4)
+  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = $4)
 `
 
 type SetRecordingResultParams struct {
@@ -170,7 +171,7 @@ SET record_path = $1, record_status = 'uploading'
 WHERE i.id = $2
   AND i.type = 'recruitment'
   AND i.record_status IN ('none', 'uploading', 'failed')
-  AND i.role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = $3)
+  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = $3)
 `
 
 type SetRecordingUploadParams struct {

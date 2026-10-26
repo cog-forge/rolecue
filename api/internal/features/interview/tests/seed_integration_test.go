@@ -52,6 +52,7 @@ type seed struct {
 	users    []string
 	jds      []string
 	postings []string
+	voices   []string
 }
 
 func newSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *seed {
@@ -90,6 +91,10 @@ func (s *seed) cleanup() {
 			[]any{userIDs, postings}},
 		{"interviews", `DELETE FROM public.interviews WHERE id IN ` + interviewScope,
 			[]any{userIDs, postings}},
+		{"avatars", `DELETE FROM public.avatars WHERE inventory_id IN
+			(SELECT id FROM public.inventories WHERE user_id = ANY($1::text[]::uuid[]))`, []any{userIDs}},
+		{"inventories", `DELETE FROM public.inventories WHERE user_id = ANY($1::text[]::uuid[])`, []any{userIDs}},
+		{"voices", `DELETE FROM public.voices WHERE id = ANY($1::text[]::uuid[])`, []any{s.voices}},
 		{"applications", `DELETE FROM public.applications WHERE candidate_id = ANY($1::text[]::uuid[])
 			OR job_posting_id = ANY($2::text[]::uuid[])`, []any{userIDs, postings}},
 		{"job_postings", `DELETE FROM public.job_postings WHERE id = ANY($1::text[]::uuid[])`,
@@ -323,10 +328,9 @@ func (s *seed) applicationStatus(applicationID uuid.UUID) string {
 }
 
 // newService builds the interview service over the real repository with the given rules.
-func newService(t *testing.T, pool *pgxpool.Pool, practiceCoins, questionLimit int32) *service.Service {
+func newService(t *testing.T, pool *pgxpool.Pool, questionLimit int32) *service.Service {
 	t.Helper()
 	svc, err := service.New(repository.NewRepository(pool), service.Settings{
-		PracticeCoins: practiceCoins,
 		QuestionLimit: questionLimit,
 	})
 	if err != nil {
@@ -365,4 +369,23 @@ func newCountingEvaluator() *countingEvaluator {
 func (e *countingEvaluator) Evaluate(_ context.Context, interviewID uuid.UUID) error {
 	e.done <- interviewID
 	return nil
+}
+
+// avatarOf gives the user an inventory and one avatar in it, and returns the avatar id.
+func (s *seed) avatarOf(userID uuid.UUID) uuid.UUID {
+	s.t.Helper()
+	id := uuid.New()
+	s.exec(`INSERT INTO public.inventories (user_id, slot) VALUES ($1, 1) ON CONFLICT (user_id) DO NOTHING`, userID)
+	s.exec(`INSERT INTO public.avatars (id, inventory_id, name, model_path, personality)
+		SELECT $2, inv.id, 'Test avatar', 'models/test.vrm', 'calm' FROM public.inventories inv WHERE inv.user_id = $1`, userID, id)
+	return id
+}
+
+// voice creates a voice, active or not, and returns its id.
+func (s *seed) voice(active bool) uuid.UUID {
+	s.t.Helper()
+	id := uuid.New()
+	s.exec(`INSERT INTO public.voices (id, name, is_active) VALUES ($1, 'Test voice', $2)`, id, active)
+	s.voices = append(s.voices, id.String())
+	return id
 }

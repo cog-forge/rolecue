@@ -38,11 +38,12 @@ func NewInterviewHandler(service InterviewService) *InterviewHandler {
 const maxIdempotencyKeyLength = 128
 
 // CreateInterviewRequest starts a session. type is required. role_profile_id is required for practice,
-// application_id for recruitment. avatar_id and voice_id are optional.
+// application_id for recruitment. avatar_id and voice_id are optional for practice (an avatar of your own
+// inventory and an active voice) and not allowed for recruitment, where the posting fixes them.
 type CreateInterviewRequest struct {
 	// Type is the session kind.
 	Type string `json:"type" enums:"practice,recruitment" example:"practice"`
-	// RoleProfileID is the role profile to practise with. For recruitment it is optional.
+	// RoleProfileID is the role profile to practise with. A recruitment session has none and ignores it.
 	RoleProfileID *uuid.UUID `json:"role_profile_id,omitempty"`
 	// ApplicationID is the Application a recruitment session is for.
 	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
@@ -58,7 +59,7 @@ type AppendTurnRequest struct {
 
 // Create godoc
 // @Summary Start an interview session
-// @Description Candidate only. Creates a session, or returns the existing recruitment session of the Application (200, no side effects). A practice session needs a confirmed role profile of yours, charges the practice price once and asks the first questions of its bank. A recruitment session needs an interview_eligible Application inside its 24-hour deadline, a funded posting with a free interview slot, and a question bank; it is free. Errors: VALIDATION_ERROR (bad type, missing or unknown reference), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND, APPLICATION_NOT_FOUND (not yours or missing), APPLICATION_NOT_ELIGIBLE, INTERVIEW_CAPACITY_NOT_FUNDED, INTERVIEW_CAPACITY_FULL, ROLE_PROFILE_REQUIRED, JD_NOT_FOUND (role profile missing or not yours), QUESTION_BANK_NOT_READY, INSUFFICIENT_BALANCE.
+// @Description Candidate only. Creates a session, or returns the existing recruitment session of the Application (200, no side effects). A practice session needs a confirmed role profile of yours and charges 5 coins once; starting again while that role profile still has an unfinished practice session returns it (200) without charging. Its avatar must be in your own inventory and its voice active. A recruitment session needs no role profile and takes its interviewer and voice from the posting (sending avatar_id or voice_id is a VALIDATION_ERROR); it needs an interview_eligible Application inside its 24-hour deadline, a funded posting with a free interview slot, and a question bank; it is free. Errors: VALIDATION_ERROR (bad type, missing or unknown reference), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND, APPLICATION_NOT_FOUND (not yours or missing), APPLICATION_NOT_ELIGIBLE, INTERVIEW_CAPACITY_NOT_FUNDED, INTERVIEW_CAPACITY_FULL, ROLE_PROFILE_REQUIRED (practice only), JD_NOT_FOUND (role profile missing or not yours), QUESTION_BANK_NOT_READY, INSUFFICIENT_BALANCE.
 // @Tags interviews
 // @Accept json
 // @Produce json

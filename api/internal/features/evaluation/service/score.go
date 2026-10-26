@@ -93,7 +93,7 @@ func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 	if err != nil {
 		return s.fail(ctx, interviewID, err)
 	}
-	output, err := s.scorer.Score(ctx, input)
+	output, err := s.score(ctx, input)
 	if err != nil {
 		return s.fail(ctx, interviewID, err)
 	}
@@ -247,4 +247,15 @@ func feedbackFor(turns []domain.ScoreTurn, feedback []domain.QuestionFeedback) (
 		kept = append(kept, domain.QuestionFeedback{Position: item.Position, Feedback: text})
 	}
 	return kept, nil
+}
+
+// score calls the scorer and turns a panic in it (or its LLM client) into an error, so the evaluation is
+// marked failed and the API keeps running.
+func (s *Scoring) score(ctx context.Context, input domain.ScoreInput) (output domain.ScoreOutput, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("scorer panicked: %v", recovered)
+		}
+	}()
+	return s.scorer.Score(ctx, input)
 }

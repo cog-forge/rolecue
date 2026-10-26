@@ -36,7 +36,7 @@ func (s *seed) questionRows(profileID uuid.UUID) int {
 func TestPracticeCreateSnapshotsQuestionsAndChargesOnce(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	profile, bank := s.confirmedProfile(candidate, 4)
@@ -87,7 +87,7 @@ func TestPracticeCreateSnapshotsQuestionsAndChargesOnce(t *testing.T) {
 func TestPracticeInsufficientBalanceRollsBack(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 4)
 	profile, _ := s.confirmedProfile(candidate, 4)
@@ -113,7 +113,7 @@ func TestPracticeInsufficientBalanceRollsBack(t *testing.T) {
 func TestPracticeRequiresConfirmedRoleProfile(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	profile, _ := s.roleProfile(candidate, "draft", 4)
@@ -133,7 +133,7 @@ func TestPracticeRequiresConfirmedRoleProfile(t *testing.T) {
 func TestPracticeWithEmptyQuestionBankIsNotReady(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	profile, _ := s.confirmedProfile(candidate, 0)
@@ -153,7 +153,7 @@ func TestPracticeWithEmptyQuestionBankIsNotReady(t *testing.T) {
 func TestPracticeForeignRoleProfileIsHidden(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	owner := s.user("candidate")
 	other := s.user("candidate")
 	s.wallet(other, 20)
@@ -177,12 +177,13 @@ func TestPracticeForeignRoleProfileIsHidden(t *testing.T) {
 	}
 }
 
-// TestPracticeEachNewSessionIsCharged proves every new practice session is its own charge: two starts
-// from the same profile make two sessions and two debits.
-func TestPracticeEachNewSessionIsCharged(t *testing.T) {
+// TestPracticeStartResumesTheUnfinishedSessionForFree proves a second start from the same profile while
+// the first session is unfinished (a double click, a retry) returns that session and charges nothing;
+// once it is completed, the next start is a new session and a new charge.
+func TestPracticeStartResumesTheUnfinishedSessionForFree(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	profile, _ := s.confirmedProfile(candidate, 4)
@@ -191,15 +192,23 @@ func TestPracticeEachNewSessionIsCharged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Create() error = %v", err)
 	}
-	second, created, err := svc.Create(ctx, candidate, "candidate", practiceInput(profile))
-	if err != nil {
-		t.Fatalf("second Create() error = %v", err)
+	again, created, err := svc.Create(ctx, candidate, "candidate", practiceInput(profile))
+	if err != nil || created || again.ID != first.ID {
+		t.Fatalf("second start = %s created %v error %v, want the unfinished %s without creating", again.ID, created, err, first.ID)
 	}
-	if !created || second.ID == first.ID {
-		t.Fatalf("second practice start = %s created %v, want a new session distinct from %s", second.ID, created, first.ID)
+	if n := s.interviewRows(profile); n != 1 {
+		t.Fatalf("interview rows = %d, want 1", n)
 	}
-	if n := s.interviewRows(profile); n != 2 {
-		t.Fatalf("interview rows = %d, want 2", n)
+	if b := s.balance(candidate); b != 15 {
+		t.Fatalf("balance = %d, want 15 after a single charge of 5", b)
+	}
+
+	if _, err := svc.Complete(ctx, candidate, "candidate", first.ID); err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
+	next, created, err := svc.Create(ctx, candidate, "candidate", practiceInput(profile))
+	if err != nil || !created || next.ID == first.ID {
+		t.Fatalf("start after completion = %s created %v error %v, want a new session", next.ID, created, err)
 	}
 	if b := s.balance(candidate); b != 10 {
 		t.Fatalf("balance = %d, want 10 after two charges of 5", b)
@@ -214,9 +223,9 @@ func TestPracticeEachNewSessionIsCharged(t *testing.T) {
 func TestPracticeDefaultQuestionLimitIsEight(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 0, 0)
+	svc := newService(t, pool, 0)
 	candidate := s.user("candidate")
-	s.wallet(candidate, 0)
+	s.wallet(candidate, 20)
 	profile, bank := s.confirmedProfile(candidate, 10)
 
 	got, _, err := svc.Create(ctx, candidate, "candidate", practiceInput(profile))
@@ -236,7 +245,7 @@ func TestPracticeDefaultQuestionLimitIsEight(t *testing.T) {
 func TestRecruiterCannotStartPractice(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	recruiter := s.user("recruiter")
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
@@ -249,62 +258,81 @@ func TestRecruiterCannotStartPractice(t *testing.T) {
 	}
 }
 
-// TestPracticeStartWithTheSameKeyChargesOnce proves a retried practice start (same Idempotency-Key)
-// returns the first session and charges once, also when the retries race, while another key or no key
-// is a separate start.
-func TestPracticeStartWithTheSameKeyChargesOnce(t *testing.T) {
+// TestConcurrentPracticeStartsChargeOnce fires six starts at once, with and without an Idempotency-Key.
+// They all return one session and the Candidate is charged once.
+func TestConcurrentPracticeStartsChargeOnce(t *testing.T) {
+	for _, key := range []string{"", "retry-me"} {
+		t.Run("key="+key, func(t *testing.T) {
+			ctx, pool := openPool(t)
+			s := newSeed(t, ctx, pool)
+			svc := newService(t, pool, 3)
+			candidate := s.user("candidate")
+			s.wallet(candidate, 100)
+			profile, _ := s.confirmedProfile(candidate, 3)
+			input := practiceInput(profile)
+			input.IdempotencyKey = key
+
+			ids := make([]uuid.UUID, 6)
+			var wg sync.WaitGroup
+			for i := range ids {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					got, _, err := svc.Create(ctx, candidate, "candidate", input)
+					if err != nil {
+						t.Errorf("Create() error = %v", err)
+						return
+					}
+					ids[i] = got.ID
+				}()
+			}
+			wg.Wait()
+			for _, id := range ids {
+				if id != ids[0] {
+					t.Fatalf("concurrent starts returned different sessions: %v", ids)
+				}
+			}
+			if b := s.balance(candidate); b != 95 {
+				t.Fatalf("balance = %d after concurrent starts, want 95 (charged once)", b)
+			}
+			if n := s.interviewRows(profile); n != 1 {
+				t.Fatalf("interview rows = %d, want 1", n)
+			}
+		})
+	}
+}
+
+// TestPracticeRefusesAnotherUsersAvatarAndInactiveVoice proves a practice start cannot use an avatar
+// outside the Candidate's own inventory or a voice that is not active, and nothing is charged.
+func TestPracticeRefusesAnotherUsersAvatarAndInactiveVoice(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
-	s.wallet(candidate, 100)
+	other := s.user("candidate")
+	s.wallet(candidate, 20)
 	profile, _ := s.confirmedProfile(candidate, 3)
-	input := practiceInput(profile)
-	input.IdempotencyKey = "retry-me"
 
-	first, created, err := svc.Create(ctx, candidate, "candidate", input)
-	if err != nil || !created {
-		t.Fatalf("first Create() created=%v error=%v", created, err)
-	}
-	again, created, err := svc.Create(ctx, candidate, "candidate", input)
-	if err != nil || created || again.ID != first.ID {
-		t.Fatalf("retry = %s created %v error %v, want the first session %s without creating", again.ID, created, err, first.ID)
-	}
-	if b := s.balance(candidate); b != 95 {
-		t.Fatalf("balance = %d after a retried start, want 95 (charged once)", b)
-	}
+	foreign := practiceInput(profile)
+	avatar := s.avatarOf(other)
+	foreign.AvatarID = &avatar
+	_, _, err := svc.Create(ctx, candidate, "candidate", foreign)
+	assertCode(t, err, apperror.CodeValidation)
 
-	racing := practiceInput(profile)
-	racing.IdempotencyKey = "race"
-	ids := make([]uuid.UUID, 6)
-	var wg sync.WaitGroup
-	for i := range ids {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			got, _, err := svc.Create(ctx, candidate, "candidate", racing)
-			if err != nil {
-				t.Errorf("racing Create() error = %v", err)
-				return
-			}
-			ids[i] = got.ID
-		}()
-	}
-	wg.Wait()
-	for _, id := range ids {
-		if id != ids[0] {
-			t.Fatalf("racing starts returned different sessions: %v", ids)
-		}
-	}
-	if b := s.balance(candidate); b != 90 {
-		t.Fatalf("balance = %d after racing starts, want 90 (one more charge)", b)
-	}
+	inactive := practiceInput(profile)
+	voice := s.voice(false)
+	inactive.VoiceID = &voice
+	_, _, err = svc.Create(ctx, candidate, "candidate", inactive)
+	assertCode(t, err, apperror.CodeValidation)
 
-	plain := practiceInput(profile)
-	if _, created, err := svc.Create(ctx, candidate, "candidate", plain); err != nil || !created {
-		t.Fatalf("start without a key created=%v error=%v, want a new session", created, err)
+	own := practiceInput(profile)
+	ownAvatar := s.avatarOf(candidate)
+	activeVoice := s.voice(true)
+	own.AvatarID, own.VoiceID = &ownAvatar, &activeVoice
+	if _, created, err := svc.Create(ctx, candidate, "candidate", own); err != nil || !created {
+		t.Fatalf("start with an own avatar and an active voice created=%v error=%v", created, err)
 	}
-	if b := s.balance(candidate); b != 85 {
-		t.Fatalf("balance = %d after a keyless start, want 85", b)
+	if b := s.balance(candidate); b != 15 {
+		t.Fatalf("balance = %d, want 15 (only the valid start charged)", b)
 	}
 }

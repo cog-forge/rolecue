@@ -63,7 +63,7 @@ func practiceSession(t *testing.T, ctx context.Context, s *seed, svc *service.Se
 func TestResumeReturnsSameSessionWithoutCharge(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -90,7 +90,7 @@ func TestResumeReturnsSameSessionWithoutCharge(t *testing.T) {
 func TestGetIsOwnerOnly(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	owner := s.user("candidate")
 	s.wallet(owner, 20)
 	started, _ := practiceSession(t, ctx, s, svc, owner, 2)
@@ -113,7 +113,7 @@ func TestGetIsOwnerOnly(t *testing.T) {
 func TestTurnsAnswerInOrderAndTrackTheCurrentQuestion(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	started, bank := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -170,7 +170,7 @@ func TestTurnsAnswerInOrderAndTrackTheCurrentQuestion(t *testing.T) {
 func TestTurnRetryWithSameAnswerChangesNothing(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -196,7 +196,7 @@ func TestTurnRetryWithSameAnswerChangesNothing(t *testing.T) {
 func TestTurnConflictOnDifferentAnswerKeepsStoredText(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -217,7 +217,7 @@ func TestTurnConflictOnDifferentAnswerKeepsStoredText(t *testing.T) {
 func TestTurnOutOfOrderIsConflict(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -235,7 +235,7 @@ func TestTurnOutOfOrderIsConflict(t *testing.T) {
 func TestTurnAfterCompletionIsRejected(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -258,7 +258,7 @@ func TestTurnAfterCompletionIsRejected(t *testing.T) {
 func TestTurnAnswerBoundsAreEnforced(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
@@ -284,7 +284,7 @@ func TestTurnAnswerBoundsAreEnforced(t *testing.T) {
 func TestCompleteIsIdempotentAndEvaluatesOnce(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	evaluator := newCountingEvaluator()
 	svc.SetEvaluator(evaluator)
 	candidate := s.user("candidate")
@@ -329,7 +329,7 @@ func TestCompleteIsIdempotentAndEvaluatesOnce(t *testing.T) {
 func TestRecruitmentCompletionMovesApplicationToInterviewed(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.confirmedProfile(candidate, 1)
 	_, posting, _ := s.openPosting(slotOf(2), 4)
@@ -362,7 +362,7 @@ func TestRecruitmentCompletionMovesApplicationToInterviewed(t *testing.T) {
 func TestPracticeCompletionLeavesApplicationsAlone(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	_, posting, _ := s.openPosting(slotOf(2), 4)
@@ -383,7 +383,7 @@ func TestPracticeCompletionLeavesApplicationsAlone(t *testing.T) {
 func TestOnlyOneCompleteClaimsAFailedOrAbandonedEvaluation(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	svc := newService(t, pool, 5, 3)
+	svc := newService(t, pool, 3)
 	evaluator := newCountingEvaluator()
 	svc.SetEvaluator(evaluator)
 	candidate := s.user("candidate")
