@@ -98,6 +98,8 @@ export function plural(
   return `${count.toLocaleString("en-US")} ${form}`;
 }
 
+export const formatPlural = plural;
+
 export function formatPercentChange(pct: number | null | undefined): {
   text: string;
   isPositive: boolean;

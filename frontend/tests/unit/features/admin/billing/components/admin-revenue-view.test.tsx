@@ -32,31 +32,49 @@ describe("AdminRevenueView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.get.mockImplementation((url: string) => {
-      if (url === "/admin/revenue") {
+      if (url === "/admin/billing/summary") {
         return Promise.resolve({
           data: {
             success: true,
             data: {
-              stats: {
-                total_revenue: 5000,
-                successful_count: 10,
-                pending_count: 2,
-                failed_count: 1,
-                cancelled_count: 0,
-                total_count: 13,
-              },
-              summary: [
+              total_revenue: 150000,
+              net_revenue: 150000,
+              successful_deposits: 2,
+              success_count: 4,
+              pending_count: 1,
+              failed_count: 1,
+              cancelled_count: 0,
+              total_transactions: 6,
+              average_deposit: 75000,
+              unique_payers: 2,
+              coins_sold: 300,
+              coins_spent: 40,
+              coins_refunded: 10,
+              coins_net: 270,
+              success_rate: 66.7,
+              package_breakdown: [
                 {
-                  period: "2026-10-21T00:00:00Z",
-                  revenue: 3000,
-                  successful_deposits: 6,
+                  package_name: "Pro Practice Pack",
+                  revenue_vnd: 100000,
+                  deposit_count: 1,
+                  coins_sold: 200,
                 },
                 {
-                  period: "2026-10-20T00:00:00Z",
-                  revenue: 2000,
-                  successful_deposits: 4,
+                  package_name: "Starter Pack",
+                  revenue_vnd: 50000,
+                  deposit_count: 1,
+                  coins_sold: 100,
                 },
               ],
+              feature_breakdown: [
+                {
+                  feature_name: "Practice interview charge",
+                  coins_spent: 40,
+                  spend_count: 2,
+                },
+              ],
+              schema_limitation:
+                "public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp.",
             },
           },
         });
@@ -65,29 +83,68 @@ describe("AdminRevenueView", () => {
     });
   });
 
-  it("renders revenue reports and metrics correctly", async () => {
+  it("renders revenue reports and real breakdown data correctly", async () => {
     renderComponent();
 
-    // Check heading
     expect(
       screen.getByRole("heading", { name: "Revenue Reports" }),
     ).toBeInTheDocument();
 
-    // Check metrics
     await waitFor(() => {
-      expect(screen.getByText("Total Revenue")).toBeInTheDocument();
-      expect(screen.getByText(/5[.,]000/)).toBeInTheDocument();
-      expect(screen.getByText("Successful")).toBeInTheDocument();
-      expect(screen.getByText("10")).toBeInTheDocument();
+      expect(screen.getByText("Total Revenue (PayOS)")).toBeInTheDocument();
+      expect(screen.getAllByText("150.000 ₫").length).toBeGreaterThanOrEqual(1);
     });
 
-    // Check chart title
-    expect(screen.getByText("Daily Revenue (VND)")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Pro Practice Pack").length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Starter Pack").length).toBeGreaterThanOrEqual(
+      1,
+    );
+    expect(screen.getByText("Practice interview charge")).toBeInTheDocument();
+  });
 
-    // Check breakdown table
-    expect(screen.getByText("Daily Breakdown")).toBeInTheDocument();
-    expect(screen.getByText(/\+3[.,]000/)).toBeInTheDocument();
-    expect(screen.getByText(/\+2[.,]000/)).toBeInTheDocument();
+  it("shows honest empty states when breakdown data is empty without fabricating numbers", async () => {
+    mocks.get.mockImplementation((url: string) => {
+      if (url === "/admin/billing/summary") {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              total_revenue: 0,
+              net_revenue: 0,
+              successful_deposits: 0,
+              success_count: 0,
+              pending_count: 0,
+              failed_count: 0,
+              cancelled_count: 0,
+              total_transactions: 0,
+              average_deposit: 0,
+              unique_payers: 0,
+              coins_sold: 0,
+              coins_spent: 0,
+              coins_refunded: 0,
+              coins_net: 0,
+              success_rate: 0,
+              package_breakdown: [],
+              feature_breakdown: [],
+            },
+          },
+        });
+      }
+      return Promise.reject(new Error(`Unhandled: ${url}`));
+    });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText("No package revenue data")).toBeInTheDocument();
+      expect(screen.getByText("No coin spending data")).toBeInTheDocument();
+    });
+
+    // Must never fabricate "Live Coding Sandbox" or fake package splits
+    expect(screen.queryByText(/Live Coding Sandbox/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Enterprise Boost/i)).not.toBeInTheDocument();
   });
 
   it("updates dates when a preset is clicked", async () => {
@@ -100,7 +157,7 @@ describe("AdminRevenueView", () => {
 
     await waitFor(() => {
       expect(mocks.get).toHaveBeenCalledWith(
-        "/admin/revenue",
+        "/admin/billing/summary",
         expect.objectContaining({
           params: expect.objectContaining({
             date_from: expect.any(String),

@@ -1,304 +1,313 @@
 "use client";
 
 import {
-  TrendingUp,
   CheckCircle2,
   Clock,
+  Coins,
+  DollarSign,
+  Layers,
+  Users,
   XCircle,
-  ReceiptText,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus,
-  HelpCircle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import type { BillingSummary, RevenueStats } from "../schemas/billing-schema";
-import { formatVND, plural, formatPercentChange } from "../lib/format";
+import { formatVND, formatCoins, formatPlural } from "../lib/format";
+import type { BillingSummary } from "../schemas/billing-schema";
 
-export { formatVND };
-
-interface StatCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  sub?: string;
-  tooltip?: string;
-  accent?: "emerald" | "amber" | "destructive" | "muted" | "blue" | "purple";
-  changePct?: number;
-  showComparison?: boolean;
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  sub,
-  tooltip,
-  accent = "muted",
-  changePct,
-  showComparison = false,
-}: StatCardProps) {
-  const accentMap = {
-    emerald:
-      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-    amber:
-      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-    destructive: "bg-destructive/10 text-destructive border-destructive/20",
-    muted: "bg-muted text-muted-foreground border-border/60",
-    blue: "bg-[#185cc0]/10 text-[#185cc0] dark:text-[#8ab4f8] border-[#185cc0]/20",
-    purple:
-      "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
-  };
-
-  const pct = formatPercentChange(changePct);
-
-  return (
-    <Card className="border-border/70 shadow-xs transition-all duration-200 hover:shadow-md hover:border-border">
-      <CardContent className="p-4.5">
-        <div className="flex items-start justify-between gap-2.5">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                {label}
-              </p>
-              {tooltip && (
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="text-muted-foreground/60 hover:text-muted-foreground focus:outline-hidden"
-                        aria-label={`About ${label}`}
-                      >
-                        <HelpCircle className="h-3 w-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="text-xs max-w-xs">
-                      {tooltip}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
-            </div>
-
-            <div className="mt-1.5 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
-                {value}
-              </span>
-              {showComparison && changePct != null && (
-                <span
-                  className={`inline-flex items-center text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                    pct.isNeutral
-                      ? "bg-muted text-muted-foreground"
-                      : pct.isPositive
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                        : "bg-destructive/10 text-destructive"
-                  }`}
-                  title={`${pct.text} compared to previous period`}
-                >
-                  {pct.isNeutral ? (
-                    <Minus className="h-3 w-3 mr-0.5" />
-                  ) : pct.isPositive ? (
-                    <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                  ) : (
-                    <ArrowDownRight className="h-3 w-3 mr-0.5" />
-                  )}
-                  {pct.text}
-                </span>
-              )}
-            </div>
-
-            {sub && (
-              <p className="mt-1 text-xs text-muted-foreground truncate">
-                {sub}
-              </p>
-            )}
-          </div>
-
-          <span
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${accentMap[accent]}`}
-          >
-            {icon}
-          </span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-export function StatCardSkeleton() {
-  return (
-    <Card className="border-border/70 shadow-xs">
-      <CardContent className="p-4.5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-3.5 w-24" />
-            <Skeleton className="h-7 w-32" />
-            <Skeleton className="h-3 w-20" />
-          </div>
-          <Skeleton className="h-9 w-9 shrink-0 rounded-xl" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-export function RevenueStatCards({
-  stats,
-  summary,
-  isLoading,
-  showComparison = false,
-  periodLabel,
-}: {
-  stats?: RevenueStats;
+type BillingStatCardsProps = {
   summary?: BillingSummary;
   isLoading: boolean;
-  showComparison?: boolean;
   periodLabel?: string;
-}) {
-  if (isLoading) {
+  variant?: "transactions" | "revenue";
+};
+
+export function BillingStatCards({
+  summary,
+  isLoading,
+  periodLabel = "Filtered view",
+  variant = "transactions",
+}: BillingStatCardsProps) {
+  if (isLoading || !summary) {
     return (
-      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {Array.from({ length: 5 }).map((_, i) => (
-          <StatCardSkeleton key={i} />
+          <Card key={i} className="border-border/80 shadow-xs">
+            <CardContent className="p-5">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="mt-3 h-7 w-36" />
+              <Skeleton className="mt-2 h-3.5 w-24" />
+            </CardContent>
+          </Card>
         ))}
       </div>
     );
   }
 
-  // Support both unified BillingSummary and legacy RevenueStats
-  if (summary) {
-    const netRevenue = summary.net_revenue;
-    const successfulCount = summary.successful_deposits;
-    const pendingCount = summary.pending_count;
-    const failedCount = summary.failed_count;
-    const otherCount = summary.other_count; // Cancelled + Refunds
-    const totalCount = summary.total_transactions;
-    const comparison = summary.comparison;
-
-    const cards: StatCardProps[] = [
-      {
-        icon: <TrendingUp className="h-4 w-4" />,
-        label: "Total Revenue",
-        value: formatVND(netRevenue),
-        sub:
-          summary.refund_count > 0
-            ? `${formatVND(summary.gross_revenue)} gross - ${formatVND(summary.total_refunds_vnd)} refunds`
-            : (periodLabel ?? "Net successful top-ups"),
-        tooltip: "Net revenue = successful PayOS deposits minus refunds",
-        accent: "blue",
-        changePct: comparison?.net_revenue_change_pct,
-        showComparison,
-      },
-      {
-        icon: <CheckCircle2 className="h-4 w-4" />,
-        label: "Successful",
-        value: successfulCount.toLocaleString(),
-        sub: `${plural(successfulCount, "deposit")} (${summary.success_rate.toFixed(1)}% rate)`,
-        tooltip:
-          "Successful top-up deposits only (coin spending and refunds excluded)",
-        accent: "emerald",
-        changePct: comparison?.successful_deposits_change_pct,
-        showComparison,
-      },
-      {
-        icon: <Clock className="h-4 w-4" />,
-        label: "Pending",
-        value: pendingCount.toLocaleString(),
-        sub:
-          pendingCount > 0
-            ? "Awaiting PayOS confirmation"
-            : "No pending deposits",
-        tooltip:
-          "Pending orders awaiting payment gateway or webhook confirmation",
-        accent: "amber",
-        changePct: comparison?.pending_count_change_pct,
-        showComparison,
-      },
-      {
-        icon: <XCircle className="h-4 w-4" />,
-        label: "Failed",
-        value: failedCount.toLocaleString(),
-        sub: "Declined or system errors",
-        tooltip: "Failed deposit attempts",
-        accent: "destructive",
-        changePct: comparison?.failed_count_change_pct,
-        showComparison,
-      },
-      {
-        icon: <ReceiptText className="h-4 w-4" />,
-        label: "Total Transactions",
-        value: totalCount.toLocaleString(),
-        sub: `${otherCount > 0 ? `${otherCount} other · ` : ""}${periodLabel ?? "All filtered"}`,
-        tooltip: `Sum of all statuses: ${successfulCount} successful + ${pendingCount} pending + ${failedCount} failed + ${otherCount} other = ${totalCount} total`,
-        accent: "muted",
-        showComparison: false,
-      },
-    ];
-
+  if (variant === "revenue") {
     return (
-      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {cards.map((card) => (
-          <StatCard key={card.label} {...card} />
-        ))}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Card 1: Total Revenue (Success PayOS Deposits Only per KAN-192) */}
+          <Card className="border-border/80 shadow-xs">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Total Revenue (PayOS)
+                </span>
+                <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+                  <DollarSign className="size-4" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                {formatVND(summary.total_revenue)}
+              </p>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  {formatPlural(
+                    summary.successful_deposits,
+                    "successful deposit",
+                    "successful deposits",
+                  )}
+                </span>
+                <span className="font-medium text-foreground/70">
+                  {periodLabel}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 2: Successful Deposits & Average Deposit */}
+          <Card className="border-border/80 shadow-xs">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Successful Deposits
+                </span>
+                <div className="rounded-lg bg-blue-500/10 p-2 text-blue-600 dark:text-blue-400">
+                  <CheckCircle2 className="size-4" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                {formatPlural(
+                  summary.successful_deposits,
+                  "deposit",
+                  "deposits",
+                )}
+              </p>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Avg: {formatVND(summary.average_deposit)}</span>
+                <span>{summary.success_rate.toFixed(1)}% success rate</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Unique Paying Users */}
+          <Card className="border-border/80 shadow-xs">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Unique Payers
+                </span>
+                <div className="rounded-lg bg-violet-500/10 p-2 text-violet-600 dark:text-violet-400">
+                  <Users className="size-4" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                {formatPlural(summary.unique_payers, "payer", "payers")}
+              </p>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Verified PayOS top-up users</span>
+                <span>{periodLabel}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Coin Economy Summary */}
+          <Card className="border-border/80 shadow-xs">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+                  Coins Sold / Spent
+                </span>
+                <div className="rounded-lg bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
+                  <Coins className="size-4" />
+                </div>
+              </div>
+              <p className="mt-2 text-2xl font-bold tracking-tight text-foreground tabular-nums">
+                {formatCoins(summary.coins_sold)}
+              </p>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Spent: {formatCoins(summary.coins_spent)}</span>
+                <span>Refunded: {formatCoins(summary.coins_refunded)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Secondary Status Breakdown Row (Sums to Total Transactions) */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="rounded-xl border border-border/70 bg-card px-4 py-3">
+            <span className="text-[11px] font-medium text-muted-foreground uppercase">
+              Total Ledger Rows
+            </span>
+            <p className="mt-1 text-lg font-semibold tabular-nums">
+              {formatPlural(
+                summary.total_transactions,
+                "transaction",
+                "transactions",
+              )}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-card px-4 py-3">
+            <span className="text-[11px] font-medium text-emerald-600 uppercase dark:text-emerald-400">
+              Success (All Types)
+            </span>
+            <p className="mt-1 text-lg font-semibold tabular-nums">
+              {summary.success_count.toLocaleString("vi-VN")}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-card px-4 py-3">
+            <span className="text-[11px] font-medium text-amber-600 uppercase dark:text-amber-400">
+              Pending
+            </span>
+            <p className="mt-1 text-lg font-semibold tabular-nums">
+              {summary.pending_count.toLocaleString("vi-VN")}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-card px-4 py-3">
+            <span className="text-[11px] font-medium text-rose-600 uppercase dark:text-rose-400">
+              Failed
+            </span>
+            <p className="mt-1 text-lg font-semibold tabular-nums">
+              {summary.failed_count.toLocaleString("vi-VN")}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-card px-4 py-3">
+            <span className="text-[11px] font-medium text-slate-600 uppercase dark:text-slate-400">
+              Cancelled
+            </span>
+            <p className="mt-1 text-lg font-semibold tabular-nums">
+              {summary.cancelled_count.toLocaleString("vi-VN")}
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
-  if (stats) {
-    const cards: StatCardProps[] = [
-      {
-        icon: <TrendingUp className="h-4 w-4" />,
-        label: "Total Revenue",
-        value: formatVND(stats.total_revenue),
-        sub: `${plural(stats.successful_count, "deposit")}`,
-        accent: "blue",
-      },
-      {
-        icon: <CheckCircle2 className="h-4 w-4" />,
-        label: "Successful",
-        value: stats.successful_count.toLocaleString(),
-        sub: "Completed top-ups",
-        accent: "emerald",
-      },
-      {
-        icon: <Clock className="h-4 w-4" />,
-        label: "Pending",
-        value: stats.pending_count.toLocaleString(),
-        sub: "Awaiting confirmation",
-        accent: "amber",
-      },
-      {
-        icon: <XCircle className="h-4 w-4" />,
-        label: "Failed",
-        value: stats.failed_count.toLocaleString(),
-        sub: "Declined or failed",
-        accent: "destructive",
-      },
-      {
-        icon: <ReceiptText className="h-4 w-4" />,
-        label: "Total Transactions",
-        value: stats.total_count.toLocaleString(),
-        sub: periodLabel ?? "All time",
-        accent: "muted",
-      },
-    ];
+  // Default variant: "transactions" (5 cards whose statuses sum to total_transactions)
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {/* Total Revenue */}
+      <Card className="border-border/80 shadow-xs">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              Total Revenue
+            </span>
+            <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+              <DollarSign className="size-4" />
+            </div>
+          </div>
+          <p className="mt-2 text-xl font-bold tracking-tight text-foreground tabular-nums">
+            {formatVND(summary.total_revenue)}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {formatPlural(
+              summary.successful_deposits,
+              "successful deposit",
+              "successful deposits",
+            )}{" "}
+            · {periodLabel}
+          </p>
+        </CardContent>
+      </Card>
 
-    return (
-      <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        {cards.map((card) => (
-          <StatCard key={card.label} {...card} />
-        ))}
-      </div>
-    );
-  }
+      {/* Successful */}
+      <Card className="border-border/80 shadow-xs">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              Successful
+            </span>
+            <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="size-4" />
+            </div>
+          </div>
+          <p className="mt-2 text-xl font-bold tracking-tight text-foreground tabular-nums">
+            {formatPlural(summary.successful_deposits, "deposit", "deposits")}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {summary.success_count.toLocaleString("vi-VN")} total success rows ·
+            Avg {formatVND(summary.average_deposit)}
+          </p>
+        </CardContent>
+      </Card>
 
-  return null;
+      {/* Pending */}
+      <Card className="border-border/80 shadow-xs">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              Pending
+            </span>
+            <div className="rounded-lg bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
+              <Clock className="size-4" />
+            </div>
+          </div>
+          <p className="mt-2 text-xl font-bold tracking-tight text-foreground tabular-nums">
+            {summary.pending_count.toLocaleString("vi-VN")}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Awaiting PayOS webhook / user sync
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Failed & Cancelled */}
+      <Card className="border-border/80 shadow-xs">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              Failed / Cancelled
+            </span>
+            <div className="rounded-lg bg-rose-500/10 p-2 text-rose-600 dark:text-rose-400">
+              <XCircle className="size-4" />
+            </div>
+          </div>
+          <p className="mt-2 text-xl font-bold tracking-tight text-foreground tabular-nums">
+            {summary.failed_count.toLocaleString("vi-VN")} failed
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            + {summary.cancelled_count.toLocaleString("vi-VN")} cancelled
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Total Transactions */}
+      <Card className="border-border/80 shadow-xs">
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+              Total Transactions
+            </span>
+            <div className="rounded-lg bg-slate-500/10 p-2 text-slate-600 dark:text-slate-400">
+              <Layers className="size-4" />
+            </div>
+          </div>
+          <p className="mt-2 text-xl font-bold tracking-tight text-foreground tabular-nums">
+            {summary.total_transactions.toLocaleString("vi-VN")}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {summary.success_count} + {summary.pending_count} +{" "}
+            {summary.failed_count} + {summary.cancelled_count} ={" "}
+            {summary.total_transactions}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
+
+// Keep alias for compatibility with existing imports
+export const RevenueStatCards = BillingStatCards;

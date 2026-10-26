@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	"errors"
+	"math"
 	"strconv"
-	"time"
+	"strings"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -122,22 +123,9 @@ func (r *Repository) InsertTransaction(ctx context.Context, q *Queries, tx domai
 	if tx.Description != "" {
 		desc = &tx.Description
 	}
-	fromStr := formatUUIDPtr(tx.From)
-	if fromStr == "" {
-		if tx.PayOSOrderCode != nil {
-			fromStr = "Banking (PayOS)"
-		} else {
-			fromStr = "System"
-		}
-	}
-	toStr := formatUUIDPtr(tx.To)
-	if toStr == "" {
-		toStr = "System"
-	}
-
 	row, err := q.InsertTransaction(ctx, InsertTransactionParams{
-		TxFrom:         fromStr,
-		TxTo:           toStr,
+		TxFrom:         formatUUIDPtr(tx.From),
+		TxTo:           formatUUIDPtr(tx.To),
 		Amount:         tx.Amount,
 		Currency:       tx.Currency,
 		Description:    desc,
@@ -271,6 +259,248 @@ func (r *Repository) GetCoinPackageByID(ctx context.Context, id uuid.UUID) (doma
 	}, nil
 }
 
+func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error) {
+	page := filter.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := filter.PageSize
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	sortBy := strings.ToLower(strings.TrimSpace(filter.SortBy))
+	if sortBy == "" {
+		sortBy = "id"
+	}
+	sortOrder := strings.ToLower(strings.TrimSpace(filter.SortOrder))
+	if sortOrder != "asc" {
+		sortOrder = "desc"
+	}
+
+	searchPtr := optionalString(filter.Search)
+	statusPtr := optionalString(filter.Status)
+	typePtr := optionalString(filter.Type)
+	pkgPtr := optionalString(filter.PackageName)
+
+	rows, err := r.queries.ListAdminTransactions(ctx, ListAdminTransactionsParams{
+		Search:      searchPtr,
+		Status:      statusPtr,
+		TxType:      typePtr,
+		PackageName: pkgPtr,
+		AmountMin:   filter.AmountMin,
+		AmountMax:   filter.AmountMax,
+		SortBy:      sortBy,
+		SortOrder:   sortOrder,
+		PageOffset:  int32(offset),
+		PageLimit:   int32(pageSize),
+	})
+	if err != nil {
+		return domain.AdminTransactionPage{}, apperror.Wrap(apperror.CodeInternal, "failed to list admin transactions", err)
+	}
+
+	total, err := r.queries.CountAdminTransactions(ctx, CountAdminTransactionsParams{
+		Search:      searchPtr,
+		Status:      statusPtr,
+		TxType:      typePtr,
+		PackageName: pkgPtr,
+		AmountMin:   filter.AmountMin,
+		AmountMax:   filter.AmountMax,
+	})
+	if err != nil {
+		return domain.AdminTransactionPage{}, apperror.Wrap(apperror.CodeInternal, "failed to count admin transactions", err)
+	}
+
+	items := make([]domain.AdminTransactionItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, mapAdminTransactionRow(
+			row.ID,
+			row.Amount,
+			row.TxFrom,
+			row.TxTo,
+			row.Description,
+			row.Currency,
+			row.Status,
+			row.PayosOrderCode,
+			row.TxType,
+			row.UserID,
+			row.UserName,
+			row.UserEmail,
+			row.PackageOrFeature,
+			row.PaidVnd,
+			row.CoinAmount,
+		))
+	}
+
+	return domain.AdminTransactionPage{
+		Items:            items,
+		Total:            total,
+		Page:             page,
+		PageSize:         pageSize,
+		SchemaLimitation: domain.FrozenSchemaTimestampNotice,
+	}, nil
+}
+
+func (r *Repository) GetAdminTransactionByID(ctx context.Context, id uuid.UUID) (domain.AdminTransactionItem, error) {
+	row, err := r.queries.GetAdminTransactionByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.AdminTransactionItem{}, apperror.New(apperror.CodeTransactionNotFound, "transaction not found")
+		}
+		return domain.AdminTransactionItem{}, apperror.Wrap(apperror.CodeInternal, "failed to get admin transaction", err)
+	}
+	return mapAdminTransactionRow(
+		row.ID,
+		row.Amount,
+		row.TxFrom,
+		row.TxTo,
+		row.Description,
+		row.Currency,
+		row.Status,
+		row.PayosOrderCode,
+		row.TxType,
+		row.UserID,
+		row.UserName,
+		row.UserEmail,
+		row.PackageOrFeature,
+		row.PaidVnd,
+		row.CoinAmount,
+	), nil
+}
+
+func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
+	searchPtr := optionalString(filter.Search)
+	statusPtr := optionalString(filter.Status)
+	typePtr := optionalString(filter.Type)
+	pkgPtr := optionalString(filter.PackageName)
+
+	row, err := r.queries.GetAdminBillingSummary(ctx, GetAdminBillingSummaryParams{
+		Search:      searchPtr,
+		Status:      statusPtr,
+		TxType:      typePtr,
+		PackageName: pkgPtr,
+		AmountMin:   filter.AmountMin,
+		AmountMax:   filter.AmountMax,
+	})
+	if err != nil {
+		return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get admin billing summary", err)
+	}
+
+	var avgDeposit int64
+	if row.SuccessfulDeposits > 0 {
+		avgDeposit = row.TotalRevenue / row.SuccessfulDeposits
+	}
+
+	var successRate float64
+	if row.TotalTransactions > 0 {
+		successRate = math.Round((float64(row.SuccessCount)/float64(row.TotalTransactions))*1000) / 10
+	}
+
+	pkgBreakdown := make([]domain.PackageRevenueItem, 0)
+	if (filter.Status == "" || filter.Status == string(domain.StatusSuccess)) &&
+		(filter.Type == "" || filter.Type == "topup") {
+		pkgRows, err := r.queries.GetAdminPackageRevenueBreakdown(ctx, GetAdminPackageRevenueBreakdownParams{
+			Search:      searchPtr,
+			PackageName: pkgPtr,
+			AmountMin:   filter.AmountMin,
+			AmountMax:   filter.AmountMax,
+		})
+		if err != nil {
+			return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get package revenue breakdown", err)
+		}
+		for _, pr := range pkgRows {
+			pkgBreakdown = append(pkgBreakdown, domain.PackageRevenueItem{
+				PackageName:  pr.PackageName,
+				RevenueVND:   pr.RevenueVnd,
+				DepositCount: pr.DepositCount,
+				CoinsSold:    pr.CoinsSold,
+			})
+		}
+	}
+
+	featureBreakdown := make([]domain.FeatureCoinItem, 0)
+	if (filter.Status == "" || filter.Status == string(domain.StatusSuccess)) &&
+		(filter.Type == "" || filter.Type == "spend") {
+		featRows, err := r.queries.GetAdminFeatureCoinBreakdown(ctx, searchPtr)
+		if err != nil {
+			return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get feature coin breakdown", err)
+		}
+		for _, fr := range featRows {
+			featureBreakdown = append(featureBreakdown, domain.FeatureCoinItem{
+				FeatureName: fr.FeatureName,
+				CoinsSpent:  fr.CoinsSpent,
+				SpendCount:  fr.SpendCount,
+			})
+		}
+	}
+
+	return domain.BillingSummary{
+		TotalRevenue:       row.TotalRevenue,
+		NetRevenue:         row.TotalRevenue,
+		SuccessfulDeposits: row.SuccessfulDeposits,
+		SuccessCount:       row.SuccessCount,
+		PendingCount:       row.PendingCount,
+		FailedCount:        row.FailedCount,
+		CancelledCount:     row.CancelledCount,
+		TotalTransactions:  row.TotalTransactions,
+		AverageDeposit:     avgDeposit,
+		UniquePayers:       row.UniquePayers,
+		CoinsSold:          row.CoinsSold,
+		CoinsSpent:         row.CoinsSpent,
+		CoinsRefunded:      row.CoinsRefunded,
+		CoinsNet:           row.CoinsSold - row.CoinsSpent + row.CoinsRefunded,
+		SuccessRate:        successRate,
+		PackageBreakdown:   pkgBreakdown,
+		FeatureBreakdown:   featureBreakdown,
+		SchemaLimitation:   domain.FrozenSchemaTimestampNotice,
+	}, nil
+}
+
+func optionalString(s string) *string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func mapAdminTransactionRow(
+	id uuid.UUID,
+	amount int32,
+	txFrom string,
+	txTo string,
+	description string,
+	currency string,
+	status string,
+	payosOrderCode string,
+	txType string,
+	userID string,
+	userName string,
+	userEmail string,
+	packageOrFeature string,
+	paidVND int64,
+	coinAmount int64,
+) domain.AdminTransactionItem {
+	return domain.AdminTransactionItem{
+		ID:               id,
+		From:             txFrom,
+		To:               txTo,
+		UserID:           userID,
+		UserName:         userName,
+		UserEmail:        userEmail,
+		Type:             txType,
+		PackageOrFeature: packageOrFeature,
+		PaidVND:          paidVND,
+		CoinAmount:       coinAmount,
+		Amount:           amount,
+		Currency:         currency,
+		Description:      description,
+		Status:           domain.TransactionStatus(status),
+		PayOSOrderCode:   parseInt64Ptr(&payosOrderCode),
+	}
+}
+
 func parseUUIDPtr(s string) *uuid.UUID {
 	if s == "" {
 		return nil
@@ -323,92 +553,4 @@ func toDomainTransaction(id uuid.UUID, fromStr, toStr string, amount int32, curr
 		Status:         domain.TransactionStatus(status),
 		PayOSOrderCode: parseInt64Ptr(orderCodePtr),
 	}
-}
-
-func (r *Repository) ListAllTransactions(ctx context.Context, arg ListAllTransactionsParams) ([]AdminTransaction, error) {
-	rows, err := r.queries.ListAllTransactions(ctx, arg)
-	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "failed to list all transactions", err)
-	}
-	return rows, nil
-}
-
-func (r *Repository) CountAllTransactions(ctx context.Context, arg ListAllTransactionsParams) (int64, error) {
-	count, err := r.queries.CountAllTransactions(ctx, arg)
-	if err != nil {
-		return 0, apperror.Wrap(apperror.CodeInternal, "failed to count all transactions", err)
-	}
-	return count, nil
-}
-
-func (r *Repository) GetRevenueStats(ctx context.Context, dateFrom, dateTo *time.Time) (RevenueStats, error) {
-	stats, err := r.queries.GetRevenueStats(ctx, dateFrom, dateTo)
-	if err != nil {
-		return RevenueStats{}, apperror.Wrap(apperror.CodeInternal, "failed to get revenue stats", err)
-	}
-	return stats, nil
-}
-
-func (r *Repository) GetRevenueSummary(ctx context.Context, dateFrom, dateTo *time.Time) ([]RevenueSummaryRow, error) {
-	rows, err := r.queries.GetRevenueSummary(ctx, dateFrom, dateTo)
-	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "failed to get revenue summary", err)
-	}
-	return rows, nil
-}
-
-func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
-	summary, err := r.queries.GetBillingSummary(ctx, filter)
-	if err != nil {
-		return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get billing summary", err)
-	}
-	return summary, nil
-}
-
-func (r *Repository) GetBillingDailySeries(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.BillingDailyItem, error) {
-	items, err := r.queries.GetBillingDailySeries(ctx, filter)
-	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "failed to get billing daily series", err)
-	}
-	return items, nil
-}
-
-func (r *Repository) ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) ([]domain.AdminTransactionItem, int64, error) {
-	items, total, err := r.queries.ListBillingTransactions(ctx, filter)
-	if err != nil {
-		return nil, 0, apperror.Wrap(apperror.CodeInternal, "failed to list billing transactions", err)
-	}
-	return items, total, nil
-}
-
-func (r *Repository) GetBillingTransactionByID(ctx context.Context, id uuid.UUID) (*domain.AdminTransactionItem, error) {
-	item, err := r.queries.GetBillingTransactionByID(ctx, id)
-	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeTransactionNotFound, "transaction not found", err)
-	}
-	return item, nil
-}
-
-func (r *Repository) CancelTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID, reason string) (*domain.AdminTransactionItem, error) {
-	item, err := r.queries.CancelTransaction(ctx, id, adminID, reason)
-	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeValidation, err.Error(), err)
-	}
-	return item, nil
-}
-
-func (r *Repository) SyncPayOSTransaction(ctx context.Context, id uuid.UUID, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
-	item, err := r.queries.SyncPayOSTransaction(ctx, id, adminID)
-	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "failed to sync transaction with PayOS", err)
-	}
-	return item, nil
-}
-
-func (r *Repository) CreateRefundTransaction(ctx context.Context, req domain.IssueRefundRequest, adminID uuid.UUID) (*domain.AdminTransactionItem, error) {
-	item, err := r.queries.CreateRefundTransaction(ctx, req, adminID)
-	if err != nil {
-		return nil, apperror.Wrap(apperror.CodeInternal, "failed to create refund transaction", err)
-	}
-	return item, nil
 }

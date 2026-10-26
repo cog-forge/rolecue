@@ -69,5 +69,3 @@ ORDER BY price ASC;
 SELECT id, name, price, description, amount, currency
 FROM public.coin_packages
 WHERE id = @id;
-
-

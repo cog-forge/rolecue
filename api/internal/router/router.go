@@ -200,16 +200,9 @@ func (r *Router) Setup() *gin.Engine {
 	admin.GET("/voices/:id", r.voiceCatalogHandler.Get)
 	admin.DELETE("/voices/:id", r.voiceCatalogHandler.Remove)
 	admin.PATCH("/voices/:id/activate", r.voiceCatalogHandler.Activate)
-	admin.GET("/transactions", r.walletHandler.AdminListTransactions)
-	admin.GET("/revenue", r.walletHandler.AdminGetRevenueReport)
 	admin.GET("/billing/summary", r.walletHandler.AdminGetBillingSummary)
-	admin.GET("/billing/daily", r.walletHandler.AdminGetBillingDailySeries)
 	admin.GET("/billing/transactions", r.walletHandler.AdminListBillingTransactions)
 	admin.GET("/billing/transactions/:id", r.walletHandler.AdminGetBillingTransaction)
-	admin.POST("/billing/transactions/:id/sync", r.walletHandler.AdminSyncTransaction)
-	admin.POST("/billing/transactions/:id/cancel", r.walletHandler.AdminCancelTransaction)
-	admin.POST("/billing/transactions/:id/refund", r.walletHandler.AdminIssueRefund)
-	admin.POST("/billing/refund", r.walletHandler.AdminIssueRefund)
-	admin.GET("/billing/export", r.walletHandler.AdminExportTransactionsCSV)
+	admin.GET("/billing/export", r.walletHandler.AdminExportBillingCSV)
 	return router
 }
