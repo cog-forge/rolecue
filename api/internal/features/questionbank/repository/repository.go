@@ -27,7 +27,7 @@ func (r *Repository) Posting(ctx context.Context, recruiterID, postingID uuid.UU
 	if err != nil {
 		return domain.Posting{}, persistenceError(err)
 	}
-	return domain.Posting{JDID: row.JdID, Status: row.Status}, nil
+	return domain.Posting{JDID: row.JdID, Status: row.Status, ReviewSubmitted: row.ReviewSubmitted}, nil
 }
 
 func (r *Repository) CandidateOwnsJD(ctx context.Context, candidateID, jdID uuid.UUID) error {
@@ -76,7 +76,7 @@ func (r *Repository) GenerationInput(ctx context.Context, jdID uuid.UUID) (domai
 	return in, nil
 }
 
-// Add, Update and Delete are single statements that recheck ownership and the pending status, so
+// Add, Update and Delete are single statements that recheck ownership and the editable status, so
 // there is no read-then-write gap in application code. (A status change committed by another
 // transaction during that one statement can still slip through, a window of milliseconds; only
 // SaveForPosting locks the posting row.) When no row is affected, a cheap follow-up query tells
@@ -104,19 +104,23 @@ func (r *Repository) Update(ctx context.Context, recruiterID, postingID, questio
 	return domain.CoreQuestion{ID: row.ID, Content: row.Content}, nil
 }
 
+// Delete also withdraws the posting from the Admin queue when it removes the last question.
 func (r *Repository) Delete(ctx context.Context, recruiterID, postingID, questionID uuid.UUID) error {
-	n, err := r.queries.DeleteCoreQuestion(ctx, DeleteCoreQuestionParams{ID: questionID, PostingID: postingID, RecruiterID: recruiterID})
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && (pgErr.Code == "23503" || pgErr.Code == "23001") {
-		return apperror.Wrap(apperror.CodeCoreQuestionInUse, "this question was used in an interview and cannot be deleted", err)
-	}
-	if err != nil {
-		return persistenceError(err)
-	}
-	if n == 0 {
-		return r.postingRefusal(ctx, r.queries, recruiterID, postingID, true)
-	}
-	return nil
+	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		n, err := q.DeleteCoreQuestion(ctx, DeleteCoreQuestionParams{ID: questionID, PostingID: postingID, RecruiterID: recruiterID})
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && (pgErr.Code == "23503" || pgErr.Code == "23001") {
+			return apperror.Wrap(apperror.CodeCoreQuestionInUse, "this question was used in an interview and cannot be deleted", err)
+		}
+		if err != nil {
+			return persistenceError(err)
+		}
+		if n == 0 {
+			return r.postingRefusal(ctx, q, recruiterID, postingID, true)
+		}
+		return persistenceError(q.ClearEmptyBankSubmission(ctx, postingID))
+	})
 }
 
 // SaveForPosting stores a freshly generated bank. Locking the posting row serializes concurrent
@@ -125,7 +129,7 @@ func (r *Repository) SaveForPosting(ctx context.Context, recruiterID, postingID 
 	var saved []domain.CoreQuestion
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
-		jdID, err := q.LockPendingPosting(ctx, LockPendingPostingParams{ID: postingID, RecruiterID: recruiterID})
+		jdID, err := q.LockEditablePosting(ctx, LockEditablePostingParams{ID: postingID, RecruiterID: recruiterID})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return r.postingRefusal(ctx, q, recruiterID, postingID, false)
 		}
@@ -182,20 +186,23 @@ func insertIfEmpty(ctx context.Context, q *Queries, jdID uuid.UUID, contents []s
 }
 
 // postingRefusal explains why a guarded statement affected no row. questionMissing is true for
-// per-question statements: a pending posting then means the question itself does not exist.
+// per-question statements: an editable posting then means the question itself does not exist.
+// Otherwise it was Add, which found no generated bank to extend.
 func (r *Repository) postingRefusal(ctx context.Context, q *Queries, recruiterID, postingID uuid.UUID, questionMissing bool) error {
 	row, err := q.GetRecruiterPosting(ctx, GetRecruiterPostingParams{ID: postingID, RecruiterID: recruiterID})
 	if err != nil {
 		return persistenceError(err)
 	}
-	if row.Status != domain.PostingPending {
-		return apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending")
+	if !(domain.Posting{Status: row.Status}).Editable() {
+		return errBankLocked
 	}
 	if questionMissing {
 		return apperror.New(apperror.CodeCoreQuestionNotFound, "question not found")
 	}
-	return apperror.New(apperror.CodeJobPostingNotFound, "job posting not found")
+	return apperror.New(apperror.CodeQuestionBankNotReady, "generate the question bank before adding questions")
 }
+
+var errBankLocked = apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending or rejected")
 
 func persistenceError(err error) error {
 	if err == nil {

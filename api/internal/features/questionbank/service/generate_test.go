@@ -33,6 +33,15 @@ func TestGenerateSuccessUsesOwnerAndSize(t *testing.T) {
 	}
 }
 
+func TestGenerateWhileRejected(t *testing.T) {
+	repo := readyRepo()
+	repo.posting.Status = domain.PostingRejected
+	gen := &fakeGenerator{fn: func(int) (domain.GenerationCandidate, error) { return questionsOf(3), nil }}
+	if _, err := newService(t, repo, gen, 0, 3).Generate(context.Background(), uuid.New(), "recruiter", uuid.New()); err != nil || repo.saveCalls != 1 {
+		t.Fatalf("rejected posting could not regenerate its bank: saves=%d err=%v", repo.saveCalls, err)
+	}
+}
+
 func TestGeneratePreconditions(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

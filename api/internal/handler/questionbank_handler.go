@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
@@ -21,10 +22,13 @@ type QuestionBankService interface {
 	Update(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID, content string) (domain.CoreQuestion, error)
 	Delete(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID) error
 }
-type QuestionBankHandler struct{ service QuestionBankService }
+type QuestionBankHandler struct {
+	service          QuestionBankService
+	generationBudget time.Duration
+}
 
-func NewQuestionBankHandler(service QuestionBankService) *QuestionBankHandler {
-	return &QuestionBankHandler{service: service}
+func NewQuestionBankHandler(service QuestionBankService, generationBudget time.Duration) *QuestionBankHandler {
+	return &QuestionBankHandler{service: service, generationBudget: generationBudget}
 }
 
 // QuestionRequest is the body of add and edit. Content is a pointer so a missing field differs from "".
@@ -92,7 +96,7 @@ func questionBankContent(c *gin.Context) (string, bool) {
 
 // List godoc
 // @Summary List the core-question bank of your own job posting
-// @Description Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (only while the posting is pending) and the server limits.
+// @Description Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (while a confirmed bank is pending or rejected) and the server limits.
 // @Tags job-posting-questions
 // @Produce json
 // @Security SessionCookie
@@ -124,7 +128,7 @@ func (h *QuestionBankHandler) List(c *gin.Context) {
 
 // Generate godoc
 // @Summary Generate the core-question bank of your own job posting
-// @Description Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending. Requires confirmed requirements. Trusted Origin required.
+// @Description Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. Generating never submits the posting for review. Trusted Origin required.
 // @Tags job-posting-questions
 // @Produce json
 // @Security SessionCookie
@@ -149,6 +153,11 @@ func (h *QuestionBankHandler) Generate(c *gin.Context) {
 	if !ok {
 		return
 	}
+	cancel, ok := generationDeadline(c, h.generationBudget)
+	if !ok {
+		return
+	}
+	defer cancel()
 	questions, err := h.service.Generate(c.Request.Context(), userID, role, postingID)
 	if err != nil {
 		response.Error(c, err)
@@ -159,7 +168,7 @@ func (h *QuestionBankHandler) Generate(c *gin.Context) {
 
 // Add godoc
 // @Summary Add a question to the bank of your own job posting
-// @Description Recruiter only, while the posting is pending. Trusted Origin required. Unknown fields reject the whole request.
+// @Description Recruiter only, while the posting is pending or rejected and its current bank has been delivered. Trusted Origin required. Unknown fields reject the whole request.
 // @Tags job-posting-questions
 // @Accept json
 // @Produce json
@@ -199,7 +208,7 @@ func (h *QuestionBankHandler) Add(c *gin.Context) {
 
 // Update godoc
 // @Summary Edit a question in the bank of your own job posting
-// @Description Recruiter only, while the posting is pending. Trusted Origin required. Unknown fields reject the whole request.
+// @Description Recruiter only, while the posting is pending or rejected and its current bank has been delivered. Trusted Origin required. Unknown fields reject the whole request.
 // @Tags job-posting-questions
 // @Accept json
 // @Produce json
@@ -244,7 +253,7 @@ func (h *QuestionBankHandler) Update(c *gin.Context) {
 
 // Delete godoc
 // @Summary Delete a question from the bank of your own job posting
-// @Description Recruiter only, while the posting is pending. A question already used by an interview cannot be deleted. Trusted Origin required.
+// @Description Recruiter only, while the posting is pending or rejected and its current bank has been delivered. A question already used by an interview cannot be deleted. Trusted Origin required.
 // @Tags job-posting-questions
 // @Security SessionCookie
 // @Param Origin header string true "Trusted frontend origin"
@@ -277,4 +286,15 @@ func (h *QuestionBankHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+// generationDeadline bounds a request that may call the LLM by budget: the configured timeout and
+// retry budget plus time to save and respond. Call the returned cancel when ok.
+func generationDeadline(c *gin.Context, budget time.Duration) (context.CancelFunc, bool) {
+	if !roleWriteDeadline(c, budget) {
+		return nil, false
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), budget)
+	c.Request = c.Request.WithContext(ctx)
+	return cancel, true
 }

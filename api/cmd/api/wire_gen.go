@@ -72,7 +72,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	client := provider.ProvidePayOSClient(config)
 	service2 := provider.ProvideWalletService(repository3, client)
 	walletHandler := provider.ProvideWalletHandler(service2)
-	questionBankHandler := provider.ProvideQuestionBankHandler(service)
+	questionBankHandler := provider.ProvideQuestionBankHandler(config, service)
 	repository4 := provider.ProvideModerationRepository(pool)
 	service3, err := provider.ProvideModerationService(repository4, store, logger)
 	if err != nil {

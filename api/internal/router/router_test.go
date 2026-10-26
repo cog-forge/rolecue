@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
@@ -68,7 +69,7 @@ func TestQuestionBankRoutesRequireOnboarding(t *testing.T) {
 			cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
 			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
-				handler.NewWalletHandler(nil), handler.NewQuestionBankHandler(nil),
+				handler.NewWalletHandler(nil), handler.NewQuestionBankHandler(nil, time.Minute),
 				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}).Setup()
 			for _, route := range routes {
 				t.Run(route.method+" "+route.path, func(t *testing.T) {
@@ -162,7 +163,7 @@ func TestWalletRoutesRequireOnboarding(t *testing.T) {
 				cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
 				r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 					handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
-					handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
+					handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
 					&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}).Setup()
 				for _, route := range routes {
 					t.Run(route.method+" "+route.path, func(t *testing.T) {
@@ -197,7 +198,7 @@ func TestPayOSWebhookDoesNotRequireSession(t *testing.T) {
 	auth := routerAuth{err: authdomain.ErrInvalidSession}
 	r := NewRouter(&config.Config{}, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 		handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
-		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
+		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
 		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}).Setup()
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/wallet/webhook/payos", strings.NewReader(`{}`)))
