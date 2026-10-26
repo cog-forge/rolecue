@@ -51,7 +51,6 @@ export const adminTransactionPageSchema = z.object({
   total: z.number().int(),
   page: z.number().int(),
   page_size: z.number().int(),
-  schema_limitation: z.string().default(""),
 });
 
 export type AdminTransactionPage = z.infer<typeof adminTransactionPageSchema>;
@@ -89,7 +88,6 @@ export type FeatureCoinItem = z.infer<typeof featureCoinItemSchema>;
 
 export const billingSummarySchema = z.object({
   total_revenue: z.number().default(0),
-  net_revenue: z.number().default(0),
   successful_deposits: z.number().default(0),
   success_count: z.number().default(0),
   pending_count: z.number().default(0),
@@ -105,7 +103,6 @@ export const billingSummarySchema = z.object({
   success_rate: z.number().default(0),
   package_breakdown: z.array(packageRevenueItemSchema).default([]),
   feature_breakdown: z.array(featureCoinItemSchema).default([]),
-  schema_limitation: z.string().default(""),
 });
 
 export type BillingSummary = z.infer<typeof billingSummarySchema>;
@@ -138,9 +135,6 @@ export const transactionTypeFilterSchema = z.enum([
 
 export type TransactionTypeFilter = z.infer<typeof transactionTypeFilterSchema>;
 
-export type DatePreset =
-  "today" | "7d" | "30d" | "90d" | "thisMonth" | "lastMonth" | "custom";
-
 export type AdminTransactionQuery = {
   tab?: "all" | "topup" | "spend" | "refund";
   page: number;
@@ -151,8 +145,6 @@ export type AdminTransactionQuery = {
   package?: string;
   amountMin?: number;
   amountMax?: number;
-  dateFrom?: string;
-  dateTo?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };

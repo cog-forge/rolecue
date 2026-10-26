@@ -108,19 +108,20 @@ SELECT
     user_email,
     package_or_feature,
     paid_vnd,
-    coin_amount
+    coin_amount,
+    COUNT(*) OVER()::bigint AS total_count
 FROM enriched
 WHERE (sqlc.narg(search)::text IS NULL OR sqlc.narg(search)::text = '' OR (
-    id::text ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_name ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_email ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_id ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR description ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%'
+    id::text ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR user_name ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR user_email ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR user_id ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR description ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
 ))
   AND (sqlc.narg(status)::text IS NULL OR sqlc.narg(status)::text = '' OR status = sqlc.narg(status)::text)
   AND (sqlc.narg(tx_type)::text IS NULL OR sqlc.narg(tx_type)::text = '' OR tx_type = sqlc.narg(tx_type)::text)
-  AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR package_or_feature ILIKE '%' || sqlc.narg(package_name)::text || '%')
+  AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR package_or_feature ILIKE '%' || sqlc.narg(package_name)::text || '%' ESCAPE '\')
   AND (sqlc.narg(amount_min)::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= sqlc.narg(amount_min)::bigint)
   AND (sqlc.narg(amount_max)::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= sqlc.narg(amount_max)::bigint)
 ORDER BY
@@ -225,16 +226,16 @@ WITH enriched AS (
 SELECT COUNT(*)::bigint
 FROM enriched
 WHERE (sqlc.narg(search)::text IS NULL OR sqlc.narg(search)::text = '' OR (
-    id::text ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_name ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_email ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_id ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR description ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%'
+    id::text ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR user_name ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR user_email ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR user_id ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR description ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+    OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
 ))
   AND (sqlc.narg(status)::text IS NULL OR sqlc.narg(status)::text = '' OR status = sqlc.narg(status)::text)
   AND (sqlc.narg(tx_type)::text IS NULL OR sqlc.narg(tx_type)::text = '' OR tx_type = sqlc.narg(tx_type)::text)
-  AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR package_or_feature ILIKE '%' || sqlc.narg(package_name)::text || '%')
+  AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR package_or_feature ILIKE '%' || sqlc.narg(package_name)::text || '%' ESCAPE '\')
   AND (sqlc.narg(amount_min)::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= sqlc.narg(amount_min)::bigint)
   AND (sqlc.narg(amount_max)::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= sqlc.narg(amount_max)::bigint);
 
@@ -421,16 +422,16 @@ filtered AS (
     SELECT *
     FROM enriched
     WHERE (sqlc.narg(search)::text IS NULL OR sqlc.narg(search)::text = '' OR (
-        id::text ILIKE '%' || sqlc.narg(search)::text || '%'
-        OR user_name ILIKE '%' || sqlc.narg(search)::text || '%'
-        OR user_email ILIKE '%' || sqlc.narg(search)::text || '%'
-        OR user_id ILIKE '%' || sqlc.narg(search)::text || '%'
-        OR description ILIKE '%' || sqlc.narg(search)::text || '%'
-        OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%'
+        id::text ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+        OR user_name ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+        OR user_email ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+        OR user_id ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+        OR description ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+        OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
     ))
       AND (sqlc.narg(status)::text IS NULL OR sqlc.narg(status)::text = '' OR status = sqlc.narg(status)::text)
       AND (sqlc.narg(tx_type)::text IS NULL OR sqlc.narg(tx_type)::text = '' OR tx_type = sqlc.narg(tx_type)::text)
-      AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR package_or_feature ILIKE '%' || sqlc.narg(package_name)::text || '%')
+      AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR package_or_feature ILIKE '%' || sqlc.narg(package_name)::text || '%' ESCAPE '\')
       AND (sqlc.narg(amount_min)::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= sqlc.narg(amount_min)::bigint)
       AND (sqlc.narg(amount_max)::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= sqlc.narg(amount_max)::bigint)
 )
@@ -456,37 +457,76 @@ WITH enriched AS (
         COALESCE(t.description, '') AS description,
         t.status::text AS status,
         COALESCE(t.payos_order_code, '') AS payos_order_code,
-        COALESCE(u.id::text, t."to") AS user_id,
+        CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
+            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            ELSE 'spend'
+        END AS tx_type,
+        COALESCE(u.id::text,
+            CASE
+                WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t."to"
+                WHEN t."from" = '' OR lower(t."from") = 'system' THEN t."to"
+                ELSE t."from"
+            END
+        )::text AS user_id,
         COALESCE(u.name, '') AS user_name,
         COALESCE(u.email, '') AS user_email,
-        COALESCE(
-            NULLIF(btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')), ''),
-            cp.name,
-            'Coin Top-up'
-        ) AS package_name,
-        COALESCE(
-            NULLIF(substring(COALESCE(t.description, '') from '\(([0-9]+)\s*VND\)'), '')::bigint,
-            cp.price::bigint,
-            t.amount::bigint
-        ) AS paid_vnd,
-        CASE
-            WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
-            ELSE t.amount::bigint
-        END AS coin_amount
+        (CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
+                COALESCE(
+                    NULLIF(btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')), ''),
+                    cp.name,
+                    'Coin Top-up'
+                )
+            ELSE COALESCE(NULLIF(btrim(t.description), ''), 'Coin Transaction')
+        END)::text AS package_or_feature,
+        (CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
+                COALESCE(
+                    NULLIF(substring(COALESCE(t.description, '') from '\(([0-9]+)\s*VND\)'), '')::bigint,
+                    cp.price::bigint,
+                    t.amount::bigint
+                )
+            ELSE 0::bigint
+        END)::bigint AS paid_vnd,
+        (CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
+                CASE
+                    WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
+                    ELSE t.amount::bigint
+                END
+            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
+            ELSE -abs(t.amount)::bigint
+        END)::bigint AS coin_amount
     FROM public.transactions t
     LEFT JOIN public.users u ON u.id = (
         CASE
-            WHEN t."to" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-            THEN t."to"::uuid
+            WHEN (
+                CASE
+                    WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t."to"
+                    WHEN t."from" = '' OR lower(t."from") = 'system' THEN t."to"
+                    ELSE t."from"
+                END
+            ) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN (
+                CASE
+                    WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t."to"
+                    WHEN t."from" = '' OR lower(t."from") = 'system' THEN t."to"
+                    ELSE t."from"
+                END
+            )::uuid
             ELSE NULL
         END
     )
     LEFT JOIN LATERAL (
         SELECT cp_inner.name, cp_inner.price, cp_inner.amount
         FROM public.coin_packages cp_inner
-        WHERE cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
-           OR cp_inner.amount = t.amount
-           OR cp_inner.price = t.amount
+        WHERE t.payos_order_code IS NOT NULL AND t.payos_order_code <> ''
+          AND (
+              cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
+              OR cp_inner.amount = t.amount
+              OR cp_inner.price = t.amount
+          )
         ORDER BY
             CASE
                 WHEN cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')) THEN 0
@@ -496,53 +536,73 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
-    WHERE t.status = 'success'
-      AND t.payos_order_code IS NOT NULL
-      AND t.payos_order_code <> ''
 )
 SELECT
-    package_name,
+    package_or_feature AS package_name,
     COALESCE(SUM(paid_vnd), 0)::bigint AS revenue_vnd,
     COUNT(*)::bigint AS deposit_count,
     COALESCE(SUM(coin_amount), 0)::bigint AS coins_sold
 FROM enriched
-WHERE (sqlc.narg(search)::text IS NULL OR sqlc.narg(search)::text = '' OR (
-    id::text ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_name ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_email ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR user_id ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR description ILIKE '%' || sqlc.narg(search)::text || '%'
-    OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%'
-))
-  AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR package_name ILIKE '%' || sqlc.narg(package_name)::text || '%')
+WHERE status = 'success'
+  AND tx_type = 'topup'
+  AND (sqlc.narg(search)::text IS NULL OR sqlc.narg(search)::text = '' OR (
+      id::text ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR user_name ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR user_email ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR user_id ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR description ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+  ))
+  AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR package_or_feature ILIKE '%' || sqlc.narg(package_name)::text || '%' ESCAPE '\')
   AND (sqlc.narg(amount_min)::bigint IS NULL OR paid_vnd >= sqlc.narg(amount_min)::bigint)
   AND (sqlc.narg(amount_max)::bigint IS NULL OR paid_vnd <= sqlc.narg(amount_max)::bigint)
-GROUP BY package_name
+GROUP BY package_or_feature
 ORDER BY revenue_vnd DESC, package_name ASC;
 
 -- name: GetAdminFeatureCoinBreakdown :many
-SELECT
-    COALESCE(NULLIF(btrim(t.description), ''), 'Coin Spend')::text AS feature_name,
-    COALESCE(SUM(abs(t.amount)), 0)::bigint AS coins_spent,
-    COUNT(*)::bigint AS spend_count
-FROM public.transactions t
-LEFT JOIN public.users u ON u.id = (
-    CASE
-        WHEN t."from" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        THEN t."from"::uuid
-        ELSE NULL
-    END
+WITH enriched AS (
+    SELECT
+        t.id,
+        t.amount,
+        COALESCE(t.description, '') AS description,
+        t.status::text AS status,
+        COALESCE(t.payos_order_code, '') AS payos_order_code,
+        CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
+            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            ELSE 'spend'
+        END AS tx_type,
+        COALESCE(u.id::text, t."from")::text AS user_id,
+        COALESCE(u.name, '') AS user_name,
+        COALESCE(u.email, '') AS user_email,
+        COALESCE(NULLIF(btrim(t.description), ''), 'Coin Transaction')::text AS feature_name,
+        abs(t.amount)::bigint AS coins_spent
+    FROM public.transactions t
+    LEFT JOIN public.users u ON u.id = (
+        CASE
+            WHEN t."from" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN t."from"::uuid
+            ELSE NULL
+        END
+    )
 )
-WHERE t.status = 'success'
-  AND (t.payos_order_code IS NULL OR t.payos_order_code = '')
-  AND lower(t."from") <> 'system'
-  AND lower(COALESCE(t.description, '')) NOT LIKE '%refund%'
+SELECT
+    feature_name,
+    COALESCE(SUM(coins_spent), 0)::bigint AS coins_spent,
+    COUNT(*)::bigint AS spend_count
+FROM enriched
+WHERE status = 'success'
+  AND tx_type = 'spend'
   AND (sqlc.narg(search)::text IS NULL OR sqlc.narg(search)::text = '' OR (
-      t.id::text ILIKE '%' || sqlc.narg(search)::text || '%'
-      OR COALESCE(u.name, '') ILIKE '%' || sqlc.narg(search)::text || '%'
-      OR COALESCE(u.email, '') ILIKE '%' || sqlc.narg(search)::text || '%'
-      OR t."from" ILIKE '%' || sqlc.narg(search)::text || '%'
-      OR COALESCE(t.description, '') ILIKE '%' || sqlc.narg(search)::text || '%'
+      id::text ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR user_name ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR user_email ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR user_id ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR description ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
+      OR payos_order_code ILIKE '%' || sqlc.narg(search)::text || '%' ESCAPE '\'
   ))
-GROUP BY COALESCE(NULLIF(btrim(t.description), ''), 'Coin Spend')
+  AND (sqlc.narg(package_name)::text IS NULL OR sqlc.narg(package_name)::text = '' OR feature_name ILIKE '%' || sqlc.narg(package_name)::text || '%' ESCAPE '\')
+  AND (sqlc.narg(amount_min)::bigint IS NULL OR coins_spent >= sqlc.narg(amount_min)::bigint)
+  AND (sqlc.narg(amount_max)::bigint IS NULL OR coins_spent <= sqlc.narg(amount_max)::bigint)
+GROUP BY feature_name
 ORDER BY coins_spent DESC, feature_name ASC;

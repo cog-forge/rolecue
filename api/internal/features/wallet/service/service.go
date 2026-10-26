@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
@@ -382,8 +381,6 @@ func parseExpectedVND(desc string) (int, bool) {
 	return val, true
 }
 
-var vietnamTZ = time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)
-
 // ValidateAdminFilter validates and normalizes read-only Admin billing/revenue filter parameters.
 func ValidateAdminFilter(filter *domain.AdminTransactionFilter, maxPageSize int) error {
 	if maxPageSize <= 0 {
@@ -392,8 +389,8 @@ func ValidateAdminFilter(filter *domain.AdminTransactionFilter, maxPageSize int)
 	if filter.Page == 0 {
 		filter.Page = 1
 	}
-	if filter.Page < 1 {
-		return apperror.New(apperror.CodeValidation, "page must be greater than or equal to 1")
+	if filter.Page < 1 || filter.Page > 10_000 {
+		return apperror.New(apperror.CodeValidation, "page must be between 1 and 10000")
 	}
 	if filter.PageSize == 0 {
 		filter.PageSize = 20
@@ -420,12 +417,12 @@ func ValidateAdminFilter(filter *domain.AdminTransactionFilter, maxPageSize int)
 
 	sortBy := strings.ToLower(strings.TrimSpace(filter.SortBy))
 	switch sortBy {
-	case "", "id", "date":
+	case "", "id":
 		filter.SortBy = "id"
 	case "amount", "coins", "status":
 		filter.SortBy = sortBy
 	default:
-		return apperror.New(apperror.CodeValidation, "invalid sort_by: must be id, date, amount, coins, or status")
+		return apperror.New(apperror.CodeValidation, "invalid sort_by: must be id, amount, coins, or status")
 	}
 
 	sortOrder := strings.ToLower(strings.TrimSpace(filter.SortOrder))
@@ -448,30 +445,6 @@ func ValidateAdminFilter(filter *domain.AdminTransactionFilter, maxPageSize int)
 		return apperror.New(apperror.CodeValidation, "amount_min cannot be greater than amount_max")
 	}
 
-	var fromTime, toTime time.Time
-	var hasFrom, hasTo bool
-	if strings.TrimSpace(filter.DateFrom) != "" {
-		parsed, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(filter.DateFrom), vietnamTZ)
-		if err != nil {
-			return apperror.New(apperror.CodeValidation, "invalid date_from format: expected YYYY-MM-DD in Asia/Ho_Chi_Minh (UTC+7)")
-		}
-		fromTime = parsed
-		hasFrom = true
-		filter.DateFrom = parsed.Format("2006-01-02")
-	}
-	if strings.TrimSpace(filter.DateTo) != "" {
-		parsed, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(filter.DateTo), vietnamTZ)
-		if err != nil {
-			return apperror.New(apperror.CodeValidation, "invalid date_to format: expected YYYY-MM-DD in Asia/Ho_Chi_Minh (UTC+7)")
-		}
-		toTime = parsed
-		hasTo = true
-		filter.DateTo = parsed.Format("2006-01-02")
-	}
-	if hasFrom && hasTo && fromTime.After(toTime) {
-		return apperror.New(apperror.CodeValidation, "date_from cannot be after date_to")
-	}
-
 	filter.Search = strings.TrimSpace(filter.Search)
 	filter.PackageName = strings.TrimSpace(filter.PackageName)
 	return nil
@@ -487,15 +460,6 @@ func (s *Service) GetBillingSummary(ctx context.Context, filter domain.AdminTran
 func (s *Service) ListBillingTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error) {
 	if err := ValidateAdminFilter(&filter, 5000); err != nil {
 		return domain.AdminTransactionPage{}, err
-	}
-	if filter.Page > 10_000 {
-		return domain.AdminTransactionPage{
-			Items:            []domain.AdminTransactionItem{},
-			Total:            0,
-			Page:             filter.Page,
-			PageSize:         filter.PageSize,
-			SchemaLimitation: domain.FrozenSchemaTimestampNotice,
-		}, nil
 	}
 	return s.repo.ListAdminTransactions(ctx, filter)
 }

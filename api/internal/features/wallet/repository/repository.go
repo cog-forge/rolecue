@@ -279,10 +279,10 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 		sortOrder = "desc"
 	}
 
-	searchPtr := optionalString(filter.Search)
+	searchPtr := escapeILIKE(filter.Search)
 	statusPtr := optionalString(filter.Status)
 	typePtr := optionalString(filter.Type)
-	pkgPtr := optionalString(filter.PackageName)
+	pkgPtr := escapeILIKE(filter.PackageName)
 
 	rows, err := r.queries.ListAdminTransactions(ctx, ListAdminTransactionsParams{
 		Search:      searchPtr,
@@ -300,16 +300,21 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 		return domain.AdminTransactionPage{}, apperror.Wrap(apperror.CodeInternal, "failed to list admin transactions", err)
 	}
 
-	total, err := r.queries.CountAdminTransactions(ctx, CountAdminTransactionsParams{
-		Search:      searchPtr,
-		Status:      statusPtr,
-		TxType:      typePtr,
-		PackageName: pkgPtr,
-		AmountMin:   filter.AmountMin,
-		AmountMax:   filter.AmountMax,
-	})
-	if err != nil {
-		return domain.AdminTransactionPage{}, apperror.Wrap(apperror.CodeInternal, "failed to count admin transactions", err)
+	var total int64
+	if len(rows) > 0 {
+		total = rows[0].TotalCount
+	} else if offset > 0 {
+		total, err = r.queries.CountAdminTransactions(ctx, CountAdminTransactionsParams{
+			Search:      searchPtr,
+			Status:      statusPtr,
+			TxType:      typePtr,
+			PackageName: pkgPtr,
+			AmountMin:   filter.AmountMin,
+			AmountMax:   filter.AmountMax,
+		})
+		if err != nil {
+			return domain.AdminTransactionPage{}, apperror.Wrap(apperror.CodeInternal, "failed to count admin transactions", err)
+		}
 	}
 
 	items := make([]domain.AdminTransactionItem, 0, len(rows))
@@ -334,11 +339,10 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 	}
 
 	return domain.AdminTransactionPage{
-		Items:            items,
-		Total:            total,
-		Page:             page,
-		PageSize:         pageSize,
-		SchemaLimitation: domain.FrozenSchemaTimestampNotice,
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
 	}, nil
 }
 
@@ -370,10 +374,10 @@ func (r *Repository) GetAdminTransactionByID(ctx context.Context, id uuid.UUID) 
 }
 
 func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
-	searchPtr := optionalString(filter.Search)
+	searchPtr := escapeILIKE(filter.Search)
 	statusPtr := optionalString(filter.Status)
 	typePtr := optionalString(filter.Type)
-	pkgPtr := optionalString(filter.PackageName)
+	pkgPtr := escapeILIKE(filter.PackageName)
 
 	row, err := r.queries.GetAdminBillingSummary(ctx, GetAdminBillingSummaryParams{
 		Search:      searchPtr,
@@ -422,7 +426,12 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 	featureBreakdown := make([]domain.FeatureCoinItem, 0)
 	if (filter.Status == "" || filter.Status == string(domain.StatusSuccess)) &&
 		(filter.Type == "" || filter.Type == "spend") {
-		featRows, err := r.queries.GetAdminFeatureCoinBreakdown(ctx, searchPtr)
+		featRows, err := r.queries.GetAdminFeatureCoinBreakdown(ctx, GetAdminFeatureCoinBreakdownParams{
+			Search:      searchPtr,
+			PackageName: pkgPtr,
+			AmountMin:   filter.AmountMin,
+			AmountMax:   filter.AmountMax,
+		})
 		if err != nil {
 			return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get feature coin breakdown", err)
 		}
@@ -437,7 +446,6 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 
 	return domain.BillingSummary{
 		TotalRevenue:       row.TotalRevenue,
-		NetRevenue:         row.TotalRevenue,
 		SuccessfulDeposits: row.SuccessfulDeposits,
 		SuccessCount:       row.SuccessCount,
 		PendingCount:       row.PendingCount,
@@ -453,8 +461,20 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 		SuccessRate:        successRate,
 		PackageBreakdown:   pkgBreakdown,
 		FeatureBreakdown:   featureBreakdown,
-		SchemaLimitation:   domain.FrozenSchemaTimestampNotice,
 	}, nil
+}
+
+var ilikeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// escapeILIKE trims whitespace and escapes PostgreSQL LIKE/ILIKE wildcard characters (%, _, \)
+// so user-provided search and package strings match literally.
+func escapeILIKE(s string) *string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	escaped := ilikeEscaper.Replace(trimmed)
+	return &escaped
 }
 
 func optionalString(s string) *string {

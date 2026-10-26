@@ -1274,8 +1274,6 @@ func TestAdminGetBillingSummary_OnlyCountsSuccessPayOSDeposits(t *testing.T) {
 		PageSize:  20,
 		SortBy:    "id",
 		SortOrder: "desc",
-		DateFrom:  "2026-10-01",
-		DateTo:    "2026-10-26",
 	}
 
 	// Sample ledger scenario:
@@ -1287,7 +1285,6 @@ func TestAdminGetBillingSummary_OnlyCountsSuccessPayOSDeposits(t *testing.T) {
 	// - 1 internal slot refund (10 coins — NOT subtracted from VND revenue)
 	expectedSummary := domain.BillingSummary{
 		TotalRevenue:       150000,
-		NetRevenue:         150000,
 		SuccessfulDeposits: 2,
 		SuccessCount:       5, // 2 topups + 2 spends + 1 refund
 		PendingCount:       1,
@@ -1308,24 +1305,18 @@ func TestAdminGetBillingSummary_OnlyCountsSuccessPayOSDeposits(t *testing.T) {
 		FeatureBreakdown: []domain.FeatureCoinItem{
 			{FeatureName: "Practice interview charge", CoinsSpent: 40, SpendCount: 2},
 		},
-		SchemaLimitation: domain.FrozenSchemaTimestampNotice,
 	}
 
 	mockRepo.On("GetBillingSummary", mock.Anything, expectedFilter).Return(expectedSummary, nil)
 
-	res, err := svc.GetBillingSummary(context.Background(), domain.AdminTransactionFilter{
-		DateFrom: "2026-10-01",
-		DateTo:   "2026-10-26",
-	})
+	res, err := svc.GetBillingSummary(context.Background(), domain.AdminTransactionFilter{})
 	assert.NoError(t, err)
 	assert.Equal(t, int64(150000), res.TotalRevenue)
-	assert.Equal(t, int64(150000), res.NetRevenue)
 	assert.Equal(t, int64(2), res.SuccessfulDeposits)
 	assert.Equal(t, int64(1), res.PendingCount)
 	assert.Equal(t, int64(1), res.FailedCount)
 	assert.Equal(t, int64(1), res.CancelledCount)
 	assert.Equal(t, res.SuccessCount+res.PendingCount+res.FailedCount+res.CancelledCount, res.TotalTransactions)
-	assert.NotEmpty(t, res.SchemaLimitation)
 	mockRepo.AssertExpectations(t)
 }
 
@@ -1370,10 +1361,9 @@ func TestAdminListBillingTransactions_FiltersAndPagination(t *testing.T) {
 				PayOSOrderCode:   &orderCode,
 			},
 		},
-		Total:            51,
-		Page:             2,
-		PageSize:         50,
-		SchemaLimitation: domain.FrozenSchemaTimestampNotice,
+		Total:    51,
+		Page:     2,
+		PageSize: 50,
 	}
 
 	mockRepo.On("ListAdminTransactions", mock.Anything, expectedFilter).Return(expectedPage, nil)
@@ -1432,16 +1422,12 @@ func TestValidateAdminFilter_RejectsInvalidInputs(t *testing.T) {
 			filter: domain.AdminTransactionFilter{AmountMin: &high, AmountMax: &low},
 		},
 		{
-			name:   "malformed date_from",
-			filter: domain.AdminTransactionFilter{DateFrom: "26/10/2026"},
+			name:   "page below 1",
+			filter: domain.AdminTransactionFilter{Page: -1},
 		},
 		{
-			name:   "malformed date_to",
-			filter: domain.AdminTransactionFilter{DateTo: "not-a-date"},
-		},
-		{
-			name:   "date_from after date_to",
-			filter: domain.AdminTransactionFilter{DateFrom: "2026-10-20", DateTo: "2026-10-10"},
+			name:   "page exceeds 10000",
+			filter: domain.AdminTransactionFilter{Page: 10001},
 		},
 		{
 			name:   "page_size exceeds max",

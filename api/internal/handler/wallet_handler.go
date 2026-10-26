@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"fmt"
@@ -272,8 +273,6 @@ func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTran
 		{"status", &filter.Status},
 		{"type", &filter.Type},
 		{"package", &filter.PackageName},
-		{"date_from", &filter.DateFrom},
-		{"date_to", &filter.DateTo},
 		{"sort_by", &filter.SortBy},
 		{"sort_order", &filter.SortOrder},
 	} {
@@ -297,7 +296,7 @@ func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTran
 
 // AdminGetBillingSummary godoc
 // @Summary Get shared admin billing & revenue summary
-// @Description Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree.
+// @Description Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree. Note (KAN-191): public.transactions in the frozen 000006_wallet_payment schema has no created_at column, so figures reflect all-time matching records.
 // @Tags admin-billing
 // @Produce json
 // @Security SessionCookie
@@ -307,8 +306,6 @@ func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTran
 // @Param package query string false "Filter by package or feature name"
 // @Param amount_min query int false "Minimum amount filter"
 // @Param amount_max query int false "Maximum amount filter"
-// @Param date_from query string false "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
-// @Param date_to query string false "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
 // @Success 200 {object} response.Envelope{data=walletdomain.BillingSummary}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
@@ -335,11 +332,11 @@ func (h *WalletHandler) AdminGetBillingSummary(c *gin.Context) {
 
 // AdminListBillingTransactions godoc
 // @Summary List admin payment and coin ledger transactions
-// @Description Admin only. Read-only paginated list of transactions enriched with user and package details.
+// @Description Admin only. Read-only paginated list of transactions enriched with user and package details. Note (KAN-191): public.transactions in the frozen 000006_wallet_payment schema has no created_at column, so figures reflect all-time matching records.
 // @Tags admin-billing
 // @Produce json
 // @Security SessionCookie
-// @Param page query int false "Page number" default(1) minimum(1)
+// @Param page query int false "Page number" default(1) minimum(1) maximum(10000)
 // @Param page_size query int false "Page size" default(20) minimum(1) maximum(100)
 // @Param search query string false "Search by transaction ID, user name/email/ID, order code, or description"
 // @Param status query string false "Filter by status (pending, success, failed, cancelled)"
@@ -347,9 +344,7 @@ func (h *WalletHandler) AdminGetBillingSummary(c *gin.Context) {
 // @Param package query string false "Filter by package or feature name"
 // @Param amount_min query int false "Minimum amount filter"
 // @Param amount_max query int false "Maximum amount filter"
-// @Param date_from query string false "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
-// @Param date_to query string false "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
-// @Param sort_by query string false "Sort field (id, date, amount, coins, status)" default(id)
+// @Param sort_by query string false "Sort field (id, amount, coins, status)" default(id)
 // @Param sort_order query string false "Sort order (asc, desc)" default(desc)
 // @Success 200 {object} response.Envelope{data=walletdomain.AdminTransactionPage}
 // @Failure 400 {object} response.Envelope
@@ -424,7 +419,7 @@ func sanitizeCSVCell(val string) string {
 
 // AdminExportBillingCSV godoc
 // @Summary Export filtered admin transactions as CSV
-// @Description Admin only. Read-only CSV export respecting active filters (up to 5,000 rows) with CSV formula-injection protection.
+// @Description Admin only. Read-only CSV export respecting active filters (up to 5,000 rows) with CSV formula-injection protection. Sets X-Total-Count and X-Export-Truncated headers.
 // @Tags admin-billing
 // @Produce text/csv
 // @Security SessionCookie
@@ -434,9 +429,7 @@ func sanitizeCSVCell(val string) string {
 // @Param package query string false "Filter by package or feature name"
 // @Param amount_min query int false "Minimum amount filter"
 // @Param amount_max query int false "Maximum amount filter"
-// @Param date_from query string false "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
-// @Param date_to query string false "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)"
-// @Param sort_by query string false "Sort field (id, date, amount, coins, status)" default(id)
+// @Param sort_by query string false "Sort field (id, amount, coins, status)" default(id)
 // @Param sort_order query string false "Sort order (asc, desc)" default(desc)
 // @Success 200 {file} file "CSV file"
 // @Failure 400 {object} response.Envelope
@@ -463,11 +456,9 @@ func (h *WalletHandler) AdminExportBillingCSV(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Type", "text/csv; charset=utf-8")
-	c.Header("Content-Disposition", "attachment; filename=rolecue-transactions.csv")
-
-	writer := csv.NewWriter(c.Writer)
-	_ = writer.Write([]string{
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	if err := writer.Write([]string{
 		"Transaction ID",
 		"Order Code",
 		"User ID",
@@ -481,14 +472,17 @@ func (h *WalletHandler) AdminExportBillingCSV(c *gin.Context) {
 		"From",
 		"To",
 		"Description",
-	})
+	}); err != nil {
+		response.Error(c, apperror.Wrap(apperror.CodeInternal, "failed to write csv header", err))
+		return
+	}
 
 	for _, item := range result.Items {
 		orderCode := ""
 		if item.PayOSOrderCode != nil {
 			orderCode = strconv.FormatInt(*item.PayOSOrderCode, 10)
 		}
-		_ = writer.Write([]string{
+		if err := writer.Write([]string{
 			sanitizeCSVCell(item.ID.String()),
 			sanitizeCSVCell(orderCode),
 			sanitizeCSVCell(item.UserID),
@@ -502,7 +496,22 @@ func (h *WalletHandler) AdminExportBillingCSV(c *gin.Context) {
 			sanitizeCSVCell(item.From),
 			sanitizeCSVCell(item.To),
 			sanitizeCSVCell(item.Description),
-		})
+		}); err != nil {
+			response.Error(c, apperror.Wrap(apperror.CodeInternal, "failed to write csv row", err))
+			return
+		}
 	}
 	writer.Flush()
+	if err := writer.Error(); err != nil {
+		response.Error(c, apperror.Wrap(apperror.CodeInternal, "failed to flush csv export", err))
+		return
+	}
+
+	truncated := result.Total > int64(len(result.Items))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename=rolecue-transactions.csv")
+	c.Header("X-Total-Count", strconv.FormatInt(result.Total, 10))
+	c.Header("X-Export-Truncated", strconv.FormatBool(truncated))
+	c.Status(http.StatusOK)
+	_, _ = c.Writer.Write(buf.Bytes())
 }

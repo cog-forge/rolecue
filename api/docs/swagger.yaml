@@ -210,8 +210,6 @@ definitions:
         type: integer
       page_size:
         type: integer
-      schema_limitation:
-        type: string
       total:
         type: integer
     type: object
@@ -301,16 +299,12 @@ definitions:
         items:
           $ref: '#/definitions/domain.FeatureCoinItem'
         type: array
-      net_revenue:
-        type: integer
       package_breakdown:
         items:
           $ref: '#/definitions/domain.PackageRevenueItem'
         type: array
       pending_count:
         type: integer
-      schema_limitation:
-        type: string
       success_count:
         type: integer
       success_rate:
@@ -1563,7 +1557,8 @@ paths:
   /admin/billing/export:
     get:
       description: Admin only. Read-only CSV export respecting active filters (up
-        to 5,000 rows) with CSV formula-injection protection.
+        to 5,000 rows) with CSV formula-injection protection. Sets X-Total-Count and
+        X-Export-Truncated headers.
       parameters:
       - description: Search by transaction ID, user name/email/ID, order code, or
           description
@@ -1590,16 +1585,8 @@ paths:
         in: query
         name: amount_max
         type: integer
-      - description: Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
-        in: query
-        name: date_from
-        type: string
-      - description: End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
-        in: query
-        name: date_to
-        type: string
       - default: id
-        description: Sort field (id, date, amount, coins, status)
+        description: Sort field (id, amount, coins, status)
         in: query
         name: sort_by
         type: string
@@ -1638,9 +1625,11 @@ paths:
       - admin-billing
   /admin/billing/summary:
     get:
-      description: Admin only. Read-only. Computes revenue strictly from status='success'
+      description: 'Admin only. Read-only. Computes revenue strictly from status=''success''
         transactions with payos_order_code (KAN-192). Accepts the same filters as
-        the transaction list so both pages always agree.
+        the transaction list so both pages always agree. Note (KAN-191): public.transactions
+        in the frozen 000006_wallet_payment schema has no created_at column, so figures
+        reflect all-time matching records.'
       parameters:
       - description: Search by transaction ID, user name/email/ID, order code, or
           description
@@ -1667,14 +1656,6 @@ paths:
         in: query
         name: amount_max
         type: integer
-      - description: Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
-        in: query
-        name: date_from
-        type: string
-      - description: End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
-        in: query
-        name: date_to
-        type: string
       produces:
       - application/json
       responses:
@@ -1710,12 +1691,15 @@ paths:
       - admin-billing
   /admin/billing/transactions:
     get:
-      description: Admin only. Read-only paginated list of transactions enriched with
-        user and package details.
+      description: 'Admin only. Read-only paginated list of transactions enriched
+        with user and package details. Note (KAN-191): public.transactions in the
+        frozen 000006_wallet_payment schema has no created_at column, so figures reflect
+        all-time matching records.'
       parameters:
       - default: 1
         description: Page number
         in: query
+        maximum: 10000
         minimum: 1
         name: page
         type: integer
@@ -1751,16 +1735,8 @@ paths:
         in: query
         name: amount_max
         type: integer
-      - description: Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
-        in: query
-        name: date_from
-        type: string
-      - description: End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)
-        in: query
-        name: date_to
-        type: string
       - default: id
-        description: Sort field (id, date, amount, coins, status)
+        description: Sort field (id, amount, coins, status)
         in: query
         name: sort_by
         type: string

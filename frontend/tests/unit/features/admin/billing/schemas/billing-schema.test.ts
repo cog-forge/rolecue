@@ -46,19 +46,16 @@ describe("admin billing schemas", () => {
       total: 1,
       page: 1,
       page_size: 20,
-      schema_limitation: "Frozen schema note",
     };
 
     const parsed = adminTransactionPageSchema.parse(page);
     expect(parsed.total).toBe(1);
     expect(parsed.items).toHaveLength(1);
-    expect(parsed.schema_limitation).toBe("Frozen schema note");
   });
 
   it("validates billing summary schema", () => {
     const summary = {
       total_revenue: 150000,
-      net_revenue: 150000,
       successful_deposits: 3,
       success_count: 5,
       pending_count: 2,
@@ -87,7 +84,6 @@ describe("admin billing schemas", () => {
           spend_count: 2,
         },
       ],
-      schema_limitation: "Frozen schema note",
     };
 
     const parsed = billingSummarySchema.parse(summary);

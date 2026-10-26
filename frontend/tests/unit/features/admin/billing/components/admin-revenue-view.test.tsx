@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminRevenueView } from "@/features/admin/billing/components/admin-revenue-view";
 
@@ -147,25 +147,25 @@ describe("AdminRevenueView", () => {
     expect(screen.queryByText(/Enterprise Boost/i)).not.toBeInTheDocument();
   });
 
-  it("updates dates when a preset is clicked", async () => {
+  it("does not render misleading date range pickers on the frozen schema", async () => {
     renderComponent();
 
-    const sevenDaysBtn = await screen.findByRole("button", {
-      name: "Last 7 days",
-    });
-    fireEvent.click(sevenDaysBtn);
-
     await waitFor(() => {
-      expect(mocks.get).toHaveBeenCalledWith(
-        "/admin/billing/summary",
-        expect.objectContaining({
-          params: expect.objectContaining({
-            date_from: expect.any(String),
-            date_to: expect.any(String),
-          }),
-        }),
-      );
+      expect(screen.getByText("Total Revenue (PayOS)")).toBeInTheDocument();
     });
+
+    expect(
+      screen.queryByRole("button", { name: "Last 7 days" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Last 30 days" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledWith(
+      "/admin/billing/summary",
+      expect.objectContaining({
+        params: {},
+      }),
+    );
   });
 
   it("handles error state with retry button", async () => {

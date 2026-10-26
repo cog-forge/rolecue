@@ -10,9 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DatePresetPicker } from "./date-preset-picker";
 import type {
-  DatePreset,
   TransactionStatusFilter,
   TransactionTypeFilter,
 } from "../schemas/billing-schema";
@@ -31,11 +29,6 @@ type TransactionToolbarProps = {
   onAmountMinChange: (val: string) => void;
   amountMax: string;
   onAmountMaxChange: (val: string) => void;
-  datePreset: DatePreset;
-  dateFrom: string;
-  dateTo: string;
-  onPresetSelect: (preset: DatePreset, from: string, to: string) => void;
-  onCustomDateChange: (from: string, to: string) => void;
   onReset: () => void;
   onExportCSV: () => void;
   isExporting?: boolean;
@@ -62,11 +55,6 @@ export function TransactionToolbar({
   onAmountMinChange,
   amountMax,
   onAmountMaxChange,
-  datePreset,
-  dateFrom,
-  dateTo,
-  onPresetSelect,
-  onCustomDateChange,
   onReset,
   onExportCSV,
   isExporting = false,
@@ -196,17 +184,6 @@ export function TransactionToolbar({
             className="h-9 text-xs"
           />
         </div>
-      </div>
-
-      {/* Bottom Row: Date Presets & Custom Range */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-        <DatePresetPicker
-          activePreset={datePreset}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onPresetSelect={onPresetSelect}
-          onCustomDateChange={onCustomDateChange}
-        />
       </div>
     </div>
   );

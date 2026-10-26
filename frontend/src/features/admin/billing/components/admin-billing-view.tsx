@@ -13,10 +13,8 @@ import {
 import { BillingStatCards } from "./revenue-stat-cards";
 import { TransactionToolbar } from "./transaction-toolbar";
 import { TransactionTable } from "./transaction-table";
-import { getPresetDateRange } from "../lib/date-presets";
 import type {
   AdminTransactionQuery,
-  DatePreset,
   TransactionStatusFilter,
   TransactionTypeFilter,
 } from "../schemas/billing-schema";
@@ -28,11 +26,6 @@ export function AdminBillingView() {
   const [packageFilter, setPackageFilter] = useState("all");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
-  const [datePreset, setDatePreset] = useState<DatePreset>("30d");
-
-  const defaultRange = useMemo(() => getPresetDateRange("30d"), []);
-  const [dateFrom, setDateFrom] = useState(defaultRange.from);
-  const [dateTo, setDateTo] = useState(defaultRange.to);
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -60,8 +53,6 @@ export function AdminBillingView() {
       package: packageFilter !== "all" ? packageFilter : undefined,
       amountMin: parsedMin,
       amountMax: parsedMax,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
       sortBy,
       sortOrder,
     }),
@@ -74,8 +65,6 @@ export function AdminBillingView() {
       packageFilter,
       parsedMin,
       parsedMax,
-      dateFrom,
-      dateTo,
       sortBy,
       sortOrder,
     ],
@@ -123,10 +112,6 @@ export function AdminBillingView() {
     setPackageFilter("all");
     setAmountMin("");
     setAmountMax("");
-    const range = getPresetDateRange("30d");
-    setDatePreset("30d");
-    setDateFrom(range.from);
-    setDateTo(range.to);
     setSortBy("id");
     setSortOrder("desc");
     setPage(1);
@@ -140,7 +125,7 @@ export function AdminBillingView() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `rolecue-transactions-${dateFrom || "all"}-to-${dateTo || "all"}.csv`;
+      link.download = "rolecue-transactions.csv";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -207,21 +192,6 @@ export function AdminBillingView() {
           setAmountMax(val);
           setPage(1);
         }}
-        datePreset={datePreset}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onPresetSelect={(preset, from, to) => {
-          setDatePreset(preset);
-          setDateFrom(from);
-          setDateTo(to);
-          setPage(1);
-        }}
-        onCustomDateChange={(from, to) => {
-          setDatePreset("custom");
-          setDateFrom(from);
-          setDateTo(to);
-          setPage(1);
-        }}
         onReset={handleReset}
         onExportCSV={() => {
           void handleExportCSV();
@@ -241,8 +211,8 @@ export function AdminBillingView() {
               Unable to load transactions
             </h2>
             <p className="text-xs text-muted-foreground">
-              Please verify your filter parameters (such as date range or amount
-              bounds) and try again.
+              Please verify your filter parameters (such as amount bounds) and
+              try again.
             </p>
           </div>
           <Button

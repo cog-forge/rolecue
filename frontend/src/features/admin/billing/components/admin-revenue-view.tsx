@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Download, ExternalLink, RotateCcw } from "lucide-react";
+import { AlertCircle, Download, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -17,49 +16,31 @@ import {
 import { adminBillingKeys, getBillingSummary } from "../api/billing";
 import { BillingStatCards } from "./revenue-stat-cards";
 import { RevenueCharts } from "./revenue-charts";
-import { DatePresetPicker } from "./date-preset-picker";
-import { getPresetDateRange } from "../lib/date-presets";
 import { formatVND, formatCoins, formatPlural } from "../lib/format";
-import type {
-  AdminTransactionQuery,
-  DatePreset,
-} from "../schemas/billing-schema";
+
+function sanitizeCSVCell(val: string): string {
+  if (!val) return "";
+  if (/^[=+\-@\t\r]/.test(val)) {
+    return `'${val}`;
+  }
+  return val;
+}
 
 export function AdminRevenueView() {
-  const defaultRange = useMemo(() => getPresetDateRange("30d"), []);
-  const [datePreset, setDatePreset] = useState<DatePreset>("30d");
-  const [dateFrom, setDateFrom] = useState(defaultRange.from);
-  const [dateTo, setDateTo] = useState(defaultRange.to);
-
-  const filter: Partial<AdminTransactionQuery> = useMemo(
-    () => ({
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-    }),
-    [dateFrom, dateTo],
-  );
-
   // Uses the exact same shared summary endpoint as the Payment Transactions page.
   const summaryQuery = useQuery({
-    queryKey: adminBillingKeys.summary(filter),
-    queryFn: ({ signal }) => getBillingSummary(filter, signal),
+    queryKey: adminBillingKeys.summary({}),
+    queryFn: ({ signal }) => getBillingSummary({}, signal),
   });
 
   const summary = summaryQuery.data;
-
-  const handleReset = () => {
-    const range = getPresetDateRange("30d");
-    setDatePreset("30d");
-    setDateFrom(range.from);
-    setDateTo(range.to);
-  };
 
   const handleExportSummaryCSV = () => {
     if (!summary) return;
     const rows: string[][] = [
       ["Package Name", "Revenue (VND)", "Successful Deposits", "Coins Sold"],
       ...(summary.package_breakdown ?? []).map((p) => [
-        p.package_name,
+        sanitizeCSVCell(p.package_name),
         String(p.revenue_vnd),
         String(p.deposit_count),
         String(p.coins_sold),
@@ -81,7 +62,7 @@ export function AdminRevenueView() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `rolecue-revenue-report-${dateFrom || "all"}-to-${dateTo || "all"}.csv`;
+    link.download = "rolecue-revenue-report.csv";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -111,16 +92,6 @@ export function AdminRevenueView() {
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleReset}
-            className="h-8 gap-1.5 text-xs"
-          >
-            <RotateCcw className="size-3.5" />
-            Reset Period
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
             disabled={!summary}
             onClick={handleExportSummaryCSV}
             className="h-8 gap-1.5 text-xs"
@@ -138,25 +109,6 @@ export function AdminRevenueView() {
         </div>
       </div>
 
-      {/* Period Filter Bar */}
-      <div className="rounded-xl border border-border/80 bg-card p-4 shadow-xs">
-        <DatePresetPicker
-          activePreset={datePreset}
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          onPresetSelect={(preset, from, to) => {
-            setDatePreset(preset);
-            setDateFrom(from);
-            setDateTo(to);
-          }}
-          onCustomDateChange={(from, to) => {
-            setDatePreset("custom");
-            setDateFrom(from);
-            setDateTo(to);
-          }}
-        />
-      </div>
-
       {summaryQuery.isError ? (
         <div
           role="alert"
@@ -168,8 +120,7 @@ export function AdminRevenueView() {
               Unable to load revenue report
             </h2>
             <p className="text-xs text-muted-foreground">
-              Please verify that your start date is not after your end date and
-              try again.
+              Please check your connection and try again.
             </p>
           </div>
           <Button
@@ -187,7 +138,7 @@ export function AdminRevenueView() {
           <BillingStatCards
             summary={summary}
             isLoading={summaryQuery.isLoading}
-            periodLabel="All matching records"
+            periodLabel="All-time ledger"
             variant="revenue"
           />
 

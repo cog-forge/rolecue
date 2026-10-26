@@ -102,16 +102,16 @@ WITH enriched AS (
 SELECT COUNT(*)::bigint
 FROM enriched
 WHERE ($1::text IS NULL OR $1::text = '' OR (
-    id::text ILIKE '%' || $1::text || '%'
-    OR user_name ILIKE '%' || $1::text || '%'
-    OR user_email ILIKE '%' || $1::text || '%'
-    OR user_id ILIKE '%' || $1::text || '%'
-    OR description ILIKE '%' || $1::text || '%'
-    OR payos_order_code ILIKE '%' || $1::text || '%'
+    id::text ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR user_name ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR user_email ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR user_id ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR description ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR payos_order_code ILIKE '%' || $1::text || '%' ESCAPE '\'
 ))
   AND ($2::text IS NULL OR $2::text = '' OR status = $2::text)
   AND ($3::text IS NULL OR $3::text = '' OR tx_type = $3::text)
-  AND ($4::text IS NULL OR $4::text = '' OR package_or_feature ILIKE '%' || $4::text || '%')
+  AND ($4::text IS NULL OR $4::text = '' OR package_or_feature ILIKE '%' || $4::text || '%' ESCAPE '\')
   AND ($5::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= $5::bigint)
   AND ($6::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= $6::bigint)
 `
@@ -231,16 +231,16 @@ filtered AS (
     SELECT id, amount, description, status, payos_order_code, tx_type, user_id, user_name, user_email, package_or_feature, paid_vnd, coin_amount
     FROM enriched
     WHERE ($1::text IS NULL OR $1::text = '' OR (
-        id::text ILIKE '%' || $1::text || '%'
-        OR user_name ILIKE '%' || $1::text || '%'
-        OR user_email ILIKE '%' || $1::text || '%'
-        OR user_id ILIKE '%' || $1::text || '%'
-        OR description ILIKE '%' || $1::text || '%'
-        OR payos_order_code ILIKE '%' || $1::text || '%'
+        id::text ILIKE '%' || $1::text || '%' ESCAPE '\'
+        OR user_name ILIKE '%' || $1::text || '%' ESCAPE '\'
+        OR user_email ILIKE '%' || $1::text || '%' ESCAPE '\'
+        OR user_id ILIKE '%' || $1::text || '%' ESCAPE '\'
+        OR description ILIKE '%' || $1::text || '%' ESCAPE '\'
+        OR payos_order_code ILIKE '%' || $1::text || '%' ESCAPE '\'
     ))
       AND ($2::text IS NULL OR $2::text = '' OR status = $2::text)
       AND ($3::text IS NULL OR $3::text = '' OR tx_type = $3::text)
-      AND ($4::text IS NULL OR $4::text = '' OR package_or_feature ILIKE '%' || $4::text || '%')
+      AND ($4::text IS NULL OR $4::text = '' OR package_or_feature ILIKE '%' || $4::text || '%' ESCAPE '\')
       AND ($5::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= $5::bigint)
       AND ($6::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= $6::bigint)
 )
@@ -309,32 +309,60 @@ func (q *Queries) GetAdminBillingSummary(ctx context.Context, arg GetAdminBillin
 }
 
 const getAdminFeatureCoinBreakdown = `-- name: GetAdminFeatureCoinBreakdown :many
-SELECT
-    COALESCE(NULLIF(btrim(t.description), ''), 'Coin Spend')::text AS feature_name,
-    COALESCE(SUM(abs(t.amount)), 0)::bigint AS coins_spent,
-    COUNT(*)::bigint AS spend_count
-FROM public.transactions t
-LEFT JOIN public.users u ON u.id = (
-    CASE
-        WHEN t."from" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        THEN t."from"::uuid
-        ELSE NULL
-    END
+WITH enriched AS (
+    SELECT
+        t.id,
+        t.amount,
+        COALESCE(t.description, '') AS description,
+        t.status::text AS status,
+        COALESCE(t.payos_order_code, '') AS payos_order_code,
+        CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
+            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            ELSE 'spend'
+        END AS tx_type,
+        COALESCE(u.id::text, t."from")::text AS user_id,
+        COALESCE(u.name, '') AS user_name,
+        COALESCE(u.email, '') AS user_email,
+        COALESCE(NULLIF(btrim(t.description), ''), 'Coin Transaction')::text AS feature_name,
+        abs(t.amount)::bigint AS coins_spent
+    FROM public.transactions t
+    LEFT JOIN public.users u ON u.id = (
+        CASE
+            WHEN t."from" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN t."from"::uuid
+            ELSE NULL
+        END
+    )
 )
-WHERE t.status = 'success'
-  AND (t.payos_order_code IS NULL OR t.payos_order_code = '')
-  AND lower(t."from") <> 'system'
-  AND lower(COALESCE(t.description, '')) NOT LIKE '%refund%'
+SELECT
+    feature_name,
+    COALESCE(SUM(coins_spent), 0)::bigint AS coins_spent,
+    COUNT(*)::bigint AS spend_count
+FROM enriched
+WHERE status = 'success'
+  AND tx_type = 'spend'
   AND ($1::text IS NULL OR $1::text = '' OR (
-      t.id::text ILIKE '%' || $1::text || '%'
-      OR COALESCE(u.name, '') ILIKE '%' || $1::text || '%'
-      OR COALESCE(u.email, '') ILIKE '%' || $1::text || '%'
-      OR t."from" ILIKE '%' || $1::text || '%'
-      OR COALESCE(t.description, '') ILIKE '%' || $1::text || '%'
+      id::text ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR user_name ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR user_email ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR user_id ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR description ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR payos_order_code ILIKE '%' || $1::text || '%' ESCAPE '\'
   ))
-GROUP BY COALESCE(NULLIF(btrim(t.description), ''), 'Coin Spend')
+  AND ($2::text IS NULL OR $2::text = '' OR feature_name ILIKE '%' || $2::text || '%' ESCAPE '\')
+  AND ($3::bigint IS NULL OR coins_spent >= $3::bigint)
+  AND ($4::bigint IS NULL OR coins_spent <= $4::bigint)
+GROUP BY feature_name
 ORDER BY coins_spent DESC, feature_name ASC
 `
+
+type GetAdminFeatureCoinBreakdownParams struct {
+	Search      *string
+	PackageName *string
+	AmountMin   *int64
+	AmountMax   *int64
+}
 
 type GetAdminFeatureCoinBreakdownRow struct {
 	FeatureName string
@@ -342,8 +370,13 @@ type GetAdminFeatureCoinBreakdownRow struct {
 	SpendCount  int64
 }
 
-func (q *Queries) GetAdminFeatureCoinBreakdown(ctx context.Context, search *string) ([]GetAdminFeatureCoinBreakdownRow, error) {
-	rows, err := q.db.Query(ctx, getAdminFeatureCoinBreakdown, search)
+func (q *Queries) GetAdminFeatureCoinBreakdown(ctx context.Context, arg GetAdminFeatureCoinBreakdownParams) ([]GetAdminFeatureCoinBreakdownRow, error) {
+	rows, err := q.db.Query(ctx, getAdminFeatureCoinBreakdown,
+		arg.Search,
+		arg.PackageName,
+		arg.AmountMin,
+		arg.AmountMax,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -370,37 +403,76 @@ WITH enriched AS (
         COALESCE(t.description, '') AS description,
         t.status::text AS status,
         COALESCE(t.payos_order_code, '') AS payos_order_code,
-        COALESCE(u.id::text, t."to") AS user_id,
+        CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
+            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            ELSE 'spend'
+        END AS tx_type,
+        COALESCE(u.id::text,
+            CASE
+                WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t."to"
+                WHEN t."from" = '' OR lower(t."from") = 'system' THEN t."to"
+                ELSE t."from"
+            END
+        )::text AS user_id,
         COALESCE(u.name, '') AS user_name,
         COALESCE(u.email, '') AS user_email,
-        COALESCE(
-            NULLIF(btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')), ''),
-            cp.name,
-            'Coin Top-up'
-        ) AS package_name,
-        COALESCE(
-            NULLIF(substring(COALESCE(t.description, '') from '\(([0-9]+)\s*VND\)'), '')::bigint,
-            cp.price::bigint,
-            t.amount::bigint
-        ) AS paid_vnd,
-        CASE
-            WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
-            ELSE t.amount::bigint
-        END AS coin_amount
+        (CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
+                COALESCE(
+                    NULLIF(btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')), ''),
+                    cp.name,
+                    'Coin Top-up'
+                )
+            ELSE COALESCE(NULLIF(btrim(t.description), ''), 'Coin Transaction')
+        END)::text AS package_or_feature,
+        (CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
+                COALESCE(
+                    NULLIF(substring(COALESCE(t.description, '') from '\(([0-9]+)\s*VND\)'), '')::bigint,
+                    cp.price::bigint,
+                    t.amount::bigint
+                )
+            ELSE 0::bigint
+        END)::bigint AS paid_vnd,
+        (CASE
+            WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN
+                CASE
+                    WHEN cp.amount IS NOT NULL AND t.amount = cp.price AND t.amount <> cp.amount THEN cp.amount::bigint
+                    ELSE t.amount::bigint
+                END
+            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
+            ELSE -abs(t.amount)::bigint
+        END)::bigint AS coin_amount
     FROM public.transactions t
     LEFT JOIN public.users u ON u.id = (
         CASE
-            WHEN t."to" ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-            THEN t."to"::uuid
+            WHEN (
+                CASE
+                    WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t."to"
+                    WHEN t."from" = '' OR lower(t."from") = 'system' THEN t."to"
+                    ELSE t."from"
+                END
+            ) ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+            THEN (
+                CASE
+                    WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t."to"
+                    WHEN t."from" = '' OR lower(t."from") = 'system' THEN t."to"
+                    ELSE t."from"
+                END
+            )::uuid
             ELSE NULL
         END
     )
     LEFT JOIN LATERAL (
         SELECT cp_inner.name, cp_inner.price, cp_inner.amount
         FROM public.coin_packages cp_inner
-        WHERE cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
-           OR cp_inner.amount = t.amount
-           OR cp_inner.price = t.amount
+        WHERE t.payos_order_code IS NOT NULL AND t.payos_order_code <> ''
+          AND (
+              cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', ''))
+              OR cp_inner.amount = t.amount
+              OR cp_inner.price = t.amount
+          )
         ORDER BY
             CASE
                 WHEN cp_inner.name = btrim(regexp_replace(regexp_replace(COALESCE(t.description, ''), '^Deposit:\s*', ''), '\s*\([0-9]+\s*VND\)\s*$', '')) THEN 0
@@ -410,28 +482,27 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
-    WHERE t.status = 'success'
-      AND t.payos_order_code IS NOT NULL
-      AND t.payos_order_code <> ''
 )
 SELECT
-    package_name,
+    package_or_feature AS package_name,
     COALESCE(SUM(paid_vnd), 0)::bigint AS revenue_vnd,
     COUNT(*)::bigint AS deposit_count,
     COALESCE(SUM(coin_amount), 0)::bigint AS coins_sold
 FROM enriched
-WHERE ($1::text IS NULL OR $1::text = '' OR (
-    id::text ILIKE '%' || $1::text || '%'
-    OR user_name ILIKE '%' || $1::text || '%'
-    OR user_email ILIKE '%' || $1::text || '%'
-    OR user_id ILIKE '%' || $1::text || '%'
-    OR description ILIKE '%' || $1::text || '%'
-    OR payos_order_code ILIKE '%' || $1::text || '%'
-))
-  AND ($2::text IS NULL OR $2::text = '' OR package_name ILIKE '%' || $2::text || '%')
+WHERE status = 'success'
+  AND tx_type = 'topup'
+  AND ($1::text IS NULL OR $1::text = '' OR (
+      id::text ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR user_name ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR user_email ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR user_id ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR description ILIKE '%' || $1::text || '%' ESCAPE '\'
+      OR payos_order_code ILIKE '%' || $1::text || '%' ESCAPE '\'
+  ))
+  AND ($2::text IS NULL OR $2::text = '' OR package_or_feature ILIKE '%' || $2::text || '%' ESCAPE '\')
   AND ($3::bigint IS NULL OR paid_vnd >= $3::bigint)
   AND ($4::bigint IS NULL OR paid_vnd <= $4::bigint)
-GROUP BY package_name
+GROUP BY package_or_feature
 ORDER BY revenue_vnd DESC, package_name ASC
 `
 
@@ -719,19 +790,20 @@ SELECT
     user_email,
     package_or_feature,
     paid_vnd,
-    coin_amount
+    coin_amount,
+    COUNT(*) OVER()::bigint AS total_count
 FROM enriched
 WHERE ($1::text IS NULL OR $1::text = '' OR (
-    id::text ILIKE '%' || $1::text || '%'
-    OR user_name ILIKE '%' || $1::text || '%'
-    OR user_email ILIKE '%' || $1::text || '%'
-    OR user_id ILIKE '%' || $1::text || '%'
-    OR description ILIKE '%' || $1::text || '%'
-    OR payos_order_code ILIKE '%' || $1::text || '%'
+    id::text ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR user_name ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR user_email ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR user_id ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR description ILIKE '%' || $1::text || '%' ESCAPE '\'
+    OR payos_order_code ILIKE '%' || $1::text || '%' ESCAPE '\'
 ))
   AND ($2::text IS NULL OR $2::text = '' OR status = $2::text)
   AND ($3::text IS NULL OR $3::text = '' OR tx_type = $3::text)
-  AND ($4::text IS NULL OR $4::text = '' OR package_or_feature ILIKE '%' || $4::text || '%')
+  AND ($4::text IS NULL OR $4::text = '' OR package_or_feature ILIKE '%' || $4::text || '%' ESCAPE '\')
   AND ($5::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= $5::bigint)
   AND ($6::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= $6::bigint)
 ORDER BY
@@ -775,6 +847,7 @@ type ListAdminTransactionsRow struct {
 	PackageOrFeature string
 	PaidVnd          int64
 	CoinAmount       int64
+	TotalCount       int64
 }
 
 // Admin billing and revenue read-only queries (KAN-191, KAN-192, KAN-241).
@@ -816,6 +889,7 @@ func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransa
 			&i.PackageOrFeature,
 			&i.PaidVnd,
 			&i.CoinAmount,
+			&i.TotalCount,
 		); err != nil {
 			return nil, err
 		}

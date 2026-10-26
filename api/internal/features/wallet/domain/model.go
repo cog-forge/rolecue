@@ -14,7 +14,7 @@ const (
 
 // FrozenSchemaTimestampNotice documents the frozen schema limitation per KAN-191:
 // public.transactions in migration 000006_wallet_payment does not include a created_at column.
-const FrozenSchemaTimestampNotice = "public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp; date range parameters are validated in UTC+7 (Asia/Ho_Chi_Minh) and figures reflect all matching ledger records."
+const FrozenSchemaTimestampNotice = "public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp; figures reflect all matching ledger records."
 
 // Wallet holds a candidate or recruiter coin balance.
 type Wallet struct {
@@ -57,6 +57,8 @@ type DepositCheckoutResponse struct {
 
 // AdminTransactionFilter represents validated read-only query filters for Admin Billing & Revenue endpoints.
 // Both the Payment Transactions page and the Revenue Reports page share this exact filter model.
+// Note (KAN-191): public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp,
+// so date filtering is intentionally omitted until a timestamp column is introduced.
 type AdminTransactionFilter struct {
 	Page        int
 	PageSize    int
@@ -66,8 +68,6 @@ type AdminTransactionFilter struct {
 	PackageName string
 	AmountMin   *int64
 	AmountMax   *int64
-	DateFrom    string // Validated YYYY-MM-DD in Asia/Ho_Chi_Minh (UTC+7)
-	DateTo      string // Validated YYYY-MM-DD in Asia/Ho_Chi_Minh (UTC+7)
 	SortBy      string // "id", "amount", "coins", "status"
 	SortOrder   string // "asc", "desc"
 }
@@ -93,11 +93,10 @@ type AdminTransactionItem struct {
 
 // AdminTransactionPage represents a paginated read-only list of AdminTransactionItem rows.
 type AdminTransactionPage struct {
-	Items            []AdminTransactionItem `json:"items"`
-	Total            int64                  `json:"total"`
-	Page             int                    `json:"page"`
-	PageSize         int                    `json:"page_size"`
-	SchemaLimitation string                 `json:"schema_limitation"`
+	Items    []AdminTransactionItem `json:"items"`
+	Total    int64                  `json:"total"`
+	Page     int                    `json:"page"`
+	PageSize int                    `json:"page_size"`
 }
 
 // PackageRevenueItem represents actual PayOS deposit revenue grouped by package name.
@@ -119,7 +118,6 @@ type FeatureCoinItem struct {
 // Per KAN-192, TotalRevenue only sums transactions with status = 'success' and non-empty payos_order_code.
 type BillingSummary struct {
 	TotalRevenue       int64                `json:"total_revenue"`
-	NetRevenue         int64                `json:"net_revenue"`
 	SuccessfulDeposits int64                `json:"successful_deposits"`
 	SuccessCount       int64                `json:"success_count"`
 	PendingCount       int64                `json:"pending_count"`
@@ -135,5 +133,4 @@ type BillingSummary struct {
 	SuccessRate        float64              `json:"success_rate"`
 	PackageBreakdown   []PackageRevenueItem `json:"package_breakdown"`
 	FeatureBreakdown   []FeatureCoinItem    `json:"feature_breakdown"`
-	SchemaLimitation   string               `json:"schema_limitation"`
 }

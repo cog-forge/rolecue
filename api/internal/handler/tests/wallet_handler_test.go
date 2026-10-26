@@ -561,13 +561,12 @@ func TestAdminBillingEndpoints_StrictValidationReturns400(t *testing.T) {
 	admin := adminUser()
 
 	badQueries := []string{
-		"/admin/billing/summary?date_from=2026-13-01",
-		"/admin/billing/summary?date_to=invalid",
-		"/admin/billing/summary?date_from=2026-10-20&date_to=2026-10-10",
 		"/admin/billing/summary?status=unknown_status",
 		"/admin/billing/summary?type=unknown_type",
+		"/admin/billing/summary?status=success&status=pending",
 		"/admin/billing/transactions?page=0",
 		"/admin/billing/transactions?page=-2",
+		"/admin/billing/transactions?page=10001",
 		"/admin/billing/transactions?page_size=0",
 		"/admin/billing/transactions?page_size=101",
 		"/admin/billing/transactions?amount_min=-5",
@@ -596,32 +595,29 @@ func TestAdminGetBillingSummary_Success(t *testing.T) {
 	admin := adminUser()
 
 	expectedFilter := walletdomain.AdminTransactionFilter{
-		Page:      1,
-		PageSize:  20,
-		Status:    "success",
-		Type:      "topup",
-		DateFrom:  "2026-10-01",
-		DateTo:    "2026-10-26",
-		SortBy:    "id",
-		SortOrder: "desc",
+		Page:        1,
+		PageSize:    20,
+		Status:      "success",
+		Type:        "topup",
+		PackageName: "Starter Pack",
+		SortBy:      "id",
+		SortOrder:   "desc",
 	}
 	summary := walletdomain.BillingSummary{
 		TotalRevenue:       250000,
-		NetRevenue:         250000,
 		SuccessfulDeposits: 3,
 		SuccessCount:       3,
 		TotalTransactions:  3,
 		AverageDeposit:     83333,
 		UniquePayers:       2,
 		CoinsSold:          500,
-		SchemaLimitation:   walletdomain.FrozenSchemaTimestampNotice,
 	}
 	svc.On("GetBillingSummary", mock.Anything, expectedFilter).Return(summary, nil)
 
 	w := performRequest(
 		r,
 		http.MethodGet,
-		"/admin/billing/summary?status=success&type=topup&date_from=2026-10-01&date_to=2026-10-26",
+		"/admin/billing/summary?status=success&type=topup&package=Starter+Pack",
 		nil,
 		admin,
 	)
@@ -686,6 +682,8 @@ func TestAdminExportBillingCSV_SanitizesFormulaInjectionAndAllowsOver20Rows(t *t
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Header().Get("Content-Type"), "text/csv")
+	assert.Equal(t, "25", w.Header().Get("X-Total-Count"))
+	assert.Equal(t, "false", w.Header().Get("X-Export-Truncated"))
 	csvBody := w.Body.String()
 	lines := strings.Split(strings.TrimSpace(csvBody), "\n")
 	// 1 header row + 25 data rows = 26 lines

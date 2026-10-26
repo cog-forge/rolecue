@@ -184,13 +184,13 @@ func TestAdminBillingSQLCQueries_RevenueAndFilters(t *testing.T) {
 	require.Equal(t, int64(50000), pkgRows[1].RevenueVnd)
 
 	// Verify Feature Breakdown
-	featRows, err := q.GetAdminFeatureCoinBreakdown(ctx, nil)
+	featRows, err := q.GetAdminFeatureCoinBreakdown(ctx, repository.GetAdminFeatureCoinBreakdownParams{})
 	require.NoError(t, err)
 	require.Len(t, featRows, 1)
 	require.Equal(t, "Practice interview charge", featRows[0].FeatureName)
 	require.Equal(t, int64(30), featRows[0].CoinsSpent)
 
-	// Verify Filtering by User Email & Type & Pagination
+	// Verify Filtering by User Email & Type & Pagination (including window TotalCount)
 	searchAlice := "alice.billing@example.com"
 	topupType := "topup"
 	aliceTopups, err := q.ListAdminTransactions(ctx, repository.ListAdminTransactionsParams{
@@ -203,6 +203,7 @@ func TestAdminBillingSQLCQueries_RevenueAndFilters(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, aliceTopups, 3)
+	require.Equal(t, int64(3), aliceTopups[0].TotalCount)
 
 	// Verify GetAdminTransactionByID
 	detail, err := q.GetAdminTransactionByID(ctx, tx1.ID)
@@ -210,4 +211,127 @@ func TestAdminBillingSQLCQueries_RevenueAndFilters(t *testing.T) {
 	require.Equal(t, "Alice Billing", detail.UserName)
 	require.Equal(t, int64(50000), detail.PaidVnd)
 	require.Equal(t, int64(100), detail.CoinAmount)
+}
+
+func TestAdminBillingSQLCQueries_MixedPackageInferenceAndWildcardEscape(t *testing.T) {
+	ctx, tx := openIntegrationTx(t)
+
+	_, err := tx.Exec(ctx, `DELETE FROM public.transactions`)
+	require.NoError(t, err)
+	_, err = tx.Exec(ctx, `DELETE FROM public.coin_packages`)
+	require.NoError(t, err)
+
+	userID := uuid.New()
+	_, err = tx.Exec(ctx, `
+		INSERT INTO public.users (id, name, email, role, email_verified)
+		VALUES ($1, 'Carol 100% User_1', 'carol_1@example.com', 'candidate', true)
+	`, userID)
+	require.NoError(t, err)
+
+	// Seed two packages where Package A's coin amount (1000) equals Package B's VND price (1000),
+	// and Package C represents a renamed/repriced package ("Starter Pack v2" at 60,000 VND).
+	pkgA := uuid.New()
+	pkgB := uuid.New()
+	pkgC := uuid.New()
+	_, err = tx.Exec(ctx, `
+		INSERT INTO public.coin_packages (id, name, price, description, amount, currency)
+		VALUES
+			($1, 'Mega 1000-Coin Pack', 500000, '1000 coins for 500k VND', 1000, 'VND'),
+			($2, 'Micro Trial Pack', 1000, '2 coins for 1000 VND', 2, 'VND'),
+			($3, 'Starter Pack v2', 60000, 'Renamed and repriced starter', 100, 'VND')
+	`, pkgA, pkgB, pkgC)
+	require.NoError(t, err)
+
+	q := repository.New(tx)
+
+	// Case 1: Historical row before package was renamed and repriced ("Legacy Starter Pack (40000 VND)").
+	// Must preserve historical package name ("Legacy Starter Pack") and historical price (40,000 VND) from description.
+	order1 := "800001"
+	descRenamed := "Deposit: Legacy Starter Pack (40000 VND)"
+	txRenamed, err := q.InsertTransaction(ctx, repository.InsertTransactionParams{
+		TxFrom:         "",
+		TxTo:           userID.String(),
+		Amount:         100,
+		Currency:       "VND",
+		Description:    &descRenamed,
+		Status:         repository.TransactionStatusSuccess,
+		PayosOrderCode: &order1,
+	})
+	require.NoError(t, err)
+
+	// Case 2: Row with missing "(N VND)" suffix ("Deposit: Starter Pack v2").
+	// Must fall back to matching coin_packages row ("Starter Pack v2" -> 60,000 VND).
+	order2 := "800002"
+	descNoSuffix := "Deposit: Starter Pack v2"
+	txNoSuffix, err := q.InsertTransaction(ctx, repository.InsertTransactionParams{
+		TxFrom:         "",
+		TxTo:           userID.String(),
+		Amount:         100,
+		Currency:       "VND",
+		Description:    &descNoSuffix,
+		Status:         repository.TransactionStatusSuccess,
+		PayosOrderCode: &order2,
+	})
+	require.NoError(t, err)
+
+	// Case 3: Row with empty description where coin amount (1000) equals another package's price (1000).
+	// Priority 1 (cp.amount = t.amount) must beat Priority 2 (cp.price = t.amount), picking "Mega 1000-Coin Pack" (500,000 VND).
+	order3 := "800003"
+	descEmpty := ""
+	txCollision, err := q.InsertTransaction(ctx, repository.InsertTransactionParams{
+		TxFrom:         "",
+		TxTo:           userID.String(),
+		Amount:         1000,
+		Currency:       "VND",
+		Description:    &descEmpty,
+		Status:         repository.TransactionStatusSuccess,
+		PayosOrderCode: &order3,
+	})
+	require.NoError(t, err)
+
+	gotRenamed, err := q.GetAdminTransactionByID(ctx, txRenamed.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Legacy Starter Pack", gotRenamed.PackageOrFeature)
+	require.Equal(t, int64(40000), gotRenamed.PaidVnd)
+	require.Equal(t, int64(100), gotRenamed.CoinAmount)
+
+	gotNoSuffix, err := q.GetAdminTransactionByID(ctx, txNoSuffix.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Starter Pack v2", gotNoSuffix.PackageOrFeature)
+	require.Equal(t, int64(60000), gotNoSuffix.PaidVnd)
+	require.Equal(t, int64(100), gotNoSuffix.CoinAmount)
+
+	gotCollision, err := q.GetAdminTransactionByID(ctx, txCollision.ID)
+	require.NoError(t, err)
+	require.Equal(t, "Mega 1000-Coin Pack", gotCollision.PackageOrFeature)
+	require.Equal(t, int64(500000), gotCollision.PaidVnd)
+	require.Equal(t, int64(1000), gotCollision.CoinAmount)
+
+	// Total revenue across the 3 deposits: 40,000 + 60,000 + 500,000 = 600,000 VND
+	summary, err := q.GetAdminBillingSummary(ctx, repository.GetAdminBillingSummaryParams{})
+	require.NoError(t, err)
+	require.Equal(t, int64(600000), summary.TotalRevenue)
+	require.Equal(t, int64(3), summary.SuccessfulDeposits)
+	require.Equal(t, int64(1200), summary.CoinsSold)
+
+	// Escaped wildcard search: literal `100\%` must match "Carol 100% User_1", whereas `999\%` must match nothing.
+	escapedHit := `100\%`
+	rowsHit, err := q.ListAdminTransactions(ctx, repository.ListAdminTransactionsParams{
+		Search:    &escapedHit,
+		SortBy:    "id",
+		SortOrder: "desc",
+		PageLimit: 20,
+	})
+	require.NoError(t, err)
+	require.Len(t, rowsHit, 3)
+
+	escapedMiss := `999\%`
+	rowsMiss, err := q.ListAdminTransactions(ctx, repository.ListAdminTransactionsParams{
+		Search:    &escapedMiss,
+		SortBy:    "id",
+		SortOrder: "desc",
+		PageLimit: 20,
+	})
+	require.NoError(t, err)
+	require.Empty(t, rowsMiss)
 }

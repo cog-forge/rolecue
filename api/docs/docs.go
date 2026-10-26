@@ -22,7 +22,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Read-only CSV export respecting active filters (up to 5,000 rows) with CSV formula-injection protection.",
+                "description": "Admin only. Read-only CSV export respecting active filters (up to 5,000 rows) with CSV formula-injection protection. Sets X-Total-Count and X-Export-Truncated headers.",
                 "produces": [
                     "text/csv"
                 ],
@@ -69,20 +69,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)",
-                        "name": "date_from",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)",
-                        "name": "date_to",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "default": "id",
-                        "description": "Sort field (id, date, amount, coins, status)",
+                        "description": "Sort field (id, amount, coins, status)",
                         "name": "sort_by",
                         "in": "query"
                     },
@@ -135,7 +123,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree.",
+                "description": "Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree. Note (KAN-191): public.transactions in the frozen 000006_wallet_payment schema has no created_at column, so figures reflect all-time matching records.",
                 "produces": [
                     "application/json"
                 ],
@@ -178,18 +166,6 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Maximum amount filter",
                         "name": "amount_max",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)",
-                        "name": "date_from",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)",
-                        "name": "date_to",
                         "in": "query"
                     }
                 ],
@@ -246,7 +222,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Read-only paginated list of transactions enriched with user and package details.",
+                "description": "Admin only. Read-only paginated list of transactions enriched with user and package details. Note (KAN-191): public.transactions in the frozen 000006_wallet_payment schema has no created_at column, so figures reflect all-time matching records.",
                 "produces": [
                     "application/json"
                 ],
@@ -256,6 +232,7 @@ const docTemplate = `{
                 "summary": "List admin payment and coin ledger transactions",
                 "parameters": [
                     {
+                        "maximum": 10000,
                         "minimum": 1,
                         "type": "integer",
                         "default": 1,
@@ -310,20 +287,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Start date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)",
-                        "name": "date_from",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (YYYY-MM-DD in Asia/Ho_Chi_Minh UTC+7)",
-                        "name": "date_to",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
                         "default": "id",
-                        "description": "Sort field (id, date, amount, coins, status)",
+                        "description": "Sort field (id, amount, coins, status)",
                         "name": "sort_by",
                         "in": "query"
                     },
@@ -6387,9 +6352,6 @@ const docTemplate = `{
                 "page_size": {
                     "type": "integer"
                 },
-                "schema_limitation": {
-                    "type": "string"
-                },
                 "total": {
                     "type": "integer"
                 }
@@ -6520,9 +6482,6 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.FeatureCoinItem"
                     }
                 },
-                "net_revenue": {
-                    "type": "integer"
-                },
                 "package_breakdown": {
                     "type": "array",
                     "items": {
@@ -6531,9 +6490,6 @@ const docTemplate = `{
                 },
                 "pending_count": {
                     "type": "integer"
-                },
-                "schema_limitation": {
-                    "type": "string"
                 },
                 "success_count": {
                     "type": "integer"
