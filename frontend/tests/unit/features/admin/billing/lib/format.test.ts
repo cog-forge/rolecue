@@ -103,9 +103,9 @@ describe("Billing Format Utilities", () => {
       expect(sanitizeCSVCell("")).toBe("");
     });
 
-    it("encodes CSV rows with both formula sanitization and quote escaping", () => {
-      expect(encodeCSVRow(["=1+1", 'Pack "Pro"', 50000])).toBe(
-        '"\'=1+1","Pack ""Pro""","50000"',
+    it("encodes CSV rows with formula sanitization on strings while preserving negative numbers", () => {
+      expect(encodeCSVRow(["=1+1", 'Pack "Pro"', -20, 50000])).toBe(
+        '"\'=1+1","Pack ""Pro""","-20","50000"',
       );
     });
   });

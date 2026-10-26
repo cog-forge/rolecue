@@ -121,23 +121,20 @@ export function formatPercentChange(pct: number | null | undefined): {
 /**
  * Prevents CSV formula injection (CWE-1236) in spreadsheet applications
  * using the exact same rules as the backend `sanitizeCSVCell` helper.
+ * Only string values are sanitized so negative numbers are never corrupted.
  */
-export function sanitizeCSVCell(
-  val: string | number | null | undefined,
-): string {
-  if (val == null) return "";
-  const str = String(val);
-  if (str === "") return "";
-  switch (str[0]) {
+export function sanitizeCSVCell(val: string | null | undefined): string {
+  if (val == null || val === "") return "";
+  switch (val[0]) {
     case "=":
     case "+":
     case "-":
     case "@":
     case "\t":
     case "\r":
-      return `'${str}`;
+      return `'${val}`;
     default:
-      return str;
+      return val;
   }
 }
 
@@ -145,6 +142,12 @@ export function encodeCSVRow(
   cells: (string | number | null | undefined)[],
 ): string {
   return cells
-    .map((cell) => `"${sanitizeCSVCell(cell).replace(/"/g, '""')}"`)
+    .map((cell) => {
+      if (cell == null) return '""';
+      if (typeof cell === "number") {
+        return `"${String(cell)}"`;
+      }
+      return `"${sanitizeCSVCell(cell).replace(/"/g, '""')}"`;
+    })
     .join(",");
 }

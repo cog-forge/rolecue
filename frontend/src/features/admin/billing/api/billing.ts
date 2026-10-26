@@ -104,11 +104,9 @@ export async function exportBillingCSV(
   });
   const headers = (response.headers ?? {}) as Record<string, unknown>;
   const rawTruncated = String(
-    headers["x-export-truncated"] ?? headers["X-Export-Truncated"] ?? "",
+    headers["x-export-truncated"] ?? "",
   ).toLowerCase();
-  const rawTotal = Number(
-    headers["x-total-count"] ?? headers["X-Total-Count"] ?? 0,
-  );
+  const rawTotal = Number(headers["x-total-count"] ?? 0);
   const csv =
     typeof response.data === "string"
       ? response.data

@@ -49,6 +49,9 @@ cors:
     - X-Request-ID
   expose_headers:
     - X-Request-ID
+    - X-Total-Count
+    - X-Export-Truncated
+    - Content-Disposition
   allow_credentials: true
   max_age: 86400
 

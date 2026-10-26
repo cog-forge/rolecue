@@ -308,11 +308,35 @@ func TestAdminBillingSQLCQueries_MixedPackageInferenceAndWildcardEscape(t *testi
 	require.Equal(t, int64(1000), gotCollision.CoinAmount, "coin amount must not be overwritten by Micro Trial Pack's 2 coins")
 
 	// Total revenue across the 3 deposits: 40,000 + 60,000 + 500,000 = 600,000 VND
+	// Total coins sold across the 3 deposits: 100 + 100 + 1,000 = 1,200 coins
 	summary, err := q.GetAdminBillingSummary(ctx, repository.GetAdminBillingSummaryParams{})
 	require.NoError(t, err)
 	require.Equal(t, int64(600000), summary.TotalRevenue)
 	require.Equal(t, int64(3), summary.SuccessfulDeposits)
 	require.Equal(t, int64(1200), summary.CoinsSold)
+
+	// Per-package revenue and coin totals must also preserve each package's distinct VND price and coin amount
+	pkgBreakdown, err := q.GetAdminPackageRevenueBreakdown(ctx, repository.GetAdminPackageRevenueBreakdownParams{})
+	require.NoError(t, err)
+	require.Len(t, pkgBreakdown, 3)
+	require.Equal(t, repository.GetAdminPackageRevenueBreakdownRow{
+		PackageName:  "Retired 1000-Coin Pack",
+		RevenueVnd:   500000,
+		DepositCount: 1,
+		CoinsSold:    1000,
+	}, pkgBreakdown[0])
+	require.Equal(t, repository.GetAdminPackageRevenueBreakdownRow{
+		PackageName:  "Starter Pack v2",
+		RevenueVnd:   60000,
+		DepositCount: 1,
+		CoinsSold:    100,
+	}, pkgBreakdown[1])
+	require.Equal(t, repository.GetAdminPackageRevenueBreakdownRow{
+		PackageName:  "Legacy Starter Pack",
+		RevenueVnd:   40000,
+		DepositCount: 1,
+		CoinsSold:    100,
+	}, pkgBreakdown[2])
 
 	// Escaped wildcard search: literal `100\%` must match "Carol 100% User_1", whereas `999\%` must match nothing.
 	escapedHit := `100\%`

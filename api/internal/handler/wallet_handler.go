@@ -512,7 +512,6 @@ func (h *WalletHandler) AdminExportBillingCSV(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename=rolecue-transactions.csv")
 	c.Header("X-Total-Count", strconv.FormatInt(result.Total, 10))
 	c.Header("X-Export-Truncated", strconv.FormatBool(truncated))
-	c.Header("Access-Control-Expose-Headers", "X-Total-Count, X-Export-Truncated, Content-Disposition")
 	c.Status(http.StatusOK)
 	_, _ = c.Writer.Write(buf.Bytes())
 }
