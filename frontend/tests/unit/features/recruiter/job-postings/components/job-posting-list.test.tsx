@@ -47,6 +47,8 @@ const summary = (
   location: "Hanoi",
   employment_type: "Full-time",
   interview_slot: null,
+  core_question_count: 3,
+  review_submitted: true,
   created_at: "2026-10-12T08:00:00Z",
 });
 const page = (items: ReturnType<typeof summary>[], total = items.length) => ({

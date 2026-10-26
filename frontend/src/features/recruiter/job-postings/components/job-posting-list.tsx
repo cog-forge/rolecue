@@ -14,7 +14,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { BriefcaseBusiness, ChevronRight, Plus, Search, X } from "lucide-react";
+import { ChevronRight, Plus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,7 +32,8 @@ import {
   type ListFilters,
   type ListStatus,
 } from "../utils/list-filters";
-import { headerBandClass, Notice } from "./notice";
+import { Notice } from "./notice";
+import { PageHeader, pillClass } from "./page-header";
 import { PostingStatus } from "./posting-status";
 
 const tabs: { status: ListStatus; label: string }[] = [
@@ -131,38 +132,25 @@ export function JobPostingList() {
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
-      <header
-        className={cn(
-          headerBandClass,
-          "flex flex-wrap items-end justify-between gap-4",
-        )}
-      >
-        <div className="space-y-2">
-          <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-            Recruitment
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            My Job Postings
-          </h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Each posting is reviewed by an administrator before candidates can
-            see it.
-          </p>
-        </div>
-        <Button
-          asChild
-          className="h-11 shadow-sm transition-transform hover:-translate-y-0.5 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-        >
-          <Link href={routes.recruiter.jobPostingNew}>
-            <Plus aria-hidden />
-            Create job posting
-          </Link>
-        </Button>
-      </header>
+      <PageHeader
+        title="Job postings"
+        description="Each posting gets its question bank before you submit it, and an administrator approves it before candidates can see it."
+        actions={
+          <Button asChild className={pillClass}>
+            <Link href={routes.recruiter.jobPostingNew}>
+              <Plus aria-hidden />
+              Create job posting
+            </Link>
+          </Button>
+        }
+      />
 
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <nav aria-label="Filter by status">
-          <ul className="inline-flex flex-wrap gap-1 rounded-xl border bg-muted/70 p-1">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b">
+        <nav
+          aria-label="Filter by status"
+          className="-mb-px max-w-full overflow-x-auto"
+        >
+          <ul className="flex gap-5">
             {tabs.map((tab) => {
               const active = filters.status === tab.status;
               return (
@@ -171,9 +159,8 @@ export function JobPostingList() {
                     filters={{ ...filters, status: tab.status, page: 1 }}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-                      active &&
-                        "bg-background text-workspace-accent shadow-sm ring-1 ring-workspace-accent/20",
+                      "inline-flex min-h-11 items-center border-b-2 border-transparent text-sm whitespace-nowrap text-muted-foreground transition-colors duration-[var(--duration-quick)] outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                      active && "border-foreground font-medium text-foreground",
                     )}
                   >
                     {tab.label}
@@ -189,7 +176,7 @@ export function JobPostingList() {
       {query.isPending ? (
         <div role="status" className="space-y-3">
           {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-14 rounded-md" />
+            <Skeleton key={i} className="h-16 rounded-lg" />
           ))}
           <span className="sr-only">Loading your job postings…</span>
         </div>
@@ -212,7 +199,7 @@ export function JobPostingList() {
         >
           <p className="text-muted-foreground">Please try again in a moment.</p>
           <Button
-            className="mt-2 h-11 bg-background"
+            className={cn("mt-2", pillClass)}
             variant="outline"
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
@@ -221,28 +208,25 @@ export function JobPostingList() {
           </Button>
         </Notice>
       ) : page && page.items.length === 0 && total > 0 ? (
-        <div className="rounded-xl border p-8 text-center">
+        <div className="rounded-xl border border-dashed p-8 text-center">
           <h2 className="font-semibold">
             This page is past the end of the list.
           </h2>
-          <Button asChild variant="outline" className="mt-4 h-11">
+          <Button asChild variant="outline" className={cn("mt-4", pillClass)}>
             <FilterLink filters={{ ...filters, page: 1 }}>
               Go to the first page
             </FilterLink>
           </Button>
         </div>
       ) : page && page.items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed bg-muted/30 p-10 text-center duration-300 animate-in fade-in zoom-in-95 motion-reduce:animate-none">
-          <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-workspace-accent/10 text-workspace-accent">
-            <BriefcaseBusiness className="size-6" aria-hidden />
-          </span>
+        <div className="rounded-xl border border-dashed p-10 text-center">
           <h2 className="font-semibold">
             {filters.search
               ? `No postings match “${filters.search}”.`
               : emptyText[filters.status]}
           </h2>
           {filtered ? (
-            <Button asChild variant="outline" className="mt-4 h-11">
+            <Button asChild variant="outline" className={cn("mt-4", pillClass)}>
               <FilterLink filters={{ status: "all", search: "", page: 1 }}>
                 Show all postings
               </FilterLink>
@@ -250,10 +234,10 @@ export function JobPostingList() {
           ) : (
             <>
               <p className="mt-2 text-sm text-muted-foreground">
-                Paste a job description and RoleCue suggests the requirements to
-                interview for.
+                Upload a job description and RoleCue suggests the requirements
+                to interview for.
               </p>
-              <Button asChild className="mt-4 h-11">
+              <Button asChild className={cn("mt-4", pillClass)}>
                 <Link href={routes.recruiter.jobPostingNew}>
                   Create job posting
                 </Link>
@@ -269,44 +253,45 @@ export function JobPostingList() {
           <div
             aria-busy={switching}
             className={cn(
-              "overflow-x-auto rounded-2xl border bg-card shadow-sm transition-opacity duration-200 motion-reduce:transition-none",
+              "rounded-xl border transition-opacity duration-[var(--duration-fast)] motion-reduce:transition-none",
               switching && "opacity-60",
             )}
           >
-            {/* Fixed column widths keep every status tab laid out the same, whatever the content. */}
-            <table className="w-full min-w-[760px] table-fixed text-left text-sm">
+            {/* A table from xl up; below that each posting is a two-line row, so the page never
+                scrolls sideways. Fixed widths keep every status tab laid out the same. */}
+            <table className="block w-full text-left text-sm xl:table xl:table-fixed">
               <colgroup>
                 <col />
-                <col className="w-56" />
+                <col className="w-44" />
+                <col className="w-28" />
                 <col className="w-32" />
-                <col className="w-52" />
+                <col className="w-48" />
               </colgroup>
               <caption className="sr-only">
                 Your job postings, {firstRow}–{lastRow} of {total}
               </caption>
-              <thead>
-                <tr className="border-b text-xs tracking-[0.08em] text-muted-foreground uppercase">
-                  <th scope="col" className="py-3 pr-4 pl-5 font-medium">
+              <thead className="hidden xl:table-header-group">
+                <tr className="border-b text-xs text-muted-foreground">
+                  <th scope="col" className="h-10 pr-4 pl-5 font-normal">
                     Job posting
                   </th>
-                  <th scope="col" className="py-3 pr-4 font-medium">
+                  <th scope="col" className="h-10 pr-4 font-normal">
                     Status
                   </th>
-                  <th scope="col" className="py-3 pr-4 font-medium">
+                  <th scope="col" className="h-10 pr-4 text-right font-normal">
+                    Questions
+                  </th>
+                  <th scope="col" className="h-10 pr-4 text-right font-normal">
                     Created
                   </th>
-                  <th scope="col" className="py-3 pr-5 text-right font-medium">
+                  <th scope="col" className="h-10 pr-5 text-right font-normal">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {page.items.map((posting, index) => (
-                  <PostingRow
-                    key={posting.id}
-                    posting={posting}
-                    index={index}
-                  />
+              <tbody className="block divide-y xl:table-row-group">
+                {page.items.map((posting) => (
+                  <PostingRow key={posting.id} posting={posting} />
                 ))}
               </tbody>
             </table>
@@ -337,53 +322,54 @@ export function JobPostingList() {
   );
 }
 
-function PostingRow({
-  posting,
-  index,
-}: {
-  posting: PostingSummary;
-  index: number;
-}) {
+function PostingRow({ posting }: { posting: PostingSummary }) {
   const details = [posting.location, posting.employment_type]
     .filter(Boolean)
     .join(" · ");
   const editable =
     posting.status === "pending" || posting.status === "rejected";
+  const count = posting.core_question_count;
   return (
-    <tr
-      className="border-b align-top transition-colors duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both last:border-b-0 hover:bg-workspace-accent/[0.04] motion-reduce:animate-none"
-      // A short stagger so rows settle in order; capped so long pages are not slow.
-      style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
-    >
-      <td className="py-3.5 pr-4 pl-5">
+    <tr className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 px-4 py-4 align-top xl:table-row xl:p-0">
+      <td className="min-w-0 xl:py-3.5 xl:pr-4 xl:pl-5">
         <Link
           href={routes.recruiter.jobPosting(posting.id)}
           className="rounded-sm font-medium underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {posting.title}
         </Link>
-        {details && (
-          <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">
-            {details}
+        <span className="block text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
+          {details || "No location or type"}
+          <span className="xl:hidden">
+            {" · "}
+            {count} {count === 1 ? "question" : "questions"} · Created{" "}
+            {dateFormat.format(new Date(posting.created_at))}
+          </span>
+        </span>
+        {posting.status === "rejected" && posting.reject_reason && (
+          <span className="mt-1 block text-[13px] text-destructive [overflow-wrap:anywhere]">
+            Reason: {posting.reject_reason}
           </span>
         )}
       </td>
-      <td className="py-3.5 pr-4">
-        <PostingStatus status={posting.status} />
-        {posting.status === "rejected" && posting.reject_reason && (
-          <p className="mt-1.5 max-w-xs text-xs text-destructive/90 [overflow-wrap:anywhere]">
-            Reason: {posting.reject_reason}
-          </p>
-        )}
+      <td className="xl:py-3.5 xl:pr-4">
+        <PostingStatus
+          status={posting.status}
+          questionBankReady={count > 0}
+          reviewSubmitted={posting.review_submitted}
+        />
       </td>
-      <td className="py-3.5 pr-4 whitespace-nowrap text-muted-foreground tabular-nums">
+      <td className="hidden text-right tabular-nums xl:table-cell xl:py-3.5 xl:pr-4">
+        {count > 0 ? count : <span className="text-muted-foreground">0</span>}
+      </td>
+      <td className="hidden text-right whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell xl:py-3.5 xl:pr-4">
         <time dateTime={posting.created_at} title={posting.created_at}>
           {dateFormat.format(new Date(posting.created_at))}
         </time>
       </td>
-      <td className="py-3.5 pr-5 text-right">
-        <div className="flex justify-end gap-2">
-          <Button asChild variant="ghost" size="sm" className="h-9">
+      <td className="col-span-2 xl:py-2.5 xl:pr-5">
+        <div className="flex gap-2 xl:justify-end">
+          <Button asChild variant="ghost" className="h-9 rounded-full px-3">
             <Link
               href={routes.recruiter.jobPostingQuestions(posting.id)}
               aria-label={`Question bank for ${posting.title}`}
@@ -391,7 +377,7 @@ function PostingRow({
               Questions
             </Link>
           </Button>
-          <Button asChild variant="outline" size="sm" className="h-9">
+          <Button asChild variant="outline" className="h-9 rounded-full px-3">
             <Link
               href={routes.recruiter.jobPosting(posting.id)}
               aria-label={`${editable ? "Edit" : "View"} ${posting.title}`}
@@ -417,12 +403,12 @@ function PageLink({
 }) {
   if (disabled)
     return (
-      <Button variant="outline" className="h-11" disabled>
+      <Button variant="outline" className={pillClass} disabled>
         {label}
       </Button>
     );
   return (
-    <Button asChild variant="outline" className="h-11">
+    <Button asChild variant="outline" className={pillClass}>
       <FilterLink filters={filters}>{label}</FilterLink>
     </Button>
   );
@@ -442,18 +428,23 @@ function SearchForm({ filters }: { filters: ListFilters }) {
       noValidate
       aria-label="Search your job postings"
       onSubmit={submit}
-      className="flex flex-wrap items-end gap-2"
+      className="flex flex-wrap items-center gap-2 pb-2"
     >
-      <div className="space-y-1">
-        <label htmlFor="posting-search" className="text-xs font-medium">
-          Search by title
-        </label>
+      <label htmlFor="posting-search" className="sr-only">
+        Search by title
+      </label>
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
         <Input
           id="posting-search"
           type="search"
+          placeholder="Search by title"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          className="h-11 w-64 max-w-full"
+          className="h-9 w-60 max-w-full rounded-full pl-9"
           aria-invalid={tooLong}
           aria-describedby={tooLong ? "posting-search-error" : undefined}
         />
@@ -461,14 +452,13 @@ function SearchForm({ filters }: { filters: ListFilters }) {
       <Button
         type="submit"
         variant="outline"
-        className="h-11"
+        className="h-9 rounded-full px-4"
         disabled={tooLong}
       >
-        <Search aria-hidden />
         Search
       </Button>
       {filters.search && (
-        <Button asChild variant="ghost" className="h-11">
+        <Button asChild variant="ghost" className="h-9 rounded-full px-3">
           <FilterLink filters={{ ...filters, search: "", page: 1 }}>
             <X aria-hidden />
             Clear search

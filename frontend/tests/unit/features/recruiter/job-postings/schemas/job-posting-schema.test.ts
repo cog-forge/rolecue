@@ -36,6 +36,8 @@ const posting: JobPosting = {
   interview_slot: null,
   required_avatar: { id: avatarId, name: "Linh" },
   required_voice: { id: voiceId, name: "Ava" },
+  refinement_note: "",
+  review_submitted: true,
   core_question_count: 0,
   created_at: "2026-10-12T08:00:00Z",
 };
@@ -188,6 +190,7 @@ describe("request bodies", () => {
     ).toEqual({
       title: "Backend Engineer",
       document_id: documentId,
+      refinement_note: "",
       seniority_level: "mid",
       requirements: [
         { name: "Go", target: "programming_language", type: "required" },
@@ -250,5 +253,22 @@ describe("postingLocks", () => {
       requirementsLocked: false,
     });
     expect(postingLocks({ ...posting, status: "open" }).editable).toBe(false);
+  });
+});
+
+describe("question bank delivery contract", () => {
+  it("requires server confirmation, readiness and submission metadata", () => {
+    const current = {
+      ...posting,
+      refinement_note: "Focus on Go",
+      review_submitted: false,
+    };
+    const parsed = postingEnvelopeSchema.parse({
+      success: true,
+      data: current,
+    }).data;
+    expect(parsed).toMatchObject({
+      review_submitted: false,
+    });
   });
 });

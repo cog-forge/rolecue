@@ -5,14 +5,14 @@ import { cn } from "@/lib/utils";
 type Tone = "info" | "warning" | "danger" | "locked";
 
 const toneClass: Record<Tone, string> = {
-  info: "border-workspace-accent/25 bg-workspace-accent/5",
+  info: "border-rolecue-brand/15 bg-rolecue-brand/[0.04]",
   warning:
     "border-amber-500/30 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-500/10",
   danger: "border-destructive/30 bg-destructive/5",
   locked: "border-border bg-muted/60",
 };
 const iconClass: Record<Tone, string> = {
-  info: "text-workspace-accent",
+  info: "text-rolecue-brand dark:text-sky-300",
   warning: "text-amber-600 dark:text-amber-400",
   danger: "text-destructive",
   locked: "text-muted-foreground",
@@ -44,7 +44,7 @@ export function Notice({
     <div
       role={role}
       className={cn(
-        "flex gap-3 rounded-xl border p-4 text-sm duration-300 animate-in fade-in slide-in-from-top-1 motion-reduce:animate-none",
+        "flex gap-3 rounded-lg border px-4 py-3 text-sm leading-relaxed",
         toneClass[tone],
         className,
       )}
@@ -60,7 +60,3 @@ export function Notice({
     </div>
   );
 }
-
-// Shared page-header band: a light brand wash behind the eyebrow, title and description.
-export const headerBandClass =
-  "rounded-2xl border border-workspace-accent/15 bg-gradient-to-br from-workspace-accent/10 via-workspace-accent/[0.04] to-transparent p-6 duration-500 animate-in fade-in slide-in-from-bottom-2 motion-reduce:animate-none sm:p-8";

@@ -66,6 +66,8 @@ const posting = {
   required_avatar: null,
   required_voice: null,
   core_question_count: 3,
+  refinement_note: "",
+  review_submitted: true,
   created_at: "2026-10-12T08:00:00Z",
 };
 
