@@ -88,6 +88,10 @@ func (s *seed) user(role string) uuid.UUID {
 	s.exec(`INSERT INTO public.users (id, name, email, role, email_verified, company_name)
 		VALUES ($1, $2, $3, $4, true, $5)`, id, "app "+role, fmt.Sprintf("app-%s@example.test", id), role, company)
 	s.later(`DELETE FROM public.users WHERE id = $1`, id)
+	// These run before the user delete: Applications made by apply and wallets created by a refund or a
+	// credit are not registered one by one.
+	s.later(`DELETE FROM public.wallets WHERE user_id = $1`, id)
+	s.later(`DELETE FROM public.applications WHERE candidate_id = $1`, id)
 	return id
 }
 
@@ -105,6 +109,8 @@ func (s *seed) posting(recruiterID uuid.UUID, status string, slot *int32) uuid.U
 	s.exec(`INSERT INTO public.job_postings (id, status, jd_id, recruiter_id, title, interview_slot)
 		VALUES ($1, $2::public.job_posting_status, $3, $4, 'app posting', $5)`, id, status, jdID, recruiterID, slot)
 	s.later(`DELETE FROM public.job_postings WHERE id = $1`, id)
+	// Applications made through the service (apply) are not registered one by one; clear them before the posting.
+	s.later(`DELETE FROM public.applications WHERE job_posting_id = $1`, id)
 	return id
 }
 

@@ -1,9 +1,5 @@
-import { AdminSection } from "@/features/admin/components/admin-section";
+import { AdminInterviewSessions } from "@/features/admin/interviews/components/admin-interview-sessions";
+
 export default function Page() {
-  return (
-    <AdminSection
-      title="Interview sessions"
-      description="Inspect and manage interview sessions."
-    />
-  );
+  return <AdminInterviewSessions />;
 }

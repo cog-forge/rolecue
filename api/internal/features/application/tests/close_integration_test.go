@@ -275,7 +275,10 @@ func TestEvaluateTerminalCloseRules(t *testing.T) {
 	assertCode(t, err, apperror.CodeJobPostingNotFound)
 }
 
-func TestIntakeChangesCreateNoTransactionRows(t *testing.T) {
+// Close Intake and approvals write no transaction rows, except the one refund row of the first
+// posting: it is funded with 3 slots, none consumed, and closes terminally, so the 3 coins go back.
+// The auto-closing approval leaves a live Application and so writes nothing.
+func TestIntakeChangesWriteOnlyTheRefund(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
 	svc := newService(t, pool)
@@ -293,8 +296,8 @@ func TestIntakeChangesCreateNoTransactionRows(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if after := transactionRows(t, pool, ctx); after != before {
-		t.Fatalf("transactions rows went from %d to %d, want no change", before, after)
+	if after := transactionRows(t, pool, ctx); after != before+1 {
+		t.Fatalf("transactions rows went from %d to %d, want exactly one refund row", before, after)
 	}
 }
 

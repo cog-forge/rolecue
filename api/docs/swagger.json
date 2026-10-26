@@ -8,6 +8,180 @@
     },
     "basePath": "/",
     "paths": {
+        "/admin/interviews": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Operational metadata only: no recording path, audio, video, transcript or answer text. Sorted by interview ID. Page size is capped at 100.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-interviews"
+                ],
+                "summary": "List interview sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "practice or recruitment",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Candidate (owner) ID",
+                        "name": "candidate_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Job Posting ID",
+                        "name": "job_posting_id",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.InterviewPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/interviews/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Read-only. Returns identifiers, names, score and counts. Never returns a recording path, audio, video, transcript, answer or feedback text.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-interviews"
+                ],
+                "summary": "Get an interview session's operational detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Interview ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.InterviewDetail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/job-postings": {
             "get": {
                 "security": [
@@ -1088,6 +1262,163 @@
                 }
             }
         },
+        "/applications": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. Your own Applications across all postings, newest first, one page at a time. Each item shows the status, the rejection reason, the 24-hour interview deadline and whether you can start the interview now. Transcript, audio, video and CV files are never returned.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "List your Applications",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number, starting at 1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Items per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.CandidatePage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, your own Applications. Returns the status, the rejection reason, the interview deadline (set on CV approval) and can_start_interview, which is true only while the Application is interview_eligible and the deadline has not passed. Another Candidate's Application is not found.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Read one of your Applications",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.CandidateApplication"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/me": {
             "get": {
                 "security": [
@@ -1878,6 +2209,99 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-board/{id}/applications": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. Send one PDF as the multipart part \"file\" (at most 5 MB). The Application starts pending, is visible to the Recruiter at once and needs no interview. Submissions are not capped by interview capacity. Errors: VALIDATION_ERROR (no single PDF of at most 5 MB), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND (not open to you), INTAKE_NOT_OPEN (intake closed), ALREADY_APPLIED (you already applied to this posting).",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-board"
+                ],
+                "summary": "Apply to an open Job Posting with your CV",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "CV as a PDF, at most 5 MB",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Submission"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -3239,6 +3663,182 @@
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/interview-capacity": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings. Returns the capacity separately from the submitted CV count: interview_slot (null until funded), funded, price_per_slot (1 coin per slot), cv_approvals (every Application ever CV-approved), consumed (interviews that used a slot), available_to_approve (slots no approval has taken), refundable (slots not consumed), posting_status and refunded (coins credited back, non-null only once the posting is closed). Errors: VALIDATION_ERROR (bad ID), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Read the interview capacity of your Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.CapacityState"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings. Buys slots interview slots at 1 coin each in one transaction with the slot write: the coins leave the Recruiter's wallet and interview_slot is set. Funding is one-time. Sending the same slots again returns the current state and charges nothing; a different count returns INTERVIEW_CAPACITY_ALREADY_FUNDED. The posting must be open (INTAKE_NOT_OPEN otherwise). A wallet below the price returns INSUFFICIENT_BALANCE and changes nothing. Errors: VALIDATION_ERROR (bad ID or body, or slots outside 1 to 10000), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN, INTERVIEW_CAPACITY_ALREADY_FUNDED, INSUFFICIENT_BALANCE.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Fund the interview capacity of your Job Posting",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Interview slots to buy",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.FundCapacityRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.CapacityState"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -5254,7 +5854,10 @@
                 "APPLICATION_NOT_ELIGIBLE",
                 "INTAKE_NOT_OPEN",
                 "INTERVIEW_CAPACITY_NOT_FUNDED",
-                "INTERVIEW_CAPACITY_FULL"
+                "INTERVIEW_CAPACITY_FULL",
+                "INTERVIEW_CAPACITY_ALREADY_FUNDED",
+                "ALREADY_APPLIED",
+                "INTERVIEW_NOT_FOUND"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -5322,7 +5925,10 @@
                 "CodeApplicationNotEligible",
                 "CodeIntakeNotOpen",
                 "CodeInterviewCapacityNotFunded",
-                "CodeInterviewCapacityFull"
+                "CodeInterviewCapacityFull",
+                "CodeInterviewCapacityAlreadyFunded",
+                "CodeAlreadyApplied",
+                "CodeInterviewNotFound"
             ]
         },
         "domain.Account": {
@@ -5379,6 +5985,17 @@
                 "StatusApproved",
                 "StatusRejected"
             ]
+        },
+        "domain.AssetRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
         },
         "domain.Avatar": {
             "type": "object",
@@ -5565,6 +6182,57 @@
                 }
             }
         },
+        "domain.CandidateApplication": {
+            "type": "object",
+            "properties": {
+                "can_start_interview": {
+                    "description": "CanStartInterview is true only while the Application is interview_eligible and the deadline\nhas not passed. Start itself is checked again on the server when it exists.",
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_deadline": {
+                    "description": "InterviewDeadline is set on CV approval: approval time + 24 hours.",
+                    "type": "string"
+                },
+                "job_posting_id": {
+                    "type": "string"
+                },
+                "job_posting_title": {
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.ApplicationStatus"
+                }
+            }
+        },
+        "domain.CandidatePage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.CandidateApplication"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
         "domain.Capacity": {
             "type": "object",
             "properties": {
@@ -5578,6 +6246,44 @@
                     "type": "boolean"
                 },
                 "used": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.CapacityState": {
+            "type": "object",
+            "properties": {
+                "available_to_approve": {
+                    "description": "AvailableToApprove is the number of slots no CV approval has taken yet.",
+                    "type": "integer"
+                },
+                "consumed": {
+                    "description": "Consumed counts interviews that used a slot.",
+                    "type": "integer"
+                },
+                "cv_approvals": {
+                    "description": "CVApprovals counts every Application ever CV-approved on the posting.",
+                    "type": "integer"
+                },
+                "funded": {
+                    "type": "boolean"
+                },
+                "interview_slot": {
+                    "description": "InterviewSlot is nil until the Recruiter funds capacity.",
+                    "type": "integer"
+                },
+                "posting_status": {
+                    "type": "string"
+                },
+                "price_per_slot": {
+                    "type": "integer"
+                },
+                "refundable": {
+                    "description": "Refundable is the slots not consumed by an interview, in slots.",
+                    "type": "integer"
+                },
+                "refunded": {
+                    "description": "Refunded is the coins credited back at terminal close. It is non-null only when the posting is\nclosed, and then equals Refundable times PricePerSlot at close.",
                     "type": "integer"
                 }
             }
@@ -5761,6 +6467,96 @@
                 }
             }
         },
+        "domain.InterviewDetail": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "avatar": {
+                    "$ref": "#/definitions/domain.AssetRef"
+                },
+                "has_recording": {
+                    "type": "boolean"
+                },
+                "has_report": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "job_posting": {
+                    "$ref": "#/definitions/domain.JobPostingRef"
+                },
+                "owner": {
+                    "$ref": "#/definitions/domain.OwnerRef"
+                },
+                "question_count": {
+                    "type": "integer"
+                },
+                "role_profile": {
+                    "$ref": "#/definitions/domain.RoleProfileRef"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "turn_count": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "voice": {
+                    "$ref": "#/definitions/domain.AssetRef"
+                }
+            }
+        },
+        "domain.InterviewPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.InterviewRow"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.InterviewRow": {
+            "type": "object",
+            "properties": {
+                "has_recording": {
+                    "type": "boolean"
+                },
+                "has_report": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "job_posting": {
+                    "$ref": "#/definitions/domain.JobPostingRef"
+                },
+                "owner": {
+                    "$ref": "#/definitions/domain.OwnerRef"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.JobPosting": {
             "type": "object",
             "properties": {
@@ -5826,6 +6622,17 @@
                 },
                 "status": {
                     "$ref": "#/definitions/domain.Status"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.JobPostingRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
                 },
                 "title": {
                     "type": "string"
@@ -5984,6 +6791,20 @@
             "type": "object",
             "properties": {
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.OwnerRef": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
                     "type": "string"
                 }
             }
@@ -6297,6 +7118,17 @@
                 }
             }
         },
+        "domain.RoleProfileRef": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.RoleRequirement": {
             "type": "object",
             "properties": {
@@ -6428,6 +7260,23 @@
                 "StatusClosed",
                 "StatusRejected"
             ]
+        },
+        "domain.Submission": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "job_posting_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.ApplicationStatus"
+                }
+            }
         },
         "domain.Suggestion": {
             "type": "object",
@@ -6704,6 +7553,16 @@
             "properties": {
                 "raw_text": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.FundCapacityRequest": {
+            "type": "object",
+            "properties": {
+                "slots": {
+                    "description": "Slots is the number of interview slots to buy at 1 coin each.",
+                    "type": "integer",
+                    "example": 5
                 }
             }
         },
