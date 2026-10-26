@@ -88,25 +88,25 @@ test("collapse, deep links, back and refresh preserve navigation state", async (
   await expect(
     page.getByRole("complementary", { name: "Workspace sidebar" }),
   ).toHaveCSS("width", "72px");
-  await page.getByRole("link", { name: "Target JDs", exact: true }).click();
-  await expect(page).toHaveURL(/\/target-jds$/);
+  await page.getByRole("link", { name: "Role Profiles", exact: true }).click();
+  await expect(page).toHaveURL(/\/role-profiles$/);
   await page.reload();
   await expect(
     page.getByRole("button", { name: "Expand sidebar" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Target JDs", exact: true }),
+    page.getByRole("link", { name: "Role Profiles", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await page.goto("/interviews/new/setup");
   await expect(
-    page.getByRole("link", { name: "Target JDs", exact: true }),
+    page.getByRole("link", { name: "Role Profiles", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await page.getByRole("link", { name: "Interview History" }).click();
   await expect(page).toHaveURL(/\/history$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/interviews\/new\/setup$/);
   await expect(
-    page.getByRole("link", { name: "Target JDs", exact: true }),
+    page.getByRole("link", { name: "Role Profiles", exact: true }),
   ).toHaveAttribute("aria-current", "page");
 });
 
@@ -370,7 +370,7 @@ test("navigation icon motion responds to row hover and keyboard focus, and respe
 }) => {
   await session(page, "candidate");
   await page.goto(home.candidate);
-  const link = page.getByRole("link", { name: "Target JDs", exact: true });
+  const link = page.getByRole("link", { name: "Role Profiles", exact: true });
   const stroke = link.locator("svg path").last();
   await link.hover();
   await expect(stroke).toHaveAttribute("stroke-dasharray", /^0\./);

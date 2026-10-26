@@ -48,7 +48,7 @@ describe("workspace navigation", () => {
     expect(getActiveNavigation("candidate", "/jobs-other")).toBeUndefined();
     expect(
       getActiveNavigation("candidate", "/interviews/new/setup")?.href,
-    ).toBe("/target-jds");
+    ).toBe("/role-profiles");
     expect(getActiveNavigation("candidate", "/reports/report-1")?.href).toBe(
       "/history",
     );

@@ -1,9 +1,5 @@
-import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
+import { redirect } from "next/navigation";
+import { routes } from "@/config/routes";
 export default function Page() {
-  return (
-    <RoutePlaceholder
-      title="Target JDs"
-      description="Your private job descriptions for practice will appear here when the library is connected."
-    />
-  );
+  redirect(routes.roleProfiles.root);
 }

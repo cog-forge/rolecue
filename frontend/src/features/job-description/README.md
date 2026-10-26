@@ -1,7 +1,7 @@
-# Job description boundary
+# Shared JD preparation
 
-Own input/upload validation, analysis requests and extracted-skill review here. The wizard URL belongs to routing; future cross-step draft values belong to interview setup.
+Candidate Role Profiles and recruiter-owned Job Postings share text/PDF entry, extraction review, requirement editing and original-document presentation. Their API functions, per-user cache keys and routes are supplied through the public `JDWorkflow` interface. Workflow configuration is composed inside client components; App Router pages remain server components.
 
-When the endpoint exists, split integration into api/requests.ts (transport + Zod decoder), api/keys.ts (domain keys), and api/mutations.ts (TanStack wrapper). Orchestration consumes that mutation and decides navigation; notifications stay at the use-case/UI boundary. No request or guessed response schema is shipped.
+Text validation counts Unicode code points after whitespace normalization (100–20,000). PDFs must be selectable-text documents up to 5 MiB. A separate Axios transport uploads to signed storage URLs without API cookies or interceptors. Retrying analysis reuses the draft; retrying PDF completion reuses its upload ticket. The backend makes completion idempotent for the same upload and owner.
 
-Forms use React Hook Form with zodResolver and z.infer<typeof schema>. Keep the schema beside the owning form. No input form is active while submission behavior is undefined.
+Confirmation saves the reviewed requirements and refinement note first, then waits for the backend to generate and persist interview content. Candidates receive no question bank. Recruiters proceed to the bank for their own posting. These are independent owned JDs; candidate practice data is never transferred to recruiters.
