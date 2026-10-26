@@ -15,7 +15,8 @@ import (
 const countPostings = `-- name: CountPostings :one
 SELECT count(*)
 FROM public.job_postings jp
-WHERE ($1::text IS NULL OR jp.status::text = $1::text)
+WHERE (jp.status <> 'pending' OR jp.review_submitted)
+  AND ($1::text IS NULL OR jp.status::text = $1::text)
   AND ($2::uuid IS NULL OR jp.recruiter_id = $2::uuid)
   AND ($3::timestamptz IS NULL OR jp.created_at >= $3::timestamptz)
   AND ($4::timestamptz IS NULL OR jp.created_at < $4::timestamptz)
@@ -43,8 +44,9 @@ func (q *Queries) CountPostings(ctx context.Context, arg CountPostingsParams) (i
 const decidePosting = `-- name: DecidePosting :execrows
 UPDATE public.job_postings
 SET status = $1::text::public.job_posting_status,
-    reject_reason = $2::text
-WHERE job_postings.id = $3 AND job_postings.status = 'pending'
+    reject_reason = $2::text,
+    review_submitted = ($1::text <> 'rejected')
+WHERE job_postings.id = $3 AND job_postings.status = 'pending' AND review_submitted
   AND ($1::text <> 'open'
        OR EXISTS (SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = job_postings.jd_id))
 `
@@ -56,8 +58,9 @@ type DecidePostingParams struct {
 }
 
 // The status guard sits in the same statement, so two admins deciding at once cannot both win.
-// Approval also needs a non-empty core-question bank: the bank is locked once the posting leaves
-// pending (KAN-79), so approving an empty one would leave the posting with nothing to interview from.
+// Only a submitted posting can be decided. Approval also needs a non-empty core-question bank: the
+// bank is locked once the posting is approved, so approving an empty one would leave the posting
+// with nothing to interview from.
 func (q *Queries) DecidePosting(ctx context.Context, arg DecidePostingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, decidePosting, arg.NewStatus, arg.RejectReason, arg.ID)
 	if err != nil {
@@ -72,7 +75,7 @@ SELECT jp.id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location
        u.id AS recruiter_id, u.name AS recruiter_name, u.email AS recruiter_email,
        jp.required_avatar_id, a.name AS avatar_name,
        jp.required_voice_id, v.name AS voice_name, COALESCE(jd.content_path, '')::text AS content_path,
-       jd.raw_text,
+       jd.raw_text, jp.review_submitted,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count,
        EXISTS (SELECT 1 FROM public.metrics_percentage mp WHERE mp.job_posting_id = jp.id) AS weights_configured
 FROM public.job_postings jp
@@ -104,6 +107,7 @@ type GetPostingRow struct {
 	VoiceName         *string
 	ContentPath       string
 	RawText           *string
+	ReviewSubmitted   bool
 	CoreQuestionCount int64
 	WeightsConfigured bool
 }
@@ -132,6 +136,7 @@ func (q *Queries) GetPosting(ctx context.Context, id uuid.UUID) (GetPostingRow, 
 		&i.VoiceName,
 		&i.ContentPath,
 		&i.RawText,
+		&i.ReviewSubmitted,
 		&i.CoreQuestionCount,
 		&i.WeightsConfigured,
 	)
@@ -143,7 +148,8 @@ SELECT jp.id, jp.title, jp.status::text AS status, jp.created_at,
        u.id AS recruiter_id, u.name AS recruiter_name, u.email AS recruiter_email
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
-WHERE ($1::text IS NULL OR jp.status::text = $1::text)
+WHERE (jp.status <> 'pending' OR jp.review_submitted)
+  AND ($1::text IS NULL OR jp.status::text = $1::text)
   AND ($2::uuid IS NULL OR jp.recruiter_id = $2::uuid)
   AND ($3::timestamptz IS NULL OR jp.created_at >= $3::timestamptz)
   AND ($4::timestamptz IS NULL OR jp.created_at < $4::timestamptz)
@@ -171,6 +177,8 @@ type ListPostingsRow struct {
 }
 
 // Every filter is optional: a NULL argument disables it. The date window is [created_from, created_to).
+// A pending posting the Recruiter is still preparing is not in the review queue; submission
+// needs a non-empty bank, and removing the last question withdraws it.
 func (q *Queries) ListPostings(ctx context.Context, arg ListPostingsParams) ([]ListPostingsRow, error) {
 	rows, err := q.db.Query(ctx, listPostings,
 		arg.Status,

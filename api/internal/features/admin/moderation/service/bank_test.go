@@ -34,10 +34,12 @@ func TestApproveWithOneCoreQuestion(t *testing.T) {
 	}
 }
 
-func TestRejectAllowedWithEmptyBank(t *testing.T) {
+// Rejecting does not depend on the bank: the Admin can send back a submitted posting whose last
+// question the Recruiter removed in the meantime.
+func TestRejectSubmittedPostingWithEmptyBank(t *testing.T) {
 	repo := postingIn(domain.PostingStatusPending)
 	repo.posting.CoreQuestionCount = 0
-	got, err := newService(t, repo).Reject(context.Background(), uuid.New(), "admin", repo.posting.ID, "No questions yet")
+	got, err := newService(t, repo).Reject(context.Background(), uuid.New(), "admin", repo.posting.ID, "Add questions")
 	if err != nil || got.Status != domain.PostingStatusRejected {
 		t.Fatalf("status=%s err=%v", got.Status, err)
 	}
@@ -50,5 +52,28 @@ func TestEmptyBankDoesNotBreakRepeatedApproval(t *testing.T) {
 	repo.posting.CoreQuestionCount = 0
 	if got, err := newService(t, repo).Approve(context.Background(), uuid.New(), "admin", repo.posting.ID); err != nil || got.Status != domain.PostingStatusOpen {
 		t.Fatalf("status=%s err=%v", got.Status, err)
+	}
+}
+
+// A pending posting the Recruiter is still preparing cannot be decided either way.
+func TestDecisionRequiresSubmission(t *testing.T) {
+	for name, decide := range map[string]func(*Service, uuid.UUID) error{
+		"approve": func(s *Service, id uuid.UUID) error {
+			_, err := s.Approve(context.Background(), uuid.New(), "admin", id)
+			return err
+		},
+		"reject": func(s *Service, id uuid.UUID) error {
+			_, err := s.Reject(context.Background(), uuid.New(), "admin", id, "Not yet")
+			return err
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			repo := postingIn(domain.PostingStatusPending)
+			repo.posting.ReviewSubmitted = false
+			assertCode(t, decide(newService(t, repo), repo.posting.ID), apperror.CodeJobPostingNotPending)
+			if repo.posting.Status != domain.PostingStatusPending {
+				t.Fatal("an unsubmitted posting was decided")
+			}
+		})
 	}
 }

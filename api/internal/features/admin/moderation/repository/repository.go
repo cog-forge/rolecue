@@ -58,12 +58,13 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.ReviewPostin
 		ContentPath:       row.ContentPath,
 		StoredText:        row.RawText,
 		CoreQuestionCount: row.CoreQuestionCount,
+		ReviewSubmitted:   row.ReviewSubmitted,
 		WeightsConfigured: row.WeightsConfigured,
 	}, nil
 }
 
-// Decide returns domain.ErrNotPending when no row matched the guards (pending, and a non-empty bank
-// for approval); the service then reads the posting to tell the cases apart.
+// Decide returns domain.ErrNotPending when no row matched the guards (pending and submitted, and a
+// non-empty bank for approval); the service then reads the posting to tell the cases apart.
 func (r *Repository) Decide(ctx context.Context, id uuid.UUID, status domain.PostingStatus, rejectReason *string) error {
 	n, err := r.queries.DecidePosting(ctx, DecidePostingParams{ID: id, NewStatus: string(status), RejectReason: rejectReason})
 	if err != nil {
