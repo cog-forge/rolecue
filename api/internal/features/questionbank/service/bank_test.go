@@ -70,6 +70,30 @@ func TestListReportsLockedBank(t *testing.T) {
 	}
 }
 
+// A rejected posting is corrected with its bank; an empty bank is generated rather than edited.
+func TestListEditableWhilePreparingWithAGeneratedBank(t *testing.T) {
+	for _, tc := range []struct {
+		status    string
+		questions int
+		editable  bool
+	}{
+		{domain.PostingPending, 1, true},
+		{domain.PostingRejected, 1, true},
+		{domain.PostingPending, 0, false},
+		{"open", 1, false},
+	} {
+		repo := readyRepo()
+		repo.posting.Status, repo.posting.ReviewSubmitted = tc.status, true
+		for i := 0; i < tc.questions; i++ {
+			repo.existing = append(repo.existing, domain.CoreQuestion{ID: uuid.New(), Content: "q"})
+		}
+		got, err := newService(t, repo, &fakeGenerator{}, 0, 3).List(context.Background(), uuid.New(), "recruiter", uuid.New())
+		if err != nil || got.Editable != tc.editable || !got.ReviewSubmitted {
+			t.Fatalf("%s with %d questions: %+v %v", tc.status, tc.questions, got, err)
+		}
+	}
+}
+
 func TestCurrentBankReadsByJD(t *testing.T) {
 	repo := readyRepo()
 	repo.existing = []domain.CoreQuestion{{ID: uuid.New(), Content: "q"}}

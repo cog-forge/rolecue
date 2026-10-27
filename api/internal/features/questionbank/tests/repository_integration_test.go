@@ -96,10 +96,11 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 		otherJD := s.jd(levelID, "")
 		otherPosting := s.posting(otherJD, recruiter)
 		s.later(`DELETE FROM public.core_questions WHERE jd_id = $1`, otherJD)
-		foreign, err := repo.Add(ctx, recruiter, otherPosting, "Belongs to the other posting?")
+		saved, err := repo.SaveForPosting(ctx, recruiter, otherPosting, []string{"Belongs to the other posting?"})
 		if err != nil {
 			t.Fatal(err)
 		}
+		foreign := saved[0]
 		// postingID is mine and pending, but the question belongs to otherJD.
 		_, err = repo.Update(ctx, recruiter, postingID, foreign.ID, "Hijacked?")
 		wantCode(t, err, apperror.CodeCoreQuestionNotFound)

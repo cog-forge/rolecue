@@ -66,8 +66,16 @@ const created = {
   interview_slot: null,
   required_avatar: { id: avatarId, name: "Linh" },
   required_voice: { id: voiceId, name: "Ava" },
+  refinement_note: "",
+  review_submitted: false,
   core_question_count: 0,
   created_at: "2026-10-12T08:00:00Z",
+};
+// The body of POST /job-postings/:id/questions/generate.
+const generated = {
+  questions: [
+    { id: "88888888-8888-4888-8888-888888888888", content: "Explain Go." },
+  ],
 };
 function failure(status: number, code: string, message: string) {
   return new AxiosError("failure", "ERR_BAD_RESPONSE", undefined, undefined, {
@@ -145,7 +153,7 @@ beforeEach(() => {
 
 describe("NewJobPosting", () => {
   it(
-    "uploads the PDF, extracts, requires confirmation, then submits exactly the Go body",
+    "uploads, confirms requirements and opens the generated bank before submission",
     async () => {
       mocks.post.mockImplementation((path: string) =>
         Promise.resolve(
@@ -163,7 +171,9 @@ describe("NewJobPosting", () => {
                     },
                   ],
                 })
-              : envelope(created),
+              : envelope(
+                  path.endsWith("/questions/generate") ? generated : created,
+                ),
         ),
       );
       const client = mount();
@@ -192,7 +202,7 @@ describe("NewJobPosting", () => {
       });
 
       fireEvent.click(
-        screen.getByRole("button", { name: "Submit for approval" }),
+        screen.getByRole("button", { name: "Confirm & generate questions" }),
       );
       expect(
         await screen.findByText(
@@ -207,12 +217,13 @@ describe("NewJobPosting", () => {
         }),
       );
       fireEvent.click(
-        screen.getByRole("button", { name: "Submit for approval" }),
+        screen.getByRole("button", { name: "Confirm & generate questions" }),
       );
       await waitFor(() =>
         expect(mocks.post).toHaveBeenCalledWith("/job-postings", {
           title: "Backend Engineer",
           document_id: documentId,
+          refinement_note: "",
           seniority_level: "senior",
           requirements: [
             { name: "Go", target: "programming_language", type: "required" },
@@ -228,8 +239,15 @@ describe("NewJobPosting", () => {
       );
       await waitFor(() =>
         expect(mocks.replace).toHaveBeenCalledWith(
-          `/recruiter/job-postings/${postingId}`,
+          `/recruiter/job-postings/${postingId}/questions`,
         ),
+      );
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/job-postings/${postingId}/questions/generate`,
+      );
+      expect(mocks.post).not.toHaveBeenCalledWith(
+        `/job-postings/${postingId}/submit`,
+        expect.anything(),
       );
       expect(
         client.getQueryData([
@@ -310,7 +328,7 @@ describe("NewJobPosting", () => {
   it("shows field errors before calling the API", async () => {
     mount();
     fireEvent.click(
-      screen.getByRole("button", { name: "Submit for approval" }),
+      screen.getByRole("button", { name: "Confirm & generate questions" }),
     );
     expect(
       await screen.findByText("Upload the job description as a PDF."),
@@ -358,11 +376,13 @@ describe("NewJobPosting", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
     );
-    const submit = screen.getByRole("button", { name: "Submit for approval" });
+    const submit = screen.getByRole("button", {
+      name: "Confirm & generate questions",
+    });
     fireEvent.click(submit);
     fireEvent.click(submit);
     expect(
-      await screen.findByRole("button", { name: "Submitting…" }),
+      await screen.findByRole("button", { name: "Generating questions…" }),
     ).toBeDisabled();
     reject(
       failure(
@@ -444,7 +464,7 @@ describe("NewJobPosting", () => {
       await waitFor(() => expect(confirm()).not.toBeChecked());
 
       fireEvent.click(
-        screen.getByRole("button", { name: "Submit for approval" }),
+        screen.getByRole("button", { name: "Confirm & generate questions" }),
       );
       expect(
         await screen.findByText(
@@ -482,3 +502,113 @@ describe("NewJobPosting", () => {
     expect(screen.queryByLabelText("Requirement 1")).not.toBeInTheDocument();
   });
 });
+
+it(
+  "retries failed generation on the saved posting without creating or submitting again",
+  async () => {
+    let attempts = 0;
+    mocks.post.mockImplementation((path: string) => {
+      if (path === "/job-postings/documents") return Promise.resolve(uploaded);
+      if (path === "/job-postings/extract")
+        return Promise.resolve(
+          envelope({
+            title: "Backend Engineer",
+            seniority_level: "senior",
+            requirements: created.requirements,
+          }),
+        );
+      if (path === "/job-postings")
+        return Promise.resolve(
+          envelope({ ...created, review_submitted: false }),
+        );
+      if (path === `/job-postings/${postingId}/questions/generate`) {
+        attempts++;
+        return attempts === 1
+          ? Promise.reject(
+              failure(502, "QUESTION_GENERATION_FAILED", "LLM unavailable"),
+            )
+          : Promise.resolve(envelope(generated));
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    mount();
+    await fillAndExtract();
+    await choose("Interviewer model (required)", "Linh");
+    await choose("Interviewer voice (required)", "Ava");
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm & generate questions" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "LLM unavailable",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry generating questions" }),
+    );
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        `/recruiter/job-postings/${postingId}/questions`,
+      ),
+    );
+    expect(
+      mocks.post.mock.calls.filter(([path]) => path === "/job-postings"),
+    ).toHaveLength(1);
+    expect(
+      mocks.post.mock.calls.filter(
+        ([path]) => path === `/job-postings/${postingId}/questions/generate`,
+      ),
+    ).toHaveLength(2);
+    expect(
+      mocks.post.mock.calls.some(([path]) => String(path).endsWith("/submit")),
+    ).toBe(false);
+  },
+  LONG_FLOW_MS,
+);
+
+it(
+  "returns to the saved posting when it was locked meanwhile",
+  async () => {
+    mocks.post.mockImplementation((path: string) => {
+      if (path === "/job-postings/documents") return Promise.resolve(uploaded);
+      if (path === "/job-postings/extract")
+        return Promise.resolve(
+          envelope({
+            title: "Backend Engineer",
+            seniority_level: "senior",
+            requirements: created.requirements,
+          }),
+        );
+      if (path === "/job-postings") return Promise.resolve(envelope(created));
+      return Promise.reject(
+        failure(
+          409,
+          "QUESTION_BANK_LOCKED",
+          "the question bank can only be changed while the job posting is pending or rejected",
+        ),
+      );
+    });
+    mount();
+    await fillAndExtract();
+    await choose("Interviewer model (required)", "Linh");
+    await choose("Interviewer voice (required)", "Ava");
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm & generate questions" }),
+    );
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        `/recruiter/job-postings/${postingId}`,
+      ),
+    );
+    expect(
+      mocks.post.mock.calls.filter(
+        ([path]) => path === `/job-postings/${postingId}/questions/generate`,
+      ),
+    ).toHaveLength(1);
+  },
+  LONG_FLOW_MS,
+);

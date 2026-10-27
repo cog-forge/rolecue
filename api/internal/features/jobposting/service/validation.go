@@ -20,6 +20,7 @@ const (
 	maxDetailLength    = 200
 	maxNameLength      = 200
 	maxRequirements    = 100
+	maxRefinementNote  = 2_000
 )
 
 func invalid(msg string) error { return apperror.New(apperror.CodeValidation, msg) }
@@ -38,6 +39,9 @@ func validateCreate(in domain.CreateInput) (domain.CreateInput, error) {
 	if in.Requirements, err = checkRequirements(in.Requirements); err != nil {
 		return in, err
 	}
+	if in.RefinementNote, err = refinementNote(in.RefinementNote); err != nil {
+		return in, err
+	}
 	if in.Location, err = optionalText(in.Location, "location"); err != nil {
 		return in, err
 	}
@@ -50,8 +54,7 @@ func validateCreate(in domain.CreateInput) (domain.CreateInput, error) {
 	if err := domain.CheckSalary(in.SalaryMin, in.SalaryMax); err != nil {
 		return in, err
 	}
-	// The interviewer and voice are locked before Admin approval, and a posting is submitted for
-	// approval when it is created, so both are required here.
+	// The interviewer and voice are selected while preparing the posting.
 	if in.RequiredAvatarID == uuid.Nil {
 		return in, invalid("required_avatar_id is required")
 	}
@@ -95,6 +98,17 @@ func validatePatch(p domain.Edit) (domain.Edit, error) {
 			return p, err
 		}
 		p.Requirements.Value = &rows
+	}
+	if p.RefinementNote.Present {
+		// null clears the note, like an empty one.
+		note := ""
+		if p.RefinementNote.Value != nil {
+			note = *p.RefinementNote.Value
+		}
+		if note, err = refinementNote(note); err != nil {
+			return p, err
+		}
+		p.RefinementNote.Value = &note
 	}
 	if p.Location.Value, err = optionalText(p.Location.Value, "location"); err != nil {
 		return p, err
@@ -228,4 +242,16 @@ func optionalText(value *string, field string) (*string, error) {
 		return nil, invalid(fmt.Sprintf("%s must be at most %d characters", field, maxDetailLength))
 	}
 	return &trimmed, nil
+}
+
+// refinementNote trims the optional generation guidance; an empty note means none.
+func refinementNote(value string) (string, error) {
+	if !utf8.ValidString(value) || strings.ContainsRune(value, 0) {
+		return "", invalid("refinement_note must be valid UTF-8 without NUL characters")
+	}
+	value = strings.TrimSpace(value)
+	if utf8.RuneCountInString(value) > maxRefinementNote {
+		return "", invalid(fmt.Sprintf("refinement_note must be at most %d characters", maxRefinementNote))
+	}
+	return value, nil
 }

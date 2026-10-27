@@ -15,7 +15,8 @@ const addCoreQuestion = `-- name: AddCoreQuestion :one
 INSERT INTO public.core_questions (jd_id, content)
 SELECT jp.jd_id, $1::text
 FROM public.job_postings jp
-WHERE jp.id = $2 AND jp.recruiter_id = $3 AND jp.status = 'pending'
+WHERE jp.id = $2 AND jp.recruiter_id = $3 AND jp.status IN ('pending', 'rejected')
+  AND EXISTS (SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id)
 RETURNING id, content
 `
 
@@ -30,6 +31,7 @@ type AddCoreQuestionRow struct {
 	Content string
 }
 
+// A question is added only to a generated bank, so manual questions cannot skip generation.
 func (q *Queries) AddCoreQuestion(ctx context.Context, arg AddCoreQuestionParams) (AddCoreQuestionRow, error) {
 	row := q.db.QueryRow(ctx, addCoreQuestion, arg.Content, arg.PostingID, arg.RecruiterID)
 	var i AddCoreQuestionRow
@@ -56,6 +58,17 @@ func (q *Queries) CandidateOwnsJD(ctx context.Context, arg CandidateOwnsJDParams
 	return exists, err
 }
 
+const clearEmptyBankSubmission = `-- name: ClearEmptyBankSubmission :exec
+UPDATE public.job_postings SET review_submitted = false
+WHERE job_postings.id = $1 AND NOT EXISTS (SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = job_postings.jd_id)
+`
+
+// Removing the last question takes the posting out of the Admin queue.
+func (q *Queries) ClearEmptyBankSubmission(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearEmptyBankSubmission, id)
+	return err
+}
+
 const countCoreQuestions = `-- name: CountCoreQuestions :one
 SELECT count(*) FROM public.core_questions WHERE jd_id = $1
 `
@@ -74,7 +87,7 @@ WHERE cq.id = $1
   AND cq.jd_id = jp.jd_id
   AND jp.id = $2
   AND jp.recruiter_id = $3
-  AND jp.status = 'pending'
+  AND jp.status IN ('pending', 'rejected')
 `
 
 type DeleteCoreQuestionParams struct {
@@ -112,7 +125,7 @@ func (q *Queries) GetJDGenerationContext(ctx context.Context, id uuid.UUID) (Get
 }
 
 const getRecruiterPosting = `-- name: GetRecruiterPosting :one
-SELECT jd_id, status::text AS status
+SELECT jd_id, status::text AS status, review_submitted
 FROM public.job_postings
 WHERE id = $1 AND recruiter_id = $2
 `
@@ -123,14 +136,15 @@ type GetRecruiterPostingParams struct {
 }
 
 type GetRecruiterPostingRow struct {
-	JdID   uuid.UUID
-	Status string
+	JdID            uuid.UUID
+	Status          string
+	ReviewSubmitted bool
 }
 
 func (q *Queries) GetRecruiterPosting(ctx context.Context, arg GetRecruiterPostingParams) (GetRecruiterPostingRow, error) {
 	row := q.db.QueryRow(ctx, getRecruiterPosting, arg.ID, arg.RecruiterID)
 	var i GetRecruiterPostingRow
-	err := row.Scan(&i.JdID, &i.Status)
+	err := row.Scan(&i.JdID, &i.Status, &i.ReviewSubmitted)
 	return i, err
 }
 
@@ -262,20 +276,20 @@ func (q *Queries) LockCandidateRoleProfile(ctx context.Context, arg LockCandidat
 	return jd_id, err
 }
 
-const lockPendingPosting = `-- name: LockPendingPosting :one
+const lockEditablePosting = `-- name: LockEditablePosting :one
 SELECT jd_id
 FROM public.job_postings
-WHERE id = $1 AND recruiter_id = $2 AND status = 'pending'
+WHERE id = $1 AND recruiter_id = $2 AND status IN ('pending', 'rejected')
 FOR UPDATE
 `
 
-type LockPendingPostingParams struct {
+type LockEditablePostingParams struct {
 	ID          uuid.UUID
 	RecruiterID uuid.UUID
 }
 
-func (q *Queries) LockPendingPosting(ctx context.Context, arg LockPendingPostingParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockPendingPosting, arg.ID, arg.RecruiterID)
+func (q *Queries) LockEditablePosting(ctx context.Context, arg LockEditablePostingParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockEditablePosting, arg.ID, arg.RecruiterID)
 	var jd_id uuid.UUID
 	err := row.Scan(&jd_id)
 	return jd_id, err
@@ -289,7 +303,7 @@ WHERE cq.id = $2
   AND cq.jd_id = jp.jd_id
   AND jp.id = $3
   AND jp.recruiter_id = $4
-  AND jp.status = 'pending'
+  AND jp.status IN ('pending', 'rejected')
 RETURNING cq.id, cq.content
 `
 

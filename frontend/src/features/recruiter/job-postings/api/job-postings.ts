@@ -54,6 +54,11 @@ export async function updatePosting(id: string, patch: PostingPatch) {
   return postingEnvelopeSchema.parse(response.data).data;
 }
 
+export async function submitPosting(id: string) {
+  const response = await apiClient.post<unknown>(`${postingPath(id)}/submit`);
+  return postingEnvelopeSchema.parse(response.data).data;
+}
+
 export async function resubmitPosting(id: string) {
   const response = await apiClient.post<unknown>(`${postingPath(id)}/resubmit`);
   return postingEnvelopeSchema.parse(response.data).data;

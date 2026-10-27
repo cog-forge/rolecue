@@ -22,6 +22,8 @@ export const bankSchema = z.object({
   editable: z.boolean(),
   max_question_length: z.number().int().positive(),
   generation_size: z.number().int().nonnegative(),
+  // True once the Recruiter sent the posting to the Admin queue.
+  review_submitted: z.boolean(),
 });
 export type Bank = z.infer<typeof bankSchema>;
 

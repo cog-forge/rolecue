@@ -56,6 +56,7 @@ const posting = (overrides: Record<string, unknown> = {}) => ({
   document_url: null,
   document_expires_at: null,
   raw_text: null,
+  review_submitted: true,
   core_question_count: 50,
   ...overrides,
 });
@@ -103,8 +104,8 @@ describe("PostingReview", () => {
     ).toBeInTheDocument();
     expect(screen.getByTitle("Job description PDF")).toBeInTheDocument();
     expect(
-      screen.getByText(/core questions in the question bank/i),
-    ).toHaveTextContent("50");
+      within(screen.getByRole("region", { name: "Decision" })).getByText("50"),
+    ).toBeInTheDocument();
     expect(screen.getByText("1,500 – 2,500")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /back to moderation queue/i }),
@@ -117,9 +118,21 @@ describe("PostingReview", () => {
     const approve = await screen.findByRole("button", { name: "Approve" });
     expect(approve).toBeDisabled();
     expect(approve).toHaveAccessibleDescription(
-      /recruiter must add core questions before this posting can be approved/i,
+      /recruiter must add core questions/i,
     );
+    // A submitted posting can still be sent back, whatever its bank holds.
     expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
+  });
+
+  it("cannot decide a posting the recruiter has not submitted", async () => {
+    mocks.get.mockResolvedValue(envelope(posting({ review_submitted: false })));
+    mount();
+    const approve = await screen.findByRole("button", { name: "Approve" });
+    expect(approve).toBeDisabled();
+    expect(approve).toHaveAccessibleDescription(
+      /still preparing this posting/i,
+    );
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
   });
 
   it("approves after confirmation", async () => {

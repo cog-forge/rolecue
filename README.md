@@ -127,3 +127,24 @@ sh .docker/smoke.sh frontend rolecue-frontend:local
 These smoke tests use Linux host networking and temporary ports 18080/13000. They
 clean up only the containers they create. This task publishes build artifacts to GHCR;
 it does not deploy, SSH to servers or roll out containers.
+
+## Recruiter Question Bank delivery
+
+Apply migration `000013_posting_question_bank_delivery` before running the updated API.
+`QUESTION_BANK_SIZE` controls generation (50 in `.env.example`); the frontend uses the
+server's value. There is one shared question-generation service for posting and practice JDs.
+
+The Recruiter flow is: save the reviewed requirements and optional `refinement_note` →
+`POST /job-postings/:id/questions/generate` → review/edit the generated questions →
+`POST /job-postings/:id/submit` (or `/resubmit` after rejection). Submit and resubmit take no
+body. Generating the bank does not submit the posting: a pending posting reaches the Admin
+queue only after an explicit submit. Failed generation can be retried on the same posting; a
+second generate on an existing bank returns `409 QUESTION_BANK_EXISTS`.
+
+Submission needs a non-empty bank (`409 QUESTION_BANK_NOT_READY` otherwise), and Admins can
+approve or reject only submitted postings. Deleting the final question withdraws the posting
+from the queue; it must be submitted again. Questions can be added by hand only after the bank
+has been generated. A rejected posting can regenerate and edit its bank before resubmitting.
+
+Migration backfill keeps existing pending postings that have questions in the Admin queue;
+pending postings with an empty bank go back to preparation.

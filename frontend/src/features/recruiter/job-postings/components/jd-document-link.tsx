@@ -23,7 +23,12 @@ export function JdDocumentLink({ postingId }: { postingId: string }) {
 
   if (link.isPending)
     return (
-      <Button variant="outline" className="h-11" disabled aria-busy>
+      <Button
+        variant="outline"
+        className="h-10 rounded-full px-4"
+        disabled
+        aria-busy
+      >
         <LoaderCircle
           className="size-4 animate-spin motion-reduce:animate-none"
           aria-hidden
@@ -38,7 +43,7 @@ export function JdDocumentLink({ postingId }: { postingId: string }) {
         <Button
           type="button"
           variant="outline"
-          className="h-11"
+          className="h-10 rounded-full px-4"
           onClick={() => void link.refetch()}
         >
           Try again
@@ -46,7 +51,7 @@ export function JdDocumentLink({ postingId }: { postingId: string }) {
       </div>
     );
   return (
-    <Button asChild variant="outline" className="h-11">
+    <Button asChild variant="outline" className="h-10 rounded-full px-4">
       <a href={link.data.url} target="_blank" rel="noopener noreferrer">
         <ExternalLink aria-hidden />
         Open the PDF

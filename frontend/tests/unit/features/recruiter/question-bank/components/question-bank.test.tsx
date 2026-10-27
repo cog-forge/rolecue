@@ -12,6 +12,7 @@ import { QuestionBank } from "@/features/recruiter/question-bank/components/ques
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  getPosting: vi.fn(),
   post: vi.fn(),
   patch: vi.fn(),
   delete: vi.fn(),
@@ -28,7 +29,11 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
-    get: mocks.get,
+    // The bank screen also reads its posting, only to name it in the way back.
+    get: (path: string, ...rest: unknown[]) =>
+      path.endsWith("/questions")
+        ? mocks.get(path, ...rest)
+        : mocks.getPosting(path, ...rest),
     post: mocks.post,
     patch: mocks.patch,
     delete: mocks.delete,
@@ -53,9 +58,32 @@ const bank = (overrides: Record<string, unknown> = {}) => ({
   posting_status: "pending",
   editable: true,
   max_question_length: 1000,
+  review_submitted: false,
   generation_size: 10,
   ...overrides,
 });
+const posting = {
+  id: postingId,
+  title: "Backend Engineer",
+  status: "pending",
+  reject_reason: null,
+  raw_text: "A technical role",
+  has_document: true,
+  seniority_level: "senior",
+  requirements: [],
+  refinement_note: "",
+  review_submitted: false,
+  location: null,
+  employment_type: null,
+  salary_min: null,
+  salary_max: null,
+  interview_duration: null,
+  interview_slot: null,
+  required_avatar: null,
+  required_voice: null,
+  core_question_count: 2,
+  created_at: "2026-10-12T08:00:00Z",
+};
 const envelope = (data: unknown) => ({ data: { success: true, data } });
 function failure(status: number, code: string, message: string) {
   return new AxiosError("failure", "ERR_BAD_RESPONSE", undefined, undefined, {
@@ -87,6 +115,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   for (const fn of [mocks.get, mocks.post, mocks.patch, mocks.delete])
     fn.mockReset();
+  mocks.getPosting.mockResolvedValue(envelope(posting));
 });
 
 describe("QuestionBank", () => {
@@ -96,9 +125,13 @@ describe("QuestionBank", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Question bank" }),
     ).toBeInTheDocument();
+    expect(await screen.findByText("Explain Go channels.")).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith(path, expect.anything());
-    expect(screen.getByText("Explain Go channels.")).toBeInTheDocument();
-    expect(screen.getByText("2 questions")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Questions" })).getByText(
+        "2 questions",
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Edit question 1" }),
     ).toBeInTheDocument();
@@ -124,7 +157,10 @@ describe("QuestionBank", () => {
   });
 
   it("generates an empty bank once and shows the progress", async () => {
-    mocks.get.mockResolvedValue(envelope(bank({ questions: [] })));
+    // An empty bank is generated, not edited by hand.
+    mocks.get.mockResolvedValue(
+      envelope(bank({ questions: [], editable: false })),
+    );
     let resolve: (value: unknown) => void = () => {};
     mocks.post.mockReturnValue(new Promise((r) => (resolve = r)));
     mount();
@@ -134,7 +170,9 @@ describe("QuestionBank", () => {
     expect(
       await screen.findByRole("button", { name: "Generating questions…" }),
     ).toBeDisabled();
-    expect(mocks.post).toHaveBeenCalledWith(`${path}/generate`);
+    expect(mocks.post).toHaveBeenCalledWith(
+      `/job-postings/${postingId}/questions/generate`,
+    );
     resolve(envelope({ questions: [q1] }));
     expect(await screen.findByText("Explain Go channels.")).toBeInTheDocument();
     expect(
@@ -143,7 +181,9 @@ describe("QuestionBank", () => {
   });
 
   it("shows the server message when generation fails", async () => {
-    mocks.get.mockResolvedValue(envelope(bank({ questions: [] })));
+    mocks.get.mockResolvedValue(
+      envelope(bank({ questions: [], editable: false })),
+    );
     mocks.post.mockRejectedValue(
       failure(
         409,
@@ -159,7 +199,7 @@ describe("QuestionBank", () => {
       "confirm the job description requirements",
     );
     expect(
-      screen.getByRole("button", { name: "Generate questions" }),
+      screen.getByRole("button", { name: "Retry generating questions" }),
     ).toBeEnabled();
   });
 
@@ -172,7 +212,7 @@ describe("QuestionBank", () => {
       await screen.findByText(/automatic generation isn.t available/i),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Generate questions" }),
+      screen.queryByRole("button", { name: "Retry generating questions" }),
     ).not.toBeInTheDocument();
   });
 
@@ -199,7 +239,11 @@ describe("QuestionBank", () => {
     expect(
       await screen.findByText("What is a goroutine leak?"),
     ).toBeInTheDocument();
-    expect(screen.getByText("3 questions")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Questions" })).getByText(
+        "3 questions",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("uses the server limit for the length check", async () => {
@@ -357,5 +401,88 @@ describe("QuestionBank", () => {
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Explain Go channels.")).toBeInTheDocument();
+  });
+});
+
+describe("submission follows question review", () => {
+  it("refreshes into Resubmit when the Admin rejected the posting meanwhile", async () => {
+    mocks.get
+      .mockResolvedValueOnce(envelope(bank()))
+      .mockResolvedValue(envelope(bank({ posting_status: "rejected" })));
+    mocks.post.mockRejectedValue(
+      failure(
+        409,
+        "JOB_POSTING_NOT_PENDING",
+        "only a pending job posting can be submitted",
+      ),
+    );
+    mount();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Submit for approval" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Resubmit for approval" }),
+    ).toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+  });
+
+  it("submits a generated bank only after the recruiter clicks submit", async () => {
+    mocks.get.mockResolvedValue(envelope(bank()));
+    mocks.post.mockResolvedValue(
+      envelope({ ...posting, review_submitted: true }),
+    );
+    mount();
+    const send = await screen.findByRole("button", {
+      name: "Submit for approval",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+    fireEvent.click(send);
+    await waitFor(() =>
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/job-postings/${postingId}/submit`,
+      ),
+    );
+    expect(
+      await screen.findByText(/^Submitted for approval\./),
+    ).toBeInTheDocument();
+  });
+  it("blocks submission while a question draft is unsaved", async () => {
+    mocks.get.mockResolvedValue(envelope(bank()));
+    mount();
+    const send = await screen.findByRole("button", {
+      name: "Submit for approval",
+    });
+    fireEvent.change(
+      within(screen.getByRole("form", { name: "Add a question" })).getByRole(
+        "textbox",
+      ),
+      { target: { value: "Unsaved question" } },
+    );
+    await waitFor(() => expect(send).toBeDisabled());
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+  it("withdraws the submission when the last question is deleted", async () => {
+    mocks.get.mockResolvedValue(
+      envelope(bank({ questions: [q1], review_submitted: true })),
+    );
+    mocks.delete.mockResolvedValue({ status: 204 });
+    mount();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete question 1" }),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Delete question",
+      }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Submit for approval" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/needs at least one question before you can submit it/),
+    ).toBeInTheDocument();
+    expect(mocks.toast).toHaveBeenCalledWith("Question deleted", {
+      description: expect.stringMatching(/left the review queue/),
+    });
   });
 });

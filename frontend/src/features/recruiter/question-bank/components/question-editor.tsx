@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
@@ -24,6 +25,7 @@ export function QuestionEditor({
   pendingLabel,
   onSubmit,
   onCancel,
+  onDirtyChange,
 }: {
   id: string;
   label: string;
@@ -35,6 +37,7 @@ export function QuestionEditor({
   pendingLabel: string;
   onSubmit: (content: string) => Promise<boolean>;
   onCancel?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const {
     register,
@@ -47,6 +50,9 @@ export function QuestionEditor({
     defaultValues: { content: initial },
     mode: "onChange",
   });
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
   const content = useWatch({ control, name: "content" });
   const fieldError = errors.content?.message;
   const hintId = `${id}-hint`;
@@ -67,6 +73,7 @@ export function QuestionEditor({
       <Textarea
         id={id}
         rows={3}
+        className="bg-card"
         disabled={pending}
         aria-invalid={!!fieldError}
         aria-describedby={[hintId, fieldError ? errorId : ""]
@@ -78,9 +85,7 @@ export function QuestionEditor({
         id={hintId}
         className="flex justify-between gap-3 text-xs text-muted-foreground"
       >
-        <span>
-          Candidates never see this bank. It only guides the interviewer.
-        </span>
+        <span>Asked by the AI interviewer. Candidates never see the bank.</span>
         <span className="tabular-nums">
           {questionLength(content ?? "").toLocaleString("en")}/
           {maxLength.toLocaleString("en")}
@@ -99,7 +104,7 @@ export function QuestionEditor({
       <div className="flex flex-wrap gap-2">
         <Button
           type="submit"
-          className="h-11"
+          className="h-10 rounded-full px-5"
           disabled={pending || !isDirty || !isValid}
           aria-busy={pending}
         >
@@ -115,7 +120,7 @@ export function QuestionEditor({
           <Button
             type="button"
             variant="outline"
-            className="h-11"
+            className="h-10 rounded-full px-5"
             disabled={pending}
             onClick={onCancel}
           >

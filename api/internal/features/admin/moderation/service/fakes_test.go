@@ -59,7 +59,8 @@ func (f *fakeRepository) Decide(_ context.Context, _ uuid.UUID, status domain.Po
 	if f.posting == nil || f.posting.Status != domain.PostingStatusPending {
 		return domain.ErrNotPending
 	}
-	if status == domain.PostingStatusOpen && f.posting.CoreQuestionCount == 0 {
+	// Mirrors DecidePosting: only a submitted posting is decided, and approval needs a ready bank.
+	if !f.posting.ReviewSubmitted || (status == domain.PostingStatusOpen && f.posting.CoreQuestionCount == 0) {
 		return domain.ErrNotPending
 	}
 	f.decidedStatus, f.decidedReason = status, reason
@@ -129,7 +130,7 @@ func newObservedService(t *testing.T, repo Repository) (*Service, *observer.Obse
 
 // postingIn returns a posting with a non-empty question bank, so approval is allowed by default.
 func postingIn(status domain.PostingStatus) *fakeRepository {
-	return &fakeRepository{posting: &domain.ReviewPosting{ID: uuid.New(), Status: status, ContentPath: storedKey, CoreQuestionCount: 50}}
+	return &fakeRepository{posting: &domain.ReviewPosting{ID: uuid.New(), Status: status, ContentPath: storedKey, CoreQuestionCount: 50, ReviewSubmitted: true}}
 }
 
 func assertCode(t *testing.T, err error, code apperror.Code) {

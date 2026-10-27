@@ -61,7 +61,7 @@ func decodeChange[T any](data []byte, present *bool, value **T) error {
 }
 
 // Edit changes a pending or rejected posting. Title, seniority, avatar and voice may change but not
-// be cleared; the optional details may be cleared with null. Requirements, when present, replace
+// be cleared; the optional details and the refinement note may be cleared with null. Requirements, when present, replace
 // the list. Every field may be resent unchanged (so a client can submit the whole form): an
 // unchanged seniority or requirement list does not count as a change to the question bank's
 // inputs, and an unchanged voice is not a new voice selection. DocumentID (a newly uploaded JD PDF)
@@ -71,6 +71,7 @@ type Edit struct {
 	DocumentID        StringChange       `json:"document_id" swaggertype:"string"`
 	SeniorityLevel    StringChange       `json:"seniority_level" swaggertype:"string" enums:"intern,junior,mid,senior,lead"`
 	Requirements      RequirementsChange `json:"requirements" swaggertype:"array,object"`
+	RefinementNote    StringChange       `json:"refinement_note" swaggertype:"string" extensions:"x-nullable"`
 	Location          StringChange       `json:"location" swaggertype:"string" extensions:"x-nullable"`
 	EmploymentType    StringChange       `json:"employment_type" swaggertype:"string" extensions:"x-nullable"`
 	SalaryMin         Int32Change        `json:"salary_min" swaggertype:"integer" extensions:"x-nullable"`

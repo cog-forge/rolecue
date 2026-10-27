@@ -80,6 +80,8 @@ type ReviewPosting struct {
 	StoredText *string `json:"-"`
 	// CoreQuestionCount tells the Admin whether the posting can be approved (it needs at least one).
 	CoreQuestionCount int64 `json:"core_question_count"`
+	// ReviewSubmitted is false while the Recruiter is still preparing a pending posting.
+	ReviewSubmitted bool `json:"review_submitted"`
 	// WeightsConfigured is false when the Recruiter set no evaluation weights, so the posting will
 	// be scored with the default weights. It is informational and does not block approval.
 	WeightsConfigured bool `json:"weights_configured"`

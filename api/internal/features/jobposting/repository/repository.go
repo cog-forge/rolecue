@@ -37,7 +37,7 @@ func (r *Repository) Create(ctx context.Context, recruiterID uuid.UUID, input do
 		if err != nil {
 			return err
 		}
-		jdID, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: &input.ContentPath, RawText: &input.RawText, LevelID: levelID})
+		jdID, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: &input.ContentPath, RawText: &input.RawText, LevelID: levelID, RefinementNote: &input.RefinementNote})
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ func (r *Repository) Create(ctx context.Context, recruiterID uuid.UUID, input do
 		}
 		record = domain.Record{ContentPath: input.ContentPath, StoredText: &input.RawText, JobPosting: domain.JobPosting{
 			ID: row.ID, Title: input.Title, Status: domain.StatusPending, SeniorityLevel: input.SeniorityLevel,
-			Requirements: input.Requirements, Location: input.Location, EmploymentType: input.EmploymentType,
+			Requirements: input.Requirements, RefinementNote: input.RefinementNote, Location: input.Location, EmploymentType: input.EmploymentType,
 			SalaryMin: input.SalaryMin, SalaryMax: input.SalaryMax, InterviewDuration: input.InterviewDuration,
 			RequiredAvatar: &domain.Ref{ID: input.RequiredAvatarID, Name: avatar},
 			RequiredVoice:  &domain.Ref{ID: input.RequiredVoiceID, Name: voice}, CreatedAt: row.CreatedAt.Time,
@@ -89,7 +89,7 @@ func (r *Repository) List(ctx context.Context, recruiterID uuid.UUID, filter dom
 		out = append(out, domain.Summary{
 			ID: row.ID, Title: row.Title, Status: domain.Status(row.Status), RejectReason: row.RejectReason,
 			Location: row.Location, EmploymentType: row.EmploymentType, InterviewSlot: row.InterviewSlot,
-			CreatedAt: row.CreatedAt.Time,
+			CreatedAt: row.CreatedAt.Time, CoreQuestionCount: row.CoreQuestionCount, ReviewSubmitted: row.ReviewSubmitted,
 		})
 	}
 	return out, total, nil
@@ -106,7 +106,8 @@ func (r *Repository) Get(ctx context.Context, recruiterID, id uuid.UUID) (domain
 	}
 	record := domain.Record{ContentPath: storedPath(row.ContentPath), StoredText: row.RawText, JobPosting: domain.JobPosting{
 		ID: row.ID, Title: row.Title, Status: domain.Status(row.Status), RejectReason: row.RejectReason,
-		SeniorityLevel: domain.Level(row.LevelName), Location: row.Location, EmploymentType: row.EmploymentType,
+		SeniorityLevel: domain.Level(row.LevelName), RefinementNote: row.RefinementNote, ReviewSubmitted: row.ReviewSubmitted,
+		Location: row.Location, EmploymentType: row.EmploymentType,
 		SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax, InterviewDuration: row.InterviewDuration,
 		InterviewSlot: row.InterviewSlot, RequiredAvatar: namedRef(row.RequiredAvatarID, row.AvatarName),
 		RequiredVoice: namedRef(row.RequiredVoiceID, row.VoiceName), CoreQuestionCount: row.CoreQuestionCount,
@@ -150,7 +151,7 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 		if err := dropUnchangedBankInputs(ctx, q, current.JdID, &patch); err != nil {
 			return err
 		}
-		if patch.SeniorityLevel.Present || patch.Requirements.Present || document != nil {
+		if patch.SeniorityLevel.Present || patch.Requirements.Present || patch.RefinementNote.Present || document != nil {
 			if err := guardQuestionBank(ctx, q, current.JdID, status); err != nil {
 				return err
 			}
@@ -172,6 +173,11 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 				return err
 			}
 		}
+		if patch.RefinementNote.Present {
+			if err := q.UpdateJDRefinementNote(ctx, UpdateJDRefinementNoteParams{ID: current.JdID, RefinementNote: patch.RefinementNote.Value}); err != nil {
+				return err
+			}
+		}
 		if document != nil {
 			if err := q.UpdateJDDocument(ctx, UpdateJDDocumentParams{ID: current.JdID, ContentPath: &document.ContentPath, RawText: &document.RawText}); err != nil {
 				return err
@@ -182,32 +188,54 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 	return persistenceError(err)
 }
 
-// Resubmit sends a rejected posting back for Admin review. Repeating it on a posting that is
-// already pending changes nothing; any other status cannot be resubmitted.
+// Submit sends a prepared pending posting to the Admin queue. Resubmit does the same for a rejected
+// posting and clears the rejection reason. Both need a non-empty question bank; repeating either
+// once the posting is in the queue changes nothing.
+func (r *Repository) Submit(ctx context.Context, recruiterID, id uuid.UUID) error {
+	return r.submit(ctx, recruiterID, id, domain.StatusPending)
+}
+
 func (r *Repository) Resubmit(ctx context.Context, recruiterID, id uuid.UUID) error {
+	return r.submit(ctx, recruiterID, id, domain.StatusRejected)
+}
+
+// submit sends a posting that is in status from.
+func (r *Repository) submit(ctx context.Context, recruiterID, id uuid.UUID, from domain.Status) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
 		current, err := q.LockOwnedPosting(ctx, LockOwnedPostingParams{ID: id, RecruiterID: recruiterID})
 		if err != nil {
 			return err
 		}
-		switch domain.Status(current.Status) {
-		case domain.StatusPending:
+		status := domain.Status(current.Status)
+		switch {
+		case status != domain.StatusPending && status != domain.StatusRejected:
+			return domain.ErrNotEditable
+		case status == domain.StatusPending && current.ReviewSubmitted:
 			return nil
-		case domain.StatusRejected:
-			return q.ResubmitPosting(ctx, ResubmitPostingParams{ID: id, RecruiterID: recruiterID})
-		default:
+		case status == domain.StatusRejected && from == domain.StatusPending:
+			return domain.ErrResubmitRequired
+		case status == domain.StatusPending && from == domain.StatusRejected:
 			return domain.ErrNotRejected
 		}
+		count, err := q.CountCoreQuestions(ctx, current.JdID)
+		if err != nil {
+			return err
+		}
+		if count == 0 {
+			return domain.ErrBankNotReady
+		}
+		if _, _, err := checkReferences(ctx, q, recruiterID, &current.RequiredAvatarID, &current.RequiredVoiceID); err != nil {
+			return err
+		}
+		return q.SubmitPosting(ctx, SubmitPostingParams{ID: id, RecruiterID: recruiterID})
 	})
 	return persistenceError(err)
 }
 
 // guardQuestionBank keeps the bank from outliving the JD it was generated from. While pending, the
-// change is refused until the Recruiter deletes the questions. A rejected posting's bank cannot be
-// edited at all (the bank endpoints need a pending posting), so the outdated bank is cleared here,
-// in the same transaction; the Admin's non-empty-bank check then blocks approval until the
-// Recruiter regenerates it after resubmitting.
+// change is refused until the Recruiter deletes the questions. A rejected posting's bank is
+// cleared in the same transaction before reconfirmation when its inputs change.
 func guardQuestionBank(ctx context.Context, q *Queries, jdID uuid.UUID, status domain.Status) error {
 	count, err := q.CountCoreQuestions(ctx, jdID)
 	if err != nil || count == 0 {
@@ -219,9 +247,19 @@ func guardQuestionBank(ctx context.Context, q *Queries, jdID uuid.UUID, status d
 	return q.DeleteCoreQuestions(ctx, jdID)
 }
 
-// dropUnchangedBankInputs removes seniority and requirements from the patch when they equal the
-// stored values, so only real changes reach guardQuestionBank.
+// dropUnchangedBankInputs removes the refinement note, seniority and requirements from the patch
+// when they equal the stored values, so only real changes reach guardQuestionBank. validatePatch
+// has already turned a null note into "".
 func dropUnchangedBankInputs(ctx context.Context, q *Queries, jdID uuid.UUID, patch *domain.Edit) error {
+	if patch.RefinementNote.Present {
+		current, err := q.GetJDRefinementNote(ctx, jdID)
+		if err != nil {
+			return err
+		}
+		if *patch.RefinementNote.Value == current {
+			patch.RefinementNote = domain.StringChange{}
+		}
+	}
 	if patch.SeniorityLevel.Present {
 		level, err := q.GetJDLevelName(ctx, jdID)
 		if err != nil {

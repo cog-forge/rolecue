@@ -48,6 +48,7 @@ export const postingSchema = z.object({
   has_document: z.boolean(),
   seniority_level: levelSchema,
   requirements: z.array(requirementSchema),
+  refinement_note: z.string(),
   location: z.string().nullable(),
   employment_type: z.string().nullable(),
   salary_min: z.number().int().nullable(),
@@ -57,6 +58,8 @@ export const postingSchema = z.object({
   required_avatar: refSchema.nullable(),
   required_voice: refSchema.nullable(),
   core_question_count: z.number().int().nonnegative(),
+  // False while a pending posting is still being prepared and not yet in the Admin queue.
+  review_submitted: z.boolean(),
   created_at: z.iso.datetime({ offset: true }),
 });
 export type JobPosting = z.infer<typeof postingSchema>;
@@ -69,6 +72,8 @@ export const summarySchema = z.object({
   location: z.string().nullable(),
   employment_type: z.string().nullable(),
   interview_slot: z.number().int().nullable(),
+  core_question_count: z.number().int().nonnegative(),
+  review_submitted: z.boolean(),
   created_at: z.iso.datetime({ offset: true }),
 });
 export type PostingSummary = z.infer<typeof summarySchema>;
@@ -135,6 +140,7 @@ export const TITLE_MAX = 200;
 export const DETAIL_MAX = 200;
 export const NAME_MAX = 200;
 export const REQUIREMENTS_MAX = 100;
+export const REFINEMENT_NOTE_MAX = 2_000;
 const INT32_MAX = 2_147_483_647;
 
 export const runeLength = (value: string) => Array.from(value).length;
@@ -206,6 +212,12 @@ export const postingFormSchema = z
         REQUIREMENTS_MAX,
         `Keep to ${REQUIREMENTS_MAX} requirements or fewer.`,
       ),
+    refinement_note: z
+      .string()
+      .refine(
+        (value) => trimmedLength(value) <= REFINEMENT_NOTE_MAX,
+        `Keep the refinement note to ${REFINEMENT_NOTE_MAX} characters or fewer.`,
+      ),
     confirmed: z.boolean(),
     location: optionalDetail("location"),
     employment_type: optionalDetail("employment type"),
@@ -262,6 +274,7 @@ export const emptyPostingValues: PostingValues = {
   title: "",
   seniority_level: "",
   requirements: [],
+  refinement_note: "",
   confirmed: false,
   location: "",
   employment_type: "",
@@ -283,6 +296,7 @@ export function postingValues(posting: JobPosting): PostingValues {
     title: posting.title,
     seniority_level: posting.seniority_level,
     requirements: posting.requirements.map((row) => ({ ...row })),
+    refinement_note: posting.refinement_note,
     // Asked again only if the Recruiter changes the seniority or requirements.
     confirmed: false,
     location: posting.location ?? "",
@@ -313,6 +327,7 @@ export function createBody(values: PostingValues) {
     // Validation already rejected a blank seniority; parsing narrows the type without a cast.
     seniority_level: levelSchema.parse(values.seniority_level),
     requirements: requirementRows(values.requirements),
+    refinement_note: values.refinement_note.trim(),
     location: detail(values.location),
     employment_type: detail(values.employment_type),
     salary_min: whole(values.salary_min),
@@ -349,6 +364,8 @@ export function postingPatch(
     patch.seniority_level = next.seniority_level;
   if (!sameRequirements(next.requirements, posting.requirements))
     patch.requirements = next.requirements;
+  if (next.refinement_note !== posting.refinement_note)
+    patch.refinement_note = next.refinement_note;
   if (next.location !== posting.location) patch.location = next.location;
   if (next.employment_type !== posting.employment_type)
     patch.employment_type = next.employment_type;

@@ -66,6 +66,7 @@ export const reviewPostingEnvelopeSchema = z.object({
     document_expires_at: z.iso.datetime({ offset: true }).nullable(),
     // The JD text; null when content_path is a URL or the stored JD is missing.
     raw_text: z.string().nullable(),
+    review_submitted: z.boolean(),
     core_question_count: z.number().int().nonnegative(),
   }),
 });

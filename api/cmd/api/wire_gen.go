@@ -8,7 +8,7 @@ package main
 
 import (
 	"github.com/cog-forge/rolecue/api/internal/config"
-	applicationservice "github.com/cog-forge/rolecue/api/internal/features/application/service"
+	service2 "github.com/cog-forge/rolecue/api/internal/features/application/service"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
@@ -73,7 +73,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	client := provider.ProvidePayOSClient(config)
 	service2 := provider.ProvideWalletService(repository3, client)
 	walletHandler := provider.ProvideWalletHandler(service2)
-	questionBankHandler := provider.ProvideQuestionBankHandler(service)
+	questionBankHandler := provider.ProvideQuestionBankHandler(config, service)
 	repository4 := provider.ProvideModerationRepository(pool)
 	service3, err := provider.ProvideModerationService(repository4, store, logger)
 	if err != nil {
@@ -177,16 +177,17 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	}
 	interviewRecordingHandler := provider.ProvideInterviewRecordingHandler(recordingService)
 	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler)
-	expiryRunner, err := provider.ProvideApplicationExpiryRunner(service10)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, interviewHandlers)
+	server := provider.ProvideHTTPServer(config, engine, logger)
+	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, interviewHandlers)
-	server := provider.ProvideHTTPServer(config, engine, logger)
-	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
+	expiryRunner, err := provider.ProvideApplicationExpiryRunner(service10)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -219,5 +220,5 @@ type Application struct {
 	Storage   storage.Store
 	Documents *service.RoleProfileDocumentApplication
 	// Expiry rejects Applications whose interview deadline passed; main starts it.
-	Expiry *applicationservice.ExpiryRunner
+	Expiry *service2.ExpiryRunner
 }

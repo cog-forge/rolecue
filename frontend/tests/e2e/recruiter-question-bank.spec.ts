@@ -14,9 +14,29 @@ const recruiter = {
 const postingId = "33333333-3333-4333-8333-333333333333";
 const bankPath = `/job-postings/${postingId}/questions`;
 
-async function mockBank(page: Page, options: { editable?: boolean } = {}) {
+async function mockBank(
+  page: Page,
+  options: {
+    editable?: boolean;
+    empty?: boolean;
+    failGenerationOnce?: boolean;
+  } = {},
+) {
   const editable = options.editable ?? true;
-  let questions: { id: string; content: string }[] = [];
+  let questions: { id: string; content: string }[] = options.empty
+    ? []
+    : [
+        {
+          id: "44444444-4444-4444-8444-444444444401",
+          content: "Explain Go channels.",
+        },
+        {
+          id: "44444444-4444-4444-8444-444444444402",
+          content: "How do you index a table?",
+        },
+      ];
+  let submitted = false;
+  let generationAttempts = 0;
   let next = 1;
   const bodies: unknown[] = [];
   const id = () =>
@@ -24,9 +44,33 @@ async function mockBank(page: Page, options: { editable?: boolean } = {}) {
   const bank = () => ({
     questions,
     posting_status: editable ? "pending" : "open",
-    editable,
+    // Like the server: an empty bank is generated, not edited.
+    editable: editable && questions.length > 0,
     max_question_length: 1000,
     generation_size: 2,
+    review_submitted: submitted,
+  });
+  const posting = () => ({
+    id: postingId,
+    title: "Backend Engineer",
+    status: editable ? "pending" : "open",
+    reject_reason: null,
+    raw_text: "Technical backend role",
+    has_document: true,
+    seniority_level: "senior",
+    requirements: [],
+    refinement_note: "",
+    review_submitted: submitted,
+    location: null,
+    employment_type: null,
+    salary_min: null,
+    salary_max: null,
+    interview_duration: null,
+    interview_slot: null,
+    required_avatar: null,
+    required_voice: null,
+    core_question_count: questions.length,
+    created_at: "2026-10-12T08:00:00Z",
   });
   await page.route("http://localhost:8080/**", async (route) => {
     const url = new URL(route.request().url());
@@ -45,7 +89,30 @@ async function mockBank(page: Page, options: { editable?: boolean } = {}) {
       });
     if (url.pathname === bankPath && method === "GET")
       return route.fulfill({ headers, json: { success: true, data: bank() } });
+    if (
+      url.pathname === `/job-postings/${postingId}/submit` &&
+      method === "POST"
+    ) {
+      submitted = true;
+      return route.fulfill({
+        headers,
+        json: { success: true, data: posting() },
+      });
+    }
     if (url.pathname === `${bankPath}/generate` && method === "POST") {
+      generationAttempts++;
+      if (options.failGenerationOnce && generationAttempts === 1)
+        return route.fulfill({
+          status: 502,
+          headers,
+          json: {
+            success: false,
+            error: {
+              code: "QUESTION_GENERATION_FAILED",
+              message: "Generation failed. Please retry.",
+            },
+          },
+        });
       questions = [
         { id: id(), content: "Explain Go channels." },
         { id: id(), content: "How do you index a table?" },
@@ -70,6 +137,7 @@ async function mockBank(page: Page, options: { editable?: boolean } = {}) {
     const match = url.pathname.match(new RegExp(`^${bankPath}/(.+)$`));
     if (match && method === "DELETE") {
       questions = questions.filter((q) => q.id !== match[1]);
+      if (questions.length === 0) submitted = false;
       return route.fulfill({ status: 204, headers });
     }
     return route.fulfill({
@@ -84,25 +152,36 @@ async function mockBank(page: Page, options: { editable?: boolean } = {}) {
   return { bodies };
 }
 
-test("recruiter generates the bank, adds and deletes a question", async ({
+test("recruiter reviews generated questions, edits and explicitly submits", async ({
   page,
 }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.stack ?? error.message));
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const api = await mockBank(page);
   await page.goto(`/recruiter/job-postings/${postingId}/questions`);
 
   await expect(
     page.getByRole("heading", { level: 1, name: "Question bank" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Generate questions" }).click();
   await expect(
     page.getByText("Explain Go channels.", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("2 questions", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Questions" })
+      .getByText("2 questions", { exact: true }),
+  ).toBeVisible();
 
   const form = page.getByRole("form", { name: "Add a question" });
   await form.getByLabel("Add a question").fill("What is a goroutine leak?");
+  await expect(
+    page.getByRole("button", { name: "Submit for approval" }),
+  ).toBeDisabled();
   await form.getByRole("button", { name: "Add question" }).click();
-  await expect(page.getByText("3 questions")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Questions" }).getByText("3 questions"),
+  ).toBeVisible();
   expect(api.bodies).toEqual([{ content: "What is a goroutine leak?" }]);
 
   await page.getByRole("button", { name: "Delete question 1" }).click();
@@ -113,7 +192,18 @@ test("recruiter generates the bank, adds and deletes a question", async ({
   await expect(
     page.getByText("Explain Go channels.", { exact: true }),
   ).toBeHidden();
-  await expect(page.getByText("2 questions", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Questions" })
+      .getByText("2 questions", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Submit for approval" }).click();
+  await expect(page.getByText("Submitted for approval.")).toBeVisible();
+  expect(errors).toEqual([]);
+  await page.screenshot({
+    path: "test-results/recruiter-question-bank-desktop.png",
+    fullPage: true,
+  });
 });
 
 test("a posting that left review shows a read-only bank", async ({ page }) => {
@@ -125,4 +215,39 @@ test("a posting that left review shows a read-only bank", async ({ page }) => {
   await expect(page.getByRole("form", { name: "Add a question" })).toHaveCount(
     0,
   );
+});
+
+test("empty bank blocks submission and generation can be retried on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 780 });
+  await mockBank(page, { empty: true, failGenerationOnce: true });
+  await page.goto(`/recruiter/job-postings/${postingId}/questions`);
+  await expect(
+    page.getByRole("button", { name: "Submit for approval" }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Generate questions" }).click();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Generation failed. Please retry." }),
+  ).toContainText("Generation failed. Please retry.");
+  await page
+    .getByRole("button", { name: "Retry generating questions" })
+    .click();
+  await expect(
+    page.getByText("Explain Go channels.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Submit for approval" }),
+  ).toBeEnabled();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/recruiter-question-bank-mobile.png",
+    fullPage: true,
+  });
 });
