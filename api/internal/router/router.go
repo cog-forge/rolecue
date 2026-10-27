@@ -223,5 +223,9 @@ func (r *Router) Setup() *gin.Engine {
 	admin.GET("/voices/:id", r.voiceCatalogHandler.Get)
 	admin.DELETE("/voices/:id", r.voiceCatalogHandler.Remove)
 	admin.PATCH("/voices/:id/activate", r.voiceCatalogHandler.Activate)
+	admin.GET("/billing/summary", r.walletHandler.AdminGetBillingSummary)
+	admin.GET("/billing/transactions", r.walletHandler.AdminListBillingTransactions)
+	admin.GET("/billing/transactions/:id", r.walletHandler.AdminGetBillingTransaction)
+	admin.GET("/billing/export", r.walletHandler.AdminExportBillingCSV)
 	return router
 }
