@@ -268,4 +268,62 @@ describe("ApplicationDetail", () => {
       await screen.findByRole("heading", { level: 1, name: "Linh Tran" }),
     ).toBeInTheDocument();
   });
+
+  it("shows an eligible Application past its deadline as rejected, with no decision", async () => {
+    mocks.get.mockResolvedValue(
+      ok(
+        detail({
+          status: "interview_eligible",
+          interview_eligible: false,
+          interview_deadline: "2026-10-19T08:30:00Z",
+        }),
+      ),
+    );
+    mount();
+    await screen.findByRole("heading", { level: 1, name: "Linh Tran" });
+    expect(screen.getByText("Rejected")).toBeInTheDocument();
+    expect(screen.queryByText("Interview eligible")).not.toBeInTheDocument();
+    expect(screen.getByText("Interview deadline passed")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reject CV" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve application" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the interview result and a locked final decision for an interviewed Application", async () => {
+    mocks.get.mockResolvedValue(
+      ok(
+        detail({
+          status: "interviewed",
+          interview: {
+            id: "66666666-6666-4666-8666-666666666666",
+            started_at: "2026-10-20T08:00:00Z",
+            completed_at: "2026-10-20T08:30:00Z",
+            status: "completed",
+            score: 82,
+            record_status: "none",
+          },
+          final_review: { opens_at: "2099-01-01T08:00:00Z", can_decide: false },
+        }),
+      ),
+    );
+    mount();
+    await screen.findByRole("heading", { level: 1, name: "Linh Tran" });
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Interview" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("82/100")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Final decision" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Approve application" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Reject application" }),
+    ).toBeDisabled();
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+  });
 });

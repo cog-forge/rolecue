@@ -25,7 +25,7 @@ const rowSchema = z.object({
 });
 
 const detailSchema = rowSchema.extend({
-  role_profile: z.object({ id: z.uuid(), title: z.string() }),
+  role_profile: z.object({ id: z.uuid(), title: z.string() }).nullable(),
   application_id: z.uuid().nullable(),
   avatar: z.object({ id: z.uuid(), name: z.string() }).nullable(),
   voice: z.object({ id: z.uuid(), name: z.string() }).nullable(),

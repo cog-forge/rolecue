@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/provider"
 )
 
 // @title AI Interview Practice API
@@ -46,6 +47,7 @@ func run(configPath string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	provider.StartApplicationExpiryRunner(ctx, app.Expiry)
 	return serve(ctx, app.Server, app.Config.Server.ShutdownTimeout)
 }
 

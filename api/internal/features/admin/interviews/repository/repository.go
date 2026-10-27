@@ -82,7 +82,7 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.InterviewDet
 			HasReport:    row.HasReport,
 			HasRecording: row.HasRecording,
 		},
-		RoleProfile:   domain.RoleProfileRef{ID: row.RoleProfileID, Title: row.RoleProfileTitle},
+		RoleProfile:   roleProfileRef(row.RoleProfileID, row.RoleProfileTitle),
 		ApplicationID: row.ApplicationID,
 		Avatar:        namedRef(row.AvatarID, row.AvatarName),
 		Voice:         namedRef(row.VoiceID, row.VoiceName),
@@ -124,4 +124,12 @@ func persistenceError(err error) error {
 		return err
 	}
 	return apperror.Wrap(apperror.CodeInternal, "admin interview persistence failed", err)
+}
+
+// roleProfileRef is nil for a recruitment session, which runs against a posting and not a Role Profile.
+func roleProfileRef(id *uuid.UUID, title *string) *domain.RoleProfileRef {
+	if id == nil || title == nil {
+		return nil
+	}
+	return &domain.RoleProfileRef{ID: *id, Title: *title}
 }

@@ -81,10 +81,10 @@ type RoleProfileRef struct {
 // recording path, audio, video, transcript, answer or feedback text.
 type InterviewDetail struct {
 	InterviewRow
-	RoleProfile   RoleProfileRef `json:"role_profile"`
-	ApplicationID *uuid.UUID     `json:"application_id"`
-	Avatar        *AssetRef      `json:"avatar"`
-	Voice         *AssetRef      `json:"voice"`
-	QuestionCount int64          `json:"question_count"`
-	TurnCount     int64          `json:"turn_count"`
+	RoleProfile   *RoleProfileRef `json:"role_profile"`
+	ApplicationID *uuid.UUID      `json:"application_id"`
+	Avatar        *AssetRef       `json:"avatar"`
+	Voice         *AssetRef       `json:"voice"`
+	QuestionCount int64           `json:"question_count"`
+	TurnCount     int64           `json:"turn_count"`
 }

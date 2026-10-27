@@ -233,7 +233,8 @@ func TestApplicationDetailJSONHasTheDocumentedKeysOnly(t *testing.T) {
 	}
 	assertKeys(t, "detail", body,
 		"id", "job_posting_id", "job_posting_title", "status", "submitted_at", "candidate",
-		"interview_eligible", "interview_deadline", "reject_reason", "updated_at", "job_posting", "cv")
+		"interview_eligible", "interview_deadline", "reject_reason", "updated_at", "job_posting", "cv",
+		"interview", "final_review")
 
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(body, &fields); err != nil {

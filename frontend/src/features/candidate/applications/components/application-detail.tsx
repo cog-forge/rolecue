@@ -168,6 +168,11 @@ function ApplicationContent({
                 <time dateTime={deadline}>{formatDeadline(deadline)}</time>
               </Fact>
             )}
+            {application.interview && (
+              <Fact label="Interview result">
+                {interviewResultText(application.interview)}
+              </Fact>
+            )}
             {application.can_start_interview && deadline && (
               <Fact label="Time left">
                 <span className="tabular-nums">
@@ -233,6 +238,17 @@ function StatusMessage({
       {status === "rejected" && reason && <Note>Reason: {reason}</Note>}
     </div>
   );
+}
+
+// Status and score only: the transcript and recording are never shown to the Candidate.
+function interviewResultText(
+  interview: NonNullable<CandidateApplication["interview"]>,
+): string {
+  if (interview.status === "completed" && interview.score !== null)
+    return `${interview.score} / 100`;
+  if (interview.status === "failed") return "Not available";
+  if (interview.status === "pending") return "Being evaluated";
+  return "In progress";
 }
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {

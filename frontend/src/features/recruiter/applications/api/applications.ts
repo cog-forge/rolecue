@@ -5,6 +5,11 @@ import {
 } from "../schemas/application-detail-schema";
 import { applicationPageEnvelopeSchema } from "../schemas/application-schema";
 import {
+  interviewReportEnvelopeSchema,
+  recordingEnvelopeSchema,
+  transcriptEnvelopeSchema,
+} from "../schemas/interview-evidence-schema";
+import {
   applicationApiParams,
   type ApplicationFilters,
 } from "../utils/application-filters";
@@ -19,6 +24,22 @@ export const applicationKeys = {
     [
       ...applicationKeys.all(userId),
       "detail",
+      postingId,
+      applicationId,
+    ] as const,
+  report: (userId: string, interviewId: string) =>
+    [...applicationKeys.all(userId), "report", interviewId] as const,
+  recording: (userId: string, postingId: string, applicationId: string) =>
+    [
+      ...applicationKeys.all(userId),
+      "recording",
+      postingId,
+      applicationId,
+    ] as const,
+  transcript: (userId: string, postingId: string, applicationId: string) =>
+    [
+      ...applicationKeys.all(userId),
+      "transcript",
       postingId,
       applicationId,
     ] as const,
@@ -85,4 +106,56 @@ export async function rejectApplicationCv(
     body,
   );
   return screeningEnvelopeSchema.parse(response.data).data;
+}
+
+// The evaluation of an interview, read on demand by the owning Recruiter.
+export async function getInterviewReport(
+  interviewId: string,
+  signal?: AbortSignal,
+) {
+  const response = await apiClient.get<unknown>(
+    `/interviews/${encodeURIComponent(interviewId)}/report`,
+    { signal },
+  );
+  return interviewReportEnvelopeSchema.parse(response.data).data;
+}
+
+export async function getApplicationRecording(
+  postingId: string,
+  applicationId: string,
+  signal?: AbortSignal,
+) {
+  const response = await apiClient.get<unknown>(
+    `${applicationPath(postingId, applicationId)}/recording`,
+    { signal },
+  );
+  return recordingEnvelopeSchema.parse(response.data).data;
+}
+
+export async function getApplicationTranscript(
+  postingId: string,
+  applicationId: string,
+  signal?: AbortSignal,
+) {
+  const response = await apiClient.get<unknown>(
+    `${applicationPath(postingId, applicationId)}/transcript`,
+    { signal },
+  );
+  return transcriptEnvelopeSchema.parse(response.data).data;
+}
+
+// The final decision. Only the fields the Go DTO accepts are sent; the reason is sent only when given.
+// The response is the updated Application Detail.
+export async function decideApplication(
+  postingId: string,
+  applicationId: string,
+  decision: "approve" | "reject",
+  reason?: string,
+) {
+  const body = reason ? { decision, reason } : { decision };
+  const response = await apiClient.post<unknown>(
+    `${applicationPath(postingId, applicationId)}/decision`,
+    body,
+  );
+  return applicationDetailEnvelopeSchema.parse(response.data).data;
 }

@@ -11,6 +11,11 @@ const messages: Record<string, string> = {
     "Interview capacity is not funded for this posting.",
   APPLICATION_NOT_FOUND: "This application could not be found.",
   JOB_POSTING_NOT_FOUND: "This job posting could not be found.",
+  APPLICATION_NOT_INTERVIEWED:
+    "This application is not waiting for a final decision. Refresh to see its current status.",
+  FINAL_REVIEW_LOCKED: "Final decisions are not open yet.",
+  INTERVIEW_NOT_COMPLETED:
+    "The transcript is available once the interview is completed.",
 };
 
 const defaultFallback = "Something went wrong. Try again.";
