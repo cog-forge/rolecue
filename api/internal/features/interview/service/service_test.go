@@ -35,6 +35,10 @@ type fakeRepository struct {
 	completeFirst   bool // the repository claimed the evaluation
 	completeErr     error
 	completeCalls   int
+
+	// failed receives each interview the service marks failed, so a test waits for the background
+	// goroutine without sleeping.
+	failed chan uuid.UUID
 }
 
 func (r *fakeRepository) Create(_ context.Context, params domain.CreateParams) (domain.Session, bool, error) {
@@ -59,6 +63,13 @@ func (r *fakeRepository) Complete(_ context.Context, _, _ uuid.UUID) (domain.Ses
 	return r.completeSession, r.completeFirst, r.completeErr
 }
 
+func (r *fakeRepository) MarkEvaluationFailed(_ context.Context, id uuid.UUID) error {
+	if r.failed != nil {
+		r.failed <- id
+	}
+	return nil
+}
+
 // fakeEvaluator reports each call on a channel, so a test waits for the background goroutine without
 // sleeping.
 type fakeEvaluator struct {
@@ -72,6 +83,13 @@ func newFakeEvaluator() *fakeEvaluator {
 func (e *fakeEvaluator) Evaluate(_ context.Context, interviewID uuid.UUID) error {
 	e.calls <- interviewID
 	return nil
+}
+
+// panickingEvaluator panics like a scorer bug outside the scorer's own recover would.
+type panickingEvaluator struct{}
+
+func (panickingEvaluator) Evaluate(context.Context, uuid.UUID) error {
+	panic("evaluation blew up")
 }
 
 var (
@@ -419,5 +437,23 @@ func TestCompletePassesRepositoryErrorsThrough(t *testing.T) {
 	assertCode(t, err, apperror.CodeInterviewNotFound)
 	if len(evaluator.calls) != 0 {
 		t.Fatal("evaluator started after a failed completion")
+	}
+}
+
+func TestCompleteMarksAPanickingEvaluationFailed(t *testing.T) {
+	repo := &fakeRepository{completeSession: practiceSession(), completeFirst: true, failed: make(chan uuid.UUID, 1)}
+	svc := newTestService(t, repo, Settings{})
+	svc.SetEvaluator(panickingEvaluator{})
+
+	if _, err := svc.Complete(context.Background(), candidateID, "candidate", sessionID); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	select {
+	case got := <-repo.failed:
+		if got != sessionID {
+			t.Fatalf("marked %s failed, want %s", got, sessionID)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a panicking evaluation was not marked failed")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -431,5 +432,66 @@ func waitForEvaluation(t *testing.T, evaluator *countingEvaluator) {
 	case <-evaluator.done:
 	case <-time.After(10 * time.Second):
 		t.Fatal("the evaluation was not started")
+	}
+}
+
+// panickingEvaluator panics on its first call, like a bug in the evaluation outside the scorer's own
+// recover, and then reports each later call on retried.
+type panickingEvaluator struct {
+	calls   atomic.Int32
+	retried chan uuid.UUID
+}
+
+func (e *panickingEvaluator) Evaluate(_ context.Context, interviewID uuid.UUID) error {
+	if e.calls.Add(1) == 1 {
+		panic("evaluation blew up")
+	}
+	e.retried <- interviewID
+	return nil
+}
+
+// evaluationStatusOf reads the stored evaluation status of a session.
+func (s *seed) evaluationStatusOf(interviewID uuid.UUID) string {
+	s.t.Helper()
+	var status string
+	if err := s.pool.QueryRow(s.ctx, `SELECT evaluation_status FROM public.interviews WHERE id = $1`, interviewID).Scan(&status); err != nil {
+		s.t.Fatal(err)
+	}
+	return status
+}
+
+// TestPanickingEvaluationEndsFailedAndIsRetried proves a panic in the background evaluation does not take
+// the process down: the session ends failed instead of pending, so the next Complete claims and retries it.
+func TestPanickingEvaluationEndsFailedAndIsRetried(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool, 3)
+	evaluator := &panickingEvaluator{retried: make(chan uuid.UUID, 1)}
+	svc.SetEvaluator(evaluator)
+	candidate := s.user("candidate")
+	s.wallet(candidate, 20)
+	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
+
+	if _, err := svc.Complete(ctx, candidate, "candidate", started.ID); err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for s.evaluationStatusOf(started.ID) != string(domain.EvaluationFailed) {
+		if time.Now().After(deadline) {
+			t.Fatalf("evaluation status = %s after a panic, want failed", s.evaluationStatusOf(started.ID))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if _, err := svc.Complete(ctx, candidate, "candidate", started.ID); err != nil {
+		t.Fatalf("repeat Complete() error = %v", err)
+	}
+	select {
+	case id := <-evaluator.retried:
+		if id != started.ID {
+			t.Fatalf("retried %s, want %s", id, started.ID)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the failed evaluation was not retried by a repeat Complete")
 	}
 }

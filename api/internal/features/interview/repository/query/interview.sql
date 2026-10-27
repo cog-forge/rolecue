@@ -164,3 +164,12 @@ WHERE id = @id
        OR (evaluation_status = 'pending'
            AND (evaluation_claimed_at IS NULL
                 OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8))));
+
+-- Ends an evaluation whose run panicked, so the next Complete claims and retries it instead of waiting
+-- for the claim to go stale. It is the same guard as MarkInterviewEvaluationFailed in the evaluation
+-- feature (interview_evaluation.sql), copied here so this feature does not import it: a completed
+-- evaluation is never turned back into a failed one.
+-- name: MarkEvaluationFailed :exec
+UPDATE public.interviews
+SET evaluation_status = 'failed'
+WHERE id = @id AND evaluation_status <> 'completed';

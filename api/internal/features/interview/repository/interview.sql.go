@@ -506,6 +506,21 @@ func (q *Queries) MarkApplicationInterviewed(ctx context.Context, id uuid.UUID) 
 	return err
 }
 
+const markEvaluationFailed = `-- name: MarkEvaluationFailed :exec
+UPDATE public.interviews
+SET evaluation_status = 'failed'
+WHERE id = $1 AND evaluation_status <> 'completed'
+`
+
+// Ends an evaluation whose run panicked, so the next Complete claims and retries it instead of waiting
+// for the claim to go stale. It is the same guard as MarkInterviewEvaluationFailed in the evaluation
+// feature (interview_evaluation.sql), copied here so this feature does not import it: a completed
+// evaluation is never turned back into a failed one.
+func (q *Queries) MarkEvaluationFailed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markEvaluationFailed, id)
+	return err
+}
+
 const setInterviewCompleted = `-- name: SetInterviewCompleted :exec
 UPDATE public.interviews
 SET completed_at = statement_timestamp()
