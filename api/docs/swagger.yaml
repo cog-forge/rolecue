@@ -1483,9 +1483,24 @@ definitions:
     - Tool
     - Technology
     - Other
+  domain.SlotPurchase:
+    properties:
+      available:
+        type: integer
+      balance:
+        type: integer
+      capacity:
+        type: integer
+      is_full:
+        type: boolean
+      used:
+        type: integer
+    type: object
   domain.SlotPurchaseRequest:
     properties:
       amount:
+        maximum: 10
+        minimum: 1
         type: integer
     type: object
   domain.Status:
@@ -4066,9 +4081,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: Spends coins for the requested number of slots.
+      description: Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each. The
+        balance check, the coin debit, its ledger row and the capacity increase commit
+        together. Returns the GET /inventory summary after the purchase plus balance,
+        the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR
+        (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE
+        (422) and changes nothing.
       parameters:
-      - description: Number of slots to purchase
+      - description: Number of slots to purchase, 1 to 10
         in: body
         name: request
         required: true
@@ -4077,8 +4097,15 @@ paths:
       produces:
       - application/json
       responses:
-        "204":
-          description: Success
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.SlotPurchase'
+              type: object
         "400":
           description: Bad Request
           schema:
@@ -4089,10 +4116,6 @@ paths:
             $ref: '#/definitions/response.Envelope'
         "403":
           description: Forbidden
-          schema:
-            $ref: '#/definitions/response.Envelope'
-        "409":
-          description: Conflict
           schema:
             $ref: '#/definitions/response.Envelope'
         "422":
