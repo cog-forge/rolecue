@@ -71,12 +71,13 @@ func TestRecruitmentCreateForEligibleApplication(t *testing.T) {
 	if got.Turns != nil {
 		t.Fatalf("recruitment session Turns = %v, want nil", *got.Turns)
 	}
-	if got.CurrentQuestion.Content != s.contentOf(bank[0]) {
-		t.Fatalf("current question = %q, want the first bank question of the posting", got.CurrentQuestion.Content)
-	}
 	snap := s.snapshot(got.ID)
-	if len(snap) != 3 || snap[0] != bank[0] || snap[1] != bank[1] || snap[2] != bank[2] {
-		t.Fatalf("snapshot = %v, want the first 3 bank questions of the posting", snap)
+	if len(snap) != 3 {
+		t.Fatalf("snapshot = %v, want 3 bank questions of the posting", snap)
+	}
+	assertSampleOf(t, snap, bank)
+	if got.CurrentQuestion.Content != s.contentOf(snap[0]) {
+		t.Fatalf("current question = %q, want the first stored question of the posting", got.CurrentQuestion.Content)
 	}
 	if b := s.balance(candidate); b != 10 {
 		t.Fatalf("candidate balance = %d, want 10: a recruitment session is free", b)
@@ -441,12 +442,13 @@ func TestRecruitmentSessionJSONIsRedacted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range bank[1:] {
-		if content := s.contentOf(id); strings.Contains(string(raw), content) {
+	current := s.snapshot(got.ID)[0]
+	for _, id := range bank {
+		if content := s.contentOf(id); id != current && strings.Contains(string(raw), content) {
 			t.Fatalf("recruitment session JSON leaks a bank question that is not current: %q", content)
 		}
 	}
-	if !strings.Contains(string(raw), s.contentOf(bank[0])) {
+	if !strings.Contains(string(raw), s.contentOf(current)) {
 		t.Fatal("recruitment session JSON does not show the current question")
 	}
 }

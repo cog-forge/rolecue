@@ -198,6 +198,15 @@ func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (d
 	return session, startEvaluation, nil
 }
 
+// MarkEvaluationFailed sets the evaluation status to failed unless it is already completed. The service
+// calls it when an evaluation run panicked.
+func (r *Repository) MarkEvaluationFailed(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.MarkEvaluationFailed(ctx, id); err != nil {
+		return internal(err)
+	}
+	return nil
+}
+
 // startPracticeOnce is startPractice behind two guards: an idempotency key that already created a session
 // and an unfinished session for the same role profile both return that session, with created false, and
 // charge nothing.

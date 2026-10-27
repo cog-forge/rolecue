@@ -22,9 +22,8 @@ type fakeRepository struct {
 	avatars        []domain.Avatar
 	total          int64
 	avatar         domain.StoredAvatar
-	wallet         *domain.Wallet
+	purchase       domain.SlotPurchase
 	purchaseOwner  uuid.UUID
-	purchaseWallet domain.Wallet
 	purchaseAmount int32
 	err            error
 }
@@ -49,15 +48,10 @@ func (r *fakeRepository) Delete(_ context.Context, owner, id uuid.UUID) error {
 	r.owner, r.id = owner, id
 	return r.err
 }
-func (r *fakeRepository) GetWallet(_ context.Context, owner uuid.UUID) (*domain.Wallet, error) {
+func (r *fakeRepository) PurchaseSlot(_ context.Context, owner uuid.UUID, amount int32) (domain.SlotPurchase, error) {
 	r.calls++
-	r.owner = owner
-	return r.wallet, r.err
-}
-func (r *fakeRepository) PurchaseSlot(_ context.Context, owner uuid.UUID, wallet domain.Wallet, amount int32) error {
-	r.calls++
-	r.purchaseOwner, r.purchaseWallet, r.purchaseAmount = owner, wallet, amount
-	return r.err
+	r.owner, r.purchaseOwner, r.purchaseAmount = owner, owner, amount
+	return r.purchase, r.err
 }
 
 type fakeSigner struct {
@@ -107,6 +101,10 @@ func TestServiceAuthorization(t *testing.T) {
 			return err
 		}},
 		{"delete", func(s *Service, u authdomain.User) error { return s.Delete(context.Background(), u, uuid.New()) }},
+		{"purchase", func(s *Service, u authdomain.User) error {
+			_, err := s.PurchaseSlot(context.Background(), u, 1)
+			return err
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -270,59 +268,49 @@ func TestServiceDeleteOwnedAvatar(t *testing.T) {
 }
 
 func TestServicePurchaseSlot(t *testing.T) {
-	user := inventoryUser()
-	wallet := domain.Wallet{ID: uuid.New(), Balance: domain.PricePerSlot * 3}
-	repo := &fakeRepository{wallet: &wallet}
-	amount := int32(2)
+	for _, amount := range []int32{1, domain.MaxSlotsPerPurchase} {
+		user := inventoryUser()
+		want := domain.SlotPurchase{Capacity: domain.Capacity{Capacity: 3 + amount, Used: 1, Available: int64(2 + amount)}, Balance: 7}
+		repo := &fakeRepository{purchase: want}
 
-	err := NewService(repo, nil).PurchaseSlot(context.Background(), user, amount)
-	if err != nil {
-		t.Fatalf("purchase slot: %v", err)
-	}
-	if repo.calls != 2 || repo.owner != user.ID || repo.purchaseOwner != user.ID {
-		t.Fatalf("repository calls were not scoped to user: %+v", repo)
-	}
-	if repo.purchaseWallet != wallet || repo.purchaseAmount != amount {
-		t.Fatalf("purchase args = wallet %+v, amount %d", repo.purchaseWallet, repo.purchaseAmount)
+		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), user, amount)
+		if err != nil {
+			t.Fatalf("purchase %d slots: %v", amount, err)
+		}
+		if got != want {
+			t.Fatalf("purchase = %+v, want the repository result %+v", got, want)
+		}
+		if repo.calls != 1 || repo.purchaseOwner != user.ID || repo.purchaseAmount != amount {
+			t.Fatalf("purchase was not one call scoped to the user for %d slots: %+v", amount, repo)
+		}
 	}
 }
 
-func TestServicePurchaseSlotRejectsInvalidRequests(t *testing.T) {
-	for _, amount := range []int32{0, -1} {
-		t.Run("invalid amount", func(t *testing.T) {
-			repo := &fakeRepository{}
-			err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), amount)
-			if !apperror.IsCode(err, apperror.CodeValidation) {
-				t.Fatalf("want VALIDATION, got %v", err)
-			}
-			if repo.calls != 0 {
-				t.Fatalf("invalid amount reached repository: %+v", repo)
-			}
-		})
+func TestServicePurchaseSlotRejectsInvalidAmounts(t *testing.T) {
+	for _, amount := range []int32{0, -1, domain.MaxSlotsPerPurchase + 1, 1 << 30} {
+		repo := &fakeRepository{}
+		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), amount)
+		if !apperror.IsCode(err, apperror.CodeValidation) {
+			t.Fatalf("amount %d: want VALIDATION_ERROR, got %v", amount, err)
+		}
+		if repo.calls != 0 || got != (domain.SlotPurchase{}) {
+			t.Fatalf("amount %d reached the repository or returned a result: %+v %+v", amount, repo, got)
+		}
 	}
+}
 
-	t.Run("insufficient balance", func(t *testing.T) {
-		user := inventoryUser()
-		wallet := domain.Wallet{ID: uuid.New(), Balance: domain.PricePerSlot - 1}
-		repo := &fakeRepository{wallet: &wallet}
-		err := NewService(repo, nil).PurchaseSlot(context.Background(), user, 1)
-		if !apperror.IsCode(err, apperror.CodeInsufficientBalance) {
-			t.Fatalf("want INSUFFICIENT_BALANCE, got %v", err)
-		}
-		if repo.calls != 1 || repo.owner != user.ID {
-			t.Fatalf("unexpected repository calls: %+v", repo)
-		}
-	})
-
-	t.Run("wallet lookup failure", func(t *testing.T) {
-		cause := errors.New("wallet unavailable")
+func TestServicePurchaseSlotPassesRepositoryErrorsThrough(t *testing.T) {
+	for _, cause := range []error{
+		apperror.New(apperror.CodeInsufficientBalance, "insufficient coin balance"),
+		errors.New("database unavailable"),
+	} {
 		repo := &fakeRepository{err: cause}
-		err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), 1)
+		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), 2)
 		if !errors.Is(err, cause) {
-			t.Fatalf("wallet lookup error lost: %v", err)
+			t.Fatalf("repository error lost: %v", err)
 		}
-		if repo.calls != 1 || repo.purchaseOwner != uuid.Nil || repo.purchaseAmount != 0 {
-			t.Fatalf("purchase proceeded after wallet lookup failure: %+v", repo)
+		if got != (domain.SlotPurchase{}) {
+			t.Fatalf("failed purchase returned a result: %+v", got)
 		}
-	})
+	}
 }

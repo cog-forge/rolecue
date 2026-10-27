@@ -3,8 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/ledger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -53,8 +55,12 @@ func (r *Repository) Summary(ctx context.Context, owner uuid.UUID) (domain.Capac
 	if err := tx.Commit(ctx); err != nil {
 		return domain.Capacity{}, persistenceError(err)
 	}
+	return capacityOf(row), nil
+}
+
+func capacityOf(row GetInventoryCapacityRow) domain.Capacity {
 	available := max(int64(row.Slot)-row.Used, 0)
-	return domain.Capacity{Capacity: row.Slot, Used: row.Used, Available: available, IsFull: row.Used >= int64(row.Slot)}, nil
+	return domain.Capacity{Capacity: row.Slot, Used: row.Used, Available: available, IsFull: row.Used >= int64(row.Slot)}
 }
 
 func (r *Repository) Create(ctx context.Context, owner uuid.UUID, name, personality, modelPath string) (domain.Avatar, error) {
@@ -140,66 +146,41 @@ func (r *Repository) Get(ctx context.Context, owner, id uuid.UUID) (domain.Store
 	return domain.StoredAvatar{Avatar: domain.Avatar{ID: row.ID, Name: row.Name, Personality: row.Personality, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}, ModelPath: row.ModelPath}, nil
 }
 
-func (r *Repository) GetWallet(ctx context.Context, owner uuid.UUID) (*domain.Wallet, error) {
-	queries := New(r.pool)
-	raw, err := queries.GetWallet(ctx, owner)
-	if err != nil {
-		return nil, persistenceError(err)
-	}
-
-	return &domain.Wallet{
-		ID:      raw.ID,
-		Balance: raw.Balance,
-	}, nil
-}
-
-func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, wallet domain.Wallet, amount int32) error {
-	if amount <= 0 {
-		return apperror.New(apperror.CodeValidation, "slot purchase amount must be positive")
-	}
+// PurchaseSlot debits amount slots at PricePerSlot through the shared ledger and adds them to the
+// inventory in one transaction. The inventory row is locked before the ledger locks the wallet row, so
+// concurrent purchases queue up and each debits the balance it reads under the lock; a top-up is never
+// overwritten. A missing wallet or a low balance is INSUFFICIENT_BALANCE and rolls everything back.
+func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, amount int32) (domain.SlotPurchase, error) {
 	tx, queries, err := r.beginOwner(ctx, owner)
 	if err != nil {
-		return err
+		return domain.SlotPurchase{}, err
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
-
 	if err := queries.EnsureInventory(ctx, EnsureInventoryParams{UserID: owner, InitialCapacity: domain.InitialCapacity}); err != nil {
-		return persistenceError(err)
+		return domain.SlotPurchase{}, persistenceError(err)
 	}
 	if _, err := queries.LockAvatarInventory(ctx, owner); err != nil {
-		return persistenceError(err)
+		return domain.SlotPurchase{}, persistenceError(err)
 	}
-
-	err = queries.UpdateInventorySlot(ctx, UpdateInventorySlotParams{
-		UserID: owner,
-		Amount: amount,
-	})
+	description := fmt.Sprintf("Avatar inventory, %d slots", amount)
+	if err := ledger.Debit(ctx, tx, owner, amount*domain.PricePerSlot, description); err != nil {
+		return domain.SlotPurchase{}, err
+	}
+	if err := queries.UpdateInventorySlot(ctx, UpdateInventorySlotParams{UserID: owner, Amount: amount}); err != nil {
+		return domain.SlotPurchase{}, persistenceError(err)
+	}
+	row, err := queries.GetInventoryCapacity(ctx, owner)
 	if err != nil {
-		return persistenceError(err)
+		return domain.SlotPurchase{}, persistenceError(err)
 	}
-
-	coinAmount := domain.PricePerSlot * amount
-	newBalance := wallet.Balance - coinAmount
-	err = queries.UpdateWalletBalance(ctx, UpdateWalletBalanceParams{
-		ID:      wallet.ID,
-		Balance: newBalance,
-	})
+	balance, err := queries.GetWalletBalance(ctx, owner)
 	if err != nil {
-		return persistenceError(err)
+		return domain.SlotPurchase{}, persistenceError(err)
 	}
-
-	err = queries.CreateSlotPurchaseTransaction(ctx, CreateSlotPurchaseTransactionParams{
-		From:   owner.String(),
-		Amount: coinAmount,
-	})
-	if err != nil {
-		return persistenceError(err)
-	}
-
 	if err := tx.Commit(ctx); err != nil {
-		return persistenceError(err)
+		return domain.SlotPurchase{}, persistenceError(err)
 	}
-	return nil
+	return domain.SlotPurchase{Capacity: capacityOf(row), Balance: balance}, nil
 }
 
 func (r *Repository) Delete(ctx context.Context, owner, id uuid.UUID) error {

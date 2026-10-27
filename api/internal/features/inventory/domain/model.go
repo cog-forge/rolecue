@@ -12,6 +12,9 @@ import (
 const InitialCapacity int32 = 3
 const PricePerSlot int32 = 1
 
+// MaxSlotsPerPurchase bounds the slots one purchase request may buy.
+const MaxSlotsPerPurchase int32 = 10
+
 type Capacity struct {
 	Capacity  int32 `json:"capacity"`
 	Used      int64 `json:"used"`
@@ -60,11 +63,13 @@ type AvatarDetail struct {
 	ModelAccess ModelAccess `json:"model_access"`
 }
 
-type Wallet struct {
-	ID      uuid.UUID
-	Balance int32
+type SlotPurchaseRequest struct {
+	Amount int32 `json:"amount" minimum:"1" maximum:"10"`
 }
 
-type SlotPurchaseRequest struct {
-	Amount int32 `json:"amount"`
+// SlotPurchase is the inventory summary after a slot purchase, in the fields of GET /inventory, with
+// the wallet balance after the debit.
+type SlotPurchase struct {
+	Capacity
+	Balance int32 `json:"balance"`
 }

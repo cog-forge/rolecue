@@ -22,6 +22,22 @@ func (s *seed) interviewRows(profileID uuid.UUID) int {
 	return s.count(`SELECT count(*) FROM public.interviews WHERE role_profile_id = $1`, profileID)
 }
 
+// assertSampleOf fails the test unless the snapshot holds different questions, all of the bank.
+func assertSampleOf(t *testing.T, snap, bank []uuid.UUID) {
+	t.Helper()
+	inBank := make(map[uuid.UUID]bool, len(bank))
+	for _, id := range bank {
+		inBank[id] = true
+	}
+	seen := make(map[uuid.UUID]bool, len(snap))
+	for _, id := range snap {
+		if !inBank[id] || seen[id] {
+			t.Fatalf("snapshot %v is not a sample of different bank questions %v", snap, bank)
+		}
+		seen[id] = true
+	}
+}
+
 // questionRows counts the interview_questions rows of every session from a role profile.
 func (s *seed) questionRows(profileID uuid.UUID) int {
 	s.t.Helper()
@@ -30,9 +46,9 @@ func (s *seed) questionRows(profileID uuid.UUID) int {
 }
 
 // TestPracticeCreateSnapshotsQuestionsAndChargesOnce starts a practice session from a confirmed profile
-// with four bank questions and a limit of three. It proves the session asks the first three bank
-// questions in order, that the first one is the current question, and that exactly one coin debit of
-// the configured price was written.
+// with four bank questions and a limit of three. It proves the session stores three different bank
+// questions, that the first stored one is the current question, and that exactly one coin debit of the
+// configured price was written.
 func TestPracticeCreateSnapshotsQuestionsAndChargesOnce(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
@@ -51,18 +67,14 @@ func TestPracticeCreateSnapshotsQuestionsAndChargesOnce(t *testing.T) {
 	if got.Type != domain.TypePractice || got.QuestionCount != 3 || got.AnsweredCount != 0 || got.CompletedAt != nil {
 		t.Fatalf("Create() = %+v, want a fresh practice session of 3 questions", got)
 	}
-	if got.CurrentQuestion == nil || got.CurrentQuestion.Position != 1 || got.CurrentQuestion.Content != s.contentOf(bank[0]) {
-		t.Fatalf("current question = %+v, want position 1 with the first bank question", got.CurrentQuestion)
-	}
 
 	snap := s.snapshot(got.ID)
 	if len(snap) != 3 {
 		t.Fatalf("snapshot has %d questions, want 3", len(snap))
 	}
-	for i := range snap {
-		if snap[i] != bank[i] {
-			t.Fatalf("snapshot[%d] = %s, want bank question %s (bank order by id)", i, snap[i], bank[i])
-		}
+	assertSampleOf(t, snap, bank)
+	if got.CurrentQuestion == nil || got.CurrentQuestion.Position != 1 || got.CurrentQuestion.Content != s.contentOf(snap[0]) {
+		t.Fatalf("current question = %+v, want position 1 with the first stored question", got.CurrentQuestion)
 	}
 
 	if b := s.balance(candidate); b != 15 {
@@ -232,12 +244,11 @@ func TestPracticeDefaultQuestionLimitIsEight(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if got.QuestionCount != 8 || len(s.snapshot(got.ID)) != 8 {
+	snap := s.snapshot(got.ID)
+	if got.QuestionCount != 8 || len(snap) != 8 {
 		t.Fatalf("question count = %d, want the default 8", got.QuestionCount)
 	}
-	if snap := s.snapshot(got.ID); snap[7] != bank[7] {
-		t.Fatalf("last snapshot question = %s, want bank[7] %s", snap[7], bank[7])
-	}
+	assertSampleOf(t, snap, bank)
 }
 
 // TestRecruiterCannotStartPractice proves a non-Candidate role is refused before any row is read or
@@ -334,5 +345,98 @@ func TestPracticeRefusesAnotherUsersAvatarAndInactiveVoice(t *testing.T) {
 	}
 	if b := s.balance(candidate); b != 15 {
 		t.Fatalf("balance = %d, want 15 (only the valid start charged)", b)
+	}
+}
+
+// TestPracticeSamplesQuestionsRandomlyFromTheBank starts six sessions one after the other (each completed
+// before the next) on one bank of twelve questions with a limit of three. It proves every session asks
+// three different questions of that bank, and that
+// the sessions do not all ask the first three by id (Decision 14: questions are sampled at random). Six
+// sessions all drawing the first three in order by chance is about one in 10^23.
+func TestPracticeSamplesQuestionsRandomlyFromTheBank(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool, 3)
+	candidate := s.user("candidate")
+	s.wallet(candidate, 100)
+	profile, bank := s.confirmedProfile(candidate, 12)
+
+	firstN := 0
+	for i := 0; i < 6; i++ {
+		got, created, err := svc.Create(ctx, candidate, "candidate", practiceInput(profile))
+		if err != nil || !created {
+			t.Fatalf("Create() #%d created=%v error=%v", i+1, created, err)
+		}
+		snap := s.snapshot(got.ID)
+		if len(snap) != 3 || got.QuestionCount != 3 {
+			t.Fatalf("session #%d asks %d questions (count %d), want 3", i+1, len(snap), got.QuestionCount)
+		}
+		assertSampleOf(t, snap, bank)
+		if snap[0] == bank[0] && snap[1] == bank[1] && snap[2] == bank[2] {
+			firstN++
+		}
+		if _, err := svc.Complete(ctx, candidate, "candidate", got.ID); err != nil {
+			t.Fatalf("Complete() #%d error = %v", i+1, err)
+		}
+	}
+	if firstN == 6 {
+		t.Fatal("every session asked the first three bank questions by id, want a random sample")
+	}
+}
+
+// TestPracticeQuestionsStayStableAcrossResume proves the sampled questions are fixed when the session
+// starts: Get, Resume and a repeated start return the same questions in the same order, before and after
+// an answer.
+func TestPracticeQuestionsStayStableAcrossResume(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool, 3)
+	candidate := s.user("candidate")
+	s.wallet(candidate, 20)
+	profile, _ := s.confirmedProfile(candidate, 12)
+	started, _, err := svc.Create(ctx, candidate, "candidate", practiceInput(profile))
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	snap := s.snapshot(started.ID)
+
+	assertCurrent := func(label string, got domain.Session, position int) {
+		t.Helper()
+		if got.ID != started.ID || got.CurrentQuestion == nil || got.CurrentQuestion.Position != int32(position) ||
+			got.CurrentQuestion.Content != s.contentOf(snap[position-1]) {
+			t.Fatalf("%s current question = %+v, want position %d of the snapshot", label, got.CurrentQuestion, position)
+		}
+	}
+	for i := 0; i < 2; i++ {
+		got, err := svc.Get(ctx, candidate, "candidate", started.ID)
+		if err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+		assertCurrent("Get()", got, 1)
+		got, err = svc.Resume(ctx, candidate, "candidate", started.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		assertCurrent("Resume()", got, 1)
+	}
+	again, created, err := svc.Create(ctx, candidate, "candidate", practiceInput(profile))
+	if err != nil || created {
+		t.Fatalf("repeat Create() created=%v error=%v, want the unfinished session", created, err)
+	}
+	assertCurrent("repeat Create()", again, 1)
+
+	if _, err := svc.AppendTurn(ctx, candidate, "candidate", started.ID, 1, "an answer"); err != nil {
+		t.Fatalf("AppendTurn() error = %v", err)
+	}
+	got, err := svc.Resume(ctx, candidate, "candidate", started.ID)
+	if err != nil {
+		t.Fatalf("Resume() after an answer error = %v", err)
+	}
+	assertCurrent("Resume() after an answer", got, 2)
+	if turns := s.turnRowsOf(started.ID); len(turns) != 1 || turns[0].question != s.contentOf(snap[0]) {
+		t.Fatalf("turns = %+v, want the first snapshot question answered", turns)
+	}
+	if after := s.snapshot(started.ID); len(after) != len(snap) || after[0] != snap[0] || after[1] != snap[1] || after[2] != snap[2] {
+		t.Fatalf("snapshot changed from %v to %v", snap, after)
 	}
 }

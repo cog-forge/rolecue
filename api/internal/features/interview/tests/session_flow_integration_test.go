@@ -6,6 +6,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -116,7 +117,8 @@ func TestTurnsAnswerInOrderAndTrackTheCurrentQuestion(t *testing.T) {
 	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
-	started, bank := practiceSession(t, ctx, s, svc, candidate, 4)
+	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
+	snap := s.snapshot(started.ID)
 
 	answers := []string{"  first answer  ", "second answer", "third answer"}
 	for i, answer := range answers {
@@ -130,7 +132,7 @@ func TestTurnsAnswerInOrderAndTrackTheCurrentQuestion(t *testing.T) {
 		}
 		if position < 3 {
 			if got.CurrentQuestion == nil || got.CurrentQuestion.Position != position+1 ||
-				got.CurrentQuestion.Content != s.contentOf(bank[position]) {
+				got.CurrentQuestion.Content != s.contentOf(snap[position]) {
 				t.Fatalf("current question after %d = %+v, want position %d", position, got.CurrentQuestion, position+1)
 			}
 		} else if got.CurrentQuestion != nil {
@@ -143,8 +145,8 @@ func TestTurnsAnswerInOrderAndTrackTheCurrentQuestion(t *testing.T) {
 		t.Fatalf("turn rows = %+v, want 3", rows)
 	}
 	for i, row := range rows {
-		if row.position != int32(i+1) || row.question != s.contentOf(bank[i]) {
-			t.Fatalf("turn %d = %+v, want the bank question of that position", i+1, row)
+		if row.position != int32(i+1) || row.question != s.contentOf(snap[i]) {
+			t.Fatalf("turn %d = %+v, want the stored question of that position", i+1, row)
 		}
 	}
 	if rows[0].answer != "first answer" {
@@ -431,5 +433,66 @@ func waitForEvaluation(t *testing.T, evaluator *countingEvaluator) {
 	case <-evaluator.done:
 	case <-time.After(10 * time.Second):
 		t.Fatal("the evaluation was not started")
+	}
+}
+
+// panickingEvaluator panics on its first call, like a bug in the evaluation outside the scorer's own
+// recover, and then reports each later call on retried.
+type panickingEvaluator struct {
+	calls   atomic.Int32
+	retried chan uuid.UUID
+}
+
+func (e *panickingEvaluator) Evaluate(_ context.Context, interviewID uuid.UUID) error {
+	if e.calls.Add(1) == 1 {
+		panic("evaluation blew up")
+	}
+	e.retried <- interviewID
+	return nil
+}
+
+// evaluationStatusOf reads the stored evaluation status of a session.
+func (s *seed) evaluationStatusOf(interviewID uuid.UUID) string {
+	s.t.Helper()
+	var status string
+	if err := s.pool.QueryRow(s.ctx, `SELECT evaluation_status FROM public.interviews WHERE id = $1`, interviewID).Scan(&status); err != nil {
+		s.t.Fatal(err)
+	}
+	return status
+}
+
+// TestPanickingEvaluationEndsFailedAndIsRetried proves a panic in the background evaluation does not take
+// the process down: the session ends failed instead of pending, so the next Complete claims and retries it.
+func TestPanickingEvaluationEndsFailedAndIsRetried(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool, 3)
+	evaluator := &panickingEvaluator{retried: make(chan uuid.UUID, 1)}
+	svc.SetEvaluator(evaluator)
+	candidate := s.user("candidate")
+	s.wallet(candidate, 20)
+	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
+
+	if _, err := svc.Complete(ctx, candidate, "candidate", started.ID); err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for s.evaluationStatusOf(started.ID) != string(domain.EvaluationFailed) {
+		if time.Now().After(deadline) {
+			t.Fatalf("evaluation status = %s after a panic, want failed", s.evaluationStatusOf(started.ID))
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	if _, err := svc.Complete(ctx, candidate, "candidate", started.ID); err != nil {
+		t.Fatalf("repeat Complete() error = %v", err)
+	}
+	select {
+	case id := <-evaluator.retried:
+		if id != started.ID {
+			t.Fatalf("retried %s, want %s", id, started.ID)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the failed evaluation was not retried by a repeat Complete")
 	}
 }

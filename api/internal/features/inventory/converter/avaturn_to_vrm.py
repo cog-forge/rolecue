@@ -3,6 +3,7 @@
 import argparse
 import json
 from pathlib import Path
+import re
 import sys
 import tomllib
 
@@ -16,6 +17,11 @@ BONES = json.loads(Path(__file__).with_name("avaturn_profile.json").read_text())
 
 VOWELS = {"aa": "viseme_aa", "ih": "viseme_I", "ou": "viseme_U",
           "ee": "viseme_E", "oh": "viseme_O"}
+
+
+def human_bone(bones, name):
+    """Profile keys are VRM 1.0 bone names (camelCase); the extension's properties are snake_case."""
+    return getattr(bones, re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower())
 
 
 def bind(expression, meshes, target):
@@ -57,7 +63,7 @@ def convert(args):
     for target, source in BONES.items():
         if source not in armature.data.bones:
             raise ValueError(f"unsupported Avaturn bone: {source}")
-        getattr(vrm.humanoid.human_bones, target).node.bone_name = source
+        human_bone(vrm.humanoid.human_bones, target).node.bone_name = source
 
     metadata = json.loads(Path(args.metadata).read_text()) if args.metadata else {}
     meta = vrm.meta
