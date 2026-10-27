@@ -37,7 +37,9 @@ Use Unspecified when proficiency is absent or ambiguous. Never infer a skill's p
 from the role's seniority, years of experience, required/preferred priority or your own
 assessment of the candidate. Target is not an exercise, preparation objective or repeated skill name.
 Each skill may include evidenceText (an exact excerpt of the JD supporting the skill).
-Never invent evidence.
+When target is not Unspecified, evidenceText is required and must quote the JD's explicit
+proficiency wording for that same skill. Never infer proficiency from required/preferred
+priority, seniority or another skill's wording. Never invent evidence.
 Seniority may be intern, junior, mid, senior or lead only with clear evidence;
 otherwise omit seniorityLevel or use null. Never infer seniority just to fill the field.
 Do not include difficulty, blueprint, questions, duration or questionCount.`

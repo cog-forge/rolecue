@@ -41,10 +41,14 @@ export const workspaceNavigation: Record<
       items: [
         { label: "Dashboard", href: routes.dashboard, icon: LayoutDashboard },
         {
-          label: "Target JDs",
-          href: routes.targetJds,
+          label: "Role Profiles",
+          href: routes.roleProfiles.root,
           icon: FileText,
-          match: [routes.targetJds, "/interviews/new"],
+          match: [
+            routes.roleProfiles.root,
+            routes.targetJds,
+            "/interviews/new",
+          ],
         },
         {
           label: "Interview History",
@@ -194,6 +198,7 @@ export function isWorkspacePath(pathname: string) {
     "/reports",
     routes.dashboard,
     routes.targetJds,
+    routes.roleProfiles.root,
     routes.avatarStudio,
     routes.jobs,
     routes.applications,
@@ -205,8 +210,8 @@ export function isWorkspacePath(pathname: string) {
 }
 
 export const interviewSteps = [
-  { label: "Job description", href: routes.interviews.new.jobDescription },
-  { label: "Skills", href: routes.interviews.new.skills },
+  { label: "Role Profile", href: routes.interviews.new.jobDescription },
+  { label: "Requirements", href: routes.interviews.new.skills },
   { label: "Setup", href: routes.interviews.new.setup },
   { label: "Interviewer", href: routes.interviews.new.interviewer },
   { label: "Preflight", href: routes.interviews.new.preflight },
