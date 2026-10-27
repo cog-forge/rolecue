@@ -55,6 +55,11 @@ const staleCodes = new Set([
   "QUESTION_BANK_EXISTS",
   "JOB_POSTING_NOT_FOUND",
   "CORE_QUESTION_NOT_FOUND",
+  // The Admin decided the posting meanwhile (for example a reject while this page was open): reload
+  // so Submit turns into Resubmit, or the bank becomes read-only.
+  "JOB_POSTING_NOT_PENDING",
+  "JOB_POSTING_NOT_REJECTED",
+  "JOB_POSTING_NOT_EDITABLE",
 ]);
 
 export function QuestionBank({ postingId }: { postingId: string }) {

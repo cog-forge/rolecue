@@ -405,6 +405,27 @@ describe("QuestionBank", () => {
 });
 
 describe("submission follows question review", () => {
+  it("refreshes into Resubmit when the Admin rejected the posting meanwhile", async () => {
+    mocks.get
+      .mockResolvedValueOnce(envelope(bank()))
+      .mockResolvedValue(envelope(bank({ posting_status: "rejected" })));
+    mocks.post.mockRejectedValue(
+      failure(
+        409,
+        "JOB_POSTING_NOT_PENDING",
+        "only a pending job posting can be submitted",
+      ),
+    );
+    mount();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Submit for approval" }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Resubmit for approval" }),
+    ).toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledTimes(2);
+  });
+
   it("submits a generated bank only after the recruiter clicks submit", async () => {
     mocks.get.mockResolvedValue(envelope(bank()));
     mocks.post.mockResolvedValue(

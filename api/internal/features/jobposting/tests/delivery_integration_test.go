@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	moderationdomain "github.com/cog-forge/rolecue/api/internal/features/admin/moderation/domain"
 	moderationrepository "github.com/cog-forge/rolecue/api/internal/features/admin/moderation/repository"
@@ -249,5 +250,110 @@ func TestDeliveryMigrationBackfill(t *testing.T) {
 		if submitted != c.submitted {
 			t.Fatalf("%s: submitted=%t, want %t", name, submitted, c.submitted)
 		}
+	}
+}
+
+// waitForLockWait polls until another session is blocked on a row lock, so a test can commit the
+// transaction that holds it only once the competing call is really waiting (KAN-211).
+func waitForLockWait(t *testing.T, ctx context.Context, f fixture) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting int
+		if err := f.seed.pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting > 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("the competing call never waited on the posting lock")
+}
+
+// KAN-211, approval first: an approval that is still committing holds the posting row, so deleting
+// the last question waits for it, then finds an open posting and is refused. The posting keeps its
+// question instead of opening with an empty bank.
+func TestDeliveryDeleteWaitsForApprovalAndIsRefused(t *testing.T) {
+	ctx, f := newFixture(t)
+	id := f.create(t, ctx, "Approval first")
+	svc := deliveryService(t, f, 1, alwaysGenerate)
+	questions, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.repo.Submit(ctx, f.recruiter, id); err != nil {
+		t.Fatal(err)
+	}
+
+	approval, err := f.seed.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = approval.Rollback(ctx) }()
+	if _, err := approval.Exec(ctx, `UPDATE public.job_postings SET status = 'open' WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- svc.Delete(ctx, f.recruiter, "recruiter", id, questions[0].ID) }()
+	waitForLockWait(t, ctx, f)
+	if err := approval.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; codeOf(err) != apperror.CodeQuestionBankLocked {
+		t.Fatalf("delete after approval: %v", err)
+	}
+	posting, err := f.repo.Get(ctx, f.recruiter, id)
+	if err != nil || posting.Status != domain.StatusOpen || posting.CoreQuestionCount != 1 {
+		t.Fatalf("open posting lost its question: %+v %v", posting.JobPosting, err)
+	}
+}
+
+// KAN-211, edit first: while the Recruiter's transaction holds the posting row and empties the bank,
+// the approval waits, then rechecks the withdrawn submission and refuses to open the posting.
+func TestDeliveryApprovalWaitsForLastDeleteAndIsRefused(t *testing.T) {
+	ctx, f := newFixture(t)
+	id := f.create(t, ctx, "Delete first")
+	svc := deliveryService(t, f, 1, alwaysGenerate)
+	questions, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.repo.Submit(ctx, f.recruiter, id); err != nil {
+		t.Fatal(err)
+	}
+
+	// The same statements Delete runs, held open so the approval has to queue behind them.
+	edit, err := f.seed.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = edit.Rollback(ctx) }()
+	if _, err := edit.Exec(ctx, `SELECT jd_id FROM public.job_postings WHERE id = $1 FOR UPDATE`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := edit.Exec(ctx, `DELETE FROM public.core_questions WHERE id = $1`, questions[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := edit.Exec(ctx, `UPDATE public.job_postings SET review_submitted = false WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- moderationrepository.NewRepository(f.seed.pool).Decide(ctx, id, moderationdomain.PostingStatusOpen, nil)
+	}()
+	waitForLockWait(t, ctx, f)
+	if err := edit.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; !errors.Is(err, moderationdomain.ErrNotPending) {
+		t.Fatalf("approval after the bank emptied: %v", err)
+	}
+	posting, err := f.repo.Get(ctx, f.recruiter, id)
+	if err != nil || posting.Status != domain.StatusPending || posting.ReviewSubmitted || posting.CoreQuestionCount != 0 {
+		t.Fatalf("emptied posting was opened or stayed queued: %+v %v", posting.JobPosting, err)
 	}
 }

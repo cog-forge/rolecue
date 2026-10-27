@@ -76,38 +76,47 @@ func (r *Repository) GenerationInput(ctx context.Context, jdID uuid.UUID) (domai
 	return in, nil
 }
 
-// Add, Update and Delete are single statements that recheck ownership and the editable status, so
-// there is no read-then-write gap in application code. (A status change committed by another
-// transaction during that one statement can still slip through, a window of milliseconds; only
-// SaveForPosting locks the posting row.) When no row is affected, a cheap follow-up query tells
-// "not found" from "locked".
+// Add, Update and Delete lock the posting row before they touch the bank, the same lock SaveForPosting
+// takes. Admin approval updates that row too, so an edit and an approval run one after the other: an
+// edit that wins makes the approval recheck review_submitted and the bank, and an approval that wins
+// makes the edit see a posting that is no longer editable (KAN-211). When the guarded statement
+// affects no row, a cheap follow-up query tells "not found" from "locked".
 func (r *Repository) Add(ctx context.Context, recruiterID, postingID uuid.UUID, content string) (domain.CoreQuestion, error) {
-	row, err := r.queries.AddCoreQuestion(ctx, AddCoreQuestionParams{Content: content, PostingID: postingID, RecruiterID: recruiterID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.CoreQuestion{}, r.postingRefusal(ctx, r.queries, recruiterID, postingID, false)
-	}
-	if err != nil {
-		return domain.CoreQuestion{}, persistenceError(err)
-	}
-	return domain.CoreQuestion{ID: row.ID, Content: row.Content}, nil
+	var added domain.CoreQuestion
+	err := r.withEditablePosting(ctx, recruiterID, postingID, false, func(q *Queries) error {
+		row, err := q.AddCoreQuestion(ctx, AddCoreQuestionParams{Content: content, PostingID: postingID, RecruiterID: recruiterID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return r.postingRefusal(ctx, q, recruiterID, postingID, false)
+		}
+		if err != nil {
+			return persistenceError(err)
+		}
+		added = domain.CoreQuestion{ID: row.ID, Content: row.Content}
+		return nil
+	})
+	return added, err
 }
 
 func (r *Repository) Update(ctx context.Context, recruiterID, postingID, questionID uuid.UUID, content string) (domain.CoreQuestion, error) {
-	row, err := r.queries.UpdateCoreQuestion(ctx, UpdateCoreQuestionParams{
-		Content: content, ID: questionID, PostingID: postingID, RecruiterID: recruiterID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return domain.CoreQuestion{}, r.postingRefusal(ctx, r.queries, recruiterID, postingID, true)
-	}
-	if err != nil {
-		return domain.CoreQuestion{}, persistenceError(err)
-	}
-	return domain.CoreQuestion{ID: row.ID, Content: row.Content}, nil
+	var updated domain.CoreQuestion
+	err := r.withEditablePosting(ctx, recruiterID, postingID, true, func(q *Queries) error {
+		row, err := q.UpdateCoreQuestion(ctx, UpdateCoreQuestionParams{
+			Content: content, ID: questionID, PostingID: postingID, RecruiterID: recruiterID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return r.postingRefusal(ctx, q, recruiterID, postingID, true)
+		}
+		if err != nil {
+			return persistenceError(err)
+		}
+		updated = domain.CoreQuestion{ID: row.ID, Content: row.Content}
+		return nil
+	})
+	return updated, err
 }
 
 // Delete also withdraws the posting from the Admin queue when it removes the last question.
 func (r *Repository) Delete(ctx context.Context, recruiterID, postingID, questionID uuid.UUID) error {
-	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
-		q := r.queries.WithTx(tx)
+	return r.withEditablePosting(ctx, recruiterID, postingID, true, func(q *Queries) error {
 		n, err := q.DeleteCoreQuestion(ctx, DeleteCoreQuestionParams{ID: questionID, PostingID: postingID, RecruiterID: recruiterID})
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && (pgErr.Code == "23503" || pgErr.Code == "23001") {
@@ -120,6 +129,21 @@ func (r *Repository) Delete(ctx context.Context, recruiterID, postingID, questio
 			return r.postingRefusal(ctx, q, recruiterID, postingID, true)
 		}
 		return persistenceError(q.ClearEmptyBankSubmission(ctx, postingID))
+	})
+}
+
+// withEditablePosting runs fn in a transaction that first locks the Recruiter's posting while it is
+// still editable. A posting that is missing, foreign or no longer editable is refused before fn runs.
+func (r *Repository) withEditablePosting(ctx context.Context, recruiterID, postingID uuid.UUID, questionMissing bool, fn func(*Queries) error) error {
+	return pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		if _, err := q.LockEditablePosting(ctx, LockEditablePostingParams{ID: postingID, RecruiterID: recruiterID}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return r.postingRefusal(ctx, q, recruiterID, postingID, questionMissing)
+			}
+			return persistenceError(err)
+		}
+		return fn(q)
 	})
 }
 
