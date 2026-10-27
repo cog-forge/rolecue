@@ -18,8 +18,13 @@ describe("workspace navigation", () => {
         group.items.map((item) => item.href),
       );
     expect(
-      links("recruiter").every((href) => href.startsWith("/recruiter/")),
+      links("recruiter").every(
+        (href) => href.startsWith("/recruiter/") || href === "/avatar-studio",
+      ),
     ).toBe(true);
+    expect(links("candidate")).toContain("/avatar-studio");
+    expect(links("recruiter")).toContain("/avatar-studio");
+    expect(links("admin")).not.toContain("/avatar-studio");
     expect(links("candidate")).not.toContain("/admin/users");
     expect(links("admin")).not.toContain("/billing");
     expect(links("admin")).not.toContain("/admin/avatars");
