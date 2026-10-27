@@ -1,6 +1,7 @@
 package converter
 
 import (
+	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
@@ -108,12 +109,13 @@ func (b *Blender) Convert(ctx context.Context, source io.ReadSeeker, name string
 	cmd := exec.CommandContext(processCtx, b.Binary, "--background", "--factory-startup", "--disable-autoexec", "--python-exit-code", "1", "--python", scriptPath, "--", "--input", input, "--output", output, "--metadata", metadataPath)
 	cmd.Env = processEnvironment()
 	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
+	stderr := &tailWriter{limit: 4 << 10}
+	cmd.Stderr = stderr
 	if err = cmd.Run(); err != nil {
 		if processCtx.Err() != nil {
 			return nil, processCtx.Err()
 		}
-		return nil, fmt.Errorf("VRM exporter failed: %w", err)
+		return nil, fmt.Errorf("VRM exporter failed: %w: %s", err, bytes.TrimSpace(stderr.data))
 	}
 	info, err := os.Stat(output)
 	if err != nil {
@@ -147,4 +149,18 @@ func processEnvironment() []string {
 	}
 	// No credential-bearing API environment is inherited by the subprocess.
 	return append(result, "PYTHONNOUSERSITE=1", "BLENDER_SYSTEM_SCRIPTS="+strings.TrimSpace(os.Getenv("BLENDER_SYSTEM_SCRIPTS")))
+}
+
+// tailWriter keeps the end of Blender's stderr, where a failed script prints its Python traceback.
+type tailWriter struct {
+	data  []byte
+	limit int
+}
+
+func (w *tailWriter) Write(p []byte) (int, error) {
+	w.data = append(w.data, p...)
+	if len(w.data) > w.limit {
+		w.data = w.data[len(w.data)-w.limit:]
+	}
+	return len(p), nil
 }
