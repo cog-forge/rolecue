@@ -117,7 +117,8 @@ func TestTurnsAnswerInOrderAndTrackTheCurrentQuestion(t *testing.T) {
 	svc := newService(t, pool, 3)
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
-	started, bank := practiceSession(t, ctx, s, svc, candidate, 4)
+	started, _ := practiceSession(t, ctx, s, svc, candidate, 4)
+	snap := s.snapshot(started.ID)
 
 	answers := []string{"  first answer  ", "second answer", "third answer"}
 	for i, answer := range answers {
@@ -131,7 +132,7 @@ func TestTurnsAnswerInOrderAndTrackTheCurrentQuestion(t *testing.T) {
 		}
 		if position < 3 {
 			if got.CurrentQuestion == nil || got.CurrentQuestion.Position != position+1 ||
-				got.CurrentQuestion.Content != s.contentOf(bank[position]) {
+				got.CurrentQuestion.Content != s.contentOf(snap[position]) {
 				t.Fatalf("current question after %d = %+v, want position %d", position, got.CurrentQuestion, position+1)
 			}
 		} else if got.CurrentQuestion != nil {
@@ -144,8 +145,8 @@ func TestTurnsAnswerInOrderAndTrackTheCurrentQuestion(t *testing.T) {
 		t.Fatalf("turn rows = %+v, want 3", rows)
 	}
 	for i, row := range rows {
-		if row.position != int32(i+1) || row.question != s.contentOf(bank[i]) {
-			t.Fatalf("turn %d = %+v, want the bank question of that position", i+1, row)
+		if row.position != int32(i+1) || row.question != s.contentOf(snap[i]) {
+			t.Fatalf("turn %d = %+v, want the stored question of that position", i+1, row)
 		}
 	}
 	if rows[0].answer != "first answer" {

@@ -398,7 +398,7 @@ const listStartQuestions = `-- name: ListStartQuestions :many
 SELECT id, content
 FROM public.core_questions
 WHERE jd_id = $1
-ORDER BY id
+ORDER BY random()
 LIMIT $2
 `
 
@@ -412,8 +412,10 @@ type ListStartQuestionsRow struct {
 	Content string
 }
 
-// The first core questions of a Job Description's bank, in a fixed order so a session always asks the
-// same questions.
+// A random sample of a Job Description's bank, at most @question_limit questions (Decision 14). The
+// session stores the sample in interview_questions in this order when it starts, and every later read
+// goes through those rows, so Get and Resume always return the same questions in the same order. A bank
+// is small, so sorting it by random() is cheap.
 func (q *Queries) ListStartQuestions(ctx context.Context, arg ListStartQuestionsParams) ([]ListStartQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, listStartQuestions, arg.JdID, arg.QuestionLimit)
 	if err != nil {

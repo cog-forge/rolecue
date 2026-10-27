@@ -212,9 +212,9 @@ func (s *seed) jobDescription() uuid.UUID {
 	return jdID
 }
 
-// coreQuestions adds n bank questions to a Job Description and returns their ids ordered by id, which
-// is the order a session reads the bank in. Each question text carries its own id so tests can tell
-// questions apart in JSON.
+// coreQuestions adds n bank questions to a Job Description and returns their ids ordered by id. A
+// session samples the bank at random, so tests compare against its stored snapshot for the order. Each
+// question text carries its own id so tests can tell questions apart in JSON.
 func (s *seed) coreQuestions(jdID uuid.UUID, n int) []uuid.UUID {
 	s.t.Helper()
 	ids := make([]uuid.UUID, 0, n)
@@ -239,7 +239,7 @@ func (s *seed) contentOf(coreQuestionID uuid.UUID) string {
 }
 
 // roleProfile gives the candidate a role profile of the status with a bank of n questions. It returns
-// the profile id and the bank ids in session order.
+// the profile id and the bank ids ordered by id.
 func (s *seed) roleProfile(candidateID uuid.UUID, status string, questions int) (uuid.UUID, []uuid.UUID) {
 	s.t.Helper()
 	jdID := s.jobDescription()
