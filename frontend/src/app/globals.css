@@ -5,6 +5,8 @@
 @custom-variant dark (&:is(.dark:not(:has([data-rolecue-theme="light"])) *));
 
 @theme inline {
+  --color-studio-wall: var(--studio-wall);
+  --color-studio-floor: var(--studio-floor);
   --color-rolecue-brand: var(--rolecue-brand-blue);
   --color-rolecue-hero-surface: var(--rolecue-hero-surface);
   --color-workspace-accent: #5b8def;
@@ -165,6 +167,31 @@
   --shimmer-highlight: #0d0d0d;
   --shimmer-band: 400%;
   --shimmer-ease: linear;
+
+  /* Studio backdrop behind 3D avatar renders: the brand's hero surface as the wall, a deeper floor. */
+  --studio-wall: var(--rolecue-hero-surface);
+  --studio-floor: color-mix(
+    in oklab,
+    var(--rolecue-hero-surface),
+    var(--rolecue-ink) 9%
+  );
+
+  /* transitions.dev: skeleton loader and reveal */
+  --pulse-dur: 1000ms;
+  --pulse-count: 1;
+  --pulse-min: 0.5;
+  --reveal-dur: 400ms;
+  --reveal-blur: 2px;
+  --reveal-ease: ease-in-out;
+
+  /* transitions.dev: number pop-in */
+  --digit-dur: 500ms;
+  --digit-distance: 8px;
+  --digit-stagger: 70ms;
+  --digit-blur: 2px;
+  --digit-ease: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --digit-dir-x: 0;
+  --digit-dir-y: 1;
 
   --background: var(--rolecue-canvas);
   --foreground: var(--rolecue-ink);
@@ -415,6 +442,8 @@
   --rolecue-canvas-rgb: 25 26 28;
   --rolecue-surface: #232529;
   --rolecue-hero-surface: oklch(27% 0.04 235);
+  --studio-wall: var(--rolecue-hero-surface);
+  --studio-floor: color-mix(in oklab, var(--rolecue-hero-surface), #000 22%);
   --rolecue-surface-soft: #2c2f34;
   --rolecue-ink: #f2f3f5;
   --rolecue-ink-rgb: 242 243 245;
@@ -505,5 +534,123 @@ html[data-theme-reveal]::view-transition-new(root) {
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* transitions.dev: skeleton loader and reveal.
+   The wrap stacks two layers on the same coordinates. The
+   skeleton owns the cold pulse + the fade-out side of the
+   reveal; the content owns the fade-in side. They share the
+   same duration / ease so the swap reads as one motion. */
+.t-skel {
+  position: relative;
+}
+.t-skel-skeleton,
+.t-skel-content {
+  position: absolute;
+  inset: 0;
+}
+
+.t-skel-skeleton {
+  z-index: 1;
+  opacity: 1;
+  filter: blur(0);
+  transition:
+    opacity var(--reveal-dur) var(--reveal-ease),
+    filter var(--reveal-dur) var(--reveal-ease);
+}
+.t-skel-content {
+  z-index: 2;
+  opacity: 0;
+  filter: blur(var(--reveal-blur));
+  transition:
+    opacity var(--reveal-dur) var(--reveal-ease),
+    filter var(--reveal-dur) var(--reveal-ease);
+}
+.t-skel.is-revealed .t-skel-skeleton {
+  opacity: 0;
+  filter: blur(var(--reveal-blur));
+}
+.t-skel.is-revealed .t-skel-content {
+  opacity: 1;
+  filter: blur(0);
+}
+/* Snap-back when replaying: kill transitions so the reverse
+   (revealed → skeleton) is instant. Drop `.is-resetting`
+   after a forced reflow and the next reveal animates again. */
+.t-skel.is-resetting .t-skel-skeleton,
+.t-skel.is-resetting .t-skel-content {
+  transition: none !important;
+}
+
+/* Pulse: place the animation on the bar/avatar children, not
+   on the skeleton itself, so the skeleton's opacity / filter
+   stay free for the cross-fade transition above. */
+.t-skel-skeleton.is-pulsing > * {
+  animation: t-skel-pulse var(--pulse-dur) ease-in-out var(--pulse-count);
+}
+@keyframes t-skel-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: var(--pulse-min);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-skel-skeleton,
+  .t-skel-content {
+    transition: none !important;
+  }
+  .t-skel-skeleton.is-pulsing > * {
+    animation: none !important;
+  }
+}
+
+/* transitions.dev: number pop-in */
+@keyframes t-digit-pop-in {
+  0% {
+    transform: translate(
+      calc(var(--digit-distance) * var(--digit-dir-x)),
+      calc(var(--digit-distance) * var(--digit-dir-y))
+    );
+    opacity: 0;
+    filter: blur(var(--digit-blur));
+  }
+  100% {
+    transform: translate(0, 0);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.t-digit-group {
+  display: inline-flex;
+  align-items: baseline;
+}
+.t-digit {
+  display: inline-block;
+  will-change: transform, opacity, filter;
+}
+.t-digit-group.is-animating .t-digit {
+  animation: t-digit-pop-in var(--digit-dur) var(--digit-ease) both;
+}
+.t-digit-group.is-animating .t-digit[data-stagger="1"] {
+  animation-delay: var(--digit-stagger);
+}
+.t-digit-group.is-animating .t-digit[data-stagger="2"] {
+  animation-delay: calc(var(--digit-stagger) * 2);
+}
+/* Digits that did not change (the leading ones the old and new number
+   share) stay still; only the digits that changed pop in. */
+.t-digit-group.is-animating .t-digit[data-same] {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-digit-group .t-digit {
+    animation: none !important;
   }
 }
