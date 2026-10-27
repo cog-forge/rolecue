@@ -25,6 +25,17 @@ export const candidateApplicationSchema = z.object({
   interview_deadline: z.iso.datetime({ offset: true }).nullable(),
   can_start_interview: z.boolean(),
   created_at: z.iso.datetime({ offset: true }),
+  // The Candidate's own interview of this Application: status and score only, never transcript or
+  // recording (KAN-114).
+  interview: z
+    .object({
+      id: z.uuid(),
+      completed_at: z.iso.datetime({ offset: true }).nullable(),
+      status: z.enum(["in_progress", "pending", "completed", "failed"]),
+      score: z.number().int().nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 export type CandidateApplication = z.infer<typeof candidateApplicationSchema>;
 

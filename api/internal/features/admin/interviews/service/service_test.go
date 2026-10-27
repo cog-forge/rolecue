@@ -226,7 +226,7 @@ func TestInterviewDetailJSONIsAllowListOnly(t *testing.T) {
 			HasReport:    true,
 			HasRecording: true,
 		},
-		RoleProfile:   domain.RoleProfileRef{ID: uuid.New(), Title: "Go developer"},
+		RoleProfile:   &domain.RoleProfileRef{ID: uuid.New(), Title: "Go developer"},
 		ApplicationID: &appID,
 		Avatar:        &domain.AssetRef{ID: uuid.New(), Name: "Avatar"},
 		Voice:         &domain.AssetRef{ID: uuid.New(), Name: "Voice"},

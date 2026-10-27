@@ -4,6 +4,7 @@
 package main
 
 import (
+	applicationservice "github.com/cog-forge/rolecue/api/internal/features/application/service"
 	"github.com/google/wire"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -24,6 +25,8 @@ type Application struct {
 	Config    *config.Config
 	Storage   storage.Store
 	Documents *service.RoleProfileDocumentApplication
+	// Expiry rejects Applications whose interview deadline passed; main starts it.
+	Expiry *applicationservice.ExpiryRunner
 }
 
 func InitializeApplication(configPath string) (*Application, func(), error) {
@@ -85,6 +88,17 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideAdminInterviewsRepository,
 		provider.ProvideAdminInterviewsService,
 		provider.ProvideAdminInterviewsHandler,
+		provider.ProvideInterviewRepository,
+		provider.ProvideInterviewScorer,
+		provider.ProvideInterviewEvaluationService,
+		provider.ProvideInterviewService,
+		provider.ProvideInterviewHandler,
+		provider.ProvideInterviewHistoryHandler,
+		provider.ProvideInterviewReportHandler,
+		provider.ProvideInterviewRecordingService,
+		provider.ProvideInterviewRecordingHandler,
+		provider.ProvideInterviewHandlers,
+		provider.ProvideApplicationExpiryRunner,
 		provider.ProvideRouter,
 		provider.ProvideHTTPServer,
 		wire.Struct(new(Application), "*"),

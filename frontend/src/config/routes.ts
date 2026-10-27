@@ -9,6 +9,11 @@ export const routes = {
   twoFactor: "/two-factor",
   dashboard: "/dashboard",
   targetJds: "/target-jds",
+  roleProfiles: {
+    root: "/role-profiles",
+    new: "/role-profiles/new",
+    detail: (id: string) => `/role-profiles/${segment(id)}`,
+  },
   avatarStudio: "/avatar-studio",
   jobs: "/jobs",
   job: (id: string) => `/jobs/${segment(id)}`,

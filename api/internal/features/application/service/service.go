@@ -76,6 +76,11 @@ func (s *Service) GetDetail(ctx context.Context, recruiterID uuid.UUID, role str
 			ID: record.Item.JobPostingID, Title: record.Item.JobPostingTitle, Status: record.PostingStatus,
 			InterviewSlot: record.InterviewSlot, CVApprovals: record.CVApprovals,
 		},
+		Interview: record.Interview,
+		FinalReview: domain.FinalReview{
+			OpensAt:   record.OpensAt,
+			CanDecide: domain.CanDecide(record.Item.Status, record.OpensAt, time.Now()),
+		},
 	}
 	if record.CVPath != nil {
 		link, err := s.cvLinker.PresignGet(ctx, *record.CVPath, detailLinkTTL)

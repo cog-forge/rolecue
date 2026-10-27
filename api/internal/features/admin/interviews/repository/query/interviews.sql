@@ -12,12 +12,12 @@ SELECT i.id,
        jp.id AS job_posting_id,
        jp.title AS job_posting_title
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-JOIN public.users u ON u.id = rp.candidate_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
+JOIN public.users u ON u.id = COALESCE(rp.candidate_id, a.candidate_id)
 LEFT JOIN public.job_postings jp ON jp.id = a.job_posting_id
 WHERE (sqlc.narg(interview_type)::text IS NULL OR i.type::text = sqlc.narg(interview_type)::text)
-  AND (sqlc.narg(candidate_id)::uuid IS NULL OR rp.candidate_id = sqlc.narg(candidate_id)::uuid)
+  AND (sqlc.narg(candidate_id)::uuid IS NULL OR COALESCE(rp.candidate_id, a.candidate_id) = sqlc.narg(candidate_id)::uuid)
   AND (sqlc.narg(job_posting_id)::uuid IS NULL OR a.job_posting_id = sqlc.narg(job_posting_id)::uuid)
 ORDER BY i.id
 LIMIT @page_limit OFFSET @page_offset;
@@ -25,10 +25,10 @@ LIMIT @page_limit OFFSET @page_offset;
 -- name: CountAdminInterviews :one
 SELECT count(*)
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
 WHERE (sqlc.narg(interview_type)::text IS NULL OR i.type::text = sqlc.narg(interview_type)::text)
-  AND (sqlc.narg(candidate_id)::uuid IS NULL OR rp.candidate_id = sqlc.narg(candidate_id)::uuid)
+  AND (sqlc.narg(candidate_id)::uuid IS NULL OR COALESCE(rp.candidate_id, a.candidate_id) = sqlc.narg(candidate_id)::uuid)
   AND (sqlc.narg(job_posting_id)::uuid IS NULL OR a.job_posting_id = sqlc.narg(job_posting_id)::uuid);
 
 -- Operational detail for one interview. Only identifiers, names, scores and counts are selected;
@@ -54,9 +54,9 @@ SELECT i.id,
        (SELECT count(*) FROM public.interview_questions iq WHERE iq.interview_id = i.id) AS question_count,
        (SELECT count(*) FROM public.conversation_turns ct WHERE ct.interview_id = i.id) AS turn_count
 FROM public.interviews i
-JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-JOIN public.users u ON u.id = rp.candidate_id
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
+JOIN public.users u ON u.id = COALESCE(rp.candidate_id, a.candidate_id)
 LEFT JOIN public.job_postings jp ON jp.id = a.job_posting_id
 LEFT JOIN public.avatars av ON av.id = i.avatar_id
 LEFT JOIN public.voices vo ON vo.id = i.voice_id
