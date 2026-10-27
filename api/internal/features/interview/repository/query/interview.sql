@@ -8,13 +8,15 @@ SELECT id, jd_id, status
 FROM public.role_profiles
 WHERE id = @id AND candidate_id = @candidate_id;
 
--- The first core questions of a Job Description's bank, in a fixed order so a session always asks the
--- same questions.
+-- A random sample of a Job Description's bank, at most @question_limit questions (Decision 14). The
+-- session stores the sample in interview_questions in this order when it starts, and every later read
+-- goes through those rows, so Get and Resume always return the same questions in the same order. A bank
+-- is small, so sorting it by random() is cheap.
 -- name: ListStartQuestions :many
 SELECT id, content
 FROM public.core_questions
 WHERE jd_id = @jd_id
-ORDER BY id
+ORDER BY random()
 LIMIT @question_limit;
 
 -- A practice session may use only an avatar in the Candidate's own inventory (no system avatars exist),
@@ -164,3 +166,12 @@ WHERE id = @id
        OR (evaluation_status = 'pending'
            AND (evaluation_claimed_at IS NULL
                 OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8))));
+
+-- Ends an evaluation whose run panicked, so the next Complete claims and retries it instead of waiting
+-- for the claim to go stale. It is the same guard as MarkInterviewEvaluationFailed in the evaluation
+-- feature (interview_evaluation.sql), copied here so this feature does not import it: a completed
+-- evaluation is never turned back into a failed one.
+-- name: MarkEvaluationFailed :exec
+UPDATE public.interviews
+SET evaluation_status = 'failed'
+WHERE id = @id AND evaluation_status <> 'completed';

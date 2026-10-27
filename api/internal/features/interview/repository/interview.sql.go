@@ -398,7 +398,7 @@ const listStartQuestions = `-- name: ListStartQuestions :many
 SELECT id, content
 FROM public.core_questions
 WHERE jd_id = $1
-ORDER BY id
+ORDER BY random()
 LIMIT $2
 `
 
@@ -412,8 +412,10 @@ type ListStartQuestionsRow struct {
 	Content string
 }
 
-// The first core questions of a Job Description's bank, in a fixed order so a session always asks the
-// same questions.
+// A random sample of a Job Description's bank, at most @question_limit questions (Decision 14). The
+// session stores the sample in interview_questions in this order when it starts, and every later read
+// goes through those rows, so Get and Resume always return the same questions in the same order. A bank
+// is small, so sorting it by random() is cheap.
 func (q *Queries) ListStartQuestions(ctx context.Context, arg ListStartQuestionsParams) ([]ListStartQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, listStartQuestions, arg.JdID, arg.QuestionLimit)
 	if err != nil {
@@ -503,6 +505,21 @@ WHERE id = $1 AND status = 'interview_eligible'
 // or one the Recruiter decided meanwhile, is left as it is.
 func (q *Queries) MarkApplicationInterviewed(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markApplicationInterviewed, id)
+	return err
+}
+
+const markEvaluationFailed = `-- name: MarkEvaluationFailed :exec
+UPDATE public.interviews
+SET evaluation_status = 'failed'
+WHERE id = $1 AND evaluation_status <> 'completed'
+`
+
+// Ends an evaluation whose run panicked, so the next Complete claims and retries it instead of waiting
+// for the claim to go stale. It is the same guard as MarkInterviewEvaluationFailed in the evaluation
+// feature (interview_evaluation.sql), copied here so this feature does not import it: a completed
+// evaluation is never turned back into a failed one.
+func (q *Queries) MarkEvaluationFailed(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markEvaluationFailed, id)
 	return err
 }
 

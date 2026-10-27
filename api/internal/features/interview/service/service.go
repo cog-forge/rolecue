@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
@@ -17,6 +18,9 @@ const (
 	defaultQuestionLimit = 8
 	// evaluationTimeout bounds one background evaluation, which runs after the request has returned.
 	evaluationTimeout = 2 * time.Minute
+	// failureWriteTimeout bounds the write that marks a panicked evaluation failed. It runs on a fresh
+	// context, so an evaluation that panicked after its own timeout is still marked.
+	failureWriteTimeout = 10 * time.Second
 )
 
 // Repository is the persistence contract of interview sessions. It runs each write in one transaction and
@@ -26,6 +30,7 @@ type Repository interface {
 	Get(ctx context.Context, candidateID, id uuid.UUID) (domain.Session, error)
 	AppendTurn(ctx context.Context, candidateID, id uuid.UUID, position int32, answer string) (domain.Session, error)
 	Complete(ctx context.Context, candidateID, id uuid.UUID) (domain.Session, bool, error)
+	MarkEvaluationFailed(ctx context.Context, id uuid.UUID) error
 }
 
 // Evaluator scores a completed session. It writes the session's evaluation status itself; the service
@@ -164,19 +169,30 @@ func (s *Service) startEvaluation(ctx context.Context, interviewID uuid.UUID) {
 		return
 	}
 	go func() {
-		defer func() {
-			// A panic in the scorer or its client must not take the API down. The claim goes stale and a
-			// repeated Complete takes the evaluation over.
-			if recovered := recover(); recovered != nil {
-				slog.Error("interview evaluation panicked", "interview_id", interviewID, "panic", recovered)
-			}
-		}()
+		// A panic anywhere in the evaluation must not take the API down. It is marked failed, so the next
+		// Complete claims and retries it instead of waiting for the claim to go stale.
+		defer s.recoverEvaluation(ctx, interviewID)
 		evalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), evaluationTimeout)
 		defer cancel()
 		if err := evaluator.Evaluate(evalCtx, interviewID); err != nil {
 			slog.ErrorContext(evalCtx, "interview evaluation failed", "interview_id", interviewID, "error", err)
 		}
 	}()
+}
+
+// recoverEvaluation is deferred by the evaluation goroutine. It logs a panic with its stack and marks the
+// evaluation failed; a failed write is logged too, and the claim then goes stale as before.
+func (s *Service) recoverEvaluation(ctx context.Context, interviewID uuid.UUID) {
+	recovered := recover()
+	if recovered == nil {
+		return
+	}
+	slog.Error("interview evaluation panicked", "interview_id", interviewID, "panic", recovered, "stack", string(debug.Stack()))
+	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), failureWriteTimeout)
+	defer cancel()
+	if err := s.repository.MarkEvaluationFailed(markCtx, interviewID); err != nil {
+		slog.Error("mark panicked interview evaluation failed", "interview_id", interviewID, "error", err)
+	}
 }
 
 // presentSession is the Candidate's view of a session. Recruitment sessions never show turns; the
