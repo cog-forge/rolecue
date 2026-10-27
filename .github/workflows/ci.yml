@@ -80,7 +80,7 @@ jobs:
     env:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
       # Without it the avatar creator stays disabled and its specs cannot open Avaturn.
-      NEXT_PUBLIC_AVATURN_PROJECT_URL: ${{ vars.NEXT_PUBLIC_AVATURN_PROJECT_URL }}
+      NEXT_PUBLIC_AVATURN_PROJECT_URL: ${{ secrets.NEXT_PUBLIC_AVATURN_PROJECT_URL }}
     defaults:
       run:
         working-directory: frontend
@@ -167,7 +167,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
             NEXT_PUBLIC_API_BASE_URL=${{ env.API_URL }}
-            NEXT_PUBLIC_AVATURN_PROJECT_URL=${{ vars.NEXT_PUBLIC_AVATURN_PROJECT_URL }}
+            NEXT_PUBLIC_AVATURN_PROJECT_URL=${{ secrets.NEXT_PUBLIC_AVATURN_PROJECT_URL }}
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
       - name: Smoke test
