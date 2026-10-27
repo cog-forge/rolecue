@@ -3204,7 +3204,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Spends coins for the requested number of slots.",
+                "description": "Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each. The balance check, the coin debit, its ledger row and the capacity increase commit together. Returns the GET /inventory summary after the purchase plus balance, the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE (422) and changes nothing.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3217,7 +3217,7 @@ const docTemplate = `{
                 "summary": "Purchase inventory slots",
                 "parameters": [
                     {
-                        "description": "Number of slots to purchase",
+                        "description": "Number of slots to purchase, 1 to 10",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -3227,8 +3227,23 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
-                    "204": {
-                        "description": "Success"
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.SlotPurchase"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
                     },
                     "400": {
                         "description": "Bad Request",
@@ -3244,12 +3259,6 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/response.Envelope"
-                        }
-                    },
-                    "409": {
-                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -9368,11 +9377,33 @@ const docTemplate = `{
                 "Other"
             ]
         },
+        "domain.SlotPurchase": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "integer"
+                },
+                "balance": {
+                    "type": "integer"
+                },
+                "capacity": {
+                    "type": "integer"
+                },
+                "is_full": {
+                    "type": "boolean"
+                },
+                "used": {
+                    "type": "integer"
+                }
+            }
+        },
         "domain.SlotPurchaseRequest": {
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "integer"
+                    "type": "integer",
+                    "maximum": 10,
+                    "minimum": 1
                 }
             }
         },

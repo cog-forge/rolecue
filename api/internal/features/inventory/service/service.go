@@ -15,8 +15,7 @@ type Repository interface {
 	Summary(context.Context, uuid.UUID) (domain.Capacity, error)
 	List(context.Context, uuid.UUID, int32, int32) ([]domain.Avatar, int64, error)
 	Get(context.Context, uuid.UUID, uuid.UUID) (domain.StoredAvatar, error)
-	GetWallet(ctx context.Context, owner uuid.UUID) (*domain.Wallet, error)
-	PurchaseSlot(ctx context.Context, owner uuid.UUID, wallet domain.Wallet, amount int32) error
+	PurchaseSlot(ctx context.Context, owner uuid.UUID, amount int32) (domain.SlotPurchase, error)
 	Delete(context.Context, uuid.UUID, uuid.UUID) error
 }
 
@@ -77,23 +76,17 @@ func (s *Service) Get(ctx context.Context, user authdomain.User, id uuid.UUID) (
 	}}, nil
 }
 
-func (s *Service) PurchaseSlot(ctx context.Context, user authdomain.User, amount int32) error {
+// PurchaseSlot buys 1 to MaxSlotsPerPurchase slots at PricePerSlot each. The repository checks the
+// balance, debits it and adds the slots in one transaction, so a low balance or a missing wallet is
+// INSUFFICIENT_BALANCE and writes nothing.
+func (s *Service) PurchaseSlot(ctx context.Context, user authdomain.User, amount int32) (domain.SlotPurchase, error) {
 	if err := authorize(user); err != nil {
-		return err
+		return domain.SlotPurchase{}, err
 	}
-	if amount <= 0 {
-		return apperror.New(apperror.CodeValidation, "slot purchase amount must be positive")
+	if amount < 1 || amount > domain.MaxSlotsPerPurchase {
+		return domain.SlotPurchase{}, apperror.New(apperror.CodeValidation, "amount must be between 1 and 10")
 	}
-
-	wallet, err := s.repository.GetWallet(ctx, user.ID)
-	if err != nil {
-		return err
-	}
-	if wallet.Balance < amount*domain.PricePerSlot {
-		return apperror.New(apperror.CodeInsufficientBalance, "not enough coins to purchase inventory slots")
-	}
-
-	return s.repository.PurchaseSlot(ctx, user.ID, *wallet, amount)
+	return s.repository.PurchaseSlot(ctx, user.ID, amount)
 }
 
 func (s *Service) Delete(ctx context.Context, user authdomain.User, id uuid.UUID) error {

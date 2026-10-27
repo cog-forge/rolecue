@@ -21,7 +21,7 @@ type InventoryService interface {
 	Summary(context.Context, authdomain.User) (domain.Capacity, error)
 	List(context.Context, authdomain.User, int32, int32) ([]domain.Avatar, int64, error)
 	Get(context.Context, authdomain.User, uuid.UUID) (domain.AvatarDetail, error)
-	PurchaseSlot(ctx context.Context, user authdomain.User, amount int32) error
+	PurchaseSlot(ctx context.Context, user authdomain.User, amount int32) (domain.SlotPurchase, error)
 	Delete(context.Context, authdomain.User, uuid.UUID) error
 }
 
@@ -193,17 +193,16 @@ func (h *InventoryHandler) Get(c *gin.Context) {
 
 // PurchaseSlot godoc
 // @Summary Purchase inventory slots
-// @Description Spends coins for the requested number of slots.
+// @Description Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each. The balance check, the coin debit, its ledger row and the capacity increase commit together. Returns the GET /inventory summary after the purchase plus balance, the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE (422) and changes nothing.
 // @Tags inventory
 // @Produce json
 // @Security SessionCookie
 // @Accept json
-// @Param request body domain.SlotPurchaseRequest true "Number of slots to purchase"
-// @Success 204 "Success"
+// @Param request body domain.SlotPurchaseRequest true "Number of slots to purchase, 1 to 10"
+// @Success 200 {object} response.Envelope{data=domain.SlotPurchase}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
-// @Failure 409 {object} response.Envelope
 // @Failure 422 {object} response.Envelope
 // @Failure 500 {object} response.Envelope
 // @Failure 503 {object} response.Envelope
@@ -220,8 +219,8 @@ func (h *InventoryHandler) PurchaseSlot(c *gin.Context) {
 	var request domain.SlotPurchaseRequest
 	decoder := json.NewDecoder(io.LimitReader(c.Request.Body, 4097))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&request); err != nil || request.Amount < 1 {
-		response.Error(c, apperror.New(apperror.CodeValidation, "amount must be greater or equal to 1"))
+	if err := decoder.Decode(&request); err != nil || request.Amount < 1 || request.Amount > domain.MaxSlotsPerPurchase {
+		response.Error(c, apperror.New(apperror.CodeValidation, "amount must be between 1 and 10"))
 		return
 	}
 	var extra any
@@ -229,12 +228,12 @@ func (h *InventoryHandler) PurchaseSlot(c *gin.Context) {
 		response.Error(c, apperror.New(apperror.CodeValidation, "invalid inventory request"))
 		return
 	}
-	err := h.service.PurchaseSlot(c.Request.Context(), user, request.Amount)
+	purchase, err := h.service.PurchaseSlot(c.Request.Context(), user, request.Amount)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-	c.Status(http.StatusNoContent)
+	response.OK(c, purchase)
 }
 
 // Delete godoc
