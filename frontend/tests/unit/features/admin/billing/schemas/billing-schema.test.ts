@@ -57,6 +57,7 @@ describe("admin billing schemas", () => {
     const summary = {
       total_revenue: 150000,
       successful_deposits: 3,
+      total_deposits: 4,
       success_count: 5,
       pending_count: 2,
       failed_count: 1,
@@ -89,6 +90,7 @@ describe("admin billing schemas", () => {
     const parsed = billingSummarySchema.parse(summary);
     expect(parsed.total_revenue).toBe(150000);
     expect(parsed.successful_deposits).toBe(3);
+    expect(parsed.total_deposits).toBe(4);
     expect(parsed.total_transactions).toBe(9);
     expect(parsed.package_breakdown).toHaveLength(1);
     expect(parsed.feature_breakdown).toHaveLength(1);

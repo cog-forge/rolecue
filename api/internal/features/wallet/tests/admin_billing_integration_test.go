@@ -164,6 +164,7 @@ func TestAdminBillingSQLCQueries_RevenueAndFilters(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(150000), summary.TotalRevenue, "revenue must only sum success PayOS top-ups")
 	require.Equal(t, int64(2), summary.SuccessfulDeposits, "successful_deposits must only count success PayOS top-ups")
+	require.Equal(t, int64(5), summary.TotalDeposits, "total_deposits counts every PayOS top-up attempt and no internal coin rows")
 	require.Equal(t, int64(4), summary.SuccessCount, "2 top-ups + 1 spend + 1 refund")
 	require.Equal(t, int64(1), summary.PendingCount)
 	require.Equal(t, int64(1), summary.FailedCount)

@@ -235,6 +235,7 @@ filtered AS (
 SELECT
     COALESCE(SUM(paid_vnd) FILTER (WHERE status = 'success' AND tx_type = 'topup'), 0)::bigint AS total_revenue,
     COUNT(*) FILTER (WHERE status = 'success' AND tx_type = 'topup')::bigint AS successful_deposits,
+    COUNT(*) FILTER (WHERE tx_type = 'topup')::bigint AS total_deposits,
     COUNT(*) FILTER (WHERE status = 'success')::bigint AS success_count,
     COUNT(*) FILTER (WHERE status = 'pending')::bigint AS pending_count,
     COUNT(*) FILTER (WHERE status = 'failed')::bigint AS failed_count,
@@ -259,6 +260,7 @@ type GetAdminBillingSummaryParams struct {
 type GetAdminBillingSummaryRow struct {
 	TotalRevenue       int64
 	SuccessfulDeposits int64
+	TotalDeposits      int64
 	SuccessCount       int64
 	PendingCount       int64
 	FailedCount        int64
@@ -283,6 +285,7 @@ func (q *Queries) GetAdminBillingSummary(ctx context.Context, arg GetAdminBillin
 	err := row.Scan(
 		&i.TotalRevenue,
 		&i.SuccessfulDeposits,
+		&i.TotalDeposits,
 		&i.SuccessCount,
 		&i.PendingCount,
 		&i.FailedCount,

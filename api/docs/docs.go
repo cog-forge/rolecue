@@ -7696,9 +7696,13 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "success_rate": {
+                    "description": "percent of PayOS deposit attempts that succeeded",
                     "type": "number"
                 },
                 "successful_deposits": {
+                    "type": "integer"
+                },
+                "total_deposits": {
                     "type": "integer"
                 },
                 "total_revenue": {

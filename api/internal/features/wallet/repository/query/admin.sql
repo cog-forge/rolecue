@@ -414,6 +414,7 @@ filtered AS (
 SELECT
     COALESCE(SUM(paid_vnd) FILTER (WHERE status = 'success' AND tx_type = 'topup'), 0)::bigint AS total_revenue,
     COUNT(*) FILTER (WHERE status = 'success' AND tx_type = 'topup')::bigint AS successful_deposits,
+    COUNT(*) FILTER (WHERE tx_type = 'topup')::bigint AS total_deposits,
     COUNT(*) FILTER (WHERE status = 'success')::bigint AS success_count,
     COUNT(*) FILTER (WHERE status = 'pending')::bigint AS pending_count,
     COUNT(*) FILTER (WHERE status = 'failed')::bigint AS failed_count,

@@ -89,6 +89,7 @@ export type FeatureCoinItem = z.infer<typeof featureCoinItemSchema>;
 export const billingSummarySchema = z.object({
   total_revenue: z.number().default(0),
   successful_deposits: z.number().default(0),
+  total_deposits: z.number().default(0),
   success_count: z.number().default(0),
   pending_count: z.number().default(0),
   failed_count: z.number().default(0),

@@ -1286,6 +1286,7 @@ func TestAdminGetBillingSummary_OnlyCountsSuccessPayOSDeposits(t *testing.T) {
 	expectedSummary := domain.BillingSummary{
 		TotalRevenue:       150000,
 		SuccessfulDeposits: 2,
+		TotalDeposits:      5, // 2 success + 1 pending + 1 failed + 1 cancelled PayOS top-ups
 		SuccessCount:       5, // 2 topups + 2 spends + 1 refund
 		PendingCount:       1,
 		FailedCount:        1,
@@ -1297,7 +1298,7 @@ func TestAdminGetBillingSummary_OnlyCountsSuccessPayOSDeposits(t *testing.T) {
 		CoinsSpent:         40,
 		CoinsRefunded:      10,
 		CoinsNet:           270,
-		SuccessRate:        62.5,
+		SuccessRate:        40.0, // 2 of 5 PayOS deposit attempts
 		PackageBreakdown: []domain.PackageRevenueItem{
 			{PackageName: "Pro Pack", RevenueVND: 100000, DepositCount: 1, CoinsSold: 200},
 			{PackageName: "Starter Pack", RevenueVND: 50000, DepositCount: 1, CoinsSold: 100},
@@ -1313,6 +1314,8 @@ func TestAdminGetBillingSummary_OnlyCountsSuccessPayOSDeposits(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(150000), res.TotalRevenue)
 	assert.Equal(t, int64(2), res.SuccessfulDeposits)
+	assert.Equal(t, int64(5), res.TotalDeposits)
+	assert.Equal(t, 40.0, res.SuccessRate)
 	assert.Equal(t, int64(1), res.PendingCount)
 	assert.Equal(t, int64(1), res.FailedCount)
 	assert.Equal(t, int64(1), res.CancelledCount)
@@ -1443,4 +1446,13 @@ func TestValidateAdminFilter_RejectsInvalidInputs(t *testing.T) {
 			assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
 		})
 	}
+}
+
+func TestDepositSuccessRate_CountsPayOSDepositsOnly(t *testing.T) {
+	// 2 paid out of 5 PayOS attempts. Internal coin rows (always 'success') are not part of either
+	// argument, so a busy coin ledger cannot inflate the deposit success rate.
+	assert.Equal(t, 40.0, domain.DepositSuccessRate(2, 5))
+	assert.Equal(t, 66.7, domain.DepositSuccessRate(2, 3))
+	assert.Equal(t, 100.0, domain.DepositSuccessRate(4, 4))
+	assert.Equal(t, 0.0, domain.DepositSuccessRate(0, 0), "no deposit attempts must not divide by zero")
 }

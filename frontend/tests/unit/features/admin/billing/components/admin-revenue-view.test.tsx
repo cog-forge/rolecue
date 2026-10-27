@@ -40,6 +40,7 @@ describe("AdminRevenueView", () => {
               total_revenue: 150000,
               net_revenue: 150000,
               successful_deposits: 2,
+              total_deposits: 3,
               success_count: 4,
               pending_count: 1,
               failed_count: 1,
@@ -102,6 +103,15 @@ describe("AdminRevenueView", () => {
       1,
     );
     expect(screen.getByText("Practice interview charge")).toBeInTheDocument();
+  });
+
+  it("scopes the success rate to PayOS deposit attempts, not all ledger rows", async () => {
+    renderComponent();
+
+    // 2 of 3 PayOS attempts paid, even though total_transactions (6) also counts coin rows.
+    expect(
+      await screen.findByText(/66\.7% of 3 attempts paid/),
+    ).toBeInTheDocument();
   });
 
   it("shows honest empty states when breakdown data is empty without fabricating numbers", async () => {

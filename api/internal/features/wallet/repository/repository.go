@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"errors"
-	"math"
 	"strconv"
 	"strings"
 
@@ -399,11 +398,6 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 		avgDeposit = row.TotalRevenue / row.SuccessfulDeposits
 	}
 
-	var successRate float64
-	if row.TotalTransactions > 0 {
-		successRate = math.Round((float64(row.SuccessCount)/float64(row.TotalTransactions))*1000) / 10
-	}
-
 	pkgBreakdown := make([]domain.PackageRevenueItem, 0)
 	if (filter.Status == "" || filter.Status == string(domain.StatusSuccess)) &&
 		(filter.Type == "" || filter.Type == "topup") {
@@ -450,6 +444,7 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 	return domain.BillingSummary{
 		TotalRevenue:       row.TotalRevenue,
 		SuccessfulDeposits: row.SuccessfulDeposits,
+		TotalDeposits:      row.TotalDeposits,
 		SuccessCount:       row.SuccessCount,
 		PendingCount:       row.PendingCount,
 		FailedCount:        row.FailedCount,
@@ -461,7 +456,7 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 		CoinsSpent:         row.CoinsSpent,
 		CoinsRefunded:      row.CoinsRefunded,
 		CoinsNet:           row.CoinsSold - row.CoinsSpent + row.CoinsRefunded,
-		SuccessRate:        successRate,
+		SuccessRate:        domain.DepositSuccessRate(row.SuccessfulDeposits, row.TotalDeposits),
 		PackageBreakdown:   pkgBreakdown,
 		FeatureBreakdown:   featureBreakdown,
 	}, nil

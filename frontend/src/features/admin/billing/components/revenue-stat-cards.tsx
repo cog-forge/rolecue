@@ -96,7 +96,11 @@ export function BillingStatCards({
               </p>
               <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                 <span>Avg: {formatVND(summary.average_deposit)}</span>
-                <span>{summary.success_rate.toFixed(1)}% success rate</span>
+                <span>
+                  {summary.success_rate.toFixed(1)}% of{" "}
+                  {formatPlural(summary.total_deposits, "attempt", "attempts")}{" "}
+                  paid
+                </span>
               </div>
             </CardContent>
           </Card>

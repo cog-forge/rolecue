@@ -1,6 +1,10 @@
 package domain
 
-import "github.com/google/uuid"
+import (
+	"math"
+
+	"github.com/google/uuid"
+)
 
 // TransactionStatus mirrors public.transaction_status postgres enum.
 type TransactionStatus string
@@ -114,11 +118,21 @@ type FeatureCoinItem struct {
 	SpendCount  int64  `json:"spend_count"`
 }
 
+// DepositSuccessRate returns the share of PayOS deposit attempts that succeeded, as a percentage
+// rounded to one decimal. Internal coin rows are always 'success', so they are not part of the base.
+func DepositSuccessRate(successfulDeposits, totalDeposits int64) float64 {
+	if totalDeposits <= 0 {
+		return 0
+	}
+	return math.Round(float64(successfulDeposits)/float64(totalDeposits)*1000) / 10
+}
+
 // BillingSummary is the shared read-only financial summary used by both Payment Transactions and Revenue Reports.
 // Per KAN-192, TotalRevenue only sums transactions with status = 'success' and non-empty payos_order_code.
 type BillingSummary struct {
 	TotalRevenue       int64                `json:"total_revenue"`
 	SuccessfulDeposits int64                `json:"successful_deposits"`
+	TotalDeposits      int64                `json:"total_deposits"`
 	SuccessCount       int64                `json:"success_count"`
 	PendingCount       int64                `json:"pending_count"`
 	FailedCount        int64                `json:"failed_count"`
@@ -130,7 +144,7 @@ type BillingSummary struct {
 	CoinsSpent         int64                `json:"coins_spent"`
 	CoinsRefunded      int64                `json:"coins_refunded"`
 	CoinsNet           int64                `json:"coins_net"`
-	SuccessRate        float64              `json:"success_rate"`
+	SuccessRate        float64              `json:"success_rate"` // percent of PayOS deposit attempts that succeeded
 	PackageBreakdown   []PackageRevenueItem `json:"package_breakdown"`
 	FeatureBreakdown   []FeatureCoinItem    `json:"feature_breakdown"`
 }
