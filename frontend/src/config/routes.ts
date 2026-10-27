@@ -15,6 +15,9 @@ export const routes = {
     detail: (id: string) => `/role-profiles/${segment(id)}`,
   },
   avatarStudio: "/avatar-studio",
+  avatarStudioNew: "/avatar-studio/new",
+  avatarStudioPreview: (id: string) =>
+    `/avatar-studio?avatar=${encodeURIComponent(id)}`,
   jobs: "/jobs",
   job: (id: string) => `/jobs/${segment(id)}`,
   applications: "/applications",

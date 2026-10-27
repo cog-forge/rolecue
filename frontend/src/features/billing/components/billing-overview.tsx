@@ -2,7 +2,9 @@
 
 import { Suspense, useCallback, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, Wallet } from "lucide-react";
+import { Plus, ShieldAlert, Wallet } from "lucide-react";
+import { DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { getTransactions, syncDepositStatus, walletKeys } from "../api/wallet";
 import {
@@ -10,12 +12,14 @@ import {
   type PaymentReturnEvent,
 } from "./payment-status-banner";
 import { TransactionHistory } from "./transaction-history";
+import { AddCoinsDialog } from "./wallet-purchase";
 
 export function BillingOverview() {
   const user = useSessionUser();
   const queryClient = useQueryClient();
 
   const [page, setPage] = useState(1);
+  const [addingCoins, setAddingCoins] = useState(false);
   const pageSize = 20;
   // 3. Authoritative Transactions Query
   const transactionsQuery = useQuery({
@@ -97,6 +101,18 @@ export function BillingOverview() {
             Track your coin purchases, spending, and refunds.
           </p>
         </div>
+        <AddCoinsDialog
+          open={addingCoins}
+          onOpenChange={setAddingCoins}
+          userId={user.id}
+          role={user.role}
+        >
+          <DialogTrigger asChild>
+            <Button className="h-11 self-start sm:self-auto">
+              <Plus aria-hidden /> Add coins
+            </Button>
+          </DialogTrigger>
+        </AddCoinsDialog>
       </div>
 
       {/* PayOS Return State Banner */}

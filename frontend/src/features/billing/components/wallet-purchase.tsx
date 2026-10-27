@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CoinIcon } from "@/components/icons/coin-icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,38 +47,14 @@ export function WalletPurchase({
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
-  const packages = useQuery({
-    queryKey: walletKeys.packages(),
-    queryFn: ({ signal }) => getCoinPackages(signal),
-    enabled: open && role !== "admin",
-    staleTime: 60_000,
-  });
-  const checkout = useMutation({
-    mutationFn: (pkg: CoinPackage) => {
-      const path =
-        role === "recruiter" ? routes.recruiter.billing : routes.billing;
-      return createDepositCheckout({
-        package_id: pkg.id,
-        return_url: `${window.location.origin}${path}?status=success`,
-        cancel_url: `${window.location.origin}${path}?cancel=true`,
-      });
-    },
-    onSuccess: (data) => {
-      window.location.href = data.checkout_url;
-    },
-  });
   if (role === "admin") return null;
   const balance = wallet.data?.balance.toLocaleString("en-US");
   return (
-    <Dialog
+    <AddCoinsDialog
       open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) {
-          if (!checkout.isPending) checkout.reset();
-          void wallet.refetch();
-        }
-      }}
+      onOpenChange={setOpen}
+      userId={userId}
+      role={role}
     >
       <Tooltip open={!open && previewOpen} onOpenChange={setPreviewOpen}>
         <TooltipTrigger asChild>
@@ -111,6 +87,61 @@ export function WalletPurchase({
           {wallet.isError ? "Balance unavailable · Add coins" : "Add coins"}
         </TooltipContent>
       </Tooltip>
+    </AddCoinsDialog>
+  );
+}
+
+/**
+ * The coin package picker and PayOS checkout. The sidebar balance opens it; other screens that
+ * need coins (buying avatar slots, the transactions page) open the same dialog instead of linking
+ * away. PayOS returns to the billing page, which confirms the payment.
+ */
+export function AddCoinsDialog({
+  open,
+  onOpenChange,
+  userId,
+  role,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  userId: string;
+  role: "candidate" | "recruiter";
+  children?: React.ReactNode;
+}) {
+  const cache = useQueryClient();
+  const packages = useQuery({
+    queryKey: walletKeys.packages(),
+    queryFn: ({ signal }) => getCoinPackages(signal),
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const checkout = useMutation({
+    mutationFn: (pkg: CoinPackage) => {
+      const path =
+        role === "recruiter" ? routes.recruiter.billing : routes.billing;
+      return createDepositCheckout({
+        package_id: pkg.id,
+        return_url: `${window.location.origin}${path}?status=success`,
+        cancel_url: `${window.location.origin}${path}?cancel=true`,
+      });
+    },
+    onSuccess: (data) => {
+      window.location.href = data.checkout_url;
+    },
+  });
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        onOpenChange(next);
+        if (next) {
+          if (!checkout.isPending) checkout.reset();
+          void cache.invalidateQueries({ queryKey: walletKeys.wallet(userId) });
+        }
+      }}
+    >
+      {children}
       <DialogContent
         overlayClassName="z-100 motion-reduce:animate-none"
         className="z-100 flex max-h-[85dvh] w-[calc(100vw-2rem)] max-w-[840px] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[840px] motion-reduce:animate-none [&>[data-slot=dialog-close]]:top-4 [&>[data-slot=dialog-close]]:right-4 [&>[data-slot=dialog-close]]:size-11"

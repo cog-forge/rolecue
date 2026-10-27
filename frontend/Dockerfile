@@ -7,7 +7,9 @@ COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --ignore-scripts
 COPY . .
 ARG NEXT_PUBLIC_API_BASE_URL
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL NEXT_TELEMETRY_DISABLED=1
+# Public Avaturn project origin for the avatar creator. Optional: without it, creation is disabled.
+ARG NEXT_PUBLIC_AVATURN_PROJECT_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL NEXT_PUBLIC_AVATURN_PROJECT_URL=$NEXT_PUBLIC_AVATURN_PROJECT_URL NEXT_TELEMETRY_DISABLED=1
 RUN node -e 'const u = new URL(process.env.NEXT_PUBLIC_API_BASE_URL); if (!["http:","https:"].includes(u.protocol) || u.username || u.password) process.exit(1)' \
     && bun run build
 

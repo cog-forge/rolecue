@@ -12,12 +12,13 @@ export function RoleGate({
   role,
 }: {
   children: React.ReactNode;
-  role: ProductRole;
+  role: ProductRole | readonly ProductRole[];
 }) {
   const user = useSessionUser();
   const router = useRouter();
   const pathname = usePathname();
-  const allowed = user.role === role;
+  const allowed =
+    typeof role === "string" ? user.role === role : role.includes(user.role);
 
   useEffect(() => {
     if (!allowed) router.replace(workspaceHome(user.role));
