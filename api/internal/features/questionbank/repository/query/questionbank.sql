@@ -1,5 +1,5 @@
 -- name: GetRecruiterPosting :one
-SELECT jd_id, status::text AS status
+SELECT jd_id, status::text AS status, review_submitted
 FROM public.job_postings
 WHERE id = @id AND recruiter_id = @recruiter_id;
 
@@ -26,11 +26,13 @@ FROM public.job_descriptions jd
 JOIN public.levels l ON l.id = jd.level_id
 WHERE jd.id = @id;
 
+-- A question is added only to a generated bank, so manual questions cannot skip generation.
 -- name: AddCoreQuestion :one
 INSERT INTO public.core_questions (jd_id, content)
 SELECT jp.jd_id, @content::text
 FROM public.job_postings jp
-WHERE jp.id = @posting_id AND jp.recruiter_id = @recruiter_id AND jp.status = 'pending'
+WHERE jp.id = @posting_id AND jp.recruiter_id = @recruiter_id AND jp.status IN ('pending', 'rejected')
+  AND EXISTS (SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id)
 RETURNING id, content;
 
 -- name: UpdateCoreQuestion :one
@@ -41,7 +43,7 @@ WHERE cq.id = @id
   AND cq.jd_id = jp.jd_id
   AND jp.id = @posting_id
   AND jp.recruiter_id = @recruiter_id
-  AND jp.status = 'pending'
+  AND jp.status IN ('pending', 'rejected')
 RETURNING cq.id, cq.content;
 
 -- name: DeleteCoreQuestion :execrows
@@ -51,7 +53,12 @@ WHERE cq.id = @id
   AND cq.jd_id = jp.jd_id
   AND jp.id = @posting_id
   AND jp.recruiter_id = @recruiter_id
-  AND jp.status = 'pending';
+  AND jp.status IN ('pending', 'rejected');
+
+-- Removing the last question takes the posting out of the Admin queue.
+-- name: ClearEmptyBankSubmission :exec
+UPDATE public.job_postings SET review_submitted = false
+WHERE job_postings.id = @id AND NOT EXISTS (SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = job_postings.jd_id);
 
 -- name: CandidateOwnsJD :one
 SELECT EXISTS(
@@ -59,10 +66,10 @@ SELECT EXISTS(
     WHERE jd_id = @jd_id AND candidate_id = @candidate_id
 );
 
--- name: LockPendingPosting :one
+-- name: LockEditablePosting :one
 SELECT jd_id
 FROM public.job_postings
-WHERE id = @id AND recruiter_id = @recruiter_id AND status = 'pending'
+WHERE id = @id AND recruiter_id = @recruiter_id AND status IN ('pending', 'rejected')
 FOR UPDATE;
 
 -- name: LockCandidateRoleProfile :one

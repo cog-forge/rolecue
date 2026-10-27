@@ -29,6 +29,7 @@ const review = {
   document_url: null,
   document_expires_at: null,
   raw_text: null,
+  review_submitted: true,
   core_question_count: 50,
 };
 

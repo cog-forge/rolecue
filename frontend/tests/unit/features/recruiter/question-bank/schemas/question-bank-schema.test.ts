@@ -15,6 +15,7 @@ const bank = {
   posting_status: "pending",
   editable: true,
   max_question_length: 1000,
+  review_submitted: false,
   generation_size: 10,
 };
 

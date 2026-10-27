@@ -1,25 +1,16 @@
 "use client";
 
-import { headerBandClass } from "@/features/recruiter/job-postings/components/notice";
-import { cn } from "@/lib/utils";
+import { PageHeader } from "@/features/recruiter/job-postings/components/page-header";
 import { ApplicationList } from "./application-list";
 
 // Every Application on the Recruiter's own postings. Each candidate opens the Application's detail.
 export function ReceivedApplications() {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
-      <header className={cn(headerBandClass, "space-y-2")}>
-        <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Recruitment
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Received Applications
-        </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Candidates who applied to your job postings, newest first. Search by
-          name or email, or filter by where they are in screening.
-        </p>
-      </header>
+      <PageHeader
+        title="Received Applications"
+        description="Candidates who applied to your job postings, newest first. Search by name or email, or filter by where they are in screening."
+      />
       <ApplicationList />
     </section>
   );

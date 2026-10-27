@@ -44,9 +44,12 @@ func (q *Queries) CountCandidateApplications(ctx context.Context, candidateID uu
 
 const getCandidateApplication = `-- name: GetCandidateApplication :one
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status,
-       a.reject_reason, a.interview_deadline, a.created_at
+       a.reject_reason, a.interview_deadline, a.created_at,
+       i.id AS interview_id, i.completed_at AS interview_completed_at,
+       i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
+LEFT JOIN public.interviews i ON i.application_id = a.id
 WHERE a.id = $1 AND a.candidate_id = $2
 `
 
@@ -56,13 +59,17 @@ type GetCandidateApplicationParams struct {
 }
 
 type GetCandidateApplicationRow struct {
-	ID                uuid.UUID
-	JobPostingID      uuid.UUID
-	JobPostingTitle   string
-	Status            string
-	RejectReason      *string
-	InterviewDeadline pgtype.Timestamptz
-	CreatedAt         pgtype.Timestamptz
+	ID                        uuid.UUID
+	JobPostingID              uuid.UUID
+	JobPostingTitle           string
+	Status                    string
+	RejectReason              *string
+	InterviewDeadline         pgtype.Timestamptz
+	CreatedAt                 pgtype.Timestamptz
+	InterviewID               *uuid.UUID
+	InterviewCompletedAt      pgtype.Timestamptz
+	InterviewEvaluationStatus *string
+	InterviewScore            *int32
 }
 
 func (q *Queries) GetCandidateApplication(ctx context.Context, arg GetCandidateApplicationParams) (GetCandidateApplicationRow, error) {
@@ -76,6 +83,10 @@ func (q *Queries) GetCandidateApplication(ctx context.Context, arg GetCandidateA
 		&i.RejectReason,
 		&i.InterviewDeadline,
 		&i.CreatedAt,
+		&i.InterviewID,
+		&i.InterviewCompletedAt,
+		&i.InterviewEvaluationStatus,
+		&i.InterviewScore,
 	)
 	return i, err
 }
@@ -114,9 +125,12 @@ func (q *Queries) InsertCandidateApplication(ctx context.Context, arg InsertCand
 
 const listCandidateApplications = `-- name: ListCandidateApplications :many
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status,
-       a.reject_reason, a.interview_deadline, a.created_at
+       a.reject_reason, a.interview_deadline, a.created_at,
+       i.id AS interview_id, i.completed_at AS interview_completed_at,
+       i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
+LEFT JOIN public.interviews i ON i.application_id = a.id
 WHERE a.candidate_id = $1
 ORDER BY a.created_at DESC, a.id DESC
 LIMIT $3 OFFSET $2
@@ -129,16 +143,21 @@ type ListCandidateApplicationsParams struct {
 }
 
 type ListCandidateApplicationsRow struct {
-	ID                uuid.UUID
-	JobPostingID      uuid.UUID
-	JobPostingTitle   string
-	Status            string
-	RejectReason      *string
-	InterviewDeadline pgtype.Timestamptz
-	CreatedAt         pgtype.Timestamptz
+	ID                        uuid.UUID
+	JobPostingID              uuid.UUID
+	JobPostingTitle           string
+	Status                    string
+	RejectReason              *string
+	InterviewDeadline         pgtype.Timestamptz
+	CreatedAt                 pgtype.Timestamptz
+	InterviewID               *uuid.UUID
+	InterviewCompletedAt      pgtype.Timestamptz
+	InterviewEvaluationStatus *string
+	InterviewScore            *int32
 }
 
-// The Candidate's own Applications, newest first. cv_path is not selected.
+// The Candidate's own Applications, newest first. cv_path is not selected. The interview columns carry the
+// session id, completion and score only: no transcript, recording or feedback text.
 func (q *Queries) ListCandidateApplications(ctx context.Context, arg ListCandidateApplicationsParams) ([]ListCandidateApplicationsRow, error) {
 	rows, err := q.db.Query(ctx, listCandidateApplications, arg.CandidateID, arg.PageOffset, arg.PageLimit)
 	if err != nil {
@@ -156,6 +175,10 @@ func (q *Queries) ListCandidateApplications(ctx context.Context, arg ListCandida
 			&i.RejectReason,
 			&i.InterviewDeadline,
 			&i.CreatedAt,
+			&i.InterviewID,
+			&i.InterviewCompletedAt,
+			&i.InterviewEvaluationStatus,
+			&i.InterviewScore,
 		); err != nil {
 			return nil, err
 		}

@@ -8,6 +8,7 @@ package main
 
 import (
 	"github.com/cog-forge/rolecue/api/internal/config"
+	service2 "github.com/cog-forge/rolecue/api/internal/features/application/service"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
@@ -72,7 +73,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	client := provider.ProvidePayOSClient(config)
 	service2 := provider.ProvideWalletService(repository3, client)
 	walletHandler := provider.ProvideWalletHandler(service2)
-	questionBankHandler := provider.ProvideQuestionBankHandler(service)
+	questionBankHandler := provider.ProvideQuestionBankHandler(config, service)
 	repository4 := provider.ProvideModerationRepository(pool)
 	service3, err := provider.ProvideModerationService(repository4, store, logger)
 	if err != nil {
@@ -151,10 +152,42 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	adminInterviewsHandler := provider.ProvideAdminInterviewsHandler(service11)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler)
+	repository13 := provider.ProvideInterviewRepository(pool)
+	scorer := provider.ProvideInterviewScorer(config)
+	scoring, err := provider.ProvideInterviewEvaluationService(repository10, scorer)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	service12, err := provider.ProvideInterviewService(repository13, config, scoring)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	interviewHandler := provider.ProvideInterviewHandler(service12)
+	interviewHistoryHandler := provider.ProvideInterviewHistoryHandler(service12)
+	interviewReportHandler := provider.ProvideInterviewReportHandler(scoring)
+	recordingService, err := provider.ProvideInterviewRecordingService(repository13, store)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	interviewRecordingHandler := provider.ProvideInterviewRecordingHandler(recordingService)
+	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, interviewHandlers)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	expiryRunner, err := provider.ProvideApplicationExpiryRunner(service10)
+	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -167,6 +200,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		Config:    config,
 		Storage:   store,
 		Documents: roleProfileDocumentApplication,
+		Expiry:    expiryRunner,
 	}
 	return application, func() {
 		cleanup3()
@@ -185,4 +219,6 @@ type Application struct {
 	Config    *config.Config
 	Storage   storage.Store
 	Documents *service.RoleProfileDocumentApplication
+	// Expiry rejects Applications whose interview deadline passed; main starts it.
+	Expiry *service2.ExpiryRunner
 }

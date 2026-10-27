@@ -71,6 +71,14 @@ definitions:
     - INTERVIEW_CAPACITY_ALREADY_FUNDED
     - ALREADY_APPLIED
     - INTERVIEW_NOT_FOUND
+    - ROLE_PROFILE_REQUIRED
+    - INTERVIEW_COMPLETED
+    - INTERVIEW_TURN_CONFLICT
+    - INTERVIEW_NOT_COMPLETED
+    - FINAL_REVIEW_LOCKED
+    - APPLICATION_NOT_INTERVIEWED
+    - RECORDING_NOT_FOUND
+    - RECORDING_NOT_ALLOWED
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -142,6 +150,14 @@ definitions:
     - CodeInterviewCapacityAlreadyFunded
     - CodeAlreadyApplied
     - CodeInterviewNotFound
+    - CodeRoleProfileRequired
+    - CodeInterviewCompleted
+    - CodeInterviewTurnConflict
+    - CodeInterviewNotCompleted
+    - CodeFinalReviewLocked
+    - CodeApplicationNotInterviewed
+    - CodeRecordingNotFound
+    - CodeRecordingNotAllowed
   domain.Account:
     properties:
       created_at:
@@ -278,6 +294,10 @@ definitions:
         items:
           $ref: '#/definitions/domain.CoreQuestion'
         type: array
+      review_submitted:
+        description: ReviewSubmitted is true once the Recruiter sent the posting to
+          the Admin queue.
+        type: boolean
     type: object
   domain.BillingSummary:
     properties:
@@ -407,6 +427,11 @@ definitions:
         type: string
       id:
         type: string
+      interview:
+        allOf:
+        - $ref: '#/definitions/domain.CandidateInterview'
+        description: Interview is the score and state of this Application's interview,
+          or null (KAN-114).
       interview_deadline:
         description: 'InterviewDeadline is set on CV approval: approval time + 24
           hours.'
@@ -419,6 +444,22 @@ definitions:
         type: string
       status:
         $ref: '#/definitions/domain.ApplicationStatus'
+    type: object
+  domain.CandidateInterview:
+    properties:
+      completed_at:
+        type: string
+      id:
+        type: string
+      score:
+        type: integer
+      status:
+        enum:
+        - in_progress
+        - pending
+        - completed
+        - failed
+        type: string
     type: object
   domain.CandidatePage:
     properties:
@@ -482,14 +523,28 @@ definitions:
       id:
         type: string
     type: object
+  domain.CurrentQuestion:
+    properties:
+      content:
+        type: string
+      position:
+        type: integer
+    type: object
   domain.Detail:
     properties:
       candidate:
         $ref: '#/definitions/domain.ListCandidate'
       cv:
         $ref: '#/definitions/domain.DetailCV'
+      final_review:
+        $ref: '#/definitions/domain.FinalReview'
       id:
         type: string
+      interview:
+        allOf:
+        - $ref: '#/definitions/domain.InterviewSummary'
+        description: Interview is the Application's interview result, or null before
+          one starts (KAN-114).
       interview_deadline:
         type: string
       interview_eligible:
@@ -558,6 +613,9 @@ definitions:
       location:
         type: string
         x-nullable: true
+      refinement_note:
+        type: string
+        x-nullable: true
       required_avatar_id:
         format: uuid
         type: string
@@ -585,6 +643,16 @@ definitions:
       title:
         type: string
     type: object
+  domain.EvaluationStatus:
+    enum:
+    - pending
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - EvaluationPending
+    - EvaluationCompleted
+    - EvaluationFailed
   domain.FeatureCoinItem:
     properties:
       coins_spent:
@@ -592,6 +660,64 @@ definitions:
       feature_name:
         type: string
       spend_count:
+        type: integer
+    type: object
+  domain.FinalReview:
+    properties:
+      can_decide:
+        type: boolean
+      opens_at:
+        type: string
+    type: object
+  domain.HistoryItem:
+    properties:
+      application_id:
+        type: string
+      completed_at:
+        type: string
+      evaluation_status:
+        allOf:
+        - $ref: '#/definitions/domain.EvaluationStatus'
+        enum:
+        - pending
+        - completed
+        - failed
+      id:
+        type: string
+      job_posting_title:
+        type: string
+      role_profile_title:
+        type: string
+      score:
+        type: integer
+      started_at:
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/domain.SessionStatus'
+        enum:
+        - in_progress
+        - pending
+        - completed
+        - failed
+      type:
+        allOf:
+        - $ref: '#/definitions/domain.Type'
+        enum:
+        - practice
+        - recruitment
+    type: object
+  domain.HistoryPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.HistoryItem'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
         type: integer
     type: object
   domain.IntakeClosure:
@@ -662,11 +788,40 @@ definitions:
       type:
         type: string
     type: object
+  domain.InterviewSummary:
+    properties:
+      completed_at:
+        type: string
+      id:
+        type: string
+      record_status:
+        enum:
+        - none
+        - uploading
+        - processing
+        - ready
+        - failed
+        type: string
+      score:
+        type: integer
+      started_at:
+        type: string
+      status:
+        description: Status is in_progress until the session completes, then the evaluation
+          status.
+        enum:
+        - in_progress
+        - pending
+        - completed
+        - failed
+        type: string
+    type: object
   domain.JobPosting:
     properties:
       core_question_count:
-        description: CoreQuestionCount shows whether the question bank exists; requirements
-          lock once it does.
+        description: |-
+          CoreQuestionCount shows whether the question bank exists; requirements lock once it does, and
+          the posting can be submitted only with at least one question.
         type: integer
       created_at:
         type: string
@@ -684,6 +839,10 @@ definitions:
         type: string
       raw_text:
         type: string
+      refinement_note:
+        description: RefinementNote is the Recruiter's optional guidance for question
+          generation.
+        type: string
       reject_reason:
         type: string
       required_avatar:
@@ -694,6 +853,10 @@ definitions:
         items:
           $ref: '#/definitions/domain.PostingRequirement'
         type: array
+      review_submitted:
+        description: ReviewSubmitted separates a pending posting in the Admin queue
+          from one still being prepared.
+        type: boolean
       salary_max:
         type: integer
       salary_min:
@@ -943,6 +1106,52 @@ definitions:
     - Analyzing
     - Review
     - Confirmed
+  domain.RecordStatus:
+    enum:
+    - none
+    - uploading
+    - processing
+    - ready
+    - failed
+    type: string
+    x-enum-varnames:
+    - RecordNone
+    - RecordUploading
+    - RecordProcessing
+    - RecordReady
+    - RecordFailed
+  domain.RecordingStatus:
+    properties:
+      record_status:
+        allOf:
+        - $ref: '#/definitions/domain.RecordStatus'
+        enum:
+        - none
+        - uploading
+        - processing
+        - ready
+        - failed
+    type: object
+  domain.RecordingUploadGrant:
+    properties:
+      expires_at:
+        type: string
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      method:
+        enum:
+        - PUT
+        type: string
+      record_status:
+        allOf:
+        - $ref: '#/definitions/domain.RecordStatus'
+        enum:
+        - uploading
+      upload_url:
+        type: string
+    type: object
   domain.Recruiter:
     properties:
       email:
@@ -952,11 +1161,80 @@ definitions:
       name:
         type: string
     type: object
+  domain.RecruiterRecording:
+    properties:
+      expires_at:
+        type: string
+      record_status:
+        allOf:
+        - $ref: '#/definitions/domain.RecordStatus'
+        enum:
+        - none
+        - uploading
+        - processing
+        - ready
+        - failed
+      url:
+        type: string
+    type: object
   domain.Ref:
     properties:
       id:
         type: string
       name:
+        type: string
+    type: object
+  domain.Report:
+    properties:
+      breakdown:
+        items:
+          $ref: '#/definitions/domain.ReportBreakdown'
+        type: array
+      completed_at:
+        type: string
+      interview_id:
+        type: string
+      overall_score:
+        type: integer
+      questions:
+        items:
+          $ref: '#/definitions/domain.ReportQuestion'
+        type: array
+      started_at:
+        type: string
+      status:
+        enum:
+        - in_progress
+        - pending
+        - completed
+        - failed
+        type: string
+      summary:
+        type: string
+      type:
+        enum:
+        - practice
+        - recruitment
+        type: string
+    type: object
+  domain.ReportBreakdown:
+    properties:
+      metric_id:
+        type: string
+      name:
+        type: string
+      score:
+        type: integer
+    type: object
+  domain.ReportQuestion:
+    properties:
+      answer:
+        type: string
+      feedback:
+        type: string
+      position:
+        type: integer
+      question:
         type: string
     type: object
   domain.Requirement:
@@ -1019,6 +1297,10 @@ definitions:
         $ref: '#/definitions/domain.NamedRef'
       required_voice:
         $ref: '#/definitions/domain.NamedRef'
+      review_submitted:
+        description: ReviewSubmitted is false while the Recruiter is still preparing
+          a pending posting.
+        type: boolean
       salary_max:
         type: integer
       salary_min:
@@ -1127,6 +1409,61 @@ definitions:
     - Mid
     - Senior
     - Lead
+  domain.Session:
+    properties:
+      answered_count:
+        type: integer
+      application_id:
+        type: string
+      avatar_id:
+        type: string
+      completed_at:
+        type: string
+      current_question:
+        allOf:
+        - $ref: '#/definitions/domain.CurrentQuestion'
+        description: CurrentQuestion is null when every question is answered or the
+          session is completed.
+      evaluation_status:
+        allOf:
+        - $ref: '#/definitions/domain.EvaluationStatus'
+        enum:
+        - pending
+        - completed
+        - failed
+      id:
+        type: string
+      question_count:
+        type: integer
+      role_profile_id:
+        type: string
+      started_at:
+        type: string
+      turns:
+        items:
+          $ref: '#/definitions/domain.Turn'
+        type: array
+      type:
+        allOf:
+        - $ref: '#/definitions/domain.Type'
+        enum:
+        - practice
+        - recruitment
+      voice_id:
+        type: string
+    type: object
+  domain.SessionStatus:
+    enum:
+    - in_progress
+    - pending
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - StatusInProgress
+    - StatusPending
+    - StatusCompleted
+    - StatusFailed
   domain.SkillCategory:
     enum:
     - programming_language
@@ -1186,6 +1523,8 @@ definitions:
     type: object
   domain.Summary:
     properties:
+      core_question_count:
+        type: integer
       created_at:
         type: string
       employment_type:
@@ -1198,6 +1537,8 @@ definitions:
         type: string
       reject_reason:
         type: string
+      review_submitted:
+        type: boolean
       status:
         $ref: '#/definitions/domain.Status'
       title:
@@ -1215,6 +1556,22 @@ definitions:
     - StatusSuccess
     - StatusFailed
     - StatusCancelled
+  domain.Transcript:
+    properties:
+      turns:
+        items:
+          $ref: '#/definitions/domain.TranscriptTurn'
+        type: array
+    type: object
+  domain.TranscriptTurn:
+    properties:
+      answer:
+        type: string
+      position:
+        type: integer
+      question:
+        type: string
+    type: object
   domain.Transition:
     properties:
       changed:
@@ -1224,6 +1581,23 @@ definitions:
       user:
         $ref: '#/definitions/domain.Account'
     type: object
+  domain.Turn:
+    properties:
+      answer:
+        type: string
+      position:
+        type: integer
+      question:
+        type: string
+    type: object
+  domain.Type:
+    enum:
+    - practice
+    - recruitment
+    type: string
+    x-enum-varnames:
+    - TypePractice
+    - TypeRecruitment
   domain.User:
     properties:
       email:
@@ -1291,6 +1665,36 @@ definitions:
       percentage:
         type: number
     type: object
+  handler.AppendTurnRequest:
+    properties:
+      answer:
+        example: I led a team of four on a payments service.
+        type: string
+      position:
+        example: 1
+        type: integer
+    type: object
+  handler.CreateInterviewRequest:
+    properties:
+      application_id:
+        description: ApplicationID is the Application a recruitment session is for.
+        type: string
+      avatar_id:
+        type: string
+      role_profile_id:
+        description: RoleProfileID is the role profile to practise with. A recruitment
+          session has none and ignores it.
+        type: string
+      type:
+        description: Type is the session kind.
+        enum:
+        - practice
+        - recruitment
+        example: practice
+        type: string
+      voice_id:
+        type: string
+    type: object
   handler.CreateJobPostingRequest:
     properties:
       document_id:
@@ -1301,6 +1705,8 @@ definitions:
       interview_duration:
         type: integer
       location:
+        type: string
+      refinement_note:
         type: string
       required_avatar_id:
         type: string
@@ -1332,9 +1738,39 @@ definitions:
     - seniority_level
     - title
     type: object
+  handler.CreateRecordingRequest:
+    properties:
+      content_type:
+        description: ContentType is the media type of the recording.
+        enum:
+        - video/webm
+        - audio/webm
+        - video/mp4
+        example: video/webm
+        type: string
+      size:
+        description: Size is the byte size of the recording, 1 to 524288000.
+        example: 1048576
+        type: integer
+    type: object
   handler.CreateRoleProfileRequest:
     properties:
       rawText:
+        type: string
+    type: object
+  handler.DecisionRequest:
+    properties:
+      decision:
+        description: Decision is approve or reject.
+        enum:
+        - approve
+        - reject
+        example: approve
+        type: string
+      reason:
+        description: Reason is optional, at most 500 characters, and kept only on
+          a rejection.
+        example: Missed the technical bar.
         type: string
     type: object
   handler.EvaluationWeightEntry:
@@ -2805,6 +3241,559 @@ paths:
       summary: Check process liveness
       tags:
       - health
+  /interviews:
+    get:
+      description: Candidate only. Returns one page of your own sessions, newest first
+        (started_at, then id). status is in_progress until the session is completed,
+        then its evaluation state. Recruitment rows link to the Application through
+        application_id. Never returns questions, answers, feedback text or recording
+        data. Page size is capped at 100.
+      parameters:
+      - description: practice or recruitment
+        in: query
+        name: type
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.HistoryPage'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List the Candidate's interview sessions
+      tags:
+      - interviews
+    post:
+      consumes:
+      - application/json
+      description: 'Candidate only. Creates a session, or returns the existing recruitment
+        session of the Application (200, no side effects). A practice session needs
+        a confirmed role profile of yours and charges 5 coins once; starting again
+        while that role profile still has an unfinished practice session returns it
+        (200) without charging. Its avatar must be in your own inventory and its voice
+        active. A recruitment session needs no role profile and takes its interviewer
+        and voice from the posting (sending avatar_id or voice_id is a VALIDATION_ERROR);
+        it needs an interview_eligible Application inside its 24-hour deadline, a
+        funded posting with a free interview slot, and a question bank; it is free.
+        Errors: VALIDATION_ERROR (bad type, missing or unknown reference), FORBIDDEN
+        (not a Candidate), JOB_POSTING_NOT_FOUND, APPLICATION_NOT_FOUND (not yours
+        or missing), APPLICATION_NOT_ELIGIBLE, INTERVIEW_CAPACITY_NOT_FUNDED, INTERVIEW_CAPACITY_FULL,
+        ROLE_PROFILE_REQUIRED (practice only), JD_NOT_FOUND (role profile missing
+        or not yours), QUESTION_BANK_NOT_READY, INSUFFICIENT_BALANCE.'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Optional. A practice start repeated with the same key returns
+          the first session and charges once; up to 128 characters
+        in: header
+        name: Idempotency-Key
+        type: string
+      - description: Session to start; body limit 16 KiB
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateInterviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Session'
+              type: object
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Session'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Start an interview session
+      tags:
+      - interviews
+  /interviews/{id}:
+    get:
+      description: Candidate only, your own sessions. Returns the session with its
+        question count, answered count and current question (null when every question
+        is answered or the session is completed). Practice sessions also return their
+        answered turns; recruitment sessions never do. Another Candidate's session
+        is not found.
+      parameters:
+      - description: Interview session ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Session'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read one of your interview sessions
+      tags:
+      - interviews
+  /interviews/{id}/complete:
+    post:
+      description: 'Candidate only. Idempotent: the first call sets completed_at,
+        and later calls return the session as it is. A recruitment session also moves
+        its Application to interviewed. The evaluation starts in the background after
+        the first completion.'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Interview session ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Session'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Complete an interview session
+      tags:
+      - interviews
+  /interviews/{id}/recording:
+    post:
+      consumes:
+      - application/json
+      description: 'Candidate only, owner of the recruitment interview. Returns a
+        one-time upload to send the recording to, valid 15 minutes, with the headers
+        to send. The grant carries no storage key and no read link. A practice interview
+        is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be
+        replaced (RECORDING_NOT_ALLOWED). Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND,
+        RECORDING_NOT_ALLOWED.'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Interview session ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Recording to upload; body limit 16 KiB
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateRecordingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RecordingUploadGrant'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get an upload grant for your recruitment recording
+      tags:
+      - interviews
+  /interviews/{id}/recording/complete:
+    post:
+      description: 'Candidate only, owner of the recruitment interview. Checks that
+        the uploaded object is present and within the size limit. Present sets the
+        recording ready; absent sets it failed and returns RECORDING_NOT_FOUND. Ready
+        again returns ready. Errors: FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED,
+        RECORDING_NOT_FOUND, VALIDATION_ERROR.'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Interview session ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RecordingStatus'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Confirm your recruitment recording upload
+      tags:
+      - interviews
+  /interviews/{id}/report:
+    get:
+      description: 'Visibility: the Candidate who owns a practice interview sees all
+        of it. The Candidate who owns a recruitment interview sees only interview_id,
+        type, status, overall_score, started_at and completed_at; summary, breakdown
+        and questions are null. The Recruiter of the posting sees a recruitment interview
+        in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until
+        the interview is completed, then the evaluation status (pending, completed
+        or failed). summary and breakdown are null until the evaluation completed.'
+      parameters:
+      - description: Interview ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Report'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get an interview's report
+      tags:
+      - interviews
+  /interviews/{id}/resume:
+    post:
+      description: Candidate only. Returns the same session with no side effects and
+        no charge. A completed session is INTERVIEW_COMPLETED.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Interview session ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Session'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Resume an interview session
+      tags:
+      - interviews
+  /interviews/{id}/turns:
+    post:
+      consumes:
+      - application/json
+      description: 'Candidate only. position must be the next unanswered question
+        (1-based). Sending the same position with the same answer again returns the
+        session unchanged, so a retry is safe. Another answer for a position already
+        answered, or a position that is not next, is INTERVIEW_TURN_CONFLICT. The
+        answer is trimmed and must be 1 to 8000 characters. A completed session is
+        INTERVIEW_COMPLETED. Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND,
+        INTERVIEW_COMPLETED, INTERVIEW_TURN_CONFLICT.'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Interview session ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Answer to the next question; body limit 16 KiB
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.AppendTurnRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Session'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Answer the next question of an interview session
+      tags:
+      - interviews
   /inventory:
     get:
       description: Candidate/Recruiter only. Initializes a missing inventory with
@@ -3370,11 +4359,12 @@ paths:
     post:
       consumes:
       - application/json
-      description: Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents
-        (read again on the server) with the requirements confirmed in review and submits
-        the posting for Admin approval (status pending). The interviewer avatar must
-        be one of the Recruiter's own avatars and the voice must be active. Trusted
-        Origin required. Unknown fields reject the whole request.
+      description: 'Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents
+        (read again on the server) with the requirements confirmed in review. The
+        posting is created pending but not yet submitted: generate its question bank,
+        then submit it for Admin approval. The interviewer avatar must be one of the
+        Recruiter''s own avatars and the voice must be active. Trusted Origin required.
+        Unknown fields reject the whole request.'
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -3756,6 +4746,133 @@ paths:
       summary: Approve an Application's CV
       tags:
       - applications
+  /job-postings/{id}/applications/{applicationId}/decision:
+    post:
+      consumes:
+      - application/json
+      description: 'Recruiter only, own postings. Approve or reject an Application
+        whose status is interviewed. The decision is open only once the review window
+        has opened: now is at or after the latest interview deadline of the Job Posting
+        (final_review.opens_at in Application Detail); before that the answer is FINAL_REVIEW_LOCKED.
+        A reject may carry a reason of at most 500 characters; an approve ignores
+        it. The posting closes in the same transaction when no Application is left
+        live. Returns the Application Detail after the decision. Errors: VALIDATION_ERROR
+        (bad IDs or body, unknown decision, reason over 500 characters), FORBIDDEN
+        (not a Recruiter), APPLICATION_NOT_FOUND (missing, not on this posting, or
+        the posting is not yours), APPLICATION_NOT_INTERVIEWED (not interviewed yet),
+        FINAL_REVIEW_LOCKED (review window not open).'
+      parameters:
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        format: uuid
+        in: path
+        name: applicationId
+        required: true
+        type: string
+      - description: Final decision
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.DecisionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Detail'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Record the final decision on an interviewed Application
+      tags:
+      - applications
+  /job-postings/{id}/applications/{applicationId}/recording:
+    get:
+      description: Recruiter only, owner of the posting. url and expires_at are set
+        only when the recording is ready; the link is valid 5 minutes and is issued
+        on each read. Any other caller, Admin included, and a missing Application
+        get APPLICATION_NOT_FOUND. An Application without an interview gets INTERVIEW_NOT_FOUND.
+      parameters:
+      - description: Job posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        format: uuid
+        in: path
+        name: applicationId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RecruiterRecording'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read the recording of an application you are reviewing
+      tags:
+      - job-postings
   /job-postings/{id}/applications/{applicationId}/reject-cv:
     post:
       consumes:
@@ -3825,6 +4942,62 @@ paths:
       summary: Reject an Application's CV
       tags:
       - applications
+  /job-postings/{id}/applications/{applicationId}/transcript:
+    get:
+      description: Recruiter only, owner of the posting. Returns the questions and
+        answers of a completed recruitment interview. An interview that is not completed
+        is INTERVIEW_NOT_COMPLETED. Any other caller, Admin included, and a missing
+        Application get APPLICATION_NOT_FOUND.
+      parameters:
+      - description: Job posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Application ID
+        format: uuid
+        in: path
+        name: applicationId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Transcript'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read the transcript of a completed application interview
+      tags:
+      - job-postings
   /job-postings/{id}/close-intake:
     post:
       description: 'Recruiter only, own postings. An open posting becomes intake_closed,
@@ -4226,8 +5399,8 @@ paths:
   /job-postings/{id}/questions:
     get:
       description: Recruiter only. Candidates never receive the bank. Also returns
-        whether the bank can still change (only while the posting is pending) and
-        the server limits.
+        whether the bank can still change (while a confirmed bank is pending or rejected)
+        and the server limits.
       parameters:
       - description: Job posting ID
         in: path
@@ -4278,8 +5451,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Recruiter only, while the posting is pending. Trusted Origin required.
-        Unknown fields reject the whole request.
+      description: Recruiter only, while the posting is pending or rejected and its
+        current bank has been delivered. Trusted Origin required. Unknown fields reject
+        the whole request.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -4344,8 +5518,9 @@ paths:
       - job-posting-questions
   /job-postings/{id}/questions/{questionId}:
     delete:
-      description: Recruiter only, while the posting is pending. A question already
-        used by an interview cannot be deleted. Trusted Origin required.
+      description: Recruiter only, while the posting is pending or rejected and its
+        current bank has been delivered. A question already used by an interview cannot
+        be deleted. Trusted Origin required.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -4401,8 +5576,9 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Recruiter only, while the posting is pending. Trusted Origin required.
-        Unknown fields reject the whole request.
+      description: Recruiter only, while the posting is pending or rejected and its
+        current bank has been delivered. Trusted Origin required. Unknown fields reject
+        the whole request.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -4474,8 +5650,9 @@ paths:
     post:
       description: 'Recruiter only. Runs only while the bank is empty: a posting that
         already has questions returns 409 (a bank emptied by deleting every question
-        can be generated again). Only while the posting is pending. Requires confirmed
-        requirements. Trusted Origin required.'
+        can be generated again). Only while the posting is pending or rejected. Requires
+        confirmed requirements. Generating never submits the posting for review. Trusted
+        Origin required.'
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -4538,9 +5715,10 @@ paths:
       - job-posting-questions
   /job-postings/{id}/resubmit:
     post:
-      description: Recruiter only. Moves a rejected posting back to pending and clears
-        the rejection reason. Repeating it on a pending posting changes nothing; open
-        or closed postings return 409. Trusted Origin required.
+      description: Recruiter only. Moves a rejected posting back to pending review
+        and clears the rejection reason. Needs a non-empty question bank. Repeating
+        it once the posting is pending review changes nothing; open or closed postings
+        return 409. Trusted Origin required.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -4596,6 +5774,69 @@ paths:
       security:
       - SessionCookie: []
       summary: Send your rejected Job Posting for review again
+      tags:
+      - job-postings
+  /job-postings/{id}/submit:
+    post:
+      description: Recruiter only. Puts a pending posting in the Admin review queue.
+        Needs a non-empty question bank; generating the bank never submits on its
+        own. Repeating it changes nothing; a rejected posting uses resubmit. Trusted
+        Origin required.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Job Posting ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.JobPosting'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Submit your prepared Job Posting for Admin review
       tags:
       - job-postings
   /job-postings/documents:

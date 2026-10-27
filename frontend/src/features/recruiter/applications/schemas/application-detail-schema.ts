@@ -4,8 +4,45 @@ import {
   applicationStatusSchema,
 } from "./application-schema";
 
+export const interviewStatusSchema = z.enum([
+  "in_progress",
+  "pending",
+  "completed",
+  "failed",
+]);
+export type InterviewStatus = z.infer<typeof interviewStatusSchema>;
+
+export const recordStatusSchema = z.enum([
+  "none",
+  "uploading",
+  "processing",
+  "ready",
+  "failed",
+]);
+export type RecordStatus = z.infer<typeof recordStatusSchema>;
+
+// The Candidate's interview as the recruiter sees it in the detail: a summary only. The transcript,
+// evaluation and record key are fetched on demand from their own endpoints.
+export const applicationInterviewSchema = z.object({
+  id: z.uuid(),
+  started_at: z.iso.datetime({ offset: true }),
+  completed_at: z.iso.datetime({ offset: true }).nullable(),
+  status: interviewStatusSchema,
+  score: z.number().int().nullable(),
+  record_status: recordStatusSchema,
+});
+export type ApplicationInterview = z.infer<typeof applicationInterviewSchema>;
+
+// The final decision gate: opens_at is the latest interview deadline of the posting's Applications.
+export const finalReviewSchema = z.object({
+  opens_at: z.iso.datetime({ offset: true }).nullable(),
+  can_decide: z.boolean(),
+});
+export type FinalReview = z.infer<typeof finalReviewSchema>;
+
 // Mirrors the Go Application Detail contract (KTD6, snake_case): the list item plus the posting
-// block and a short-lived CV link. The CV storage key never leaves the API.
+// block and a short-lived CV link. The CV storage key never leaves the API. interview and
+// final_review are optional so a detail without them (older responses) still parses.
 export const applicationDetailSchema = applicationSchema.extend({
   job_posting: z.object({
     id: z.uuid(),
@@ -16,10 +53,12 @@ export const applicationDetailSchema = applicationSchema.extend({
   }),
   cv: z
     .object({
-      url: z.url(),
+      url: z.url({ protocol: /^https?$/ }),
       expires_at: z.iso.datetime({ offset: true }),
     })
     .nullable(),
+  interview: applicationInterviewSchema.nullable().optional(),
+  final_review: finalReviewSchema.nullable().optional(),
 });
 export type ApplicationDetail = z.infer<typeof applicationDetailSchema>;
 

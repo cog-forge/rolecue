@@ -161,13 +161,19 @@ export function PostingReview({
       ) : (
         <>
           <header className="space-y-2">
-            <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-              Moderation review
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-balance [overflow-wrap:anywhere] sm:text-[1.75rem] sm:leading-tight">
               {query.data.title}
             </h1>
-            <PostingStatus status={query.data.status} />
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
+              {/* A pending posting is in the queue only once submitted; before that it is not
+                  "Pending review" yet. */}
+              {query.data.status === "pending" &&
+              !query.data.review_submitted ? (
+                <span>Still being prepared by the recruiter</span>
+              ) : (
+                <PostingStatus status={query.data.status} />
+              )}
+            </div>
           </header>
 
           {notice && (
@@ -228,64 +234,70 @@ function DecisionPanel({
   onDecide: (decision: Decision) => void;
 }) {
   const count = posting.core_question_count;
-  const noQuestions = count === 0;
+  // A posting still being prepared cannot be decided; approval also needs questions.
+  const notSubmitted = !posting.review_submitted;
+  const approveBlocked = notSubmitted || count === 0;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2>Decision</h2>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <section
+      aria-labelledby="decision-heading"
+      className="space-y-4 rounded-xl border p-5"
+    >
+      <h2 id="decision-heading" className="text-base font-semibold">
+        Decision
+      </h2>
+      <div className="space-y-1">
+        <p className="text-sm text-muted-foreground">Question bank</p>
         <p className="text-sm">
-          <span className="font-medium tabular-nums">
+          <span className="text-2xl font-semibold tabular-nums">
             {numberFormat.format(count)}
           </span>{" "}
-          {count === 1 ? "core question" : "core questions"} in the question
-          bank
+          {count === 1 ? "core question" : "core questions"}
         </p>
-        {posting.status !== "pending" ? (
-          <p className="text-sm text-muted-foreground">
-            This posting has already been decided.
-            {posting.status === "rejected" && posting.reject_reason && (
-              <>
-                {" "}
-                Reason given to the recruiter:{" "}
-                <span className="text-foreground [overflow-wrap:anywhere]">
-                  “{posting.reject_reason}”
-                </span>
-              </>
-            )}
-          </p>
-        ) : (
-          <>
-            {noQuestions && (
-              <p id="approve-blocked" className="text-sm text-muted-foreground">
-                The recruiter must add core questions before this posting can be
-                approved.
-              </p>
-            )}
-            <div className="flex flex-col gap-2">
-              <Button
-                className="h-11"
-                disabled={noQuestions}
-                aria-describedby={noQuestions ? "approve-blocked" : undefined}
-                onClick={() => onDecide("approve")}
-              >
-                Approve
-              </Button>
-              <Button
-                variant="outline"
-                className="h-11"
-                onClick={() => onDecide("reject")}
-              >
-                Reject
-              </Button>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+      {posting.status !== "pending" ? (
+        <p className="text-sm text-muted-foreground">
+          This posting has already been decided.
+          {posting.status === "rejected" && posting.reject_reason && (
+            <>
+              {" "}
+              Reason given to the recruiter:{" "}
+              <span className="text-foreground [overflow-wrap:anywhere]">
+                “{posting.reject_reason}”
+              </span>
+            </>
+          )}
+        </p>
+      ) : (
+        <>
+          {approveBlocked && (
+            <p id="approve-blocked" className="text-sm text-muted-foreground">
+              {notSubmitted
+                ? "The recruiter is still preparing this posting and has not submitted it for review."
+                : "The recruiter must add core questions before this posting can be approved."}
+            </p>
+          )}
+          <div className="flex flex-col gap-2">
+            <Button
+              className="h-10 rounded-full"
+              disabled={approveBlocked}
+              aria-describedby={approveBlocked ? "approve-blocked" : undefined}
+              onClick={() => onDecide("approve")}
+            >
+              Approve
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 rounded-full"
+              disabled={notSubmitted}
+              aria-describedby={notSubmitted ? "approve-blocked" : undefined}
+              onClick={() => onDecide("reject")}
+            >
+              Reject
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

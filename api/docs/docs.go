@@ -1965,6 +1965,824 @@ const docTemplate = `{
                 }
             }
         },
+        "/interviews": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. Returns one page of your own sessions, newest first (started_at, then id). status is in_progress until the session is completed, then its evaluation state. Recruitment rows link to the Application through application_id. Never returns questions, answers, feedback text or recording data. Page size is capped at 100.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "List the Candidate's interview sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "practice or recruitment",
+                        "name": "type",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.HistoryPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. Creates a session, or returns the existing recruitment session of the Application (200, no side effects). A practice session needs a confirmed role profile of yours and charges 5 coins once; starting again while that role profile still has an unfinished practice session returns it (200) without charging. Its avatar must be in your own inventory and its voice active. A recruitment session needs no role profile and takes its interviewer and voice from the posting (sending avatar_id or voice_id is a VALIDATION_ERROR); it needs an interview_eligible Application inside its 24-hour deadline, a funded posting with a free interview slot, and a question bank; it is free. Errors: VALIDATION_ERROR (bad type, missing or unknown reference), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND, APPLICATION_NOT_FOUND (not yours or missing), APPLICATION_NOT_ELIGIBLE, INTERVIEW_CAPACITY_NOT_FUNDED, INTERVIEW_CAPACITY_FULL, ROLE_PROFILE_REQUIRED (practice only), JD_NOT_FOUND (role profile missing or not yours), QUESTION_BANK_NOT_READY, INSUFFICIENT_BALANCE.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Start an interview session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional. A practice start repeated with the same key returns the first session and charges once; up to 128 characters",
+                        "name": "Idempotency-Key",
+                        "in": "header"
+                    },
+                    {
+                        "description": "Session to start; body limit 16 KiB",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateInterviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interviews/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, your own sessions. Returns the session with its question count, answered count and current question (null when every question is answered or the session is completed). Practice sessions also return their answered turns; recruitment sessions never do. Another Candidate's session is not found.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Read one of your interview sessions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Interview session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interviews/{id}/complete": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. Idempotent: the first call sets completed_at, and later calls return the session as it is. A recruitment session also moves its Application to interviewed. The evaluation starts in the background after the first completion.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Complete an interview session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Interview session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interviews/{id}/recording": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, owner of the recruitment interview. Returns a one-time upload to send the recording to, valid 15 minutes, with the headers to send. The grant carries no storage key and no read link. A practice interview is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be replaced (RECORDING_NOT_ALLOWED). Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Get an upload grant for your recruitment recording",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Interview session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Recording to upload; body limit 16 KiB",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateRecordingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.RecordingUploadGrant"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interviews/{id}/recording/complete": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, owner of the recruitment interview. Checks that the uploaded object is present and within the size limit. Present sets the recording ready; absent sets it failed and returns RECORDING_NOT_FOUND. Ready again returns ready. Errors: FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED, RECORDING_NOT_FOUND, VALIDATION_ERROR.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Confirm your recruitment recording upload",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Interview session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.RecordingStatus"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interviews/{id}/report": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Visibility: the Candidate who owns a practice interview sees all of it. The Candidate who owns a recruitment interview sees only interview_id, type, status, overall_score, started_at and completed_at; summary, breakdown and questions are null. The Recruiter of the posting sees a recruitment interview in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until the interview is completed, then the evaluation status (pending, completed or failed). summary and breakdown are null until the evaluation completed.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Get an interview's report",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Interview ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Report"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interviews/{id}/resume": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. Returns the same session with no side effects and no charge. A completed session is INTERVIEW_COMPLETED.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Resume an interview session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Interview session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interviews/{id}/turns": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. position must be the next unanswered question (1-based). Sending the same position with the same answer again returns the session unchanged, so a retry is safe. Another answer for a position already answered, or a position that is not next, is INTERVIEW_TURN_CONFLICT. The answer is trimmed and must be 1 to 8000 characters. A completed session is INTERVIEW_COMPLETED. Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, INTERVIEW_COMPLETED, INTERVIEW_TURN_CONFLICT.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Answer the next question of an interview session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Interview session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Answer to the next question; body limit 16 KiB",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.AppendTurnRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Session"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/inventory": {
             "get": {
                 "security": [
@@ -2836,7 +3654,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents (read again on the server) with the requirements confirmed in review and submits the posting for Admin approval (status pending). The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents (read again on the server) with the requirements confirmed in review. The posting is created pending but not yet submitted: generate its question bank, then submit it for Admin approval. The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3577,6 +4395,188 @@ const docTemplate = `{
                 }
             }
         },
+        "/job-postings/{id}/applications/{applicationId}/decision": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, own postings. Approve or reject an Application whose status is interviewed. The decision is open only once the review window has opened: now is at or after the latest interview deadline of the Job Posting (final_review.opens_at in Application Detail); before that the answer is FINAL_REVIEW_LOCKED. A reject may carry a reason of at most 500 characters; an approve ignores it. The posting closes in the same transaction when no Application is left live. Returns the Application Detail after the decision. Errors: VALIDATION_ERROR (bad IDs or body, unknown decision, reason over 500 characters), FORBIDDEN (not a Recruiter), APPLICATION_NOT_FOUND (missing, not on this posting, or the posting is not yours), APPLICATION_NOT_INTERVIEWED (not interviewed yet), FINAL_REVIEW_LOCKED (review window not open).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Record the final decision on an interviewed Application",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Application ID",
+                        "name": "applicationId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Final decision",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.DecisionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Detail"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/applications/{applicationId}/recording": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, owner of the posting. url and expires_at are set only when the recording is ready; the link is valid 5 minutes and is issued on each read. Any other caller, Admin included, and a missing Application get APPLICATION_NOT_FOUND. An Application without an interview gets INTERVIEW_NOT_FOUND.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Read the recording of an application you are reviewing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Application ID",
+                        "name": "applicationId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.RecruiterRecording"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/job-postings/{id}/applications/{applicationId}/reject-cv": {
             "post": {
                 "security": [
@@ -3654,6 +4654,91 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/applications/{applicationId}/transcript": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only, owner of the posting. Returns the questions and answers of a completed recruitment interview. An interview that is not completed is INTERVIEW_NOT_COMPLETED. Any other caller, Admin included, and a missing Application get APPLICATION_NOT_FOUND.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Read the transcript of a completed application interview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Application ID",
+                        "name": "applicationId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Transcript"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -4273,7 +5358,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (only while the posting is pending) and the server limits.",
+                "description": "Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (while a confirmed bank is pending or rejected) and the server limits.",
                 "produces": [
                     "application/json"
                 ],
@@ -4353,7 +5438,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, while the posting is pending. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "Recruiter only, while the posting is pending or rejected and its current bank has been delivered. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4460,7 +5545,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending. Requires confirmed requirements. Trusted Origin required.",
+                "description": "Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. Generating never submits the posting for review. Trusted Origin required.",
                 "produces": [
                     "application/json"
                 ],
@@ -4561,7 +5646,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, while the posting is pending. A question already used by an interview cannot be deleted. Trusted Origin required.",
+                "description": "Recruiter only, while the posting is pending or rejected and its current bank has been delivered. A question already used by an interview cannot be deleted. Trusted Origin required.",
                 "tags": [
                     "job-posting-questions"
                 ],
@@ -4643,7 +5728,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, while the posting is pending. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "Recruiter only, while the posting is pending or rejected and its current bank has been delivered. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -4757,7 +5842,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Moves a rejected posting back to pending and clears the rejection reason. Repeating it on a pending posting changes nothing; open or closed postings return 409. Trusted Origin required.",
+                "description": "Recruiter only. Moves a rejected posting back to pending review and clears the rejection reason. Needs a non-empty question bank. Repeating it once the posting is pending review changes nothing; open or closed postings return 409. Trusted Origin required.",
                 "produces": [
                     "application/json"
                 ],
@@ -4765,6 +5850,102 @@ const docTemplate = `{
                     "job-postings"
                 ],
                 "summary": "Send your rejected Job Posting for review again",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job Posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.JobPosting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Puts a pending posting in the Admin review queue. Needs a non-empty question bank; generating the bank never submits on its own. Repeating it changes nothing; a rejected posting uses resubmit. Trusted Origin required.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-postings"
+                ],
+                "summary": "Submit your prepared Job Posting for Admin review",
                 "parameters": [
                     {
                         "type": "string",
@@ -6175,7 +7356,15 @@ const docTemplate = `{
                 "INTERVIEW_CAPACITY_FULL",
                 "INTERVIEW_CAPACITY_ALREADY_FUNDED",
                 "ALREADY_APPLIED",
-                "INTERVIEW_NOT_FOUND"
+                "INTERVIEW_NOT_FOUND",
+                "ROLE_PROFILE_REQUIRED",
+                "INTERVIEW_COMPLETED",
+                "INTERVIEW_TURN_CONFLICT",
+                "INTERVIEW_NOT_COMPLETED",
+                "FINAL_REVIEW_LOCKED",
+                "APPLICATION_NOT_INTERVIEWED",
+                "RECORDING_NOT_FOUND",
+                "RECORDING_NOT_ALLOWED"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -6246,7 +7435,15 @@ const docTemplate = `{
                 "CodeInterviewCapacityFull",
                 "CodeInterviewCapacityAlreadyFunded",
                 "CodeAlreadyApplied",
-                "CodeInterviewNotFound"
+                "CodeInterviewNotFound",
+                "CodeRoleProfileRequired",
+                "CodeInterviewCompleted",
+                "CodeInterviewTurnConflict",
+                "CodeInterviewNotCompleted",
+                "CodeFinalReviewLocked",
+                "CodeApplicationNotInterviewed",
+                "CodeRecordingNotFound",
+                "CodeRecordingNotAllowed"
             ]
         },
         "domain.Account": {
@@ -6449,6 +7646,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/domain.CoreQuestion"
                     }
+                },
+                "review_submitted": {
+                    "description": "ReviewSubmitted is true once the Recruiter sent the posting to the Admin queue.",
+                    "type": "boolean"
                 }
             }
         },
@@ -6638,6 +7839,14 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
+                "interview": {
+                    "description": "Interview is the score and state of this Application's interview, or null (KAN-114).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.CandidateInterview"
+                        }
+                    ]
+                },
                 "interview_deadline": {
                     "description": "InterviewDeadline is set on CV approval: approval time + 24 hours.",
                     "type": "string"
@@ -6653,6 +7862,29 @@ const docTemplate = `{
                 },
                 "status": {
                     "$ref": "#/definitions/domain.ApplicationStatus"
+                }
+            }
+        },
+        "domain.CandidateInterview": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "in_progress",
+                        "pending",
+                        "completed",
+                        "failed"
+                    ]
                 }
             }
         },
@@ -6742,6 +7974,17 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.CurrentQuestion": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                }
+            }
+        },
         "domain.Detail": {
             "type": "object",
             "properties": {
@@ -6751,8 +7994,19 @@ const docTemplate = `{
                 "cv": {
                     "$ref": "#/definitions/domain.DetailCV"
                 },
+                "final_review": {
+                    "$ref": "#/definitions/domain.FinalReview"
+                },
                 "id": {
                     "type": "string"
+                },
+                "interview": {
+                    "description": "Interview is the Application's interview result, or null before one starts (KAN-114).",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.InterviewSummary"
+                        }
+                    ]
                 },
                 "interview_deadline": {
                     "type": "string"
@@ -6855,6 +8109,10 @@ const docTemplate = `{
                     "type": "string",
                     "x-nullable": true
                 },
+                "refinement_note": {
+                    "type": "string",
+                    "x-nullable": true
+                },
                 "required_avatar_id": {
                     "type": "string",
                     "format": "uuid"
@@ -6892,6 +8150,19 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.EvaluationStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "EvaluationPending",
+                "EvaluationCompleted",
+                "EvaluationFailed"
+            ]
+        },
         "domain.FeatureCoinItem": {
             "type": "object",
             "properties": {
@@ -6902,6 +8173,99 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "spend_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.FinalReview": {
+            "type": "object",
+            "properties": {
+                "can_decide": {
+                    "type": "boolean"
+                },
+                "opens_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.HistoryItem": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "evaluation_status": {
+                    "enum": [
+                        "pending",
+                        "completed",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.EvaluationStatus"
+                        }
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "job_posting_title": {
+                    "type": "string"
+                },
+                "role_profile_title": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "in_progress",
+                        "pending",
+                        "completed",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.SessionStatus"
+                        }
+                    ]
+                },
+                "type": {
+                    "enum": [
+                        "practice",
+                        "recruitment"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Type"
+                        }
+                    ]
+                }
+            }
+        },
+        "domain.HistoryPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.HistoryItem"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
                     "type": "integer"
                 }
             }
@@ -7010,11 +8374,48 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.InterviewSummary": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "record_status": {
+                    "type": "string",
+                    "enum": [
+                        "none",
+                        "uploading",
+                        "processing",
+                        "ready",
+                        "failed"
+                    ]
+                },
+                "score": {
+                    "type": "integer"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is in_progress until the session completes, then the evaluation status.",
+                    "type": "string",
+                    "enum": [
+                        "in_progress",
+                        "pending",
+                        "completed",
+                        "failed"
+                    ]
+                }
+            }
+        },
         "domain.JobPosting": {
             "type": "object",
             "properties": {
                 "core_question_count": {
-                    "description": "CoreQuestionCount shows whether the question bank exists; requirements lock once it does.",
+                    "description": "CoreQuestionCount shows whether the question bank exists; requirements lock once it does, and\nthe posting can be submitted only with at least one question.",
                     "type": "integer"
                 },
                 "created_at": {
@@ -7041,6 +8442,10 @@ const docTemplate = `{
                 "raw_text": {
                     "type": "string"
                 },
+                "refinement_note": {
+                    "description": "RefinementNote is the Recruiter's optional guidance for question generation.",
+                    "type": "string"
+                },
                 "reject_reason": {
                     "type": "string"
                 },
@@ -7055,6 +8460,10 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/domain.PostingRequirement"
                     }
+                },
+                "review_submitted": {
+                    "description": "ReviewSubmitted separates a pending posting in the Admin queue from one still being prepared.",
+                    "type": "boolean"
                 },
                 "salary_max": {
                     "type": "integer"
@@ -7424,6 +8833,75 @@ const docTemplate = `{
                 "Confirmed"
             ]
         },
+        "domain.RecordStatus": {
+            "type": "string",
+            "enum": [
+                "none",
+                "uploading",
+                "processing",
+                "ready",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "RecordNone",
+                "RecordUploading",
+                "RecordProcessing",
+                "RecordReady",
+                "RecordFailed"
+            ]
+        },
+        "domain.RecordingStatus": {
+            "type": "object",
+            "properties": {
+                "record_status": {
+                    "enum": [
+                        "none",
+                        "uploading",
+                        "processing",
+                        "ready",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.RecordStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "domain.RecordingUploadGrant": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "method": {
+                    "type": "string",
+                    "enum": [
+                        "PUT"
+                    ]
+                },
+                "record_status": {
+                    "enum": [
+                        "uploading"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.RecordStatus"
+                        }
+                    ]
+                },
+                "upload_url": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Recruiter": {
             "type": "object",
             "properties": {
@@ -7438,6 +8916,31 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.RecruiterRecording": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "record_status": {
+                    "enum": [
+                        "none",
+                        "uploading",
+                        "processing",
+                        "ready",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.RecordStatus"
+                        }
+                    ]
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Ref": {
             "type": "object",
             "properties": {
@@ -7445,6 +8948,85 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Report": {
+            "type": "object",
+            "properties": {
+                "breakdown": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ReportBreakdown"
+                    }
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "interview_id": {
+                    "type": "string"
+                },
+                "overall_score": {
+                    "type": "integer"
+                },
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ReportQuestion"
+                    }
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "in_progress",
+                        "pending",
+                        "completed",
+                        "failed"
+                    ]
+                },
+                "summary": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "practice",
+                        "recruitment"
+                    ]
+                }
+            }
+        },
+        "domain.ReportBreakdown": {
+            "type": "object",
+            "properties": {
+                "metric_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ReportQuestion": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "feedback": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "question": {
                     "type": "string"
                 }
             }
@@ -7522,6 +9104,10 @@ const docTemplate = `{
                 },
                 "required_voice": {
                     "$ref": "#/definitions/domain.NamedRef"
+                },
+                "review_submitted": {
+                    "description": "ReviewSubmitted is false while the Recruiter is still preparing a pending posting.",
+                    "type": "boolean"
                 },
                 "salary_max": {
                     "type": "integer"
@@ -7675,6 +9261,90 @@ const docTemplate = `{
                 "Lead"
             ]
         },
+        "domain.Session": {
+            "type": "object",
+            "properties": {
+                "answered_count": {
+                    "type": "integer"
+                },
+                "application_id": {
+                    "type": "string"
+                },
+                "avatar_id": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "current_question": {
+                    "description": "CurrentQuestion is null when every question is answered or the session is completed.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.CurrentQuestion"
+                        }
+                    ]
+                },
+                "evaluation_status": {
+                    "enum": [
+                        "pending",
+                        "completed",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.EvaluationStatus"
+                        }
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "question_count": {
+                    "type": "integer"
+                },
+                "role_profile_id": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "turns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Turn"
+                    }
+                },
+                "type": {
+                    "enum": [
+                        "practice",
+                        "recruitment"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.Type"
+                        }
+                    ]
+                },
+                "voice_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.SessionStatus": {
+            "type": "string",
+            "enum": [
+                "in_progress",
+                "pending",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusInProgress",
+                "StatusPending",
+                "StatusCompleted",
+                "StatusFailed"
+            ]
+        },
         "domain.SkillCategory": {
             "type": "string",
             "enum": [
@@ -7756,6 +9426,9 @@ const docTemplate = `{
         "domain.Summary": {
             "type": "object",
             "properties": {
+                "core_question_count": {
+                    "type": "integer"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -7773,6 +9446,9 @@ const docTemplate = `{
                 },
                 "reject_reason": {
                     "type": "string"
+                },
+                "review_submitted": {
+                    "type": "boolean"
                 },
                 "status": {
                     "$ref": "#/definitions/domain.Status"
@@ -7797,6 +9473,31 @@ const docTemplate = `{
                 "StatusCancelled"
             ]
         },
+        "domain.Transcript": {
+            "type": "object",
+            "properties": {
+                "turns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.TranscriptTurn"
+                    }
+                }
+            }
+        },
+        "domain.TranscriptTurn": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "question": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Transition": {
             "type": "object",
             "properties": {
@@ -7810,6 +9511,31 @@ const docTemplate = `{
                     "$ref": "#/definitions/domain.Account"
                 }
             }
+        },
+        "domain.Turn": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "question": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Type": {
+            "type": "string",
+            "enum": [
+                "practice",
+                "recruitment"
+            ],
+            "x-enum-varnames": [
+                "TypePractice",
+                "TypeRecruitment"
+            ]
         },
         "domain.User": {
             "type": "object",
@@ -7913,6 +9639,47 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.AppendTurnRequest": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string",
+                    "example": "I led a team of four on a payments service."
+                },
+                "position": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "handler.CreateInterviewRequest": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "description": "ApplicationID is the Application a recruitment session is for.",
+                    "type": "string"
+                },
+                "avatar_id": {
+                    "type": "string"
+                },
+                "role_profile_id": {
+                    "description": "RoleProfileID is the role profile to practise with. A recruitment session has none and ignores it.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is the session kind.",
+                    "type": "string",
+                    "enum": [
+                        "practice",
+                        "recruitment"
+                    ],
+                    "example": "practice"
+                },
+                "voice_id": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.CreateJobPostingRequest": {
             "type": "object",
             "required": [
@@ -7935,6 +9702,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "location": {
+                    "type": "string"
+                },
+                "refinement_note": {
                     "type": "string"
                 },
                 "required_avatar_id": {
@@ -7970,11 +9740,50 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.CreateRecordingRequest": {
+            "type": "object",
+            "properties": {
+                "content_type": {
+                    "description": "ContentType is the media type of the recording.",
+                    "type": "string",
+                    "enum": [
+                        "video/webm",
+                        "audio/webm",
+                        "video/mp4"
+                    ],
+                    "example": "video/webm"
+                },
+                "size": {
+                    "description": "Size is the byte size of the recording, 1 to 524288000.",
+                    "type": "integer",
+                    "example": 1048576
+                }
+            }
+        },
         "handler.CreateRoleProfileRequest": {
             "type": "object",
             "properties": {
                 "rawText": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.DecisionRequest": {
+            "type": "object",
+            "properties": {
+                "decision": {
+                    "description": "Decision is approve or reject.",
+                    "type": "string",
+                    "enum": [
+                        "approve",
+                        "reject"
+                    ],
+                    "example": "approve"
+                },
+                "reason": {
+                    "description": "Reason is optional, at most 500 characters, and kept only on a rejection.",
+                    "type": "string",
+                    "example": "Missed the technical bar."
                 }
             }
         },

@@ -41,6 +41,8 @@ async function mockModeration(page: Page) {
     document_url: null,
     document_expires_at: null,
     raw_text: null,
+    refinement_note: "",
+    review_submitted: true,
     core_question_count: 50,
   });
   await page.route("https://files.example.com/**", (route) =>
@@ -135,8 +137,8 @@ test("admin reviews a pending posting and rejects it with a reason", async ({
     "https://files.example.com/jd/go-backend.pdf",
   );
   await expect(
-    page.getByText(/core questions in the question bank/),
-  ).toContainText("50");
+    page.getByRole("region", { name: "Decision" }).getByText("50"),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "Reject" }).click();
   const dialog = page.getByRole("dialog", { name: "Reject this posting?" });

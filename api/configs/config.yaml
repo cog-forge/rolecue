@@ -47,6 +47,7 @@ cors:
     - Accept
     - Authorization
     - X-Request-ID
+    - Idempotency-Key
   expose_headers:
     - X-Request-ID
     - X-Total-Count

@@ -121,7 +121,7 @@ function InterviewDetailFields({ interview }: { interview: InterviewDetail }) {
     ["Type", interview.type === "practice" ? "Practice" : "Recruitment"],
     ["Owner", interview.owner.name || "Not provided"],
     ["Owner email", interview.owner.email],
-    ["Role Profile", interview.role_profile.title],
+    ["Role Profile", interview.role_profile?.title ?? "None (recruitment)"],
     [
       "Job Posting",
       interview.job_posting

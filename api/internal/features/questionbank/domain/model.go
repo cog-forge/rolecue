@@ -2,8 +2,12 @@ package domain
 
 import "github.com/google/uuid"
 
-// PostingPending is the only job-posting status in which a Recruiter may change the bank.
-const PostingPending = "pending"
+// A Recruiter may change the bank only while preparing the posting: pending, or rejected and being
+// corrected for resubmission.
+const (
+	PostingPending  = "pending"
+	PostingRejected = "rejected"
+)
 
 // MaxQuestionRunes is a technical guard on one question, not a product rule.
 const MaxQuestionRunes = 1000
@@ -23,13 +27,19 @@ type Bank struct {
 	MaxQuestionLength int            `json:"max_question_length"`
 	// GenerationSize is how many questions Generate writes; 0 means generation is not configured.
 	GenerationSize int `json:"generation_size"`
+	// ReviewSubmitted is true once the Recruiter sent the posting to the Admin queue.
+	ReviewSubmitted bool `json:"review_submitted"`
 }
 
 // Posting is the part of a Job Posting the bank needs: its JD and its lifecycle status.
 type Posting struct {
-	JDID   uuid.UUID
-	Status string
+	JDID            uuid.UUID
+	Status          string
+	ReviewSubmitted bool
 }
+
+// Editable reports whether the posting's bank may still change.
+func (p Posting) Editable() bool { return p.Status == PostingPending || p.Status == PostingRejected }
 
 // ConfirmedRequirement is one confirmed requirement of a JD, used only as generation input.
 type ConfirmedRequirement struct {

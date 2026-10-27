@@ -549,6 +549,10 @@ func TestRejectedPostingCorrectionAndResubmit(t *testing.T) {
 	if err := f.repo.Resubmit(ctx, other, id); codeOf(err) != apperror.CodeJobPostingNotFound {
 		t.Fatalf("other recruiter: %v", err)
 	}
+	if err := f.repo.Resubmit(ctx, f.recruiter, id); codeOf(err) != apperror.CodeQuestionBankNotReady {
+		t.Fatalf("empty resubmit: %v", err)
+	}
+	question()
 	for call := 1; call <= 2; call++ {
 		if err := f.repo.Resubmit(ctx, f.recruiter, id); err != nil {
 			t.Fatalf("resubmit call %d: %v", call, err)
@@ -573,7 +577,7 @@ func TestResubmitOnlyFromRejected(t *testing.T) {
 	ctx, f := newFixture(t)
 	id := f.create(t, ctx, "Open")
 	f.seed.exec(`UPDATE public.job_postings SET status = 'open' WHERE id = $1`, id)
-	if err := f.repo.Resubmit(ctx, f.recruiter, id); codeOf(err) != apperror.CodeJobPostingNotRejected {
+	if err := f.repo.Resubmit(ctx, f.recruiter, id); codeOf(err) != apperror.CodeJobPostingNotEditable {
 		t.Fatalf("open posting: %v", err)
 	}
 	if err := f.repo.Resubmit(ctx, f.recruiter, uuid.New()); codeOf(err) != apperror.CodeJobPostingNotFound {

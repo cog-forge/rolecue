@@ -31,6 +31,7 @@ function posting(status: Status, interviewSlot: number | null) {
     has_document: false,
     seniority_level: "mid",
     requirements: [],
+    refinement_note: "",
     location: "Hanoi",
     employment_type: "Full-time",
     salary_min: null,
@@ -40,6 +41,7 @@ function posting(status: Status, interviewSlot: number | null) {
     required_avatar: null,
     required_voice: null,
     core_question_count: 0,
+    review_submitted: true,
     created_at: "2026-10-12T08:00:00Z",
   };
 }

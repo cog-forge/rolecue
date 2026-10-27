@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Status mirrors the frozen job_posting_status enum. A posting is created pending; Admin approval
-// opens intake.
+// Status mirrors the frozen job_posting_status enum. A posting is created pending and stays in
+// preparation until the Recruiter submits it; Admin approval opens intake.
 type Status string
 
 const (
@@ -79,37 +79,44 @@ type Ref struct {
 // uploaded PDF (or the stored text of a posting created before PDF upload); HasDocument is true
 // when the JD is a PDF, which GET /job-postings/{id}/document opens.
 type JobPosting struct {
-	ID                uuid.UUID            `json:"id"`
-	Title             string               `json:"title"`
-	Status            Status               `json:"status"`
-	RejectReason      *string              `json:"reject_reason"`
-	RawText           string               `json:"raw_text"`
-	HasDocument       bool                 `json:"has_document"`
-	SeniorityLevel    Level                `json:"seniority_level"`
-	Requirements      []PostingRequirement `json:"requirements"`
-	Location          *string              `json:"location"`
-	EmploymentType    *string              `json:"employment_type"`
-	SalaryMin         *int32               `json:"salary_min"`
-	SalaryMax         *int32               `json:"salary_max"`
-	InterviewDuration *int32               `json:"interview_duration"`
-	InterviewSlot     *int32               `json:"interview_slot"`
-	RequiredAvatar    *Ref                 `json:"required_avatar"`
-	RequiredVoice     *Ref                 `json:"required_voice"`
-	// CoreQuestionCount shows whether the question bank exists; requirements lock once it does.
-	CoreQuestionCount int64     `json:"core_question_count"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID             uuid.UUID            `json:"id"`
+	Title          string               `json:"title"`
+	Status         Status               `json:"status"`
+	RejectReason   *string              `json:"reject_reason"`
+	RawText        string               `json:"raw_text"`
+	HasDocument    bool                 `json:"has_document"`
+	SeniorityLevel Level                `json:"seniority_level"`
+	Requirements   []PostingRequirement `json:"requirements"`
+	// RefinementNote is the Recruiter's optional guidance for question generation.
+	RefinementNote    string  `json:"refinement_note"`
+	Location          *string `json:"location"`
+	EmploymentType    *string `json:"employment_type"`
+	SalaryMin         *int32  `json:"salary_min"`
+	SalaryMax         *int32  `json:"salary_max"`
+	InterviewDuration *int32  `json:"interview_duration"`
+	InterviewSlot     *int32  `json:"interview_slot"`
+	RequiredAvatar    *Ref    `json:"required_avatar"`
+	RequiredVoice     *Ref    `json:"required_voice"`
+	// CoreQuestionCount shows whether the question bank exists; requirements lock once it does, and
+	// the posting can be submitted only with at least one question.
+	CoreQuestionCount int64 `json:"core_question_count"`
+	// ReviewSubmitted separates a pending posting in the Admin queue from one still being prepared.
+	ReviewSubmitted bool      `json:"review_submitted"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // Summary is one row of the Recruiter's own posting list.
 type Summary struct {
-	ID             uuid.UUID `json:"id"`
-	Title          string    `json:"title"`
-	Status         Status    `json:"status"`
-	RejectReason   *string   `json:"reject_reason"`
-	Location       *string   `json:"location"`
-	EmploymentType *string   `json:"employment_type"`
-	InterviewSlot  *int32    `json:"interview_slot"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID                uuid.UUID `json:"id"`
+	Title             string    `json:"title"`
+	Status            Status    `json:"status"`
+	RejectReason      *string   `json:"reject_reason"`
+	Location          *string   `json:"location"`
+	EmploymentType    *string   `json:"employment_type"`
+	InterviewSlot     *int32    `json:"interview_slot"`
+	CoreQuestionCount int64     `json:"core_question_count"`
+	ReviewSubmitted   bool      `json:"review_submitted"`
+	CreatedAt         time.Time `json:"created_at"`
 }
 
 // Record is what the repository stores and returns. ContentPath is the storage key of the JD PDF,
@@ -141,6 +148,7 @@ type CreateInput struct {
 	RawText           string
 	SeniorityLevel    Level
 	Requirements      []PostingRequirement
+	RefinementNote    string
 	Location          *string
 	EmploymentType    *string
 	SalaryMin         *int32

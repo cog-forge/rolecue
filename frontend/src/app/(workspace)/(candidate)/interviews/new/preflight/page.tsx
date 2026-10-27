@@ -3,8 +3,8 @@ import { PreflightCheck } from "@/features/interview-setup/components/preflight-
 export default function Page() {
   return (
     <RoutePlaceholder
-      title="Preflight"
-      description="Check browser support before the device and network readiness flow."
+      title="Test audio & interview readiness"
+      description="Check your microphone before your interview. You can change your input or try again if something needs attention."
     >
       <PreflightCheck />
     </RoutePlaceholder>

@@ -28,6 +28,7 @@ type Config struct {
 	Storage          StorageConfig          `mapstructure:"storage"`
 	PayOS            PayOSConfig            `mapstructure:"payos"`
 	QuestionBank     QuestionBankConfig     `mapstructure:"question_bank"`
+	Interview        InterviewConfig        `mapstructure:"interview"`
 	Evaluation       EvaluationConfig       `mapstructure:"evaluation"`
 	AvatarConversion AvatarConversionConfig `mapstructure:"avatar_conversion"`
 }
@@ -163,6 +164,16 @@ type QuestionBankConfig struct {
 // MaxQuestionBankSize bounds QUESTION_BANK_SIZE to a sane technical range.
 const MaxQuestionBankSize = 100
 
+// InterviewConfig holds the interview session settings. QuestionLimit is the most core questions one
+// session asks (0 uses the default of 8). The practice price is a fixed team decision, not configuration
+// (interview/domain.PracticeInterviewCoins).
+type InterviewConfig struct {
+	QuestionLimit int `mapstructure:"question_limit"`
+}
+
+// MaxInterviewQuestionLimit bounds INTERVIEW_QUESTION_LIMIT to a sane technical range.
+const MaxInterviewQuestionLimit = 20
+
 // EvaluationConfig holds the posting evaluation-weight settings. WeightTotal is the sum a posting's
 // weights must reach (100 = percentages); 0 turns the sum check off. It lives in configuration
 // because the scoring formula is still an open product decision.
@@ -233,6 +244,7 @@ func Load(configPath string) (*Config, error) {
 		"payos.max_retries":                  "PAYOS_MAX_RETRIES",
 		"question_bank.size":                 "QUESTION_BANK_SIZE",
 		"evaluation.weight_total":            "EVALUATION_WEIGHT_TOTAL",
+		"interview.question_limit":           "INTERVIEW_QUESTION_LIMIT",
 		"avatar_conversion.enabled":          "AVATAR_CONVERSION_ENABLED",
 		"avatar_conversion.blender_binary":   "AVATAR_BLENDER_BINARY",
 		"avatar_conversion.timeout":          "AVATAR_CONVERSION_TIMEOUT",
@@ -306,7 +318,7 @@ func setDefaults(v *viper.Viper) {
 	// CORS defaults
 	v.SetDefault("cors.allow_origins", []string{"http://localhost:3000"})
 	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
-	v.SetDefault("cors.allow_headers", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID"})
+	v.SetDefault("cors.allow_headers", []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Request-ID", "Idempotency-Key"})
 	v.SetDefault("cors.expose_headers", []string{"X-Request-ID", "X-Total-Count", "X-Export-Truncated", "Content-Disposition"})
 	v.SetDefault("cors.allow_credentials", true)
 	v.SetDefault("cors.max_age", 86400)
@@ -337,6 +349,7 @@ func setDefaults(v *viper.Viper) {
 	// Question bank defaults: 50 questions per bank, as agreed by the team.
 	v.SetDefault("question_bank.size", 50)
 	v.SetDefault("evaluation.weight_total", 100)
+	v.SetDefault("interview.question_limit", 8)
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
 	v.SetDefault("avatar_conversion.timeout", "120s")
@@ -386,6 +399,9 @@ func (c *Config) Validate() error {
 
 	if c.QuestionBank.Size < 0 || c.QuestionBank.Size > MaxQuestionBankSize {
 		return fmt.Errorf("question_bank.size must be between 0 and %d", MaxQuestionBankSize)
+	}
+	if c.Interview.QuestionLimit < 0 || c.Interview.QuestionLimit > MaxInterviewQuestionLimit {
+		return fmt.Errorf("interview.question_limit must be between 0 and %d", MaxInterviewQuestionLimit)
 	}
 	if math.IsNaN(c.Evaluation.WeightTotal) || c.Evaluation.WeightTotal < 0 || c.Evaluation.WeightTotal > MaxEvaluationWeightTotal {
 		return fmt.Errorf("evaluation.weight_total must be between 0 and %d", MaxEvaluationWeightTotal)

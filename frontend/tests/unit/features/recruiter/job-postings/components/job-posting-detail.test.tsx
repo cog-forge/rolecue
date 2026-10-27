@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   post: vi.fn(),
   patch: vi.fn(),
   toast: vi.fn(),
+  push: vi.fn(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
     full_name: "Rec",
@@ -27,6 +28,7 @@ vi.mock("@/features/auth/components/session-gate", () => ({
 }));
 vi.mock("goey-toast", () => ({ gooeyToast: { success: mocks.toast } }));
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mocks.push }),
   useSearchParams: () => new URLSearchParams(),
   usePathname: () =>
     "/recruiter/job-postings/33333333-3333-4333-8333-333333333333",
@@ -61,7 +63,10 @@ const base = {
   interview_slot: null as number | null,
   required_avatar: { id: avatarId, name: "Linh" },
   required_voice: { id: voiceId, name: "Ava" },
-  core_question_count: 0,
+  refinement_note: "",
+  // A submitted posting with a ready bank, so its requirements are locked while pending.
+  review_submitted: true,
+  core_question_count: 8,
   created_at: "2026-10-12T08:00:00Z",
 };
 type Posting = typeof base;
@@ -172,7 +177,9 @@ describe("JobPostingDetail", () => {
     expect(
       screen.queryByRole("button", { name: /replace the pdf/i }),
     ).not.toBeInTheDocument();
-    const save = screen.getByRole("button", { name: "Save changes" });
+    const save = screen.getByRole("button", {
+      name: /Save changes|Confirm & generate questions/,
+    });
     expect(save).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Location"), {
@@ -192,10 +199,12 @@ describe("JobPostingDetail", () => {
   });
 
   it("locks seniority and requirements while the pending posting has a question bank", async () => {
-    serve({ ...base, core_question_count: 8 });
+    serve(base);
     mount();
     expect(
-      await screen.findByText(/seniority and requirements are locked/i),
+      await screen.findByText(
+        /seniority, requirements and refinement note are locked/i,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Open the question bank" }),
@@ -208,45 +217,100 @@ describe("JobPostingDetail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("lets a rejected posting be corrected and sent for review again", async () => {
+  it("sends a corrected rejected posting for review from its question bank", async () => {
     serve({
       ...base,
       status: "rejected",
       reject_reason: "Add the salary range.",
       core_question_count: 3,
     });
-    mocks.post.mockResolvedValue(envelope({ ...base, status: "pending" }));
     mount();
     expect(
-      await screen.findByText("Reason: Add the salary range."),
+      await screen.findByText("“Add the salary range.”"),
     ).toBeInTheDocument();
     expect(screen.getByText(/deletes the 3 questions/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /replace the pdf/i }),
     ).toBeEnabled();
-
-    const resend = screen.getByRole("button", {
-      name: "Send for review again",
-    });
-    fireEvent.change(screen.getByLabelText("Minimum salary"), {
-      target: { value: "1000" },
-    });
-    await waitFor(() => expect(resend).toBeDisabled());
+    // Submission happens next to the questions, so there is one place to send it from.
+    expect(screen.getByRole("link", { name: "question bank" })).toHaveAttribute(
+      "href",
+      `/recruiter/job-postings/${postingId}/questions`,
+    );
     expect(
-      screen.getByText("Save your changes before sending it for review."),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /review again/i }),
+    ).not.toBeInTheDocument();
+  });
 
-    fireEvent.change(screen.getByLabelText("Minimum salary"), {
-      target: { value: "" },
+  it("saves changed requirements, generates the bank and opens it", async () => {
+    const rejected = { ...base, status: "rejected", reject_reason: "Vague." };
+    serve(rejected);
+    const saved = {
+      ...rejected,
+      requirements: [
+        { name: "Golang", target: "programming_language", type: "required" },
+      ],
+      core_question_count: 0,
+    };
+    mocks.patch.mockResolvedValue(envelope(saved));
+    mocks.post.mockResolvedValue(
+      envelope({ questions: [{ id: avatarId, content: "Explain Go." }] }),
+    );
+    mount();
+    fireEvent.change(await screen.findByLabelText("Requirement 1"), {
+      target: { value: "Golang" },
     });
-    await waitFor(() => expect(resend).toBeEnabled());
-    fireEvent.click(resend);
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm & generate questions" }),
+    );
     await waitFor(() =>
       expect(mocks.post).toHaveBeenCalledWith(
-        `/job-postings/${postingId}/resubmit`,
+        `/job-postings/${postingId}/questions/generate`,
       ),
     );
-    expect(await screen.findByText("Pending review")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.push).toHaveBeenCalledWith(
+        `/recruiter/job-postings/${postingId}/questions`,
+      ),
+    );
+    expect(mocks.toast).toHaveBeenCalledWith(
+      "Question bank generated",
+      expect.anything(),
+    );
+  });
+
+  it("offers to generate again after a reload when an earlier generation failed", async () => {
+    // The posting was saved but its generation failed, so it still has no questions.
+    const failed = {
+      ...base,
+      review_submitted: false,
+      core_question_count: 0,
+    };
+    serve(failed);
+    mocks.post.mockResolvedValue(
+      envelope({ questions: [{ id: avatarId, content: "Explain Go." }] }),
+    );
+    mount();
+    expect(
+      await screen.findByText(/Confirm the requirements below to generate/),
+    ).toBeInTheDocument();
+    const confirm = screen.getByRole("button", {
+      name: "Confirm & generate questions",
+    });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
+    );
+    fireEvent.click(confirm);
+    await waitFor(() =>
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/job-postings/${postingId}/questions/generate`,
+      ),
+    );
+    expect(mocks.patch).not.toHaveBeenCalled();
   });
 
   it("replaces the PDF of a rejected posting and sends only the new document", async () => {
@@ -276,7 +340,11 @@ describe("JobPostingDetail", () => {
       screen.queryByRole("link", { name: /open the pdf/i }),
     ).not.toBeInTheDocument();
     // A new JD alone still needs the requirements confirmed against it.
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
+    );
     expect(
       await screen.findByText(
         "Confirm that you reviewed the requirements before submitting.",
@@ -286,7 +354,11 @@ describe("JobPostingDetail", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
+    );
     await waitFor(() =>
       expect(mocks.patch).toHaveBeenCalledWith(`/job-postings/${postingId}`, {
         document_id: newDocumentId,
@@ -308,7 +380,11 @@ describe("JobPostingDetail", () => {
       target: { value: "Rust" },
     });
     await waitFor(() => expect(confirm()).not.toBeChecked());
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
+    );
     expect(
       await screen.findByText(
         "Confirm that you reviewed the requirements before submitting.",
@@ -324,7 +400,11 @@ describe("JobPostingDetail", () => {
     fireEvent.change(await screen.findByLabelText("Requirement 1"), {
       target: { value: "Golang" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
+    );
     expect(
       await screen.findByText(
         "Confirm that you reviewed the requirements before submitting.",
@@ -346,7 +426,11 @@ describe("JobPostingDetail", () => {
     fireEvent.change(await screen.findByLabelText("Location"), {
       target: { value: "Hue" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
+    );
     expect(
       await screen.findByText(
         "only a pending or rejected job posting can be edited We refreshed it for you.",
@@ -364,10 +448,14 @@ describe("JobPostingDetail", () => {
     serve({ ...base, status: "open" });
     mount();
     expect(
-      await screen.findByText(/was approved, so it can no longer be edited/i),
+      await screen.findByText(
+        /Approved, so the posting can no longer be edited/i,
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Save changes" }),
+      screen.queryByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("45 minutes")).toBeInTheDocument();
   });
@@ -467,13 +555,23 @@ describe("JobPostingDetail", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: /i reviewed these requirements/i }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
+    );
     expect(
-      await screen.findByText(/seniority and requirements are locked/i),
+      await screen.findByText(
+        /seniority, requirements and refinement note are locked/i,
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("Go")).toBeInTheDocument();
     expect(screen.queryByText("Golang")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
+    ).toBeDisabled();
   });
 
   it("treats a malformed posting ID as not found", async () => {

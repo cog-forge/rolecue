@@ -19,19 +19,13 @@ import {
   type FieldError,
   type UseFormRegisterReturn,
 } from "react-hook-form";
-import { FileUp, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
+import { FileUp, LoaderCircle, Plus, ScanText, Trash2 } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -100,7 +94,6 @@ export function PostingForm({
   submitting,
   submitError,
   onSubmit,
-  extraActions,
 }: {
   mode: "create" | "edit";
   posting?: JobPosting;
@@ -109,7 +102,6 @@ export function PostingForm({
   submitting: boolean;
   submitError: string | null;
   onSubmit: (values: PostingValues, requirementsChanged: boolean) => void;
-  extraActions?: (state: { dirty: boolean }) => ReactNode;
 }) {
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -198,10 +190,14 @@ export function PostingForm({
   const fileName = useWatch({ control, name: "file_name" });
   const requirementValues = useWatch({ control, name: "requirements" });
   const seniority = useWatch({ control, name: "seniority_level" });
+  const refinement = useWatch({ control, name: "refinement_note" });
   const textLength = runeLength(rawText.trim());
   // A new JD PDF needs its requirements reviewed again, like a seniority or requirement change.
   const requirementsChanged =
     mode === "create" ||
+    // Also covers a generation that failed: the posting still has no questions.
+    !posting?.core_question_count ||
+    Boolean(dirtyFields.refinement_note) ||
     Boolean(dirtyFields.requirements) ||
     Boolean(dirtyFields.seniority_level) ||
     Boolean(dirtyFields.document_id);
@@ -212,6 +208,7 @@ export function PostingForm({
     rawText,
     seniority,
     requirementValues,
+    refinement,
   ]);
   const confirmedInputs = useRef<string | null>(null);
   useEffect(() => {
@@ -273,10 +270,8 @@ export function PostingForm({
       aria-label={mode === "create" ? "Create job posting" : "Edit job posting"}
       noValidate
       onSubmit={(event) => void submit(event)}
-      className="space-y-6"
     >
-      <SectionCard
-        step={1}
+      <FormSection
         title="Job description"
         contentClassName="space-y-3"
         description={
@@ -307,7 +302,7 @@ export function PostingForm({
                 <Button
                   type="button"
                   variant={rawText ? "outline" : "default"}
-                  className="h-11"
+                  className="h-10 rounded-full px-4"
                   disabled={busy}
                   aria-busy={upload.isPending}
                   aria-describedby={describedBy(
@@ -358,7 +353,7 @@ export function PostingForm({
                 <div
                   tabIndex={0}
                   aria-label="Text read from the PDF"
-                  className="max-h-72 overflow-y-auto rounded-xl border bg-muted/40 p-4 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]"
+                  className="max-h-72 overflow-y-auto rounded-lg border bg-muted/50 p-4 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]"
                 >
                   {rawText}
                 </div>
@@ -371,7 +366,7 @@ export function PostingForm({
               <Button
                 type="button"
                 variant="outline"
-                className="h-11"
+                className="h-10 rounded-full px-4"
                 disabled={
                   busy || locks.requirementsLocked || textLength < TEXT_MIN
                 }
@@ -385,7 +380,7 @@ export function PostingForm({
                     aria-hidden
                   />
                 ) : (
-                  <Sparkles aria-hidden />
+                  <ScanText aria-hidden />
                 )}
                 {extract.isPending
                   ? "Reading requirements…"
@@ -406,14 +401,13 @@ export function PostingForm({
             )}
           </>
         ) : (
-          <div className="max-h-72 overflow-y-auto rounded-xl border bg-muted/40 p-4 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
+          <div className="max-h-72 overflow-y-auto rounded-lg border bg-muted/50 p-4 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
             {rawText}
           </div>
         )}
-      </SectionCard>
+      </FormSection>
 
-      <SectionCard
-        step={2}
+      <FormSection
         title="Role and requirements"
         contentClassName="space-y-5"
         description={
@@ -437,10 +431,10 @@ export function PostingForm({
             {mode === "edit" && questionCount > 0 && (
               <Notice tone="warning">
                 <p>
-                  Replacing the job description PDF or changing the seniority or
-                  requirements deletes the {questionCount} questions in this
-                  posting&apos;s question bank. You can generate them again
-                  afterwards.
+                  Replacing the job description PDF or changing the seniority,
+                  requirements or refinement note deletes the {questionCount}{" "}
+                  questions in this posting&apos;s question bank. You can
+                  generate them again afterwards.
                 </p>
               </Notice>
             )}
@@ -497,7 +491,7 @@ export function PostingForm({
                 Requirements (at least one)
               </legend>
               {rows.fields.length === 0 ? (
-                <p className="rounded-xl border border-dashed bg-muted/30 p-4 text-sm text-muted-foreground">
+                <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
                   No requirements yet. Use Suggest requirements above, or add
                   them yourself.
                 </p>
@@ -511,7 +505,7 @@ export function PostingForm({
                     return (
                       <li
                         key={row.id}
-                        className="grid gap-2 rounded-xl border border-workspace-accent/15 bg-workspace-accent/[0.03] p-3 transition-colors duration-200 animate-in fade-in slide-in-from-left-1 hover:border-workspace-accent/30 motion-reduce:animate-none sm:grid-cols-[minmax(0,1fr)_12rem_9rem_auto] sm:items-start"
+                        className="grid gap-2 rounded-lg border bg-card p-3 transition-colors duration-[var(--duration-quick)] focus-within:border-foreground/30 hover:border-foreground/20 sm:grid-cols-[minmax(0,1fr)_12rem_9rem_auto] sm:items-start"
                       >
                         <div className="space-y-1">
                           <label
@@ -577,7 +571,7 @@ export function PostingForm({
               <Button
                 type="button"
                 variant="outline"
-                className="h-11"
+                className="h-10 rounded-full px-4"
                 disabled={busy}
                 onClick={() =>
                   rows.append({
@@ -602,6 +596,16 @@ export function PostingForm({
                 </p>
               ) : null}
             </fieldset>
+
+            <TextField
+              id="posting-refinement"
+              label="Refinement note (optional)"
+              hint="Guidance for question generation, such as areas to focus on or skip."
+              registration={register("refinement_note")}
+              disabled={busy}
+              error={errors.refinement_note}
+              multiline
+            />
 
             {requirementsChanged && (
               <div className="space-y-1">
@@ -641,10 +645,9 @@ export function PostingForm({
             )}
           </>
         )}
-      </SectionCard>
+      </FormSection>
 
-      <SectionCard
-        step={3}
+      <FormSection
         title="Posting details"
         contentClassName="grid gap-4 sm:grid-cols-2"
         description={<>Optional. Candidates see these on the posting.</>}
@@ -688,10 +691,9 @@ export function PostingForm({
           disabled={busy}
           registration={register("interview_duration")}
         />
-      </SectionCard>
+      </FormSection>
 
-      <SectionCard
-        step={4}
+      <FormSection
         title="Interviewer"
         contentClassName="grid gap-4 sm:grid-cols-2"
         description={
@@ -737,10 +739,9 @@ export function PostingForm({
           current={posting?.required_voice ?? null}
           emptyText="No voices are available yet. An administrator adds them to the catalog."
         />
-      </SectionCard>
+      </FormSection>
 
-      <SectionCard
-        step={5}
+      <FormSection
         title="Candidates allowed into interview"
         description={
           <>
@@ -761,7 +762,7 @@ export function PostingForm({
             </span>
           )}
         </p>
-      </SectionCard>
+      </FormSection>
 
       {submitError && (
         <Notice role="alert" tone="danger">
@@ -769,11 +770,14 @@ export function PostingForm({
         </Notice>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      {/* The save bar stays in reach on a long form. */}
+      <div className="sticky bottom-0 z-10 flex flex-wrap items-center gap-3 border-t bg-white py-4 dark:bg-background">
         <Button
           type="submit"
-          className="h-11"
-          disabled={busy || (mode === "edit" && !isDirty)}
+          className="h-10 rounded-full px-5"
+          disabled={
+            busy || (mode === "edit" && !isDirty && !requirementsChanged)
+          }
           aria-busy={submitting}
         >
           {submitting && (
@@ -782,16 +786,15 @@ export function PostingForm({
               aria-hidden
             />
           )}
-          {mode === "create"
+          {requirementsChanged
             ? submitting
-              ? "Submitting…"
-              : "Submit for approval"
+              ? "Generating questions…"
+              : "Confirm & generate questions"
             : submitting
               ? "Saving…"
               : "Save changes"}
         </Button>
-        {extraActions?.({ dirty: isDirty })}
-        <Button asChild variant="ghost" className="h-11">
+        <Button asChild variant="ghost" className="h-10 rounded-full px-4">
           <Link href={routes.recruiter.jobPostings}>Cancel</Link>
         </Button>
         <p
@@ -800,8 +803,8 @@ export function PostingForm({
           className="text-sm text-muted-foreground"
         >
           {submitting
-            ? mode === "create"
-              ? "Submitting your posting…"
+            ? requirementsChanged
+              ? "Saving requirements and generating questions…"
               : "Saving your changes…"
             : mode === "edit" && isDirty
               ? "You have unsaved changes."
@@ -837,6 +840,7 @@ function TextField({
   disabled,
   registration,
   inputMode,
+  multiline,
 }: {
   id: string;
   label: string;
@@ -845,21 +849,25 @@ function TextField({
   disabled: boolean;
   registration: UseFormRegisterReturn;
   inputMode?: "numeric";
+  multiline?: boolean;
 }) {
+  const field = {
+    id,
+    disabled,
+    "aria-invalid": !!error,
+    "aria-describedby": describedBy(id, !!hint, error),
+    ...registration,
+  };
   return (
     <div className="space-y-2">
       <label htmlFor={id} className="text-sm font-medium">
         {label}
       </label>
-      <Input
-        id={id}
-        inputMode={inputMode}
-        disabled={disabled}
-        className="h-11"
-        aria-invalid={!!error}
-        aria-describedby={describedBy(id, !!hint, error)}
-        {...registration}
-      />
+      {multiline ? (
+        <Textarea rows={3} {...field} />
+      ) : (
+        <Input inputMode={inputMode} className="h-11" {...field} />
+      )}
       {hint && (
         <p id={`${id}-hint`} className="text-xs text-muted-foreground">
           {hint}
@@ -981,7 +989,7 @@ function PickerField({
           <Button
             type="button"
             variant="outline"
-            className="h-11"
+            className="h-10 rounded-full px-4"
             onClick={onRetry}
           >
             Try again
@@ -990,7 +998,7 @@ function PickerField({
       ) : all.length === 0 ? (
         <p
           id={`${id}-hint`}
-          className="rounded-xl border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground"
+          className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground"
         >
           {emptyText}
         </p>
@@ -1036,9 +1044,9 @@ function LockedRequirements({ posting }: { posting?: JobPosting }) {
     <div className="space-y-3">
       <Notice tone="locked">
         <p>
-          Seniority and requirements are locked because this posting&apos;s
-          question bank was generated from them. Delete its questions to change
-          them.{" "}
+          Seniority, requirements and refinement note are locked because this
+          posting&apos;s question bank was generated from them. Delete its
+          questions to change them.{" "}
           <Link
             href={routes.recruiter.jobPostingQuestions(posting.id)}
             className="font-medium underline underline-offset-4"
@@ -1047,15 +1055,23 @@ function LockedRequirements({ posting }: { posting?: JobPosting }) {
           </Link>
         </p>
       </Notice>
-      <dl className="text-sm">
+      <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[9rem_minmax(0,1fr)]">
         <dt className="text-muted-foreground">Seniority</dt>
         <dd className="font-medium">{levelText[posting.seniority_level]}</dd>
+        {posting.refinement_note && (
+          <>
+            <dt className="text-muted-foreground">Refinement note</dt>
+            <dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+              {posting.refinement_note}
+            </dd>
+          </>
+        )}
       </dl>
-      <ul className="divide-y rounded-xl border bg-muted/20 text-sm">
+      <ul className="divide-y rounded-lg border text-sm">
         {posting.requirements.map((row) => (
           <li
             key={`${row.name}-${row.target}`}
-            className="flex flex-wrap justify-between gap-2 p-3"
+            className="flex flex-wrap justify-between gap-2 px-3 py-2.5"
           >
             <span className="font-medium [overflow-wrap:anywhere]">
               {row.name}
@@ -1071,40 +1087,30 @@ function LockedRequirements({ posting }: { posting?: JobPosting }) {
   );
 }
 
-export { levelText, targetText };
+export { FormSection, levelText, targetText };
 
-// One numbered step of the form. Steps fade in one after another on first render.
-function SectionCard({
-  step,
+// One part of the posting: what it is for on the left, its fields on the right. On a phone the
+// description sits above the fields.
+function FormSection({
   title,
   description,
   contentClassName,
   children,
 }: {
-  step: number;
   title: string;
   description: ReactNode;
   contentClassName?: string;
   children: ReactNode;
 }) {
   return (
-    <Card
-      className="duration-500 animate-in fade-in slide-in-from-bottom-2 fill-mode-both motion-reduce:animate-none"
-      style={{ animationDelay: `${(step - 1) * 60}ms` }}
-    >
-      <CardHeader>
-        <CardTitle className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="flex size-7 shrink-0 items-center justify-center rounded-full bg-workspace-accent/10 text-xs font-semibold text-workspace-accent ring-1 ring-workspace-accent/25"
-          >
-            {step}
-          </span>
-          <h2>{title}</h2>
-        </CardTitle>
-        <CardDescription className="sm:pl-10">{description}</CardDescription>
-      </CardHeader>
-      <CardContent className={cn(contentClassName)}>{children}</CardContent>
-    </Card>
+    <section className="grid gap-x-10 gap-y-4 border-t py-8 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold">{title}</h2>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
+      </div>
+      <div className={cn("min-w-0", contentClassName)}>{children}</div>
+    </section>
   );
 }

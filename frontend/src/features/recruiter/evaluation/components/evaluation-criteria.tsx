@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
@@ -12,10 +11,11 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
+import { Notice } from "@/features/recruiter/job-postings/components/notice";
 import {
-  headerBandClass,
-  Notice,
-} from "@/features/recruiter/job-postings/components/notice";
+  PageHeader,
+  pillClass,
+} from "@/features/recruiter/job-postings/components/page-header";
 import {
   apiError,
   isAccessDenied,
@@ -77,22 +77,16 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
     if (denied) void cache.invalidateQueries({ queryKey: ["auth", "me"] });
   }, [cache, denied]);
 
-  const back = (
-    <Link
-      href={routes.recruiter.jobPosting(postingId)}
-      className="inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
-      <ArrowLeft className="size-4" aria-hidden />
-      Back to the job posting
-    </Link>
-  );
+  const back = {
+    href: routes.recruiter.jobPosting(postingId),
+    label: "Back to the job posting",
+  };
 
   if (weights.isPending || metrics.isPending)
     return (
       <section className="mx-auto w-full max-w-3xl space-y-6">
-        {back}
+        <PageHeader back={back} title="Evaluation criteria" />
         <div role="status" className="space-y-3">
-          <Skeleton className="h-10 w-2/3 rounded-md" />
           <Skeleton className="h-64 rounded-xl" />
           <span className="sr-only">Loading the evaluation criteria…</span>
         </div>
@@ -102,23 +96,21 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
     const notFound = [400, 404].includes(apiError(weights.error).status);
     return (
       <section className="mx-auto w-full max-w-3xl space-y-6">
-        {back}
+        <PageHeader back={back} title="Evaluation criteria" />
         <div
           role="alert"
           className={cn(
-            "rounded-2xl border p-6",
-            denied || notFound
-              ? "bg-muted/50"
-              : "border-destructive/30 bg-destructive/5",
+            "rounded-xl border p-6",
+            !denied && !notFound && "border-destructive/30",
           )}
         >
-          <h1 className="text-xl font-semibold">
+          <h2 className="text-base font-semibold">
             {denied
               ? "You don't have access to evaluation criteria"
               : notFound
                 ? "We couldn't find this job posting"
                 : "We couldn't load the evaluation criteria"}
-          </h1>
+          </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {denied
               ? "Checking your account access… If this stays, sign in again with a recruiter account."
@@ -128,7 +120,7 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
           </p>
           {!denied && !notFound && (
             <Button
-              className="mt-4 h-11 bg-background"
+              className={cn("mt-4", pillClass)}
               variant="outline"
               disabled={weights.isFetching || metrics.isFetching}
               onClick={() => {
@@ -153,19 +145,11 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
     ]).then(() => setVersion((value) => value + 1));
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
-      {back}
-      <header className={cn(headerBandClass, "space-y-2")}>
-        <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Job posting
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Evaluation criteria
-        </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Decide how much each skill counts when a candidate&rsquo;s interview
-          is scored. This is separate from the question bank.
-        </p>
-      </header>
+      <PageHeader
+        back={back}
+        title="Evaluation criteria"
+        description="Decide how much each skill counts when a candidate’s interview is scored. This is separate from the question bank."
+      />
       {notice && (
         <Notice role="status" tone="info">
           <p>{notice}</p>

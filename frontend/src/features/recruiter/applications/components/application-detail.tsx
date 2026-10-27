@@ -3,34 +3,37 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import {
-  headerBandClass,
-  Notice,
-} from "@/features/recruiter/job-postings/components/notice";
+import { Notice } from "@/features/recruiter/job-postings/components/notice";
+import { PageHeader } from "@/features/recruiter/job-postings/components/page-header";
 import {
   apiError,
   isAccessDenied,
 } from "@/features/recruiter/job-postings/utils/api-error";
-import { cn } from "@/lib/utils";
 import { applicationKeys, getApplicationDetail } from "../api/applications";
-import { formatDeadline, formatSubmitted } from "../utils/application-dates";
+import {
+  formatDeadline,
+  formatSubmitted,
+  isDeadlineMissed,
+} from "../utils/application-dates";
 import type { ApplicationDetail as ApplicationDetailRecord } from "../schemas/application-detail-schema";
 import { ApplicationStatus } from "./application-status";
 import { CvLink } from "./cv-link";
+import { FinalDecision } from "./final-decision";
+import { InterviewResult } from "./interview-result";
 import { ScreeningActions } from "./screening-actions";
 
 // The label follows the list's wording: an eligible Application shows the time left to interview.
+// A missed deadline is shown as rejected, so its deadline is labelled as the former deadline.
 function deadlineLabel(application: ApplicationDetailRecord) {
-  if (application.status !== "interview_eligible") return "Interview deadline";
-  return application.interview_eligible
+  return application.status === "interview_eligible" &&
+    application.interview_eligible
     ? "Complete interview by"
-    : "Deadline passed";
+    : "Interview deadline";
 }
 
 // One Recruiter's Application: the Candidate, the status and CV, and the CV screening decision.
@@ -113,22 +116,19 @@ export function ApplicationDetail({
       </section>
     );
 
-  const back = (
-    <Link
-      href={routes.recruiter.jobPosting(postingId)}
-      className="inline-flex min-h-11 items-center gap-1 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-    >
-      <ArrowLeft className="size-4" aria-hidden />
-      Back to the job posting
-    </Link>
-  );
+  const back = {
+    href: routes.recruiter.jobPosting(postingId),
+    label: "Back to the job posting",
+  };
 
   if (query.isPending)
     return (
       <section className="mx-auto w-full max-w-3xl space-y-6">
-        {back}
+        <PageHeader
+          back={back}
+          title={<Skeleton className="h-8 w-2/3 rounded-md" />}
+        />
         <div role="status" className="space-y-3">
-          <Skeleton className="h-10 w-2/3 rounded-md" />
           <Skeleton className="h-48 rounded-xl" />
           <span className="sr-only">Loading the application…</span>
         </div>
@@ -138,20 +138,17 @@ export function ApplicationDetail({
   const application = query.data;
   if (!application) return null;
   const { candidate, job_posting: posting } = application;
+  const missed = isDeadlineMissed(application);
+  const shownStatus = missed ? "rejected" : application.status;
+  const reasonText =
+    application.reject_reason ?? (missed ? "Interview deadline passed" : null);
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6">
-      {back}
-      <header className={cn(headerBandClass, "space-y-2")}>
-        <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Application
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
-          {candidate.name}
-        </h1>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Applied for {posting.title}
-        </p>
-      </header>
+      <PageHeader
+        back={back}
+        title={candidate.name}
+        meta={<span>Applied for {posting.title}</span>}
+      />
 
       <Card>
         <CardHeader>
@@ -193,7 +190,7 @@ export function ApplicationDetail({
             <div>
               <dt className="text-muted-foreground">Status</dt>
               <dd className="mt-1">
-                <ApplicationStatus status={application.status} />
+                <ApplicationStatus status={shownStatus} />
               </dd>
             </div>
             <div>
@@ -222,11 +219,11 @@ export function ApplicationDetail({
                 </dd>
               </div>
             )}
-            {application.reject_reason && (
+            {reasonText && (
               <div className="sm:col-span-2">
                 <dt className="text-muted-foreground">Reject reason</dt>
                 <dd className="font-medium [overflow-wrap:anywhere]">
-                  {application.reject_reason}
+                  {reasonText}
                 </dd>
               </div>
             )}
@@ -254,6 +251,22 @@ export function ApplicationDetail({
         applicationId={applicationId}
         application={application}
       />
+
+      {application.interview && (
+        <InterviewResult
+          postingId={postingId}
+          applicationId={applicationId}
+          interview={application.interview}
+        />
+      )}
+
+      {application.status === "interviewed" && (
+        <FinalDecision
+          postingId={postingId}
+          applicationId={applicationId}
+          application={application}
+        />
+      )}
     </section>
   );
 }

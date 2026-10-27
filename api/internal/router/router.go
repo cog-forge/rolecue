@@ -33,6 +33,7 @@ type Router struct {
 	evaluationHandler      *handler.EvaluationHandler
 	applicationHandler     *handler.ApplicationHandler
 	adminInterviewsHandler *handler.AdminInterviewsHandler
+	interviewHandlers      *handler.InterviewHandlers
 }
 
 func NewRouter(
@@ -56,6 +57,7 @@ func NewRouter(
 	evaluationHandler *handler.EvaluationHandler,
 	applicationHandler *handler.ApplicationHandler,
 	adminInterviewsHandler *handler.AdminInterviewsHandler,
+	interviewHandlers *handler.InterviewHandlers,
 ) *Router {
 	return &Router{
 		cfg:                    cfg,
@@ -78,6 +80,7 @@ func NewRouter(
 		evaluationHandler:      evaluationHandler,
 		applicationHandler:     applicationHandler,
 		adminInterviewsHandler: adminInterviewsHandler,
+		interviewHandlers:      interviewHandlers,
 	}
 }
 
@@ -145,6 +148,7 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.GET("", r.jobPostingHandler.List)
 	jobPostings.GET("/:id", r.jobPostingHandler.Get)
 	jobPostings.PATCH("/:id", r.jobPostingHandler.Update)
+	jobPostings.POST("/:id/submit", r.jobPostingHandler.Submit)
 	jobPostings.POST("/:id/resubmit", r.jobPostingHandler.Resubmit)
 	jobPostings.GET("/:id/document", r.jobPostingHandler.Document)
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
@@ -163,6 +167,11 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.POST("/:id/close-intake", r.applicationHandler.CloseIntake)
 	jobPostings.GET("/:id/interview-capacity", r.applicationHandler.CapacityState)
 	jobPostings.POST("/:id/interview-capacity", r.applicationHandler.FundCapacity)
+	// The final decision and the recruiter evidence reads answer a non-owner with 404 from the
+	// service, so they carry no RequireRole: a role middleware would turn that into a 403.
+	jobPostings.POST("/:id/applications/:applicationId/decision", r.applicationHandler.Decide)
+	jobPostings.GET("/:id/applications/:applicationId/recording", r.interviewHandlers.Recording.Recording)
+	jobPostings.GET("/:id/applications/:applicationId/transcript", r.interviewHandlers.Recording.Transcript)
 
 	// The Recruiter's Applications across all of their postings. /applications stays free for the
 	// Candidate's own list.
@@ -183,6 +192,20 @@ func (r *Router) Setup() *gin.Engine {
 	candidateApplications := router.Group("/applications", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate"))
 	candidateApplications.GET("", r.applicationHandler.ListMine)
 	candidateApplications.GET("/:id", r.applicationHandler.DetailMine)
+
+	// Interview sessions. Roles are checked in the services: sessions, history and recording are
+	// Candidate only (403 otherwise); the report is readable by the owning Candidate or Recruiter and
+	// answers anyone else with 404.
+	interviews := router.Group("/interviews", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
+	interviews.POST("", r.interviewHandlers.Sessions.Create)
+	interviews.GET("", r.interviewHandlers.History.List)
+	interviews.GET("/:id", r.interviewHandlers.Sessions.Get)
+	interviews.POST("/:id/resume", r.interviewHandlers.Sessions.Resume)
+	interviews.POST("/:id/turns", r.interviewHandlers.Sessions.AppendTurn)
+	interviews.POST("/:id/complete", r.interviewHandlers.Sessions.Complete)
+	interviews.GET("/:id/report", r.interviewHandlers.Report.Get)
+	interviews.POST("/:id/recording", r.interviewHandlers.Recording.CreateUpload)
+	interviews.POST("/:id/recording/complete", r.interviewHandlers.Recording.CompleteUpload)
 
 	// Every admin route sits under /admin so one role check guards the whole group.
 	admin := router.Group("/admin", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("admin"))

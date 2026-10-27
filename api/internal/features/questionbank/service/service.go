@@ -78,15 +78,17 @@ func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, 
 		questions = []domain.CoreQuestion{}
 	}
 	return domain.Bank{
-		Questions:         questions,
-		PostingStatus:     posting.Status,
-		Editable:          posting.Status == domain.PostingPending,
+		Questions:     questions,
+		PostingStatus: posting.Status,
+		// An empty bank is generated, not filled by hand.
+		Editable:          posting.Editable() && len(questions) > 0,
 		MaxQuestionLength: domain.MaxQuestionRunes,
 		GenerationSize:    s.size,
+		ReviewSubmitted:   posting.ReviewSubmitted,
 	}, nil
 }
 
-// Generate writes the bank of an owned, pending posting once.
+// Generate writes the bank of an owned posting being prepared (pending or rejected) once.
 func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.CoreQuestion, error) {
 	if err := requireRecruiter(role); err != nil {
 		return nil, err
@@ -98,8 +100,8 @@ func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role stri
 	if err != nil {
 		return nil, err
 	}
-	if posting.Status != domain.PostingPending {
-		return nil, apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending")
+	if !posting.Editable() {
+		return nil, apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending or rejected")
 	}
 	contents, err := s.draft(ctx, posting.JDID)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
@@ -68,8 +69,8 @@ func TestQuestionBankRoutesRequireOnboarding(t *testing.T) {
 			cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
 			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
-				handler.NewWalletHandler(nil), handler.NewQuestionBankHandler(nil),
-				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}).Setup()
+				handler.NewWalletHandler(nil), handler.NewQuestionBankHandler(nil, time.Minute),
+				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
 			for _, route := range routes {
 				t.Run(route.method+" "+route.path, func(t *testing.T) {
 					req := httptest.NewRequest(route.method, route.path, nil)
@@ -177,8 +178,8 @@ func TestWalletRoutesRequireOnboarding(t *testing.T) {
 				cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
 				r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 					handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
-					handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
-					&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}).Setup()
+					handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
+					&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
 				for _, route := range routes {
 					t.Run(route.method+" "+route.path, func(t *testing.T) {
 						wallet.calls = 0
@@ -212,8 +213,8 @@ func TestPayOSWebhookDoesNotRequireSession(t *testing.T) {
 	auth := routerAuth{err: authdomain.ErrInvalidSession}
 	r := NewRouter(&config.Config{}, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 		handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
-		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
-		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}).Setup()
+		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
+		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/wallet/webhook/payos", strings.NewReader(`{}`)))
 	if w.Code != http.StatusOK || wallet.calls != 1 {
@@ -259,8 +260,8 @@ func TestAdminBillingRoutesRequireAdminRoleAndDisallowMutations(t *testing.T) {
 			cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
 			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
-				handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
-				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}).Setup()
+				handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
+				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
 
 			for _, path := range readRoutes {
 				wallet.calls = 0
@@ -282,8 +283,8 @@ func TestAdminBillingRoutesRequireAdminRoleAndDisallowMutations(t *testing.T) {
 	wallet := &routerWallet{}
 	r := NewRouter(&config.Config{}, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 		handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
-		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil),
-		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}).Setup()
+		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
+		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
 
 	removedMutationRoutes := []string{
 		"/admin/billing/transactions/" + txID.String() + "/sync",

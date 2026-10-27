@@ -88,6 +88,24 @@ describe("CandidateApplicationDetail", () => {
     });
   });
 
+  it("shows only the interview status and score, never a transcript", async () => {
+    mocks.get.mockResolvedValue(
+      application({
+        status: "interviewed",
+        interview: {
+          id: "55555555-5555-4555-8555-555555555555",
+          completed_at: "2026-10-24T09:00:00Z",
+          status: "completed",
+          score: 78,
+        },
+      }),
+    );
+    renderDetail();
+    expect(await screen.findByText("Interview result")).toBeInTheDocument();
+    expect(screen.getByText("78 / 100")).toBeInTheDocument();
+    expect(screen.queryByText(/transcript|recording/i)).not.toBeInTheDocument();
+  });
+
   it("shows the deadline, a countdown and a disabled start action while eligible", async () => {
     mocks.get.mockResolvedValue(
       application({

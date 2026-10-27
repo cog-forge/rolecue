@@ -22,6 +22,7 @@ type JobPostingService interface {
 	List(ctx context.Context, recruiterID uuid.UUID, role string, filter domain.ListFilter) ([]domain.Summary, int64, error)
 	Get(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
 	Update(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID, patch domain.Edit) (domain.JobPosting, error)
+	Submit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
 	Resubmit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
 	UploadDocument(ctx context.Context, role string, data []byte) (domain.Document, error)
 	Document(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.DocumentLink, error)
@@ -50,6 +51,7 @@ type CreateJobPostingRequest struct {
 	DocumentID        *string                      `json:"document_id" binding:"required" format:"uuid"`
 	SeniorityLevel    *string                      `json:"seniority_level" binding:"required" enums:"intern,junior,mid,senior,lead"`
 	Requirements      *[]domain.PostingRequirement `json:"requirements" binding:"required"`
+	RefinementNote    string                       `json:"refinement_note"`
 	Location          *string                      `json:"location"`
 	EmploymentType    *string                      `json:"employment_type"`
 	SalaryMin         *int32                       `json:"salary_min"`
@@ -149,7 +151,7 @@ func jobPostingFilter(c *gin.Context) (domain.ListFilter, bool) {
 
 // Create godoc
 // @Summary Create a Job Posting
-// @Description Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents (read again on the server) with the requirements confirmed in review and submits the posting for Admin approval (status pending). The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.
+// @Description Recruiter only. Stores the JD PDF uploaded through POST /job-postings/documents (read again on the server) with the requirements confirmed in review. The posting is created pending but not yet submitted: generate its question bank, then submit it for Admin approval. The interviewer avatar must be one of the Recruiter's own avatars and the voice must be active. Trusted Origin required. Unknown fields reject the whole request.
 // @Tags job-postings
 // @Accept json
 // @Produce json
@@ -183,7 +185,7 @@ func (h *JobPostingHandler) Create(c *gin.Context) {
 	}
 	result, err := h.service.Create(c.Request.Context(), userID, role, domain.CreateInput{
 		Title: *req.Title, DocumentID: *req.DocumentID, SeniorityLevel: domain.Level(*req.SeniorityLevel),
-		Requirements: *req.Requirements, Location: req.Location, EmploymentType: req.EmploymentType,
+		Requirements: *req.Requirements, RefinementNote: req.RefinementNote, Location: req.Location, EmploymentType: req.EmploymentType,
 		SalaryMin: req.SalaryMin, SalaryMax: req.SalaryMax, InterviewDuration: req.InterviewDuration,
 		RequiredAvatarID: *req.RequiredAvatarID, RequiredVoiceID: *req.RequiredVoiceID,
 	})
@@ -349,9 +351,43 @@ func (h *JobPostingHandler) Update(c *gin.Context) {
 	response.OK(c, result)
 }
 
+// Submit godoc
+// @Summary Submit your prepared Job Posting for Admin review
+// @Description Recruiter only. Puts a pending posting in the Admin review queue. Needs a non-empty question bank; generating the bank never submits on its own. Repeating it changes nothing; a rejected posting uses resubmit. Trusted Origin required.
+// @Tags job-postings
+// @Produce json
+// @Security SessionCookie
+// @Param Origin header string true "Trusted frontend origin"
+// @Param id path string true "Job Posting ID" format(uuid)
+// @Success 200 {object} response.Envelope{data=domain.JobPosting}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Failure 503 {object} response.Envelope
+// @Router /job-postings/{id}/submit [post]
+func (h *JobPostingHandler) Submit(c *gin.Context) {
+	userID, role, ok := jobPostingUser(c)
+	if !ok {
+		return
+	}
+	id, ok := jobPostingID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.Submit(c.Request.Context(), userID, role, id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
 // Resubmit godoc
 // @Summary Send your rejected Job Posting for review again
-// @Description Recruiter only. Moves a rejected posting back to pending and clears the rejection reason. Repeating it on a pending posting changes nothing; open or closed postings return 409. Trusted Origin required.
+// @Description Recruiter only. Moves a rejected posting back to pending review and clears the rejection reason. Needs a non-empty question bank. Repeating it once the posting is pending review changes nothing; open or closed postings return 409. Trusted Origin required.
 // @Tags job-postings
 // @Produce json
 // @Security SessionCookie

@@ -119,11 +119,14 @@ func (s *Service) decide(ctx context.Context, adminID, id uuid.UUID, status doma
 	if err != nil {
 		return domain.ReviewPosting{}, err
 	}
-	switch {
-	case posting.Status == status:
+	switch posting.Status {
+	case status:
 		return s.withText(ctx, posting)
-	case posting.Status == domain.PostingStatusPending && status == domain.PostingStatusOpen:
-		// Still pending, so the only guard that failed is the non-empty question bank.
+	case domain.PostingStatusPending:
+		if !posting.ReviewSubmitted {
+			return domain.ReviewPosting{}, domain.ErrNotSubmitted
+		}
+		// Submitted and still pending, so the only guard that failed is the non-empty bank.
 		return domain.ReviewPosting{}, domain.ErrQuestionBankNotReady
 	default:
 		return domain.ReviewPosting{}, domain.ErrNotPending

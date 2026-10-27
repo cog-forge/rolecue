@@ -2,9 +2,7 @@
 
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
-import { useForm, useWatch } from "react-hook-form";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +14,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
 import {
@@ -28,14 +25,12 @@ import {
   approveApplicationCv,
   rejectApplicationCv,
 } from "../api/applications";
-import {
-  MAX_SCREENING_REASON,
-  screeningRejectSchema,
-  type ApplicationDetail,
-  type Screening,
-  type ScreeningRejectValues,
+import type {
+  ApplicationDetail,
+  Screening,
 } from "../schemas/application-detail-schema";
 import { applicationErrorMessage } from "../utils/application-errors";
+import { RejectDialog } from "./reject-dialog";
 
 // Codes that mean the detail on screen is out of date: the Application was decided, or the
 // posting's intake or capacity changed. The detail is reloaded so the screen shows the truth.
@@ -291,156 +286,13 @@ export function ScreeningActions({
               )
             : null
         }
+        title="Reject this CV?"
+        description="This application will be marked rejected. The reason is optional and is stored with the application."
+        submitLabel="Reject CV"
+        formLabel="Reject CV"
         onCancel={() => setRejectOpen(false)}
         onSubmit={(reason) => reject.mutate(reason)}
       />
     </Card>
-  );
-}
-
-// The reason draft lives in RejectForm, which unmounts with the dialog, so a new open starts empty.
-// A failed request keeps the dialog and the draft open.
-function RejectDialog({
-  open,
-  pending,
-  error,
-  onCancel,
-  onSubmit,
-}: {
-  open: boolean;
-  pending: boolean;
-  error: string | null;
-  onCancel: () => void;
-  onSubmit: (reason: string | undefined) => void;
-}) {
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next && !pending) onCancel();
-      }}
-    >
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Reject this CV?</DialogTitle>
-          <DialogDescription>
-            This application will be marked rejected. The reason is optional and
-            is stored with the application.
-          </DialogDescription>
-        </DialogHeader>
-        <RejectForm
-          pending={pending}
-          error={error}
-          onCancel={onCancel}
-          onSubmit={onSubmit}
-        />
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function RejectForm({
-  pending,
-  error,
-  onCancel,
-  onSubmit,
-}: {
-  pending: boolean;
-  error: string | null;
-  onCancel: () => void;
-  onSubmit: (reason: string | undefined) => void;
-}) {
-  const reasonId = useId();
-  const hintId = useId();
-  const errorId = useId();
-  const {
-    register,
-    handleSubmit,
-    control,
-    formState: { errors },
-  } = useForm<ScreeningRejectValues>({
-    resolver: zodResolver(screeningRejectSchema),
-    defaultValues: { reject_reason: "" },
-    mode: "onTouched",
-  });
-  const reason = useWatch({ control, name: "reject_reason" });
-  const reasonError = errors.reject_reason?.message;
-
-  return (
-    <form
-      noValidate
-      aria-label="Reject CV"
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault();
-        void handleSubmit((values) => {
-          const trimmed = values.reject_reason.trim();
-          onSubmit(trimmed === "" ? undefined : trimmed);
-        })(event);
-      }}
-    >
-      <div className="space-y-2">
-        <label htmlFor={reasonId} className="text-sm font-medium">
-          Reason for the candidate{" "}
-          <span className="text-muted-foreground">(optional)</span>
-        </label>
-        <Textarea
-          id={reasonId}
-          rows={4}
-          disabled={pending}
-          aria-invalid={!!reasonError}
-          aria-describedby={[hintId, reasonError ? errorId : ""]
-            .filter(Boolean)
-            .join(" ")}
-          {...register("reject_reason")}
-        />
-        <p
-          id={hintId}
-          className="flex justify-between gap-3 text-xs text-muted-foreground"
-        >
-          <span>Leave it empty to reject without a reason.</span>
-          <span className="tabular-nums">
-            {Array.from((reason ?? "").trim()).length}/
-            {MAX_SCREENING_REASON.toLocaleString("en")}
-          </span>
-        </p>
-        {reasonError && (
-          <p id={errorId} role="alert" className="text-xs text-destructive">
-            {reasonError}
-          </p>
-        )}
-      </div>
-      {error && (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      )}
-      <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11"
-          disabled={pending}
-          onClick={onCancel}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          variant="destructive"
-          className="h-11"
-          disabled={pending}
-          aria-busy={pending}
-        >
-          {pending && (
-            <LoaderCircle
-              className="size-4 animate-spin motion-reduce:animate-none"
-              aria-hidden
-            />
-          )}
-          {pending ? "Rejecting…" : "Reject CV"}
-        </Button>
-      </DialogFooter>
-    </form>
   );
 }

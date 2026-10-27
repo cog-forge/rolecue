@@ -91,6 +91,17 @@ func (q *Queries) GetJDLevelName(ctx context.Context, id uuid.UUID) (string, err
 	return level_name, err
 }
 
+const getJDRefinementNote = `-- name: GetJDRefinementNote :one
+SELECT COALESCE(refinement_note, '')::text AS refinement_note FROM public.job_descriptions WHERE id = $1
+`
+
+func (q *Queries) GetJDRefinementNote(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getJDRefinementNote, id)
+	var refinement_note string
+	err := row.Scan(&refinement_note)
+	return refinement_note, err
+}
+
 const getLevelIDByName = `-- name: GetLevelIDByName :one
 
 SELECT id FROM public.levels
@@ -112,7 +123,8 @@ const getOwnedPosting = `-- name: GetOwnedPosting :one
 SELECT jp.id, jp.jd_id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
        jp.salary_min, jp.salary_max, jp.interview_slot, jp.interview_duration, jp.created_at,
        jp.required_avatar_id, a.name AS avatar_name, jp.required_voice_id, v.name AS voice_name,
-       jd.content_path, jd.raw_text, lower(l.name) AS level_name,
+       jd.content_path, jd.raw_text, COALESCE(jd.refinement_note, '')::text AS refinement_note, lower(l.name) AS level_name,
+       jp.review_submitted,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
 FROM public.job_postings jp
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
@@ -146,7 +158,9 @@ type GetOwnedPostingRow struct {
 	VoiceName         *string
 	ContentPath       *string
 	RawText           *string
+	RefinementNote    string
 	LevelName         string
+	ReviewSubmitted   bool
 	CoreQuestionCount int64
 }
 
@@ -172,27 +186,35 @@ func (q *Queries) GetOwnedPosting(ctx context.Context, arg GetOwnedPostingParams
 		&i.VoiceName,
 		&i.ContentPath,
 		&i.RawText,
+		&i.RefinementNote,
 		&i.LevelName,
+		&i.ReviewSubmitted,
 		&i.CoreQuestionCount,
 	)
 	return i, err
 }
 
 const insertJobDescription = `-- name: InsertJobDescription :one
-INSERT INTO public.job_descriptions (content_path, raw_text, level_id)
-VALUES ($1, $2, $3)
+INSERT INTO public.job_descriptions (content_path, raw_text, level_id, refinement_note)
+VALUES ($1, $2, $3, $4)
 RETURNING id
 `
 
 type InsertJobDescriptionParams struct {
-	ContentPath *string
-	RawText     *string
-	LevelID     uuid.UUID
+	ContentPath    *string
+	RawText        *string
+	LevelID        uuid.UUID
+	RefinementNote *string
 }
 
 // content_path is the storage key of the JD PDF; raw_text is the text read from it.
 func (q *Queries) InsertJobDescription(ctx context.Context, arg InsertJobDescriptionParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, insertJobDescription, arg.ContentPath, arg.RawText, arg.LevelID)
+	row := q.db.QueryRow(ctx, insertJobDescription,
+		arg.ContentPath,
+		arg.RawText,
+		arg.LevelID,
+		arg.RefinementNote,
+	)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -271,7 +293,8 @@ func (q *Queries) InsertRequirements(ctx context.Context, arg InsertRequirements
 
 const listOwnedPostings = `-- name: ListOwnedPostings :many
 SELECT jp.id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
-       jp.interview_slot, jp.created_at
+       jp.interview_slot, jp.created_at, jp.review_submitted,
+       (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count
 FROM public.job_postings jp
 WHERE jp.recruiter_id = $1
   AND ($2::text IS NULL OR jp.status::text = $2::text)
@@ -289,14 +312,16 @@ type ListOwnedPostingsParams struct {
 }
 
 type ListOwnedPostingsRow struct {
-	ID             uuid.UUID
-	Title          string
-	Status         string
-	RejectReason   *string
-	Location       *string
-	EmploymentType *string
-	InterviewSlot  *int32
-	CreatedAt      pgtype.Timestamptz
+	ID                uuid.UUID
+	Title             string
+	Status            string
+	RejectReason      *string
+	Location          *string
+	EmploymentType    *string
+	InterviewSlot     *int32
+	CreatedAt         pgtype.Timestamptz
+	ReviewSubmitted   bool
+	CoreQuestionCount int64
 }
 
 // Every filter is optional: a NULL argument disables it. The search matches the title.
@@ -324,6 +349,8 @@ func (q *Queries) ListOwnedPostings(ctx context.Context, arg ListOwnedPostingsPa
 			&i.EmploymentType,
 			&i.InterviewSlot,
 			&i.CreatedAt,
+			&i.ReviewSubmitted,
+			&i.CoreQuestionCount,
 		); err != nil {
 			return nil, err
 		}
@@ -369,7 +396,8 @@ func (q *Queries) ListRequirements(ctx context.Context, jdID uuid.UUID) ([]ListR
 }
 
 const lockOwnedPosting = `-- name: LockOwnedPosting :one
-SELECT jp.jd_id, jp.status::text AS status, jp.salary_min, jp.salary_max, jp.required_voice_id
+SELECT jp.jd_id, jp.status::text AS status, jp.salary_min, jp.salary_max, jp.required_voice_id, jp.required_avatar_id,
+       jp.review_submitted
 FROM public.job_postings jp
 WHERE jp.id = $1 AND jp.recruiter_id = $2
 FOR UPDATE
@@ -381,11 +409,13 @@ type LockOwnedPostingParams struct {
 }
 
 type LockOwnedPostingRow struct {
-	JdID            uuid.UUID
-	Status          string
-	SalaryMin       *int32
-	SalaryMax       *int32
-	RequiredVoiceID uuid.UUID
+	JdID             uuid.UUID
+	Status           string
+	SalaryMin        *int32
+	SalaryMax        *int32
+	RequiredVoiceID  uuid.UUID
+	RequiredAvatarID uuid.UUID
+	ReviewSubmitted  bool
 }
 
 // The row lock serializes an edit with an Admin decision and with question-bank generation, which
@@ -400,6 +430,8 @@ func (q *Queries) LockOwnedPosting(ctx context.Context, arg LockOwnedPostingPara
 		&i.SalaryMin,
 		&i.SalaryMax,
 		&i.RequiredVoiceID,
+		&i.RequiredAvatarID,
+		&i.ReviewSubmitted,
 	)
 	return i, err
 }
@@ -424,19 +456,20 @@ func (q *Queries) OwnedAvatarName(ctx context.Context, arg OwnedAvatarNameParams
 	return name, err
 }
 
-const resubmitPosting = `-- name: ResubmitPosting :exec
-UPDATE public.job_postings SET status = 'pending', reject_reason = NULL
-WHERE id = $1 AND recruiter_id = $2 AND status = 'rejected'
+const submitPosting = `-- name: SubmitPosting :exec
+UPDATE public.job_postings SET status = 'pending', reject_reason = NULL, review_submitted = true
+WHERE id = $1 AND recruiter_id = $2
 `
 
-type ResubmitPostingParams struct {
+type SubmitPostingParams struct {
 	ID          uuid.UUID
 	RecruiterID uuid.UUID
 }
 
-// Sends a rejected posting back to the Admin queue; the old feedback no longer applies.
-func (q *Queries) ResubmitPosting(ctx context.Context, arg ResubmitPostingParams) error {
-	_, err := q.db.Exec(ctx, resubmitPosting, arg.ID, arg.RecruiterID)
+// Sends a prepared posting to the Admin queue; a rejected posting's old feedback no longer applies.
+// Called only after LockOwnedPosting and the bank and presentation checks.
+func (q *Queries) SubmitPosting(ctx context.Context, arg SubmitPostingParams) error {
+	_, err := q.db.Exec(ctx, submitPosting, arg.ID, arg.RecruiterID)
 	return err
 }
 
@@ -466,6 +499,20 @@ type UpdateJDLevelParams struct {
 
 func (q *Queries) UpdateJDLevel(ctx context.Context, arg UpdateJDLevelParams) error {
 	_, err := q.db.Exec(ctx, updateJDLevel, arg.LevelID, arg.ID)
+	return err
+}
+
+const updateJDRefinementNote = `-- name: UpdateJDRefinementNote :exec
+UPDATE public.job_descriptions SET refinement_note = $1 WHERE id = $2
+`
+
+type UpdateJDRefinementNoteParams struct {
+	RefinementNote *string
+	ID             uuid.UUID
+}
+
+func (q *Queries) UpdateJDRefinementNote(ctx context.Context, arg UpdateJDRefinementNoteParams) error {
+	_, err := q.db.Exec(ctx, updateJDRefinementNote, arg.RefinementNote, arg.ID)
 	return err
 }
 

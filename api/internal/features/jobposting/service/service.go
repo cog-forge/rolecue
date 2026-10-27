@@ -24,6 +24,7 @@ type Repository interface {
 	List(ctx context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.Summary, int64, error)
 	Get(ctx context.Context, recruiterID, id uuid.UUID) (domain.Record, error)
 	Update(ctx context.Context, recruiterID, id uuid.UUID, patch domain.Edit, document *domain.NewDocument) error
+	Submit(ctx context.Context, recruiterID, id uuid.UUID) error
 	Resubmit(ctx context.Context, recruiterID, id uuid.UUID) error
 }
 
@@ -151,6 +152,18 @@ func (s *Service) Update(ctx context.Context, recruiterID uuid.UUID, role string
 		}
 	}
 	if err := s.repository.Update(ctx, recruiterID, id, patch, document); err != nil {
+		return domain.JobPosting{}, err
+	}
+	return s.read(ctx, recruiterID, id)
+}
+
+// Submit sends the Recruiter's prepared posting for Admin review. Saving an edit or generating the
+// question bank never does this on its own. Repeating it is safe.
+func (s *Service) Submit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error) {
+	if err := requireRecruiter(role); err != nil {
+		return domain.JobPosting{}, err
+	}
+	if err := s.repository.Submit(ctx, recruiterID, id); err != nil {
 		return domain.JobPosting{}, err
 	}
 	return s.read(ctx, recruiterID, id)

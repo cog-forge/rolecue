@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	qbprovider "github.com/cog-forge/rolecue/api/internal/features/questionbank/provider"
@@ -26,6 +27,12 @@ func ProvideQuestionBankService(cfg *config.Config, repo *repository.Repository)
 	}
 	return service.New(repo, generator, cfg.LLM.MaxRetries, cfg.QuestionBank.Size)
 }
-func ProvideQuestionBankHandler(svc *service.Service) *handler.QuestionBankHandler {
-	return handler.NewQuestionBankHandler(svc)
+func ProvideQuestionBankHandler(cfg *config.Config, svc *service.Service) *handler.QuestionBankHandler {
+	return handler.NewQuestionBankHandler(svc, generationBudget(cfg))
+}
+
+// generationBudget bounds a request that generates a bank: every LLM attempt at its timeout, plus
+// time to save the bank and respond.
+func generationBudget(cfg *config.Config) time.Duration {
+	return time.Duration(cfg.LLM.MaxRetries+1)*cfg.LLM.Timeout + 5*time.Second
 }
