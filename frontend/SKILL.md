@@ -24,6 +24,8 @@ Prefer Server Components, including pages and root layout. Mark only interactive
 
 Keep components, schemas and contracts near their feature. Avoid giant global hooks/services/types buckets, unused boilerplate and broad barrels. Do not reach into unrelated feature internals. interview-setup may consume the interview subsystem's browser-capability function as an explicit preflight interface; other interview internals remain private to that subsystem.
 
+Features are domain-first (billing, history, role-profile, interview). A role folder (recruiter/, admin/, candidate/) is used only when the same domain has a different contract or view per role, such as Application, which Candidates and Recruiters read through different endpoints and DTOs and where Candidates never see transcripts or recordings. Keep each role's schemas, API client and components inside its own folder and never import the other role's DTOs. If a domain has a single audience, put it at the top level of features/ instead of creating a role folder for one feature.
+
 ## API Rules
 
 Use one shared Axios instance configured from `NEXT_PUBLIC_API_BASE_URL`, with browser credentials and the current access-token bearer interceptor. Preserve Axios response payloads for feature validation and messages; do not recreate them as a generic ApiError hierarchy. Do not add refresh/retry logic or a Next.js proxy without a concrete requirement.

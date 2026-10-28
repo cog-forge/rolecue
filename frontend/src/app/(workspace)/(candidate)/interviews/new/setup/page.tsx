@@ -1,9 +1,11 @@
-import { RoleProfileConfirmedGate } from "@/features/interview-setup/components/role-profile-confirmed-gate";
+import { RoleProfilePicker } from "@/features/interview-setup/components/role-profile-picker";
+import { readSetupParams } from "@/features/interview-setup/lib/setup-params";
+
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ roleProfileId?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { roleProfileId } = await searchParams;
-  return <RoleProfileConfirmedGate key={roleProfileId} id={roleProfileId} />;
+  const { roleProfileId } = readSetupParams(await searchParams);
+  return <RoleProfilePicker roleProfileId={roleProfileId} />;
 }

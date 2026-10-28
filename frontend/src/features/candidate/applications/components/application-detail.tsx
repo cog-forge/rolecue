@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -136,6 +136,7 @@ function ApplicationContent({
     interview_deadline: deadline,
     reject_reason: reason,
   } = application;
+  const resuming = application.interview?.status === "in_progress";
   const passed =
     status === "interview_eligible" &&
     deadline !== null &&
@@ -188,20 +189,26 @@ function ApplicationContent({
 
       {application.can_start_interview && (
         <div className="space-y-3">
-          {/* The interview start flow is not built yet, so the action is shown but cannot be used. */}
+          {/* Navigation only: the start (or resume) happens after the microphone check. */}
           <Button
-            type="button"
+            asChild
             className="h-11"
-            disabled
             aria-describedby="start-interview-note"
           >
-            Start interview
+            <Link
+              href={`${routes.interviews.new.preflight}?applicationId=${encodeURIComponent(application.id)}`}
+            >
+              {resuming ? "Resume interview" : "Start interview"}
+              <ArrowRight aria-hidden="true" />
+            </Link>
           </Button>
           <p
             id="start-interview-note"
             className="text-sm text-muted-foreground"
           >
-            Starting an interview is not available yet.
+            {resuming
+              ? "Pick up where you left off. Resuming uses no new interview slot."
+              : "Free for you. Complete it before the deadline."}
           </p>
         </div>
       )}

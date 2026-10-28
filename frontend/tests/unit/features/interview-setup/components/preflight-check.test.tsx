@@ -93,3 +93,18 @@ it("shows device loss with recovery and no interview start action", async () => 
     video: false,
   });
 });
+
+it("reports whether the microphone is live right now, so Start can follow it", async () => {
+  const onReadinessChange = vi.fn();
+  render(<PreflightCheck onReadinessChange={onReadinessChange} />);
+  expect(onReadinessChange).toHaveBeenLastCalledWith("not-ready");
+  fireEvent.click(screen.getByRole("button", { name: "Test microphone" }));
+  await screen.findByText("Microphone ready");
+  expect(onReadinessChange).toHaveBeenLastCalledWith("ready");
+  fireEvent.click(screen.getByRole("button", { name: "Mute microphone" }));
+  expect(onReadinessChange).toHaveBeenLastCalledWith("muted");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Stop microphone check" }),
+  );
+  expect(onReadinessChange).toHaveBeenLastCalledWith("not-ready");
+});
