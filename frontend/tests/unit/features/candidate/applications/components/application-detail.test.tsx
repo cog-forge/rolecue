@@ -81,7 +81,7 @@ describe("CandidateApplicationDetail", () => {
     expect(screen.getByText("Awaiting CV review")).toBeInTheDocument();
     expect(screen.getByText(/waiting for review/i)).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Start interview" }),
+      screen.queryByRole("link", { name: /(start|resume) interview/i }),
     ).not.toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith(`/applications/${id}`, {
       signal: expect.any(AbortSignal),
@@ -106,7 +106,7 @@ describe("CandidateApplicationDetail", () => {
     expect(screen.queryByText(/transcript|recording/i)).not.toBeInTheDocument();
   });
 
-  it("shows the deadline, a countdown and a disabled start action while eligible", async () => {
+  it("shows the deadline, a countdown and a start link to the preflight while eligible", async () => {
     mocks.get.mockResolvedValue(
       application({
         status: "interview_eligible",
@@ -120,11 +120,42 @@ describe("CandidateApplicationDetail", () => {
     // Just under three hours remain, so the countdown reads two hours and most of a third.
     expect(screen.getByText(/^2 h \d+ min left$/)).toBeInTheDocument();
 
-    const start = screen.getByRole("button", { name: "Start interview" });
-    expect(start).toBeDisabled();
+    // Navigation only: nothing starts until the microphone check.
+    const start = screen.getByRole("link", { name: "Start interview" });
+    expect(start).toHaveAttribute(
+      "href",
+      `/interviews/new/preflight?applicationId=${id}`,
+    );
     expect(
-      screen.getByText("Starting an interview is not available yet."),
+      screen.getByText("Free for you. Complete it before the deadline."),
     ).toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers to resume an interview that is in progress", async () => {
+    mocks.get.mockResolvedValue(
+      application({
+        status: "interview_eligible",
+        interview_deadline: hoursFromNow(3),
+        can_start_interview: true,
+        interview: {
+          id: "55555555-5555-4555-8555-555555555555",
+          completed_at: null,
+          status: "in_progress",
+          score: null,
+        },
+      }),
+    );
+    renderDetail();
+    expect(
+      await screen.findByRole("link", { name: "Resume interview" }),
+    ).toHaveAttribute("href", `/interviews/new/preflight?applicationId=${id}`);
+    expect(
+      screen.getByText(/resuming uses no new interview slot/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Start interview" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a deadline passed note and no start action after the deadline", async () => {
@@ -140,7 +171,7 @@ describe("CandidateApplicationDetail", () => {
       await screen.findByText(/deadline passed\. the interview window/i),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Start interview" }),
+      screen.queryByRole("link", { name: /(start|resume) interview/i }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Time left")).not.toBeInTheDocument();
   });
@@ -158,7 +189,7 @@ describe("CandidateApplicationDetail", () => {
       screen.getByText("Reason: No production Go experience."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Start interview" }),
+      screen.queryByRole("link", { name: /(start|resume) interview/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -169,7 +200,7 @@ describe("CandidateApplicationDetail", () => {
       await screen.findByText("The recruiter approved your application."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Start interview" }),
+      screen.queryByRole("link", { name: /(start|resume) interview/i }),
     ).not.toBeInTheDocument();
   });
 
