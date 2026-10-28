@@ -2,6 +2,7 @@ package domain
 
 import (
 	"math"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -37,6 +38,7 @@ type Transaction struct {
 	Description    string            `json:"description"`
 	Status         TransactionStatus `json:"status"`
 	PayOSOrderCode *int64            `json:"payos_order_code"`
+	CreatedAt      time.Time         `json:"created_at"`
 }
 
 // CoinPackage represents a top-up package.

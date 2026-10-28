@@ -24,20 +24,20 @@ RETURNING id, user_id, balance;
 -- name: InsertTransaction :one
 INSERT INTO public.transactions ("from", "to", amount, currency, description, status, payos_order_code)
 VALUES (@tx_from, @tx_to, @amount, @currency, @description, @status, @payos_order_code)
-RETURNING id, "from", "to", amount, currency, description, status, payos_order_code;
+RETURNING id, "from", "to", amount, currency, description, status, payos_order_code, created_at;
 
 -- name: GetTransactionByID :one
-SELECT id, "from", "to", amount, currency, description, status, payos_order_code
+SELECT id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 FROM public.transactions
 WHERE id = @id;
 
 -- name: GetTransactionByPayOSOrderCode :one
-SELECT id, "from", "to", amount, currency, description, status, payos_order_code
+SELECT id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 FROM public.transactions
 WHERE payos_order_code = @payos_order_code;
 
 -- name: GetTransactionByPayOSOrderCodeForUpdate :one
-SELECT id, "from", "to", amount, currency, description, status, payos_order_code
+SELECT id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 FROM public.transactions
 WHERE payos_order_code = @payos_order_code
 FOR UPDATE;
@@ -46,13 +46,13 @@ FOR UPDATE;
 UPDATE public.transactions
 SET status = @status
 WHERE id = @id
-RETURNING id, "from", "to", amount, currency, description, status, payos_order_code;
+RETURNING id, "from", "to", amount, currency, description, status, payos_order_code, created_at;
 
 -- name: ListTransactionsByUserID :many
-SELECT id, "from", "to", amount, currency, description, status, payos_order_code
+SELECT id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 FROM public.transactions
 WHERE "from" = @tx_user_id OR "to" = @tx_user_id
-ORDER BY id DESC
+ORDER BY created_at DESC, id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
 -- name: CountTransactionsByUserID :one

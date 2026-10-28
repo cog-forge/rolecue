@@ -5,11 +5,13 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -134,7 +136,7 @@ func (r *Repository) InsertTransaction(ctx context.Context, q *Queries, tx domai
 	if err != nil {
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to insert transaction", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) GetTransactionByID(ctx context.Context, id uuid.UUID) (domain.Transaction, error) {
@@ -145,7 +147,7 @@ func (r *Repository) GetTransactionByID(ctx context.Context, id uuid.UUID) (doma
 		}
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to get transaction", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) GetTransactionByPayOSOrderCode(ctx context.Context, orderCode int64) (domain.Transaction, error) {
@@ -157,7 +159,7 @@ func (r *Repository) GetTransactionByPayOSOrderCode(ctx context.Context, orderCo
 		}
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to get transaction by order code", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) GetTransactionByPayOSOrderCodeForUpdate(ctx context.Context, q *Queries, orderCode int64) (domain.Transaction, error) {
@@ -172,7 +174,7 @@ func (r *Repository) GetTransactionByPayOSOrderCodeForUpdate(ctx context.Context
 		}
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to get transaction for update", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) UpdateTransactionStatus(ctx context.Context, q *Queries, id uuid.UUID, status domain.TransactionStatus) (domain.Transaction, error) {
@@ -186,7 +188,7 @@ func (r *Repository) UpdateTransactionStatus(ctx context.Context, q *Queries, id
 	if err != nil {
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to update transaction status", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) ListTransactionsByUserID(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]domain.Transaction, int64, error) {
@@ -206,7 +208,7 @@ func (r *Repository) ListTransactionsByUserID(ctx context.Context, userID uuid.U
 
 	txs := make([]domain.Transaction, 0, len(rows))
 	for _, row := range rows {
-		txs = append(txs, toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode))
+		txs = append(txs, toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt))
 	}
 	return txs, total, nil
 }
@@ -556,7 +558,7 @@ func formatInt64Ptr(val *int64) *string {
 	return &s
 }
 
-func toDomainTransaction(id uuid.UUID, fromStr, toStr string, amount int32, currency string, descPtr *string, status TransactionStatus, orderCodePtr *string) domain.Transaction {
+func toDomainTransaction(id uuid.UUID, fromStr, toStr string, amount int32, currency string, descPtr *string, status TransactionStatus, orderCodePtr *string, createdAt pgtype.Timestamptz) domain.Transaction {
 	desc := ""
 	if descPtr != nil {
 		desc = *descPtr
@@ -570,5 +572,14 @@ func toDomainTransaction(id uuid.UUID, fromStr, toStr string, amount int32, curr
 		Description:    desc,
 		Status:         domain.TransactionStatus(status),
 		PayOSOrderCode: parseInt64Ptr(orderCodePtr),
+		CreatedAt:      utcTime(createdAt),
 	}
+}
+
+// utcTime returns the instant in UTC so JSON always ends in Z, whatever the process timezone.
+func utcTime(t pgtype.Timestamptz) time.Time {
+	if !t.Valid {
+		return time.Time{}
+	}
+	return t.Time.UTC()
 }

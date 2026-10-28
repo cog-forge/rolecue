@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	walletdomain "github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
@@ -693,4 +694,20 @@ func TestAdminExportBillingCSV_SanitizesFormulaInjectionAndAllowsOver20Rows(t *t
 	assert.Contains(t, csvBody, "'+123456")
 	assert.Contains(t, csvBody, "'-9999")
 	svc.AssertExpectations(t)
+}
+
+func TestListTransactions_ReturnsCreatedAt(t *testing.T) {
+	svc := new(MockWalletService)
+	r := newRouter(handler.NewWalletHandler(svc))
+	user := candidateUser()
+	svc.On("ListTransactions", mock.Anything, user.ID, int32(1), int32(20)).Return([]walletdomain.Transaction{{
+		ID:        uuid.New(),
+		Status:    walletdomain.StatusSuccess,
+		CreatedAt: time.Date(2026, 10, 27, 6, 16, 40, 0, time.UTC),
+	}}, int64(1), nil)
+
+	w := performRequest(r, http.MethodGet, "/wallet/transactions", nil, user)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"created_at":"2026-10-27T06:16:40Z"`)
 }
