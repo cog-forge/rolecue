@@ -94,19 +94,23 @@ export function WalletPurchase({
 /**
  * The coin package picker and PayOS checkout. The sidebar balance opens it; other screens that
  * need coins (buying avatar slots, the transactions page) open the same dialog instead of linking
- * away. PayOS returns to the billing page, which confirms the payment.
+ * away. PayOS returns to the billing page, which confirms the payment, unless the caller passes a
+ * returnPath: a same-origin path (with its own query) that confirms the payment itself with
+ * PaymentStatusBanner, such as the interview preflight.
  */
 export function AddCoinsDialog({
   open,
   onOpenChange,
   userId,
   role,
+  returnPath,
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
   role: "candidate" | "recruiter";
+  returnPath?: string;
   children?: React.ReactNode;
 }) {
   const cache = useQueryClient();
@@ -119,11 +123,15 @@ export function AddCoinsDialog({
   const checkout = useMutation({
     mutationFn: (pkg: CoinPackage) => {
       const path =
-        role === "recruiter" ? routes.recruiter.billing : routes.billing;
+        returnPath && isSameOriginPath(returnPath)
+          ? returnPath
+          : role === "recruiter"
+            ? routes.recruiter.billing
+            : routes.billing;
       return createDepositCheckout({
         package_id: pkg.id,
-        return_url: `${window.location.origin}${path}?status=success`,
-        cancel_url: `${window.location.origin}${path}?cancel=true`,
+        return_url: paymentReturnUrl(path, "status", "success"),
+        cancel_url: paymentReturnUrl(path, "cancel", "true"),
       });
     },
     onSuccess: (data) => {
@@ -168,4 +176,16 @@ export function AddCoinsDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+// A relative path on this origin only: "//host" and "/\\host" would leave the site.
+function isSameOriginPath(path: string) {
+  return /^\/(?![/\\])/.test(path);
+}
+
+// Keeps the path's own query (the interview setup choices) and adds PayOS's marker to it.
+function paymentReturnUrl(path: string, name: string, value: string) {
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set(name, value);
+  return url.toString();
 }
