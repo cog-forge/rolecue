@@ -2,18 +2,31 @@
 
 import { Suspense, useCallback, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ShieldAlert, Wallet } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import { getTransactions, syncDepositStatus, walletKeys } from "../api/wallet";
+import {
+  getTransactions,
+  getWallet,
+  syncDepositStatus,
+  walletKeys,
+} from "../api/wallet";
 import {
   PaymentStatusBanner,
   type PaymentReturnEvent,
 } from "./payment-status-banner";
 import { TransactionHistory } from "./transaction-history";
+import { WalletPurchase } from "./wallet-purchase";
 
 export function BillingOverview() {
   const user = useSessionUser();
   const queryClient = useQueryClient();
+
+  const wallet = useQuery({
+    queryKey: walletKeys.wallet(user.id),
+    queryFn: ({ signal }) => getWallet(signal),
+    enabled: user.role !== "admin",
+    staleTime: 30_000,
+  });
 
   const [page, setPage] = useState(1);
   const pageSize = 20;
@@ -83,19 +96,25 @@ export function BillingOverview() {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Wallet className="h-4 w-4" />
-            </span>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Transaction history
-            </h1>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Track your coin purchases, spending, and refunds.
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Transaction history
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Coins you bought, spent and got back.
           </p>
+        </div>
+        <div className="flex items-end gap-4">
+          <div role="group" aria-label="Coin balance" className="sm:text-right">
+            <p className="text-xs text-muted-foreground">Balance</p>
+            <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">
+              {wallet.data
+                ? `${wallet.data.balance.toLocaleString("en-US")} coins`
+                : "—"}
+            </p>
+          </div>
+          <WalletPurchase userId={user.id} role={user.role} variant="page" />
         </div>
       </div>
 
