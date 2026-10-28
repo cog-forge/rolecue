@@ -22,7 +22,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Read-only CSV export respecting active filters (up to 5,000 rows) with CSV formula-injection protection. Sets X-Total-Count and X-Export-Truncated headers.",
+                "description": "Admin only. Read-only CSV export respecting active filters, including the [date_from, date_to) window on created_at (up to 5,000 rows), with CSV formula-injection protection. Created At is RFC 3339 in Vietnam time (+07:00). Sets X-Total-Count and X-Export-Truncated headers.",
                 "produces": [
                     "text/csv"
                 ],
@@ -69,8 +69,22 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "default": "id",
-                        "description": "Sort field (id, amount, coins, status)",
+                        "format": "date-time",
+                        "description": "Created at or after (RFC 3339 with offset, e.g. 2026-10-01T00:00:00+07:00)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Created before (RFC 3339 with offset, exclusive)",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "created_at",
+                        "description": "Sort field (created_at, id, amount, coins, status)",
                         "name": "sort_by",
                         "in": "query"
                     },
@@ -116,6 +130,91 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/billing/revenue-report": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Read-only. Revenue is the VND of successful PayOS top-ups in [date_from, date_to); coin movements are not revenue. Compares the window with the same dates one year earlier (default) or with the period of the same length just before it. The series is by day for windows up to 62 days and by month otherwise, in Vietnam time (UTC+07:00). Outstanding coins are what users hold now, valued at the all-time average price per coin.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-billing"
+                ],
+                "summary": "Get the admin revenue report with a period comparison",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Window start, inclusive (RFC 3339 with offset, e.g. 2026-10-01T00:00:00+07:00)",
+                        "name": "date_from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Window end, exclusive (RFC 3339 with offset)",
+                        "name": "date_to",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "previous_year (default) or previous_period",
+                        "name": "compare",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.RevenueReport"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/billing/summary": {
             "get": {
                 "security": [
@@ -123,7 +222,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree. Note (KAN-191): public.transactions in the frozen 000006_wallet_payment schema has no created_at column, so figures reflect all-time matching records.",
+                "description": "Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree. The report time window is [date_from, date_to) on created_at; without it the figures cover all time.",
                 "produces": [
                     "application/json"
                 ],
@@ -166,6 +265,20 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Maximum amount filter",
                         "name": "amount_max",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Created at or after (RFC 3339 with offset, e.g. 2026-10-01T00:00:00+07:00)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Created before (RFC 3339 with offset, exclusive)",
+                        "name": "date_to",
                         "in": "query"
                     }
                 ],
@@ -222,7 +335,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Read-only paginated list of transactions enriched with user and package details. Note (KAN-191): public.transactions in the frozen 000006_wallet_payment schema has no created_at column, so figures reflect all-time matching records.",
+                "description": "Admin only. Read-only paginated list of transactions enriched with user and package details, newest first by default. The date window is [date_from, date_to) on created_at.",
                 "produces": [
                     "application/json"
                 ],
@@ -287,8 +400,22 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "default": "id",
-                        "description": "Sort field (id, amount, coins, status)",
+                        "format": "date-time",
+                        "description": "Created at or after (RFC 3339 with offset, e.g. 2026-10-01T00:00:00+07:00)",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Created before (RFC 3339 with offset, exclusive)",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "created_at",
+                        "description": "Sort field (created_at, id, amount, coins, status)",
                         "name": "sort_by",
                         "in": "query"
                     },
@@ -7502,6 +7629,9 @@ const docTemplate = `{
                 "coin_amount": {
                     "type": "integer"
                 },
+                "created_at": {
+                    "type": "string"
+                },
                 "currency": {
                     "type": "string"
                 },
@@ -7973,6 +8103,24 @@ const docTemplate = `{
                 "refunded": {
                     "description": "Refunded is the coins credited back at terminal close. It is non-null only when the posting is\nclosed, and then equals Refundable times PricePerSlot at close.",
                     "type": "integer"
+                }
+            }
+        },
+        "domain.CoinFeatureItem": {
+            "type": "object",
+            "properties": {
+                "charges": {
+                    "type": "integer"
+                },
+                "coins": {
+                    "type": "integer"
+                },
+                "comparison_coins": {
+                    "type": "integer"
+                },
+                "feature": {
+                    "description": "practice_interview, interview_slots, avatar_storage, other",
+                    "type": "string"
                 }
             }
         },
@@ -9065,6 +9213,144 @@ const docTemplate = `{
                 "Required",
                 "Preferred"
             ]
+        },
+        "domain.RevenueMixItem": {
+            "type": "object",
+            "properties": {
+                "comparison_revenue_vnd": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "revenue_vnd": {
+                    "type": "integer"
+                },
+                "topups": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.RevenuePeriodMetrics": {
+            "type": "object",
+            "properties": {
+                "average_order_vnd": {
+                    "type": "integer"
+                },
+                "coins_refunded": {
+                    "type": "integer"
+                },
+                "coins_sold": {
+                    "type": "integer"
+                },
+                "coins_spent": {
+                    "type": "integer"
+                },
+                "new_payers": {
+                    "description": "paying users whose first ever successful top-up is in the window",
+                    "type": "integer"
+                },
+                "paying_users": {
+                    "type": "integer"
+                },
+                "payment_success_rate": {
+                    "description": "percent of settled PayOS attempts that were paid",
+                    "type": "number"
+                },
+                "revenue_vnd": {
+                    "type": "integer"
+                },
+                "successful_topups": {
+                    "type": "integer"
+                },
+                "topup_attempts": {
+                    "description": "settled PayOS attempts: paid, failed or cancelled",
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.RevenueReport": {
+            "type": "object",
+            "properties": {
+                "by_package": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.RevenueMixItem"
+                    }
+                },
+                "by_role": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.RevenueMixItem"
+                    }
+                },
+                "compare": {
+                    "type": "string"
+                },
+                "comparison": {
+                    "$ref": "#/definitions/domain.RevenuePeriodMetrics"
+                },
+                "comparison_window": {
+                    "$ref": "#/definitions/domain.RevenueWindow"
+                },
+                "current": {
+                    "$ref": "#/definitions/domain.RevenuePeriodMetrics"
+                },
+                "granularity": {
+                    "description": "day or month, in Vietnam time",
+                    "type": "string"
+                },
+                "outstanding_coins": {
+                    "description": "Coins users hold now: prepaid, not yet used, and not revenue. Its VND value uses the average price\npaid per coin over all time.",
+                    "type": "integer"
+                },
+                "outstanding_value_vnd": {
+                    "type": "integer"
+                },
+                "series": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.RevenueSeriesPoint"
+                    }
+                },
+                "spend_by_feature": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.CoinFeatureItem"
+                    }
+                },
+                "window": {
+                    "$ref": "#/definitions/domain.RevenueWindow"
+                }
+            }
+        },
+        "domain.RevenueSeriesPoint": {
+            "type": "object",
+            "properties": {
+                "comparison_revenue_vnd": {
+                    "type": "integer"
+                },
+                "comparison_start": {
+                    "type": "string"
+                },
+                "revenue_vnd": {
+                    "type": "integer"
+                },
+                "start": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.RevenueWindow": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
         },
         "domain.ReviewPosting": {
             "type": "object",
