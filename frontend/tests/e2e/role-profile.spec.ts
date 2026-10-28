@@ -364,8 +364,9 @@ test("interview setup only opens for a confirmed Role Profile", async ({
   await page.getByRole("link", { name: "Continue to setup" }).click();
   await expect(page).toHaveURL(/\/interviews\/new\/setup\?roleProfileId=/);
   await expect(
-    page.getByRole("heading", { name: "Interview setup" }),
+    page.getByRole("heading", { level: 1, name: "Choose a Role Profile" }),
   ).toBeVisible();
+  await expect(page.getByRole("radio", { checked: true })).toHaveCount(1);
 
   api.profile = roleProfile({ status: "review" });
   await page.reload();
