@@ -70,6 +70,11 @@ func (m *MockWalletService) ListBillingTransactions(ctx context.Context, filter 
 	return args.Get(0).(walletdomain.AdminTransactionPage), args.Error(1)
 }
 
+func (m *MockWalletService) GetRevenueReport(ctx context.Context, req walletdomain.RevenueReportRequest) (walletdomain.RevenueReport, error) {
+	args := m.Called(ctx, req)
+	return args.Get(0).(walletdomain.RevenueReport), args.Error(1)
+}
+
 func (m *MockWalletService) GetBillingTransaction(ctx context.Context, id uuid.UUID) (walletdomain.AdminTransactionItem, error) {
 	args := m.Called(ctx, id)
 	return args.Get(0).(walletdomain.AdminTransactionItem), args.Error(1)
@@ -123,6 +128,9 @@ func newRouter(h *handler.WalletHandler) *gin.Engine {
 	})
 	r.GET("/admin/billing/export", func(c *gin.Context) {
 		h.AdminExportBillingCSV(c)
+	})
+	r.GET("/admin/billing/revenue-report", func(c *gin.Context) {
+		h.AdminGetRevenueReport(c)
 	})
 	return r
 }
@@ -857,4 +865,58 @@ func TestListTransactions_ReturnsCreatedAt(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"created_at":"2026-10-27T06:16:40Z"`)
+}
+
+func TestAdminGetRevenueReport(t *testing.T) {
+	path := "/admin/billing/revenue-report?" + octWindowQuery
+
+	t.Run("admins only", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		assert.Equal(t, http.StatusUnauthorized, performRequest(r, http.MethodGet, path, nil, nil).Code)
+		assert.Equal(t, http.StatusForbidden, performRequest(r, http.MethodGet, path, nil, candidateUser()).Code)
+		assert.Equal(t, http.StatusForbidden, performRequest(r, http.MethodGet, path, nil, recruiterUser()).Code)
+		svc.AssertNotCalled(t, "GetRevenueReport")
+	})
+
+	t.Run("passes the window and the comparison", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		svc.On("GetRevenueReport", mock.Anything, mock.MatchedBy(func(req walletdomain.RevenueReportRequest) bool {
+			return req.From.Equal(octFromVN) && req.To.Equal(octToVN) && req.Compare == "previous_period"
+		})).Return(walletdomain.RevenueReport{Compare: "previous_period", Granularity: "day"}, nil).Once()
+
+		w := performRequest(r, http.MethodGet, path+"&compare=previous_period", nil, adminUser())
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"granularity":"day"`)
+		svc.AssertExpectations(t)
+	})
+
+	t.Run("rejects bad or duplicate dates and comparisons before the service", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		for _, q := range []string{
+			"date_from=2026-10-01&date_to=2026-11-01T00:00:00Z",
+			"date_from=2026-10-01T00:00:00Z&date_from=2026-10-02T00:00:00Z&date_to=2026-11-01T00:00:00Z",
+			octWindowQuery + "&compare=x&compare=y",
+		} {
+			w := performRequest(r, http.MethodGet, "/admin/billing/revenue-report?"+q, nil, adminUser())
+			assert.Equal(t, http.StatusBadRequest, w.Code, q)
+			assert.Contains(t, w.Body.String(), "VALIDATION_ERROR", q)
+		}
+		svc.AssertNotCalled(t, "GetRevenueReport")
+	})
+
+	t.Run("service validation errors come back as 400", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		svc.On("GetRevenueReport", mock.Anything, mock.Anything).
+			Return(walletdomain.RevenueReport{}, apperror.New(apperror.CodeValidation, "date_from and date_to are required")).Once()
+
+		w := performRequest(r, http.MethodGet, "/admin/billing/revenue-report", nil, adminUser())
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "date_from and date_to are required")
+	})
 }

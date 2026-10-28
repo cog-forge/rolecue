@@ -227,5 +227,6 @@ func (r *Router) Setup() *gin.Engine {
 	admin.GET("/billing/transactions", r.walletHandler.AdminListBillingTransactions)
 	admin.GET("/billing/transactions/:id", r.walletHandler.AdminGetBillingTransaction)
 	admin.GET("/billing/export", r.walletHandler.AdminExportBillingCSV)
+	admin.GET("/billing/revenue-report", r.walletHandler.AdminGetRevenueReport)
 	return router
 }

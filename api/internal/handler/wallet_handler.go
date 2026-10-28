@@ -30,6 +30,7 @@ type WalletService interface {
 	GetBillingSummary(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.BillingSummary, error)
 	ListBillingTransactions(ctx context.Context, filter walletdomain.AdminTransactionFilter) (walletdomain.AdminTransactionPage, error)
 	GetBillingTransaction(ctx context.Context, id uuid.UUID) (walletdomain.AdminTransactionItem, error)
+	GetRevenueReport(ctx context.Context, req walletdomain.RevenueReportRequest) (walletdomain.RevenueReport, error)
 }
 
 type WalletHandler struct {
@@ -558,4 +559,52 @@ func (h *WalletHandler) AdminExportBillingCSV(c *gin.Context) {
 	c.Header("X-Export-Truncated", strconv.FormatBool(truncated))
 	c.Status(http.StatusOK)
 	_, _ = c.Writer.Write(buf.Bytes())
+}
+
+// AdminGetRevenueReport godoc
+// @Summary Get the admin revenue report with a period comparison
+// @Description Admin only. Read-only. Revenue is the VND of successful PayOS top-ups in [date_from, date_to); coin movements are not revenue. Compares the window with the same dates one year earlier (default) or with the period of the same length just before it. The series is by day for windows up to 62 days and by month otherwise, in Vietnam time (UTC+07:00). Outstanding coins are what users hold now, valued at the all-time average price per coin.
+// @Tags admin-billing
+// @Produce json
+// @Security SessionCookie
+// @Param date_from query string true "Window start, inclusive (RFC 3339 with offset, e.g. 2026-10-01T00:00:00+07:00)" format(date-time)
+// @Param date_to query string true "Window end, exclusive (RFC 3339 with offset)" format(date-time)
+// @Param compare query string false "previous_year (default) or previous_period"
+// @Success 200 {object} response.Envelope{data=walletdomain.RevenueReport}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /admin/billing/revenue-report [get]
+func (h *WalletHandler) AdminGetRevenueReport(c *gin.Context) {
+	if !requireAdminUser(c) {
+		return
+	}
+	var req walletdomain.RevenueReportRequest
+	for _, param := range []struct {
+		name   string
+		target *time.Time
+	}{{"date_from", &req.From}, {"date_to", &req.To}} {
+		t, msg := dateQueryParam(c, param.name)
+		if msg != "" {
+			response.Error(c, apperror.New(apperror.CodeValidation, msg))
+			return
+		}
+		if t != nil {
+			*param.target = *t
+		}
+	}
+	compare, present, once := singleQueryParam(c, "compare")
+	if present && !once {
+		response.Error(c, apperror.New(apperror.CodeValidation, "duplicate compare parameter"))
+		return
+	}
+	req.Compare = strings.TrimSpace(compare)
+
+	report, err := h.service.GetRevenueReport(c.Request.Context(), req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, report)
 }

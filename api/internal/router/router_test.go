@@ -146,6 +146,11 @@ func (s *routerWallet) GetBillingTransaction(context.Context, uuid.UUID) (wallet
 	return walletdomain.AdminTransactionItem{}, nil
 }
 
+func (s *routerWallet) GetRevenueReport(context.Context, walletdomain.RevenueReportRequest) (walletdomain.RevenueReport, error) {
+	s.calls++
+	return walletdomain.RevenueReport{}, nil
+}
+
 func TestWalletRoutesRequireOnboarding(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	const origin = "http://localhost:3000"
@@ -231,6 +236,7 @@ func TestAdminBillingRoutesRequireAdminRoleAndDisallowMutations(t *testing.T) {
 		"/admin/billing/transactions",
 		"/admin/billing/transactions/" + txID.String(),
 		"/admin/billing/export",
+		"/admin/billing/revenue-report",
 	}
 
 	for _, tc := range []struct {

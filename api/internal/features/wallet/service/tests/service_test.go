@@ -103,6 +103,16 @@ func (m *MockRepo) GetBillingSummary(ctx context.Context, filter domain.AdminTra
 	return args.Get(0).(domain.BillingSummary), args.Error(1)
 }
 
+func (m *MockRepo) GetRevenuePeriod(ctx context.Context, from, to time.Time) (domain.RevenuePeriodData, error) {
+	args := m.Called(ctx, from, to)
+	return args.Get(0).(domain.RevenuePeriodData), args.Error(1)
+}
+
+func (m *MockRepo) GetCoinTotals(ctx context.Context) (outstanding, allTimeRevenueVND, allTimeCoinsSold int64, err error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Error(3)
+}
+
 // ---------------------------------------------------------------------------
 // Mock PayOS client
 // ---------------------------------------------------------------------------

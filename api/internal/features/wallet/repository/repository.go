@@ -613,3 +613,80 @@ func timeArg(t *time.Time) pgtype.Timestamptz {
 	}
 	return pgtype.Timestamptz{Time: *t, Valid: true}
 }
+
+// revenueTopupLimit bounds the successful top-ups the revenue report reads for one window.
+const revenueTopupLimit = 100_000
+
+// GetRevenuePeriod reads one [from, to) window for the revenue report. The summary and the top-ups come
+// from the admin billing queries, so revenue keeps one definition.
+func (r *Repository) GetRevenuePeriod(ctx context.Context, from, to time.Time) (domain.RevenuePeriodData, error) {
+	filter := domain.AdminTransactionFilter{DateFrom: &from, DateTo: &to}
+	summary, err := r.GetBillingSummary(ctx, filter)
+	if err != nil {
+		return domain.RevenuePeriodData{}, err
+	}
+
+	filter.Type, filter.Status = "topup", string(domain.StatusSuccess)
+	filter.Page, filter.PageSize, filter.SortBy, filter.SortOrder = 1, revenueTopupLimit, "created_at", "asc"
+	page, err := r.ListAdminTransactions(ctx, filter)
+	if err != nil {
+		return domain.RevenuePeriodData{}, err
+	}
+	roles, err := r.userRoles(ctx, page.Items)
+	if err != nil {
+		return domain.RevenuePeriodData{}, err
+	}
+	topups := make([]domain.RevenueTopup, 0, len(page.Items))
+	for _, item := range page.Items {
+		topups = append(topups, domain.RevenueTopup{
+			CreatedAt:   item.CreatedAt,
+			UserRole:    roles[item.UserID],
+			PackageName: item.PackageOrFeature,
+			PaidVND:     item.PaidVND,
+		})
+	}
+
+	newPayers, err := r.queries.CountNewPayers(ctx, CountNewPayersParams{DateFrom: timeArg(&from), DateTo: timeArg(&to)})
+	if err != nil {
+		return domain.RevenuePeriodData{}, apperror.Wrap(apperror.CodeInternal, "failed to count new payers", err)
+	}
+	return domain.RevenuePeriodData{Summary: summary, Topups: topups, NewPayers: newPayers}, nil
+}
+
+// userRoles maps the user IDs on the items to their roles; IDs that are not users are left out.
+func (r *Repository) userRoles(ctx context.Context, items []domain.AdminTransactionItem) (map[string]string, error) {
+	seen := map[uuid.UUID]bool{}
+	ids := make([]uuid.UUID, 0, len(items))
+	for _, item := range items {
+		if id, err := uuid.Parse(item.UserID); err == nil && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	roles := make(map[string]string, len(ids))
+	if len(ids) == 0 {
+		return roles, nil
+	}
+	rows, err := r.queries.ListUserRoles(ctx, ids)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to read payer roles", err)
+	}
+	for _, row := range rows {
+		roles[row.ID.String()] = row.Role
+	}
+	return roles, nil
+}
+
+// GetCoinTotals returns the coins users hold now and the all-time revenue and coins sold, which give
+// the average price paid per coin.
+func (r *Repository) GetCoinTotals(ctx context.Context) (outstanding, allTimeRevenueVND, allTimeCoinsSold int64, err error) {
+	outstanding, err = r.queries.SumWalletBalances(ctx)
+	if err != nil {
+		return 0, 0, 0, apperror.Wrap(apperror.CodeInternal, "failed to sum wallet balances", err)
+	}
+	row, err := r.queries.GetAdminBillingSummary(ctx, GetAdminBillingSummaryParams{})
+	if err != nil {
+		return 0, 0, 0, apperror.Wrap(apperror.CodeInternal, "failed to read all-time revenue", err)
+	}
+	return outstanding, row.TotalRevenue, row.CoinsSold, nil
+}

@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
@@ -34,6 +35,9 @@ type WalletRepository interface {
 	ListAdminTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error)
 	GetAdminTransactionByID(ctx context.Context, id uuid.UUID) (domain.AdminTransactionItem, error)
 	GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error)
+	// Revenue report: one window's summary, successful top-ups and new payers, and the coin totals now.
+	GetRevenuePeriod(ctx context.Context, from, to time.Time) (domain.RevenuePeriodData, error)
+	GetCoinTotals(ctx context.Context) (outstanding, allTimeRevenueVND, allTimeCoinsSold int64, err error)
 }
 
 type PayOSClient interface {
