@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { describeTransaction } from "../lib/describe-transaction";
 import type { Transaction, TransactionPage } from "../schemas/wallet-schema";
 
 type FilterTab = "all" | "topup" | "spend" | "refund";
@@ -197,12 +198,12 @@ export function TransactionHistory({
             id="transaction-filter-scope"
             className="text-xs text-muted-foreground"
           >
-            Filter this page only. Use pagination to browse other transactions.
+            Filters apply to the transactions on this page.
           </p>
           <TabsList
             aria-label="Filter transactions on this page"
             aria-describedby="transaction-filter-scope"
-            className="w-full h-auto flex-wrap"
+            className="grid w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-auto sm:grid-cols-4"
           >
             {(
               [
@@ -295,6 +296,11 @@ export function TransactionHistory({
                     const refund = isRefund(tx);
                     const deposit = isDeposit(tx) && !refund;
                     const positive = deposit || refund;
+                    const described = describeTransaction(tx.description);
+                    // A PayOS top-up adds coins only once it is paid.
+                    const unpaid =
+                      tx.payos_order_code != null && tx.status !== "success";
+                    const coins = `${positive ? "+" : "-"}${Math.abs(tx.amount).toLocaleString("en-US")}`;
                     const Icon = refund
                       ? RotateCcw
                       : positive
@@ -309,18 +315,24 @@ export function TransactionHistory({
                             </span>
                             <div className="min-w-0 space-y-1">
                               <p className="break-words text-sm font-medium">
-                                {tx.description ||
-                                  (deposit
+                                {tx.description
+                                  ? described.title
+                                  : deposit
                                     ? "Coin Deposit"
                                     : refund
                                       ? "Coin Refund"
-                                      : "Coin Spending")}
+                                      : "Coin Spending"}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {formatDate(tx.created_at)}
+                                <time dateTime={tx.created_at}>
+                                  {formatDate(tx.created_at)}
+                                </time>
+                                {described.detail && (
+                                  <span> · {described.detail}</span>
+                                )}
                               </p>
                               {tx.payos_order_code != null && (
-                                <p className="break-all font-mono text-[11px] text-muted-foreground">
+                                <p className="text-xs break-all text-muted-foreground">
                                   Order #{tx.payos_order_code}
                                 </p>
                               )}
@@ -330,22 +342,37 @@ export function TransactionHistory({
                         <TableCell className="px-1">
                           {renderStatusBadge(tx.status)}
                         </TableCell>
-                        <TableCell
-                          aria-label={`${positive ? "+" : "-"}${Math.abs(tx.amount).toLocaleString("en-US")} Coins`}
-                          className="text-right font-semibold tabular-nums whitespace-normal"
-                        >
-                          <span
-                            className={
-                              positive && tx.status === "success"
-                                ? "text-emerald-700 dark:text-emerald-400"
-                                : "text-foreground"
-                            }
+                        {unpaid && tx.status !== "pending" ? (
+                          <TableCell
+                            aria-label="No coins added"
+                            className="text-right text-xs text-muted-foreground whitespace-normal"
                           >
-                            {positive ? "+" : "-"}
-                            {Math.abs(tx.amount).toLocaleString("en-US")}
-                            <span className="sr-only"> Coins</span>
-                          </span>
-                        </TableCell>
+                            No coins added
+                          </TableCell>
+                        ) : (
+                          <TableCell
+                            aria-label={`${coins} Coins${unpaid ? " when paid" : ""}`}
+                            className="text-right font-semibold tabular-nums whitespace-normal"
+                          >
+                            <span
+                              className={
+                                unpaid
+                                  ? "text-muted-foreground"
+                                  : positive && tx.status === "success"
+                                    ? "text-emerald-700 dark:text-emerald-400"
+                                    : "text-foreground"
+                              }
+                            >
+                              {coins}
+                              <span className="sr-only"> Coins</span>
+                            </span>
+                            {unpaid && (
+                              <span className="block text-xs font-normal text-muted-foreground">
+                                when paid
+                              </span>
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
