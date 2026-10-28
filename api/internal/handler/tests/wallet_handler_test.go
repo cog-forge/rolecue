@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	walletdomain "github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
@@ -69,6 +70,11 @@ func (m *MockWalletService) ListBillingTransactions(ctx context.Context, filter 
 	return args.Get(0).(walletdomain.AdminTransactionPage), args.Error(1)
 }
 
+func (m *MockWalletService) GetRevenueReport(ctx context.Context, req walletdomain.RevenueReportRequest) (walletdomain.RevenueReport, error) {
+	args := m.Called(ctx, req)
+	return args.Get(0).(walletdomain.RevenueReport), args.Error(1)
+}
+
 func (m *MockWalletService) GetBillingTransaction(ctx context.Context, id uuid.UUID) (walletdomain.AdminTransactionItem, error) {
 	args := m.Called(ctx, id)
 	return args.Get(0).(walletdomain.AdminTransactionItem), args.Error(1)
@@ -122,6 +128,9 @@ func newRouter(h *handler.WalletHandler) *gin.Engine {
 	})
 	r.GET("/admin/billing/export", func(c *gin.Context) {
 		h.AdminExportBillingCSV(c)
+	})
+	r.GET("/admin/billing/revenue-report", func(c *gin.Context) {
+		h.AdminGetRevenueReport(c)
 	})
 	return r
 }
@@ -574,6 +583,12 @@ func TestAdminBillingEndpoints_StrictValidationReturns400(t *testing.T) {
 		"/admin/billing/transactions?sort_by=drop_table",
 		"/admin/billing/transactions?sort_order=sideways",
 		"/admin/billing/transactions/not-a-uuid",
+		"/admin/billing/transactions?date_from=2026-10-01",
+		"/admin/billing/transactions?date_to=yesterday",
+		"/admin/billing/summary?date_from=2026-10-01T00:00:00",
+		"/admin/billing/summary?date_from=2026-10-01T00:00:00Z&date_from=2026-10-02T00:00:00Z",
+		"/admin/billing/summary?date_from=2026-11-01T00:00:00%2B07:00&date_to=2026-10-01T00:00:00%2B07:00",
+		"/admin/billing/export?date_from=2026-10-01T00:00:00Z&date_to=2026-10-01T00:00:00Z",
 	}
 
 	for _, q := range badQueries {
@@ -600,7 +615,7 @@ func TestAdminGetBillingSummary_Success(t *testing.T) {
 		Status:      "success",
 		Type:        "topup",
 		PackageName: "Starter Pack",
-		SortBy:      "id",
+		SortBy:      "created_at",
 		SortOrder:   "desc",
 	}
 	summary := walletdomain.BillingSummary{
@@ -668,7 +683,7 @@ func TestAdminExportBillingCSV_SanitizesFormulaInjectionAndAllowsOver20Rows(t *t
 	expectedFilter := walletdomain.AdminTransactionFilter{
 		Page:      1,
 		PageSize:  5000,
-		SortBy:    "id",
+		SortBy:    "created_at",
 		SortOrder: "desc",
 	}
 	svc.On("ListBillingTransactions", mock.Anything, expectedFilter).Return(walletdomain.AdminTransactionPage{
@@ -693,4 +708,215 @@ func TestAdminExportBillingCSV_SanitizesFormulaInjectionAndAllowsOver20Rows(t *t
 	assert.Contains(t, csvBody, "'+123456")
 	assert.Contains(t, csvBody, "'-9999")
 	svc.AssertExpectations(t)
+}
+
+// October 2026 in Vietnam time (UTC+07:00), as the admin screens send it.
+var (
+	octFromVN = time.Date(2026, 9, 30, 17, 0, 0, 0, time.UTC)
+	octToVN   = time.Date(2026, 10, 31, 17, 0, 0, 0, time.UTC)
+)
+
+const octWindowQuery = "date_from=2026-10-01T00:00:00%2B07:00&date_to=2026-11-01T00:00:00%2B07:00"
+
+func hasOctoberWindow(f walletdomain.AdminTransactionFilter) bool {
+	return f.DateFrom != nil && f.DateFrom.Equal(octFromVN) &&
+		f.DateTo != nil && f.DateTo.Equal(octToVN) &&
+		f.SortBy == "created_at" && f.SortOrder == "desc"
+}
+
+func TestAdminBillingEndpoints_PassTheDateWindowToTheService(t *testing.T) {
+	svc := new(MockWalletService)
+	r := newRouter(handler.NewWalletHandler(svc))
+	admin := adminUser()
+
+	svc.On("GetBillingSummary", mock.Anything, mock.MatchedBy(hasOctoberWindow)).
+		Return(walletdomain.BillingSummary{}, nil).Once()
+	svc.On("ListBillingTransactions", mock.Anything, mock.MatchedBy(func(f walletdomain.AdminTransactionFilter) bool {
+		return hasOctoberWindow(f) && f.PageSize == 20
+	})).Return(walletdomain.AdminTransactionPage{}, nil).Once()
+	svc.On("ListBillingTransactions", mock.Anything, mock.MatchedBy(func(f walletdomain.AdminTransactionFilter) bool {
+		return hasOctoberWindow(f) && f.PageSize == 5000
+	})).Return(walletdomain.AdminTransactionPage{}, nil).Once()
+
+	for _, path := range []string{"/admin/billing/summary", "/admin/billing/transactions", "/admin/billing/export"} {
+		w := performRequest(r, http.MethodGet, path+"?"+octWindowQuery, nil, admin)
+		assert.Equal(t, http.StatusOK, w.Code, path)
+	}
+	svc.AssertExpectations(t)
+}
+
+func TestAdminListBillingTransactions_DateWindowEdgeCases(t *testing.T) {
+	admin := adminUser()
+
+	t.Run("UTC and offset forms name the same instant", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		svc.On("ListBillingTransactions", mock.Anything, mock.MatchedBy(hasOctoberWindow)).
+			Return(walletdomain.AdminTransactionPage{}, nil).Once()
+
+		w := performRequest(r, http.MethodGet,
+			"/admin/billing/transactions?date_from=2026-09-30T17:00:00Z&date_to=2026-10-31T17:00:00.000Z", nil, admin)
+		assert.Equal(t, http.StatusOK, w.Code)
+		svc.AssertExpectations(t)
+	})
+
+	t.Run("empty values and one open end are allowed", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		svc.On("ListBillingTransactions", mock.Anything, mock.MatchedBy(func(f walletdomain.AdminTransactionFilter) bool {
+			return f.DateFrom != nil && f.DateFrom.Equal(octFromVN) && f.DateTo == nil
+		})).Return(walletdomain.AdminTransactionPage{}, nil).Once()
+
+		w := performRequest(r, http.MethodGet,
+			"/admin/billing/transactions?date_from=2026-10-01T00:00:00%2B07:00&date_to=", nil, admin)
+		assert.Equal(t, http.StatusOK, w.Code)
+		svc.AssertExpectations(t)
+	})
+
+	t.Run("a bad date names the parameter and the format", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+
+		w := performRequest(r, http.MethodGet, "/admin/billing/transactions?date_from=2026-10-01", nil, admin)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "VALIDATION_ERROR")
+		assert.Contains(t, w.Body.String(), "invalid date_from")
+		assert.Contains(t, w.Body.String(), "RFC 3339")
+		svc.AssertNotCalled(t, "ListBillingTransactions")
+	})
+
+	t.Run("a reversed window is rejected", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+
+		w := performRequest(r, http.MethodGet,
+			"/admin/billing/transactions?date_from=2026-11-01T00:00:00Z&date_to=2026-10-01T00:00:00Z", nil, admin)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "date_from must be before date_to")
+		svc.AssertNotCalled(t, "ListBillingTransactions")
+	})
+
+	t.Run("sort_by=created_at is accepted", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		svc.On("ListBillingTransactions", mock.Anything, mock.MatchedBy(func(f walletdomain.AdminTransactionFilter) bool {
+			return f.SortBy == "created_at" && f.SortOrder == "asc"
+		})).Return(walletdomain.AdminTransactionPage{}, nil).Once()
+
+		w := performRequest(r, http.MethodGet, "/admin/billing/transactions?sort_by=created_at&sort_order=asc", nil, admin)
+		assert.Equal(t, http.StatusOK, w.Code)
+		svc.AssertExpectations(t)
+	})
+}
+
+func TestAdminBillingTransactions_ReturnCreatedAt(t *testing.T) {
+	svc := new(MockWalletService)
+	r := newRouter(handler.NewWalletHandler(svc))
+	item := walletdomain.AdminTransactionItem{
+		ID:        uuid.New(),
+		Status:    walletdomain.StatusSuccess,
+		CreatedAt: time.Date(2026, 10, 27, 6, 16, 40, 0, time.UTC),
+	}
+	svc.On("ListBillingTransactions", mock.Anything, mock.Anything).
+		Return(walletdomain.AdminTransactionPage{Items: []walletdomain.AdminTransactionItem{item}, Total: 1}, nil)
+	svc.On("GetBillingTransaction", mock.Anything, item.ID).Return(item, nil)
+
+	list := performRequest(r, http.MethodGet, "/admin/billing/transactions", nil, adminUser())
+	detail := performRequest(r, http.MethodGet, "/admin/billing/transactions/"+item.ID.String(), nil, adminUser())
+
+	assert.Equal(t, http.StatusOK, list.Code)
+	assert.Contains(t, list.Body.String(), `"created_at":"2026-10-27T06:16:40Z"`)
+	assert.Equal(t, http.StatusOK, detail.Code)
+	assert.Contains(t, detail.Body.String(), `"created_at":"2026-10-27T06:16:40Z"`)
+}
+
+func TestAdminExportBillingCSV_HasCreatedAtInVietnamTime(t *testing.T) {
+	svc := new(MockWalletService)
+	r := newRouter(handler.NewWalletHandler(svc))
+	id := uuid.New()
+	svc.On("ListBillingTransactions", mock.Anything, mock.Anything).Return(walletdomain.AdminTransactionPage{
+		Items: []walletdomain.AdminTransactionItem{{
+			ID:        id,
+			Status:    walletdomain.StatusSuccess,
+			CreatedAt: time.Date(2026, 10, 27, 6, 16, 40, 129_000_000, time.UTC),
+		}},
+		Total: 1,
+	}, nil)
+
+	w := performRequest(r, http.MethodGet, "/admin/billing/export", nil, adminUser())
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	lines := strings.Split(strings.TrimSpace(w.Body.String()), "\n")
+	assert.True(t, strings.HasPrefix(lines[0], "Transaction ID,Created At (UTC+07:00),"), lines[0])
+	assert.True(t, strings.HasPrefix(lines[1], id.String()+",2026-10-27T13:16:40+07:00,"), lines[1])
+}
+
+func TestListTransactions_ReturnsCreatedAt(t *testing.T) {
+	svc := new(MockWalletService)
+	r := newRouter(handler.NewWalletHandler(svc))
+	user := candidateUser()
+	svc.On("ListTransactions", mock.Anything, user.ID, int32(1), int32(20)).Return([]walletdomain.Transaction{{
+		ID:        uuid.New(),
+		Status:    walletdomain.StatusSuccess,
+		CreatedAt: time.Date(2026, 10, 27, 6, 16, 40, 0, time.UTC),
+	}}, int64(1), nil)
+
+	w := performRequest(r, http.MethodGet, "/wallet/transactions", nil, user)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"created_at":"2026-10-27T06:16:40Z"`)
+}
+
+func TestAdminGetRevenueReport(t *testing.T) {
+	path := "/admin/billing/revenue-report?" + octWindowQuery
+
+	t.Run("admins only", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		assert.Equal(t, http.StatusUnauthorized, performRequest(r, http.MethodGet, path, nil, nil).Code)
+		assert.Equal(t, http.StatusForbidden, performRequest(r, http.MethodGet, path, nil, candidateUser()).Code)
+		assert.Equal(t, http.StatusForbidden, performRequest(r, http.MethodGet, path, nil, recruiterUser()).Code)
+		svc.AssertNotCalled(t, "GetRevenueReport")
+	})
+
+	t.Run("passes the window and the comparison", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		svc.On("GetRevenueReport", mock.Anything, mock.MatchedBy(func(req walletdomain.RevenueReportRequest) bool {
+			return req.From.Equal(octFromVN) && req.To.Equal(octToVN) && req.Compare == "previous_period"
+		})).Return(walletdomain.RevenueReport{Compare: "previous_period", Granularity: "day"}, nil).Once()
+
+		w := performRequest(r, http.MethodGet, path+"&compare=previous_period", nil, adminUser())
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), `"granularity":"day"`)
+		svc.AssertExpectations(t)
+	})
+
+	t.Run("rejects bad or duplicate dates and comparisons before the service", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		for _, q := range []string{
+			"date_from=2026-10-01&date_to=2026-11-01T00:00:00Z",
+			"date_from=2026-10-01T00:00:00Z&date_from=2026-10-02T00:00:00Z&date_to=2026-11-01T00:00:00Z",
+			octWindowQuery + "&compare=x&compare=y",
+		} {
+			w := performRequest(r, http.MethodGet, "/admin/billing/revenue-report?"+q, nil, adminUser())
+			assert.Equal(t, http.StatusBadRequest, w.Code, q)
+			assert.Contains(t, w.Body.String(), "VALIDATION_ERROR", q)
+		}
+		svc.AssertNotCalled(t, "GetRevenueReport")
+	})
+
+	t.Run("service validation errors come back as 400", func(t *testing.T) {
+		svc := new(MockWalletService)
+		r := newRouter(handler.NewWalletHandler(svc))
+		svc.On("GetRevenueReport", mock.Anything, mock.Anything).
+			Return(walletdomain.RevenueReport{}, apperror.New(apperror.CodeValidation, "date_from and date_to are required")).Once()
+
+		w := performRequest(r, http.MethodGet, "/admin/billing/revenue-report", nil, adminUser())
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "date_from and date_to are required")
+	})
 }

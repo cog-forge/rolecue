@@ -5,11 +5,13 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -23,6 +25,12 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 		pool:    pool,
 		queries: New(pool),
 	}
+}
+
+// NewRepositoryWithDB runs every query on db, for example a transaction the caller already holds.
+// ExecTx then runs its function on db without opening a nested transaction.
+func NewRepositoryWithDB(db DBTX) *Repository {
+	return &Repository{queries: New(db)}
 }
 
 func (r *Repository) ExecTx(ctx context.Context, fn func(q *Queries) error) error {
@@ -134,7 +142,7 @@ func (r *Repository) InsertTransaction(ctx context.Context, q *Queries, tx domai
 	if err != nil {
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to insert transaction", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) GetTransactionByID(ctx context.Context, id uuid.UUID) (domain.Transaction, error) {
@@ -145,7 +153,7 @@ func (r *Repository) GetTransactionByID(ctx context.Context, id uuid.UUID) (doma
 		}
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to get transaction", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) GetTransactionByPayOSOrderCode(ctx context.Context, orderCode int64) (domain.Transaction, error) {
@@ -157,7 +165,7 @@ func (r *Repository) GetTransactionByPayOSOrderCode(ctx context.Context, orderCo
 		}
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to get transaction by order code", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) GetTransactionByPayOSOrderCodeForUpdate(ctx context.Context, q *Queries, orderCode int64) (domain.Transaction, error) {
@@ -172,7 +180,7 @@ func (r *Repository) GetTransactionByPayOSOrderCodeForUpdate(ctx context.Context
 		}
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to get transaction for update", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) UpdateTransactionStatus(ctx context.Context, q *Queries, id uuid.UUID, status domain.TransactionStatus) (domain.Transaction, error) {
@@ -186,7 +194,7 @@ func (r *Repository) UpdateTransactionStatus(ctx context.Context, q *Queries, id
 	if err != nil {
 		return domain.Transaction{}, apperror.Wrap(apperror.CodeInternal, "failed to update transaction status", err)
 	}
-	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode), nil
+	return toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt), nil
 }
 
 func (r *Repository) ListTransactionsByUserID(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]domain.Transaction, int64, error) {
@@ -206,7 +214,7 @@ func (r *Repository) ListTransactionsByUserID(ctx context.Context, userID uuid.U
 
 	txs := make([]domain.Transaction, 0, len(rows))
 	for _, row := range rows {
-		txs = append(txs, toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode))
+		txs = append(txs, toDomainTransaction(row.ID, row.From, row.To, row.Amount, row.Currency, row.Description, row.Status, row.PayosOrderCode, row.CreatedAt))
 	}
 	return txs, total, nil
 }
@@ -271,7 +279,7 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 
 	sortBy := strings.ToLower(strings.TrimSpace(filter.SortBy))
 	if sortBy == "" {
-		sortBy = "id"
+		sortBy = "created_at"
 	}
 	sortOrder := strings.ToLower(strings.TrimSpace(filter.SortOrder))
 	if sortOrder != "asc" {
@@ -282,6 +290,7 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 	statusPtr := optionalString(filter.Status)
 	typePtr := optionalString(filter.Type)
 	pkgPtr := escapeILIKE(filter.PackageName)
+	dateFrom, dateTo := timeArg(filter.DateFrom), timeArg(filter.DateTo)
 
 	rows, err := r.queries.ListAdminTransactions(ctx, ListAdminTransactionsParams{
 		Search:      searchPtr,
@@ -290,6 +299,8 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 		PackageName: pkgPtr,
 		AmountMin:   filter.AmountMin,
 		AmountMax:   filter.AmountMax,
+		DateFrom:    dateFrom,
+		DateTo:      dateTo,
 		SortBy:      sortBy,
 		SortOrder:   sortOrder,
 		PageOffset:  int32(offset),
@@ -313,6 +324,8 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 			PackageName: pkgPtr,
 			AmountMin:   filter.AmountMin,
 			AmountMax:   filter.AmountMax,
+			DateFrom:    dateFrom,
+			DateTo:      dateTo,
 		})
 		if err != nil {
 			return domain.AdminTransactionPage{}, apperror.Wrap(apperror.CodeInternal, "failed to count admin transactions", err)
@@ -337,6 +350,7 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 			row.PackageOrFeature,
 			row.PaidVnd,
 			row.CoinAmount,
+			row.CreatedAt,
 		))
 	}
 
@@ -372,6 +386,7 @@ func (r *Repository) GetAdminTransactionByID(ctx context.Context, id uuid.UUID) 
 		row.PackageOrFeature,
 		row.PaidVnd,
 		row.CoinAmount,
+		row.CreatedAt,
 	), nil
 }
 
@@ -380,6 +395,7 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 	statusPtr := optionalString(filter.Status)
 	typePtr := optionalString(filter.Type)
 	pkgPtr := escapeILIKE(filter.PackageName)
+	dateFrom, dateTo := timeArg(filter.DateFrom), timeArg(filter.DateTo)
 
 	row, err := r.queries.GetAdminBillingSummary(ctx, GetAdminBillingSummaryParams{
 		Search:      searchPtr,
@@ -388,6 +404,8 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 		PackageName: pkgPtr,
 		AmountMin:   filter.AmountMin,
 		AmountMax:   filter.AmountMax,
+		DateFrom:    dateFrom,
+		DateTo:      dateTo,
 	})
 	if err != nil {
 		return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get admin billing summary", err)
@@ -406,6 +424,8 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 			PackageName: pkgPtr,
 			AmountMin:   filter.AmountMin,
 			AmountMax:   filter.AmountMax,
+			DateFrom:    dateFrom,
+			DateTo:      dateTo,
 		})
 		if err != nil {
 			return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get package revenue breakdown", err)
@@ -428,6 +448,8 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 			PackageName: pkgPtr,
 			AmountMin:   filter.AmountMin,
 			AmountMax:   filter.AmountMax,
+			DateFrom:    dateFrom,
+			DateTo:      dateTo,
 		})
 		if err != nil {
 			return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get feature coin breakdown", err)
@@ -499,6 +521,7 @@ func mapAdminTransactionRow(
 	packageOrFeature string,
 	paidVND int64,
 	coinAmount int64,
+	createdAt pgtype.Timestamptz,
 ) domain.AdminTransactionItem {
 	return domain.AdminTransactionItem{
 		ID:               id,
@@ -516,6 +539,7 @@ func mapAdminTransactionRow(
 		Description:      description,
 		Status:           domain.TransactionStatus(status),
 		PayOSOrderCode:   parseInt64Ptr(&payosOrderCode),
+		CreatedAt:        utcTime(createdAt),
 	}
 }
 
@@ -556,7 +580,7 @@ func formatInt64Ptr(val *int64) *string {
 	return &s
 }
 
-func toDomainTransaction(id uuid.UUID, fromStr, toStr string, amount int32, currency string, descPtr *string, status TransactionStatus, orderCodePtr *string) domain.Transaction {
+func toDomainTransaction(id uuid.UUID, fromStr, toStr string, amount int32, currency string, descPtr *string, status TransactionStatus, orderCodePtr *string, createdAt pgtype.Timestamptz) domain.Transaction {
 	desc := ""
 	if descPtr != nil {
 		desc = *descPtr
@@ -570,5 +594,99 @@ func toDomainTransaction(id uuid.UUID, fromStr, toStr string, amount int32, curr
 		Description:    desc,
 		Status:         domain.TransactionStatus(status),
 		PayOSOrderCode: parseInt64Ptr(orderCodePtr),
+		CreatedAt:      utcTime(createdAt),
 	}
+}
+
+// utcTime returns the instant in UTC so JSON always ends in Z, whatever the process timezone.
+func utcTime(t pgtype.Timestamptz) time.Time {
+	if !t.Valid {
+		return time.Time{}
+	}
+	return t.Time.UTC()
+}
+
+// timeArg turns an optional window end into a query argument; nil disables that end.
+func timeArg(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: *t, Valid: true}
+}
+
+// revenueTopupLimit bounds the successful top-ups the revenue report reads for one window.
+const revenueTopupLimit = 100_000
+
+// GetRevenuePeriod reads one [from, to) window for the revenue report. The summary and the top-ups come
+// from the admin billing queries, so revenue keeps one definition.
+func (r *Repository) GetRevenuePeriod(ctx context.Context, from, to time.Time) (domain.RevenuePeriodData, error) {
+	filter := domain.AdminTransactionFilter{DateFrom: &from, DateTo: &to}
+	summary, err := r.GetBillingSummary(ctx, filter)
+	if err != nil {
+		return domain.RevenuePeriodData{}, err
+	}
+
+	filter.Type, filter.Status = "topup", string(domain.StatusSuccess)
+	filter.Page, filter.PageSize, filter.SortBy, filter.SortOrder = 1, revenueTopupLimit, "created_at", "asc"
+	page, err := r.ListAdminTransactions(ctx, filter)
+	if err != nil {
+		return domain.RevenuePeriodData{}, err
+	}
+	roles, err := r.userRoles(ctx, page.Items)
+	if err != nil {
+		return domain.RevenuePeriodData{}, err
+	}
+	topups := make([]domain.RevenueTopup, 0, len(page.Items))
+	for _, item := range page.Items {
+		topups = append(topups, domain.RevenueTopup{
+			CreatedAt:   item.CreatedAt,
+			UserRole:    roles[item.UserID],
+			PackageName: item.PackageOrFeature,
+			PaidVND:     item.PaidVND,
+		})
+	}
+
+	newPayers, err := r.queries.CountNewPayers(ctx, CountNewPayersParams{DateFrom: timeArg(&from), DateTo: timeArg(&to)})
+	if err != nil {
+		return domain.RevenuePeriodData{}, apperror.Wrap(apperror.CodeInternal, "failed to count new payers", err)
+	}
+	return domain.RevenuePeriodData{Summary: summary, Topups: topups, NewPayers: newPayers}, nil
+}
+
+// userRoles maps the user IDs on the items to their roles; IDs that are not users are left out.
+func (r *Repository) userRoles(ctx context.Context, items []domain.AdminTransactionItem) (map[string]string, error) {
+	seen := map[uuid.UUID]bool{}
+	ids := make([]uuid.UUID, 0, len(items))
+	for _, item := range items {
+		if id, err := uuid.Parse(item.UserID); err == nil && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	roles := make(map[string]string, len(ids))
+	if len(ids) == 0 {
+		return roles, nil
+	}
+	rows, err := r.queries.ListUserRoles(ctx, ids)
+	if err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "failed to read payer roles", err)
+	}
+	for _, row := range rows {
+		roles[row.ID.String()] = row.Role
+	}
+	return roles, nil
+}
+
+// GetCoinTotals returns the coins users hold now and the all-time revenue and coins sold, which give
+// the average price paid per coin.
+func (r *Repository) GetCoinTotals(ctx context.Context) (outstanding, allTimeRevenueVND, allTimeCoinsSold int64, err error) {
+	outstanding, err = r.queries.SumWalletBalances(ctx)
+	if err != nil {
+		return 0, 0, 0, apperror.Wrap(apperror.CodeInternal, "failed to sum wallet balances", err)
+	}
+	row, err := r.queries.GetAdminBillingSummary(ctx, GetAdminBillingSummaryParams{})
+	if err != nil {
+		return 0, 0, 0, apperror.Wrap(apperror.CodeInternal, "failed to read all-time revenue", err)
+	}
+	return outstanding, row.TotalRevenue, row.CoinsSold, nil
 }

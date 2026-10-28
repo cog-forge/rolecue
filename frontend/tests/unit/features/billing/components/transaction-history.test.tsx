@@ -108,3 +108,114 @@ describe("unavailable transaction dates", () => {
     },
   );
 });
+
+it("shows when each transaction happened in the viewer's local time", () => {
+  const createdAt = "2026-10-27T06:16:40Z";
+  const expected = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(createdAt));
+
+  render(
+    <TransactionHistory
+      currentUserId="user"
+      isLoading={false}
+      isFetching={false}
+      error={null}
+      page={1}
+      onPageChange={vi.fn()}
+      onRefresh={vi.fn()}
+      data={{
+        items: [
+          {
+            id: "tx",
+            from: "user",
+            amount: 20,
+            currency: "COIN",
+            status: "success",
+            description: "Practice",
+            created_at: createdAt,
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20,
+      }}
+    />,
+  );
+
+  const time = screen.getByText(expected);
+  expect(time.tagName).toBe("TIME");
+  expect(time).toHaveAttribute("datetime", createdAt);
+});
+
+describe("what each row says", () => {
+  const base = {
+    currentUserId: "user",
+    isLoading: false,
+    isFetching: false,
+    error: null,
+    page: 1,
+    onPageChange: vi.fn(),
+    onRefresh: vi.fn(),
+  };
+
+  it("names ledger rows by what happened, without internal IDs", () => {
+    render(
+      <TransactionHistory
+        {...base}
+        data={{
+          items: [
+            {
+              id: "spend",
+              from: "user",
+              to: "system",
+              amount: 5,
+              currency: "COIN",
+              status: "success",
+              description:
+                "Practice interview 5c1f2e8a-0000-4000-8000-000000000001",
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }}
+      />,
+    );
+    expect(screen.getByText("Practice interview")).toBeInTheDocument();
+    expect(screen.queryByText(/5c1f2e8a/)).not.toBeInTheDocument();
+  });
+
+  it("does not show coins for a top-up that was never paid", () => {
+    render(
+      <TransactionHistory
+        {...base}
+        data={{
+          items: [
+            {
+              id: "failed",
+              to: "user",
+              amount: 200,
+              currency: "VND",
+              status: "failed",
+              description: "Deposit: Plus (200000 VND)",
+              payos_order_code: 191000004,
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }}
+      />,
+    );
+    expect(screen.getByText("Plus pack")).toBeInTheDocument();
+    expect(
+      screen.getByRole("cell", { name: "No coins added" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("+200")).not.toBeInTheDocument();
+  });
+});

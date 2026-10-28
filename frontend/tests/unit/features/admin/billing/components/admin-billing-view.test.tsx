@@ -1,5 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminBillingView } from "@/features/admin/billing/components/admin-billing-view";
 
@@ -22,6 +28,30 @@ vi.mock("goey-toast", () => ({
   },
 }));
 
+// Radix Select calls scrollIntoView when it opens; jsdom does not implement it.
+if (!HTMLElement.prototype.scrollIntoView)
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: () => {},
+  });
+
+// 27/10/2026 15:00 in Vietnam.
+const NOW = new Date("2026-10-27T08:00:00Z");
+
+async function chooseOption(label: string, name: string) {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: label }), {
+    key: "ArrowDown",
+  });
+  fireEvent.keyDown(await screen.findByRole("option", { name }), {
+    key: "Enter",
+  });
+}
+
+function lastParams(url: string) {
+  const calls = mocks.get.mock.calls.filter(([called]) => called === url);
+  return calls.at(-1)?.[1]?.params as Record<string, unknown> | undefined;
+}
+
 function renderComponent() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -38,7 +68,13 @@ function renderComponent() {
 }
 
 describe("AdminBillingView", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
     vi.clearAllMocks();
     mocks.get.mockImplementation((url: string) => {
       if (url === "/admin/billing/summary") {
@@ -104,6 +140,7 @@ describe("AdminBillingView", () => {
                   description: "Deposit: Starter Pack (50000 VND)",
                   status: "success",
                   payos_order_code: 123456789,
+                  created_at: "2026-10-27T06:16:40Z",
                 },
                 {
                   id: "00000000-0000-0000-0000-000000000002",
@@ -121,6 +158,7 @@ describe("AdminBillingView", () => {
                   description: "Practice interview charge",
                   status: "success",
                   payos_order_code: null,
+                  created_at: "2026-10-26T18:05:00Z",
                 },
               ],
               total: 2,
@@ -155,6 +193,7 @@ describe("AdminBillingView", () => {
               description: "Deposit: Starter Pack (50000 VND)",
               status: "success",
               payos_order_code: 123456789,
+              created_at: "2026-10-27T06:16:40Z",
             },
           },
         });
@@ -171,16 +210,18 @@ describe("AdminBillingView", () => {
     ).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText("Total Revenue")).toBeInTheDocument();
+      expect(
+        screen.getByRole("group", { name: "Revenue" }),
+      ).toBeInTheDocument();
       expect(screen.getAllByText("50.000 ₫").length).toBeGreaterThanOrEqual(1);
     });
 
     await waitFor(() => {
       expect(screen.getByText("Starter Pack")).toBeInTheDocument();
-      expect(screen.getByText("Practice interview charge")).toBeInTheDocument();
+      expect(screen.getByText("Practice interview")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("Order #123456789")).toBeInTheDocument();
+    expect(screen.getByText(/Order #123456789/)).toBeInTheDocument();
     expect(screen.getByText("+100 coins")).toBeInTheDocument();
     expect(screen.getByText("-20 coins")).toBeInTheDocument();
   });
@@ -189,7 +230,7 @@ describe("AdminBillingView", () => {
     renderComponent();
 
     const searchInput = await screen.findByPlaceholderText(
-      /Search by user name, email, order code/i,
+      /Search name, email, order or ID/i,
     );
     fireEvent.change(searchInput, { target: { value: "alice@example.com" } });
 
@@ -395,5 +436,180 @@ describe("AdminBillingView", () => {
         expect.any(Object),
       );
     });
+  });
+
+  it("lists newest first by default and shows the created time in Vietnam time", async () => {
+    renderComponent();
+
+    expect(await screen.findByText("27/10/2026 13:16")).toBeInTheDocument();
+    expect(screen.getByText("27/10/2026 01:05")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^date/i })).toBeInTheDocument();
+    expect(lastParams("/admin/billing/transactions")).toMatchObject({
+      sort_by: "created_at",
+      sort_order: "desc",
+    });
+    expect(lastParams("/admin/billing/transactions")).not.toHaveProperty(
+      "date_from",
+    );
+  });
+
+  it("applies a preset window to the summary, the list and the export", async () => {
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-url");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const baseImpl = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation((url: string, config?: unknown) =>
+      url === "/admin/billing/export"
+        ? Promise.resolve({ data: "Transaction ID\n", headers: {} })
+        : baseImpl(url, config),
+    );
+    const window = {
+      date_from: "2026-10-21T00:00:00+07:00",
+      date_to: "2026-10-28T00:00:00+07:00",
+    };
+
+    renderComponent();
+    await screen.findByText("27/10/2026 13:16");
+    await chooseOption("Time window", "Last 7 days");
+
+    await waitFor(() => {
+      expect(lastParams("/admin/billing/transactions")).toMatchObject({
+        ...window,
+        page: 1,
+      });
+      expect(lastParams("/admin/billing/summary")).toMatchObject(window);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /export csv/i }));
+    await waitFor(() => {
+      expect(lastParams("/admin/billing/export")).toMatchObject(window);
+    });
+    vi.restoreAllMocks();
+  });
+
+  it("sends an inclusive custom range and refuses a reversed one", async () => {
+    renderComponent();
+    await screen.findByText("27/10/2026 13:16");
+    await chooseOption("Time window", "Custom range");
+
+    fireEvent.change(screen.getByLabelText("From"), {
+      target: { value: "2026-10-10" },
+    });
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-10-01" },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The start date must be on or before the end date.",
+    );
+    expect(lastParams("/admin/billing/transactions")).not.toHaveProperty(
+      "date_to",
+    );
+
+    fireEvent.change(screen.getByLabelText("To"), {
+      target: { value: "2026-10-31" },
+    });
+
+    await waitFor(() => {
+      expect(lastParams("/admin/billing/transactions")).toMatchObject({
+        date_from: "2026-10-10T00:00:00+07:00",
+        date_to: "2026-11-01T00:00:00+07:00",
+      });
+    });
+    expect(screen.getByText(/Vietnam time \(UTC\+07:00\)/)).toBeInTheDocument();
+  });
+
+  it("clears the window on Reset Filters", async () => {
+    renderComponent();
+    await screen.findByText("27/10/2026 13:16");
+    await chooseOption("Time window", "Today");
+    await waitFor(() => {
+      expect(lastParams("/admin/billing/transactions")).toHaveProperty(
+        "date_from",
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /reset filters/i }));
+
+    await waitFor(() => {
+      expect(lastParams("/admin/billing/transactions")).not.toHaveProperty(
+        "date_from",
+      );
+    });
+    expect(
+      screen.getByRole("combobox", { name: "Time window" }),
+    ).toHaveTextContent("All time");
+  });
+
+  it("shows the created time in the details drawer", async () => {
+    renderComponent();
+
+    fireEvent.click(await screen.findByText("Starter Pack"));
+
+    await screen.findByRole("heading", { name: "Transaction Details" });
+    expect(await screen.findByText("Created at")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("27/10/2026 13:16").length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it("sums up the matching rows in one strip without icons", async () => {
+    renderComponent();
+
+    const strip = await screen.findByRole("region", {
+      name: "Matching transactions",
+    });
+    await waitFor(() =>
+      expect(
+        within(strip).getByRole("group", { name: "Revenue" }),
+      ).toHaveTextContent("50.000 ₫"),
+    );
+    expect(
+      within(strip).getByRole("group", { name: "Waiting for payment" }),
+    ).toHaveTextContent("1");
+    expect(strip.querySelector("svg")).toBeNull();
+  });
+
+  it("names each row by what happened and keeps raw IDs in the drawer", async () => {
+    renderComponent();
+
+    expect(await screen.findByText("Practice interview")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Practice interview charge"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: /transaction \/ order/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: /amount/i }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByText("Starter Pack")[0]);
+    await screen.findByRole("heading", { name: "Transaction Details" });
+    expect(
+      screen.getByText("00000000-0000-0000-0000-000000000001"),
+    ).toBeInTheDocument();
+  });
+
+  it("offers coin features as well as packs in the package filter", async () => {
+    renderComponent();
+    await screen.findByText("27/10/2026 13:16");
+
+    fireEvent.keyDown(
+      screen.getByRole("combobox", { name: "Filter by package or feature" }),
+      { key: "ArrowDown" },
+    );
+    expect(
+      await screen.findByRole("option", { name: "Practice interviews" }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(
+      screen.getByRole("option", { name: "Practice interviews" }),
+      { key: "Enter" },
+    );
+    await waitFor(() =>
+      expect(lastParams("/admin/billing/transactions")).toMatchObject({
+        package: "Practice interview",
+      }),
+    );
   });
 });

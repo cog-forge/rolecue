@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
@@ -100,6 +101,16 @@ func (m *MockRepo) GetAdminTransactionByID(ctx context.Context, id uuid.UUID) (d
 func (m *MockRepo) GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error) {
 	args := m.Called(ctx, filter)
 	return args.Get(0).(domain.BillingSummary), args.Error(1)
+}
+
+func (m *MockRepo) GetRevenuePeriod(ctx context.Context, from, to time.Time) (domain.RevenuePeriodData, error) {
+	args := m.Called(ctx, from, to)
+	return args.Get(0).(domain.RevenuePeriodData), args.Error(1)
+}
+
+func (m *MockRepo) GetCoinTotals(ctx context.Context) (outstanding, allTimeRevenueVND, allTimeCoinsSold int64, err error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Get(1).(int64), args.Get(2).(int64), args.Error(3)
 }
 
 // ---------------------------------------------------------------------------
@@ -1272,7 +1283,7 @@ func TestAdminGetBillingSummary_OnlyCountsSuccessPayOSDeposits(t *testing.T) {
 	expectedFilter := domain.AdminTransactionFilter{
 		Page:      1,
 		PageSize:  20,
-		SortBy:    "id",
+		SortBy:    "created_at",
 		SortOrder: "desc",
 	}
 
@@ -1392,6 +1403,8 @@ func TestAdminListBillingTransactions_FiltersAndPagination(t *testing.T) {
 }
 
 func TestValidateAdminFilter_RejectsInvalidInputs(t *testing.T) {
+	octStart := time.Date(2026, 9, 30, 17, 0, 0, 0, time.UTC)
+	octEnd := time.Date(2026, 10, 31, 17, 0, 0, 0, time.UTC)
 	neg := int64(-10)
 	high := int64(500)
 	low := int64(100)
@@ -1436,6 +1449,14 @@ func TestValidateAdminFilter_RejectsInvalidInputs(t *testing.T) {
 			name:   "page_size exceeds max",
 			filter: domain.AdminTransactionFilter{PageSize: 101},
 		},
+		{
+			name:   "date_from after date_to",
+			filter: domain.AdminTransactionFilter{DateFrom: &octEnd, DateTo: &octStart},
+		},
+		{
+			name:   "date_from equal to date_to",
+			filter: domain.AdminTransactionFilter{DateFrom: &octStart, DateTo: &octStart},
+		},
 	}
 
 	for _, tc := range cases {
@@ -1446,6 +1467,36 @@ func TestValidateAdminFilter_RejectsInvalidInputs(t *testing.T) {
 			assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
 		})
 	}
+}
+
+func TestValidateAdminFilter_DateWindowAndCreatedAtSort(t *testing.T) {
+	from := time.Date(2026, 9, 30, 17, 0, 0, 0, time.UTC)
+	to := time.Date(2026, 10, 31, 17, 0, 0, 0, time.UTC)
+
+	t.Run("defaults to newest first", func(t *testing.T) {
+		f := domain.AdminTransactionFilter{}
+		assert.NoError(t, service.ValidateAdminFilter(&f, 100))
+		assert.Equal(t, "created_at", f.SortBy)
+		assert.Equal(t, "desc", f.SortOrder)
+	})
+
+	t.Run("accepts created_at and still accepts id", func(t *testing.T) {
+		for _, sortBy := range []string{"created_at", "CREATED_AT", "id"} {
+			f := domain.AdminTransactionFilter{SortBy: sortBy}
+			assert.NoError(t, service.ValidateAdminFilter(&f, 100), sortBy)
+		}
+	})
+
+	t.Run("accepts a full window and either open end", func(t *testing.T) {
+		for _, f := range []domain.AdminTransactionFilter{
+			{DateFrom: &from, DateTo: &to},
+			{DateFrom: &from},
+			{DateTo: &to},
+		} {
+			f := f
+			assert.NoError(t, service.ValidateAdminFilter(&f, 100))
+		}
+	})
 }
 
 func TestDepositSuccessRate_CountsPayOSDepositsOnly(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countTransactionsByUserID = `-- name: CountTransactionsByUserID :one
@@ -59,7 +60,7 @@ func (q *Queries) GetCoinPackageByID(ctx context.Context, id uuid.UUID) (CoinPac
 }
 
 const getTransactionByID = `-- name: GetTransactionByID :one
-SELECT id, "from", "to", amount, currency, description, status, payos_order_code
+SELECT id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 FROM public.transactions
 WHERE id = $1
 `
@@ -73,6 +74,7 @@ type GetTransactionByIDRow struct {
 	Description    *string
 	Status         TransactionStatus
 	PayosOrderCode *string
+	CreatedAt      pgtype.Timestamptz
 }
 
 func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTransactionByIDRow, error) {
@@ -87,12 +89,13 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTran
 		&i.Description,
 		&i.Status,
 		&i.PayosOrderCode,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getTransactionByPayOSOrderCode = `-- name: GetTransactionByPayOSOrderCode :one
-SELECT id, "from", "to", amount, currency, description, status, payos_order_code
+SELECT id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 FROM public.transactions
 WHERE payos_order_code = $1
 `
@@ -106,6 +109,7 @@ type GetTransactionByPayOSOrderCodeRow struct {
 	Description    *string
 	Status         TransactionStatus
 	PayosOrderCode *string
+	CreatedAt      pgtype.Timestamptz
 }
 
 func (q *Queries) GetTransactionByPayOSOrderCode(ctx context.Context, payosOrderCode *string) (GetTransactionByPayOSOrderCodeRow, error) {
@@ -120,12 +124,13 @@ func (q *Queries) GetTransactionByPayOSOrderCode(ctx context.Context, payosOrder
 		&i.Description,
 		&i.Status,
 		&i.PayosOrderCode,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getTransactionByPayOSOrderCodeForUpdate = `-- name: GetTransactionByPayOSOrderCodeForUpdate :one
-SELECT id, "from", "to", amount, currency, description, status, payos_order_code
+SELECT id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 FROM public.transactions
 WHERE payos_order_code = $1
 FOR UPDATE
@@ -140,6 +145,7 @@ type GetTransactionByPayOSOrderCodeForUpdateRow struct {
 	Description    *string
 	Status         TransactionStatus
 	PayosOrderCode *string
+	CreatedAt      pgtype.Timestamptz
 }
 
 func (q *Queries) GetTransactionByPayOSOrderCodeForUpdate(ctx context.Context, payosOrderCode *string) (GetTransactionByPayOSOrderCodeForUpdateRow, error) {
@@ -154,6 +160,7 @@ func (q *Queries) GetTransactionByPayOSOrderCodeForUpdate(ctx context.Context, p
 		&i.Description,
 		&i.Status,
 		&i.PayosOrderCode,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -188,7 +195,7 @@ func (q *Queries) GetWalletByUserIDForUpdate(ctx context.Context, userID uuid.UU
 const insertTransaction = `-- name: InsertTransaction :one
 INSERT INTO public.transactions ("from", "to", amount, currency, description, status, payos_order_code)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, "from", "to", amount, currency, description, status, payos_order_code
+RETURNING id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 `
 
 type InsertTransactionParams struct {
@@ -210,6 +217,7 @@ type InsertTransactionRow struct {
 	Description    *string
 	Status         TransactionStatus
 	PayosOrderCode *string
+	CreatedAt      pgtype.Timestamptz
 }
 
 func (q *Queries) InsertTransaction(ctx context.Context, arg InsertTransactionParams) (InsertTransactionRow, error) {
@@ -232,6 +240,7 @@ func (q *Queries) InsertTransaction(ctx context.Context, arg InsertTransactionPa
 		&i.Description,
 		&i.Status,
 		&i.PayosOrderCode,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -270,10 +279,10 @@ func (q *Queries) ListActiveCoinPackages(ctx context.Context) ([]CoinPackage, er
 }
 
 const listTransactionsByUserID = `-- name: ListTransactionsByUserID :many
-SELECT id, "from", "to", amount, currency, description, status, payos_order_code
+SELECT id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 FROM public.transactions
 WHERE "from" = $1 OR "to" = $1
-ORDER BY id DESC
+ORDER BY created_at DESC, id DESC
 LIMIT $3 OFFSET $2
 `
 
@@ -292,6 +301,7 @@ type ListTransactionsByUserIDRow struct {
 	Description    *string
 	Status         TransactionStatus
 	PayosOrderCode *string
+	CreatedAt      pgtype.Timestamptz
 }
 
 func (q *Queries) ListTransactionsByUserID(ctx context.Context, arg ListTransactionsByUserIDParams) ([]ListTransactionsByUserIDRow, error) {
@@ -312,6 +322,7 @@ func (q *Queries) ListTransactionsByUserID(ctx context.Context, arg ListTransact
 			&i.Description,
 			&i.Status,
 			&i.PayosOrderCode,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -327,7 +338,7 @@ const updateTransactionStatus = `-- name: UpdateTransactionStatus :one
 UPDATE public.transactions
 SET status = $1
 WHERE id = $2
-RETURNING id, "from", "to", amount, currency, description, status, payos_order_code
+RETURNING id, "from", "to", amount, currency, description, status, payos_order_code, created_at
 `
 
 type UpdateTransactionStatusParams struct {
@@ -344,6 +355,7 @@ type UpdateTransactionStatusRow struct {
 	Description    *string
 	Status         TransactionStatus
 	PayosOrderCode *string
+	CreatedAt      pgtype.Timestamptz
 }
 
 func (q *Queries) UpdateTransactionStatus(ctx context.Context, arg UpdateTransactionStatusParams) (UpdateTransactionStatusRow, error) {
@@ -358,6 +370,7 @@ func (q *Queries) UpdateTransactionStatus(ctx context.Context, arg UpdateTransac
 		&i.Description,
 		&i.Status,
 		&i.PayosOrderCode,
+		&i.CreatedAt,
 	)
 	return i, err
 }

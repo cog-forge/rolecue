@@ -33,6 +33,22 @@ describe("admin billing schemas", () => {
     expect(parsed.payos_order_code).toBe(100000000001);
   });
 
+  it("keeps the transaction created_at and tolerates an older API without it", () => {
+    const base = {
+      id: "tx-1",
+      amount: 100,
+      status: "success",
+    };
+
+    expect(
+      adminTransactionSchema.parse({
+        ...base,
+        created_at: "2026-10-27T06:16:40Z",
+      }).created_at,
+    ).toBe("2026-10-27T06:16:40Z");
+    expect(adminTransactionSchema.parse(base).created_at).toBe("");
+  });
+
   it("validates admin transaction page schema", () => {
     const page = {
       items: [

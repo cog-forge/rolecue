@@ -10,10 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { TimeWindow } from "../lib/time-window";
 import type {
   TransactionStatusFilter,
   TransactionTypeFilter,
 } from "../schemas/billing-schema";
+import { TimeWindowFilter } from "./time-window-filter";
 
 type TransactionToolbarProps = {
   tab: TransactionTypeFilter;
@@ -24,21 +26,24 @@ type TransactionToolbarProps = {
   onStatusChange: (val: TransactionStatusFilter) => void;
   packageFilter: string;
   onPackageFilterChange: (val: string) => void;
-  packageOptions?: string[];
+  packageOptions?: { value: string; label: string }[];
   amountMin: string;
   onAmountMinChange: (val: string) => void;
   amountMax: string;
   onAmountMaxChange: (val: string) => void;
+  timeWindow: TimeWindow;
+  onTimeWindowChange: (window: TimeWindow) => void;
+  timeWindowError?: string;
   onReset: () => void;
   onExportCSV: () => void;
   isExporting?: boolean;
 };
 
 const TABS: { id: TransactionTypeFilter; label: string }[] = [
-  { id: "all", label: "All Transactions" },
-  { id: "topup", label: "Payments (PayOS Top-ups)" },
-  { id: "spend", label: "Coin Ledger (Spending)" },
-  { id: "refund", label: "Slot / Coin Refunds" },
+  { id: "all", label: "All" },
+  { id: "topup", label: "PayOS top-ups" },
+  { id: "spend", label: "Coin spending" },
+  { id: "refund", label: "Refunds" },
 ];
 
 export function TransactionToolbar({
@@ -55,6 +60,9 @@ export function TransactionToolbar({
   onAmountMinChange,
   amountMax,
   onAmountMaxChange,
+  timeWindow,
+  onTimeWindowChange,
+  timeWindowError,
   onReset,
   onExportCSV,
   isExporting = false,
@@ -111,15 +119,20 @@ export function TransactionToolbar({
         </div>
       </div>
 
-      {/* Middle Row: Search, Status, Package, Amount Range */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="relative sm:col-span-2">
+      {/* Filters: one wrapping row, scope first */}
+      <div className="flex flex-wrap items-start gap-2">
+        <TimeWindowFilter
+          value={timeWindow}
+          onChange={onTimeWindowChange}
+          error={timeWindowError}
+        />
+        <div className="relative min-w-[16rem] flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search by user name, email, order code, or transaction ID..."
+            placeholder="Search name, email, order or ID"
             aria-label="Search transactions"
             className="h-9 pl-9 text-xs"
           />
@@ -131,7 +144,10 @@ export function TransactionToolbar({
             onStatusChange((val ?? "all") as TransactionStatusFilter)
           }
         >
-          <SelectTrigger className="h-9 text-xs" aria-label="Filter by status">
+          <SelectTrigger
+            className="h-9 w-full text-xs sm:w-[150px]"
+            aria-label="Filter by status"
+          >
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -148,22 +164,22 @@ export function TransactionToolbar({
           onValueChange={(val) => onPackageFilterChange(val ?? "all")}
         >
           <SelectTrigger
-            className="h-9 text-xs"
+            className="h-9 w-full text-xs sm:w-[190px]"
             aria-label="Filter by package or feature"
           >
-            <SelectValue placeholder="All Packages / Features" />
+            <SelectValue placeholder="All packs and features" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Packages / Features</SelectItem>
-            {packageOptions.map((pkg) => (
-              <SelectItem key={pkg} value={pkg}>
-                {pkg}
+            <SelectItem value="all">All packs and features</SelectItem>
+            {packageOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex w-full items-center gap-1.5 sm:w-auto">
           <Input
             type="number"
             min={0}
@@ -171,7 +187,7 @@ export function TransactionToolbar({
             onChange={(e) => onAmountMinChange(e.target.value)}
             placeholder="Min amount"
             aria-label="Minimum amount"
-            className="h-9 text-xs"
+            className="h-9 w-full text-xs sm:w-[7.5rem]"
           />
           <span className="text-xs text-muted-foreground">–</span>
           <Input
@@ -181,7 +197,7 @@ export function TransactionToolbar({
             onChange={(e) => onAmountMaxChange(e.target.value)}
             placeholder="Max amount"
             aria-label="Maximum amount"
-            className="h-9 text-xs"
+            className="h-9 w-full text-xs sm:w-[7.5rem]"
           />
         </div>
       </div>

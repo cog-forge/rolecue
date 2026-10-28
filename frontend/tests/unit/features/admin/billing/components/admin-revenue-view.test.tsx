@@ -1,25 +1,57 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminRevenueView } from "@/features/admin/billing/components/admin-revenue-view";
+import type { RevenueReport } from "@/features/admin/billing/schemas/billing-schema";
+import { octoberReport } from "../fixtures/revenue-report";
 
-const mocks = vi.hoisted(() => ({
-  get: vi.fn(),
-}));
+const mocks = vi.hoisted(() => ({ get: vi.fn() }));
 
-vi.mock("@/lib/api/client", () => ({
-  apiClient: {
-    get: mocks.get,
-  },
-}));
+vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get } }));
 
-function renderComponent() {
+// Radix Select calls scrollIntoView when it opens; jsdom does not implement it.
+if (!HTMLElement.prototype.scrollIntoView)
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: () => {},
+  });
+
+// 27/10/2026 15:00 in Vietnam.
+const NOW = new Date("2026-10-27T08:00:00Z");
+
+async function chooseOption(label: string, name: string) {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: label }), {
+    key: "ArrowDown",
+  });
+  fireEvent.keyDown(await screen.findByRole("option", { name }), {
+    key: "Enter",
+  });
+}
+
+function lastParams() {
+  const calls = mocks.get.mock.calls.filter(
+    ([url]) => url === "/admin/billing/revenue-report",
+  );
+  return calls.at(-1)?.[1]?.params as Record<string, unknown> | undefined;
+}
+
+function respondWith(report: RevenueReport) {
+  mocks.get.mockImplementation((url: string) =>
+    url === "/admin/billing/revenue-report"
+      ? Promise.resolve({ data: { success: true, data: report } })
+      : Promise.reject(new Error(`Unhandled: ${url}`)),
+  );
+}
+
+function renderView() {
   const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
+    defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
@@ -29,169 +61,129 @@ function renderComponent() {
 }
 
 describe("AdminRevenueView", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
     vi.clearAllMocks();
-    mocks.get.mockImplementation((url: string) => {
-      if (url === "/admin/billing/summary") {
-        return Promise.resolve({
-          data: {
-            success: true,
-            data: {
-              total_revenue: 150000,
-              net_revenue: 150000,
-              successful_deposits: 2,
-              total_deposits: 3,
-              success_count: 4,
-              pending_count: 1,
-              failed_count: 1,
-              cancelled_count: 0,
-              total_transactions: 6,
-              average_deposit: 75000,
-              unique_payers: 2,
-              coins_sold: 300,
-              coins_spent: 40,
-              coins_refunded: 10,
-              coins_net: 270,
-              success_rate: 66.7,
-              package_breakdown: [
-                {
-                  package_name: "Pro Practice Pack",
-                  revenue_vnd: 100000,
-                  deposit_count: 1,
-                  coins_sold: 200,
-                },
-                {
-                  package_name: "Starter Pack",
-                  revenue_vnd: 50000,
-                  deposit_count: 1,
-                  coins_sold: 100,
-                },
-              ],
-              feature_breakdown: [
-                {
-                  feature_name: "Practice interview charge",
-                  coins_spent: 40,
-                  spend_count: 2,
-                },
-              ],
-              schema_limitation:
-                "public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp.",
-            },
-          },
-        });
-      }
-      return Promise.reject(new Error(`Unhandled: ${url}`));
-    });
+    respondWith(octoberReport);
   });
 
-  it("renders revenue reports and real breakdown data correctly", async () => {
-    renderComponent();
+  it("opens on this month against the same days last year and states the finding", async () => {
+    renderView();
 
     expect(
-      screen.getByRole("heading", { name: "Revenue Reports" }),
+      screen.getByRole("heading", { level: 1, name: "Revenue" }),
     ).toBeInTheDocument();
-
-    await waitFor(() => {
-      expect(screen.getByText("Total Revenue (PayOS)")).toBeInTheDocument();
-      expect(screen.getAllByText("150.000 ₫").length).toBeGreaterThanOrEqual(1);
+    expect(
+      await screen.findByText(
+        "1–27 Oct 2026 · 200.000 ₫, up 33% on 1–27 Oct 2025 (+50.000 ₫)",
+      ),
+    ).toBeInTheDocument();
+    expect(lastParams()).toEqual({
+      date_from: "2026-10-01T00:00:00+07:00",
+      date_to: "2026-10-28T00:00:00+07:00",
+      compare: "previous_year",
     });
+    expect(
+      screen.getByRole("combobox", { name: "Time window" }),
+    ).toHaveTextContent("This month");
+  });
+
+  it("shows each headline figure with its change and baseline", async () => {
+    renderView();
+
+    const kpis = await screen.findByRole("region", {
+      name: "Headline figures",
+    });
+    const revenue = within(kpis).getByRole("group", { name: "Revenue" });
+    expect(revenue).toHaveTextContent("200.000 ₫");
+    expect(revenue).toHaveTextContent("33%");
+    expect(revenue).toHaveTextContent("+50.000 ₫");
+    expect(revenue).toHaveTextContent("vs 1–27 Oct 2025");
+
+    const payers = within(kpis).getByRole("group", { name: "Paying users" });
+    expect(payers).toHaveTextContent("2");
+    expect(payers).toHaveTextContent("No change");
+    expect(payers).toHaveTextContent("0 new");
 
     expect(
-      screen.getAllByText("Pro Practice Pack").length,
-    ).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Starter Pack").length).toBeGreaterThanOrEqual(
-      1,
+      within(kpis).getByRole("group", { name: "Average order" }),
+    ).toHaveTextContent("−8.334 ₫");
+    expect(
+      within(kpis).getByRole("group", { name: "Payment success" }),
+    ).toHaveTextContent("16.7 pts");
+  });
+
+  it("says New when there is nothing to compare with", async () => {
+    respondWith({
+      ...octoberReport,
+      comparison: { ...octoberReport.comparison, revenue_vnd: 0 },
+    });
+    renderView();
+
+    expect(
+      await screen.findByText(
+        "1–27 Oct 2026 · 200.000 ₫; no paid top-ups in 1–27 Oct 2025",
+      ),
+    ).toBeInTheDocument();
+    const revenue = screen.getByRole("group", { name: "Revenue" });
+    expect(revenue).toHaveTextContent("New");
+  });
+
+  it("switches the comparison and the period", async () => {
+    renderView();
+    await screen.findByRole("region", { name: "Headline figures" });
+
+    await chooseOption("Compare with", "Previous period");
+    await waitFor(() =>
+      expect(lastParams()).toMatchObject({ compare: "previous_period" }),
     );
-    expect(screen.getByText("Practice interview charge")).toBeInTheDocument();
-  });
 
-  it("scopes the success rate to PayOS deposit attempts, not all ledger rows", async () => {
-    renderComponent();
-
-    // 2 of 3 PayOS attempts paid, even though total_transactions (6) also counts coin rows.
-    expect(
-      await screen.findByText(/66\.7% of 3 attempts paid/),
-    ).toBeInTheDocument();
-  });
-
-  it("shows honest empty states when breakdown data is empty without fabricating numbers", async () => {
-    mocks.get.mockImplementation((url: string) => {
-      if (url === "/admin/billing/summary") {
-        return Promise.resolve({
-          data: {
-            success: true,
-            data: {
-              total_revenue: 0,
-              net_revenue: 0,
-              successful_deposits: 0,
-              success_count: 0,
-              pending_count: 0,
-              failed_count: 0,
-              cancelled_count: 0,
-              total_transactions: 0,
-              average_deposit: 0,
-              unique_payers: 0,
-              coins_sold: 0,
-              coins_spent: 0,
-              coins_refunded: 0,
-              coins_net: 0,
-              success_rate: 0,
-              package_breakdown: [],
-              feature_breakdown: [],
-            },
-          },
-        });
-      }
-      return Promise.reject(new Error(`Unhandled: ${url}`));
-    });
-
-    renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByText("No package revenue data")).toBeInTheDocument();
-      expect(screen.getByText("No coin spending data")).toBeInTheDocument();
-    });
-
-    // Must never fabricate "Live Coding Sandbox" or fake package splits
-    expect(screen.queryByText(/Live Coding Sandbox/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Enterprise Boost/i)).not.toBeInTheDocument();
-  });
-
-  it("does not render misleading date range pickers on the frozen schema", async () => {
-    renderComponent();
-
-    await waitFor(() => {
-      expect(screen.getByText("Total Revenue (PayOS)")).toBeInTheDocument();
-    });
-
-    expect(
-      screen.queryByRole("button", { name: "Last 7 days" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Last 30 days" }),
-    ).not.toBeInTheDocument();
-    expect(mocks.get).toHaveBeenCalledWith(
-      "/admin/billing/summary",
-      expect.objectContaining({
-        params: {},
+    await chooseOption("Time window", "Last 12 months");
+    await waitFor(() =>
+      expect(lastParams()).toEqual({
+        date_from: "2025-11-01T00:00:00+07:00",
+        date_to: "2026-10-28T00:00:00+07:00",
+        compare: "previous_period",
       }),
     );
   });
 
-  it("handles error state with retry button", async () => {
-    mocks.get.mockImplementation(() =>
-      Promise.reject(new Error("Network Error")),
-    );
+  it("explains where the money came from and what coins are still owed", async () => {
+    renderView();
 
-    renderComponent();
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Unable to load revenue report"),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /retry/i }),
-      ).toBeInTheDocument();
+    const mix = await screen.findByRole("region", {
+      name: "Where revenue came from",
     });
+    expect(within(mix).getByText("Recruiters")).toBeInTheDocument();
+    expect(within(mix).getByText("Candidates")).toBeInTheDocument();
+    expect(within(mix).getByText("Standard")).toBeInTheDocument();
+
+    const coins = screen.getByRole("region", { name: "Coins" });
+    expect(within(coins).getByText("Interview slots")).toBeInTheDocument();
+    expect(within(coins).getByText("Practice interviews")).toBeInTheDocument();
+    expect(within(coins).getByText("Avatar storage")).toBeInTheDocument();
+
+    const owed = screen.getByRole("region", { name: "Coins users still hold" });
+    expect(owed).toHaveTextContent("1.258 coins");
+    expect(owed).toHaveTextContent("1.258.000 ₫");
+    expect(owed).toHaveTextContent("not revenue");
+  });
+
+  it("keeps the frame and offers a retry when the report fails", async () => {
+    mocks.get.mockRejectedValue(new Error("Network Error"));
+    renderView();
+
+    expect(
+      await screen.findByText("Couldn't load the revenue report."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Revenue" }),
+    ).toBeInTheDocument();
   });
 });

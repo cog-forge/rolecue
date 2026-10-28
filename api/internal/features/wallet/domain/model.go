@@ -2,6 +2,7 @@ package domain
 
 import (
 	"math"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -15,10 +16,6 @@ const (
 	StatusFailed    TransactionStatus = "failed"
 	StatusCancelled TransactionStatus = "cancelled"
 )
-
-// FrozenSchemaTimestampNotice documents the frozen schema limitation per KAN-191:
-// public.transactions in migration 000006_wallet_payment does not include a created_at column.
-const FrozenSchemaTimestampNotice = "public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp; figures reflect all matching ledger records."
 
 // Wallet holds a candidate or recruiter coin balance.
 type Wallet struct {
@@ -37,6 +34,7 @@ type Transaction struct {
 	Description    string            `json:"description"`
 	Status         TransactionStatus `json:"status"`
 	PayOSOrderCode *int64            `json:"payos_order_code"`
+	CreatedAt      time.Time         `json:"created_at"`
 }
 
 // CoinPackage represents a top-up package.
@@ -61,8 +59,7 @@ type DepositCheckoutResponse struct {
 
 // AdminTransactionFilter represents validated read-only query filters for Admin Billing & Revenue endpoints.
 // Both the Payment Transactions page and the Revenue Reports page share this exact filter model.
-// Note (KAN-191): public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp,
-// so date filtering is intentionally omitted until a timestamp column is introduced.
+// The date window is [DateFrom, DateTo) on created_at; either end may be open.
 type AdminTransactionFilter struct {
 	Page        int
 	PageSize    int
@@ -72,7 +69,9 @@ type AdminTransactionFilter struct {
 	PackageName string
 	AmountMin   *int64
 	AmountMax   *int64
-	SortBy      string // "id", "amount", "coins", "status"
+	DateFrom    *time.Time
+	DateTo      *time.Time
+	SortBy      string // "created_at", "id", "amount", "coins", "status"
 	SortOrder   string // "asc", "desc"
 }
 
@@ -93,6 +92,7 @@ type AdminTransactionItem struct {
 	Description      string            `json:"description"`
 	Status           TransactionStatus `json:"status"`
 	PayOSOrderCode   *int64            `json:"payos_order_code"`
+	CreatedAt        time.Time         `json:"created_at"`
 }
 
 // AdminTransactionPage represents a paginated read-only list of AdminTransactionItem rows.
@@ -147,4 +147,95 @@ type BillingSummary struct {
 	SuccessRate        float64              `json:"success_rate"` // percent of PayOS deposit attempts that succeeded
 	PackageBreakdown   []PackageRevenueItem `json:"package_breakdown"`
 	FeatureBreakdown   []FeatureCoinItem    `json:"feature_breakdown"`
+}
+
+// Revenue report (KAN-192 iteration 2): a window compared with the same dates a year earlier or with
+// the period of the same length just before it. Revenue keeps the BillingSummary definition.
+const (
+	CompareSamePeriodLastYear = "previous_year"
+	ComparePreviousPeriod     = "previous_period"
+)
+
+// RevenueReportRequest is a validated [From, To) window and the comparison to draw.
+type RevenueReportRequest struct {
+	From    time.Time
+	To      time.Time
+	Compare string
+}
+
+// RevenueWindow is a [From, To) window in UTC.
+type RevenueWindow struct {
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
+}
+
+// RevenuePeriodMetrics are the headline figures of one window.
+type RevenuePeriodMetrics struct {
+	RevenueVND         int64   `json:"revenue_vnd"`
+	SuccessfulTopups   int64   `json:"successful_topups"`
+	TopupAttempts      int64   `json:"topup_attempts"`       // settled PayOS attempts: paid, failed or cancelled
+	PaymentSuccessRate float64 `json:"payment_success_rate"` // percent of settled PayOS attempts that were paid
+	PayingUsers        int64   `json:"paying_users"`
+	NewPayers          int64   `json:"new_payers"` // paying users whose first ever successful top-up is in the window
+	AverageOrderVND    int64   `json:"average_order_vnd"`
+	CoinsSold          int64   `json:"coins_sold"`
+	CoinsSpent         int64   `json:"coins_spent"`
+	CoinsRefunded      int64   `json:"coins_refunded"`
+}
+
+// RevenueSeriesPoint is one bucket of the window and the bucket at the same index of the comparison.
+type RevenueSeriesPoint struct {
+	Start                time.Time `json:"start"`
+	ComparisonStart      time.Time `json:"comparison_start"`
+	RevenueVND           int64     `json:"revenue_vnd"`
+	ComparisonRevenueVND int64     `json:"comparison_revenue_vnd"`
+}
+
+// RevenueMixItem is revenue from one role or one package in both windows.
+type RevenueMixItem struct {
+	Key                  string `json:"key"`
+	RevenueVND           int64  `json:"revenue_vnd"`
+	ComparisonRevenueVND int64  `json:"comparison_revenue_vnd"`
+	Topups               int64  `json:"topups"`
+}
+
+// CoinFeatureItem is coins spent on one feature in both windows.
+type CoinFeatureItem struct {
+	Feature         string `json:"feature"` // practice_interview, interview_slots, avatar_storage, other
+	Coins           int64  `json:"coins"`
+	ComparisonCoins int64  `json:"comparison_coins"`
+	Charges         int64  `json:"charges"`
+}
+
+// RevenueReport is the admin revenue overview.
+type RevenueReport struct {
+	Compare          string               `json:"compare"`
+	Granularity      string               `json:"granularity"` // day or month, in Vietnam time
+	Window           RevenueWindow        `json:"window"`
+	ComparisonWindow RevenueWindow        `json:"comparison_window"`
+	Current          RevenuePeriodMetrics `json:"current"`
+	Comparison       RevenuePeriodMetrics `json:"comparison"`
+	Series           []RevenueSeriesPoint `json:"series"`
+	ByRole           []RevenueMixItem     `json:"by_role"`
+	ByPackage        []RevenueMixItem     `json:"by_package"`
+	SpendByFeature   []CoinFeatureItem    `json:"spend_by_feature"`
+	// Coins users hold now: prepaid, not yet used, and not revenue. Its VND value uses the average price
+	// paid per coin over all time.
+	OutstandingCoins    int64 `json:"outstanding_coins"`
+	OutstandingValueVND int64 `json:"outstanding_value_vnd"`
+}
+
+// RevenueTopup is one successful PayOS top-up as the revenue report reads it.
+type RevenueTopup struct {
+	CreatedAt   time.Time
+	UserRole    string // candidate, recruiter or "" when the user is unknown
+	PackageName string
+	PaidVND     int64
+}
+
+// RevenuePeriodData is what the repository returns for one window.
+type RevenuePeriodData struct {
+	Summary   BillingSummary
+	Topups    []RevenueTopup
+	NewPayers int64
 }

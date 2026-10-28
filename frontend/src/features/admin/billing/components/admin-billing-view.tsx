@@ -11,7 +11,9 @@ import {
   getBillingSummary,
   listAdminTransactions,
 } from "../api/billing";
-import { BillingStatCards } from "./revenue-stat-cards";
+import { timeWindowFileSuffix } from "../lib/time-window";
+import { BillingSummaryStrip } from "./billing-summary-strip";
+import { useTimeWindow } from "./time-window-filter";
 import { TransactionToolbar } from "./transaction-toolbar";
 import { TransactionTable } from "./transaction-table";
 import type {
@@ -27,10 +29,12 @@ export function AdminBillingView() {
   const [packageFilter, setPackageFilter] = useState("all");
   const [amountMin, setAmountMin] = useState("");
   const [amountMax, setAmountMax] = useState("");
+  const timeWindow = useTimeWindow();
+  const { dateFrom, dateTo } = timeWindow.applied;
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [sortBy, setSortBy] = useState("id");
+  const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [isExporting, setIsExporting] = useState(false);
 
@@ -54,6 +58,8 @@ export function AdminBillingView() {
       package: packageFilter !== "all" ? packageFilter : undefined,
       amountMin: parsedMin,
       amountMax: parsedMax,
+      dateFrom,
+      dateTo,
       sortBy,
       sortOrder,
     }),
@@ -66,6 +72,8 @@ export function AdminBillingView() {
       packageFilter,
       parsedMin,
       parsedMax,
+      dateFrom,
+      dateTo,
       sortBy,
       sortOrder,
     ],
@@ -82,19 +90,18 @@ export function AdminBillingView() {
     queryFn: ({ signal }) => listAdminTransactions(queryFilter, signal),
   });
 
-  const packageOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const pkg of summaryQuery.data?.package_breakdown ?? []) {
-      if (pkg.package_name) set.add(pkg.package_name);
-    }
-    for (const feat of summaryQuery.data?.feature_breakdown ?? []) {
-      if (feat.feature_name) set.add(feat.feature_name);
-    }
-    return Array.from(set);
-  }, [
-    summaryQuery.data?.package_breakdown,
-    summaryQuery.data?.feature_breakdown,
-  ]);
+  // Packs come from the data; features are matched on the wording the ledger writes for them.
+  const packageOptions = useMemo(
+    () => [
+      ...(summaryQuery.data?.package_breakdown ?? [])
+        .filter((pkg) => pkg.package_name)
+        .map((pkg) => ({ value: pkg.package_name, label: pkg.package_name })),
+      { value: "Practice interview", label: "Practice interviews" },
+      { value: "Interview capacity", label: "Interview slots" },
+      { value: "Avatar inventory", label: "Avatar storage" },
+    ],
+    [summaryQuery.data?.package_breakdown],
+  );
 
   const handleSortChange = (col: string) => {
     if (sortBy === col) {
@@ -113,7 +120,8 @@ export function AdminBillingView() {
     setPackageFilter("all");
     setAmountMin("");
     setAmountMax("");
-    setSortBy("id");
+    timeWindow.reset();
+    setSortBy("created_at");
     setSortOrder("desc");
     setPage(1);
   };
@@ -127,7 +135,7 @@ export function AdminBillingView() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "rolecue-transactions.csv";
+      link.download = `rolecue-transactions${timeWindowFileSuffix(timeWindow.applied.window, new Date())}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -154,22 +162,19 @@ export function AdminBillingView() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           Payment Transactions
         </h1>
         <p className="text-sm text-muted-foreground">
-          Read-only ledger of PayOS bank top-ups, internal coin spending, and
-          slot refunds. All monetary figures are in VND (₫); coin balances are
-          tracked separately.
+          Every PayOS payment and coin movement, newest first. Money is in VND;
+          coins are counted separately.
         </p>
       </div>
 
       {/* Summary Cards */}
-      <BillingStatCards
+      <BillingSummaryStrip
         summary={summaryQuery.data}
         isLoading={summaryQuery.isLoading}
-        periodLabel="Matching filters"
-        variant="transactions"
       />
 
       {/* Filter & Export Toolbar */}
@@ -205,6 +210,12 @@ export function AdminBillingView() {
           setAmountMax(val);
           setPage(1);
         }}
+        timeWindow={timeWindow.draft}
+        onTimeWindowChange={(next) => {
+          timeWindow.change(next);
+          setPage(1);
+        }}
+        timeWindowError={timeWindow.error}
         onReset={handleReset}
         onExportCSV={() => {
           void handleExportCSV();

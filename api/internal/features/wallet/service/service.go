@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
@@ -34,6 +35,9 @@ type WalletRepository interface {
 	ListAdminTransactions(ctx context.Context, filter domain.AdminTransactionFilter) (domain.AdminTransactionPage, error)
 	GetAdminTransactionByID(ctx context.Context, id uuid.UUID) (domain.AdminTransactionItem, error)
 	GetBillingSummary(ctx context.Context, filter domain.AdminTransactionFilter) (domain.BillingSummary, error)
+	// Revenue report: one window's summary, successful top-ups and new payers, and the coin totals now.
+	GetRevenuePeriod(ctx context.Context, from, to time.Time) (domain.RevenuePeriodData, error)
+	GetCoinTotals(ctx context.Context) (outstanding, allTimeRevenueVND, allTimeCoinsSold int64, err error)
 }
 
 type PayOSClient interface {
@@ -417,12 +421,12 @@ func ValidateAdminFilter(filter *domain.AdminTransactionFilter, maxPageSize int)
 
 	sortBy := strings.ToLower(strings.TrimSpace(filter.SortBy))
 	switch sortBy {
-	case "", "id":
-		filter.SortBy = "id"
-	case "amount", "coins", "status":
+	case "", "created_at":
+		filter.SortBy = "created_at"
+	case "id", "amount", "coins", "status":
 		filter.SortBy = sortBy
 	default:
-		return apperror.New(apperror.CodeValidation, "invalid sort_by: must be id, amount, coins, or status")
+		return apperror.New(apperror.CodeValidation, "invalid sort_by: must be created_at, id, amount, coins, or status")
 	}
 
 	sortOrder := strings.ToLower(strings.TrimSpace(filter.SortOrder))
@@ -443,6 +447,9 @@ func ValidateAdminFilter(filter *domain.AdminTransactionFilter, maxPageSize int)
 	}
 	if filter.AmountMin != nil && filter.AmountMax != nil && *filter.AmountMin > *filter.AmountMax {
 		return apperror.New(apperror.CodeValidation, "amount_min cannot be greater than amount_max")
+	}
+	if filter.DateFrom != nil && filter.DateTo != nil && !filter.DateFrom.Before(*filter.DateTo) {
+		return apperror.New(apperror.CodeValidation, "date_from must be before date_to")
 	}
 
 	filter.Search = strings.TrimSpace(filter.Search)

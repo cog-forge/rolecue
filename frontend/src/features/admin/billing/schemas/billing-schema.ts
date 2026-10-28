@@ -39,6 +39,7 @@ export const adminTransactionItemSchema = z.object({
   description: z.string().default(""),
   status: adminTransactionStatusSchema,
   payos_order_code: z.number().nullable().optional(),
+  created_at: z.string().default(""),
 });
 
 export type AdminTransactionItem = z.infer<typeof adminTransactionItemSchema>;
@@ -146,6 +147,75 @@ export type AdminTransactionQuery = {
   package?: string;
   amountMin?: number;
   amountMax?: number;
+  dateFrom?: string; // RFC 3339, inclusive
+  dateTo?: string; // RFC 3339, exclusive
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };
+
+// ─── Revenue report with a period comparison ───────────────────────────────
+
+export const revenueCompareSchema = z.enum([
+  "previous_year",
+  "previous_period",
+]);
+export type RevenueCompare = z.infer<typeof revenueCompareSchema>;
+
+const revenueWindowSchema = z.object({ from: z.string(), to: z.string() });
+
+export const revenuePeriodMetricsSchema = z.object({
+  revenue_vnd: z.number(),
+  successful_topups: z.number(),
+  topup_attempts: z.number(),
+  payment_success_rate: z.number(),
+  paying_users: z.number(),
+  new_payers: z.number(),
+  average_order_vnd: z.number(),
+  coins_sold: z.number(),
+  coins_spent: z.number(),
+  coins_refunded: z.number(),
+});
+export type RevenuePeriodMetrics = z.infer<typeof revenuePeriodMetricsSchema>;
+
+const revenueMixItemSchema = z.object({
+  key: z.string(),
+  revenue_vnd: z.number(),
+  comparison_revenue_vnd: z.number(),
+  topups: z.number(),
+});
+export type RevenueMixItem = z.infer<typeof revenueMixItemSchema>;
+
+export const revenueReportSchema = z.object({
+  compare: revenueCompareSchema,
+  granularity: z.enum(["day", "month"]),
+  window: revenueWindowSchema,
+  comparison_window: revenueWindowSchema,
+  current: revenuePeriodMetricsSchema,
+  comparison: revenuePeriodMetricsSchema,
+  series: z.array(
+    z.object({
+      start: z.string(),
+      comparison_start: z.string(),
+      revenue_vnd: z.number(),
+      comparison_revenue_vnd: z.number(),
+    }),
+  ),
+  by_role: z.array(revenueMixItemSchema),
+  by_package: z.array(revenueMixItemSchema),
+  spend_by_feature: z.array(
+    z.object({
+      feature: z.string(),
+      coins: z.number(),
+      comparison_coins: z.number(),
+      charges: z.number(),
+    }),
+  ),
+  outstanding_coins: z.number(),
+  outstanding_value_vnd: z.number(),
+});
+export type RevenueReport = z.infer<typeof revenueReportSchema>;
+
+export const revenueReportEnvelopeSchema = z.object({
+  success: z.boolean(),
+  data: revenueReportSchema,
+});

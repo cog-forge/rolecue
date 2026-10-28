@@ -167,10 +167,16 @@ describe("BillingOverview", () => {
 
     renderComponent();
 
-    // 1. Balance card
+    // 1. Balance in the sidebar and at the top of the page
     await waitFor(() => {
       expect(screen.getByText("250")).toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("group", { name: "Coin balance" }),
+    ).toHaveTextContent("250 coins");
+    expect(
+      screen.getByRole("button", { name: "Add coins" }),
+    ).toBeInTheDocument();
 
     // 3. Transactions ledger
     expect(screen.getByText("Deposit: Basic Pack")).toBeInTheDocument();
