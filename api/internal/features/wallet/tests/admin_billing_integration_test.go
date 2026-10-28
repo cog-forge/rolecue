@@ -5,6 +5,7 @@ package tests
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/repository"
@@ -29,7 +30,31 @@ func openIntegrationTx(t *testing.T) (context.Context, pgx.Tx) {
 	if err := pool.Ping(ctx); err != nil {
 		t.Skipf("Integration DB unreachable: %v", err)
 	}
-	tx, err := pool.Begin(ctx)
+	// Billing assertions aggregate all transactions and wallet balances. Other integration packages
+	// write those tables concurrently, so a rolled-back fixture alone cannot isolate these tests.
+	databaseName := "wallet_test_" + uuid.NewString()
+	identifier := pgx.Identifier{databaseName}.Sanitize()
+	_, err = pool.Exec(ctx, "CREATE DATABASE "+identifier)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := pool.Exec(ctx, "DROP DATABASE "+identifier+" WITH (FORCE)")
+		require.NoError(t, err)
+	})
+	config := pool.Config()
+	config.ConnConfig.Database = databaseName
+	isolated, err := pgxpool.NewWithConfig(ctx, config)
+	require.NoError(t, err)
+	t.Cleanup(isolated.Close)
+	migrations, err := filepath.Glob(filepath.Join("..", "..", "..", "..", "migrations", "*.up.sql"))
+	require.NoError(t, err)
+	require.NotEmpty(t, migrations)
+	for _, migration := range migrations {
+		sql, err := os.ReadFile(migration)
+		require.NoError(t, err)
+		_, err = isolated.Exec(ctx, string(sql))
+		require.NoError(t, err, "migration %s", filepath.Base(migration))
+	}
+	tx, err := isolated.Begin(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tx.Rollback(ctx) })
 	return ctx, tx

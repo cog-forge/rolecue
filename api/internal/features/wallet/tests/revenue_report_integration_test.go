@@ -13,12 +13,8 @@ import (
 // and one before October, and Bob (recruiter) a paid top-up exactly at the end of October.
 func TestRevenuePeriod_TopupsRolesAndNewPayers(t *testing.T) {
 	ctx, tx := openIntegrationTx(t)
-	// Other integration packages write wallets concurrently. Keep the fixture and the global
-	// balance assertion on the same snapshot so those writes cannot change this test's totals.
-	_, err := tx.Exec(ctx, `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
-	require.NoError(t, err)
 	aliceID, _ := seedOctober(ctx, t, tx)
-	_, err = tx.Exec(ctx, `DELETE FROM public.wallets`)
+	_, err := tx.Exec(ctx, `DELETE FROM public.wallets`)
 	require.NoError(t, err)
 	_, err = tx.Exec(ctx, `INSERT INTO public.wallets (user_id, balance) VALUES ($1, 70)`, aliceID)
 	require.NoError(t, err)
