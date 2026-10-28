@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,11 +11,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getBrowserCapabilities } from "@/features/interview/audio/browser-capabilities";
+import type { MicrophoneSnapshot } from "@/features/interview/audio/microphone-capture";
 import { useMicrophone } from "@/features/interview/audio/use-microphone";
 
-export function PreflightCheck() {
+export type MicrophoneReadiness = MicrophoneSnapshot["readiness"];
+
+// onReadinessChange tells the start panel whether the microphone is live right now; Start needs it
+// to be "ready" at the moment it is pressed.
+export function PreflightCheck({
+  onReadinessChange,
+}: {
+  onReadinessChange?: (readiness: MicrophoneReadiness) => void;
+} = {}) {
   const microphone = useMicrophone();
   const state = microphone.snapshot;
+  useEffect(() => {
+    onReadinessChange?.(state.readiness);
+  }, [onReadinessChange, state.readiness]);
   const inputId = useId();
   const helpId = useId();
   const [capabilities, setCapabilities] = useState<ReturnType<
