@@ -104,6 +104,11 @@ export const workspaceNavigation: Record<
           href: routes.recruiter.applications,
           icon: ClipboardList,
         },
+        {
+          label: "Personal Avatar Studio",
+          href: routes.avatarStudio,
+          icon: UserRound,
+        },
       ],
     },
     {

@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -87,5 +90,34 @@ func TestConversionFailureReleasesSlot(t *testing.T) {
 		if err == nil || errors.Is(err, ErrUnavailable) {
 			t.Fatalf("failed conversion retained slot: %v", err)
 		}
+	}
+}
+
+// A failed export must name Blender's Python error instead of only "exit status 1".
+func TestConversionFailureKeepsBlenderError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell script as the Blender binary")
+	}
+	binary := filepath.Join(t.TempDir(), "blender")
+	script := "#!/bin/sh\necho 'AttributeError: no attribute upperChest' >&2\nexit 1\n"
+	if err := os.WriteFile(binary, []byte(script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	b := &Blender{Binary: binary, Timeout: 10 * time.Second, MaxOutput: 1 << 20}
+	_, err := b.Convert(context.Background(), bytes.NewReader([]byte("glb")), "test")
+	if err == nil || !strings.Contains(err.Error(), "AttributeError: no attribute upperChest") {
+		t.Fatalf("conversion error = %v, want Blender stderr", err)
+	}
+}
+
+func TestTailWriterKeepsTheEnd(t *testing.T) {
+	w := &tailWriter{limit: 5}
+	for _, part := range []string{"abc", "defg", "hi"} {
+		if n, err := w.Write([]byte(part)); n != len(part) || err != nil {
+			t.Fatalf("Write(%q) = %d, %v", part, n, err)
+		}
+	}
+	if got := string(w.data); got != "efghi" {
+		t.Fatalf("tail = %q, want %q", got, "efghi")
 	}
 }

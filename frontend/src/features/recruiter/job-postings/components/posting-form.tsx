@@ -128,6 +128,9 @@ export function PostingForm({
     queryKey: jobPostingKeys.avatars(user.id),
     queryFn: ({ signal }) => listAvatars(signal),
     retry: false,
+    // Models are created in Personal Avatar Studio, usually in another tab: refresh on return.
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
   const voices = useQuery({
     queryKey: jobPostingKeys.voices(user.id),
@@ -719,7 +722,18 @@ export function PostingForm({
             label: avatar.name,
           }))}
           current={posting?.required_avatar ?? null}
-          emptyText="You don't have an interviewer model yet. Creating one for recruiters isn't available in the web app yet."
+          emptyText={
+            <>
+              You don&apos;t have an interviewer model yet.{" "}
+              <StudioLink>Create one in Personal Avatar Studio</StudioLink>
+            </>
+          }
+          hint={
+            <>
+              Create or manage models in{" "}
+              <StudioLink>Personal Avatar Studio</StudioLink>.
+            </>
+          }
         />
         <PickerField
           id="posting-voice"
@@ -944,6 +958,7 @@ function PickerField({
   options,
   current,
   emptyText,
+  hint,
 }: {
   id: string;
   label: string;
@@ -957,7 +972,8 @@ function PickerField({
   onRetry: () => void;
   options: { value: string; label: string }[];
   current: { id: string; name: string | null } | null;
-  emptyText: string;
+  emptyText: React.ReactNode;
+  hint?: React.ReactNode;
 }) {
   // A saved choice that is no longer listed (e.g. a voice deactivated since) still shows, and the
   // backend accepts it unchanged.
@@ -1032,8 +1048,26 @@ function PickerField({
           )}
         />
       )}
+      {hint && !loading && !failed && all.length > 0 && (
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      )}
       <FieldErrorText id={id} error={error} />
     </div>
+  );
+}
+
+// Opens in a new tab so the posting draft stays as it is.
+function StudioLink({ children }: { children: React.ReactNode }) {
+  return (
+    <Link
+      href={routes.avatarStudio}
+      target="_blank"
+      rel="noopener"
+      className="font-medium text-foreground underline underline-offset-4"
+    >
+      {children}
+      <span className="sr-only"> (opens in a new tab)</span>
+    </Link>
   );
 }
 

@@ -3,6 +3,8 @@
 import { Suspense, useCallback, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DialogTrigger } from "@/components/ui/dialog";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import {
   getTransactions,
@@ -15,7 +17,7 @@ import {
   type PaymentReturnEvent,
 } from "./payment-status-banner";
 import { TransactionHistory } from "./transaction-history";
-import { WalletPurchase } from "./wallet-purchase";
+import { AddCoinsDialog } from "./wallet-purchase";
 
 export function BillingOverview() {
   const user = useSessionUser();
@@ -29,6 +31,7 @@ export function BillingOverview() {
   });
 
   const [page, setPage] = useState(1);
+  const [addingCoins, setAddingCoins] = useState(false);
   const pageSize = 20;
   // 3. Authoritative Transactions Query
   const transactionsQuery = useQuery({
@@ -114,7 +117,16 @@ export function BillingOverview() {
                 : "—"}
             </p>
           </div>
-          <WalletPurchase userId={user.id} role={user.role} variant="page" />
+          <AddCoinsDialog
+            open={addingCoins}
+            onOpenChange={setAddingCoins}
+            userId={user.id}
+            role={user.role}
+          >
+            <DialogTrigger asChild>
+              <Button type="button">Add coins</Button>
+            </DialogTrigger>
+          </AddCoinsDialog>
         </div>
       </div>
 

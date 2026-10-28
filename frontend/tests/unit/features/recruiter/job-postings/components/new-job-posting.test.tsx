@@ -478,7 +478,7 @@ describe("NewJobPosting", () => {
     LONG_FLOW_MS,
   );
 
-  it("says so when the recruiter has no interviewer model", async () => {
+  it("links to Personal Avatar Studio when the recruiter has no interviewer model", async () => {
     mocks.get.mockImplementation((path: string) =>
       Promise.resolve(
         path === "/voices"
@@ -490,6 +490,11 @@ describe("NewJobPosting", () => {
     expect(
       await screen.findByText(/you don't have an interviewer model yet/i),
     ).toBeInTheDocument();
+    const link = screen.getByRole("link", {
+      name: /create one in personal avatar studio/i,
+    });
+    expect(link).toHaveAttribute("href", "/avatar-studio");
+    expect(link).toHaveAttribute("target", "_blank");
   });
 
   it("adds and removes requirements by hand", async () => {

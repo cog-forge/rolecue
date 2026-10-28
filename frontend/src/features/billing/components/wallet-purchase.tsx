@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CoinIcon } from "@/components/icons/coin-icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,14 +32,11 @@ import { PackageGrid } from "./package-grid";
 export function WalletPurchase({
   userId,
   role,
-  collapsed = false,
-  variant = "sidebar",
+  collapsed,
 }: {
   userId: string;
   role: ProductRole;
-  collapsed?: boolean;
-  // "page" is the plain action beside a balance; "sidebar" shows the balance itself.
-  variant?: "sidebar" | "page";
+  collapsed: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -50,10 +47,73 @@ export function WalletPurchase({
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
+  if (role === "admin") return null;
+  const balance = wallet.data?.balance.toLocaleString("en-US");
+  return (
+    <AddCoinsDialog
+      open={open}
+      onOpenChange={setOpen}
+      userId={userId}
+      role={role}
+    >
+      <Tooltip open={!open && previewOpen} onOpenChange={setPreviewOpen}>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button
+              variant="ghost"
+              aria-label="Buy coins"
+              className={
+                collapsed
+                  ? "h-auto min-h-11 w-full flex-col gap-1 rounded-xl px-1 py-2"
+                  : "h-12 w-full justify-start gap-2.5 rounded-xl px-3"
+              }
+            >
+              <CoinIcon className="size-6 shrink-0" />
+              {wallet.isLoading ? (
+                <Skeleton className="h-5 w-10" />
+              ) : (
+                <span className="max-w-full truncate text-base font-semibold tabular-nums text-amber-700 dark:text-amber-300">
+                  {balance ?? "—"}
+                </span>
+              )}
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent
+          side="right"
+          sideOffset={8}
+          className="z-110 whitespace-nowrap duration-(--duration-quick) ease-out data-[state=closed]:animate-none motion-reduce:animate-none"
+        >
+          {wallet.isError ? "Balance unavailable · Add coins" : "Add coins"}
+        </TooltipContent>
+      </Tooltip>
+    </AddCoinsDialog>
+  );
+}
+
+/**
+ * The coin package picker and PayOS checkout. The sidebar balance opens it; other screens that
+ * need coins (buying avatar slots, the transactions page) open the same dialog instead of linking
+ * away. PayOS returns to the billing page, which confirms the payment.
+ */
+export function AddCoinsDialog({
+  open,
+  onOpenChange,
+  userId,
+  role,
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  userId: string;
+  role: "candidate" | "recruiter";
+  children?: React.ReactNode;
+}) {
+  const cache = useQueryClient();
   const packages = useQuery({
     queryKey: walletKeys.packages(),
     queryFn: ({ signal }) => getCoinPackages(signal),
-    enabled: open && role !== "admin",
+    enabled: open,
     staleTime: 60_000,
   });
   const checkout = useMutation({
@@ -70,56 +130,18 @@ export function WalletPurchase({
       window.location.href = data.checkout_url;
     },
   });
-  if (role === "admin") return null;
-  const balance = wallet.data?.balance.toLocaleString("en-US");
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        setOpen(next);
+        onOpenChange(next);
         if (next) {
           if (!checkout.isPending) checkout.reset();
-          void wallet.refetch();
+          void cache.invalidateQueries({ queryKey: walletKeys.wallet(userId) });
         }
       }}
     >
-      {variant === "page" ? (
-        <DialogTrigger asChild>
-          <Button type="button">Add coins</Button>
-        </DialogTrigger>
-      ) : (
-        <Tooltip open={!open && previewOpen} onOpenChange={setPreviewOpen}>
-          <TooltipTrigger asChild>
-            <DialogTrigger asChild>
-              <Button
-                variant="ghost"
-                aria-label="Buy coins"
-                className={
-                  collapsed
-                    ? "h-auto min-h-11 w-full flex-col gap-1 rounded-xl px-1 py-2"
-                    : "h-12 w-full justify-start gap-2.5 rounded-xl px-3"
-                }
-              >
-                <CoinIcon className="size-6 shrink-0" />
-                {wallet.isLoading ? (
-                  <Skeleton className="h-5 w-10" />
-                ) : (
-                  <span className="max-w-full truncate text-base font-semibold tabular-nums text-amber-700 dark:text-amber-300">
-                    {balance ?? "—"}
-                  </span>
-                )}
-              </Button>
-            </DialogTrigger>
-          </TooltipTrigger>
-          <TooltipContent
-            side="right"
-            sideOffset={8}
-            className="z-110 whitespace-nowrap duration-(--duration-quick) ease-out data-[state=closed]:animate-none motion-reduce:animate-none"
-          >
-            {wallet.isError ? "Balance unavailable · Add coins" : "Add coins"}
-          </TooltipContent>
-        </Tooltip>
-      )}
+      {children}
       <DialogContent
         overlayClassName="z-100 motion-reduce:animate-none"
         className="z-100 flex max-h-[85dvh] w-[calc(100vw-2rem)] max-w-[840px] flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[840px] motion-reduce:animate-none [&>[data-slot=dialog-close]]:top-4 [&>[data-slot=dialog-close]]:right-4 [&>[data-slot=dialog-close]]:size-11"

@@ -274,6 +274,48 @@ describe("BillingOverview", () => {
     vi.unstubAllGlobals();
   });
 
+  it("offers coin packages from the transactions page, not only the sidebar", async () => {
+    mocks.get.mockImplementation((url: string) => {
+      if (url === "/wallet")
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: { id: "w-1", user_id: mocks.user.id, balance: 0 },
+          },
+        });
+      if (url === "/wallet/packages")
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: [
+              {
+                id: "33333333-3333-4333-8333-333333333333",
+                name: "Pro Pack",
+                price_vnd: 100000,
+                coin_amount: 250,
+                is_active: true,
+              },
+            ],
+          },
+        });
+      if (url === "/wallet/transactions")
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: { items: [], total: 0, page: 1, page_size: 20 },
+          },
+        });
+      return Promise.reject(new Error("unknown url"));
+    });
+
+    renderComponent();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add coins" }));
+    expect(
+      await screen.findByRole("button", { name: "Buy Pro Pack with PayOS" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders payment success only after backend verification", async () => {
     mocks.post.mockResolvedValueOnce({
       data: {
