@@ -1,242 +1,263 @@
 "use client";
 
-import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, Download, ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { adminBillingKeys, getBillingSummary } from "../api/billing";
-import { BillingStatCards } from "./revenue-stat-cards";
-import { RevenueCharts } from "./revenue-charts";
-import {
-  encodeCSVRow,
-  formatVND,
-  formatCoins,
-  formatPlural,
-} from "../lib/format";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { adminBillingKeys, getRevenueReport } from "../api/billing";
+import { compareValues, formatWindowRange } from "../lib/compare";
+import { encodeCSVRow, formatVND } from "../lib/format";
+import { buildTrendRows } from "../lib/revenue-chart";
+import { revenuePresets, timeWindowFileSuffix } from "../lib/time-window";
+import type { RevenueCompare, RevenueReport } from "../schemas/billing-schema";
+import { CoinFlow, OutstandingCoins } from "./coin-flow";
+import { RevenueKpis } from "./revenue-kpis";
+import { RevenueMix } from "./revenue-mix";
+import { RevenueTrendChart } from "./revenue-trend-chart";
+import { TimeWindowFilter, useTimeWindow } from "./time-window-filter";
+
+const compareOptions: { value: RevenueCompare; label: string }[] = [
+  { value: "previous_year", label: "Same period last year" },
+  { value: "previous_period", label: "Previous period" },
+];
+
+// The one sentence the screen answers: how much came in, and how that sits against the baseline.
+function finding(
+  report: RevenueReport,
+  range: string,
+  comparisonRange: string,
+) {
+  const now = report.current.revenue_vnd;
+  const before = report.comparison.revenue_vnd;
+  if (now === 0 && before === 0) {
+    return `No paid top-ups in ${range} or ${comparisonRange}`;
+  }
+  const revenue = `${range} · ${formatVND(now)}`;
+  const change = compareValues(now, before, "money");
+  if (change.state === "new") {
+    return `${revenue}; no paid top-ups in ${comparisonRange}`;
+  }
+  if (change.state === "same") {
+    return `${revenue}, the same as ${comparisonRange}`;
+  }
+  return `${revenue}, ${change.direction} ${change.percent} on ${comparisonRange} (${change.absolute})`;
+}
+
+function downloadReport(
+  report: RevenueReport,
+  range: string,
+  comparisonRange: string,
+  suffix: string,
+) {
+  const metric = (label: string, key: keyof RevenueReport["current"]) => [
+    label,
+    report.current[key],
+    report.comparison[key],
+  ];
+  const rows: (string | number)[][] = [
+    ["Period (Vietnam time)", range, comparisonRange],
+    ["Metric", "This period", "Comparison"],
+    metric("Revenue (VND)", "revenue_vnd"),
+    metric("Paid top-ups", "successful_topups"),
+    metric("PayOS attempts", "topup_attempts"),
+    metric("Payment success (%)", "payment_success_rate"),
+    metric("Paying users", "paying_users"),
+    metric("New payers", "new_payers"),
+    metric("Average order (VND)", "average_order_vnd"),
+    metric("Coins sold", "coins_sold"),
+    metric("Coins spent", "coins_spent"),
+    metric("Coins refunded", "coins_refunded"),
+    [],
+    [
+      "Bucket",
+      "Revenue (VND)",
+      "Comparison bucket",
+      "Comparison revenue (VND)",
+    ],
+    ...buildTrendRows(report).map((row) => [
+      row.label,
+      row.current,
+      row.comparisonLabel,
+      row.comparison,
+    ]),
+    [],
+    ["Coin pack", "Revenue (VND)", "Comparison revenue (VND)", "Paid top-ups"],
+    ...report.by_package.map((item) => [
+      item.key,
+      item.revenue_vnd,
+      item.comparison_revenue_vnd,
+      item.topups,
+    ]),
+  ];
+  const blob = new Blob([rows.map((row) => encodeCSVRow(row)).join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `rolecue-revenue${suffix}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function LoadingReport() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      <Skeleton className="h-36 w-full rounded-xl" />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Skeleton className="h-80 rounded-xl lg:col-span-2" />
+        <Skeleton className="h-80 rounded-xl" />
+      </div>
+    </div>
+  );
+}
 
 export function AdminRevenueView() {
-  // Uses the exact same shared summary endpoint as the Payment Transactions page.
-  const summaryQuery = useQuery({
-    queryKey: adminBillingKeys.summary({}),
-    queryFn: ({ signal }) => getBillingSummary({}, signal),
+  const timeWindow = useTimeWindow({
+    initial: { preset: "this_month" },
+    requireBothEnds: true,
   });
-
-  const summary = summaryQuery.data;
-
-  const handleExportSummaryCSV = () => {
-    if (!summary) return;
-    const rows: (string | number)[][] = [
-      ["Package Name", "Revenue (VND)", "Successful Deposits", "Coins Sold"],
-      ...(summary.package_breakdown ?? []).map((p) => [
-        p.package_name,
-        p.revenue_vnd,
-        p.deposit_count,
-        p.coins_sold,
-      ]),
-      [
-        "TOTAL",
-        summary.total_revenue,
-        summary.successful_deposits,
-        summary.coins_sold,
-      ],
-    ];
-    const csvContent = rows.map((r) => encodeCSVRow(r)).join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "rolecue-revenue-report.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const [compare, setCompare] = useState<RevenueCompare>("previous_year");
+  const { dateFrom, dateTo } = timeWindow.applied;
+  const query = {
+    dateFrom: dateFrom ?? "",
+    dateTo: dateTo ?? "",
+    compare,
   };
+
+  const reportQuery = useQuery({
+    queryKey: adminBillingKeys.revenueReport(query),
+    queryFn: ({ signal }) => getRevenueReport(query, signal),
+    enabled: Boolean(dateFrom && dateTo),
+    placeholderData: keepPreviousData,
+  });
+  const report = reportQuery.data;
+  const range = report
+    ? formatWindowRange(report.window.from, report.window.to)
+    : "";
+  const comparisonRange = report
+    ? formatWindowRange(
+        report.comparison_window.from,
+        report.comparison_window.to,
+      )
+    : "";
 
   return (
     <div className="space-y-6">
-      {/* Header & Controls */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Revenue Reports
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Revenue
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Verified PayOS deposit revenue and coin economy breakdown. Revenue
-            includes only{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">
-              status = &apos;success&apos;
-            </code>{" "}
-            transactions with a PayOS order code (KAN-192).
+          {report ? (
+            <p className="text-sm text-muted-foreground">
+              {finding(report, range, comparisonRange)}
+            </p>
+          ) : reportQuery.isError ? null : (
+            <Skeleton className="h-5 w-80 max-w-full" />
+          )}
+          <p className="text-xs text-muted-foreground">
+            Paid PayOS top-ups only; coins moving inside RoleCue are not
+            revenue.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-1 items-start gap-2 sm:flex sm:flex-wrap">
+          <TimeWindowFilter
+            value={timeWindow.draft}
+            onChange={timeWindow.change}
+            error={timeWindow.error}
+            presets={revenuePresets}
+          />
+          <Select
+            value={compare}
+            onValueChange={(value) => setCompare(value as RevenueCompare)}
+          >
+            <SelectTrigger
+              className="h-9 w-full text-xs sm:w-[190px]"
+              aria-label="Compare with"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {compareOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            disabled={!summary}
-            onClick={handleExportSummaryCSV}
-            className="h-8 gap-1.5 text-xs"
+            className="h-9 gap-1.5 text-xs"
+            disabled={!report}
+            onClick={() =>
+              report &&
+              downloadReport(
+                report,
+                range,
+                comparisonRange,
+                timeWindowFileSuffix(timeWindow.applied.window, new Date()),
+              )
+            }
           >
-            <Download className="size-3.5" />
-            Export Report CSV
+            <Download className="size-3.5" aria-hidden />
+            Export CSV
           </Button>
-          <Link
-            href="/admin/billing"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground shadow-xs hover:bg-muted"
-          >
-            View All Transactions
-            <ExternalLink className="size-3.5" />
-          </Link>
         </div>
       </div>
 
-      {summaryQuery.isError ? (
-        <div
-          role="alert"
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center"
-        >
-          <AlertCircle className="size-8 text-destructive" />
-          <div className="space-y-1">
-            <h2 className="text-sm font-semibold text-foreground">
-              Unable to load revenue report
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Please check your connection and try again.
-            </p>
-          </div>
+      {reportQuery.isError ? (
+        <Card className="items-start gap-2 p-6">
+          <p className="text-sm font-medium text-foreground">
+            Couldn&apos;t load the revenue report.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Check the connection and try again.
+          </p>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => void summaryQuery.refetch()}
+            onClick={() => void reportQuery.refetch()}
           >
             Retry
           </Button>
-        </div>
+        </Card>
+      ) : !report ? (
+        <LoadingReport />
       ) : (
-        <>
-          {/* KPI Summary Cards */}
-          <BillingStatCards
-            summary={summary}
-            isLoading={summaryQuery.isLoading}
-            periodLabel="All-time ledger"
-            variant="revenue"
-          />
-
-          {/* Real Package & Feature Charts (Honest Empty States if None) */}
-          <RevenueCharts summary={summary} isLoading={summaryQuery.isLoading} />
-
-          {/* Package Revenue Breakdown Table */}
-          <Card className="border-border/80 shadow-xs">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold">
-                  Package Revenue Breakdown
-                </CardTitle>
-                <span className="text-xs text-muted-foreground">
-                  Source of truth: successful PayOS top-up transactions
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs font-semibold">
-                      Package
-                    </TableHead>
-                    <TableHead className="text-right text-xs font-semibold">
-                      Successful Deposits
-                    </TableHead>
-                    <TableHead className="text-right text-xs font-semibold">
-                      Coins Sold
-                    </TableHead>
-                    <TableHead className="text-right text-xs font-semibold">
-                      Revenue (VND)
-                    </TableHead>
-                    <TableHead className="text-right text-xs font-semibold">
-                      Drill-down
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {!summary || summary.package_breakdown.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={5}
-                        className="h-32 text-center text-sm text-muted-foreground"
-                      >
-                        No successful PayOS deposit transactions recorded.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    <>
-                      {summary.package_breakdown.map((pkg) => (
-                        <TableRow key={pkg.package_name}>
-                          <TableCell className="text-xs font-medium text-foreground">
-                            {pkg.package_name}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">
-                            {formatPlural(
-                              pkg.deposit_count,
-                              "deposit",
-                              "deposits",
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs tabular-nums">
-                            {formatCoins(pkg.coins_sold)}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-xs font-semibold text-foreground tabular-nums">
-                            {formatVND(pkg.revenue_vnd)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Link
-                              href="/admin/billing"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                            >
-                              Inspect
-                              <ExternalLink className="size-3" />
-                            </Link>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {/* Totals Footer Row */}
-                      <TableRow className="bg-muted/40 font-semibold">
-                        <TableCell className="text-xs">Total</TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">
-                          {formatPlural(
-                            summary.successful_deposits,
-                            "deposit",
-                            "deposits",
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">
-                          {formatCoins(summary.coins_sold)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono text-xs tabular-nums">
-                          {formatVND(summary.total_revenue)}
-                        </TableCell>
-                        <TableCell />
-                      </TableRow>
-                    </>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </>
+        <div className="space-y-4">
+          <RevenueKpis report={report} comparisonRange={comparisonRange} />
+          <div className="grid gap-4 lg:grid-cols-3">
+            <RevenueTrendChart
+              report={report}
+              range={range}
+              comparisonRange={comparisonRange}
+            />
+            <RevenueMix
+              byRole={report.by_role}
+              byPackage={report.by_package}
+              total={report.current.revenue_vnd}
+            />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <CoinFlow report={report} />
+            <OutstandingCoins report={report} />
+          </div>
+        </div>
       )}
     </div>
   );
