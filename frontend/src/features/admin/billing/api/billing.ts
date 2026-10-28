@@ -3,6 +3,9 @@ import {
   adminTransactionPageEnvelopeSchema,
   adminTransactionItemEnvelopeSchema,
   billingSummaryEnvelopeSchema,
+  revenueReportEnvelopeSchema,
+  type RevenueCompare,
+  type RevenueReport,
   type AdminTransactionQuery,
   type BillingSummary,
   type AdminTransactionPage,
@@ -17,7 +20,33 @@ export const adminBillingKeys = {
     [...adminBillingKeys.all, "transactions", query] as const,
   transactionDetail: (id: string) =>
     [...adminBillingKeys.all, "transaction", id] as const,
+  revenueReport: (query: RevenueReportQuery) =>
+    [...adminBillingKeys.all, "revenue-report", query] as const,
 };
+
+export type RevenueReportQuery = {
+  dateFrom: string;
+  dateTo: string;
+  compare: RevenueCompare;
+};
+
+export async function getRevenueReport(
+  query: RevenueReportQuery,
+  signal?: AbortSignal,
+): Promise<RevenueReport> {
+  const response = await apiClient.get<unknown>(
+    "/admin/billing/revenue-report",
+    {
+      params: {
+        date_from: query.dateFrom,
+        date_to: query.dateTo,
+        compare: query.compare,
+      },
+      signal,
+    },
+  );
+  return revenueReportEnvelopeSchema.parse(response.data).data;
+}
 
 export function buildBillingParams(
   query: Partial<AdminTransactionQuery>,
