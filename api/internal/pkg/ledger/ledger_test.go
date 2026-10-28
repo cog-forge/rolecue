@@ -168,6 +168,54 @@ func TestCreditRejectsNonPositiveAmounts(t *testing.T) {
 	}
 }
 
+// A PayOS top-up already has its VND order row, so crediting it must move the balance and nothing else.
+func TestCreditForOrderCreatesMissingWalletAndWritesNoRow(t *testing.T) {
+	db := &fakeDB{}
+	if err := CreditForOrder(context.Background(), db, userID, 100); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(db.statements[0], "ON CONFLICT (user_id) DO NOTHING") {
+		t.Fatalf("first statement = %q, want the wallet insert", db.statements[0])
+	}
+	if db.count("UPDATE public.wallets") != 1 {
+		t.Fatalf("statements = %v, want one wallet update", db.statements)
+	}
+	if got := db.args[len(db.args)-1]; got[1] != int32(100) {
+		t.Fatalf("UPDATE args = %v, want new balance 100", got)
+	}
+	if db.count("INSERT INTO public.transactions") != 0 {
+		t.Fatalf("statements = %v, want no transactions row", db.statements)
+	}
+}
+
+func TestCreditForOrderAddsToExistingBalance(t *testing.T) {
+	db := &fakeDB{wallet: walletBalance(7)}
+	if err := CreditForOrder(context.Background(), db, userID, 100); err != nil {
+		t.Fatal(err)
+	}
+	if got := db.args[len(db.args)-1]; got[1] != int32(107) {
+		t.Fatalf("UPDATE args = %v, want new balance 107", got)
+	}
+}
+
+func TestCreditForOrderPastMaxInt32ChangesNothing(t *testing.T) {
+	db := &fakeDB{wallet: walletBalance(math.MaxInt32 - 1)}
+	assertCode(t, CreditForOrder(context.Background(), db, userID, 5), apperror.CodeInternal)
+	if db.count("UPDATE public.wallets") != 0 || db.count("INSERT INTO public.transactions") != 0 {
+		t.Fatalf("statements = %v, want no balance change or row on overflow", db.statements)
+	}
+}
+
+func TestCreditForOrderRejectsNonPositiveAmounts(t *testing.T) {
+	for _, amount := range []int32{0, -1} {
+		db := &fakeDB{}
+		assertCode(t, CreditForOrder(context.Background(), db, userID, amount), apperror.CodeValidation)
+		if len(db.statements) != 0 {
+			t.Fatalf("amount %d reached the database: %v", amount, db.statements)
+		}
+	}
+}
+
 func TestWriteErrorsAreInternal(t *testing.T) {
 	db := &fakeDB{wallet: walletBalance(100), execErr: errors.New("disk full")}
 	assertCode(t, Debit(context.Background(), db, userID, 1, "x"), apperror.CodeInternal)

@@ -3,22 +3,10 @@ SELECT id, user_id, balance
 FROM public.wallets
 WHERE user_id = @user_id;
 
--- name: GetWalletByUserIDForUpdate :one
-SELECT id, user_id, balance
-FROM public.wallets
-WHERE user_id = @user_id
-FOR UPDATE;
-
 -- name: CreateWallet :one
 INSERT INTO public.wallets (user_id, balance)
 VALUES (@user_id, 0)
 ON CONFLICT (user_id) DO UPDATE SET balance = wallets.balance
-RETURNING id, user_id, balance;
-
--- name: UpdateWalletBalance :one
-UPDATE public.wallets
-SET balance = @balance
-WHERE id = @id
 RETURNING id, user_id, balance;
 
 -- name: InsertTransaction :one

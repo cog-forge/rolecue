@@ -178,20 +178,6 @@ func (q *Queries) GetWalletByUserID(ctx context.Context, userID uuid.UUID) (Wall
 	return i, err
 }
 
-const getWalletByUserIDForUpdate = `-- name: GetWalletByUserIDForUpdate :one
-SELECT id, user_id, balance
-FROM public.wallets
-WHERE user_id = $1
-FOR UPDATE
-`
-
-func (q *Queries) GetWalletByUserIDForUpdate(ctx context.Context, userID uuid.UUID) (Wallet, error) {
-	row := q.db.QueryRow(ctx, getWalletByUserIDForUpdate, userID)
-	var i Wallet
-	err := row.Scan(&i.ID, &i.UserID, &i.Balance)
-	return i, err
-}
-
 const insertTransaction = `-- name: InsertTransaction :one
 INSERT INTO public.transactions ("from", "to", amount, currency, description, status, payos_order_code)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -372,24 +358,5 @@ func (q *Queries) UpdateTransactionStatus(ctx context.Context, arg UpdateTransac
 		&i.PayosOrderCode,
 		&i.CreatedAt,
 	)
-	return i, err
-}
-
-const updateWalletBalance = `-- name: UpdateWalletBalance :one
-UPDATE public.wallets
-SET balance = $1
-WHERE id = $2
-RETURNING id, user_id, balance
-`
-
-type UpdateWalletBalanceParams struct {
-	Balance int32
-	ID      uuid.UUID
-}
-
-func (q *Queries) UpdateWalletBalance(ctx context.Context, arg UpdateWalletBalanceParams) (Wallet, error) {
-	row := q.db.QueryRow(ctx, updateWalletBalance, arg.Balance, arg.ID)
-	var i Wallet
-	err := row.Scan(&i.ID, &i.UserID, &i.Balance)
 	return i, err
 }

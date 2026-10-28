@@ -38,14 +38,9 @@ func (m *MockRepo) CreateWallet(ctx context.Context, q *repository.Queries, user
 	return args.Get(0).(domain.Wallet), args.Error(1)
 }
 
-func (m *MockRepo) GetWalletForUpdate(ctx context.Context, q *repository.Queries, userID uuid.UUID) (domain.Wallet, error) {
-	args := m.Called(ctx, q, userID)
-	return args.Get(0).(domain.Wallet), args.Error(1)
-}
-
-func (m *MockRepo) UpdateWalletBalance(ctx context.Context, q *repository.Queries, walletID uuid.UUID, amount int32) (domain.Wallet, error) {
-	args := m.Called(ctx, q, walletID, amount)
-	return args.Get(0).(domain.Wallet), args.Error(1)
+func (m *MockRepo) CreditPaidOrder(ctx context.Context, q *repository.Queries, userID uuid.UUID, amount int32) error {
+	args := m.Called(ctx, q, userID, amount)
+	return args.Error(0)
 }
 
 func (m *MockRepo) InsertTransaction(ctx context.Context, q *repository.Queries, tx domain.Transaction) (domain.Transaction, error) {
@@ -248,7 +243,9 @@ func TestCreateDepositCheckout_PackageNotFound(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
-func TestCreateDepositCheckout_PayOSError(t *testing.T) {
+// PayOS may have created the link even when our call failed (timeout). The order therefore stays
+// pending, so a later PAID webhook or sync can still credit it.
+func TestCreateDepositCheckout_PayOSError_LeavesOrderPending(t *testing.T) {
 	mockRepo := new(MockRepo)
 	mockPayOS := new(MockPayOS)
 	svc := service.NewService(mockRepo, mockPayOS)
@@ -265,11 +262,11 @@ func TestCreateDepositCheckout_PayOSError(t *testing.T) {
 	mockRepo.On("GetCoinPackageByID", mock.Anything, packageID).Return(pkg, nil)
 	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.Anything).Return(createdTx, nil)
 	mockPayOS.On("CreatePaymentLink", mock.Anything, mock.Anything).Return(payos.CreateLinkResponse{}, errors.New("gateway timeout"))
-	mockRepo.On("UpdateTransactionStatus", mock.Anything, (*repository.Queries)(nil), txID, domain.StatusFailed).Return(domain.Transaction{ID: txID, Status: domain.StatusFailed}, nil)
 
 	_, err := svc.CreateDepositCheckout(context.Background(), userID, packageID, "", "")
 	assert.Error(t, err)
 	assert.True(t, apperror.IsCode(err, apperror.CodePayOSError))
+	mockRepo.AssertNotCalled(t, "UpdateTransactionStatus")
 	mockRepo.AssertExpectations(t)
 	mockPayOS.AssertExpectations(t)
 }
@@ -285,7 +282,6 @@ func TestHandlePayOSWebhook_Success(t *testing.T) {
 
 	userID := uuid.New()
 	txID := uuid.New()
-	walletID := uuid.New()
 	orderCode := int64(123456789012)
 	body := []byte(`{"code":"00","success":true,"data":{"orderCode":123456789012,"amount":50000}}`)
 
@@ -314,8 +310,7 @@ func TestHandlePayOSWebhook_Success(t *testing.T) {
 
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
 	mockRepo.On("UpdateTransactionStatus", mock.Anything, (*repository.Queries)(nil), txID, domain.StatusSuccess).Return(pendingTx, nil)
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).Return(domain.Wallet{ID: walletID, UserID: userID, Balance: 50}, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(150)).Return(domain.Wallet{ID: walletID, UserID: userID, Balance: 150}, nil)
+	mockRepo.On("CreditPaidOrder", mock.Anything, (*repository.Queries)(nil), userID, int32(100)).Return(nil).Once()
 
 	err := svc.HandlePayOSWebhook(context.Background(), body)
 	assert.NoError(t, err)
@@ -331,7 +326,6 @@ func TestHandlePayOSWebhook_Success_ViaStatusPaid(t *testing.T) {
 
 	userID := uuid.New()
 	txID := uuid.New()
-	walletID := uuid.New()
 	orderCode := int64(200000000001)
 	body := []byte(`{"code":"99","success":false,"data":{"orderCode":200000000001,"code":"00"}}`)
 
@@ -350,8 +344,7 @@ func TestHandlePayOSWebhook_Success_ViaStatusPaid(t *testing.T) {
 	pendingTx := domain.Transaction{ID: txID, To: &userID, Amount: 200, Status: domain.StatusPending, PayOSOrderCode: &orderCode}
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
 	mockRepo.On("UpdateTransactionStatus", mock.Anything, (*repository.Queries)(nil), txID, domain.StatusSuccess).Return(pendingTx, nil)
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).Return(domain.Wallet{ID: walletID, Balance: 0}, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(200)).Return(domain.Wallet{ID: walletID, Balance: 200}, nil)
+	mockRepo.On("CreditPaidOrder", mock.Anything, (*repository.Queries)(nil), userID, int32(200)).Return(nil).Once()
 
 	err := svc.HandlePayOSWebhook(context.Background(), body)
 	assert.NoError(t, err)
@@ -508,8 +501,7 @@ func TestHandlePayOSWebhook_Failed(t *testing.T) {
 	err := svc.HandlePayOSWebhook(context.Background(), body)
 	assert.NoError(t, err)
 	// Wallet must NOT be credited on failure.
-	mockRepo.AssertNotCalled(t, "GetWalletForUpdate")
-	mockRepo.AssertNotCalled(t, "UpdateWalletBalance")
+	mockRepo.AssertNotCalled(t, "CreditPaidOrder")
 	mockRepo.AssertExpectations(t)
 	mockPayOS.AssertExpectations(t)
 }
@@ -544,25 +536,24 @@ func TestHandlePayOSWebhook_Cancelled(t *testing.T) {
 	err := svc.HandlePayOSWebhook(context.Background(), body)
 	assert.NoError(t, err)
 	// Wallet must NOT be credited on cancellation.
-	mockRepo.AssertNotCalled(t, "GetWalletForUpdate")
-	mockRepo.AssertNotCalled(t, "UpdateWalletBalance")
+	mockRepo.AssertNotCalled(t, "CreditPaidOrder")
 	mockRepo.AssertExpectations(t)
 	mockPayOS.AssertExpectations(t)
 }
 
 // ---------------------------------------------------------------------------
-// HandlePayOSWebhook — wallet auto created on success
+// HandlePayOSWebhook — a failed credit leaves the order retryable
 // ---------------------------------------------------------------------------
 
-func TestHandlePayOSWebhook_WalletAutoCreated_OnSuccess(t *testing.T) {
-	// Wallet does not yet exist for the user; should be auto-created then credited.
+func TestHandlePayOSWebhook_CreditFails_ReturnsErrorSoPayOSRetries(t *testing.T) {
+	// The wallet is created, locked and overflow-checked by the ledger. Its error must reach the
+	// caller, which rolls back the whole transaction so the order stays pending for the retry.
 	mockRepo := new(MockRepo)
 	mockPayOS := new(MockPayOS)
 	svc := service.NewService(mockRepo, mockPayOS)
 
 	userID := uuid.New()
 	txID := uuid.New()
-	newWalletID := uuid.New()
 	orderCode := int64(333333333333)
 	body := []byte(`{"code":"00","success":true,"data":{"orderCode":333333333333}}`)
 
@@ -578,17 +569,13 @@ func TestHandlePayOSWebhook_WalletAutoCreated_OnSuccess(t *testing.T) {
 	}, nil)
 
 	pendingTx := domain.Transaction{ID: txID, To: &userID, Amount: 50, Status: domain.StatusPending, PayOSOrderCode: &orderCode}
+	creditErr := apperror.New(apperror.CodeInternal, "wallet balance would exceed the maximum")
 	mockRepo.On("GetTransactionByPayOSOrderCodeForUpdate", mock.Anything, (*repository.Queries)(nil), orderCode).Return(pendingTx, nil)
 	mockRepo.On("UpdateTransactionStatus", mock.Anything, (*repository.Queries)(nil), txID, domain.StatusSuccess).Return(pendingTx, nil)
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).
-		Return(domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "not found"))
-	newWallet := domain.Wallet{ID: newWalletID, UserID: userID, Balance: 0}
-	mockRepo.On("CreateWallet", mock.Anything, (*repository.Queries)(nil), userID).Return(newWallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), newWalletID, int32(50)).
-		Return(domain.Wallet{ID: newWalletID, Balance: 50}, nil)
+	mockRepo.On("CreditPaidOrder", mock.Anything, (*repository.Queries)(nil), userID, int32(50)).Return(creditErr)
 
 	err := svc.HandlePayOSWebhook(context.Background(), body)
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, creditErr)
 	mockRepo.AssertExpectations(t)
 	mockPayOS.AssertExpectations(t)
 }
@@ -749,175 +736,6 @@ func TestHandlePayOSWebhook_GetPaymentLinkError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to get PayOS payment link")
 	mockPayOS.AssertExpectations(t)
 	mockRepo.AssertNotCalled(t, "ExecTx")
-}
-
-// ---------------------------------------------------------------------------
-// Internal coin spending — does NOT call PayOS
-// ---------------------------------------------------------------------------
-
-func TestChargePracticeInterview_Success(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	userID := uuid.New()
-	walletID := uuid.New()
-	existingWallet := domain.Wallet{ID: walletID, UserID: userID, Balance: 100}
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).Return(existingWallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(50)).Return(domain.Wallet{ID: walletID, UserID: userID, Balance: 50}, nil)
-	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.MatchedBy(func(tx domain.Transaction) bool {
-		return tx.From != nil && *tx.From == userID && tx.Amount == 50 && tx.Status == domain.StatusSuccess && tx.PayOSOrderCode == nil
-	})).Return(domain.Transaction{ID: uuid.New()}, nil)
-
-	err := svc.ChargePracticeInterview(context.Background(), userID, 50)
-	assert.NoError(t, err)
-	// PayOS must never be invoked for internal charges.
-	mockPayOS.AssertNotCalled(t, "CreatePaymentLink")
-	mockPayOS.AssertNotCalled(t, "VerifyWebhookData")
-	mockRepo.AssertExpectations(t)
-}
-
-func TestChargePracticeInterview_InsufficientBalance(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	userID := uuid.New()
-	existingWallet := domain.Wallet{ID: uuid.New(), UserID: userID, Balance: 20}
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).Return(existingWallet, nil)
-
-	err := svc.ChargePracticeInterview(context.Background(), userID, 50)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeInsufficientBalance))
-	mockRepo.AssertExpectations(t)
-}
-
-// ---------------------------------------------------------------------------
-// Internal refund — does NOT call PayOS
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// ChargeRecruitmentCapacity
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// ChargeAvatarCapacity
-// ---------------------------------------------------------------------------
-
-func TestChargeAvatarCapacity_Success(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	recruiterID := uuid.New()
-	walletID := uuid.New()
-	wallet := domain.Wallet{ID: walletID, UserID: recruiterID, Balance: 300}
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(200)).
-		Return(domain.Wallet{ID: walletID, Balance: 200}, nil)
-	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.MatchedBy(func(tx domain.Transaction) bool {
-		return tx.From != nil && *tx.From == recruiterID &&
-			tx.Amount == 100 &&
-			tx.Status == domain.StatusSuccess &&
-			tx.Description == "Avatar capacity purchase charge"
-	})).Return(domain.Transaction{ID: uuid.New()}, nil)
-
-	err := svc.ChargeAvatarCapacity(context.Background(), recruiterID, 100)
-	assert.NoError(t, err)
-	mockPayOS.AssertNotCalled(t, "CreatePaymentLink")
-	mockRepo.AssertExpectations(t)
-}
-
-func TestChargeAvatarCapacity_InsufficientBalance(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	recruiterID := uuid.New()
-	wallet := domain.Wallet{ID: uuid.New(), UserID: recruiterID, Balance: 0}
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), recruiterID).Return(wallet, nil)
-
-	err := svc.ChargeAvatarCapacity(context.Background(), recruiterID, 100)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeInsufficientBalance))
-	mockRepo.AssertExpectations(t)
-}
-
-// ---------------------------------------------------------------------------
-// Concurrent balance safety — GetWalletForUpdate is always used for mutations
-// ---------------------------------------------------------------------------
-
-// deductBalance must fail fast with InsufficientBalance when the wallet
-// does not exist at all (e.g. balance is effectively 0 — concurrent debit
-// race is safe because GetWalletForUpdate holds a DB-level row lock).
-func TestDeductBalance_WalletNotFound_GivesInsufficientBalance(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	userID := uuid.New()
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).
-		Return(domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "not found"))
-
-	err := svc.ChargePracticeInterview(context.Background(), userID, 10)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeInsufficientBalance),
-		"missing wallet must be treated as insufficient balance, not an internal error")
-	// Balance update must not be attempted.
-	mockRepo.AssertNotCalled(t, "UpdateWalletBalance")
-	mockRepo.AssertExpectations(t)
-}
-
-// ---------------------------------------------------------------------------
-// Failed DB updates propagate correctly
-// ---------------------------------------------------------------------------
-
-func TestDeductBalance_UpdateWalletFails(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	userID := uuid.New()
-	walletID := uuid.New()
-	wallet := domain.Wallet{ID: walletID, UserID: userID, Balance: 200}
-	dbErr := errors.New("db: connection reset")
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).Return(wallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(150)).
-		Return(domain.Wallet{}, dbErr)
-
-	err := svc.ChargePracticeInterview(context.Background(), userID, 50)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, dbErr)
-	// InsertTransaction must NOT be called if the balance update failed.
-	mockRepo.AssertNotCalled(t, "InsertTransaction")
-	mockRepo.AssertExpectations(t)
-}
-
-func TestDeductBalance_InsertTransactionFails(t *testing.T) {
-	mockRepo := new(MockRepo)
-	mockPayOS := new(MockPayOS)
-	svc := service.NewService(mockRepo, mockPayOS)
-
-	userID := uuid.New()
-	walletID := uuid.New()
-	wallet := domain.Wallet{ID: walletID, UserID: userID, Balance: 100}
-	dbErr := errors.New("db: unique violation")
-
-	mockRepo.On("GetWalletForUpdate", mock.Anything, (*repository.Queries)(nil), userID).Return(wallet, nil)
-	mockRepo.On("UpdateWalletBalance", mock.Anything, (*repository.Queries)(nil), walletID, int32(50)).
-		Return(domain.Wallet{ID: walletID, Balance: 50}, nil)
-	mockRepo.On("InsertTransaction", mock.Anything, (*repository.Queries)(nil), mock.Anything).
-		Return(domain.Transaction{}, dbErr)
-
-	err := svc.ChargePracticeInterview(context.Background(), userID, 50)
-	assert.Error(t, err)
-	assert.ErrorIs(t, err, dbErr)
-	mockRepo.AssertExpectations(t)
 }
 
 // ---------------------------------------------------------------------------
@@ -1089,17 +907,6 @@ func TestListPackages_RepoError(t *testing.T) {
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, dbErr)
 	mockRepo.AssertExpectations(t)
-}
-
-func TestChargePracticeInterview_NegativeOrZeroAmount(t *testing.T) {
-	svc := service.NewService(new(MockRepo), new(MockPayOS))
-	err := svc.ChargePracticeInterview(context.Background(), uuid.New(), 0)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
-
-	err = svc.ChargePracticeInterview(context.Background(), uuid.New(), -10)
-	assert.Error(t, err)
-	assert.True(t, apperror.IsCode(err, apperror.CodeValidation))
 }
 
 func TestHandlePayOSWebhook_ProcessingStatus_ReturnsError(t *testing.T) {
