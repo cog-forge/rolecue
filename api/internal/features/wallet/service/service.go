@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"math"
 	"math/big"
 	"strconv"
 	"strings"
@@ -21,8 +20,8 @@ type WalletRepository interface {
 	ExecTx(ctx context.Context, fn func(q *repository.Queries) error) error
 	GetWalletByUserID(ctx context.Context, userID uuid.UUID) (domain.Wallet, error)
 	CreateWallet(ctx context.Context, q *repository.Queries, userID uuid.UUID) (domain.Wallet, error)
-	GetWalletForUpdate(ctx context.Context, q *repository.Queries, userID uuid.UUID) (domain.Wallet, error)
-	UpdateWalletBalance(ctx context.Context, q *repository.Queries, walletID uuid.UUID, amount int32) (domain.Wallet, error)
+	// CreditPaidOrder adds a paid order's coins to the wallet through the shared ledger and writes no row.
+	CreditPaidOrder(ctx context.Context, q *repository.Queries, userID uuid.UUID, amount int32) error
 	InsertTransaction(ctx context.Context, q *repository.Queries, tx domain.Transaction) (domain.Transaction, error)
 	GetTransactionByID(ctx context.Context, id uuid.UUID) (domain.Transaction, error)
 	GetTransactionByPayOSOrderCode(ctx context.Context, orderCode int64) (domain.Transaction, error)
@@ -142,11 +141,9 @@ func (s *Service) CreateDepositCheckout(ctx context.Context, userID uuid.UUID, p
 
 	linkData, err := s.payos.CreatePaymentLink(ctx, payosReq)
 	if err != nil {
-		// Mark transaction failed to prevent leaving dangling pending transactions
-		_ = s.repo.ExecTx(ctx, func(q *repository.Queries) error {
-			_, updateErr := s.repo.UpdateTransactionStatus(ctx, q, txRecord.ID, domain.StatusFailed)
-			return updateErr
-		})
+		// The error can be ambiguous: PayOS may have created the link before our call timed out. The
+		// order stays pending so a later PAID webhook or sync still credits it; the user retries with a
+		// new order.
 		return domain.DepositCheckoutResponse{}, apperror.Wrap(apperror.CodePayOSError, "failed to create PayOS payment link", err)
 	}
 
@@ -268,23 +265,8 @@ func (s *Service) processPaymentStatus(
 			return domain.Transaction{}, err
 		}
 		if txRecord.To != nil {
-			wallet, err := s.repo.GetWalletForUpdate(ctx, q, *txRecord.To)
-			if err != nil {
-				if apperror.IsCode(err, apperror.CodeWalletNotFound) {
-					wallet, err = s.repo.CreateWallet(ctx, q, *txRecord.To)
-					if err != nil {
-						return domain.Transaction{}, err
-					}
-				} else {
-					return domain.Transaction{}, err
-				}
-			}
-			if int64(wallet.Balance)+int64(txRecord.Amount) > math.MaxInt32 {
-				return domain.Transaction{}, apperror.New(apperror.CodeValidation, "wallet balance overflow")
-			}
-			newBalance := wallet.Balance + txRecord.Amount
-			_, err = s.repo.UpdateWalletBalance(ctx, q, wallet.ID, newBalance)
-			if err != nil {
+			// The VND order row is the record of this top-up, so the ledger only moves the balance.
+			if err := s.repo.CreditPaidOrder(ctx, q, *txRecord.To, txRecord.Amount); err != nil {
 				return domain.Transaction{}, err
 			}
 		}
@@ -308,48 +290,6 @@ func (s *Service) processPaymentStatus(
 		// Unknown status: do not mark failed destructively.
 		return domain.Transaction{}, apperror.New(apperror.CodePayOSError, fmt.Sprintf("unhandled payment link status: %s", payment.Status))
 	}
-}
-
-func (s *Service) ChargePracticeInterview(ctx context.Context, candidateID uuid.UUID, amount int32) error {
-	return s.deductBalance(ctx, candidateID, amount, "Practice interview charge")
-}
-
-func (s *Service) ChargeAvatarCapacity(ctx context.Context, recruiterID uuid.UUID, amount int32) error {
-	return s.deductBalance(ctx, recruiterID, amount, "Avatar capacity purchase charge")
-}
-
-func (s *Service) deductBalance(ctx context.Context, userID uuid.UUID, amount int32, description string) error {
-	if amount <= 0 {
-		return apperror.New(apperror.CodeValidation, "charge amount must be positive")
-	}
-	return s.repo.ExecTx(ctx, func(q *repository.Queries) error {
-		wallet, err := s.repo.GetWalletForUpdate(ctx, q, userID)
-		if err != nil {
-			if apperror.IsCode(err, apperror.CodeWalletNotFound) {
-				return apperror.New(apperror.CodeInsufficientBalance, "insufficient balance: wallet has 0 coins")
-			}
-			return err
-		}
-
-		if wallet.Balance < amount {
-			return apperror.New(apperror.CodeInsufficientBalance, "insufficient wallet balance")
-		}
-
-		_, err = s.repo.UpdateWalletBalance(ctx, q, wallet.ID, wallet.Balance-amount)
-		if err != nil {
-			return err
-		}
-
-		_, err = s.repo.InsertTransaction(ctx, q, domain.Transaction{
-			From:        &userID,
-			To:          nil,
-			Amount:      amount,
-			Currency:    "VND",
-			Description: description,
-			Status:      domain.StatusSuccess,
-		})
-		return err
-	})
 }
 
 // generateOrderCode produces a cryptographically random positive int64

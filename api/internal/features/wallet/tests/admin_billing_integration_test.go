@@ -17,6 +17,17 @@ import (
 
 func openIntegrationTx(t *testing.T) (context.Context, pgx.Tx) {
 	t.Helper()
+	ctx, isolated := openIsolatedPool(t)
+	tx, err := isolated.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback(ctx) })
+	return ctx, tx
+}
+
+// openIsolatedPool creates a throwaway database with every migration applied and returns a pool on it.
+// Tests that need real commits or several connections use the pool; the database is dropped afterwards.
+func openIsolatedPool(t *testing.T) (context.Context, *pgxpool.Pool) {
+	t.Helper()
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		dsn = "postgres://postgres:postgres@localhost:5432/rolecue?sslmode=disable"
@@ -54,10 +65,7 @@ func openIntegrationTx(t *testing.T) (context.Context, pgx.Tx) {
 		_, err = isolated.Exec(ctx, string(sql))
 		require.NoError(t, err, "migration %s", filepath.Base(migration))
 	}
-	tx, err := isolated.Begin(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = tx.Rollback(ctx) })
-	return ctx, tx
+	return ctx, isolated
 }
 
 func TestAdminBillingSQLCQueries_RevenueAndFilters(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/ledger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -86,40 +87,13 @@ func (r *Repository) CreateWallet(ctx context.Context, q *Queries, userID uuid.U
 	}, nil
 }
 
-func (r *Repository) GetWalletForUpdate(ctx context.Context, q *Queries, userID uuid.UUID) (domain.Wallet, error) {
+// CreditPaidOrder moves a paid order's coins into the user's wallet through the shared ledger. The
+// order row already exists, so the ledger writes no row of its own.
+func (r *Repository) CreditPaidOrder(ctx context.Context, q *Queries, userID uuid.UUID, amount int32) error {
 	if q == nil {
 		q = r.queries
 	}
-	row, err := q.GetWalletByUserIDForUpdate(ctx, userID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return domain.Wallet{}, apperror.New(apperror.CodeWalletNotFound, "wallet not found")
-		}
-		return domain.Wallet{}, apperror.Wrap(apperror.CodeInternal, "failed to get wallet for update", err)
-	}
-	return domain.Wallet{
-		ID:      row.ID,
-		UserID:  row.UserID,
-		Balance: row.Balance,
-	}, nil
-}
-
-func (r *Repository) UpdateWalletBalance(ctx context.Context, q *Queries, walletID uuid.UUID, amount int32) (domain.Wallet, error) {
-	if q == nil {
-		q = r.queries
-	}
-	row, err := q.UpdateWalletBalance(ctx, UpdateWalletBalanceParams{
-		ID:      walletID,
-		Balance: amount,
-	})
-	if err != nil {
-		return domain.Wallet{}, apperror.Wrap(apperror.CodeInternal, "failed to update wallet balance", err)
-	}
-	return domain.Wallet{
-		ID:      row.ID,
-		UserID:  row.UserID,
-		Balance: row.Balance,
-	}, nil
+	return ledger.CreditForOrder(ctx, q.db, userID, amount)
 }
 
 func (r *Repository) InsertTransaction(ctx context.Context, q *Queries, tx domain.Transaction) (domain.Transaction, error) {
@@ -130,8 +104,13 @@ func (r *Repository) InsertTransaction(ctx context.Context, q *Queries, tx domai
 	if tx.Description != "" {
 		desc = &tx.Description
 	}
+	// A row without a sender comes from the system side of the ledger, as the COIN rows write it.
+	from := ledger.Counterparty
+	if tx.From != nil {
+		from = tx.From.String()
+	}
 	row, err := q.InsertTransaction(ctx, InsertTransactionParams{
-		TxFrom:         formatUUIDPtr(tx.From),
+		TxFrom:         from,
 		TxTo:           formatUUIDPtr(tx.To),
 		Amount:         tx.Amount,
 		Currency:       tx.Currency,

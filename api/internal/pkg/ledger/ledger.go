@@ -1,7 +1,8 @@
 // Package ledger moves interview coins between a user's wallet and the system inside the caller's
-// database transaction. It writes the wallet balance and one COIN row in the transactions table and
-// never calls the payment provider (KTD3). It does no deduplication: callers make their writes
-// one-shot through the state they hold under a row lock.
+// database transaction. It writes the wallet balance and one COIN row in the transactions table, except
+// CreditForOrder, whose caller already holds the order row. It never calls the payment provider (KTD3).
+// It does no deduplication: callers make their writes one-shot through the state they hold under a
+// row lock.
 package ledger
 
 import (
@@ -55,6 +56,25 @@ func Credit(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, descri
 	if err := checkAmount(amount); err != nil {
 		return err
 	}
+	if err := addToWallet(ctx, db, userID, amount); err != nil {
+		return err
+	}
+	return insertRow(ctx, db, Counterparty, userID.String(), amount, description)
+}
+
+// CreditForOrder adds amount coins to the user's wallet for an order whose transactions row already
+// exists, such as a paid PayOS top-up, so it writes no row of its own. A missing wallet is created at
+// zero and a balance that would pass MaxInt32 is refused and changes nothing. The caller holds the lock
+// on the order row and moves it to success in the same database transaction.
+func CreditForOrder(ctx context.Context, db DBTX, userID uuid.UUID, amount int32) error {
+	if err := checkAmount(amount); err != nil {
+		return err
+	}
+	return addToWallet(ctx, db, userID, amount)
+}
+
+// addToWallet creates the wallet if it is missing, locks it and raises the balance by amount.
+func addToWallet(ctx context.Context, db DBTX, userID uuid.UUID, amount int32) error {
 	if _, err := db.Exec(ctx,
 		`INSERT INTO public.wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING`, userID); err != nil {
 		return persistence(err)
@@ -72,7 +92,7 @@ func Credit(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, descri
 	if _, err := db.Exec(ctx, `UPDATE public.wallets SET balance = $2 WHERE id = $1`, walletID, balance+amount); err != nil {
 		return persistence(err)
 	}
-	return insertRow(ctx, db, Counterparty, userID.String(), amount, description)
+	return nil
 }
 
 func insufficientBalance() error {
