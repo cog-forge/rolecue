@@ -39,6 +39,8 @@ export function buildBillingParams(
   if (query.package && query.package !== "all") params.package = query.package;
   if (query.amountMin != null) params.amount_min = query.amountMin;
   if (query.amountMax != null) params.amount_max = query.amountMax;
+  if (query.dateFrom) params.date_from = query.dateFrom;
+  if (query.dateTo) params.date_to = query.dateTo;
   if (query.sortBy) params.sort_by = query.sortBy;
   if (query.sortOrder) params.sort_order = query.sortOrder;
 

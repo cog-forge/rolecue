@@ -39,6 +39,7 @@ export const adminTransactionItemSchema = z.object({
   description: z.string().default(""),
   status: adminTransactionStatusSchema,
   payos_order_code: z.number().nullable().optional(),
+  created_at: z.string().default(""),
 });
 
 export type AdminTransactionItem = z.infer<typeof adminTransactionItemSchema>;
@@ -146,6 +147,8 @@ export type AdminTransactionQuery = {
   package?: string;
   amountMin?: number;
   amountMax?: number;
+  dateFrom?: string; // RFC 3339, inclusive
+  dateTo?: string; // RFC 3339, exclusive
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 };
