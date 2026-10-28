@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countAdminTransactions = `-- name: CountAdminTransactions :one
@@ -92,6 +93,8 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
+    WHERE ($7::timestamptz IS NULL OR t.created_at >= $7::timestamptz)
+      AND ($8::timestamptz IS NULL OR t.created_at < $8::timestamptz)
 )
 SELECT COUNT(*)::bigint
 FROM enriched
@@ -117,6 +120,8 @@ type CountAdminTransactionsParams struct {
 	PackageName *string
 	AmountMin   *int64
 	AmountMax   *int64
+	DateFrom    pgtype.Timestamptz
+	DateTo      pgtype.Timestamptz
 }
 
 func (q *Queries) CountAdminTransactions(ctx context.Context, arg CountAdminTransactionsParams) (int64, error) {
@@ -127,6 +132,8 @@ func (q *Queries) CountAdminTransactions(ctx context.Context, arg CountAdminTran
 		arg.PackageName,
 		arg.AmountMin,
 		arg.AmountMax,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	var column_1 int64
 	err := row.Scan(&column_1)
@@ -214,23 +221,25 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
+    WHERE ($1::timestamptz IS NULL OR t.created_at >= $1::timestamptz)
+      AND ($2::timestamptz IS NULL OR t.created_at < $2::timestamptz)
 ),
 filtered AS (
     SELECT id, amount, description, status, payos_order_code, tx_type, user_id, user_name, user_email, package_or_feature, paid_vnd, coin_amount
     FROM enriched
-    WHERE ($1::text IS NULL OR $1::text = '' OR (
-        id::text ILIKE '%' || $1::text || '%' ESCAPE '\'
-        OR user_name ILIKE '%' || $1::text || '%' ESCAPE '\'
-        OR user_email ILIKE '%' || $1::text || '%' ESCAPE '\'
-        OR user_id ILIKE '%' || $1::text || '%' ESCAPE '\'
-        OR description ILIKE '%' || $1::text || '%' ESCAPE '\'
-        OR payos_order_code ILIKE '%' || $1::text || '%' ESCAPE '\'
+    WHERE ($3::text IS NULL OR $3::text = '' OR (
+        id::text ILIKE '%' || $3::text || '%' ESCAPE '\'
+        OR user_name ILIKE '%' || $3::text || '%' ESCAPE '\'
+        OR user_email ILIKE '%' || $3::text || '%' ESCAPE '\'
+        OR user_id ILIKE '%' || $3::text || '%' ESCAPE '\'
+        OR description ILIKE '%' || $3::text || '%' ESCAPE '\'
+        OR payos_order_code ILIKE '%' || $3::text || '%' ESCAPE '\'
     ))
-      AND ($2::text IS NULL OR $2::text = '' OR status = $2::text)
-      AND ($3::text IS NULL OR $3::text = '' OR tx_type = $3::text)
-      AND ($4::text IS NULL OR $4::text = '' OR package_or_feature ILIKE '%' || $4::text || '%' ESCAPE '\')
-      AND ($5::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= $5::bigint)
-      AND ($6::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= $6::bigint)
+      AND ($4::text IS NULL OR $4::text = '' OR status = $4::text)
+      AND ($5::text IS NULL OR $5::text = '' OR tx_type = $5::text)
+      AND ($6::text IS NULL OR $6::text = '' OR package_or_feature ILIKE '%' || $6::text || '%' ESCAPE '\')
+      AND ($7::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= $7::bigint)
+      AND ($8::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= $8::bigint)
 )
 SELECT
     COALESCE(SUM(paid_vnd) FILTER (WHERE status = 'success' AND tx_type = 'topup'), 0)::bigint AS total_revenue,
@@ -249,6 +258,8 @@ FROM filtered
 `
 
 type GetAdminBillingSummaryParams struct {
+	DateFrom    pgtype.Timestamptz
+	DateTo      pgtype.Timestamptz
 	Search      *string
 	Status      *string
 	TxType      *string
@@ -274,6 +285,8 @@ type GetAdminBillingSummaryRow struct {
 
 func (q *Queries) GetAdminBillingSummary(ctx context.Context, arg GetAdminBillingSummaryParams) (GetAdminBillingSummaryRow, error) {
 	row := q.db.QueryRow(ctx, getAdminBillingSummary,
+		arg.DateFrom,
+		arg.DateTo,
 		arg.Search,
 		arg.Status,
 		arg.TxType,
@@ -325,6 +338,8 @@ WITH enriched AS (
             ELSE NULL
         END
     )
+    WHERE ($5::timestamptz IS NULL OR t.created_at >= $5::timestamptz)
+      AND ($6::timestamptz IS NULL OR t.created_at < $6::timestamptz)
 )
 SELECT
     feature_name,
@@ -353,6 +368,8 @@ type GetAdminFeatureCoinBreakdownParams struct {
 	PackageName *string
 	AmountMin   *int64
 	AmountMax   *int64
+	DateFrom    pgtype.Timestamptz
+	DateTo      pgtype.Timestamptz
 }
 
 type GetAdminFeatureCoinBreakdownRow struct {
@@ -367,6 +384,8 @@ func (q *Queries) GetAdminFeatureCoinBreakdown(ctx context.Context, arg GetAdmin
 		arg.PackageName,
 		arg.AmountMin,
 		arg.AmountMax,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	if err != nil {
 		return nil, err
@@ -467,6 +486,8 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
+    WHERE ($5::timestamptz IS NULL OR t.created_at >= $5::timestamptz)
+      AND ($6::timestamptz IS NULL OR t.created_at < $6::timestamptz)
 )
 SELECT
     package_or_feature AS package_name,
@@ -496,6 +517,8 @@ type GetAdminPackageRevenueBreakdownParams struct {
 	PackageName *string
 	AmountMin   *int64
 	AmountMax   *int64
+	DateFrom    pgtype.Timestamptz
+	DateTo      pgtype.Timestamptz
 }
 
 type GetAdminPackageRevenueBreakdownRow struct {
@@ -511,6 +534,8 @@ func (q *Queries) GetAdminPackageRevenueBreakdown(ctx context.Context, arg GetAd
 		arg.PackageName,
 		arg.AmountMin,
 		arg.AmountMax,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	if err != nil {
 		return nil, err
@@ -581,7 +606,8 @@ SELECT
         WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
         WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
         ELSE -abs(t.amount)::bigint
-    END)::bigint AS coin_amount
+    END)::bigint AS coin_amount,
+    t.created_at
 FROM public.transactions t
 LEFT JOIN public.users u ON u.id = (
     CASE
@@ -637,6 +663,7 @@ type GetAdminTransactionByIDRow struct {
 	PackageOrFeature string
 	PaidVnd          int64
 	CoinAmount       int64
+	CreatedAt        pgtype.Timestamptz
 }
 
 func (q *Queries) GetAdminTransactionByID(ctx context.Context, id uuid.UUID) (GetAdminTransactionByIDRow, error) {
@@ -658,6 +685,7 @@ func (q *Queries) GetAdminTransactionByID(ctx context.Context, id uuid.UUID) (Ge
 		&i.PackageOrFeature,
 		&i.PaidVnd,
 		&i.CoinAmount,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -667,6 +695,7 @@ const listAdminTransactions = `-- name: ListAdminTransactions :many
 WITH enriched AS (
     SELECT
         t.id,
+        t.created_at,
         t.amount,
         t."from" AS tx_from,
         t."to" AS tx_to,
@@ -747,6 +776,8 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
+    WHERE ($11::timestamptz IS NULL OR t.created_at >= $11::timestamptz)
+      AND ($12::timestamptz IS NULL OR t.created_at < $12::timestamptz)
 )
 SELECT
     id,
@@ -764,6 +795,7 @@ SELECT
     package_or_feature,
     paid_vnd,
     coin_amount,
+    created_at,
     COUNT(*) OVER()::bigint AS total_count
 FROM enriched
 WHERE ($1::text IS NULL OR $1::text = '' OR (
@@ -780,13 +812,17 @@ WHERE ($1::text IS NULL OR $1::text = '' OR (
   AND ($5::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= $5::bigint)
   AND ($6::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= $6::bigint)
 ORDER BY
+    CASE WHEN $7::text = 'created_at' AND $8::text = 'asc' THEN created_at END ASC,
+    CASE WHEN $7::text = 'created_at' AND $8::text = 'desc' THEN created_at END DESC,
     CASE WHEN $7::text = 'amount' AND $8::text = 'asc' THEN paid_vnd END ASC,
     CASE WHEN $7::text = 'amount' AND $8::text = 'desc' THEN paid_vnd END DESC,
     CASE WHEN $7::text = 'coins' AND $8::text = 'asc' THEN coin_amount END ASC,
     CASE WHEN $7::text = 'coins' AND $8::text = 'desc' THEN coin_amount END DESC,
     CASE WHEN $7::text = 'status' AND $8::text = 'asc' THEN status END ASC,
     CASE WHEN $7::text = 'status' AND $8::text = 'desc' THEN status END DESC,
-    CASE WHEN $8::text = 'asc' THEN id END ASC,
+    CASE WHEN $7::text = 'id' AND $8::text = 'asc' THEN id END ASC,
+    CASE WHEN $7::text = 'id' AND $8::text = 'desc' THEN id END DESC,
+    created_at DESC,
     id DESC
 LIMIT $10 OFFSET $9
 `
@@ -802,6 +838,8 @@ type ListAdminTransactionsParams struct {
 	SortOrder   string
 	PageOffset  int32
 	PageLimit   int32
+	DateFrom    pgtype.Timestamptz
+	DateTo      pgtype.Timestamptz
 }
 
 type ListAdminTransactionsRow struct {
@@ -820,12 +858,13 @@ type ListAdminTransactionsRow struct {
 	PackageOrFeature string
 	PaidVnd          int64
 	CoinAmount       int64
+	CreatedAt        pgtype.Timestamptz
 	TotalCount       int64
 }
 
 // Admin billing and revenue read-only queries (KAN-191, KAN-192, KAN-241).
-// Operates strictly against the frozen 000006_wallet_payment schema.
-// Note: public.transactions has no created_at column in the frozen schema.
+// Each query keeps its own copy of the enrichment CTE. Every filtered query applies the same optional
+// [date_from, date_to) window on t.created_at inside the CTE, before the user and package lookups.
 func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransactionsParams) ([]ListAdminTransactionsRow, error) {
 	rows, err := q.db.Query(ctx, listAdminTransactions,
 		arg.Search,
@@ -838,6 +877,8 @@ func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransa
 		arg.SortOrder,
 		arg.PageOffset,
 		arg.PageLimit,
+		arg.DateFrom,
+		arg.DateTo,
 	)
 	if err != nil {
 		return nil, err
@@ -862,6 +903,7 @@ func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransa
 			&i.PackageOrFeature,
 			&i.PaidVnd,
 			&i.CoinAmount,
+			&i.CreatedAt,
 			&i.TotalCount,
 		); err != nil {
 			return nil, err

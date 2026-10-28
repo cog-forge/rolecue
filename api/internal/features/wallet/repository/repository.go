@@ -27,6 +27,12 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	}
 }
 
+// NewRepositoryWithDB runs every query on db, for example a transaction the caller already holds.
+// ExecTx then runs its function on db without opening a nested transaction.
+func NewRepositoryWithDB(db DBTX) *Repository {
+	return &Repository{queries: New(db)}
+}
+
 func (r *Repository) ExecTx(ctx context.Context, fn func(q *Queries) error) error {
 	if r.pool == nil {
 		return fn(r.queries)
@@ -273,7 +279,7 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 
 	sortBy := strings.ToLower(strings.TrimSpace(filter.SortBy))
 	if sortBy == "" {
-		sortBy = "id"
+		sortBy = "created_at"
 	}
 	sortOrder := strings.ToLower(strings.TrimSpace(filter.SortOrder))
 	if sortOrder != "asc" {
@@ -284,6 +290,7 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 	statusPtr := optionalString(filter.Status)
 	typePtr := optionalString(filter.Type)
 	pkgPtr := escapeILIKE(filter.PackageName)
+	dateFrom, dateTo := timeArg(filter.DateFrom), timeArg(filter.DateTo)
 
 	rows, err := r.queries.ListAdminTransactions(ctx, ListAdminTransactionsParams{
 		Search:      searchPtr,
@@ -292,6 +299,8 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 		PackageName: pkgPtr,
 		AmountMin:   filter.AmountMin,
 		AmountMax:   filter.AmountMax,
+		DateFrom:    dateFrom,
+		DateTo:      dateTo,
 		SortBy:      sortBy,
 		SortOrder:   sortOrder,
 		PageOffset:  int32(offset),
@@ -315,6 +324,8 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 			PackageName: pkgPtr,
 			AmountMin:   filter.AmountMin,
 			AmountMax:   filter.AmountMax,
+			DateFrom:    dateFrom,
+			DateTo:      dateTo,
 		})
 		if err != nil {
 			return domain.AdminTransactionPage{}, apperror.Wrap(apperror.CodeInternal, "failed to count admin transactions", err)
@@ -339,6 +350,7 @@ func (r *Repository) ListAdminTransactions(ctx context.Context, filter domain.Ad
 			row.PackageOrFeature,
 			row.PaidVnd,
 			row.CoinAmount,
+			row.CreatedAt,
 		))
 	}
 
@@ -374,6 +386,7 @@ func (r *Repository) GetAdminTransactionByID(ctx context.Context, id uuid.UUID) 
 		row.PackageOrFeature,
 		row.PaidVnd,
 		row.CoinAmount,
+		row.CreatedAt,
 	), nil
 }
 
@@ -382,6 +395,7 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 	statusPtr := optionalString(filter.Status)
 	typePtr := optionalString(filter.Type)
 	pkgPtr := escapeILIKE(filter.PackageName)
+	dateFrom, dateTo := timeArg(filter.DateFrom), timeArg(filter.DateTo)
 
 	row, err := r.queries.GetAdminBillingSummary(ctx, GetAdminBillingSummaryParams{
 		Search:      searchPtr,
@@ -390,6 +404,8 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 		PackageName: pkgPtr,
 		AmountMin:   filter.AmountMin,
 		AmountMax:   filter.AmountMax,
+		DateFrom:    dateFrom,
+		DateTo:      dateTo,
 	})
 	if err != nil {
 		return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get admin billing summary", err)
@@ -408,6 +424,8 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 			PackageName: pkgPtr,
 			AmountMin:   filter.AmountMin,
 			AmountMax:   filter.AmountMax,
+			DateFrom:    dateFrom,
+			DateTo:      dateTo,
 		})
 		if err != nil {
 			return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get package revenue breakdown", err)
@@ -430,6 +448,8 @@ func (r *Repository) GetBillingSummary(ctx context.Context, filter domain.AdminT
 			PackageName: pkgPtr,
 			AmountMin:   filter.AmountMin,
 			AmountMax:   filter.AmountMax,
+			DateFrom:    dateFrom,
+			DateTo:      dateTo,
 		})
 		if err != nil {
 			return domain.BillingSummary{}, apperror.Wrap(apperror.CodeInternal, "failed to get feature coin breakdown", err)
@@ -501,6 +521,7 @@ func mapAdminTransactionRow(
 	packageOrFeature string,
 	paidVND int64,
 	coinAmount int64,
+	createdAt pgtype.Timestamptz,
 ) domain.AdminTransactionItem {
 	return domain.AdminTransactionItem{
 		ID:               id,
@@ -518,6 +539,7 @@ func mapAdminTransactionRow(
 		Description:      description,
 		Status:           domain.TransactionStatus(status),
 		PayOSOrderCode:   parseInt64Ptr(&payosOrderCode),
+		CreatedAt:        utcTime(createdAt),
 	}
 }
 
@@ -582,4 +604,12 @@ func utcTime(t pgtype.Timestamptz) time.Time {
 		return time.Time{}
 	}
 	return t.Time.UTC()
+}
+
+// timeArg turns an optional window end into a query argument; nil disables that end.
+func timeArg(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: *t, Valid: true}
 }

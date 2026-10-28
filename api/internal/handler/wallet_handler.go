@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	walletdomain "github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	walletservice "github.com/cog-forge/rolecue/api/internal/features/wallet/service"
@@ -208,6 +209,26 @@ func singleQueryParam(c *gin.Context, name string) (string, bool, bool) {
 	return vals[0], true, true
 }
 
+// dateQueryParam reads an optional RFC 3339 instant. It returns a message when the value is invalid or
+// given twice; an empty value counts as absent.
+func dateQueryParam(c *gin.Context, name string) (*time.Time, string) {
+	raw, present, once := singleQueryParam(c, name)
+	if !present {
+		return nil, ""
+	}
+	if !once {
+		return nil, "duplicate " + name + " parameter"
+	}
+	if strings.TrimSpace(raw) == "" {
+		return nil, ""
+	}
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(raw))
+	if err != nil {
+		return nil, "invalid " + name + ": use RFC 3339, e.g. 2026-10-01T00:00:00+07:00"
+	}
+	return &t, ""
+}
+
 func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTransactionFilter, bool) {
 	fail := func(msg string) (walletdomain.AdminTransactionFilter, bool) {
 		response.Error(c, apperror.New(apperror.CodeValidation, msg))
@@ -217,7 +238,7 @@ func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTran
 	filter := walletdomain.AdminTransactionFilter{
 		Page:      1,
 		PageSize:  20,
-		SortBy:    "id",
+		SortBy:    "created_at",
 		SortOrder: "desc",
 	}
 
@@ -267,6 +288,17 @@ func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTran
 
 	for _, param := range []struct {
 		name   string
+		target **time.Time
+	}{{"date_from", &filter.DateFrom}, {"date_to", &filter.DateTo}} {
+		t, msg := dateQueryParam(c, param.name)
+		if msg != "" {
+			return fail(msg)
+		}
+		*param.target = t
+	}
+
+	for _, param := range []struct {
+		name   string
 		target *string
 	}{
 		{"search", &filter.Search},
@@ -296,7 +328,7 @@ func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTran
 
 // AdminGetBillingSummary godoc
 // @Summary Get shared admin billing & revenue summary
-// @Description Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree. Note (KAN-191): public.transactions in the frozen 000006_wallet_payment schema has no created_at column, so figures reflect all-time matching records.
+// @Description Admin only. Read-only. Computes revenue strictly from status='success' transactions with payos_order_code (KAN-192). Accepts the same filters as the transaction list so both pages always agree. The report time window is [date_from, date_to) on created_at; without it the figures cover all time.
 // @Tags admin-billing
 // @Produce json
 // @Security SessionCookie
@@ -306,6 +338,8 @@ func parseBillingFilter(c *gin.Context, maxPageSize int) (walletdomain.AdminTran
 // @Param package query string false "Filter by package or feature name"
 // @Param amount_min query int false "Minimum amount filter"
 // @Param amount_max query int false "Maximum amount filter"
+// @Param date_from query string false "Created at or after (RFC 3339 with offset, e.g. 2026-10-01T00:00:00+07:00)" format(date-time)
+// @Param date_to query string false "Created before (RFC 3339 with offset, exclusive)" format(date-time)
 // @Success 200 {object} response.Envelope{data=walletdomain.BillingSummary}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
@@ -332,7 +366,7 @@ func (h *WalletHandler) AdminGetBillingSummary(c *gin.Context) {
 
 // AdminListBillingTransactions godoc
 // @Summary List admin payment and coin ledger transactions
-// @Description Admin only. Read-only paginated list of transactions enriched with user and package details. Note (KAN-191): public.transactions in the frozen 000006_wallet_payment schema has no created_at column, so figures reflect all-time matching records.
+// @Description Admin only. Read-only paginated list of transactions enriched with user and package details, newest first by default. The date window is [date_from, date_to) on created_at.
 // @Tags admin-billing
 // @Produce json
 // @Security SessionCookie
@@ -344,7 +378,9 @@ func (h *WalletHandler) AdminGetBillingSummary(c *gin.Context) {
 // @Param package query string false "Filter by package or feature name"
 // @Param amount_min query int false "Minimum amount filter"
 // @Param amount_max query int false "Maximum amount filter"
-// @Param sort_by query string false "Sort field (id, amount, coins, status)" default(id)
+// @Param date_from query string false "Created at or after (RFC 3339 with offset, e.g. 2026-10-01T00:00:00+07:00)" format(date-time)
+// @Param date_to query string false "Created before (RFC 3339 with offset, exclusive)" format(date-time)
+// @Param sort_by query string false "Sort field (created_at, id, amount, coins, status)" default(created_at)
 // @Param sort_order query string false "Sort order (asc, desc)" default(desc)
 // @Success 200 {object} response.Envelope{data=walletdomain.AdminTransactionPage}
 // @Failure 400 {object} response.Envelope
@@ -417,9 +453,13 @@ func sanitizeCSVCell(val string) string {
 	}
 }
 
+// vietnamTime is the admin billing business timezone. Vietnam has no DST, so a fixed offset is exact
+// and the export does not depend on the server's tzdata.
+var vietnamTime = time.FixedZone("UTC+07:00", 7*60*60)
+
 // AdminExportBillingCSV godoc
 // @Summary Export filtered admin transactions as CSV
-// @Description Admin only. Read-only CSV export respecting active filters (up to 5,000 rows) with CSV formula-injection protection. Sets X-Total-Count and X-Export-Truncated headers.
+// @Description Admin only. Read-only CSV export respecting active filters, including the [date_from, date_to) window on created_at (up to 5,000 rows), with CSV formula-injection protection. Created At is RFC 3339 in Vietnam time (+07:00). Sets X-Total-Count and X-Export-Truncated headers.
 // @Tags admin-billing
 // @Produce text/csv
 // @Security SessionCookie
@@ -429,7 +469,9 @@ func sanitizeCSVCell(val string) string {
 // @Param package query string false "Filter by package or feature name"
 // @Param amount_min query int false "Minimum amount filter"
 // @Param amount_max query int false "Maximum amount filter"
-// @Param sort_by query string false "Sort field (id, amount, coins, status)" default(id)
+// @Param date_from query string false "Created at or after (RFC 3339 with offset, e.g. 2026-10-01T00:00:00+07:00)" format(date-time)
+// @Param date_to query string false "Created before (RFC 3339 with offset, exclusive)" format(date-time)
+// @Param sort_by query string false "Sort field (created_at, id, amount, coins, status)" default(created_at)
 // @Param sort_order query string false "Sort order (asc, desc)" default(desc)
 // @Success 200 {file} file "CSV file"
 // @Failure 400 {object} response.Envelope
@@ -460,6 +502,7 @@ func (h *WalletHandler) AdminExportBillingCSV(c *gin.Context) {
 	writer := csv.NewWriter(&buf)
 	if err := writer.Write([]string{
 		"Transaction ID",
+		"Created At (UTC+07:00)",
 		"Order Code",
 		"User ID",
 		"User Name",
@@ -484,6 +527,7 @@ func (h *WalletHandler) AdminExportBillingCSV(c *gin.Context) {
 		}
 		if err := writer.Write([]string{
 			sanitizeCSVCell(item.ID.String()),
+			item.CreatedAt.In(vietnamTime).Format(time.RFC3339),
 			sanitizeCSVCell(orderCode),
 			sanitizeCSVCell(item.UserID),
 			sanitizeCSVCell(item.UserName),

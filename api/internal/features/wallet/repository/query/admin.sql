@@ -1,11 +1,12 @@
 -- Admin billing and revenue read-only queries (KAN-191, KAN-192, KAN-241).
--- Operates strictly against the frozen 000006_wallet_payment schema.
--- Note: public.transactions has no created_at column in the frozen schema.
+-- Each query keeps its own copy of the enrichment CTE. Every filtered query applies the same optional
+-- [date_from, date_to) window on t.created_at inside the CTE, before the user and package lookups.
 
 -- name: ListAdminTransactions :many
 WITH enriched AS (
     SELECT
         t.id,
+        t.created_at,
         t.amount,
         t."from" AS tx_from,
         t."to" AS tx_to,
@@ -86,6 +87,8 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
+    WHERE (sqlc.narg(date_from)::timestamptz IS NULL OR t.created_at >= sqlc.narg(date_from)::timestamptz)
+      AND (sqlc.narg(date_to)::timestamptz IS NULL OR t.created_at < sqlc.narg(date_to)::timestamptz)
 )
 SELECT
     id,
@@ -103,6 +106,7 @@ SELECT
     package_or_feature,
     paid_vnd,
     coin_amount,
+    created_at,
     COUNT(*) OVER()::bigint AS total_count
 FROM enriched
 WHERE (sqlc.narg(search)::text IS NULL OR sqlc.narg(search)::text = '' OR (
@@ -119,13 +123,17 @@ WHERE (sqlc.narg(search)::text IS NULL OR sqlc.narg(search)::text = '' OR (
   AND (sqlc.narg(amount_min)::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) >= sqlc.narg(amount_min)::bigint)
   AND (sqlc.narg(amount_max)::bigint IS NULL OR (CASE WHEN tx_type = 'topup' THEN paid_vnd ELSE abs(coin_amount) END) <= sqlc.narg(amount_max)::bigint)
 ORDER BY
+    CASE WHEN @sort_by::text = 'created_at' AND @sort_order::text = 'asc' THEN created_at END ASC,
+    CASE WHEN @sort_by::text = 'created_at' AND @sort_order::text = 'desc' THEN created_at END DESC,
     CASE WHEN @sort_by::text = 'amount' AND @sort_order::text = 'asc' THEN paid_vnd END ASC,
     CASE WHEN @sort_by::text = 'amount' AND @sort_order::text = 'desc' THEN paid_vnd END DESC,
     CASE WHEN @sort_by::text = 'coins' AND @sort_order::text = 'asc' THEN coin_amount END ASC,
     CASE WHEN @sort_by::text = 'coins' AND @sort_order::text = 'desc' THEN coin_amount END DESC,
     CASE WHEN @sort_by::text = 'status' AND @sort_order::text = 'asc' THEN status END ASC,
     CASE WHEN @sort_by::text = 'status' AND @sort_order::text = 'desc' THEN status END DESC,
-    CASE WHEN @sort_order::text = 'asc' THEN id END ASC,
+    CASE WHEN @sort_by::text = 'id' AND @sort_order::text = 'asc' THEN id END ASC,
+    CASE WHEN @sort_by::text = 'id' AND @sort_order::text = 'desc' THEN id END DESC,
+    created_at DESC,
     id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
@@ -210,6 +218,8 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
+    WHERE (sqlc.narg(date_from)::timestamptz IS NULL OR t.created_at >= sqlc.narg(date_from)::timestamptz)
+      AND (sqlc.narg(date_to)::timestamptz IS NULL OR t.created_at < sqlc.narg(date_to)::timestamptz)
 )
 SELECT COUNT(*)::bigint
 FROM enriched
@@ -273,7 +283,8 @@ SELECT
         WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
         WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
         ELSE -abs(t.amount)::bigint
-    END)::bigint AS coin_amount
+    END)::bigint AS coin_amount,
+    t.created_at
 FROM public.transactions t
 LEFT JOIN public.users u ON u.id = (
     CASE
@@ -393,6 +404,8 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
+    WHERE (sqlc.narg(date_from)::timestamptz IS NULL OR t.created_at >= sqlc.narg(date_from)::timestamptz)
+      AND (sqlc.narg(date_to)::timestamptz IS NULL OR t.created_at < sqlc.narg(date_to)::timestamptz)
 ),
 filtered AS (
     SELECT *
@@ -507,6 +520,8 @@ WITH enriched AS (
             cp_inner.price ASC
         LIMIT 1
     ) cp ON true
+    WHERE (sqlc.narg(date_from)::timestamptz IS NULL OR t.created_at >= sqlc.narg(date_from)::timestamptz)
+      AND (sqlc.narg(date_to)::timestamptz IS NULL OR t.created_at < sqlc.narg(date_to)::timestamptz)
 )
 SELECT
     package_or_feature AS package_name,
@@ -556,6 +571,8 @@ WITH enriched AS (
             ELSE NULL
         END
     )
+    WHERE (sqlc.narg(date_from)::timestamptz IS NULL OR t.created_at >= sqlc.narg(date_from)::timestamptz)
+      AND (sqlc.narg(date_to)::timestamptz IS NULL OR t.created_at < sqlc.narg(date_to)::timestamptz)
 )
 SELECT
     feature_name,

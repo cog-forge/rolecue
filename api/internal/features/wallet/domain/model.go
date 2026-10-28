@@ -17,10 +17,6 @@ const (
 	StatusCancelled TransactionStatus = "cancelled"
 )
 
-// FrozenSchemaTimestampNotice documents the frozen schema limitation per KAN-191:
-// public.transactions in migration 000006_wallet_payment does not include a created_at column.
-const FrozenSchemaTimestampNotice = "public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp; figures reflect all matching ledger records."
-
 // Wallet holds a candidate or recruiter coin balance.
 type Wallet struct {
 	ID      uuid.UUID `json:"id"`
@@ -63,8 +59,7 @@ type DepositCheckoutResponse struct {
 
 // AdminTransactionFilter represents validated read-only query filters for Admin Billing & Revenue endpoints.
 // Both the Payment Transactions page and the Revenue Reports page share this exact filter model.
-// Note (KAN-191): public.transactions in the frozen schema (000006_wallet_payment) does not store a created_at timestamp,
-// so date filtering is intentionally omitted until a timestamp column is introduced.
+// The date window is [DateFrom, DateTo) on created_at; either end may be open.
 type AdminTransactionFilter struct {
 	Page        int
 	PageSize    int
@@ -74,7 +69,9 @@ type AdminTransactionFilter struct {
 	PackageName string
 	AmountMin   *int64
 	AmountMax   *int64
-	SortBy      string // "id", "amount", "coins", "status"
+	DateFrom    *time.Time
+	DateTo      *time.Time
+	SortBy      string // "created_at", "id", "amount", "coins", "status"
 	SortOrder   string // "asc", "desc"
 }
 
@@ -95,6 +92,7 @@ type AdminTransactionItem struct {
 	Description      string            `json:"description"`
 	Status           TransactionStatus `json:"status"`
 	PayOSOrderCode   *int64            `json:"payos_order_code"`
+	CreatedAt        time.Time         `json:"created_at"`
 }
 
 // AdminTransactionPage represents a paginated read-only list of AdminTransactionItem rows.
