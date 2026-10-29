@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ledger"
@@ -55,7 +56,7 @@ func (r *Repository) FundCapacity(ctx context.Context, recruiterID, postingID uu
 			if status != "open" {
 				return domain.ErrIntakeNotOpen
 			}
-			description := fmt.Sprintf("Interview capacity of job posting %s, %d slots", postingID, slots)
+			description := fmt.Sprintf("Interview capacity of job posting %s: %s, %d slots", postingID, ledgerTitle(posting.Title), slots)
 			if err := ledger.Debit(ctx, tx, recruiterID, slots*domain.PricePerInterviewSlot, description); err != nil {
 				return err
 			}
@@ -75,6 +76,19 @@ func (r *Repository) FundCapacity(ctx context.Context, recruiterID, postingID uu
 		return domain.CapacityState{}, internal(err)
 	}
 	return state, nil
+}
+
+// maxLedgerTitle keeps one long title from swamping a transaction row.
+const maxLedgerTitle = 120
+
+// ledgerTitle is the posting title as one line for a ledger description, so a recruiter can tell
+// the posting apart in the transaction list. The id stays in the text for tracing.
+func ledgerTitle(title string) string {
+	line := strings.Join(strings.Fields(title), " ")
+	if runes := []rune(line); len(runes) > maxLedgerTitle {
+		line = string(runes[:maxLedgerTitle-1]) + "…"
+	}
+	return line
 }
 
 // refundUnusedCapacity credits the Recruiter for the slots no interview used, at the terminal close
@@ -97,7 +111,7 @@ func refundUnusedCapacity(ctx context.Context, q *Queries, postingID uuid.UUID) 
 	if unused <= 0 {
 		return nil
 	}
-	description := fmt.Sprintf("Refund of unused interview capacity of job posting %s, %d slots", postingID, unused)
+	description := fmt.Sprintf("Refund of unused interview capacity of job posting %s: %s, %d slots", postingID, ledgerTitle(basis.Title), unused)
 	coins := int32(unused) * domain.PricePerInterviewSlot
 	if err := ledger.Credit(ctx, q.db, basis.RecruiterID, coins, description); err != nil {
 		return err

@@ -15,7 +15,7 @@ WHERE a.job_posting_id = @job_posting_id;
 -- open and unfunded, and the IS NULL guard makes a second write a no-op.
 -- The refund needs the owner and the funded slot count of a posting the caller already locked.
 -- name: GetPostingRefundBasis :one
-SELECT recruiter_id, interview_slot
+SELECT recruiter_id, interview_slot, title
 FROM public.job_postings
 WHERE id = @id;
 

@@ -6,7 +6,7 @@
 -- NO KEY UPDATE still conflicts with the FOR UPDATE of posting edits, but not with the key-share
 -- lock that inserting an Application takes, so submissions are not held up by screening.
 -- name: LockOwnedPosting :one
-SELECT status::text AS status, interview_slot
+SELECT status::text AS status, interview_slot, title
 FROM public.job_postings
 WHERE id = @id AND recruiter_id = @recruiter_id
 FOR NO KEY UPDATE;

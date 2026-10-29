@@ -39,6 +39,7 @@ func (d *refundDB) QueryRow(_ context.Context, sql string, _ ...any) pgx.Row {
 		return rowFunc(func(dest ...any) error {
 			*(dest[0].(*uuid.UUID)) = refundRecruiter
 			*(dest[1].(**int32)) = d.slot
+			*(dest[2].(*string)) = "Go\nBackend  Engineer"
 			return nil
 		})
 	case strings.Contains(sql, "count(*)::bigint AS consumed"):
@@ -102,5 +103,15 @@ func TestRefundCreditsUnusedSlots(t *testing.T) {
 				t.Fatalf("a wallet was created for a posting with nothing to refund: %v", db.statements)
 			}
 		})
+	}
+}
+
+func TestLedgerTitleIsOneShortLine(t *testing.T) {
+	if got := ledgerTitle("  Go\nBackend \t Engineer  "); got != "Go Backend Engineer" {
+		t.Fatalf("ledgerTitle() = %q, want one trimmed line", got)
+	}
+	long := ledgerTitle(strings.Repeat("é", 300))
+	if n := len([]rune(long)); n != maxLedgerTitle || !strings.HasSuffix(long, "…") {
+		t.Fatalf("ledgerTitle(long) has %d runes and ends %q, want %d ending in an ellipsis", n, long[len(long)-3:], maxLedgerTitle)
 	}
 }
