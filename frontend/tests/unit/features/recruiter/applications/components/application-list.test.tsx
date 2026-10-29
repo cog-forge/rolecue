@@ -1,13 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { ApplicationList } from "@/features/recruiter/applications/components/application-list";
+import { ReceivedApplications } from "@/features/recruiter/applications/components/received-applications";
 import {
   applicationSearch,
   defaultApplicationFilters,
   type ApplicationFilters,
 } from "@/features/recruiter/applications/utils/application-filters";
+
+// Radix Select calls scrollIntoView when it opens; jsdom does not implement it.
+if (!HTMLElement.prototype.scrollIntoView)
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: () => {},
+  });
 
 // Deadlines show in the viewer's time zone; pin one (before the component is imported) so the
 // rendered text is the same on every machine.
@@ -17,6 +25,7 @@ vi.hoisted(() => {
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  push: vi.fn(),
   search: new URLSearchParams(),
   pathname: "/recruiter/applications",
   user: {
@@ -34,6 +43,7 @@ vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
 }));
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mocks.push }),
   useSearchParams: () => mocks.search,
   usePathname: () => mocks.pathname,
 }));
@@ -79,6 +89,27 @@ function failure(status: number) {
     config: { headers: new AxiosHeaders() },
   });
 }
+// The inbox also loads the posting choices; tests only care about the Applications request.
+const postingOptions = {
+  data: {
+    success: true,
+    data: {
+      items: [],
+      pagination: { limit: 100, offset: 0, total: 0 },
+    },
+  },
+};
+function serve(response: unknown) {
+  mocks.get.mockImplementation((url: string) => {
+    if (url === "/job-postings") return Promise.resolve(postingOptions);
+    return response instanceof Error
+      ? Promise.reject(response)
+      : Promise.resolve(response);
+  });
+}
+const applicationsCall = (url: string) =>
+  mocks.get.mock.calls.find(([called]) => called === url);
+
 function mount(
   props: { postingId?: string } = {},
   filters: ApplicationFilters = defaultApplicationFilters,
@@ -90,11 +121,16 @@ function mount(
   client.setQueryData(["auth", "me"], mocks.user);
   render(
     <QueryClientProvider client={client}>
-      <ApplicationList {...props} />
+      {props.postingId ? (
+        <ApplicationList postingId={props.postingId} />
+      ) : (
+        <ReceivedApplications />
+      )}
     </QueryClientProvider>,
   );
   return client;
 }
+const rows = async () => screen.findByRole("list", { name: /^Applications,/ });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -105,7 +141,7 @@ beforeEach(() => {
 describe("ApplicationList", () => {
   it("lists one posting's applications with status, deadline and reject reason", async () => {
     mocks.pathname = `/recruiter/job-postings/${postingId}`;
-    mocks.get.mockResolvedValue(
+    serve(
       page([
         application(1),
         application(2, {
@@ -125,13 +161,13 @@ describe("ApplicationList", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       /loading applications/i,
     );
-    const table = await screen.findByRole("table");
-    expect(within(table).getByText("Candidate 1")).toBeInTheDocument();
+    const list = await rows();
+    expect(within(list).getByText("Candidate 1")).toBeInTheDocument();
     expect(
-      within(table).getByText("candidate1@example.com"),
+      within(list).getByText("candidate1@example.com"),
     ).toBeInTheDocument();
-    expect(within(table).getByText("Awaiting CV review")).toBeInTheDocument();
-    const due = within(table).getByText(/Complete interview by/);
+    expect(within(list).getByText("Awaiting CV review")).toBeInTheDocument();
+    const due = within(list).getByText(/Complete interview by/);
     expect(due).toHaveTextContent(
       "Complete interview by Oct 21, 2026, 3:30 PM GMT+7",
     );
@@ -139,21 +175,28 @@ describe("ApplicationList", () => {
       "datetime",
       "2026-10-21T08:30:00Z",
     );
-    expect(within(table).getByText(/Deadline passed/)).toHaveTextContent(
+    expect(within(list).getByText(/Deadline passed/)).toHaveTextContent(
       "Deadline passed Oct 19, 2026, 3:30 PM GMT+7",
     );
-    expect(within(table).getByText("Rejected")).toBeInTheDocument();
-    expect(within(table).getByText("Reason: Not a fit")).toBeInTheDocument();
-    // The posting is already known, so the posting column is left out.
+    expect(within(list).getByText("Rejected")).toBeInTheDocument();
+    expect(within(list).getByText("Reason: Not a fit")).toBeInTheDocument();
+    // The posting is already known, so its title is left out of the rows.
+    expect(within(list).queryByText(/Backend Engineer ·/)).toBeNull();
+    // A pending row says what to do next; others open the Application.
     expect(
-      within(table).queryByRole("columnheader", { name: "Job posting" }),
-    ).not.toBeInTheDocument();
-    expect(
-      within(table).getByRole("link", { name: "Candidate 1" }),
+      within(list).getByRole("link", { name: "Review CV of Candidate 1" }),
     ).toHaveAttribute(
       "href",
       `/recruiter/job-postings/${postingId}/applications/${application(1).id}`,
     );
+    expect(
+      within(list).getByRole("link", {
+        name: "Open application of Candidate 4",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Job posting" }),
+    ).not.toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith(
       `/job-postings/${postingId}/applications`,
       { params: { limit: 20, offset: 0 }, signal: expect.any(AbortSignal) },
@@ -161,31 +204,47 @@ describe("ApplicationList", () => {
     expect(screen.getByText("Showing 1–4 of 4")).toBeInTheDocument();
   });
 
-  it("lists every posting's applications with a link to each posting", async () => {
-    mocks.get.mockResolvedValue(page([application(1)]));
+  it("on a wide screen, opens the review inbox for this posting with the row selected", async () => {
+    mocks.pathname = `/recruiter/job-postings/${postingId}`;
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    serve(page([application(1)]));
+    mount({ postingId });
+    fireEvent.click(
+      within(await rows()).getByRole("link", {
+        name: "Review CV of Candidate 1",
+      }),
+    );
+    expect(mocks.push).toHaveBeenCalledWith(
+      `/recruiter/applications?posting=${postingId}&application=${application(1).id}`,
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it("lists every posting's applications with the posting named in each row", async () => {
+    serve(page([application(1)]));
     mount();
-    const table = await screen.findByRole("table");
+    const list = await rows();
+    expect(within(list).getByText(/Backend Engineer ·/)).toBeInTheDocument();
+    // On narrow screens each row opens its Application's own page.
     expect(
-      within(table).getByRole("columnheader", { name: "Job posting" }),
-    ).toBeInTheDocument();
-    expect(
-      within(table).getByRole("link", { name: "Backend Engineer" }),
-    ).toHaveAttribute("href", `/recruiter/job-postings/${postingId}`);
-    // Each row opens its Application's detail, on the posting that owns it.
-    expect(
-      within(table).getByRole("link", { name: "Candidate 1" }),
+      within(list).getByRole("link", { name: "Review CV of Candidate 1" }),
     ).toHaveAttribute(
       "href",
       `/recruiter/job-postings/${postingId}/applications/${application(1).id}`,
     );
-    expect(mocks.get).toHaveBeenCalledWith("/recruiter/applications", {
+    expect(applicationsCall("/recruiter/applications")?.[1]).toEqual({
       params: { limit: 20, offset: 0 },
       signal: expect.any(AbortSignal),
     });
   });
 
-  it("sends the URL filters to Go", async () => {
-    mocks.get.mockResolvedValue(page([application(21)], 41, 20));
+  it("sends the URL filters to Go and keeps them in the pagination links", async () => {
+    serve(page([application(21)], 41, 20));
     mount(
       {},
       {
@@ -195,8 +254,8 @@ describe("ApplicationList", () => {
         posting: postingId,
       },
     );
-    await screen.findByRole("table");
-    expect(mocks.get).toHaveBeenCalledWith("/recruiter/applications", {
+    await rows();
+    expect(applicationsCall("/recruiter/applications")?.[1]).toEqual({
       params: {
         limit: 20,
         offset: 20,
@@ -207,11 +266,8 @@ describe("ApplicationList", () => {
       signal: expect.any(AbortSignal),
     });
     expect(
-      screen.getByText(/Showing the applications of one job posting/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Show all my postings" }),
-    ).toHaveAttribute("href", "/recruiter/applications?status=rejected&q=linh");
+      screen.getByRole("combobox", { name: "Job posting" }),
+    ).toHaveTextContent("Selected posting");
     expect(screen.getByText("Showing 21–40 of 41")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute(
       "href",
@@ -225,7 +281,7 @@ describe("ApplicationList", () => {
 
   it("ignores a posting filter in the URL on a posting's own list", async () => {
     mocks.pathname = `/recruiter/job-postings/${postingId}`;
-    mocks.get.mockResolvedValue(page([application(1)]));
+    serve(page([application(1)]));
     mount(
       { postingId },
       {
@@ -233,20 +289,17 @@ describe("ApplicationList", () => {
         posting: "99999999-9999-4999-8999-999999999999",
       },
     );
-    await screen.findByRole("table");
+    await rows();
     expect(mocks.get).toHaveBeenCalledWith(
       `/job-postings/${postingId}/applications`,
       { params: { limit: 20, offset: 0 }, signal: expect.any(AbortSignal) },
     );
-    expect(
-      screen.queryByText(/Showing the applications of one job posting/),
-    ).not.toBeInTheDocument();
   });
 
   it("exposes the search form by role and name, with one Search button inside it", async () => {
-    mocks.get.mockResolvedValue(page([application(1)]));
+    serve(page([application(1)]));
     mount();
-    await screen.findByRole("table");
+    await rows();
     // The E2E specs reach the button through this form: the workspace also has a "Search pages"
     // button, so a bare name match is ambiguous there.
     const form = screen.getByRole("search", { name: "Search applications" });
@@ -255,33 +308,33 @@ describe("ApplicationList", () => {
     ).toHaveAttribute("type", "submit");
     expect(
       within(form).getByLabelText("Search by name or email"),
-    ).toBeVisible();
+    ).toHaveAttribute("placeholder", "Search name or email");
   });
 
-  it("marks the active status tab and links the others", async () => {
-    mocks.get.mockResolvedValue(page([application(1)]));
+  it("shows the active status and changes it through the History API", async () => {
+    serve(page([application(1)]));
     mount({}, { ...defaultApplicationFilters, status: "approved" });
-    await screen.findByRole("table");
-    const tabs = screen.getByRole("navigation", {
-      name: "Filter applications by status",
-    });
-    expect(
-      within(tabs).getByRole("link", { name: "Approved" }),
-    ).toHaveAttribute("aria-current", "page");
-    expect(
-      within(tabs).getByRole("link", { name: "Interview eligible" }),
-    ).toHaveAttribute(
-      "href",
+    await rows();
+    const status = screen.getByRole("combobox", { name: "Status" });
+    expect(status).toHaveTextContent("Approved");
+    const push = vi
+      .spyOn(window.history, "pushState")
+      .mockImplementation(() => {});
+    fireEvent.keyDown(status, { key: "ArrowDown" });
+    fireEvent.keyDown(
+      await screen.findByRole("option", { name: "Interview eligible" }),
+      { key: "Enter" },
+    );
+    expect(push).toHaveBeenCalledWith(
+      null,
+      "",
       "/recruiter/applications?status=interview_eligible",
     );
-    expect(within(tabs).getByRole("link", { name: "All" })).toHaveAttribute(
-      "href",
-      "/recruiter/applications",
-    );
+    push.mockRestore();
   });
 
   it("explains an empty list, and offers a way back when it is filtered", async () => {
-    mocks.get.mockResolvedValue(page([]));
+    serve(page([]));
     mount();
     expect(await screen.findByText("No applications yet.")).toBeInTheDocument();
     expect(
@@ -290,7 +343,7 @@ describe("ApplicationList", () => {
   });
 
   it("lets 'show all applications' drop the one-posting narrowing too", async () => {
-    mocks.get.mockResolvedValue(page([]));
+    serve(page([]));
     mount(
       {},
       { ...defaultApplicationFilters, search: "zzz", posting: postingId },
@@ -304,21 +357,18 @@ describe("ApplicationList", () => {
   });
 
   it("names the search when nothing matches it", async () => {
-    mocks.get.mockResolvedValue(page([]));
+    serve(page([]));
     mount({}, { ...defaultApplicationFilters, search: "zzz" });
     expect(
       await screen.findByText("No applications match “zzz”."),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Show all applications" }),
-    ).toHaveAttribute("href", "/recruiter/applications");
     expect(
       screen.getByRole("link", { name: "Clear search" }),
     ).toBeInTheDocument();
   });
 
   it("offers the first page when the page is past the end", async () => {
-    mocks.get.mockResolvedValue(page([], 5, 40));
+    serve(page([], 5, 40));
     mount({}, { ...defaultApplicationFilters, page: 3 });
     expect(
       await screen.findByText("This page is past the end of the list."),
@@ -329,18 +379,18 @@ describe("ApplicationList", () => {
   });
 
   it("shows an error with a retry", async () => {
-    mocks.get.mockRejectedValueOnce(failure(500));
+    serve(failure(500));
     mount();
     expect(
       await screen.findByText("We couldn't load the applications"),
     ).toBeInTheDocument();
-    mocks.get.mockResolvedValue(page([application(1)]));
+    serve(page([application(1)]));
     screen.getByRole("button", { name: "Try again" }).click();
-    expect(await screen.findByRole("table")).toBeInTheDocument();
+    expect(await rows()).toBeInTheDocument();
   });
 
   it("treats a missing posting as not found, with no retry", async () => {
-    mocks.get.mockRejectedValue(failure(404));
+    serve(failure(404));
     mount({ postingId });
     expect(
       await screen.findByText("We couldn't find this job posting"),
@@ -351,7 +401,7 @@ describe("ApplicationList", () => {
   });
 
   it("re-checks the session when access is denied", async () => {
-    mocks.get.mockRejectedValue(failure(403));
+    serve(failure(403));
     const client = mount();
     expect(
       await screen.findByText("You don't have access to applications"),

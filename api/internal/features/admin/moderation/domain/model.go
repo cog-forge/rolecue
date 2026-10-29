@@ -3,6 +3,7 @@ package domain
 import (
 	"time"
 
+	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
 	"github.com/google/uuid"
 )
 
@@ -50,21 +51,33 @@ type PostingSummary struct {
 
 // ReviewPosting is the read-only review view; the Admin can only decide, never edit it. The Admin
 // moderates the JD content candidates will read: RawText, or the file ContentPath links to.
+type Requirement struct {
+	Name   string `json:"name"`
+	Target string `json:"target"`
+	Type   string `json:"type"`
+}
+
 type ReviewPosting struct {
-	ID                uuid.UUID     `json:"id"`
-	Title             string        `json:"title"`
-	Status            PostingStatus `json:"status"`
-	RejectReason      *string       `json:"reject_reason"`
-	Recruiter         Recruiter     `json:"recruiter"`
-	Location          *string       `json:"location"`
-	EmploymentType    *string       `json:"employment_type"`
-	SalaryMin         *int32        `json:"salary_min"`
-	SalaryMax         *int32        `json:"salary_max"`
-	InterviewSlot     *int32        `json:"interview_slot"`
-	InterviewDuration *int32        `json:"interview_duration"`
-	RequiredAvatar    *NamedRef     `json:"required_avatar"`
-	RequiredVoice     *NamedRef     `json:"required_voice"`
-	CreatedAt         time.Time     `json:"created_at"`
+	CompanyName       *string                          `json:"company_name"`
+	CompanyWebsite    *string                          `json:"company_website"`
+	SeniorityLevel    string                           `json:"seniority_level"`
+	RefinementNote    string                           `json:"refinement_note"`
+	Requirements      []Requirement                    `json:"requirements"`
+	Evaluation        *evaluationdomain.PostingWeights `json:"evaluation"`
+	ID                uuid.UUID                        `json:"id"`
+	Title             string                           `json:"title"`
+	Status            PostingStatus                    `json:"status"`
+	RejectReason      *string                          `json:"reject_reason"`
+	Recruiter         Recruiter                        `json:"recruiter"`
+	Location          *string                          `json:"location"`
+	EmploymentType    *string                          `json:"employment_type"`
+	SalaryMin         *int32                           `json:"salary_min"`
+	SalaryMax         *int32                           `json:"salary_max"`
+	InterviewSlot     *int32                           `json:"interview_slot"`
+	InterviewDuration *int32                           `json:"interview_duration"`
+	RequiredAvatar    *NamedRef                        `json:"required_avatar"`
+	RequiredVoice     *NamedRef                        `json:"required_voice"`
+	CreatedAt         time.Time                        `json:"created_at"`
 	// ContentPath is job_descriptions.content_path: the storage key of the JD PDF for postings
 	// created through POST /job-postings, or a full http(s) URL for older rows.
 	ContentPath string `json:"content_path"`

@@ -83,8 +83,10 @@ describe("CandidateApplicationList", () => {
       /loading your applications/i,
     );
 
-    const list = await screen.findByRole("list");
-    const rows = within(list).getAllByRole("listitem");
+    const list = await screen.findByRole("list", { name: "Your applications" });
+    const rows = within(list)
+      .getAllByRole("listitem")
+      .filter((row) => row.parentElement === list);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toHaveTextContent("Awaiting CV review");
     expect(rows[1]).toHaveTextContent("Not selected");
@@ -96,6 +98,65 @@ describe("CandidateApplicationList", () => {
       params: { page: 1, page_size: 20 },
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it("shows the company, progress and next action of each application", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-29T08:00:00Z"));
+    try {
+      mocks.get.mockResolvedValue(
+        envelope([
+          item(1, {
+            company_name: "Acme",
+            job_posting_location: "Ha Noi",
+            status: "interview_eligible",
+            can_start_interview: true,
+            interview_deadline: "2026-10-29T10:30:00Z",
+          }),
+          item(2, {
+            status: "rejected",
+            reject_reason: "Missing Go",
+            company_name: null,
+          }),
+        ]),
+      );
+      renderList();
+      const list = await screen.findByRole("list", {
+        name: "Your applications",
+      });
+      const [eligible, rejected] = within(list)
+        .getAllByRole("listitem")
+        .filter((row) => row.parentElement === list);
+      expect(eligible).toHaveTextContent("Acme · Ha Noi");
+      const progress = within(eligible).getByRole("list", {
+        name: "Application progress",
+      });
+      expect(
+        within(progress)
+          .getAllByRole("listitem")
+          .find((step) => step.getAttribute("aria-current") === "step"),
+      ).toHaveTextContent("Interview");
+      expect(
+        within(eligible).getByRole("link", { name: /Start interview/ }),
+      ).toHaveAttribute(
+        "href",
+        `/interviews/new/preflight?applicationId=${item(1).id}`,
+      );
+      expect(eligible).toHaveTextContent("2 h 30 min left");
+      expect(rejected).toHaveTextContent("Recruiter's note: Missing Go");
+      expect(
+        within(rejected).getByRole("link", {
+          name: "View application for Backend Engineer 2",
+        }),
+      ).toHaveAttribute("href", `/applications/${item(2).id}`);
+      expect(
+        within(
+          within(rejected).getByRole("list", { name: "Application progress" }),
+        ).getByText(/CV review/),
+      ).toHaveTextContent("ended here");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("pages through the list from the URL", async () => {
@@ -126,7 +187,7 @@ describe("CandidateApplicationList", () => {
   it("disables Next on the last page", async () => {
     mocks.get.mockResolvedValue(envelope([item(1)], 1));
     renderList();
-    await screen.findByRole("list");
+    await screen.findByRole("list", { name: "Your applications" });
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
   });
@@ -155,7 +216,9 @@ describe("CandidateApplicationList", () => {
       }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByRole("list")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("list", { name: "Your applications" }),
+    ).toBeInTheDocument();
   });
 
   it("explains a refused request without listing anything", async () => {

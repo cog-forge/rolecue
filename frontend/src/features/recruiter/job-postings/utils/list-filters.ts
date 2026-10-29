@@ -8,7 +8,7 @@ export const LIST_PAGE_SIZE = 20;
 export const SEARCH_MAX = 200;
 // Go takes the offset as an int32, so the page stays within it.
 const PAGE_MAX = Math.floor(2_147_483_647 / LIST_PAGE_SIZE) + 1;
-export type ListStatus = PostingStatus | "all";
+export type ListStatus = PostingStatus | "all" | "approved" | "preparing";
 export type ListFilters = Readonly<{
   status: ListStatus;
   search: string;
@@ -32,9 +32,12 @@ export function parseListFilters(params: SearchParams): ListFilters {
   const page = Number(single(params.page));
   const search = (single(params.q) ?? "").trim();
   return {
-    status: postingStatuses.includes(status as PostingStatus)
-      ? (status as PostingStatus)
-      : "all",
+    status:
+      status === "approved" ||
+      status === "preparing" ||
+      postingStatuses.includes(status as PostingStatus)
+        ? (status as ListStatus)
+        : "all",
     search: Array.from(search).length <= SEARCH_MAX ? search : "",
     page: Number.isInteger(page) && page > 0 && page <= PAGE_MAX ? page : 1,
   };
@@ -56,6 +59,14 @@ export function listApiParams(filters: ListFilters) {
     offset: (filters.page - 1) * LIST_PAGE_SIZE,
   };
   if (filters.status !== "all") params.status = filters.status;
+  if (filters.status === "approved" || filters.status === "open") {
+    params.status = "open";
+    params.funded = filters.status === "open" ? "true" : "false";
+  }
+  if (filters.status === "preparing" || filters.status === "pending") {
+    params.status = "pending";
+    params.review_submitted = filters.status === "pending" ? "true" : "false";
+  }
   if (filters.search) params.search = filters.search;
   return params;
 }

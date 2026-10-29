@@ -357,6 +357,10 @@ func TestCandidateListIsScopedPaginatedNewestFirst(t *testing.T) {
 		if item.JobPostingTitle != "app posting" {
 			t.Fatalf("item title = %q, want the posting title", item.JobPostingTitle)
 		}
+		// The list card names the hiring company from the posting's Recruiter.
+		if item.CompanyName == nil || *item.CompanyName != "Acme" {
+			t.Fatalf("item company = %v, want Acme", item.CompanyName)
+		}
 	}
 
 	empty, err := svc.ListMine(ctx, other, "candidate", domain.CandidateListFilter{Page: 1, PageSize: 10})

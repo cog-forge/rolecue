@@ -12,7 +12,8 @@ import { CvApplyForm } from "@/features/candidate/applications/components/cv-app
 
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
-  push: vi.fn(),
+  applied: vi.fn(),
+  busy: vi.fn(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
     full_name: "Cand",
@@ -26,9 +27,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api/client", () => ({ apiClient: { post: mocks.post } }));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
-}));
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push }),
 }));
 
 const postingId = "33333333-3333-4333-8333-333333333333";
@@ -72,7 +70,11 @@ function renderForm() {
   });
   return render(
     <QueryClientProvider client={client}>
-      <CvApplyForm postingId={postingId} />
+      <CvApplyForm
+        postingId={postingId}
+        onApplied={mocks.applied}
+        onBusyChange={mocks.busy}
+      />
     </QueryClientProvider>,
   );
 }
@@ -84,7 +86,7 @@ function pick(file: File) {
 }
 
 const applyButton = () =>
-  screen.getByRole("button", { name: "Apply with this CV" });
+  screen.getByRole("button", { name: "Send application" });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -96,9 +98,7 @@ describe("CvApplyForm", () => {
     renderForm();
     pick(new File(["hello"], "cv.txt", { type: "text/plain" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Choose a PDF file.");
-    expect(
-      screen.queryByRole("button", { name: "Apply with this CV" }),
-    ).not.toBeInTheDocument();
+    expect(applyButton()).toBeDisabled();
 
     pick(pdf("big.pdf", 5 * 1024 * 1024 + 1));
     expect(screen.getByRole("alert")).toHaveTextContent(
@@ -112,10 +112,19 @@ describe("CvApplyForm", () => {
     expect(
       screen.getByText(/one pdf with selectable text, up to 5 mb/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/no interview starts/i)).toBeInTheDocument();
+    expect(applyButton()).toBeDisabled();
   });
 
-  it("shows upload progress, then redirects to the new Application", async () => {
+  it("accepts a dropped PDF and names it before sending", () => {
+    renderForm();
+    const zone = screen.getByText(/or drop it here/i).parentElement;
+    if (!zone) throw new Error("drop zone missing");
+    fireEvent.drop(zone, { dataTransfer: { files: [pdf("dropped.pdf")] } });
+    expect(screen.getByText("dropped.pdf")).toBeInTheDocument();
+    expect(applyButton()).toBeEnabled();
+  });
+
+  it("shows upload progress, then hands the new Application to the caller", async () => {
     const gate = deferred<unknown>();
     mocks.post.mockReturnValue(gate.promise);
     renderForm();
@@ -143,10 +152,14 @@ describe("CvApplyForm", () => {
       "Uploading your CV… 40%",
     );
 
+    expect(mocks.busy).toHaveBeenLastCalledWith(true);
     await act(async () => gate.resolve({ data: created }));
     await waitFor(() =>
-      expect(mocks.push).toHaveBeenCalledWith(`/applications/${applicationId}`),
+      expect(mocks.applied).toHaveBeenCalledWith(
+        expect.objectContaining({ id: applicationId }),
+      ),
     );
+    expect(mocks.busy).toHaveBeenLastCalledWith(false);
   });
 
   it("shows the failure and retries with the same file", async () => {
@@ -161,11 +174,13 @@ describe("CvApplyForm", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "We couldn't upload your CV. Try again.",
     );
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.applied).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
     await waitFor(() =>
-      expect(mocks.push).toHaveBeenCalledWith(`/applications/${applicationId}`),
+      expect(mocks.applied).toHaveBeenCalledWith(
+        expect.objectContaining({ id: applicationId }),
+      ),
     );
     expect(mocks.post).toHaveBeenCalledTimes(2);
     expect((mocks.post.mock.calls[1][1] as FormData).get("file")).toBe(file);
@@ -183,10 +198,11 @@ describe("CvApplyForm", () => {
     expect(
       screen.queryByRole("button", { name: "Try again" }),
     ).not.toBeInTheDocument();
+    expect(applyButton()).toBeDisabled();
     expect(
       screen.getByRole("link", { name: "View my applications" }),
     ).toHaveAttribute("href", "/applications");
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.applied).not.toHaveBeenCalled();
   });
 
   it("explains that a closed posting no longer accepts applications", async () => {
@@ -201,7 +217,7 @@ describe("CvApplyForm", () => {
     expect(
       screen.queryByRole("button", { name: "Try again" }),
     ).not.toBeInTheDocument();
-    expect(mocks.push).not.toHaveBeenCalled();
+    expect(mocks.applied).not.toHaveBeenCalled();
   });
 
   it("shows the server's own message for a validation error", async () => {

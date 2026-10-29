@@ -1,14 +1,14 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileUp, LoaderCircle, RotateCcw } from "lucide-react";
+import { FileText, FileUp, LoaderCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { jobBoardKeys } from "@/features/job-board/api/job-board";
+import { cn } from "@/lib/utils";
 import {
   candidateApplicationKeys,
   uploadApplicationCv,
@@ -16,8 +16,8 @@ import {
 import {
   CV_FILE_TYPES,
   CV_MAX_BYTES,
+  type CreatedApplication,
 } from "../schemas/candidate-application-schema";
-import { applicationHref } from "../utils/application-links";
 import { applyErrorMessage, canRetryApply } from "../utils/api-error";
 
 const isPdf = (file: File) =>
@@ -31,27 +31,45 @@ function cvFileError(file: File) {
   return null;
 }
 
-// Uploads one CV to the posting. Success moves the Candidate to the Application status screen;
-// a failed upload keeps the same file so "Try again" resends it.
-export function CvApplyForm({ postingId }: { postingId: string }) {
+const sizeFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
+const fileSize = (bytes: number) =>
+  bytes < 1024 * 1024
+    ? `${sizeFormat.format(bytes / 1024)} KB`
+    : `${sizeFormat.format(bytes / 1024 / 1024)} MB`;
+
+// Uploads one CV to the posting, picked or dropped. onApplied receives the new Application; a failed
+// upload keeps the same file so "Try again" resends it. onBusyChange lets a dialog stay open meanwhile.
+export function CvApplyForm({
+  postingId,
+  onApplied,
+  onBusyChange,
+}: {
+  postingId: string;
+  onApplied: (created: CreatedApplication) => void;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const user = useSessionUser();
   const cache = useQueryClient();
-  const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [dragging, setDragging] = useState(false);
 
   const upload = useMutation({
     mutationFn: (cv: File) => uploadApplicationCv(postingId, cv, setProgress),
-    onMutate: () => setProgress(0),
+    onMutate: () => {
+      setProgress(0);
+      onBusyChange?.(true);
+    },
+    onSettled: () => onBusyChange?.(false),
     onSuccess: (created) => {
       void cache.invalidateQueries({
         queryKey: candidateApplicationKeys.all(user.id),
       });
-      // The posting now says "already applied", so the next visit shows the Applied state.
+      // The posting now says "already applied", so the board shows the Applied state.
       void cache.invalidateQueries({ queryKey: jobBoardKeys.details(user.id) });
-      router.push(applicationHref(created.id));
+      onApplied(created);
     },
   });
 
@@ -60,26 +78,26 @@ export function CvApplyForm({ postingId }: { postingId: string }) {
   const retryable = failed && canRetryApply(upload.error);
   const message = failed ? applyErrorMessage(upload.error) : fileError;
 
-  const choose = (event: ChangeEvent<HTMLInputElement>) => {
-    const picked = event.target.files?.[0] ?? null;
+  const pick = (picked: File | null) => {
     upload.reset();
     if (!picked) return;
     const error = cvFileError(picked);
     setFile(error ? null : picked);
     setFileError(error);
   };
-
-  const send = () => {
-    if (file) upload.mutate(file);
+  const choose = (event: ChangeEvent<HTMLInputElement>) => {
+    pick(event.target.files?.[0] ?? null);
+    // The same file can be chosen again after an error.
+    event.target.value = "";
+  };
+  const drop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    if (!busy) pick(event.dataTransfer.files[0] ?? null);
   };
 
   return (
-    <div className="space-y-3 border-t pt-4">
-      <h3 className="text-sm font-semibold">Apply with your CV</h3>
-      <p id="cv-hint" className="text-xs text-muted-foreground">
-        One PDF with selectable text, up to 5 MB. The recruiter reviews your CV
-        first; no interview starts from this step.
-      </p>
+    <div className="space-y-4">
       <input
         ref={input}
         id="cv-file"
@@ -91,7 +109,29 @@ export function CvApplyForm({ postingId }: { postingId: string }) {
         disabled={busy}
         onChange={choose}
       />
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        onDragOver={(event) => {
+          event.preventDefault();
+          if (!busy) setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={drop}
+        className={cn(
+          "flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-6 text-center transition-colors duration-[var(--duration-quick)] motion-reduce:transition-none",
+          dragging && "border-foreground bg-muted/60",
+        )}
+      >
+        {file ? (
+          <p className="flex items-center gap-2 text-sm font-medium [overflow-wrap:anywhere]">
+            <FileText className="size-4 shrink-0" aria-hidden />
+            <span>{file.name}</span>
+            <span className="font-normal text-muted-foreground">
+              {fileSize(file.size)}
+            </span>
+          </p>
+        ) : (
+          <FileUp className="size-6 text-muted-foreground" aria-hidden />
+        )}
         <Button
           type="button"
           variant="outline"
@@ -100,28 +140,12 @@ export function CvApplyForm({ postingId }: { postingId: string }) {
           aria-describedby="cv-hint"
           onClick={() => input.current?.click()}
         >
-          <FileUp aria-hidden />
           {file ? "Choose another PDF" : "Choose your CV (PDF)"}
         </Button>
-        {file && !busy && (
-          <span className="text-sm font-medium [overflow-wrap:anywhere]">
-            {file.name}
-          </span>
-        )}
+        <p id="cv-hint" className="text-xs text-muted-foreground">
+          Or drop it here. One PDF with selectable text, up to 5 MB.
+        </p>
       </div>
-
-      {file && !busy && !(failed && !retryable) && (
-        <Button type="button" className="h-11 w-full" onClick={send}>
-          {retryable ? (
-            <>
-              <RotateCcw aria-hidden />
-              Try again
-            </>
-          ) : (
-            "Apply with this CV"
-          )}
-        </Button>
-      )}
 
       {busy && (
         <div className="space-y-2">
@@ -135,7 +159,7 @@ export function CvApplyForm({ postingId }: { postingId: string }) {
             className="h-2 w-full overflow-hidden rounded-full bg-muted"
           >
             <div
-              className="h-full bg-workspace-accent transition-[width] duration-200 motion-reduce:transition-none"
+              className="h-full bg-foreground transition-[width] duration-200 motion-reduce:transition-none"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -157,13 +181,32 @@ export function CvApplyForm({ postingId }: { postingId: string }) {
           {failed && !retryable && (
             <Link
               href={routes.applications}
-              className="inline-flex min-h-11 items-center font-medium text-workspace-accent underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="inline-flex min-h-11 items-center font-medium text-foreground underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               View my applications
             </Link>
           )}
         </div>
       )}
+
+      <Button
+        type="button"
+        className="h-11 w-full"
+        disabled={!file || busy || (failed && !retryable)}
+        aria-busy={busy}
+        onClick={() => file && upload.mutate(file)}
+      >
+        {retryable ? (
+          <>
+            <RotateCcw aria-hidden />
+            Try again
+          </>
+        ) : busy ? (
+          "Sending…"
+        ) : (
+          "Send application"
+        )}
+      </Button>
     </div>
   );
 }

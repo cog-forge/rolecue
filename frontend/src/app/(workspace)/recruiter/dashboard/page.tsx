@@ -1,9 +1,5 @@
-import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
+import { RecruiterDashboard } from "@/features/recruiter/dashboard/components/recruiter-dashboard";
+
 export default function Page() {
-  return (
-    <RoutePlaceholder
-      title="Recruiter Dashboard"
-      description="Your job postings and received applications will appear here when recruitment data is connected."
-    />
-  );
+  return <RecruiterDashboard />;
 }

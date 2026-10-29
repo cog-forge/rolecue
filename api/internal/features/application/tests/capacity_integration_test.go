@@ -85,6 +85,15 @@ func TestCapacityFundingDebitsWalletAndSetsSlot(t *testing.T) {
 	if status != "open" || slot == nil || *slot != 5 {
 		t.Fatalf("posting = %s slot %v, want open with slot 5", status, slot)
 	}
+	// The ledger names the posting, so the recruiter can tell postings apart in the transaction list.
+	var description string
+	if err := pool.QueryRow(ctx, `SELECT description FROM public.transactions WHERE description LIKE '%' || $1 || '%'`,
+		postingID.String()).Scan(&description); err != nil {
+		t.Fatal(err)
+	}
+	if want := "Interview capacity of job posting " + postingID.String() + ": app posting, 5 slots"; description != want {
+		t.Fatalf("ledger description = %q, want %q", description, want)
+	}
 }
 
 func TestCapacityFundingRetryWithSameCountChargesNothing(t *testing.T) {

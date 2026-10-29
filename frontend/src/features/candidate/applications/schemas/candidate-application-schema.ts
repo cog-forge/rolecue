@@ -20,6 +20,8 @@ export const candidateApplicationSchema = z.object({
   id: z.uuid(),
   job_posting_id: z.uuid(),
   job_posting_title: z.string(),
+  company_name: z.string().nullable().optional(),
+  job_posting_location: z.string().nullable().optional(),
   status: candidateApplicationStatusSchema,
   reject_reason: z.string().nullable(),
   interview_deadline: z.iso.datetime({ offset: true }).nullable(),

@@ -70,17 +70,19 @@ func (q *Queries) DecidePosting(ctx context.Context, arg DecidePostingParams) (i
 }
 
 const getPosting = `-- name: GetPosting :one
-SELECT jp.id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
+SELECT jp.id, jp.jd_id, jp.title, jp.status::text AS status, jp.reject_reason, jp.location, jp.employment_type,
        jp.salary_min, jp.salary_max, jp.interview_slot, jp.interview_duration, jp.created_at,
        u.id AS recruiter_id, u.name AS recruiter_name, u.email AS recruiter_email,
        jp.required_avatar_id, a.name AS avatar_name,
        jp.required_voice_id, v.name AS voice_name, COALESCE(jd.content_path, '')::text AS content_path,
-       jd.raw_text, jp.review_submitted,
+       jd.raw_text, jp.review_submitted, u.company_name, u.company_website, lower(l.name)::text AS seniority_level,
+       COALESCE(jd.refinement_note, '')::text AS refinement_note,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count,
        EXISTS (SELECT 1 FROM public.metrics_percentage mp WHERE mp.job_posting_id = jp.id) AS weights_configured
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
+JOIN public.levels l ON l.id = jd.level_id
 LEFT JOIN public.avatars a ON a.id = jp.required_avatar_id
 LEFT JOIN public.voices v ON v.id = jp.required_voice_id
 WHERE jp.id = $1
@@ -88,6 +90,7 @@ WHERE jp.id = $1
 
 type GetPostingRow struct {
 	ID                uuid.UUID
+	JdID              uuid.UUID
 	Title             string
 	Status            string
 	RejectReason      *string
@@ -108,6 +111,10 @@ type GetPostingRow struct {
 	ContentPath       string
 	RawText           *string
 	ReviewSubmitted   bool
+	CompanyName       *string
+	CompanyWebsite    *string
+	SeniorityLevel    string
+	RefinementNote    string
 	CoreQuestionCount int64
 	WeightsConfigured bool
 }
@@ -117,6 +124,7 @@ func (q *Queries) GetPosting(ctx context.Context, id uuid.UUID) (GetPostingRow, 
 	var i GetPostingRow
 	err := row.Scan(
 		&i.ID,
+		&i.JdID,
 		&i.Title,
 		&i.Status,
 		&i.RejectReason,
@@ -137,6 +145,10 @@ func (q *Queries) GetPosting(ctx context.Context, id uuid.UUID) (GetPostingRow, 
 		&i.ContentPath,
 		&i.RawText,
 		&i.ReviewSubmitted,
+		&i.CompanyName,
+		&i.CompanyWebsite,
+		&i.SeniorityLevel,
+		&i.RefinementNote,
 		&i.CoreQuestionCount,
 		&i.WeightsConfigured,
 	)
@@ -204,6 +216,36 @@ func (q *Queries) ListPostings(ctx context.Context, arg ListPostingsParams) ([]L
 			&i.RecruiterName,
 			&i.RecruiterEmail,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReviewRequirements = `-- name: ListReviewRequirements :many
+SELECT name, target, type::text AS type FROM public.requirements WHERE jd_id = $1 ORDER BY name, id
+`
+
+type ListReviewRequirementsRow struct {
+	Name   string
+	Target string
+	Type   string
+}
+
+func (q *Queries) ListReviewRequirements(ctx context.Context, jdID uuid.UUID) ([]ListReviewRequirementsRow, error) {
+	rows, err := q.db.Query(ctx, listReviewRequirements, jdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReviewRequirementsRow
+	for rows.Next() {
+		var i ListReviewRequirementsRow
+		if err := rows.Scan(&i.Name, &i.Target, &i.Type); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -41,8 +41,40 @@ describe("list filters", () => {
         limit: 20,
         offset: 40,
         status: "pending",
+        review_submitted: "true",
         search: "Go",
       },
     );
   });
+
+  it.each(["approved", "preparing"])(
+    "preserves the %s stage in links and shared URLs",
+    (status) => {
+      const filters = parseListFilters({ status, q: " Go ", page: "2" });
+      expect(filters).toEqual({ status, search: "Go", page: 2 });
+      expect(
+        parseListFilters(
+          Object.fromEntries(new URLSearchParams(listSearch(filters))),
+        ),
+      ).toEqual(filters);
+    },
+  );
+
+  it.each([
+    ["approved", { status: "open", funded: "false" }],
+    ["open", { status: "open", funded: "true" }],
+    ["preparing", { status: "pending", review_submitted: "false" }],
+    ["pending", { status: "pending", review_submitted: "true" }],
+  ] as const)(
+    "filters the whole dataset for the %s stage",
+    (status, expected) => {
+      expect(
+        listApiParams(parseListFilters({ status: String(status), page: "3" })),
+      ).toEqual({
+        limit: 20,
+        offset: 40,
+        ...expected,
+      });
+    },
+  );
 });

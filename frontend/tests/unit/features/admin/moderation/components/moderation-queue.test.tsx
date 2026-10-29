@@ -87,6 +87,9 @@ describe("ModerationQueue", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       /loading job postings/i,
     );
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Job posting moderation" }),
+    ).toBeInTheDocument();
     const table = await screen.findByRole("table");
     expect(within(table).getByText("Posting 1")).toBeInTheDocument();
     expect(within(table).getAllByText("Pending review")).toHaveLength(2);
@@ -156,7 +159,10 @@ describe("ModerationQueue", () => {
     mocks.get.mockResolvedValue(page(1));
     mount();
     await screen.findByRole("table");
-    fireEvent.change(screen.getByLabelText("Submitted from"), {
+    expect(
+      screen.getByRole("form", { name: "Filter by created date" }),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Created from"), {
       target: { value: "2026-10-10" },
     });
     fireEvent.change(screen.getByLabelText("to"), {

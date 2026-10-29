@@ -10,7 +10,7 @@ const statusText: Record<Status, string> = {
 };
 const toneClass: Record<Status, string> = {
   pending:
-    "bg-workspace-accent/10 text-workspace-accent ring-workspace-accent/25",
+    "bg-rolecue-brand/8 text-rolecue-brand ring-rolecue-brand/20 dark:text-sky-300",
   interview_eligible:
     "bg-amber-50 text-amber-800 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-300",
   interviewed: "bg-muted text-foreground ring-border",
@@ -19,7 +19,7 @@ const toneClass: Record<Status, string> = {
   rejected: "bg-destructive/10 text-destructive ring-destructive/25",
 };
 const dotClass: Record<Status, string> = {
-  pending: "bg-workspace-accent",
+  pending: "bg-rolecue-brand dark:bg-sky-300",
   interview_eligible: "bg-amber-500",
   interviewed: "bg-foreground/60",
   approved: "bg-emerald-600 dark:bg-emerald-400",

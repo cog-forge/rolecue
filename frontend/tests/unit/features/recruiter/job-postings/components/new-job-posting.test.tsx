@@ -29,6 +29,11 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: mocks.replace }),
 }));
 vi.mock("goey-toast", () => ({ gooeyToast: { success: mocks.toast } }));
+vi.mock("@/components/avatar-viewer/avatar-viewer", () => ({
+  AvatarViewer: ({ label }: { label: string }) => (
+    <div role="img" aria-label={label} />
+  ),
+}));
 
 const avatarId = "44444444-4444-4444-8444-444444444444";
 const voiceId = "55555555-5555-4555-8555-555555555555";
@@ -146,12 +151,47 @@ beforeEach(() => {
     Promise.resolve(
       path === "/voices"
         ? pageOf([{ id: voiceId, name: "Ava" }])
-        : pageOf([avatar]),
+        : path.startsWith("/inventory/avatars/")
+          ? envelope({
+              ...avatar,
+              model_access: {
+                url: "https://assets.example/linh.vrm",
+                method: "GET",
+                headers: {},
+                expires_at: "2026-10-29T12:05:00Z",
+              },
+            })
+          : pageOf([avatar]),
     ),
   );
 });
 
 describe("NewJobPosting", () => {
+  it("guides draft entry with examples and leaves slot funding until after approval", async () => {
+    mount();
+
+    expect(
+      screen.getByRole("textbox", { name: "Title (required)" }),
+    ).toHaveAttribute("placeholder", "e.g. Senior Backend Engineer");
+    expect(screen.getByRole("textbox", { name: "Location" })).toHaveAttribute(
+      "placeholder",
+      "e.g. Ho Chi Minh City or Remote",
+    );
+    expect(
+      screen.queryByRole("heading", {
+        name: "Candidates allowed into interview",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/funding interview capacity isn't available yet/i),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByRole("combobox", {
+        name: "Interviewer model (required)",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it(
     "uploads, confirms requirements and opens the generated bank before submission",
     async () => {

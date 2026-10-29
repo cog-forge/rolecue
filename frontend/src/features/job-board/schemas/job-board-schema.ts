@@ -24,6 +24,10 @@ export const boardPostingSchema = z.object({
   salary_max: z.number().int().nullable(),
   seniority_level: levelSchema,
   created_at: z.iso.datetime({ offset: true }),
+  published_at: z.iso.datetime({ offset: true }).nullable().optional(),
+  // A preview for the card: up to five required skills, and how many required skills there are.
+  top_skills: z.array(z.string()).optional(),
+  required_skill_count: z.number().int().optional(),
 });
 export type BoardPosting = z.infer<typeof boardPostingSchema>;
 
@@ -33,6 +37,8 @@ export const boardPostingDetailSchema = boardPostingSchema.extend({
   raw_text: z.string(),
   requirements: z.array(boardRequirementSchema),
   already_applied: z.boolean(),
+  // The Candidate's own Application to this posting, so "Applied" can link straight to it.
+  application_id: z.uuid().nullable().optional(),
 });
 export type BoardPostingDetail = z.infer<typeof boardPostingDetailSchema>;
 

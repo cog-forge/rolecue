@@ -20,12 +20,16 @@ JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
 WHERE jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
-  AND ($1::text IS NULL OR jp.title ILIKE '%' || $1::text || '%')
-  AND ($2::text IS NULL OR jp.location ILIKE '%' || $2::text || '%')
-  AND ($3::text IS NULL OR lower(jp.employment_type) = lower($3::text))
+  AND ($1::timestamptz IS NULL OR jp.published_at >= $1::timestamptz)
+  AND ($2::timestamptz IS NULL OR jp.published_at < $2::timestamptz)
+  AND ($3::text IS NULL OR jp.title ILIKE '%' || $3::text || '%')
+  AND ($4::text IS NULL OR jp.location ILIKE '%' || $4::text || '%')
+  AND ($5::text IS NULL OR lower(jp.employment_type) = lower($5::text))
 `
 
 type CountOpenPostingsParams struct {
+	PublishedFrom  pgtype.Timestamptz
+	PublishedTo    pgtype.Timestamptz
 	Search         *string
 	Location       *string
 	EmploymentType *string
@@ -33,7 +37,13 @@ type CountOpenPostingsParams struct {
 
 // Joins the same tables as the list, so a posting the list cannot show is not counted either.
 func (q *Queries) CountOpenPostings(ctx context.Context, arg CountOpenPostingsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countOpenPostings, arg.Search, arg.Location, arg.EmploymentType)
+	row := q.db.QueryRow(ctx, countOpenPostings,
+		arg.PublishedFrom,
+		arg.PublishedTo,
+		arg.Search,
+		arg.Location,
+		arg.EmploymentType,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -41,16 +51,13 @@ func (q *Queries) CountOpenPostings(ctx context.Context, arg CountOpenPostingsPa
 
 const getOpenPosting = `-- name: GetOpenPosting :one
 SELECT jp.id, jp.jd_id, jp.title, u.company_name, u.company_website, jp.location, jp.employment_type,
-       jp.salary_min, jp.salary_max, jp.interview_duration, lower(l.name) AS level_name, jp.created_at,
-       jd.content_path, jd.raw_text,
-       EXISTS (
-           SELECT 1 FROM public.applications a
-           WHERE a.job_posting_id = jp.id AND a.candidate_id = $1
-       ) AS already_applied
+       jp.salary_min, jp.salary_max, jp.interview_duration, lower(l.name) AS level_name, jp.created_at, jp.published_at,
+       jd.content_path, jd.raw_text, own.id AS application_id
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
+LEFT JOIN public.applications own ON own.job_posting_id = jp.id AND own.candidate_id = $1
 WHERE jp.id = $2 AND jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
 `
@@ -73,11 +80,14 @@ type GetOpenPostingRow struct {
 	InterviewDuration *int32
 	LevelName         string
 	CreatedAt         pgtype.Timestamptz
+	PublishedAt       pgtype.Timestamptz
 	ContentPath       *string
 	RawText           *string
-	AlreadyApplied    bool
+	ApplicationID     pgtype.UUID
 }
 
+// The Candidate's own Application to this posting, if any (apply allows one per posting): it gives
+// already_applied and the link to the Application.
 func (q *Queries) GetOpenPosting(ctx context.Context, arg GetOpenPostingParams) (GetOpenPostingRow, error) {
 	row := q.db.QueryRow(ctx, getOpenPosting, arg.CandidateID, arg.ID)
 	var i GetOpenPostingRow
@@ -94,9 +104,10 @@ func (q *Queries) GetOpenPosting(ctx context.Context, arg GetOpenPostingParams) 
 		&i.InterviewDuration,
 		&i.LevelName,
 		&i.CreatedAt,
+		&i.PublishedAt,
 		&i.ContentPath,
 		&i.RawText,
-		&i.AlreadyApplied,
+		&i.ApplicationID,
 	)
 	return i, err
 }
@@ -104,21 +115,31 @@ func (q *Queries) GetOpenPosting(ctx context.Context, arg GetOpenPostingParams) 
 const listOpenPostings = `-- name: ListOpenPostings :many
 
 SELECT jp.id, jp.title, u.company_name, jp.location, jp.employment_type, jp.salary_min, jp.salary_max,
-       lower(l.name) AS level_name, jp.created_at
+       lower(l.name) AS level_name, jp.created_at, jp.published_at,
+       ARRAY(
+           SELECT r.name FROM public.requirements r
+           WHERE r.jd_id = jp.jd_id AND r.type = 'required'
+           ORDER BY r.name, r.id LIMIT 5
+       )::text[] AS top_skills,
+       (SELECT count(*) FROM public.requirements r WHERE r.jd_id = jp.jd_id AND r.type = 'required') AS required_skill_count
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
 WHERE jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
-  AND ($1::text IS NULL OR jp.title ILIKE '%' || $1::text || '%')
-  AND ($2::text IS NULL OR jp.location ILIKE '%' || $2::text || '%')
-  AND ($3::text IS NULL OR lower(jp.employment_type) = lower($3::text))
-ORDER BY jp.created_at DESC, jp.id DESC
-LIMIT $5 OFFSET $4
+  AND ($1::timestamptz IS NULL OR jp.published_at >= $1::timestamptz)
+  AND ($2::timestamptz IS NULL OR jp.published_at < $2::timestamptz)
+  AND ($3::text IS NULL OR jp.title ILIKE '%' || $3::text || '%')
+  AND ($4::text IS NULL OR jp.location ILIKE '%' || $4::text || '%')
+  AND ($5::text IS NULL OR lower(jp.employment_type) = lower($5::text))
+ORDER BY jp.published_at DESC NULLS LAST, jp.created_at DESC, jp.id DESC
+LIMIT $7 OFFSET $6
 `
 
 type ListOpenPostingsParams struct {
+	PublishedFrom  pgtype.Timestamptz
+	PublishedTo    pgtype.Timestamptz
 	Search         *string
 	Location       *string
 	EmploymentType *string
@@ -127,15 +148,18 @@ type ListOpenPostingsParams struct {
 }
 
 type ListOpenPostingsRow struct {
-	ID             uuid.UUID
-	Title          string
-	CompanyName    *string
-	Location       *string
-	EmploymentType *string
-	SalaryMin      *int32
-	SalaryMax      *int32
-	LevelName      string
-	CreatedAt      pgtype.Timestamptz
+	ID                 uuid.UUID
+	Title              string
+	CompanyName        *string
+	Location           *string
+	EmploymentType     *string
+	SalaryMin          *int32
+	SalaryMax          *int32
+	LevelName          string
+	CreatedAt          pgtype.Timestamptz
+	PublishedAt        pgtype.Timestamptz
+	TopSkills          []string
+	RequiredSkillCount int64
 }
 
 // The job board is the Candidate's read-only view of Job Postings. Only status 'open' (approved by
@@ -149,8 +173,12 @@ type ListOpenPostingsRow struct {
 // required avatar/voice.
 // Every filter is optional: a NULL argument disables it. search and location are LIKE patterns the
 // service has already escaped; employment_type matches the whole value, ignoring case.
+// top_skills is a preview for the card: the first five required requirements in the same order the
+// detail lists them; required_skill_count lets the card say how many more there are.
 func (q *Queries) ListOpenPostings(ctx context.Context, arg ListOpenPostingsParams) ([]ListOpenPostingsRow, error) {
 	rows, err := q.db.Query(ctx, listOpenPostings,
+		arg.PublishedFrom,
+		arg.PublishedTo,
 		arg.Search,
 		arg.Location,
 		arg.EmploymentType,
@@ -174,6 +202,9 @@ func (q *Queries) ListOpenPostings(ctx context.Context, arg ListOpenPostingsPara
 			&i.SalaryMax,
 			&i.LevelName,
 			&i.CreatedAt,
+			&i.PublishedAt,
+			&i.TopSkills,
+			&i.RequiredSkillCount,
 		); err != nil {
 			return nil, err
 		}

@@ -27,11 +27,13 @@ export function ApplicationShell({
   children,
   user,
   sidebarFooter,
+  navigationBadges,
   ...actions
 }: {
   children: React.ReactNode;
   user: WorkspaceUser;
   sidebarFooter?: (collapsed: boolean) => React.ReactNode;
+  navigationBadges?: Readonly<Record<string, { count: number; label: string }>>;
 } & WorkspaceAccountActions) {
   const preferences = useWorkspacePreferences();
   const pathname = usePathname();
@@ -127,6 +129,7 @@ export function ApplicationShell({
           >
             <WorkspaceSidebar
               user={user}
+              navigationBadges={navigationBadges}
               collapsed={preferences.collapsed}
               footer={sidebarFooter?.(preferences.collapsed)}
               onToggle={preferences.toggleCollapsed}
@@ -162,6 +165,7 @@ export function ApplicationShell({
                   </SheetDescription>
                   <WorkspaceSidebar
                     user={user}
+                    navigationBadges={navigationBadges}
                     collapsed={false}
                     footer={sidebarFooter?.(false)}
                     onSearch={openSearch}
@@ -178,7 +182,11 @@ export function ApplicationShell({
               <p className="mt-1 truncate text-sm font-semibold">{pageLabel}</p>
             </div>
             <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
-              A steady place to prepare.
+              {user.role === "candidate"
+                ? "A steady place to prepare."
+                : user.role === "recruiter"
+                  ? "Your recruitment workspace."
+                  : "Platform governance."}
             </span>
           </header>
           <main

@@ -67,12 +67,13 @@ func (q *Queries) GetApplyPostingState(ctx context.Context, id uuid.UUID) (GetAp
 }
 
 const getCandidateApplication = `-- name: GetCandidateApplication :one
-SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status,
-       a.reject_reason, a.interview_deadline, a.created_at,
+SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, u.company_name, jp.location AS job_posting_location,
+       a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at,
        i.id AS interview_id, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = jp.recruiter_id
 LEFT JOIN public.interviews i ON i.application_id = a.id
 WHERE a.id = $1 AND a.candidate_id = $2
 `
@@ -86,6 +87,8 @@ type GetCandidateApplicationRow struct {
 	ID                        uuid.UUID
 	JobPostingID              uuid.UUID
 	JobPostingTitle           string
+	CompanyName               *string
+	JobPostingLocation        *string
 	Status                    string
 	RejectReason              *string
 	InterviewDeadline         pgtype.Timestamptz
@@ -103,6 +106,8 @@ func (q *Queries) GetCandidateApplication(ctx context.Context, arg GetCandidateA
 		&i.ID,
 		&i.JobPostingID,
 		&i.JobPostingTitle,
+		&i.CompanyName,
+		&i.JobPostingLocation,
 		&i.Status,
 		&i.RejectReason,
 		&i.InterviewDeadline,
@@ -148,12 +153,13 @@ func (q *Queries) InsertCandidateApplication(ctx context.Context, arg InsertCand
 }
 
 const listCandidateApplications = `-- name: ListCandidateApplications :many
-SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status,
-       a.reject_reason, a.interview_deadline, a.created_at,
+SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, u.company_name, jp.location AS job_posting_location,
+       a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at,
        i.id AS interview_id, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = jp.recruiter_id
 LEFT JOIN public.interviews i ON i.application_id = a.id
 WHERE a.candidate_id = $1
 ORDER BY a.created_at DESC, a.id DESC
@@ -170,6 +176,8 @@ type ListCandidateApplicationsRow struct {
 	ID                        uuid.UUID
 	JobPostingID              uuid.UUID
 	JobPostingTitle           string
+	CompanyName               *string
+	JobPostingLocation        *string
 	Status                    string
 	RejectReason              *string
 	InterviewDeadline         pgtype.Timestamptz
@@ -180,7 +188,7 @@ type ListCandidateApplicationsRow struct {
 	InterviewScore            *int32
 }
 
-// The Candidate's own Applications, newest first. cv_path is not selected. The interview columns carry the
+// The Candidate's own Applications, newest first, with the posting's company and location. cv_path is not selected. The interview columns carry the
 // session id, completion and score only: no transcript, recording or feedback text.
 func (q *Queries) ListCandidateApplications(ctx context.Context, arg ListCandidateApplicationsParams) ([]ListCandidateApplicationsRow, error) {
 	rows, err := q.db.Query(ctx, listCandidateApplications, arg.CandidateID, arg.PageOffset, arg.PageLimit)
@@ -195,6 +203,8 @@ func (q *Queries) ListCandidateApplications(ctx context.Context, arg ListCandida
 			&i.ID,
 			&i.JobPostingID,
 			&i.JobPostingTitle,
+			&i.CompanyName,
+			&i.JobPostingLocation,
 			&i.Status,
 			&i.RejectReason,
 			&i.InterviewDeadline,

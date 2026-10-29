@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import {
   ArrowLeft,
+  ArrowUpRight,
   Building2,
   CircleCheck,
   Clock,
@@ -13,12 +14,14 @@ import {
   MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import { CvApplyForm } from "@/features/candidate/applications/components/cv-apply-form";
+import { ApplyDialog } from "@/features/candidate/applications/components/apply-dialog";
+import { HiringSteps } from "@/features/candidate/applications/components/hiring-steps";
+import { applicationHref } from "@/features/candidate/applications/utils/application-links";
 import { isHttpsProfileUrl } from "@/features/profile/schemas/profile-schema";
+import { cn } from "@/lib/utils";
 import { getJobBoardPosting, jobBoardKeys } from "../api/job-board";
 import type {
   BoardPostingDetail,
@@ -28,7 +31,7 @@ import { apiStatus, isAccessDenied } from "../utils/api-error";
 import {
   fullDate,
   levelText,
-  postedText,
+  publicationText,
   salaryText,
   targetLabel,
 } from "../utils/format";
@@ -38,12 +41,23 @@ function safeWebsite(value: string | null) {
   return value && isHttpsProfileUrl(value) ? new URL(value) : null;
 }
 
+// How many skills show before "Show all"; a long JD is clamped until the Candidate expands it.
+const SKILLS_SHOWN = 10;
+const LONG_JD_CHARACTERS = 800;
+const LONG_JD_LINES = 14;
+
+type Variant = "page" | "panel";
+
+// One open posting. The page variant is the /jobs/[id] route (and the mobile view); the panel
+// variant sits beside the board list on wide screens, so it has no back link and an h2 title.
 export function JobPostingDetail({
   id,
-  backQuery,
+  backQuery = "",
+  variant = "page",
 }: {
   id: string;
-  backQuery: string;
+  backQuery?: string;
+  variant?: Variant;
 }) {
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -64,9 +78,73 @@ export function JobPostingDetail({
   // Go answers the same 404 for a posting that is missing, not open or closed to intake.
   const unavailable = apiStatus(query.error) === 404;
   const backHref = `${routes.jobs}${backQuery ? `?${backQuery}` : ""}`;
+  const Heading = variant === "page" ? "h1" : "h2";
+  const page = variant === "page";
 
+  const content = !validId ? (
+    <StateMessage
+      heading={<Heading>This link isn&apos;t valid</Heading>}
+      text="Check the address, or find the posting on the Job Board."
+      action={
+        page && (
+          <Button asChild variant="outline" className="mt-4 h-11">
+            <Link href={backHref}>Browse open postings</Link>
+          </Button>
+        )
+      }
+    />
+  ) : query.isPending ? (
+    <div role="status" className="space-y-4">
+      <Skeleton className="h-9 w-2/3" />
+      <Skeleton className="h-5 w-1/2" />
+      <Skeleton className="h-11 w-48 rounded-md" />
+      <Skeleton className="h-64 rounded-xl" />
+      <span className="sr-only">Loading the job posting…</span>
+    </div>
+  ) : denied ? (
+    <StateMessage
+      heading={<Heading>You don&apos;t have access to this posting</Heading>}
+      text="Checking your account access… If this stays, sign in again with a candidate account."
+    />
+  ) : unavailable ? (
+    <StateMessage
+      heading={<Heading>This posting is no longer available</Heading>}
+      text="It stopped accepting applications or was removed. Other open postings are waiting on the Job Board."
+      action={
+        page && (
+          <Button asChild variant="outline" className="mt-4 h-11">
+            <Link href={backHref}>Browse open postings</Link>
+          </Button>
+        )
+      }
+    />
+  ) : query.isError ? (
+    <StateMessage
+      tone="danger"
+      heading={<Heading>We couldn&apos;t load this job posting</Heading>}
+      text="Please try again in a moment."
+      action={
+        <Button
+          className="mt-4 h-11 bg-background"
+          variant="outline"
+          disabled={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          Try again
+        </Button>
+      }
+    />
+  ) : (
+    <PostingContent
+      posting={query.data}
+      canApply={user.role === "candidate"}
+      variant={variant}
+    />
+  );
+
+  if (!page) return content;
   return (
-    <section className="mx-auto w-full max-w-6xl space-y-6">
+    <section className="mx-auto w-full max-w-3xl space-y-6">
       <Link
         href={backHref}
         className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -74,92 +152,52 @@ export function JobPostingDetail({
         <ArrowLeft className="size-4" aria-hidden />
         Back to Job Board
       </Link>
-
-      {!validId ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">This link isn&apos;t valid</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Check the address, or find the posting on the Job Board.
-          </p>
-          <Button asChild variant="outline" className="mt-4 h-11">
-            <Link href={backHref}>Browse open postings</Link>
-          </Button>
-        </div>
-      ) : query.isPending ? (
-        <div role="status" className="space-y-4">
-          <Skeleton className="h-10 w-2/3" />
-          <Skeleton className="h-6 w-1/2" />
-          <div className="grid gap-6 lg:grid-cols-[1fr_20rem]">
-            <Skeleton className="h-96 rounded-xl" />
-            <Skeleton className="h-40 rounded-xl" />
-          </div>
-          <span className="sr-only">Loading the job posting…</span>
-        </div>
-      ) : denied ? (
-        <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-          <h1 className="text-xl font-semibold">
-            You don&apos;t have access to this posting
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Checking your account access… If this stays, sign in again with a
-            candidate account.
-          </p>
-        </div>
-      ) : unavailable ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">
-            This posting is no longer available
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            It stopped accepting applications or was removed. Other open
-            postings are waiting on the Job Board.
-          </p>
-          <Button asChild variant="outline" className="mt-4 h-11">
-            <Link href={backHref}>Browse open postings</Link>
-          </Button>
-        </div>
-      ) : query.isError ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
-        >
-          <h1 className="text-xl font-semibold">
-            We couldn&apos;t load this job posting
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Please try again in a moment.
-          </p>
-          <Button
-            className="mt-4 h-11 bg-background"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            Try again
-          </Button>
-        </div>
-      ) : (
-        <PostingContent
-          posting={query.data}
-          canApply={user.role === "candidate"}
-        />
-      )}
+      {content}
     </section>
+  );
+}
+
+function StateMessage({
+  heading,
+  text,
+  action,
+  tone,
+}: {
+  heading: ReactNode;
+  text: string;
+  action?: ReactNode;
+  tone?: "danger";
+}) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "rounded-xl border p-6 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold",
+        tone === "danger" && "border-destructive/30 bg-destructive/5",
+      )}
+    >
+      {heading}
+      <p className="mt-2 text-sm text-muted-foreground">{text}</p>
+      {action}
+    </div>
   );
 }
 
 function PostingContent({
   posting,
   canApply,
+  variant,
 }: {
   posting: BoardPostingDetail;
   canApply: boolean;
+  variant: Variant;
 }) {
+  const [applying, setApplying] = useState(false);
   const website = safeWebsite(posting.company_website);
   const salary = salaryText(posting);
-  const required = posting.requirements.filter((r) => r.type === "required");
-  const preferred = posting.requirements.filter((r) => r.type === "preferred");
-  const facts: { label: string; value: ReactNode }[] = [
+  const Heading = variant === "page" ? "h1" : "h2";
+  const Section = variant === "page" ? "h2" : "h3";
+  const facts: { label: string; value: string }[] = [
     { label: "Level", value: levelText[posting.seniority_level] },
     ...(posting.employment_type
       ? [{ label: "Employment type", value: posting.employment_type }]
@@ -176,194 +214,236 @@ function PostingContent({
   ];
 
   return (
-    <div className="space-y-6 duration-300 animate-in fade-in motion-reduce:animate-none">
-      <header className="space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
-          {posting.title}
-        </h1>
-        <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
-          {website ? (
-            <a
-              href={website.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-foreground underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-h-0"
-            >
-              <Building2 className="size-4 shrink-0" aria-hidden />
-              {/* Without a company name, the website's host still says whose posting it is. */}
-              {posting.company_name ?? website.hostname}
-              <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-              <span className="sr-only">(opens in a new tab)</span>
-            </a>
-          ) : (
-            posting.company_name && (
-              <span className="inline-flex items-center gap-1.5 font-medium text-foreground [overflow-wrap:anywhere]">
+    <article className="space-y-7 duration-300 animate-in fade-in motion-reduce:animate-none">
+      <header className="space-y-4">
+        <div className="space-y-2">
+          <Heading
+            className={cn(
+              "font-semibold tracking-tight [overflow-wrap:anywhere]",
+              variant === "page" ? "text-3xl sm:text-4xl" : "text-2xl",
+            )}
+          >
+            {posting.title}
+          </Heading>
+          <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+            {website ? (
+              <a
+                href={website.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-sm font-medium text-foreground underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-h-0"
+              >
                 <Building2 className="size-4 shrink-0" aria-hidden />
-                {posting.company_name}
+                {/* Without a company name, the website's host still says whose posting it is. */}
+                {posting.company_name ?? website.hostname}
+                <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+                <span className="sr-only">(opens in a new tab)</span>
+              </a>
+            ) : (
+              posting.company_name && (
+                <span className="inline-flex items-center gap-1.5 font-medium text-foreground [overflow-wrap:anywhere]">
+                  <Building2 className="size-4 shrink-0" aria-hidden />
+                  {posting.company_name}
+                </span>
+              )
+            )}
+            {posting.location && (
+              <span className="inline-flex items-center gap-1.5 [overflow-wrap:anywhere]">
+                <MapPin className="size-4 shrink-0" aria-hidden />
+                {posting.location}
               </span>
-            )
-          )}
-          {posting.location && (
-            <span className="inline-flex items-center gap-1.5 [overflow-wrap:anywhere]">
-              <MapPin className="size-4 shrink-0" aria-hidden />
-              {posting.location}
+            )}
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="size-4 shrink-0" aria-hidden />
+              <time
+                dateTime={posting.published_at ?? posting.created_at}
+                title={fullDate(posting.published_at ?? posting.created_at)}
+              >
+                {publicationText(posting)}
+              </time>
             </span>
-          )}
-          <span className="inline-flex items-center gap-1.5">
-            <Clock className="size-4 shrink-0" aria-hidden />
-            <time
-              dateTime={posting.created_at}
-              title={fullDate(posting.created_at)}
-            >
-              {postedText(posting.created_at)}
-            </time>
-          </span>
-        </p>
-      </header>
-
-      <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
-        <div className="min-w-0 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <h2>Requirements</h2>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {posting.requirements.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  This posting doesn&apos;t list specific requirements. Read the
-                  job description below.
-                </p>
-              ) : (
-                <>
-                  <RequirementGroup title="Required" items={required} />
-                  <RequirementGroup title="Nice to have" items={preferred} />
-                </>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <h2>Job description</h2>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Recruiter text is untrusted: render it as text, never as HTML. */}
-              {posting.raw_text.trim() ? (
-                <p className="text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
-                  {posting.raw_text}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  The recruiter hasn&apos;t added a job description.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          </p>
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-6">
-          <Card>
-            <CardContent className="space-y-4">
-              <dl className="space-y-3 text-sm">
-                {facts.map((fact) => (
-                  <div key={fact.label} className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">{fact.label}</dt>
-                    <dd className="text-right font-medium [overflow-wrap:anywhere]">
-                      {fact.value}
-                    </dd>
-                  </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          {canApply &&
+            (posting.already_applied ? (
+              <Button asChild variant="outline" className="h-11">
+                <Link
+                  href={
+                    posting.application_id
+                      ? applicationHref(posting.application_id)
+                      : routes.applications
+                  }
+                >
+                  <CircleCheck aria-hidden className="text-emerald-600" />
+                  Applied · View application
+                </Link>
+              </Button>
+            ) : (
+              <Button className="h-11 px-6" onClick={() => setApplying(true)}>
+                Apply with your CV
+              </Button>
+            ))}
+          {variant === "panel" && (
+            <Link
+              href={routes.job(posting.id)}
+              className="inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Open posting page
+              <ArrowUpRight className="size-4" aria-hidden />
+            </Link>
+          )}
+        </div>
+        {canApply && posting.already_applied && (
+          <p role="status" className="text-sm text-muted-foreground">
+            You already applied to this posting.
+          </p>
+        )}
+      </header>
+
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border text-sm sm:grid-cols-4">
+        {facts.map((fact) => (
+          <div key={fact.label} className="space-y-1 bg-background p-3">
+            <dt className="text-xs text-muted-foreground">{fact.label}</dt>
+            <dd className="font-medium [overflow-wrap:anywhere]">
+              {fact.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <section className="space-y-3">
+        <Section className="text-base font-semibold">Skills</Section>
+        {posting.requirements.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            This posting doesn&apos;t list specific skills. Read the job
+            description below.
+          </p>
+        ) : (
+          <Skills requirements={posting.requirements} />
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <Section className="text-base font-semibold">How hiring works</Section>
+        <HiringSteps />
+      </section>
+
+      <section className="space-y-3">
+        <Section className="text-base font-semibold">Job description</Section>
+        <JobDescription text={posting.raw_text} />
+      </section>
+
+      {/* Kept mounted while open: the "applied" refetch must not take the success step away. */}
+      {canApply && (!posting.already_applied || applying) && (
+        <ApplyDialog
+          posting={posting}
+          open={applying}
+          onOpenChange={setApplying}
+        />
+      )}
+    </article>
+  );
+}
+
+// Required skills come first; past SKILLS_SHOWN the rest wait behind "Show all".
+function Skills({ requirements }: { requirements: BoardRequirement[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const ordered = [
+    ...requirements.filter((r) => r.type === "required"),
+    ...requirements.filter((r) => r.type === "preferred"),
+  ];
+  const shown = expanded ? ordered : ordered.slice(0, SKILLS_SHOWN);
+  const groups = [
+    {
+      title: "Required",
+      items: shown.filter((r) => r.type === "required"),
+    },
+    {
+      title: "Nice to have",
+      items: shown.filter((r) => r.type === "preferred"),
+    },
+  ];
+  return (
+    <div className="space-y-4">
+      {groups.map(
+        (group) =>
+          group.items.length > 0 && (
+            <div key={group.title} className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                {group.title}
+              </p>
+              <ul aria-label={group.title} className="flex flex-wrap gap-2">
+                {group.items.map((item, i) => (
+                  <li
+                    key={`${item.name}-${i}`}
+                    title={targetLabel(item.target)}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1 text-sm [overflow-wrap:anywhere]",
+                      item.type === "preferred" &&
+                        "border-dashed text-muted-foreground",
+                    )}
+                  >
+                    {item.name}
+                  </li>
                 ))}
-              </dl>
-              {canApply && (
-                <ApplyPanel
-                  applied={posting.already_applied}
-                  postingId={posting.id}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
+              </ul>
+            </div>
+          ),
+      )}
+      {ordered.length > SKILLS_SHOWN && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-11 px-2"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "Show fewer skills" : `Show all ${ordered.length} skills`}
+        </Button>
+      )}
     </div>
   );
 }
 
-function RequirementGroup({
-  title,
-  items,
-}: {
-  title: string;
-  items: BoardRequirement[];
-}) {
-  if (items.length === 0) return null;
+function JobDescription({ text }: { text: string }) {
+  const id = useId();
+  const [expanded, setExpanded] = useState(false);
+  if (!text.trim())
+    return (
+      <p className="text-sm text-muted-foreground">
+        The recruiter hasn&apos;t added a job description.
+      </p>
+    );
+  const long =
+    text.length > LONG_JD_CHARACTERS || text.split("\n").length > LONG_JD_LINES;
+  const clamped = long && !expanded;
   return (
     <div className="space-y-2">
-      <h3 className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
-        {title}
-      </h3>
-      <ul className="divide-y rounded-lg border">
-        {items.map((item, i) => (
-          <li
-            key={i}
-            className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 py-2.5 text-sm"
-          >
-            <span className="font-medium [overflow-wrap:anywhere]">
-              {item.name}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {targetLabel(item.target)}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-// aria-disabled instead of disabled keeps the button in the tab order, so its note is announced.
-const unavailableButton =
-  "h-11 w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
-
-// Candidates apply with a CV; the upload flow lives in the candidate applications feature.
-function ApplyPanel({
-  applied,
-  postingId,
-}: {
-  applied: boolean;
-  postingId: string;
-}) {
-  if (!applied) return <CvApplyForm postingId={postingId} />;
-  return (
-    <div className="space-y-3 border-t pt-4">
-      <Button
-        type="button"
-        className={unavailableButton}
-        aria-disabled="true"
-        aria-describedby="apply-note"
-      >
-        <CircleCheck aria-hidden />
-        Applied
-      </Button>
+      {/* Recruiter text is untrusted: render it as text, never as HTML. */}
       <p
-        id="apply-note"
-        role="status"
-        className="flex items-start gap-2 text-sm"
+        id={id}
+        className={cn(
+          "text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]",
+          clamped &&
+            "max-h-72 overflow-hidden [mask-image:linear-gradient(to_bottom,black_70%,transparent)]",
+        )}
       >
-        <span
-          className="mt-1.5 size-2 shrink-0 rounded-full bg-emerald-500"
-          aria-hidden
-        />
-        You already applied to this posting.
+        {text}
       </p>
-      <Link
-        href={routes.applications}
-        className="inline-flex min-h-11 items-center text-sm font-medium text-workspace-accent underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        View my applications
-      </Link>
+      {long && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-11 px-2"
+          aria-expanded={expanded}
+          aria-controls={id}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? "Show less" : "Show the full description"}
+        </Button>
+      )}
     </div>
   );
 }

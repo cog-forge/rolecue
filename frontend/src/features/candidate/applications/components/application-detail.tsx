@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "lucide-react";
@@ -20,19 +20,11 @@ import {
   formatDeadline,
   formatSubmitted,
   isDeadlinePassed,
-  statusLabel,
   timeLeftText,
 } from "../utils/application-text";
-
-// The countdown is re-read once a minute; it stops with the component.
-function useNow(intervalMs = 60_000) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
-    return () => window.clearInterval(timer);
-  }, [intervalMs]);
-  return now;
-}
+import { useNow } from "../utils/use-now";
+import { ApplicationProgress } from "./application-progress";
+import { CandidateApplicationStatusBadge } from "./application-status";
 
 // One Application for the Candidate who submitted it. It never shows a transcript, audio or video.
 export function CandidateApplicationDetail({ id }: { id: string }) {
@@ -151,13 +143,21 @@ function ApplicationContent({
         <h1 className="text-3xl font-semibold tracking-tight [overflow-wrap:anywhere] sm:text-4xl">
           {application.job_posting_title}
         </h1>
+        {application.company_name && (
+          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
+            {[application.company_name, application.job_posting_location]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        )}
+        <ApplicationProgress application={application} className="pt-2" />
       </header>
 
       <Card>
         <CardContent className="space-y-5">
           <dl className="grid gap-4 text-sm sm:grid-cols-2">
             <Fact label="Status">
-              <span className="font-semibold">{statusLabel[status]}</span>
+              <CandidateApplicationStatusBadge status={status} />
             </Fact>
             <Fact label="Submitted">
               <time dateTime={application.created_at}>

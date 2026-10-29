@@ -14,6 +14,13 @@ import {
   listSearch,
 } from "@/features/recruiter/job-postings/utils/list-filters";
 
+// Radix Select calls scrollIntoView when it opens; jsdom does not implement it.
+if (!HTMLElement.prototype.scrollIntoView)
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: () => {},
+  });
+
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   search: new URLSearchParams(),
@@ -122,11 +129,11 @@ describe("JobPostingList", () => {
     expect(screen.getByText("Showing 1–2 of 2")).toBeInTheDocument();
   });
 
-  it("offers View instead of Edit once a posting is approved", async () => {
+  it("offers funding instead of editing after approval until the posting is published", async () => {
     mocks.get.mockResolvedValue(page([summary(0, "open")]));
     mount();
     expect(
-      await screen.findByRole("link", { name: "View Posting 1" }),
+      await screen.findByRole("link", { name: "Fund & publish Posting 1" }),
     ).toBeInTheDocument();
   });
 
@@ -135,20 +142,21 @@ describe("JobPostingList", () => {
     mount({ status: "pending", search: "Go", page: 2 });
     await screen.findByRole("table");
     expect(mocks.get).toHaveBeenCalledWith("/job-postings", {
-      params: { limit: 20, offset: 20, status: "pending", search: "Go" },
+      params: {
+        limit: 20,
+        offset: 20,
+        status: "pending",
+        review_submitted: "true",
+        search: "Go",
+      },
       signal: expect.any(AbortSignal),
     });
-    expect(screen.getByRole("link", { name: "Rejected" })).toHaveAttribute(
-      "href",
-      "/recruiter/job-postings?status=rejected&q=Go",
-    );
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(
       "href",
       "/recruiter/job-postings?status=pending&q=Go&page=3",
     );
-    expect(screen.getByRole("link", { name: "Pending" })).toHaveAttribute(
-      "aria-current",
-      "page",
+    expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent(
+      "Pending review",
     );
   });
 
@@ -168,7 +176,7 @@ describe("JobPostingList", () => {
     push.mockRestore();
   });
 
-  it("changes tabs through the History API instead of a route navigation", async () => {
+  it("changes the status filter through the History API instead of a route navigation", async () => {
     mocks.get
       .mockResolvedValueOnce(page([summary(0)]))
       .mockReturnValueOnce(new Promise(() => {}));
@@ -179,7 +187,12 @@ describe("JobPostingList", () => {
       .mockImplementation((_data, _unused, url) => {
         mocks.search = new URL(String(url), "http://localhost").searchParams;
       });
-    fireEvent.click(screen.getByRole("link", { name: "Open" }));
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Status" }), {
+      key: "ArrowDown",
+    });
+    fireEvent.keyDown(await screen.findByRole("option", { name: "Live" }), {
+      key: "Enter",
+    });
     expect(push).toHaveBeenCalledWith(
       null,
       "",

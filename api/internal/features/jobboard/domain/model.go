@@ -10,16 +10,24 @@ import (
 // the question bank, evaluation weights, interview capacity or funding, the reject reason or the
 // required avatar/voice: Candidates never see them.
 type BoardPosting struct {
-	ID             uuid.UUID `json:"id"`
-	Title          string    `json:"title"`
-	CompanyName    *string   `json:"company_name"`
-	Location       *string   `json:"location"`
-	EmploymentType *string   `json:"employment_type"`
-	SalaryMin      *int32    `json:"salary_min"`
-	SalaryMax      *int32    `json:"salary_max"`
-	SeniorityLevel string    `json:"seniority_level" enums:"intern,junior,mid,senior,lead"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID             uuid.UUID  `json:"id"`
+	Title          string     `json:"title"`
+	CompanyName    *string    `json:"company_name"`
+	Location       *string    `json:"location"`
+	EmploymentType *string    `json:"employment_type"`
+	SalaryMin      *int32     `json:"salary_min"`
+	SalaryMax      *int32     `json:"salary_max"`
+	SeniorityLevel string     `json:"seniority_level" enums:"intern,junior,mid,senior,lead"`
+	CreatedAt      time.Time  `json:"created_at"`
+	PublishedAt    *time.Time `json:"published_at"`
+	// TopSkills previews up to five required requirement names, in the order the detail lists them;
+	// RequiredSkillCount is the full number of required requirements.
+	TopSkills          []string `json:"top_skills"`
+	RequiredSkillCount int64    `json:"required_skill_count"`
 }
+
+// MaxTopSkills is how many required requirement names a posting card previews.
+const MaxTopSkills = 5
 
 // BoardRequirement is one requirement the Recruiter confirmed for the posting.
 type BoardRequirement struct {
@@ -29,7 +37,8 @@ type BoardRequirement struct {
 }
 
 // BoardPostingDetail is the public content of an open Job Posting. RawText is the JD text.
-// AlreadyApplied tells the Candidate whether they have an Application for it.
+// AlreadyApplied tells the Candidate whether they have an Application for it, and ApplicationID
+// names that Application so the board can link to it.
 type BoardPostingDetail struct {
 	BoardPosting
 	CompanyWebsite    *string            `json:"company_website"`
@@ -37,6 +46,7 @@ type BoardPostingDetail struct {
 	RawText           string             `json:"raw_text"`
 	Requirements      []BoardRequirement `json:"requirements"`
 	AlreadyApplied    bool               `json:"already_applied"`
+	ApplicationID     *uuid.UUID         `json:"application_id"`
 }
 
 // BoardRecord is what the repository returns for one posting. A posting created before PDF upload
@@ -51,6 +61,8 @@ type BoardRecord struct {
 // as substrings of the title and location; EmploymentType must match the whole value. Case is
 // ignored everywhere.
 type BoardFilter struct {
+	PublishedFrom  *time.Time
+	PublishedTo    *time.Time
 	Search         *string
 	Location       *string
 	EmploymentType *string

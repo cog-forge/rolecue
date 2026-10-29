@@ -3446,6 +3446,18 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "string",
+                        "description": "Publication window start, inclusive (RFC3339)",
+                        "name": "published_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Publication window end, exclusive (RFC3339)",
+                        "name": "published_to",
+                        "in": "query"
+                    },
+                    {
                         "maxLength": 200,
                         "type": "string",
                         "description": "Part of the title",
@@ -3730,6 +3742,18 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Case-insensitive title search",
                         "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by funded interview capacity",
+                        "name": "funded",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by explicit review submission",
+                        "name": "review_submitted",
                         "in": "query"
                     }
                 ],
@@ -7873,6 +7897,12 @@ const docTemplate = `{
                 "location": {
                     "type": "string"
                 },
+                "published_at": {
+                    "type": "string"
+                },
+                "required_skill_count": {
+                    "type": "integer"
+                },
                 "salary_max": {
                     "type": "integer"
                 },
@@ -7891,6 +7921,13 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "top_skills": {
+                    "description": "TopSkills previews up to five required requirement names, in the order the detail lists them;\nRequiredSkillCount is the full number of required requirements.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -7899,6 +7936,9 @@ const docTemplate = `{
             "properties": {
                 "already_applied": {
                     "type": "boolean"
+                },
+                "application_id": {
+                    "type": "string"
                 },
                 "company_name": {
                     "type": "string"
@@ -7921,8 +7961,14 @@ const docTemplate = `{
                 "location": {
                     "type": "string"
                 },
+                "published_at": {
+                    "type": "string"
+                },
                 "raw_text": {
                     "type": "string"
+                },
+                "required_skill_count": {
+                    "type": "integer"
                 },
                 "requirements": {
                     "type": "array",
@@ -7948,6 +7994,13 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "top_skills": {
+                    "description": "TopSkills previews up to five required requirement names, in the order the detail lists them;\nRequiredSkillCount is the full number of required requirements.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -7976,6 +8029,10 @@ const docTemplate = `{
                     "description": "CanStartInterview is true only while the Application is interview_eligible and the deadline\nhas not passed. Start itself is checked again on the server when it exists.",
                     "type": "boolean"
                 },
+                "company_name": {
+                    "description": "CompanyName and JobPostingLocation come from the posting and its Recruiter, for the list card.",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -7995,6 +8052,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "job_posting_id": {
+                    "type": "string"
+                },
+                "job_posting_location": {
                     "type": "string"
                 },
                 "job_posting_title": {
@@ -9192,17 +9252,6 @@ const docTemplate = `{
                 }
             }
         },
-        "domain.Requirement": {
-            "type": "string",
-            "enum": [
-                "required",
-                "preferred"
-            ],
-            "x-enum-varnames": [
-                "Required",
-                "Preferred"
-            ]
-        },
         "domain.RequirementType": {
             "type": "string",
             "enum": [
@@ -9355,6 +9404,12 @@ const docTemplate = `{
         "domain.ReviewPosting": {
             "type": "object",
             "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "company_website": {
+                    "type": "string"
+                },
                 "content_path": {
                     "description": "ContentPath is job_descriptions.content_path: the storage key of the JD PDF for postings\ncreated through POST /job-postings, or a full http(s) URL for older rows.",
                     "type": "string"
@@ -9376,6 +9431,9 @@ const docTemplate = `{
                 "employment_type": {
                     "type": "string"
                 },
+                "evaluation": {
+                    "$ref": "#/definitions/domain.PostingWeights"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -9395,6 +9453,9 @@ const docTemplate = `{
                 "recruiter": {
                     "$ref": "#/definitions/domain.Recruiter"
                 },
+                "refinement_note": {
+                    "type": "string"
+                },
                 "reject_reason": {
                     "type": "string"
                 },
@@ -9403,6 +9464,12 @@ const docTemplate = `{
                 },
                 "required_voice": {
                     "$ref": "#/definitions/domain.NamedRef"
+                },
+                "requirements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_cog-forge_rolecue_api_internal_features_admin_moderation_domain.Requirement"
+                    }
                 },
                 "review_submitted": {
                     "description": "ReviewSubmitted is false while the Recruiter is still preparing a pending posting.",
@@ -9413,6 +9480,9 @@ const docTemplate = `{
                 },
                 "salary_min": {
                     "type": "integer"
+                },
+                "seniority_level": {
+                    "type": "string"
                 },
                 "status": {
                     "$ref": "#/definitions/domain.PostingStatus"
@@ -9491,7 +9561,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "$ref": "#/definitions/domain.Requirement"
+                    "$ref": "#/definitions/github_com_cog-forge_rolecue_api_internal_features_roleprofile_domain.Requirement"
                 }
             }
         },
@@ -9959,6 +10029,31 @@ const docTemplate = `{
                     "type": "number"
                 }
             }
+        },
+        "github_com_cog-forge_rolecue_api_internal_features_admin_moderation_domain.Requirement": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "target": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_cog-forge_rolecue_api_internal_features_roleprofile_domain.Requirement": {
+            "type": "string",
+            "enum": [
+                "required",
+                "preferred"
+            ],
+            "x-enum-varnames": [
+                "Required",
+                "Preferred"
+            ]
         },
         "handler.AppendTurnRequest": {
             "type": "object",

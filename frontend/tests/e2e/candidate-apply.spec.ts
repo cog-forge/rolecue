@@ -47,6 +47,8 @@ const application = (over: Record<string, unknown> = {}) => ({
   id: applicationId,
   job_posting_id: postingId,
   job_posting_title: "Go Backend Engineer",
+  company_name: "Acme",
+  job_posting_location: "Hanoi",
   status: "pending",
   reject_reason: null,
   interview_deadline: null,
@@ -123,8 +125,13 @@ async function mockCandidateApply(page: Page, options: Options = {}) {
   return { uploads };
 }
 
-// Picks a PDF through the visible "Choose your CV (PDF)" button and the native file chooser.
+// Opens the apply dialog, then picks a PDF through its "Choose your CV (PDF)" button and the native
+// file chooser.
 async function chooseCv(page: Page, name = "cv.pdf") {
+  await page.getByRole("button", { name: "Apply with your CV" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Apply for Go Backend Engineer" }),
+  ).toBeVisible();
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: "Choose your CV (PDF)" }).click();
   (await chooser).setFiles({
@@ -135,7 +142,7 @@ async function chooseCv(page: Page, name = "cv.pdf") {
   await expect(page.getByText(name, { exact: true })).toBeVisible();
 }
 
-test("a candidate applies with a PDF CV and lands on the pending Application", async ({
+test("a candidate applies with a PDF CV in a dialog, sees what happens next and opens the Application", async ({
   page,
 }) => {
   const api = await mockCandidateApply(page);
@@ -145,7 +152,14 @@ test("a candidate applies with a PDF CV and lands on the pending Application", a
   ).toBeVisible();
 
   await chooseCv(page);
-  await page.getByRole("button", { name: "Apply with this CV" }).click();
+  await page.getByRole("button", { name: "Send application" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Application sent" });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByText("The recruiter reviews your CV", { exact: false }),
+  ).toBeVisible();
+  await dialog.getByRole("link", { name: "View my application" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/applications/${applicationId}$`));
   await expect(
@@ -170,15 +184,15 @@ test("applying twice shows the already-applied message and does not redirect", a
   });
   await page.goto(`/jobs/${postingId}`);
   await chooseCv(page);
-  await page.getByRole("button", { name: "Apply with this CV" }).click();
+  await page.getByRole("button", { name: "Send application" }).click();
 
   await expect(
     page.getByText("You already applied to this posting.", { exact: true }),
   ).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/jobs/${postingId}$`));
   await expect(
-    page.getByRole("button", { name: "Apply with this CV" }),
-  ).toHaveCount(0);
+    page.getByRole("button", { name: "Send application" }),
+  ).toBeDisabled();
   expect(api.uploads).toHaveLength(1);
 });
 
@@ -194,7 +208,7 @@ test("a posting that stopped taking applications shows the intake message and do
   });
   await page.goto(`/jobs/${postingId}`);
   await chooseCv(page);
-  await page.getByRole("button", { name: "Apply with this CV" }).click();
+  await page.getByRole("button", { name: "Send application" }).click();
 
   await expect(
     page.getByText("This posting is no longer accepting applications.", {
@@ -203,12 +217,12 @@ test("a posting that stopped taking applications shows the intake message and do
   ).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/jobs/${postingId}$`));
   await expect(
-    page.getByRole("button", { name: "Apply with this CV" }),
-  ).toHaveCount(0);
+    page.getByRole("button", { name: "Send application" }),
+  ).toBeDisabled();
   expect(api.uploads).toHaveLength(1);
 });
 
-test("My Applications lists each application with its status and count", async ({
+test("My Applications lists each application with its company, status, progress and next action", async ({
   page,
 }) => {
   await mockCandidateApply(page, {
@@ -229,12 +243,27 @@ test("My Applications lists each application with its status and count", async (
     page.getByRole("heading", { level: 1, name: "My Applications" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Go Backend Engineer" }),
+    page.getByRole("link", { name: "Go Backend Engineer", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "React Developer" }),
+    page.getByRole("link", { name: "React Developer", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("Awaiting CV review")).toBeVisible();
   await expect(page.getByText("Interview eligible")).toBeVisible();
+  await expect(page.getByText("Acme · Hanoi").first()).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Application progress" }),
+  ).toHaveCount(2);
+  await expect(
+    page.getByRole("link", { name: /Start interview/ }),
+  ).toHaveAttribute(
+    "href",
+    "/interviews/new/preflight?applicationId=88888888-8888-4888-8888-888888888888",
+  );
+  await expect(
+    page.getByRole("link", {
+      name: "View application for Go Backend Engineer",
+    }),
+  ).toBeVisible();
   await expect(page.getByText("Showing 1–2 of 2")).toBeVisible();
 });

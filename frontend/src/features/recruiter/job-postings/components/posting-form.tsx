@@ -56,6 +56,7 @@ import {
   type RequirementTarget,
 } from "../schemas/job-posting-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
+import { InterviewerPreview } from "./interviewer-preview";
 import { JdDocumentLink } from "./jd-document-link";
 import { Notice } from "./notice";
 
@@ -189,6 +190,7 @@ export function PostingForm({
     },
   });
 
+  const avatarId = useWatch({ control, name: "required_avatar_id" });
   const rawText = useWatch({ control, name: "raw_text" });
   const fileName = useWatch({ control, name: "file_name" });
   const requirementValues = useWatch({ control, name: "requirements" });
@@ -411,6 +413,7 @@ export function PostingForm({
       </FormSection>
 
       <FormSection
+        id="posting-requirements"
         title="Role and requirements"
         contentClassName="space-y-5"
         description={
@@ -423,6 +426,7 @@ export function PostingForm({
         <TextField
           id="posting-title"
           label="Title (required)"
+          placeholder="e.g. Senior Backend Engineer"
           error={errors.title}
           disabled={busy}
           registration={register("title")}
@@ -603,6 +607,7 @@ export function PostingForm({
             <TextField
               id="posting-refinement"
               label="Refinement note (optional)"
+              placeholder="e.g. Focus on Go concurrency and PostgreSQL; skip Kubernetes."
               hint="Guidance for question generation, such as areas to focus on or skip."
               registration={register("refinement_note")}
               disabled={busy}
@@ -658,6 +663,7 @@ export function PostingForm({
         <TextField
           id="posting-location"
           label="Location"
+          placeholder="e.g. Ho Chi Minh City or Remote"
           error={errors.location}
           disabled={busy}
           registration={register("location")}
@@ -665,6 +671,7 @@ export function PostingForm({
         <TextField
           id="posting-employment-type"
           label="Employment type"
+          placeholder="e.g. Full-time"
           hint="For example Full-time or Contract."
           error={errors.employment_type}
           disabled={busy}
@@ -673,6 +680,7 @@ export function PostingForm({
         <TextField
           id="posting-salary-min"
           label="Minimum salary"
+          placeholder="e.g. 2000"
           inputMode="numeric"
           error={errors.salary_min}
           disabled={busy}
@@ -681,6 +689,7 @@ export function PostingForm({
         <TextField
           id="posting-salary-max"
           label="Maximum salary"
+          placeholder="e.g. 3500"
           inputMode="numeric"
           error={errors.salary_max}
           disabled={busy}
@@ -689,6 +698,7 @@ export function PostingForm({
         <TextField
           id="posting-duration"
           label="Interview length (minutes)"
+          placeholder="e.g. 30"
           inputMode="numeric"
           error={errors.interview_duration}
           disabled={busy}
@@ -753,30 +763,22 @@ export function PostingForm({
           current={posting?.required_voice ?? null}
           emptyText="No voices are available yet. An administrator adds them to the catalog."
         />
+        {avatarId && (
+          <div className="sm:col-span-2">
+            <InterviewerPreview
+              key={avatarId}
+              userId={user.id}
+              avatarId={avatarId}
+            />
+          </div>
+        )}
       </FormSection>
 
-      <FormSection
-        title="Candidates allowed into interview"
-        description={
-          <>
-            How many applicants can take the interview. This is separate from
-            how many CVs you receive.
-          </>
-        }
-      >
-        <p className="text-sm">
-          {posting?.interview_slot != null ? (
-            <span className="font-medium tabular-nums">
-              {posting.interview_slot}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">
-              Not set yet. Setting and funding interview capacity isn&apos;t
-              available yet.
-            </span>
-          )}
-        </p>
-      </FormSection>
+      <p className="text-sm text-muted-foreground">
+        Next, review your question bank and evaluation criteria before
+        submitting. After approval, fund interview slots to publish this
+        posting.
+      </p>
 
       {submitError && (
         <Notice role="alert" tone="danger">
@@ -855,6 +857,7 @@ function TextField({
   registration,
   inputMode,
   multiline,
+  placeholder,
 }: {
   id: string;
   label: string;
@@ -864,9 +867,11 @@ function TextField({
   registration: UseFormRegisterReturn;
   inputMode?: "numeric";
   multiline?: boolean;
+  placeholder?: string;
 }) {
   const field = {
     id,
+    placeholder,
     disabled,
     "aria-invalid": !!error,
     "aria-describedby": describedBy(id, !!hint, error),
@@ -1126,18 +1131,23 @@ export { FormSection, levelText, targetText };
 // One part of the posting: what it is for on the left, its fields on the right. On a phone the
 // description sits above the fields.
 function FormSection({
+  id,
   title,
   description,
   contentClassName,
   children,
 }: {
+  id?: string;
   title: string;
   description: ReactNode;
   contentClassName?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="grid gap-x-10 gap-y-4 border-t py-8 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+    <section
+      id={id}
+      className="grid scroll-mt-6 gap-x-10 gap-y-4 border-t py-8 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]"
+    >
       <div className="space-y-1">
         <h2 className="text-base font-semibold">{title}</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">

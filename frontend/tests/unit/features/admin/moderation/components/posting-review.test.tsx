@@ -58,6 +58,32 @@ const posting = (overrides: Record<string, unknown> = {}) => ({
   raw_text: null,
   review_submitted: true,
   core_question_count: 50,
+  company_name: "Cog Forge",
+  company_website: "https://cogforge.example",
+  seniority_level: "senior",
+  refinement_note: "Focus on production debugging.",
+  requirements: [
+    { name: "Go", target: "programming_language", type: "required" },
+    { name: "PostgreSQL", target: "database", type: "preferred" },
+  ],
+  weights_configured: false,
+  evaluation: {
+    configured: false,
+    using_defaults: true,
+    total: 100,
+    weights: [
+      {
+        metric_id: "66666666-6666-4666-8666-666666666661",
+        name: "Technical correctness",
+        percentage: 50,
+      },
+      {
+        metric_id: "66666666-6666-4666-8666-666666666662",
+        name: "Communication",
+        percentage: 50,
+      },
+    ],
+  },
   ...overrides,
 });
 const envelope = (data: unknown) => ({ data: { success: true, data } });
@@ -93,6 +119,77 @@ beforeEach(() => {
 });
 
 describe("PostingReview", () => {
+  it("shows confirmed requirements and effective default criteria for read-only moderation", async () => {
+    mocks.get.mockResolvedValue(envelope(posting()));
+    mount();
+
+    expect(
+      await screen.findByRole("heading", { name: "Confirmed requirements" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Go", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("PostgreSQL", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Cog Forge")).toBeInTheDocument();
+    expect(screen.getByText("senior", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("30 minutes")).toBeInTheDocument();
+    expect(screen.getByText("Created", { exact: true })).toBeInTheDocument();
+    expect(
+      screen.getByText("Focus on production debugging."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Evaluation criteria" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/default.*equal/i)).toBeInTheDocument();
+    expect(screen.getByText("Technical correctness")).toBeInTheDocument();
+    expect(screen.getByText("Communication")).toBeInTheDocument();
+    expect(screen.getAllByText("50%")).toHaveLength(2);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /save|edit criteria/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
+  });
+
+  it("shows the recruiter's configured percentages rather than substituting defaults", async () => {
+    mocks.get.mockResolvedValue(
+      envelope(
+        posting({
+          weights_configured: true,
+          evaluation: {
+            configured: true,
+            using_defaults: false,
+            total: 100,
+            weights: [
+              {
+                metric_id: "66666666-6666-4666-8666-666666666661",
+                name: "Technical correctness",
+                percentage: 70,
+              },
+              {
+                metric_id: "66666666-6666-4666-8666-666666666662",
+                name: "Communication",
+                percentage: 30,
+              },
+            ],
+          },
+        }),
+      ),
+    );
+    mount();
+
+    expect(
+      await screen.findByRole("heading", { name: "Evaluation criteria" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/custom evaluation criteria/i)).toBeInTheDocument();
+    expect(screen.getByText("70%")).toBeInTheDocument();
+    expect(screen.getByText("30%")).toBeInTheDocument();
+    expect(screen.queryByText("50%")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /save|edit criteria/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the posting, the JD file and the question count", async () => {
     mocks.get.mockResolvedValue(envelope(posting()));
     mount();

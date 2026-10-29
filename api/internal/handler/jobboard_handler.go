@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"strconv"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobboard/domain"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
@@ -57,6 +58,23 @@ func jobBoardFilter(c *gin.Context) (domain.BoardFilter, bool) {
 		}
 		*param.value = &raw[0]
 	}
+	for _, param := range []struct {
+		name  string
+		value **time.Time
+	}{
+		{"published_from", &filter.PublishedFrom}, {"published_to", &filter.PublishedTo},
+	} {
+		if raw, exists := c.GetQueryArray(param.name); exists {
+			if len(raw) != 1 {
+				return fail("invalid " + param.name)
+			}
+			value, err := time.Parse(time.RFC3339, raw[0])
+			if err != nil {
+				return fail("invalid " + param.name)
+			}
+			*param.value = &value
+		}
+	}
 	return filter, true
 }
 
@@ -68,6 +86,8 @@ func jobBoardFilter(c *gin.Context) (domain.BoardFilter, bool) {
 // @Security SessionCookie
 // @Param limit query int false "Page size" default(20) minimum(1) maximum(100)
 // @Param offset query int false "Number of items to skip" default(0) minimum(0) maximum(2147483647)
+// @Param published_from query string false "Publication window start, inclusive (RFC3339)"
+// @Param published_to query string false "Publication window end, exclusive (RFC3339)"
 // @Param search query string false "Part of the title" maxLength(200)
 // @Param location query string false "Part of the location" maxLength(200)
 // @Param employment_type query string false "Employment type, e.g. Full-time" maxLength(200)

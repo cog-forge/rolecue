@@ -12,7 +12,7 @@ import { generateBank } from "@/features/recruiter/question-bank/api/question-ba
 import { createPosting, jobPostingKeys } from "../api/job-postings";
 import { createBody, emptyPostingValues } from "../schemas/job-posting-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
-import { PageHeader, pillClass } from "./page-header";
+import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingProgress } from "./posting-progress";
 import { PostingForm } from "./posting-form";
 
@@ -70,9 +70,9 @@ export function NewJobPosting() {
   return (
     <section className="mx-auto w-full max-w-5xl space-y-8">
       <PageHeader
-        back={{ href: routes.recruiter.jobPostings, label: "Job postings" }}
+        back={{ href: routes.recruiter.jobPostings, label: "My Job Postings" }}
         title="New job posting"
-        description="Upload the job description and review the requirements RoleCue suggests. Confirming them generates the question bank; you submit the posting for approval after reviewing it."
+        description="Upload the job description and review the requirements RoleCue suggests. Confirming them generates the question bank. Review the questions and evaluation criteria before submitting for approval."
       />
       <PostingProgress
         posting={

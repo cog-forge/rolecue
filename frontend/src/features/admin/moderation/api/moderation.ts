@@ -10,6 +10,8 @@ export const moderationKeys = {
   lists: (userId: string) => [...moderationKeys.all(userId), "list"] as const,
   list: (userId: string, filters: QueueFilters) =>
     [...moderationKeys.lists(userId), filters] as const,
+  pendingCount: (userId: string) =>
+    [...moderationKeys.lists(userId), "pending-count"] as const,
   detail: (userId: string, id: string) =>
     [...moderationKeys.all(userId), "detail", id] as const,
 };
@@ -43,4 +45,13 @@ export async function rejectPosting(id: string, rejectReason: string) {
     reject_reason: rejectReason,
   });
   return reviewPostingEnvelopeSchema.parse(response.data).data;
+}
+
+// A count query uses the existing queue total, independent of the current page and filters.
+export async function getPendingCount(signal?: AbortSignal) {
+  const response = await apiClient.get<unknown>("/admin/job-postings", {
+    params: { status: "pending", limit: 1, offset: 0 },
+    signal,
+  });
+  return postingPageEnvelopeSchema.parse(response.data).data.pagination.total;
 }

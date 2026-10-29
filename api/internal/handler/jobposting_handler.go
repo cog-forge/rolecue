@@ -146,6 +146,20 @@ func jobPostingFilter(c *gin.Context) (domain.ListFilter, bool) {
 		}
 		filter.Search = &raw
 	}
+	for _, param := range []struct {
+		name  string
+		value **bool
+	}{
+		{"funded", &filter.Funded}, {"review_submitted", &filter.ReviewSubmitted},
+	} {
+		if raw, exists, once := single(param.name); exists {
+			if !once || (raw != "true" && raw != "false") {
+				return fail("invalid " + param.name)
+			}
+			value := raw == "true"
+			*param.value = &value
+		}
+	}
 	return filter, true
 }
 
@@ -248,6 +262,8 @@ func (h *JobPostingHandler) Extract(c *gin.Context) {
 // @Param offset query int false "Items to skip" default(0)
 // @Param status query string false "Status filter" Enums(pending, open, intake_closed, closed, rejected)
 // @Param search query string false "Case-insensitive title search"
+// @Param funded query boolean false "Filter by funded interview capacity"
+// @Param review_submitted query boolean false "Filter by explicit review submission"
 // @Success 200 {object} response.Envelope{data=response.Page[domain.Summary]}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope

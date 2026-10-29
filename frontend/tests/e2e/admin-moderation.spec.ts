@@ -125,7 +125,7 @@ test("admin reviews a pending posting and rejects it with a reason", async ({
   await page.goto("/admin/job-postings");
 
   await expect(
-    page.getByRole("heading", { level: 1, name: "Job Posting Moderation" }),
+    page.getByRole("heading", { level: 1, name: "Job posting moderation" }),
   ).toBeVisible();
   const row = page.getByRole("row", { name: /Go Backend Engineer/ });
   await expect(row).toContainText("Pending review");

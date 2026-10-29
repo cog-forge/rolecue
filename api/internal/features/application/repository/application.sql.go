@@ -390,7 +390,7 @@ func (q *Queries) LockApplication(ctx context.Context, arg LockApplicationParams
 
 const lockOwnedPosting = `-- name: LockOwnedPosting :one
 
-SELECT status::text AS status, interview_slot
+SELECT status::text AS status, interview_slot, title
 FROM public.job_postings
 WHERE id = $1 AND recruiter_id = $2
 FOR NO KEY UPDATE
@@ -404,6 +404,7 @@ type LockOwnedPostingParams struct {
 type LockOwnedPostingRow struct {
 	Status        string
 	InterviewSlot *int32
+	Title         string
 }
 
 // CV screening of Applications. The Recruiter reaches an Application only through a Job Posting
@@ -415,7 +416,7 @@ type LockOwnedPostingRow struct {
 func (q *Queries) LockOwnedPosting(ctx context.Context, arg LockOwnedPostingParams) (LockOwnedPostingRow, error) {
 	row := q.db.QueryRow(ctx, lockOwnedPosting, arg.ID, arg.RecruiterID)
 	var i LockOwnedPostingRow
-	err := row.Scan(&i.Status, &i.InterviewSlot)
+	err := row.Scan(&i.Status, &i.InterviewSlot, &i.Title)
 	return i, err
 }
 

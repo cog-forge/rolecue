@@ -3,11 +3,13 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobboard/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Repository reads open Job Postings for the Candidate job board. It never writes.
@@ -19,24 +21,28 @@ func NewRepository(db DBTX) *Repository {
 
 func (r *Repository) ListOpen(ctx context.Context, filter domain.BoardFilter) ([]domain.BoardPosting, int64, error) {
 	rows, err := r.queries.ListOpenPostings(ctx, ListOpenPostingsParams{
-		Search: filter.Search, Location: filter.Location, EmploymentType: filter.EmploymentType,
+		PublishedFrom: timeArg(filter.PublishedFrom), PublishedTo: timeArg(filter.PublishedTo), Search: filter.Search, Location: filter.Location, EmploymentType: filter.EmploymentType,
 		PageLimit: filter.Limit, PageOffset: filter.Offset,
 	})
 	if err != nil {
 		return nil, 0, persistenceError(err)
 	}
 	total, err := r.queries.CountOpenPostings(ctx, CountOpenPostingsParams{
-		Search: filter.Search, Location: filter.Location, EmploymentType: filter.EmploymentType,
+		PublishedFrom: timeArg(filter.PublishedFrom), PublishedTo: timeArg(filter.PublishedTo), Search: filter.Search, Location: filter.Location, EmploymentType: filter.EmploymentType,
 	})
 	if err != nil {
 		return nil, 0, persistenceError(err)
 	}
 	out := make([]domain.BoardPosting, 0, len(rows))
 	for _, row := range rows {
+		if row.TopSkills == nil {
+			row.TopSkills = []string{}
+		}
 		out = append(out, domain.BoardPosting{
 			ID: row.ID, Title: row.Title, CompanyName: row.CompanyName, Location: row.Location,
 			EmploymentType: row.EmploymentType, SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax,
-			SeniorityLevel: row.LevelName, CreatedAt: row.CreatedAt.Time,
+			SeniorityLevel: row.LevelName, CreatedAt: row.CreatedAt.Time, PublishedAt: timeValue(row.PublishedAt),
+			TopSkills: row.TopSkills, RequiredSkillCount: row.RequiredSkillCount,
 		})
 	}
 	return out, total, nil
@@ -55,16 +61,28 @@ func (r *Repository) GetOpen(ctx context.Context, candidateID, id uuid.UUID) (do
 		BoardPosting: domain.BoardPosting{
 			ID: row.ID, Title: row.Title, CompanyName: row.CompanyName, Location: row.Location,
 			EmploymentType: row.EmploymentType, SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax,
-			SeniorityLevel: row.LevelName, CreatedAt: row.CreatedAt.Time,
+			SeniorityLevel: row.LevelName, CreatedAt: row.CreatedAt.Time, PublishedAt: timeValue(row.PublishedAt),
 		},
 		CompanyWebsite: row.CompanyWebsite, InterviewDuration: row.InterviewDuration,
-		AlreadyApplied: row.AlreadyApplied, Requirements: make([]domain.BoardRequirement, 0, len(requirements)),
+		AlreadyApplied: row.ApplicationID.Valid, Requirements: make([]domain.BoardRequirement, 0, len(requirements)),
 	}}
+	if row.ApplicationID.Valid {
+		id := uuid.UUID(row.ApplicationID.Bytes)
+		record.ApplicationID = &id
+	}
 	if row.ContentPath != nil {
 		record.ContentPath = *row.ContentPath
 	}
+	// The detail carries the same skill preview as the list, taken from the requirements it already read.
+	record.TopSkills = make([]string, 0, domain.MaxTopSkills)
 	for _, req := range requirements {
 		record.Requirements = append(record.Requirements, domain.BoardRequirement{Name: req.Name, Target: req.Target, Type: req.Type})
+		if req.Type == "required" {
+			record.RequiredSkillCount++
+			if len(record.TopSkills) < domain.MaxTopSkills {
+				record.TopSkills = append(record.TopSkills, req.Name)
+			}
+		}
 	}
 	return record, nil
 }
@@ -76,4 +94,17 @@ func persistenceError(err error) error {
 		return apperror.Wrap(apperror.CodeJobPostingNotFound, "job posting not found", err)
 	}
 	return apperror.Wrap(apperror.CodeInternal, "job board persistence failed", err)
+}
+
+func timeArg(value *time.Time) pgtype.Timestamptz {
+	if value == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: *value, Valid: true}
+}
+func timeValue(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Time
 }

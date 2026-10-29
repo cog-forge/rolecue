@@ -33,7 +33,7 @@ func (q *Queries) CountConsumedInterviews(ctx context.Context, jobPostingID uuid
 }
 
 const getPostingRefundBasis = `-- name: GetPostingRefundBasis :one
-SELECT recruiter_id, interview_slot
+SELECT recruiter_id, interview_slot, title
 FROM public.job_postings
 WHERE id = $1
 `
@@ -41,6 +41,7 @@ WHERE id = $1
 type GetPostingRefundBasisRow struct {
 	RecruiterID   uuid.UUID
 	InterviewSlot *int32
+	Title         string
 }
 
 // Funding writes the slot once: the caller holds the posting lock and has checked that the posting is
@@ -49,13 +50,13 @@ type GetPostingRefundBasisRow struct {
 func (q *Queries) GetPostingRefundBasis(ctx context.Context, id uuid.UUID) (GetPostingRefundBasisRow, error) {
 	row := q.db.QueryRow(ctx, getPostingRefundBasis, id)
 	var i GetPostingRefundBasisRow
-	err := row.Scan(&i.RecruiterID, &i.InterviewSlot)
+	err := row.Scan(&i.RecruiterID, &i.InterviewSlot, &i.Title)
 	return i, err
 }
 
 const setInterviewSlot = `-- name: SetInterviewSlot :execrows
 UPDATE public.job_postings
-SET interview_slot = $1
+SET interview_slot = $1, published_at = COALESCE(published_at, CURRENT_TIMESTAMP)
 WHERE id = $2 AND interview_slot IS NULL
 `
 

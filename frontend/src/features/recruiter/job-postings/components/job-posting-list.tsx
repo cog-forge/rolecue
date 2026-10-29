@@ -32,20 +32,31 @@ import {
   type ListFilters,
   type ListStatus,
 } from "../utils/list-filters";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Notice } from "./notice";
-import { PageHeader, pillClass } from "./page-header";
+import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingStatus } from "./posting-status";
 
-const tabs: { status: ListStatus; label: string }[] = [
+const statusOptions: { status: ListStatus; label: string }[] = [
   { status: "all", label: "All" },
-  { status: "pending", label: "Pending" },
-  { status: "open", label: "Open" },
+  { status: "preparing", label: "Preparing" },
+  { status: "pending", label: "Pending review" },
+  { status: "approved", label: "Needs funding" },
+  { status: "open", label: "Live" },
   { status: "intake_closed", label: "Intake closed" },
   { status: "closed", label: "Closed" },
   { status: "rejected", label: "Rejected" },
 ];
 const emptyText: Record<ListStatus, string> = {
   all: "You haven't created a job posting yet.",
+  preparing: "No postings are being prepared.",
+  approved: "No approved postings are waiting for funding.",
   pending: "No postings are waiting for review.",
   open: "No postings are open for applications.",
   intake_closed: "No postings have closed intake.",
@@ -133,8 +144,8 @@ export function JobPostingList() {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
       <PageHeader
-        title="Job postings"
-        description="Each posting gets its question bank before you submit it, and an administrator approves it before candidates can see it."
+        title="My Job Postings"
+        description="Prepare your posting, questions and evaluation criteria. After approval, fund interview slots to publish it."
         actions={
           <Button asChild className={pillClass}>
             <Link href={routes.recruiter.jobPostingNew}>
@@ -145,31 +156,32 @@ export function JobPostingList() {
         }
       />
 
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b">
-        <nav
-          aria-label="Filter by status"
-          className="-mb-px max-w-full overflow-x-auto"
-        >
-          <ul className="flex gap-5">
-            {tabs.map((tab) => {
-              const active = filters.status === tab.status;
-              return (
-                <li key={tab.status}>
-                  <FilterLink
-                    filters={{ ...filters, status: tab.status, page: 1 }}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "inline-flex min-h-11 items-center border-b-2 border-transparent text-sm whitespace-nowrap text-muted-foreground transition-colors duration-[var(--duration-quick)] outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-                      active && "border-foreground font-medium text-foreground",
-                    )}
-                  >
-                    {tab.label}
-                  </FilterLink>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label htmlFor="posting-status" className="text-sm font-medium">
+            Status
+          </label>
+          <Select
+            value={filters.status}
+            onValueChange={(status) =>
+              pushFilters({ ...filters, status: status as ListStatus, page: 1 })
+            }
+          >
+            <SelectTrigger
+              id="posting-status"
+              className="w-48 rounded-full bg-background shadow-none data-[size=default]:h-9"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper" align="start">
+              {statusOptions.map((option) => (
+                <SelectItem key={option.status} value={option.status}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <SearchForm key={filters.search} filters={filters} />
       </div>
 
@@ -262,8 +274,8 @@ export function JobPostingList() {
             <table className="block w-full text-left text-sm xl:table xl:table-fixed">
               <colgroup>
                 <col />
-                <col className="w-44" />
-                <col className="w-28" />
+                <col className="w-56" />
+                <col className="w-24" />
                 <col className="w-32" />
                 <col className="w-48" />
               </colgroup>
@@ -278,10 +290,10 @@ export function JobPostingList() {
                   <th scope="col" className="h-10 pr-4 font-normal">
                     Status
                   </th>
-                  <th scope="col" className="h-10 pr-4 text-right font-normal">
+                  <th scope="col" className="h-10 pr-4 text-left font-normal">
                     Questions
                   </th>
-                  <th scope="col" className="h-10 pr-4 text-right font-normal">
+                  <th scope="col" className="h-10 pr-4 text-left font-normal">
                     Created
                   </th>
                   <th scope="col" className="h-10 pr-5 text-right font-normal">
@@ -330,7 +342,7 @@ function PostingRow({ posting }: { posting: PostingSummary }) {
     posting.status === "pending" || posting.status === "rejected";
   const count = posting.core_question_count;
   return (
-    <tr className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 px-4 py-4 align-top xl:table-row xl:p-0">
+    <tr className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 px-4 py-4 align-top xl:align-middle xl:table-row xl:p-0">
       <td className="min-w-0 xl:py-3.5 xl:pr-4 xl:pl-5">
         <Link
           href={routes.recruiter.jobPosting(posting.id)}
@@ -357,32 +369,39 @@ function PostingRow({ posting }: { posting: PostingSummary }) {
           status={posting.status}
           questionBankReady={count > 0}
           reviewSubmitted={posting.review_submitted}
+          interviewSlot={posting.interview_slot}
         />
       </td>
-      <td className="hidden text-right tabular-nums xl:table-cell xl:py-3.5 xl:pr-4">
+      <td className="hidden text-left tabular-nums xl:table-cell xl:py-3.5 xl:pr-4">
         {count > 0 ? count : <span className="text-muted-foreground">0</span>}
       </td>
-      <td className="hidden text-right whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell xl:py-3.5 xl:pr-4">
+      <td className="hidden text-left whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell xl:py-3.5 xl:pr-4">
         <time dateTime={posting.created_at} title={posting.created_at}>
           {dateFormat.format(new Date(posting.created_at))}
         </time>
       </td>
       <td className="col-span-2 xl:py-2.5 xl:pr-5">
         <div className="flex gap-2 xl:justify-end">
-          <Button asChild variant="ghost" className="h-9 rounded-full px-3">
-            <Link
-              href={routes.recruiter.jobPostingQuestions(posting.id)}
-              aria-label={`Question bank for ${posting.title}`}
-            >
-              Questions
-            </Link>
-          </Button>
+          {!(posting.status === "open" && posting.interview_slot === null) && (
+            <Button asChild variant="ghost" className="h-9 rounded-full px-3">
+              <Link
+                href={routes.recruiter.jobPostingQuestions(posting.id)}
+                aria-label={`Question bank for ${posting.title}`}
+              >
+                Questions
+              </Link>
+            </Button>
+          )}
           <Button asChild variant="outline" className="h-9 rounded-full px-3">
             <Link
-              href={routes.recruiter.jobPosting(posting.id)}
-              aria-label={`${editable ? "Edit" : "View"} ${posting.title}`}
+              href={`${routes.recruiter.jobPosting(posting.id)}${posting.status === "open" && posting.interview_slot === null ? "#interview-capacity" : ""}`}
+              aria-label={`${posting.status === "open" && posting.interview_slot === null ? "Fund & publish" : editable ? "Edit" : "View"} ${posting.title}`}
             >
-              {editable ? "Edit" : "View"}
+              {posting.status === "open" && posting.interview_slot === null
+                ? "Fund & publish"
+                : editable
+                  ? "Edit"
+                  : "View"}
               <ChevronRight aria-hidden />
             </Link>
           </Button>
@@ -428,7 +447,7 @@ function SearchForm({ filters }: { filters: ListFilters }) {
       noValidate
       aria-label="Search your job postings"
       onSubmit={submit}
-      className="flex flex-wrap items-center gap-2 pb-2"
+      className="flex flex-wrap items-center gap-2"
     >
       <label htmlFor="posting-search" className="sr-only">
         Search by title

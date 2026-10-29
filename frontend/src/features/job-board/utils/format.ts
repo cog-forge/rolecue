@@ -52,7 +52,19 @@ const DAY = 86_400_000;
 
 // "Today", "Yesterday", "3 days ago"; older than four weeks shows the date.
 export function postedText(createdAt: string, now = Date.now()) {
-  const days = Math.floor((now - new Date(createdAt).getTime()) / DAY);
+  const published = new Date(createdAt);
+  const current = new Date(now);
+  const publicationDay = Date.UTC(
+    published.getUTCFullYear(),
+    published.getUTCMonth(),
+    published.getUTCDate(),
+  );
+  const today = Date.UTC(
+    current.getUTCFullYear(),
+    current.getUTCMonth(),
+    current.getUTCDate(),
+  );
+  const days = Math.round((today - publicationDay) / DAY);
   if (days <= 0) return "Posted today";
   if (days < 28) return `Posted ${relativeFormat.format(-days, "day")}`;
   return `Posted ${dateFormat.format(new Date(createdAt))}`;
@@ -60,4 +72,21 @@ export function postedText(createdAt: string, now = Date.now()) {
 
 export function fullDate(createdAt: string) {
   return dateFormat.format(new Date(createdAt));
+}
+
+// UTC is explicit in the badge; historical rows without a publication timestamp are not new.
+export function publicationDay(now = new Date()) {
+  const from = new Date(now);
+  from.setUTCHours(0, 0, 0, 0);
+  return {
+    from: from.toISOString(),
+    to: new Date(from.getTime() + DAY).toISOString(),
+  };
+}
+export function publicationText(
+  posting: Pick<BoardPosting, "published_at" | "created_at">,
+) {
+  return posting.published_at
+    ? postedText(posting.published_at)
+    : `Created ${fullDate(posting.created_at)}`;
 }

@@ -121,6 +121,9 @@ func storageError(err error) error {
 // validateFilter checks paging, trims the text filters and drops empty ones. search and location
 // become escaped LIKE patterns, so a typed % or _ matches itself.
 func validateFilter(filter domain.BoardFilter) (domain.BoardFilter, error) {
+	if filter.PublishedFrom != nil && filter.PublishedTo != nil && !filter.PublishedFrom.Before(*filter.PublishedTo) {
+		return domain.BoardFilter{}, apperror.New(apperror.CodeValidation, "invalid publication date window")
+	}
 	if filter.Limit < 1 || filter.Limit > 100 || filter.Offset < 0 {
 		return domain.BoardFilter{}, apperror.New(apperror.CodeValidation, "invalid pagination parameters")
 	}

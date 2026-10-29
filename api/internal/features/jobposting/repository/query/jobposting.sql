@@ -77,6 +77,8 @@ FROM public.job_postings jp
 WHERE jp.recruiter_id = @recruiter_id
   AND (sqlc.narg(status)::text IS NULL OR jp.status::text = sqlc.narg(status)::text)
   AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%')
+  AND (sqlc.narg(funded)::boolean IS NULL OR (jp.interview_slot IS NOT NULL) = sqlc.narg(funded)::boolean)
+  AND (sqlc.narg(review_submitted)::boolean IS NULL OR jp.review_submitted = sqlc.narg(review_submitted)::boolean)
 ORDER BY jp.created_at DESC, jp.id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
@@ -85,7 +87,9 @@ SELECT count(*)
 FROM public.job_postings jp
 WHERE jp.recruiter_id = @recruiter_id
   AND (sqlc.narg(status)::text IS NULL OR jp.status::text = sqlc.narg(status)::text)
-  AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%');
+  AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%')
+  AND (sqlc.narg(funded)::boolean IS NULL OR (jp.interview_slot IS NOT NULL) = sqlc.narg(funded)::boolean)
+  AND (sqlc.narg(review_submitted)::boolean IS NULL OR jp.review_submitted = sqlc.narg(review_submitted)::boolean);
 
 -- The row lock serializes an edit with an Admin decision and with question-bank generation, which
 -- locks the same row before saving. Anything read from other tables must be read by a later

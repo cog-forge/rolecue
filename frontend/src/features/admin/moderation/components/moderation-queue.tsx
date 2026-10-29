@@ -20,6 +20,7 @@ import {
   type QueueFilters,
   type QueueStatus,
 } from "../utils/queue-filters";
+import { PageHeader } from "@/components/layout/page-header";
 import { PostingStatus } from "./posting-status";
 
 const tabs: { status: QueueStatus; label: string }[] = [
@@ -66,47 +67,47 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
-      <header className="space-y-2">
-        <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Moderation
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Job Posting Moderation
-        </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Review what recruiters submit. Only postings you approve can reach
-          candidates, and only once the recruiter funds interview slots.
-        </p>
-      </header>
+      <PageHeader
+        title="Job posting moderation"
+        description="Review submitted postings and their interview configuration. Approval lets the recruiter fund slots and publish the posting."
+      />
 
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <nav aria-label="Filter by status">
-          <ul className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1">
-            {tabs.map((tab) => {
-              const active = filters.status === tab.status;
-              return (
-                <li key={tab.status}>
-                  <Link
-                    href={queueHref({
-                      ...filters,
-                      status: tab.status,
-                      page: 1,
-                    })}
-                    scroll={false}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-                      active && "bg-background text-foreground shadow-sm",
-                    )}
-                  >
-                    {tab.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-        <DateFilter key={`${filters.from}-${filters.to}`} filters={filters} />
+      <div className="space-y-4">
+        <div className="border-b">
+          <nav
+            aria-label="Filter by status"
+            className="-mb-px max-w-full overflow-x-auto"
+          >
+            <ul className="flex gap-5">
+              {tabs.map((tab) => {
+                const active = filters.status === tab.status;
+                return (
+                  <li key={tab.status}>
+                    <Link
+                      href={queueHref({
+                        ...filters,
+                        status: tab.status,
+                        page: 1,
+                      })}
+                      scroll={false}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "inline-flex min-h-11 items-center border-b-2 border-transparent text-sm whitespace-nowrap text-muted-foreground transition-colors duration-[var(--duration-quick)] outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                        active &&
+                          "border-foreground font-medium text-foreground",
+                      )}
+                    >
+                      {tab.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        </div>
+        <div className="flex justify-end">
+          <DateFilter key={`${filters.from}-${filters.to}`} filters={filters} />
+        </div>
       </div>
 
       {filters.recruiterId && (
@@ -166,23 +167,23 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
         </div>
       ) : page ? (
         <>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+          <div className="overflow-x-auto rounded-xl border">
+            <table className="w-full min-w-[760px] text-left text-sm">
               <caption className="sr-only">
                 Job postings, {firstRow}–{lastRow} of {total}
               </caption>
               <thead>
-                <tr className="border-b text-xs tracking-[0.08em] text-muted-foreground uppercase">
-                  <th scope="col" className="py-3 pr-4 font-medium">
+                <tr className="border-b text-xs text-muted-foreground">
+                  <th scope="col" className="py-3 pr-4 pl-4 font-medium">
                     Job posting
                   </th>
-                  <th scope="col" className="py-3 pr-4 font-medium">
+                  <th scope="col" className="py-3 pr-4 pl-4 font-medium">
                     Recruiter
                   </th>
-                  <th scope="col" className="py-3 pr-4 font-medium">
-                    Submitted
+                  <th scope="col" className="py-3 pr-4 pl-4 font-medium">
+                    Created
                   </th>
-                  <th scope="col" className="py-3 pr-4 font-medium">
+                  <th scope="col" className="py-3 pr-4 pl-4 font-medium">
                     Status
                   </th>
                   <th scope="col" className="py-3 text-right font-medium">
@@ -242,8 +243,8 @@ function QueueRow({
     backQuery ? `?back=${encodeURIComponent(backQuery)}` : ""
   }`;
   return (
-    <tr className="border-b align-top last:border-b-0">
-      <td className="py-3 pr-4 font-medium [overflow-wrap:anywhere]">
+    <tr className="border-b align-middle last:border-b-0">
+      <td className="py-3 pr-4 pl-4 font-medium [overflow-wrap:anywhere]">
         {posting.title}
       </td>
       <td className="py-3 pr-4">
@@ -271,8 +272,13 @@ function QueueRow({
       <td className="py-3 pr-4">
         <PostingStatus status={posting.status} />
       </td>
-      <td className="py-3 text-right">
-        <Button asChild variant="outline" size="sm" className="h-9">
+      <td className="py-3 pr-4 text-right">
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="h-10 rounded-full"
+        >
           <Link href={reviewHref} aria-label={`Review ${posting.title}`}>
             Review
             <ChevronRight aria-hidden />
@@ -294,12 +300,12 @@ function PageLink({
 }) {
   if (disabled)
     return (
-      <Button variant="outline" className="h-11" disabled>
+      <Button variant="outline" className="h-10 rounded-full" disabled>
         {label}
       </Button>
     );
   return (
-    <Button asChild variant="outline" className="h-11">
+    <Button asChild variant="outline" className="h-10 rounded-full">
       <Link href={href} scroll={false}>
         {label}
       </Link>
@@ -323,13 +329,13 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
   return (
     <form
       noValidate
-      aria-label="Filter by submitted date"
+      aria-label="Filter by created date"
       onSubmit={submit}
       className="flex flex-wrap items-end gap-2"
     >
       <div className="space-y-1">
         <label htmlFor="queue-from" className="text-xs font-medium">
-          Submitted from
+          Created from
         </label>
         <Input
           id="queue-from"
@@ -337,7 +343,7 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
           value={from}
           max={to || undefined}
           onChange={(event) => setFrom(event.target.value)}
-          className="h-11"
+          className="h-10 rounded-full"
           aria-invalid={invalid}
           aria-describedby={invalid ? "queue-date-error" : undefined}
         />
@@ -352,7 +358,7 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
           value={to}
           min={from || undefined}
           onChange={(event) => setTo(event.target.value)}
-          className="h-11"
+          className="h-10 rounded-full"
           aria-invalid={invalid}
           aria-describedby={invalid ? "queue-date-error" : undefined}
         />
@@ -360,13 +366,13 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
       <Button
         type="submit"
         variant="outline"
-        className="h-11"
+        className="h-10 rounded-full"
         disabled={invalid}
       >
         Apply
       </Button>
       {(filters.from || filters.to) && (
-        <Button asChild variant="ghost" className="h-11">
+        <Button asChild variant="ghost" className="h-10 rounded-full">
           <Link
             href={queueHref({ ...filters, from: null, to: null, page: 1 })}
             scroll={false}

@@ -37,3 +37,9 @@ describe("targetLabel", () => {
     expect(targetLabel("")).toBe("Skill");
   });
 });
+
+it("uses UTC calendar days for publication labels, matching the new-today badge", () => {
+  const now = Date.parse("2026-10-29T00:01:00Z");
+  expect(postedText("2026-10-28T23:59:00Z", now)).toBe("Posted yesterday");
+  expect(postedText("2026-10-29T00:00:00Z", now)).toBe("Posted today");
+});

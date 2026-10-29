@@ -23,6 +23,13 @@ function slots(count: string) {
   return `${count} ${count === "1" ? "slot" : "slots"}`;
 }
 
+// "Interview capacity of job posting <id>: <title>, 20 slots". Rows written before the title was
+// added have no ": <title>" part and keep the generic wording.
+const POSTING_SLOTS =
+  "interview capacity of job posting(?:\\s+[0-9a-f-]{36})?(?::\\s*(.+?))?,\\s*(\\d+) slots?$";
+const CAPACITY = new RegExp(`^${POSTING_SLOTS}`, "is");
+const REFUND = new RegExp(`^Refund of unused ${POSTING_SLOTS}`, "is");
+
 export function describeTransaction(
   description: string | null | undefined,
 ): TransactionDescription {
@@ -38,24 +45,24 @@ export function describeTransaction(
   if (text.startsWith("Practice interview")) {
     return { kind: "practice_interview", title: "Practice interview" };
   }
-  const refund = /^Refund of unused interview capacity.*,\s*(\d+) slots?$/.exec(
-    text,
-  );
+  const refund = REFUND.exec(text);
   if (refund) {
     return {
       kind: "refund",
-      title: "Refund for unused interview slots",
-      detail: slots(refund[1]),
+      title: refund[1]
+        ? `Refund for unused slots: ${refund[1]}`
+        : "Refund for unused interview slots",
+      detail: slots(refund[2]),
     };
   }
-  const capacity = /^Interview capacity of job posting.*,\s*(\d+) slots?$/.exec(
-    text,
-  );
+  const capacity = CAPACITY.exec(text);
   if (capacity) {
     return {
       kind: "interview_slots",
-      title: "Interview slots",
-      detail: slots(capacity[1]),
+      title: capacity[1]
+        ? `Interview slots: ${capacity[1]}`
+        : "Interview slots",
+      detail: slots(capacity[2]),
     };
   }
   const avatar = /^Avatar inventory,\s*(\d+) slots?$/.exec(text);

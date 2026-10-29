@@ -9,6 +9,7 @@ export type ProgressPosting = {
   status: PostingStatus;
   review_submitted: boolean;
   core_question_count: number;
+  interview_slot?: number | null;
 } | null;
 
 const numberFormat = new Intl.NumberFormat("en");
@@ -32,18 +33,18 @@ function steps(posting: ProgressPosting, generating: boolean): Step[] {
       };
   const bank: Step = generating
     ? {
-        label: "Question bank",
+        label: "Questions",
         detail: "Generating questions…",
         state: "current",
       }
     : hasBank
       ? {
-          label: "Question bank",
+          label: "Questions",
           detail: `${numberFormat.format(count)} ${count === 1 ? "question" : "questions"}`,
           state: "done",
         }
       : {
-          label: "Question bank",
+          label: "Questions",
           detail: posting ? "Not generated yet" : "Generated after you confirm",
           state: posting ? "current" : "upcoming",
         };
@@ -60,21 +61,63 @@ function steps(posting: ProgressPosting, generating: boolean): Step[] {
         : {
             label: "Admin review",
             detail: hasBank ? "Ready to submit" : "Not submitted",
-            state: hasBank && !generating ? "current" : "upcoming",
+            state: "upcoming",
           };
-  const liveDetail: Record<PostingStatus, string> = {
-    open: "Open to candidates",
-    intake_closed: "Intake closed",
-    closed: "Closed",
-    pending: "After approval",
-    rejected: "After approval",
+  const funded = posting?.interview_slot != null;
+  const evaluation: Step = {
+    label: "Evaluation",
+    detail:
+      live || inReview
+        ? "Criteria confirmed"
+        : "Optional: defaults apply unless you customize",
+    state:
+      live || inReview
+        ? "done"
+        : hasBank && !generating
+          ? "current"
+          : "upcoming",
   };
-  const goLive: Step = {
-    label: "Live",
-    detail: posting ? liveDetail[posting.status] : "After approval",
-    state: live ? "done" : "upcoming",
+  const funding: Step = {
+    label: "Fund slots",
+    detail: funded
+      ? "Slots funded"
+      : posting?.status === "open"
+        ? "Fund slots to publish"
+        : live
+          ? "Never funded"
+          : "After admin approval",
+    state: funded
+      ? "done"
+      : posting?.status === "open"
+        ? "current"
+        : "upcoming",
   };
-  return [requirements, bank, review, goLive];
+  // Screening is the recruiter's work once candidates can apply: it runs while the posting takes
+  // CVs and while approved candidates still interview, and it ends with the posting.
+  const screening: Step = !posting
+    ? { label: "Screening", detail: "After funding", state: "upcoming" }
+    : posting.status === "closed"
+      ? { label: "Screening", detail: "Closed", state: "done" }
+      : posting.status === "intake_closed"
+        ? {
+            label: "Screening",
+            detail: "Intake closed, finishing interviews",
+            state: "current",
+          }
+        : posting.status === "open"
+          ? funded
+            ? {
+                label: "Screening",
+                detail: "Taking applications",
+                state: "current",
+              }
+            : { label: "Screening", detail: "After funding", state: "upcoming" }
+          : {
+              label: "Screening",
+              detail: "After approval and funding",
+              state: "upcoming",
+            };
+  return [requirements, bank, evaluation, review, funding, screening];
 }
 
 const barClass: Record<StepState, string> = {
@@ -99,7 +142,7 @@ export function PostingProgress({
     <ol
       aria-label="Posting progress"
       className={cn(
-        "grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4",
+        "grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-3 xl:grid-cols-6",
         className,
       )}
     >
@@ -141,7 +184,7 @@ export function PostingProgress({
                 : "text-muted-foreground",
             )}
           >
-            {generating && step.label === "Question bank" ? (
+            {generating && step.label === "Questions" ? (
               <span className="t-shimmer" data-text={step.detail}>
                 {step.detail}
               </span>

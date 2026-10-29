@@ -9,12 +9,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
-import { PageHeader } from "@/features/recruiter/job-postings/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   apiError,
   isAccessDenied,
 } from "@/features/recruiter/job-postings/utils/api-error";
 import { applicationKeys, getApplicationDetail } from "../api/applications";
+import {
+  defaultApplicationFilters,
+  inboxHref,
+} from "../utils/application-filters";
 import {
   formatDeadline,
   formatSubmitted,
@@ -22,7 +26,7 @@ import {
 } from "../utils/application-dates";
 import type { ApplicationDetail as ApplicationDetailRecord } from "../schemas/application-detail-schema";
 import { ApplicationStatus } from "./application-status";
-import { CvLink } from "./cv-link";
+import { CvPreview } from "./cv-link";
 import { FinalDecision } from "./final-decision";
 import { InterviewResult } from "./interview-result";
 import { ScreeningActions } from "./screening-actions";
@@ -116,9 +120,13 @@ export function ApplicationDetail({
       </section>
     );
 
+  // Back goes to the review inbox, narrowed to this posting with this Application open.
   const back = {
-    href: routes.recruiter.jobPosting(postingId),
-    label: "Back to the job posting",
+    href: inboxHref(
+      { ...defaultApplicationFilters, posting: postingId },
+      applicationId,
+    ),
+    label: "Back to applications",
   };
 
   if (query.isPending)
@@ -238,10 +246,12 @@ export function ApplicationDetail({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <CvLink
+          <CvPreview
+            key={applicationId}
             postingId={postingId}
             applicationId={applicationId}
             cv={application.cv}
+            candidateName={candidate.name}
           />
         </CardContent>
       </Card>

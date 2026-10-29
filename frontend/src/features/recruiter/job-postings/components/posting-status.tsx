@@ -6,6 +6,8 @@ import type { PostingStatus as Status } from "../schemas/job-posting-schema";
 type Stage =
   | "preparing"
   | "ready"
+  | "approved"
+  | "approved_unknown"
   | "pending"
   | "open"
   | "intake_closed"
@@ -16,7 +18,9 @@ const stageText: Record<Stage, string> = {
   preparing: "Preparing",
   ready: "Ready to submit",
   pending: "Pending review",
-  open: "Open",
+  approved: "Approved · Funding required",
+  approved_unknown: "Approved",
+  open: "Live",
   intake_closed: "Intake closed",
   closed: "Closed",
   rejected: "Rejected",
@@ -24,8 +28,11 @@ const stageText: Record<Stage, string> = {
 // One pale tint with dark text of the same hue per stage; blue marks the stage that waits on
 // the Recruiter, amber the one that waits on an administrator.
 const toneClass: Record<Stage, string> = {
+  approved_unknown: "bg-muted text-muted-foreground ring-border",
   preparing: "bg-muted text-foreground/80 ring-border",
   ready:
+    "bg-rolecue-brand/8 text-rolecue-brand ring-rolecue-brand/20 dark:text-sky-300",
+  approved:
     "bg-rolecue-brand/8 text-rolecue-brand ring-rolecue-brand/20 dark:text-sky-300",
   pending:
     "bg-amber-50 text-amber-900 ring-amber-600/20 dark:bg-amber-500/10 dark:text-amber-200",
@@ -35,8 +42,10 @@ const toneClass: Record<Stage, string> = {
   rejected: "bg-destructive/8 text-destructive ring-destructive/20",
 };
 const dotClass: Record<Stage, string> = {
+  approved_unknown: "bg-muted-foreground",
   preparing: "bg-muted-foreground",
   ready: "bg-rolecue-brand dark:bg-sky-300",
+  approved: "bg-rolecue-brand dark:bg-sky-300",
   pending: "bg-amber-500",
   open: "bg-emerald-600 dark:bg-emerald-400",
   intake_closed: "bg-foreground/60",
@@ -44,7 +53,15 @@ const dotClass: Record<Stage, string> = {
   rejected: "bg-destructive",
 };
 
-function stageOf(status: Status, ready: boolean, submitted: boolean): Stage {
+function stageOf(
+  status: Status,
+  ready: boolean,
+  submitted: boolean,
+  interviewSlot?: number | null,
+): Stage {
+  if (status === "open" && interviewSlot === undefined)
+    return "approved_unknown";
+  if (status === "open" && interviewSlot === null) return "approved";
   if (status !== "pending" || submitted) return status;
   return ready ? "ready" : "preparing";
 }
@@ -59,13 +76,20 @@ export function PostingStatus({
   className,
   questionBankReady,
   reviewSubmitted,
+  interviewSlot,
 }: {
   status: Status;
   className?: string;
   questionBankReady: boolean;
   reviewSubmitted: boolean;
+  interviewSlot?: number | null;
 }) {
-  const stage = stageOf(status, questionBankReady, reviewSubmitted);
+  const stage = stageOf(
+    status,
+    questionBankReady,
+    reviewSubmitted,
+    interviewSlot,
+  );
   return (
     <span
       className={cn(
