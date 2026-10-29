@@ -13,6 +13,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
+	"github.com/cog-forge/rolecue/api/internal/pkg/tts"
 	"github.com/cog-forge/rolecue/api/internal/provider"
 	"github.com/cog-forge/rolecue/api/internal/server"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -185,6 +186,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
+	synthesizer := provider.ProvideSynthesizer(config, logger)
 	expiryRunner, err := provider.ProvideApplicationExpiryRunner(service10)
 	if err != nil {
 		cleanup3()
@@ -193,14 +195,15 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	application := &Application{
-		Server:    server,
-		Pool:      pool,
-		Logger:    logger,
-		Tracer:    tracer,
-		Config:    config,
-		Storage:   store,
-		Documents: roleProfileDocumentApplication,
-		Expiry:    expiryRunner,
+		Server:      server,
+		Pool:        pool,
+		Logger:      logger,
+		Tracer:      tracer,
+		Config:      config,
+		Storage:     store,
+		Documents:   roleProfileDocumentApplication,
+		Synthesizer: synthesizer,
+		Expiry:      expiryRunner,
 	}
 	return application, func() {
 		cleanup3()
@@ -219,6 +222,8 @@ type Application struct {
 	Config    *config.Config
 	Storage   storage.Store
 	Documents *service.RoleProfileDocumentApplication
+	// Synthesizer is the text-to-speech adapter; the interview engine and voice preview inject it.
+	Synthesizer tts.Synthesizer
 	// Expiry rejects Applications whose interview deadline passed; main starts it.
 	Expiry *service2.ExpiryRunner
 }

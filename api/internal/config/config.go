@@ -25,6 +25,7 @@ type Config struct {
 	Logger           LoggerConfig           `mapstructure:"logger"`
 	Tracer           TracerConfig           `mapstructure:"tracer"`
 	LLM              LLMConfig              `mapstructure:"llm"`
+	TTS              TTSConfig              `mapstructure:"tts"`
 	Storage          StorageConfig          `mapstructure:"storage"`
 	PayOS            PayOSConfig            `mapstructure:"payos"`
 	QuestionBank     QuestionBankConfig     `mapstructure:"question_bank"`
@@ -146,6 +147,16 @@ type LLMConfig struct {
 	MaxRetries int           `mapstructure:"max_retries"`
 }
 
+// TTSConfig holds the Azure AI Speech settings. Key and Region may both be empty: the API then starts with
+// text-to-speech unavailable and interviews fall back to text. Timeout bounds one synthesis call,
+// including its retries. A malformed value does not stop the API: the synthesizer is wired as unavailable
+// and the reason is logged, so a TTS misconfiguration never takes the rest of the platform down.
+type TTSConfig struct {
+	Key     string        `mapstructure:"key"`
+	Region  string        `mapstructure:"region"`
+	Timeout time.Duration `mapstructure:"timeout"`
+}
+
 type PayOSConfig struct {
 	ClientID    string        `mapstructure:"client_id"`
 	APIKey      string        `mapstructure:"api_key"`
@@ -237,6 +248,9 @@ func Load(configPath string) (*Config, error) {
 		"llm.model":                          "LLM_MODEL",
 		"llm.timeout":                        "LLM_TIMEOUT",
 		"llm.max_retries":                    "LLM_MAX_RETRIES",
+		"tts.key":                            "AZURE_SPEECH_KEY",
+		"tts.region":                         "AZURE_SPEECH_REGION",
+		"tts.timeout":                        "TTS_TIMEOUT",
 		"payos.client_id":                    "PAYOS_CLIENT_ID",
 		"payos.api_key":                      "PAYOS_API_KEY",
 		"payos.checksum_key":                 "PAYOS_CHECKSUM_KEY",
@@ -341,6 +355,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("llm.model", "gemini-3.1-flash-lite")
 	v.SetDefault("llm.timeout", "30s")
 	v.SetDefault("llm.max_retries", 1)
+
+	// TTS defaults
+	v.SetDefault("tts.timeout", "10s")
 
 	// PayOS defaults
 	v.SetDefault("payos.timeout", "30s")

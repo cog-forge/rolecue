@@ -187,3 +187,33 @@ func TestDefaultWriteTimeout(t *testing.T) {
 		t.Fatalf("write timeout = %v, want 30s", cfg.Server.WriteTimeout)
 	}
 }
+
+func TestTTSConfigDefaultsAndEnvBinding(t *testing.T) {
+	t.Setenv("PAYOS_CLIENT_ID", "test-client-id")
+	t.Setenv("PAYOS_API_KEY", "test-api-key")
+	t.Setenv("PAYOS_CHECKSUM_KEY", "test-checksum-key")
+	t.Setenv("AZURE_SPEECH_KEY", "")
+	t.Setenv("AZURE_SPEECH_REGION", "")
+
+	cfg, err := Load(writeConfig(t, minimalYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TTS.Key != "" || cfg.TTS.Region != "" {
+		t.Fatalf("credentials must be optional, got %+v", cfg.TTS)
+	}
+	if cfg.TTS.Timeout != 10*time.Second {
+		t.Fatalf("default timeout = %v, want 10s", cfg.TTS.Timeout)
+	}
+
+	t.Setenv("AZURE_SPEECH_KEY", "k")
+	t.Setenv("AZURE_SPEECH_REGION", "koreacentral")
+	t.Setenv("TTS_TIMEOUT", "3s")
+	cfg, err = Load(writeConfig(t, minimalYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TTS.Key != "k" || cfg.TTS.Region != "koreacentral" || cfg.TTS.Timeout != 3*time.Second {
+		t.Fatalf("env not bound: %+v", cfg.TTS)
+	}
+}
