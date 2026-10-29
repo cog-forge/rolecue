@@ -28,6 +28,9 @@ import {
 } from "../api/wallet";
 import type { CoinPackage } from "../schemas/wallet-schema";
 import { PackageGrid } from "./package-grid";
+import { useFormatters } from "@/lib/i18n/use-formatters";
+import { apiErrorMessage } from "@/lib/i18n/api-errors";
+import { useTranslations } from "next-intl";
 
 export function WalletPurchase({
   userId,
@@ -38,6 +41,7 @@ export function WalletPurchase({
   role: ProductRole;
   collapsed: boolean;
 }) {
+  const fmt = useFormatters();
   const [open, setOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const wallet = useQuery({
@@ -48,7 +52,7 @@ export function WalletPurchase({
     refetchOnWindowFocus: true,
   });
   if (role === "admin") return null;
-  const balance = wallet.data?.balance.toLocaleString("en-US");
+  const balance = wallet.data ? fmt.coinAmount(wallet.data.balance) : undefined;
   return (
     <AddCoinsDialog
       open={open}
@@ -113,6 +117,7 @@ export function AddCoinsDialog({
   returnPath?: string;
   children?: React.ReactNode;
 }) {
+  const errorsT = useTranslations("errors");
   const cache = useQueryClient();
   const packages = useQuery({
     queryKey: walletKeys.packages(),
@@ -170,7 +175,11 @@ export function AddCoinsDialog({
             onCheckout={(pkg) => checkout.mutate(pkg)}
             isCheckingOut={checkout.isPending}
             checkingOutPackageId={checkout.variables?.id}
-            checkoutError={checkout.error?.message}
+            checkoutError={
+              checkout.error
+                ? apiErrorMessage(errorsT, checkout.error)
+                : undefined
+            }
           />
         </div>
       </DialogContent>

@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { CapacityPanel } from "@/features/recruiter/capacity/components/capacity-panel";
@@ -107,7 +102,7 @@ function mount() {
       mutations: { retry: false },
     },
   });
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <CapacityPanel postingId={postingId} />
     </QueryClientProvider>,

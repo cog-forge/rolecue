@@ -215,7 +215,10 @@ test("failed save keeps draft, discard restores baseline and validation blocks i
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(
     page.getByRole("form", { name: "Edit your profile" }).getByRole("alert"),
-  ).toHaveText("Unable to save profile");
+    // The server's own text ("Unable to save profile") is never shown; the screen's copy is.
+  ).toHaveText(
+    "We couldn't save your profile. Your changes are still here. Please try again.",
+  );
   await expect(page.getByLabel("Display name")).toHaveValue("Unsaved draft");
   await page.getByRole("button", { name: "Discard" }).click();
   await expect(page.getByLabel("Display name")).toHaveValue("Alex Doe");

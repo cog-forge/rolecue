@@ -19,6 +19,9 @@ import {
   type CreatedApplication,
 } from "../schemas/candidate-application-schema";
 import { applyErrorMessage, canRetryApply } from "../utils/api-error";
+import type { Formatters } from "@/lib/i18n/formatters";
+import { useFormatters } from "@/lib/i18n/use-formatters";
+import { useTranslations } from "next-intl";
 
 const isPdf = (file: File) =>
   file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
@@ -31,11 +34,10 @@ function cvFileError(file: File) {
   return null;
 }
 
-const sizeFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 1 });
-const fileSize = (bytes: number) =>
+const fileSize = (bytes: number, fmt: Formatters) =>
   bytes < 1024 * 1024
-    ? `${sizeFormat.format(bytes / 1024)} KB`
-    : `${sizeFormat.format(bytes / 1024 / 1024)} MB`;
+    ? `${fmt.number(bytes / 1024, { maximumFractionDigits: 1 })} KB`
+    : `${fmt.number(bytes / 1024 / 1024, { maximumFractionDigits: 1 })} MB`;
 
 // Uploads one CV to the posting, picked or dropped. onApplied receives the new Application; a failed
 // upload keeps the same file so "Try again" resends it. onBusyChange lets a dialog stay open meanwhile.
@@ -48,6 +50,8 @@ export function CvApplyForm({
   onApplied: (created: CreatedApplication) => void;
   onBusyChange?: (busy: boolean) => void;
 }) {
+  const fmt = useFormatters();
+  const errorsT = useTranslations("errors");
   const user = useSessionUser();
   const cache = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
@@ -76,7 +80,7 @@ export function CvApplyForm({
   const busy = upload.isPending;
   const failed = upload.isError;
   const retryable = failed && canRetryApply(upload.error);
-  const message = failed ? applyErrorMessage(upload.error) : fileError;
+  const message = failed ? applyErrorMessage(upload.error, errorsT) : fileError;
 
   const pick = (picked: File | null) => {
     upload.reset();
@@ -126,7 +130,7 @@ export function CvApplyForm({
             <FileText className="size-4 shrink-0" aria-hidden />
             <span>{file.name}</span>
             <span className="font-normal text-muted-foreground">
-              {fileSize(file.size)}
+              {fileSize(file.size, fmt)}
             </span>
           </p>
         ) : (

@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   act,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import {
   QueryClient,
   QueryClientProvider,
@@ -173,7 +173,7 @@ function mount() {
   const cache = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  render(
+  renderWithIntl(
     <QueryClientProvider client={cache}>
       <AccountManagement />
     </QueryClientProvider>,
@@ -418,7 +418,9 @@ describe("administrator account list", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "1 hour" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm lock" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid lock");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "We couldn't confirm the change. Please refresh before trying again.",
+    );
     expect(screen.getByLabelText("Reason sent to user")).toHaveValue("Abuse");
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(
