@@ -5,6 +5,11 @@ export const voiceSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   is_active: z.boolean(),
+  // Null for legacy voices that were never synced from a provider.
+  provider: z.string().nullable(),
+  provider_voice_id: z.string().nullable(),
+  locale: z.string().nullable(),
+  gender: z.string().nullable(),
   interview_count: z.number().int().nonnegative(),
   job_posting_count: z.number().int().nonnegative(),
   in_use: z.boolean(),
@@ -39,3 +44,16 @@ export const voiceEnvelopeSchema = z.object({
   success: z.literal(true),
   data: voiceSchema,
 });
+
+export const syncVoicesEnvelopeSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    provider: z.string(),
+    fetched: z.number().int().nonnegative(),
+    added: z.number().int().nonnegative(),
+    updated: z.number().int().nonnegative(),
+    deactivated: z.number().int().nonnegative(),
+    unchanged: z.number().int().nonnegative(),
+  }),
+});
+export type SyncVoicesResult = z.infer<typeof syncVoicesEnvelopeSchema>["data"];

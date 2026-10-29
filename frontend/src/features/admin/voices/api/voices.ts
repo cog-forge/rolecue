@@ -1,6 +1,7 @@
 import { apiClient } from "@/lib/api/client";
 import {
   removeVoiceEnvelopeSchema,
+  syncVoicesEnvelopeSchema,
   voiceEnvelopeSchema,
   voicePageEnvelopeSchema,
 } from "../schemas/voice-schema";
@@ -34,4 +35,10 @@ export async function activateVoice(id: string) {
     `/admin/voices/${encodeURIComponent(id)}/activate`,
   );
   return voiceEnvelopeSchema.parse(response.data).data;
+}
+
+// Safe to repeat: a second sync with the same provider list changes nothing.
+export async function syncVoices() {
+  const response = await apiClient.post<unknown>("/admin/voices/sync");
+  return syncVoicesEnvelopeSchema.parse(response.data).data;
 }
