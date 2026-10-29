@@ -36,6 +36,7 @@ async function mockBank(
         },
       ];
   let submitted = false;
+  let submissions = 0;
   let generationAttempts = 0;
   let next = 1;
   const bodies: unknown[] = [];
@@ -89,10 +90,40 @@ async function mockBank(
       });
     if (url.pathname === bankPath && method === "GET")
       return route.fulfill({ headers, json: { success: true, data: bank() } });
+    if (url.pathname === `/job-postings/${postingId}` && method === "GET")
+      return route.fulfill({
+        headers,
+        json: { success: true, data: posting() },
+      });
+    if (
+      url.pathname === `/job-postings/${postingId}/evaluation-weights` &&
+      method === "GET"
+    )
+      return route.fulfill({
+        headers,
+        json: {
+          success: true,
+          data: {
+            configured: false,
+            using_defaults: true,
+            editable,
+            posting_status: editable ? "pending" : "open",
+            total: 100,
+            weights: [
+              {
+                metric_id: "77777777-7777-4777-8777-777777777777",
+                name: "Technical correctness",
+                percentage: 100,
+              },
+            ],
+          },
+        },
+      });
     if (
       url.pathname === `/job-postings/${postingId}/submit` &&
       method === "POST"
     ) {
+      submissions += 1;
       submitted = true;
       return route.fulfill({
         headers,
@@ -149,7 +180,7 @@ async function mockBank(
       },
     });
   });
-  return { bodies };
+  return { bodies, submissions: () => submissions };
 }
 
 test("recruiter reviews generated questions, edits and explicitly submits", async ({
@@ -198,7 +229,17 @@ test("recruiter reviews generated questions, edits and explicitly submits", asyn
       .getByText("2 questions", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Submit for approval" }).click();
+  const review = page.getByRole("dialog", { name: "Review & submit" });
+  await expect(
+    review.getByText("Backend Engineer", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    review.getByText("Default criteria · equal weights"),
+  ).toBeVisible();
+  expect(api.submissions()).toBe(0);
+  await review.getByRole("button", { name: "Submit for approval" }).click();
   await expect(page.getByText("Submitted for approval.")).toBeVisible();
+  expect(api.submissions()).toBe(1);
   expect(errors).toEqual([]);
   await page.screenshot({
     path: "test-results/recruiter-question-bank-desktop.png",

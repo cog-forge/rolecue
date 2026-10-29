@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Buttons on the posting screens are pills (team design contract): near-black for the one
+// Workspace actions share the same hierarchy: near-black for the one
 // primary action, outlined for the rest.
 export const pillClass = "h-10 rounded-full px-5";
 

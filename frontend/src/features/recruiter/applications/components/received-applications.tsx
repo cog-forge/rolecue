@@ -1,6 +1,6 @@
 "use client";
 
-import { PageHeader } from "@/features/recruiter/job-postings/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import { ApplicationList } from "./application-list";
 
 // Every Application on the Recruiter's own postings. Each candidate opens the Application's detail.

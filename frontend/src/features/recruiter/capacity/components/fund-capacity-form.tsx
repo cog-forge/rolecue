@@ -58,8 +58,8 @@ export function FundCapacityForm({
         void handleSubmit((values) => onSubmit(values.slots))(event);
       }}
     >
-      <div className="space-y-2">
-        <label htmlFor={inputId} className="text-sm font-medium">
+      <div className="space-y-3">
+        <label htmlFor={inputId} className="block text-sm font-medium">
           Interview slots to fund
         </label>
         <Input

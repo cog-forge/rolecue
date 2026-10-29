@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { ReviewSubmissionDialog } from "./review-submission-dialog";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListPlus, LoaderCircle, Pencil, Trash2 } from "lucide-react";
@@ -16,10 +18,7 @@ import {
   submitPosting,
 } from "@/features/recruiter/job-postings/api/job-postings";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
-import {
-  PageHeader,
-  pillClass,
-} from "@/features/recruiter/job-postings/components/page-header";
+import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingProgress } from "@/features/recruiter/job-postings/components/posting-progress";
 import { PostingStatus } from "@/features/recruiter/job-postings/components/posting-status";
 import {
@@ -66,6 +65,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
   const user = useSessionUser();
   const cache = useQueryClient();
   const key = questionBankKeys.detail(user.id, postingId);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<CoreQuestion | null>(null);
@@ -116,6 +116,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
         review_submitted: posting.review_submitted,
       }));
       refreshPosting();
+      setReviewOpen(false);
       gooeyToast.success("Submitted for approval");
     },
     onError: onStale,
@@ -285,6 +286,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                   status={query.data.posting_status}
                   questionBankReady={query.data.questions.length > 0}
                   reviewSubmitted={query.data.review_submitted}
+                  interviewSlot={posting.data?.interview_slot}
                 />
                 <span>Candidates never see these questions.</span>
               </>
@@ -305,7 +307,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                     sendForReview.isPending
                   }
                   aria-busy={sendForReview.isPending}
-                  onClick={() => sendForReview.mutate(query.data)}
+                  onClick={() => setReviewOpen(true)}
                 >
                   {sendForReview.isPending && (
                     <LoaderCircle
@@ -364,9 +366,43 @@ export function QuestionBank({ postingId }: { postingId: string }) {
               status: query.data.posting_status,
               review_submitted: query.data.review_submitted,
               core_question_count: query.data.questions.length,
+              interview_slot: posting.data?.interview_slot,
             }}
             generating={generate.isPending}
           />
+
+          <nav
+            aria-label="Posting preparation"
+            className="flex flex-wrap items-center gap-3 border-b pb-4"
+          >
+            <Button asChild variant="outline" className={pillClass}>
+              <Link href={routes.recruiter.jobPosting(postingId)}>
+                Posting details
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className={pillClass}>
+              <Link href={routes.recruiter.jobPostingEvaluation(postingId)}>
+                Evaluation criteria
+              </Link>
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              {preparing(query.data)
+                ? "Use the default criteria or customize them before submitting."
+                : "Evaluation criteria are locked after approval."}
+            </p>
+          </nav>
+          {reviewOpen && (
+            <ReviewSubmissionDialog
+              postingId={postingId}
+              posting={posting.data ?? null}
+              questionCount={query.data.questions.length}
+              rejected={query.data.posting_status === "rejected"}
+              pending={sendForReview.isPending}
+              error={submitError}
+              onCancel={() => setReviewOpen(false)}
+              onConfirm={() => sendForReview.mutate(query.data)}
+            />
+          )}
 
           {notice && (
             <Notice role="alert" tone="danger">

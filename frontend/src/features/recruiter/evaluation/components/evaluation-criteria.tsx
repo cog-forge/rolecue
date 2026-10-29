@@ -12,10 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
-import {
-  PageHeader,
-  pillClass,
-} from "@/features/recruiter/job-postings/components/page-header";
+import { PageHeader, pillClass } from "@/components/layout/page-header";
 import {
   apiError,
   isAccessDenied,
@@ -78,8 +75,8 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
   }, [cache, denied]);
 
   const back = {
-    href: routes.recruiter.jobPosting(postingId),
-    label: "Back to the job posting",
+    href: routes.recruiter.jobPostingQuestions(postingId),
+    label: "Back to questions & submission",
   };
 
   if (weights.isPending || metrics.isPending)

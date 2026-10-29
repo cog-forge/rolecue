@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { routes } from "@/config/routes";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -12,7 +14,7 @@ import {
   listPostingApplications,
 } from "@/features/recruiter/applications/api/applications";
 import { defaultApplicationFilters } from "@/features/recruiter/applications/utils/application-filters";
-import { walletKeys } from "@/features/billing/api/wallet";
+import { getWallet, walletKeys } from "@/features/billing/api/wallet";
 import { jobPostingKeys } from "@/features/recruiter/job-postings/api/job-postings";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
 import {
@@ -51,6 +53,13 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
     queryKey: key,
     queryFn: ({ signal }) => getCapacity(postingId, signal),
     refetchOnMount: "always",
+    retry: false,
+  });
+  const wallet = useQuery({
+    queryKey: walletKeys.wallet(user.id),
+    queryFn: ({ signal }) => getWallet(signal),
+    enabled: query.data?.posting_status === "open" && !query.data.funded,
+    refetchOnWindowFocus: true,
     retry: false,
   });
   const state = query.data;
@@ -142,7 +151,7 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
   const closed = posting.posting_status === "closed";
 
   return (
-    <Card>
+    <Card id="interview-capacity">
       <CardHeader>
         <CardTitle>
           <h2>Interview capacity</h2>
@@ -195,8 +204,9 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
             </p>
           )}
           <p className="text-xs text-muted-foreground">
-            Submitted CVs do not use interview slots. A slot is used only when a
-            CV is approved.
+            Submitted CVs do not use interview slots. Approving a CV reserves
+            eligibility; a slot is consumed when the candidate first starts the
+            interview.
           </p>
         </section>
 
@@ -208,6 +218,25 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
             <h3 id="capacity-fund-heading" className="font-semibold">
               Fund interview slots
             </h3>
+            <p className="text-muted-foreground">
+              Fund once per posting; additional slots cannot be added later.
+              Funding publishes the posting on the Job Board.
+            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 p-3">
+              <p>
+                {wallet.isSuccess
+                  ? `Wallet balance: ${coins(wallet.data.balance)}`
+                  : wallet.isPending
+                    ? "Loading wallet balance…"
+                    : "Wallet balance unavailable."}
+              </p>
+              <Link
+                href={routes.recruiter.billing}
+                className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4"
+              >
+                View wallet & buy coins
+              </Link>
+            </div>
             <FundCapacityForm
               pricePerSlot={posting.price_per_slot}
               pending={fund.isPending}

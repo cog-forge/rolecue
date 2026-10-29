@@ -13,6 +13,7 @@ import { QuestionBank } from "@/features/recruiter/question-bank/components/ques
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   getPosting: vi.fn(),
+  getWeights: vi.fn(),
   post: vi.fn(),
   patch: vi.fn(),
   delete: vi.fn(),
@@ -29,11 +30,13 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
-    // The bank screen also reads its posting, only to name it in the way back.
+    // Review reads both posting metadata and the effective evaluation weights.
     get: (path: string, ...rest: unknown[]) =>
       path.endsWith("/questions")
         ? mocks.get(path, ...rest)
-        : mocks.getPosting(path, ...rest),
+        : path.endsWith("/evaluation-weights")
+          ? mocks.getWeights(path, ...rest)
+          : mocks.getPosting(path, ...rest),
     post: mocks.post,
     patch: mocks.patch,
     delete: mocks.delete,
@@ -111,11 +114,38 @@ function mount() {
 }
 const path = `/job-postings/${postingId}/questions`;
 
+async function confirmReview(
+  review: HTMLElement,
+  name = "Submit for approval",
+) {
+  const confirm = within(review).getByRole("button", { name });
+  // The effective weights are fetched when review opens; wait until the user can confirm.
+  await waitFor(() => expect(confirm).toBeEnabled());
+  fireEvent.click(confirm);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   for (const fn of [mocks.get, mocks.post, mocks.patch, mocks.delete])
     fn.mockReset();
   mocks.getPosting.mockResolvedValue(envelope(posting));
+  mocks.getWeights.mockReset();
+  mocks.getWeights.mockResolvedValue(
+    envelope({
+      configured: false,
+      using_defaults: true,
+      editable: true,
+      posting_status: "pending",
+      total: 100,
+      weights: [
+        {
+          metric_id: "77777777-7777-4777-8777-777777777777",
+          name: "Technical correctness",
+          percentage: 100,
+        },
+      ],
+    }),
+  );
 });
 
 describe("QuestionBank", () => {
@@ -405,6 +435,41 @@ describe("QuestionBank", () => {
 });
 
 describe("submission follows question review", () => {
+  it("makes evaluation criteria accessible before the first submission", async () => {
+    mocks.get.mockResolvedValue(envelope(bank()));
+    mount();
+
+    expect(
+      await screen.findByRole("link", { name: "Evaluation criteria" }),
+    ).toHaveAttribute(
+      "href",
+      `/recruiter/job-postings/${postingId}/evaluation`,
+    );
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("lets the recruiter inspect and cancel the final review without submitting", async () => {
+    mocks.get.mockResolvedValue(envelope(bank()));
+    mount();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Submit for approval" }),
+    );
+    const review = await screen.findByRole("dialog", {
+      name: "Review & submit",
+    });
+    expect(within(review).getByText("Backend Engineer")).toBeInTheDocument();
+    expect(mocks.post).not.toHaveBeenCalled();
+    fireEvent.click(within(review).getByRole("button", { name: "Cancel" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Review & submit" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
   it("refreshes into Resubmit when the Admin rejected the posting meanwhile", async () => {
     mocks.get
       .mockResolvedValueOnce(envelope(bank()))
@@ -420,6 +485,10 @@ describe("submission follows question review", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Submit for approval" }),
     );
+    const review = await screen.findByRole("dialog", {
+      name: "Review & submit",
+    });
+    await confirmReview(review);
     expect(
       await screen.findByRole("button", { name: "Resubmit for approval" }),
     ).toBeInTheDocument();
@@ -437,6 +506,12 @@ describe("submission follows question review", () => {
     });
     expect(mocks.post).not.toHaveBeenCalled();
     fireEvent.click(send);
+    const review = await screen.findByRole("dialog", {
+      name: "Review & submit",
+    });
+    expect(within(review).getByText("Backend Engineer")).toBeInTheDocument();
+    expect(mocks.post).not.toHaveBeenCalled();
+    await confirmReview(review);
     await waitFor(() =>
       expect(mocks.post).toHaveBeenCalledWith(
         `/job-postings/${postingId}/submit`,
@@ -445,6 +520,56 @@ describe("submission follows question review", () => {
     expect(
       await screen.findByText(/^Submitted for approval\./),
     ).toBeInTheDocument();
+  });
+  it("resubmits a rejected posting only after confirming the final review", async () => {
+    mocks.get.mockResolvedValue(envelope(bank({ posting_status: "rejected" })));
+    mocks.getPosting.mockResolvedValue(
+      envelope({
+        ...posting,
+        status: "rejected",
+        reject_reason: "Clarify the role.",
+      }),
+    );
+    mocks.post.mockResolvedValue(
+      envelope({ ...posting, review_submitted: true }),
+    );
+    mount();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Resubmit for approval" }),
+    );
+    const review = await screen.findByRole("dialog", {
+      name: "Review & submit",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+    await confirmReview(review, "Resubmit for approval");
+
+    await waitFor(() =>
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/job-postings/${postingId}/resubmit`,
+      ),
+    );
+  });
+  it("blocks confirmation when evaluation criteria cannot be loaded", async () => {
+    mocks.get.mockResolvedValue(envelope(bank()));
+    mocks.getWeights.mockRejectedValue(
+      failure(503, "SERVICE_UNAVAILABLE", "Evaluation unavailable"),
+    );
+    mount();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Submit for approval" }),
+    );
+    const review = await screen.findByRole("dialog", {
+      name: "Review & submit",
+    });
+
+    expect(await within(review).findByRole("alert")).toHaveTextContent(
+      "We couldn't load the criteria.",
+    );
+    expect(
+      within(review).getByRole("button", { name: "Submit for approval" }),
+    ).toBeDisabled();
+    expect(mocks.post).not.toHaveBeenCalled();
   });
   it("blocks submission while a question draft is unsaved", async () => {
     mocks.get.mockResolvedValue(envelope(bank()));

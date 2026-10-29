@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
-import { PageHeader } from "@/features/recruiter/job-postings/components/page-header";
+import { PageHeader } from "@/components/layout/page-header";
 import {
   apiError,
   isAccessDenied,

@@ -9,6 +9,7 @@ export type ProgressPosting = {
   status: PostingStatus;
   review_submitted: boolean;
   core_question_count: number;
+  interview_slot?: number | null;
 } | null;
 
 const numberFormat = new Intl.NumberFormat("en");
@@ -60,7 +61,7 @@ function steps(posting: ProgressPosting, generating: boolean): Step[] {
         : {
             label: "Admin review",
             detail: hasBank ? "Ready to submit" : "Not submitted",
-            state: hasBank && !generating ? "current" : "upcoming",
+            state: "upcoming",
           };
   const liveDetail: Record<PostingStatus, string> = {
     open: "Open to candidates",
@@ -69,12 +70,38 @@ function steps(posting: ProgressPosting, generating: boolean): Step[] {
     pending: "After approval",
     rejected: "After approval",
   };
+  const funded = posting?.interview_slot != null;
+  const evaluation: Step = {
+    label: "Evaluation",
+    detail:
+      live || inReview ? "Criteria confirmed" : "Use defaults or customize",
+    state:
+      live || inReview
+        ? "done"
+        : hasBank && !generating
+          ? "current"
+          : "upcoming",
+  };
+  const funding: Step = {
+    label: "Fund & publish",
+    detail: funded ? "Slots funded" : "After admin approval",
+    state: funded
+      ? "done"
+      : live && posting?.status === "open"
+        ? "current"
+        : "upcoming",
+  };
   const goLive: Step = {
     label: "Live",
-    detail: posting ? liveDetail[posting.status] : "After approval",
-    state: live ? "done" : "upcoming",
+    detail:
+      posting?.status === "open" && !funded
+        ? "After funding"
+        : posting
+          ? liveDetail[posting.status]
+          : "After funding",
+    state: live && funded ? "done" : "upcoming",
   };
-  return [requirements, bank, review, goLive];
+  return [requirements, bank, evaluation, review, funding, goLive];
 }
 
 const barClass: Record<StepState, string> = {
@@ -99,7 +126,7 @@ export function PostingProgress({
     <ol
       aria-label="Posting progress"
       className={cn(
-        "grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4",
+        "grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-3 xl:grid-cols-6",
         className,
       )}
     >

@@ -30,7 +30,7 @@ import {
   targetText,
 } from "./posting-form";
 import { Notice } from "./notice";
-import { PageHeader, pillClass } from "./page-header";
+import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingProgress } from "./posting-progress";
 import { PostingStatus } from "./posting-status";
 
@@ -210,6 +210,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
               status={posting.status}
               questionBankReady={hasBank}
               reviewSubmitted={posting.review_submitted}
+              interviewSlot={posting.interview_slot}
             />
             <span>
               Created{" "}
