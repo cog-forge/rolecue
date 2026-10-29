@@ -266,7 +266,12 @@ test("runtime hides sidebar and public login does not inherit workspace dark mod
   await expect(
     page.getByRole("heading", { name: "Interview room" }),
   ).toBeVisible();
-  await expect(page.getByRole("complementary")).toHaveCount(0);
+  await expect(
+    page.getByRole("complementary", { name: "Workspace sidebar" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("complementary", { name: "Your camera" }),
+  ).toBeVisible();
   await page.goto("/login");
   await expect(page.locator("html")).not.toHaveClass(/dark/);
 });
