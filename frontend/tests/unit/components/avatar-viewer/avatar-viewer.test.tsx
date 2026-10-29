@@ -54,6 +54,29 @@ beforeEach(() => {
 });
 
 describe("AvatarViewer", () => {
+  it("shows an explicit no-asset fallback while preserving null-access loading for existing callers", () => {
+    const { rerender } = render(
+      <AvatarViewer
+        access={null}
+        label="Interviewer"
+        onAccessExpired={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Loading 3D preview");
+    rerender(
+      <AvatarViewer
+        access={null}
+        label="Interviewer"
+        onAccessExpired={vi.fn()}
+        fallbackReason="No avatar was selected for this interview."
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "No avatar was selected",
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("canvas")).not.toBeInTheDocument();
+  });
   it("shows a 2D fallback without mounting 3D when WebGL is unavailable", () => {
     mocks.webgl = false;
     render(
@@ -195,4 +218,25 @@ describe("AvatarViewer", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Page content")).toBeInTheDocument();
   });
+});
+
+it("keeps preview reset by default but delegates interview view controls to the room dock", () => {
+  const ready = vi.fn();
+  render(
+    <AvatarViewer
+      access={grant("https://s3/a")}
+      label="Interviewer"
+      onAccessExpired={vi.fn()}
+      presentation="interview"
+      onReadyChange={ready}
+      viewResetSignal={3}
+      cameraView="close"
+    />,
+  );
+  report({ state: "ready" });
+  expect(ready).toHaveBeenLastCalledWith(true);
+  expect(
+    screen.queryByRole("button", { name: "Reset view" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "Interviewer" })).toBeInTheDocument();
 });

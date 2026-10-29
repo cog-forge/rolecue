@@ -52,6 +52,38 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  --color-glass-highlight: var(--glass-highlight);
+  --color-glass-foreground: var(--glass-foreground);
+  --color-glass-tint-frosted: var(--glass-tint-frosted);
+  --color-glass-tint: var(--glass-tint);
+  @keyframes opaline-glass-in {
+    from {
+      transform: translate3d(
+          var(--glass-enter-x, 0),
+          var(--glass-enter-y, 0),
+          0
+        )
+        scale(var(--glass-enter-scale, 1));
+    }
+  }
+  @keyframes opaline-glass-out {
+    to {
+      transform: translate3d(var(--glass-exit-x, 0), var(--glass-exit-y, 0), 0)
+        scale(var(--glass-exit-scale, 1));
+    }
+  }
+  @keyframes opaline-typing {
+    0%,
+    60%,
+    100% {
+      transform: translateY(0);
+      opacity: 0.4;
+    }
+    30% {
+      transform: translateY(-4px);
+      opacity: 1;
+    }
+  }
 }
 
 :root {
@@ -225,6 +257,16 @@
   --sidebar-accent-foreground: var(--rolecue-ink);
   --sidebar-border: var(--rolecue-border);
   --sidebar-ring: var(--rolecue-brand-blue);
+  --glass-tint: oklch(1 0 0 / 14%);
+  --glass-tint-frosted: oklch(1 0 0 / 42%);
+  --glass-rim:
+    inset 1px 1px 0 -0.5px oklch(1 0 0 / 85%),
+    inset -1px -1px 0 -0.5px oklch(1 0 0 / 55%),
+    inset 0 0 0 0.5px oklch(1 0 0 / 40%), inset 0 0 12px -4px oklch(1 0 0 / 60%);
+  --glass-shadow:
+    0 1px 2px oklch(0 0 0 / 6%), 0 10px 32px -8px oklch(0 0 0 / 22%);
+  --glass-foreground: oklch(0.18 0.004 286);
+  --glass-highlight: oklch(1 0 0 / 62%);
 }
 
 /* transitions.dev error-state-shake: keep error feedback visible and replay
@@ -816,4 +858,17 @@ html[data-theme-reveal]::view-transition-new(root) {
 :root {
   --stagger-dur: var(--duration-slow);
   --stagger-distance: 8px;
+}
+
+.dark {
+  --glass-tint: oklch(0.2 0.004 286 / 22%);
+  --glass-tint-frosted: oklch(0.2 0.004 286 / 50%);
+  --glass-rim:
+    inset 1px 1px 0 -0.5px oklch(1 0 0 / 45%),
+    inset -1px -1px 0 -0.5px oklch(1 0 0 / 22%),
+    inset 0 0 0 0.5px oklch(1 0 0 / 16%), inset 0 0 12px -4px oklch(1 0 0 / 22%);
+  --glass-shadow:
+    0 1px 2px oklch(0 0 0 / 20%), 0 12px 36px -8px oklch(0 0 0 / 50%);
+  --glass-foreground: oklch(0.98 0 0);
+  --glass-highlight: oklch(1 0 0 / 16%);
 }

@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { VRMUtils, type VRM } from "@pixiv/three-vrm";
-import { Box3, Vector3 } from "three";
+import { Box3, Vector3, PerspectiveCamera } from "three";
 import { loadVrm, VrmLoadError, type VrmLoadErrorKind } from "./load-vrm";
+import { interviewFraming } from "./interview-framing";
 import { poseIdle } from "./pose";
 import type { ModelAccess } from "./avatar-viewer";
 
@@ -20,8 +21,16 @@ export default function AvatarCanvas({
   access,
   resetSignal,
   onStatus,
+  presentation = "preview",
+  cameraView = "conversation",
+  atmosphere = "warm",
+  horizontalOffset = 0,
 }: {
   access: ModelAccess;
+  presentation?: "preview" | "interview";
+  cameraView?: "conversation" | "close";
+  atmosphere?: "warm" | "daylight" | "evening";
+  horizontalOffset?: number;
   resetSignal: number;
   onStatus: (status: CanvasStatus) => void;
 }) {
@@ -58,26 +67,75 @@ export default function AvatarCanvas({
       dpr={[1, 2]}
       camera={{ fov: 30, near: 0.05, far: 50, position: [0, 1.3, 4] }}
       gl={{ antialias: true, alpha: true }}
-      onCreated={({ gl }) => {
-        gl.domElement.addEventListener("webglcontextlost", (event) => {
-          event.preventDefault();
-          onStatus({ state: "fallback" });
-        });
-      }}
       fallback={null}
     >
-      <hemisphereLight args={["#ffffff", "#8a8a8a", 1.6]} />
-      <directionalLight position={[1.5, 3, 2.5]} intensity={1.8} />
-      {vrm && <Scene vrm={vrm} resetSignal={resetSignal} />}
+      <ContextLifecycle onStatus={onStatus} />
+      <hemisphereLight
+        args={[
+          atmosphere === "warm" ? "#fff4e5" : "#eef4ff",
+          "#77706a",
+          atmosphere === "evening" ? 1.1 : 1.6,
+        ]}
+      />
+      <directionalLight
+        position={[1.5, 3, 2.5]}
+        intensity={atmosphere === "daylight" ? 2.3 : 1.8}
+      />
+      {presentation === "interview" && (
+        <directionalLight
+          position={[-3, 2, -2]}
+          color="#dce9ff"
+          intensity={1.5}
+        />
+      )}
+      {vrm && (
+        <Scene
+          vrm={vrm}
+          resetSignal={resetSignal}
+          immersive={presentation === "interview"}
+          horizontalOffset={horizontalOffset}
+          close={cameraView === "close"}
+        />
+      )}
     </Canvas>
   );
 }
 
-function Scene({ vrm, resetSignal }: { vrm: VRM; resetSignal: number }) {
+function ContextLifecycle({
+  onStatus,
+}: {
+  onStatus: (status: CanvasStatus) => void;
+}) {
+  const canvas = useThree((state) => state.gl.domElement);
+  useEffect(() => {
+    const lost = (event: Event) => {
+      event.preventDefault();
+      onStatus({ state: "fallback" });
+    };
+    canvas.addEventListener("webglcontextlost", lost);
+    return () => canvas.removeEventListener("webglcontextlost", lost);
+  }, [canvas, onStatus]);
+  return null;
+}
+
+function Scene({
+  vrm,
+  resetSignal,
+  immersive,
+  close,
+  horizontalOffset,
+}: {
+  vrm: VRM;
+  resetSignal: number;
+  immersive: boolean;
+  close: boolean;
+  horizontalOffset: number;
+}) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const camera = useThree((state) => state.camera);
   const invalidate = useThree((state) => state.invalidate);
-  // The model's bounds, measured once per model; the camera and the reset button frame it whole.
+  const viewport = useThree((state) => state.size);
+  // Measure once per model. Preview frames the full body; interview frames the upper body.
   const frame = useMemo(() => {
     const box = new Box3().setFromObject(vrm.scene);
     return {
@@ -89,19 +147,52 @@ function Scene({ vrm, resetSignal }: { vrm: VRM; resetSignal: number }) {
 
   useEffect(() => {
     const { target, size } = frame;
+    const framing = interviewFraming(
+      size,
+      frame.floor,
+      viewport.width,
+      viewport.height,
+      close,
+      horizontalOffset,
+    );
+    const focus = immersive
+      ? new Vector3(target.x, framing.targetY, target.z)
+      : target;
     camera.position.set(
       target.x,
-      target.y + size * 0.05,
-      target.z + size * 2.1,
+      immersive ? framing.eyeY : target.y + size * 0.05,
+      target.z + (immersive ? framing.distance : size * 2.1),
     );
-    camera.lookAt(target);
+    if (camera instanceof PerspectiveCamera) {
+      if (immersive)
+        camera.setViewOffset(
+          viewport.width,
+          viewport.height,
+          framing.offsetX,
+          framing.offsetY,
+          viewport.width,
+          viewport.height,
+        );
+      else camera.clearViewOffset();
+      camera.updateProjectionMatrix();
+    }
+    camera.lookAt(focus);
     if (controls.current) {
-      controls.current.target.copy(target);
+      controls.current.target.copy(focus);
       controls.current.update();
       controls.current.saveState();
     }
     invalidate();
-  }, [frame, camera, invalidate]);
+  }, [
+    frame,
+    camera,
+    invalidate,
+    immersive,
+    close,
+    viewport.width,
+    viewport.height,
+    horizontalOffset,
+  ]);
 
   useEffect(() => {
     if (resetSignal === 0) return;
@@ -115,19 +206,25 @@ function Scene({ vrm, resetSignal }: { vrm: VRM; resetSignal: number }) {
   return (
     <>
       <primitive object={vrm.scene} />
-      {/* Grounds the model on the backdrop's floor; one frame, since the model stands still. */}
-      <ContactShadows
-        position={[frame.target.x, frame.floor + 0.002, frame.target.z]}
-        scale={frame.size * 1.4}
-        opacity={0.38}
-        blur={2.2}
-        far={frame.size * 0.6}
-        frames={1}
-      />
+      {!immersive && (
+        <ContactShadows
+          position={[frame.target.x, frame.floor + 0.002, frame.target.z]}
+          scale={frame.size * 1.4}
+          opacity={0.38}
+          blur={2.2}
+          far={frame.size * 0.6}
+          frames={1}
+        />
+      )}
       <OrbitControls
         ref={controls}
         makeDefault
         enablePan={false}
+        enableZoom={!immersive}
+        minAzimuthAngle={immersive ? -0.25 : -Infinity}
+        maxAzimuthAngle={immersive ? 0.25 : Infinity}
+        minPolarAngle={immersive ? Math.PI * 0.4 : 0}
+        maxPolarAngle={immersive ? Math.PI * 0.55 : Math.PI}
         // Damping keeps rendering after the drag ends; with frameloop="demand" that would burn
         // frames on slow (software WebGL) devices for no visible benefit.
         enableDamping={false}
