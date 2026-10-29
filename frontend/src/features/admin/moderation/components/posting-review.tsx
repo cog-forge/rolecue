@@ -190,15 +190,18 @@ export function PostingReview({
           )}
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-            <Card>
-              <CardContent className="pt-6">
-                <JdViewer
-                  contentPath={query.data.content_path}
-                  documentUrl={query.data.document_url}
-                  rawText={query.data.raw_text}
-                />
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <PostingDossier posting={query.data} />
+              <Card>
+                <CardContent className="pt-6">
+                  <JdViewer
+                    contentPath={query.data.content_path}
+                    documentUrl={query.data.document_url}
+                    rawText={query.data.raw_text}
+                  />
+                </CardContent>
+              </Card>
+            </div>
             <div className="space-y-6">
               <DecisionPanel
                 posting={query.data}
@@ -313,11 +316,13 @@ function DetailsCard({ posting }: { posting: ReviewPosting }) {
       </>,
     ],
     [
-      "Submitted",
+      "Created",
       <time key="t" dateTime={posting.created_at}>
         {dateFormat.format(new Date(posting.created_at))} UTC
       </time>,
     ],
+    ["Company", posting.company_name ?? null],
+    ["Seniority", posting.seniority_level ?? null],
     ["Location", posting.location],
     ["Employment type", posting.employment_type],
     ["Salary", salary(posting)],
@@ -331,7 +336,7 @@ function DetailsCard({ posting }: { posting: ReviewPosting }) {
       "Interview duration",
       posting.interview_duration === null
         ? null
-        : numberFormat.format(posting.interview_duration),
+        : `${numberFormat.format(posting.interview_duration)} minutes`,
     ],
     ["3D interviewer", posting.required_avatar?.name ?? null],
     ["Voice profile", posting.required_voice?.name ?? null],
@@ -361,5 +366,91 @@ function DetailsCard({ posting }: { posting: ReviewPosting }) {
         </dl>
       </CardContent>
     </Card>
+  );
+}
+
+function PostingDossier({ posting }: { posting: ReviewPosting }) {
+  const evaluation = posting.evaluation;
+  return (
+    <>
+      <section
+        aria-labelledby="confirmed-requirements-heading"
+        className="space-y-4 rounded-xl border p-5"
+      >
+        <h2
+          id="confirmed-requirements-heading"
+          className="text-base font-semibold"
+        >
+          Confirmed requirements
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          The recruiter confirmed these requirements for question generation.
+        </p>
+        {posting.requirements && posting.requirements.length > 0 ? (
+          <ul className="divide-y text-sm">
+            {posting.requirements.map((requirement, index) => (
+              <li
+                key={`${requirement.target}-${requirement.name}-${index}`}
+                className="flex flex-wrap justify-between gap-2 py-2"
+              >
+                <span className="font-medium">{requirement.name}</span>
+                <span className="text-muted-foreground capitalize">
+                  {requirement.target.replaceAll("_", " ")} · {requirement.type}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No structured requirements are available for this posting. Review
+            the original job description below.
+          </p>
+        )}
+        {posting.refinement_note && (
+          <div className="space-y-1 text-sm">
+            <h3 className="font-medium">Question-generation guidance</h3>
+            <p className="whitespace-pre-wrap text-muted-foreground">
+              {posting.refinement_note}
+            </p>
+          </div>
+        )}
+      </section>
+      <section
+        aria-labelledby="review-evaluation-heading"
+        className="space-y-4 rounded-xl border p-5"
+      >
+        <h2 id="review-evaluation-heading" className="text-base font-semibold">
+          Evaluation criteria
+        </h2>
+        {evaluation ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              {evaluation.using_defaults
+                ? "Default criteria · equal weights"
+                : "Custom evaluation criteria"}
+              . These settings are read-only during moderation.
+            </p>
+            <dl className="divide-y text-sm">
+              {evaluation.weights.map((weight) => (
+                <div
+                  key={weight.metric_id}
+                  className="flex justify-between gap-4 py-2"
+                >
+                  <dt>{weight.name}</dt>
+                  <dd className="tabular-nums">
+                    {Number(weight.percentage.toFixed(2))}
+                    {evaluation.total > 0 ? "%" : " weight"}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Evaluation details are unavailable.
+          </p>
+        )}
+      </section>
+    </>
   );
 }

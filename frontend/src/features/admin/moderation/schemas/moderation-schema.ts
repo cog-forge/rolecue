@@ -49,6 +49,35 @@ export const reviewPostingEnvelopeSchema = z.object({
     title: z.string(),
     status: postingStatusSchema,
     reject_reason: z.string().nullable(),
+    company_name: z.string().nullable().optional(),
+    company_website: z.string().nullable().optional(),
+    seniority_level: z.string().optional(),
+    refinement_note: z.string().optional(),
+    requirements: z
+      .array(
+        z.object({
+          name: z.string(),
+          target: z.string(),
+          type: z.enum(["required", "preferred"]),
+        }),
+      )
+      .optional(),
+    weights_configured: z.boolean().optional(),
+    evaluation: z
+      .object({
+        configured: z.boolean(),
+        using_defaults: z.boolean(),
+        total: z.number(),
+        weights: z.array(
+          z.object({
+            metric_id: z.uuid(),
+            name: z.string(),
+            percentage: z.number(),
+          }),
+        ),
+      })
+      .nullable()
+      .optional(),
     recruiter: recruiterSchema,
     location: z.string().nullable(),
     employment_type: z.string().nullable(),

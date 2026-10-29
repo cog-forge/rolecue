@@ -100,8 +100,10 @@ export function WorkspaceSidebar({
   signingOut,
   signOutError,
   footer,
+  navigationBadges,
 }: {
   footer?: React.ReactNode;
+  navigationBadges?: Readonly<Record<string, { count: number; label: string }>>;
   user: WorkspaceUser;
   collapsed: boolean;
   onToggle?: () => void;
@@ -219,12 +221,18 @@ export function WorkspaceSidebar({
               <ul className="space-y-1">
                 {group.items.map((item) => {
                   const selected = active?.href === item.href;
+                  const badge = navigationBadges?.[item.href];
                   return (
                     <li key={item.href}>
                       <Hint label={item.label} enabled={collapsed}>
                         <Link
                           href={item.href}
                           aria-label={item.label}
+                          aria-describedby={
+                            badge && badge.count > 0
+                              ? `${layoutId}-${item.href.replaceAll("/", "-")}-count`
+                              : undefined
+                          }
                           aria-current={selected ? "page" : undefined}
                           onClick={onNavigate}
                           onMouseEnter={() => setHovered(item.href)}
@@ -273,6 +281,33 @@ export function WorkspaceSidebar({
                           <span className={cn("relative", labelClass)}>
                             {item.label}
                           </span>
+                          {badge && badge.count > 0 && (
+                            <>
+                              <span
+                                id={`${layoutId}-${item.href.replaceAll("/", "-")}-count`}
+                                className="sr-only"
+                              >
+                                {badge.count} {badge.label}
+                              </span>
+                              <span
+                                aria-hidden
+                                className={cn(
+                                  "relative ml-auto h-5 min-w-6",
+                                  collapsed && "absolute top-0 right-0 ml-0",
+                                )}
+                              >
+                                <span
+                                  className="t-badge"
+                                  data-open="true"
+                                  style={{ top: 0, right: 0 }}
+                                >
+                                  <span className="t-badge-dot min-w-5 rounded-full bg-red-100 px-1.5 text-center text-[10px] leading-5 font-semibold text-red-700 dark:bg-red-500/20 dark:text-red-200">
+                                    {badge.count > 99 ? "99+" : badge.count}
+                                  </span>
+                                </span>
+                              </span>
+                            </>
+                          )}
                         </Link>
                       </Hint>
                     </li>
