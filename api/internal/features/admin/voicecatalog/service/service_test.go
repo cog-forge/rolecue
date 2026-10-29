@@ -86,9 +86,21 @@ func (f *fakeRepository) Activate(_ context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (f *fakeRepository) Sync(context.Context, string, []domain.ProviderVoice) (domain.VoiceSyncResult, error) {
+	return domain.VoiceSyncResult{}, nil
+}
+
+// idleProvider backs the tests that don't sync.
+type idleProvider struct{}
+
+func (idleProvider) Name() string { return "idle" }
+func (idleProvider) ListVoices(context.Context) ([]domain.ProviderVoice, error) {
+	return nil, nil
+}
+
 func newService(t *testing.T, repo Repository, log *logger.Logger) *Service {
 	t.Helper()
-	svc, err := New(repo, log)
+	svc, err := New(repo, idleProvider{}, nil, log)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,9 +123,12 @@ func unusedVoice() domain.VoiceProfile {
 	return domain.VoiceProfile{ID: uuid.New(), Name: "Ben", IsActive: true}
 }
 
-func TestNewRequiresRepository(t *testing.T) {
-	if _, err := New(nil, nil); err == nil {
+func TestNewRequiresRepositoryAndProvider(t *testing.T) {
+	if _, err := New(nil, idleProvider{}, nil, nil); err == nil {
 		t.Fatal("a missing repository must be rejected")
+	}
+	if _, err := New(newRepo(), nil, nil, nil); err == nil {
+		t.Fatal("a missing provider must be rejected")
 	}
 }
 
@@ -129,6 +144,8 @@ func TestOnlyAdminsReachTheCatalog(t *testing.T) {
 		_, err = svc.Remove(context.Background(), uuid.New(), role, voice.ID)
 		assertCode(t, err, apperror.CodeForbidden)
 		_, err = svc.Activate(context.Background(), uuid.New(), role, voice.ID)
+		assertCode(t, err, apperror.CodeForbidden)
+		_, err = svc.Sync(context.Background(), uuid.New(), role)
 		assertCode(t, err, apperror.CodeForbidden)
 		if repo.listCalls != 0 || repo.removeCalls != 0 || repo.activateCalls != 0 || !repo.voices[voice.ID].IsActive {
 			t.Fatalf("role %q reached the repository", role)

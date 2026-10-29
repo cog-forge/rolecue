@@ -42,6 +42,8 @@ const (
 
 	// Question bank domain codes.
 	CodeJobPostingNotFound              Code = "JOB_POSTING_NOT_FOUND"
+	CodeVoiceSyncFailed                 Code = "VOICE_SYNC_FAILED"
+	CodeVoiceProviderUnavailable        Code = "VOICE_PROVIDER_UNAVAILABLE"
 	CodeVoiceNotFound                   Code = "VOICE_NOT_FOUND"
 	CodeCoreQuestionNotFound            Code = "CORE_QUESTION_NOT_FOUND"
 	CodeQuestionBankExists              Code = "QUESTION_BANK_EXISTS"

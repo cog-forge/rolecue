@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -21,23 +22,46 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (domain.VoiceProfile, error)
 	Remove(ctx context.Context, id uuid.UUID) (domain.VoiceDeleteOutcome, error)
 	Activate(ctx context.Context, id uuid.UUID) error
+	Sync(ctx context.Context, provider string, voices []domain.ProviderVoice) (domain.VoiceSyncResult, error)
 }
+
+// VoiceProvider is the vendor-neutral view of a text-to-speech provider's voice list. The service never
+// names a vendor; the adapter in the provider package implements it.
+type VoiceProvider interface {
+	// Name identifies the provider in the catalog (the voices.provider column).
+	Name() string
+	ListVoices(ctx context.Context) ([]domain.ProviderVoice, error)
+}
+
+// ErrProviderNotConfigured is returned by an adapter that has no credentials, so the sync can say the
+// provider is unavailable instead of failing.
+var ErrProviderNotConfigured = errors.New("voice provider is not configured")
+
+// maxProviderFieldRunes bounds provider-supplied text before it reaches the catalog.
+const maxProviderFieldRunes = 200
 
 type Service struct {
 	repository Repository
+	provider   VoiceProvider
+	locales    []string
 	log        *logger.Logger
 }
 
-// New builds the service. Removals are logged because the brain asks for an admin audit trail
-// while the frozen schema has no audit table.
-func New(repository Repository, log *logger.Logger) (*Service, error) {
+// New builds the service. Removals and syncs are logged because the brain asks for an admin audit
+// trail while the frozen schema has no audit table. syncLocales limits a sync to those locales: an
+// entry matches the locale itself or any region under it ("en" matches en-US and en-GB); no entries
+// means every locale.
+func New(repository Repository, provider VoiceProvider, syncLocales []string, log *logger.Logger) (*Service, error) {
 	if repository == nil {
 		return nil, fmt.Errorf("voice catalog repository is required")
+	}
+	if provider == nil {
+		return nil, fmt.Errorf("voice provider is required")
 	}
 	if log == nil {
 		log = &logger.Logger{Logger: zap.NewNop()}
 	}
-	return &Service{repository: repository, log: log}, nil
+	return &Service{repository: repository, provider: provider, locales: normalizeLocales(syncLocales), log: log}, nil
 }
 
 func requireAdmin(role string) error {
@@ -114,6 +138,98 @@ func (s *Service) Activate(ctx context.Context, adminID uuid.UUID, role string, 
 		logger.String("voice_id", id.String()),
 		logger.String("admin_id", adminID.String()))
 	return voice, nil
+}
+
+// Sync fetches the provider's voices and brings the catalog in line with them: new voices are added,
+// changed ones updated, and voices the provider no longer offers are deactivated, never deleted.
+// Everything is validated before the first write, and the write is one transaction, so a provider
+// failure or a malformed response leaves the catalog unchanged. Repeating a sync changes nothing.
+// A sync never reactivates a voice: an Admin may have deactivated it on purpose.
+func (s *Service) Sync(ctx context.Context, adminID uuid.UUID, role string) (domain.VoiceSyncResult, error) {
+	if err := requireAdmin(role); err != nil {
+		return domain.VoiceSyncResult{}, err
+	}
+	name := s.provider.Name()
+	fetched, err := s.provider.ListVoices(ctx)
+	if err != nil {
+		s.log.WithContext(ctx).Warn("voice sync failed to fetch", logger.String("provider", name), logger.Error(err))
+		if errors.Is(err, ErrProviderNotConfigured) {
+			return domain.VoiceSyncResult{}, apperror.Wrap(apperror.CodeVoiceProviderUnavailable, "the voice provider is not configured", err)
+		}
+		return domain.VoiceSyncResult{}, apperror.Wrap(apperror.CodeVoiceSyncFailed, "the voice provider could not be reached", err)
+	}
+	voices, err := s.validate(fetched)
+	if err != nil {
+		s.log.WithContext(ctx).Warn("voice sync rejected provider response", logger.String("provider", name), logger.Error(err))
+		return domain.VoiceSyncResult{}, apperror.Wrap(apperror.CodeVoiceSyncFailed, "the voice provider returned an invalid voice list", err)
+	}
+	result, err := s.repository.Sync(ctx, name, voices)
+	if err != nil {
+		return domain.VoiceSyncResult{}, err
+	}
+	s.log.WithContext(ctx).Info("voice catalog synced",
+		logger.String("provider", name),
+		logger.String("admin_id", adminID.String()),
+		logger.Int("fetched", result.Fetched),
+		logger.Int("added", result.Added),
+		logger.Int("updated", result.Updated),
+		logger.Int("deactivated", result.Deactivated),
+		logger.Int("unchanged", result.Unchanged))
+	return result, nil
+}
+
+// validate checks the whole provider response and keeps the voices in the sync locales. An empty
+// result is rejected: deactivating the entire catalog because of an empty answer is never right.
+func (s *Service) validate(fetched []domain.ProviderVoice) ([]domain.ProviderVoice, error) {
+	kept := make([]domain.ProviderVoice, 0, len(fetched))
+	seen := make(map[string]struct{}, len(fetched))
+	for i, v := range fetched {
+		v = domain.ProviderVoice{ProviderVoiceID: strings.TrimSpace(v.ProviderVoiceID), Name: strings.TrimSpace(v.Name),
+			Locale: strings.TrimSpace(v.Locale), Gender: strings.TrimSpace(v.Gender)}
+		for _, field := range []struct{ label, value string }{{"id", v.ProviderVoiceID}, {"name", v.Name}, {"locale", v.Locale}, {"gender", v.Gender}} {
+			if !utf8.ValidString(field.value) || strings.ContainsRune(field.value, 0) || utf8.RuneCountInString(field.value) > maxProviderFieldRunes {
+				return nil, fmt.Errorf("voice %d has an invalid %s", i, field.label)
+			}
+		}
+		if v.ProviderVoiceID == "" || v.Name == "" || v.Locale == "" {
+			return nil, fmt.Errorf("voice %d is missing its id, name or locale", i)
+		}
+		if !s.inScope(v.Locale) {
+			continue
+		}
+		if _, dup := seen[v.ProviderVoiceID]; dup {
+			return nil, fmt.Errorf("voice id %q appears more than once", v.ProviderVoiceID)
+		}
+		seen[v.ProviderVoiceID] = struct{}{}
+		kept = append(kept, v)
+	}
+	if len(kept) == 0 {
+		return nil, errors.New("no voices in the sync locales")
+	}
+	return kept, nil
+}
+
+func (s *Service) inScope(locale string) bool {
+	if len(s.locales) == 0 {
+		return true
+	}
+	locale = strings.ToLower(locale)
+	for _, wanted := range s.locales {
+		if locale == wanted || strings.HasPrefix(locale, wanted+"-") {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeLocales(locales []string) []string {
+	out := make([]string, 0, len(locales))
+	for _, l := range locales {
+		if l = strings.ToLower(strings.TrimSpace(l)); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 func normalizeFilter(f domain.VoiceListFilter) (domain.VoiceListFilter, error) {

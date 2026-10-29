@@ -71,6 +71,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideOnboardingHandler,
 		provider.ProvideAccountsHandler,
 		provider.ProvideVoiceCatalogRepository,
+		provider.ProvideVoiceCatalogProvider,
 		provider.ProvideVoiceCatalogService,
 		provider.ProvideVoiceCatalogHandler,
 		provider.ProvideVoiceRepository,

@@ -1563,6 +1563,82 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/voices/sync": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Fetches the provider's English voices (the locales are configuration) and upserts them by provider voice ID: new voices are added, changed ones updated, and voices the provider no longer offers are deactivated (is_active=false), never deleted. Voices an Admin deactivated stay inactive. If the provider fails or answers with an invalid or empty list, nothing changes and the call fails. Repeating it changes nothing. Trusted Origin required.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-voices"
+                ],
+                "summary": "Sync the voice catalog from the TTS provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.VoiceSyncResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "502": {
+                        "description": "The provider failed or returned an invalid list",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "The provider is not configured",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/voices/{id}": {
             "get": {
                 "security": [
@@ -7480,6 +7556,8 @@ const docTemplate = `{
                 "EXTRACTION_FAILED",
                 "INVALID_EXTRACTION_OUTPUT",
                 "JOB_POSTING_NOT_FOUND",
+                "VOICE_SYNC_FAILED",
+                "VOICE_PROVIDER_UNAVAILABLE",
                 "VOICE_NOT_FOUND",
                 "CORE_QUESTION_NOT_FOUND",
                 "QUESTION_BANK_EXISTS",
@@ -7559,6 +7637,8 @@ const docTemplate = `{
                 "CodeExtractionFailed",
                 "CodeInvalidExtractionOutput",
                 "CodeJobPostingNotFound",
+                "CodeVoiceSyncFailed",
+                "CodeVoiceProviderUnavailable",
                 "CodeVoiceNotFound",
                 "CodeCoreQuestionNotFound",
                 "CodeQuestionBankExists",
@@ -9996,6 +10076,9 @@ const docTemplate = `{
         "domain.VoiceProfile": {
             "type": "object",
             "properties": {
+                "gender": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -10011,8 +10094,41 @@ const docTemplate = `{
                 "job_posting_count": {
                     "type": "integer"
                 },
+                "locale": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
+                },
+                "provider": {
+                    "description": "Provider metadata is null for legacy voices that were never synced from a provider.",
+                    "type": "string"
+                },
+                "provider_voice_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.VoiceSyncResult": {
+            "type": "object",
+            "properties": {
+                "added": {
+                    "type": "integer"
+                },
+                "deactivated": {
+                    "type": "integer"
+                },
+                "fetched": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "unchanged": {
+                    "type": "integer"
+                },
+                "updated": {
+                    "type": "integer"
                 }
             }
         },
