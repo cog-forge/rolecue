@@ -75,7 +75,7 @@ export function PostingReview({
         {
           description:
             input.decision === "approve"
-              ? "It's now published to candidates."
+              ? "Candidates can see it once the recruiter funds interview slots."
               : "The recruiter can see your reason.",
         },
       );

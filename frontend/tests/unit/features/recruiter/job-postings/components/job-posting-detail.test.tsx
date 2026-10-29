@@ -444,6 +444,29 @@ describe("JobPostingDetail", () => {
     );
   });
 
+  it("tells the Recruiter to fund an approved posting to open intake", async () => {
+    serve({ ...base, status: "open", interview_slot: null });
+    mount();
+    expect(
+      await screen.findByText(
+        /Fund interview slots to open intake to candidates/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not repeat the funding prompt once the posting is funded", async () => {
+    serve({ ...base, status: "open", interview_slot: 5 });
+    mount();
+    expect(
+      await screen.findByText(
+        /Approved, so the posting can no longer be edited/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Fund interview slots to open intake/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows an approved posting read-only", async () => {
     serve({ ...base, status: "open" });
     mount();
@@ -485,7 +508,7 @@ describe("JobPostingDetail", () => {
     mount();
     expect(
       await screen.findByText(
-        "Candidates can apply after an administrator approves this posting, you fund interview slots and open intake.",
+        "Candidates can apply after an administrator approves this posting and you fund interview slots, which opens intake.",
       ),
     ).toBeInTheDocument();
     expect(

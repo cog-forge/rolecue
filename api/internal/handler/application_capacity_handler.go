@@ -72,7 +72,7 @@ func (h *ApplicationHandler) CapacityState(c *gin.Context) {
 
 // FundCapacity godoc
 // @Summary Fund the interview capacity of your Job Posting
-// @Description Recruiter only, own postings. Buys slots interview slots at 1 coin each in one transaction with the slot write: the coins leave the Recruiter's wallet and interview_slot is set. Funding is one-time. Sending the same slots again returns the current state and charges nothing; a different count returns INTERVIEW_CAPACITY_ALREADY_FUNDED. The posting must be open (INTAKE_NOT_OPEN otherwise). A wallet below the price returns INSUFFICIENT_BALANCE and changes nothing. Errors: VALIDATION_ERROR (bad ID or body, or slots outside 1 to 10000), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN, INTERVIEW_CAPACITY_ALREADY_FUNDED, INSUFFICIENT_BALANCE.
+// @Description Recruiter only, own postings. Buys slots interview slots at 1 coin each in one transaction with the slot write: the coins leave the Recruiter's wallet and interview_slot is set. Funding is one-time, and it is what opens an approved posting to Candidates on the job board. Sending the same slots again returns the current state and charges nothing; a different count returns INTERVIEW_CAPACITY_ALREADY_FUNDED. The posting must be open (INTAKE_NOT_OPEN otherwise). A wallet below the price returns INSUFFICIENT_BALANCE and changes nothing. Errors: VALIDATION_ERROR (bad ID or body, or slots outside 1 to 10000), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN, INTERVIEW_CAPACITY_ALREADY_FUNDED, INSUFFICIENT_BALANCE.
 // @Tags applications
 // @Accept json
 // @Produce json

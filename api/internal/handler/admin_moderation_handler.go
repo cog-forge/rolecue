@@ -211,7 +211,7 @@ func (h *ModerationHandler) Get(c *gin.Context) {
 
 // Approve godoc
 // @Summary Approve a pending Job Posting
-// @Description Admin only. Trusted Origin required. Moves pending to open, which makes the posting available. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.
+// @Description Admin only. Trusted Origin required. Moves pending to open. The posting reaches Candidates on the job board only once its Recruiter funds interview slots. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.
 // @Tags admin-job-postings
 // @Accept json
 // @Produce json

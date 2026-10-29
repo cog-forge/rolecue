@@ -42,6 +42,30 @@ func (q *Queries) CountCandidateApplications(ctx context.Context, candidateID uu
 	return count, err
 }
 
+const getApplyPostingState = `-- name: GetApplyPostingState :one
+SELECT jp.status::text AS status,
+       (jp.interview_slot IS NOT NULL)::boolean AS funded,
+       (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))::boolean AS recruiter_locked
+FROM public.job_postings jp
+JOIN public.users u ON u.id = jp.recruiter_id
+WHERE jp.id = $1
+`
+
+type GetApplyPostingStateRow struct {
+	Status          string
+	Funded          bool
+	RecruiterLocked bool
+}
+
+// The same state without a lock, read before the CV is uploaded so an unfunded posting is refused
+// without storing anything. The insert re-checks it under the lock.
+func (q *Queries) GetApplyPostingState(ctx context.Context, id uuid.UUID) (GetApplyPostingStateRow, error) {
+	row := q.db.QueryRow(ctx, getApplyPostingState, id)
+	var i GetApplyPostingStateRow
+	err := row.Scan(&i.Status, &i.Funded, &i.RecruiterLocked)
+	return i, err
+}
+
 const getCandidateApplication = `-- name: GetCandidateApplication :one
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status,
        a.reject_reason, a.interview_deadline, a.created_at,
@@ -206,6 +230,7 @@ func (q *Queries) LockApplyKey(ctx context.Context, lockKey string) error {
 
 const lockApplyPosting = `-- name: LockApplyPosting :one
 SELECT jp.status::text AS status,
+       (jp.interview_slot IS NOT NULL)::boolean AS funded,
        (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))::boolean AS recruiter_locked
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
@@ -215,6 +240,7 @@ FOR SHARE OF jp
 
 type LockApplyPostingRow struct {
 	Status          string
+	Funded          bool
 	RecruiterLocked bool
 }
 
@@ -222,9 +248,10 @@ type LockApplyPostingRow struct {
 // waits for an in-flight close and then sees intake_closed. A weaker lock would let an Application slip
 // in beside the close, survive its pending rejection, and keep the posting from ever closing. The
 // recruiter lock check mirrors the job board: a locked Recruiter's posting is hidden, not closed.
+// funded mirrors it too: an open posting without interview slots does not take Applications yet.
 func (q *Queries) LockApplyPosting(ctx context.Context, id uuid.UUID) (LockApplyPostingRow, error) {
 	row := q.db.QueryRow(ctx, lockApplyPosting, id)
 	var i LockApplyPostingRow
-	err := row.Scan(&i.Status, &i.RecruiterLocked)
+	err := row.Scan(&i.Status, &i.Funded, &i.RecruiterLocked)
 	return i, err
 }

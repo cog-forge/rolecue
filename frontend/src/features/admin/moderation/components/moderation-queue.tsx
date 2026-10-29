@@ -74,8 +74,8 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
           Job Posting Moderation
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Review what recruiters submit. Only postings you approve are published
-          to candidates.
+          Review what recruiters submit. Only postings you approve can reach
+          candidates, and only once the recruiter funds interview slots.
         </p>
       </header>
 

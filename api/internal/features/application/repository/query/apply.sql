@@ -10,13 +10,25 @@ SELECT pg_advisory_xact_lock(hashtextextended(@lock_key::text, 0));
 -- waits for an in-flight close and then sees intake_closed. A weaker lock would let an Application slip
 -- in beside the close, survive its pending rejection, and keep the posting from ever closing. The
 -- recruiter lock check mirrors the job board: a locked Recruiter's posting is hidden, not closed.
+-- funded mirrors it too: an open posting without interview slots does not take Applications yet.
 -- name: LockApplyPosting :one
 SELECT jp.status::text AS status,
+       (jp.interview_slot IS NOT NULL)::boolean AS funded,
        (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))::boolean AS recruiter_locked
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 WHERE jp.id = @id
 FOR SHARE OF jp;
+
+-- The same state without a lock, read before the CV is uploaded so an unfunded posting is refused
+-- without storing anything. The insert re-checks it under the lock.
+-- name: GetApplyPostingState :one
+SELECT jp.status::text AS status,
+       (jp.interview_slot IS NOT NULL)::boolean AS funded,
+       (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))::boolean AS recruiter_locked
+FROM public.job_postings jp
+JOIN public.users u ON u.id = jp.recruiter_id
+WHERE jp.id = @id;
 
 -- name: CandidateHasApplication :one
 SELECT EXISTS (

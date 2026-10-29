@@ -49,6 +49,29 @@ func TestGetLinksJDPDF(t *testing.T) {
 	}
 }
 
+// content_path is nullable (Role Profile drafts), so a posting can hold its text without any file. The
+// Admin still gets the posting and its text, with no document link, instead of a failed signing.
+func TestGetReturnsStoredTextWithoutLinkWhenContentPathIsEmpty(t *testing.T) {
+	repo := postingIn(domain.PostingStatusPending)
+	text := "Text without a file."
+	repo.posting.ContentPath, repo.posting.StoredText = "", &text
+	texts := storedTexts()
+	s, _ := newServiceWithTexts(t, repo, texts)
+	got, err := s.Get(context.Background(), "admin", repo.posting.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RawText == nil || *got.RawText != text {
+		t.Fatalf("raw_text = %v, want the stored text", got.RawText)
+	}
+	if got.DocumentURL != nil || got.DocumentExpiresAt != nil {
+		t.Fatalf("document_url=%v expires=%v, want no document link", got.DocumentURL, got.DocumentExpiresAt)
+	}
+	if len(texts.presigned) != 0 || len(texts.keys) != 0 {
+		t.Fatalf("presigned=%v downloads=%v, want no storage call", texts.presigned, texts.keys)
+	}
+}
+
 func TestGetFailsWhenPDFLinkFails(t *testing.T) {
 	repo := postingIn(domain.PostingStatusPending)
 	pdfText := "Text read from the PDF."

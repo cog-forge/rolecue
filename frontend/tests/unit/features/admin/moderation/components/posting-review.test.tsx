@@ -154,7 +154,10 @@ describe("PostingReview", () => {
     expect(await screen.findByText("Approved")).toBeInTheDocument();
     expect(mocks.toast).toHaveBeenCalledWith(
       "Posting approved",
-      expect.any(Object),
+      expect.objectContaining({
+        description:
+          "Candidates can see it once the recruiter funds interview slots.",
+      }),
     );
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),

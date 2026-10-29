@@ -10,9 +10,28 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// CheckIntakeFunded refuses an Application to an approved posting whose Recruiter has not funded
+// interview slots yet, before the CV is stored. It reads without a lock and only ever says no for a
+// visible open posting without interview_slot; every other state, a missing posting included, passes
+// so that InsertCandidateApplication, which re-checks under the lock, stays the one that decides.
+// Funding is one-way, so a posting this call lets through never becomes unfunded.
+func (r *Repository) CheckIntakeFunded(ctx context.Context, postingID uuid.UUID) error {
+	state, err := r.queries.GetApplyPostingState(ctx, postingID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return internal(err)
+	}
+	if !state.RecruiterLocked && state.Status == "open" && !state.Funded {
+		return domain.ErrIntakeNotOpen
+	}
+	return nil
+}
+
 // InsertCandidateApplication stores a pending Application for the Candidate on an open posting.
 // Under the advisory lock for the (posting, Candidate) pair and the posting's key-share lock it
-// checks that the posting is visible and open, and that the Candidate has no Application there yet
+// checks that the posting is visible, open and funded, and that the Candidate has no Application there yet
 // (KTD6). cvKey is the storage key of the uploaded CV. The caller deletes that object when this
 // returns an error.
 func (r *Repository) InsertCandidateApplication(ctx context.Context, candidateID, postingID uuid.UUID, cvKey string) (domain.Submission, error) {
@@ -29,7 +48,7 @@ func (r *Repository) InsertCandidateApplication(ctx context.Context, candidateID
 		if err != nil {
 			return internal(err)
 		}
-		if err := applyVisible(posting.Status, posting.RecruiterLocked); err != nil {
+		if err := applyVisible(posting.Status, posting.Funded, posting.RecruiterLocked); err != nil {
 			return err
 		}
 		applied, err := q.CandidateHasApplication(ctx, CandidateHasApplicationParams{JobPostingID: postingID, CandidateID: candidateID})
@@ -56,14 +75,18 @@ func (r *Repository) InsertCandidateApplication(ctx context.Context, candidateID
 	return submission, nil
 }
 
-// applyVisible mirrors the job board: only an open posting whose Recruiter is not locked accepts an
-// Application. A closed intake is reported as such; anything else is not found.
-func applyVisible(status string, recruiterLocked bool) error {
+// applyVisible mirrors the job board: only an open, funded posting whose Recruiter is not locked
+// accepts an Application. An approved posting still waiting for interview slots, and a closed intake,
+// are reported as not accepting; anything else is not found.
+func applyVisible(status string, funded, recruiterLocked bool) error {
 	if recruiterLocked {
 		return domain.ErrJobPostingNotFound
 	}
 	switch status {
 	case "open":
+		if !funded {
+			return domain.ErrIntakeNotOpen
+		}
 		return nil
 	case "intake_closed", "closed":
 		return domain.ErrIntakeNotOpen

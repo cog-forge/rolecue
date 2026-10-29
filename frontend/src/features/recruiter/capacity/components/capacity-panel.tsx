@@ -174,8 +174,9 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
             </dl>
           ) : (
             <p className="text-muted-foreground">
-              Interview slots are not funded yet. No CV can be approved until
-              they are.
+              {open
+                ? "Approved by an administrator. Fund interview slots to open intake: candidates can't see or apply to this posting until you do."
+                : "Interview slots are not funded yet. No CV can be approved until they are."}
             </p>
           )}
         </section>
@@ -188,6 +189,11 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
             takesApplications={takesApplications}
             query={submitted}
           />
+          {open && !posting.funded && (
+            <p className="text-muted-foreground">
+              Candidates can apply once you fund interview slots.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Submitted CVs do not use interview slots. A slot is used only when a
             CV is approved.
@@ -219,8 +225,9 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
         )}
         {!posting.funded && !open && !closed && (
           <p className="text-muted-foreground">
-            Interview slots can be funded once an administrator approves the
-            posting and intake opens.
+            {posting.posting_status === "intake_closed"
+              ? "Intake is closed, so interview slots can no longer be funded."
+              : "Interview slots can be funded once an administrator approves the posting. Funding them opens intake to candidates."}
           </p>
         )}
 
@@ -316,6 +323,7 @@ function SubmittedCount({
         Candidates can apply once intake opens.
       </p>
     );
+
   if (query.isPending)
     return (
       <>

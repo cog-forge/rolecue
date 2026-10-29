@@ -76,7 +76,8 @@ export function DecisionDialog({
             ) : (
               <>
                 <span className="font-medium text-foreground">{title}</span>{" "}
-                will be published and candidates can find it.
+                will be approved. Candidates can find it once the recruiter
+                funds interview slots.
               </>
             )}
           </DialogDescription>
