@@ -355,6 +355,8 @@ definitions:
         type: string
       location:
         type: string
+      published_at:
+        type: string
       salary_max:
         type: integer
       salary_min:
@@ -387,6 +389,8 @@ definitions:
       interview_duration:
         type: integer
       location:
+        type: string
+      published_at:
         type: string
       raw_text:
         type: string
@@ -1254,14 +1258,6 @@ definitions:
       question:
         type: string
     type: object
-  domain.Requirement:
-    enum:
-    - required
-    - preferred
-    type: string
-    x-enum-varnames:
-    - Required
-    - Preferred
   domain.RequirementType:
     enum:
     - required
@@ -1366,6 +1362,10 @@ definitions:
     type: object
   domain.ReviewPosting:
     properties:
+      company_name:
+        type: string
+      company_website:
+        type: string
       content_path:
         description: |-
           ContentPath is job_descriptions.content_path: the storage key of the JD PDF for postings
@@ -1386,6 +1386,8 @@ definitions:
         type: string
       employment_type:
         type: string
+      evaluation:
+        $ref: '#/definitions/domain.PostingWeights'
       id:
         type: string
       interview_duration:
@@ -1402,12 +1404,18 @@ definitions:
         type: string
       recruiter:
         $ref: '#/definitions/domain.Recruiter'
+      refinement_note:
+        type: string
       reject_reason:
         type: string
       required_avatar:
         $ref: '#/definitions/domain.NamedRef'
       required_voice:
         $ref: '#/definitions/domain.NamedRef'
+      requirements:
+        items:
+          $ref: '#/definitions/github_com_cog-forge_rolecue_api_internal_features_admin_moderation_domain.Requirement'
+        type: array
       review_submitted:
         description: ReviewSubmitted is false while the Recruiter is still preparing
           a pending posting.
@@ -1416,6 +1424,8 @@ definitions:
         type: integer
       salary_min:
         type: integer
+      seniority_level:
+        type: string
       status:
         $ref: '#/definitions/domain.PostingStatus'
       title:
@@ -1469,7 +1479,7 @@ definitions:
       target:
         type: string
       type:
-        $ref: '#/definitions/domain.Requirement'
+        $ref: '#/definitions/github_com_cog-forge_rolecue_api_internal_features_roleprofile_domain.Requirement'
     type: object
   domain.SaveRoleProfile:
     properties:
@@ -1791,6 +1801,23 @@ definitions:
       percentage:
         type: number
     type: object
+  github_com_cog-forge_rolecue_api_internal_features_admin_moderation_domain.Requirement:
+    properties:
+      name:
+        type: string
+      target:
+        type: string
+      type:
+        type: string
+    type: object
+  github_com_cog-forge_rolecue_api_internal_features_roleprofile_domain.Requirement:
+    enum:
+    - required
+    - preferred
+    type: string
+    x-enum-varnames:
+    - Required
+    - Preferred
   handler.AppendTurnRequest:
     properties:
       answer:
@@ -4353,6 +4380,14 @@ paths:
         minimum: 0
         name: offset
         type: integer
+      - description: Publication window start, inclusive (RFC3339)
+        in: query
+        name: published_from
+        type: string
+      - description: Publication window end, exclusive (RFC3339)
+        in: query
+        name: published_to
+        type: string
       - description: Part of the title
         in: query
         maxLength: 200
@@ -4542,6 +4577,14 @@ paths:
         in: query
         name: search
         type: string
+      - description: Filter by funded interview capacity
+        in: query
+        name: funded
+        type: boolean
+      - description: Filter by explicit review submission
+        in: query
+        name: review_submitted
+        type: boolean
       produces:
       - application/json
       responses:

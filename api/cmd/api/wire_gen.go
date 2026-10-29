@@ -75,31 +75,38 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	walletHandler := provider.ProvideWalletHandler(service2)
 	questionBankHandler := provider.ProvideQuestionBankHandler(config, service)
 	repository4 := provider.ProvideModerationRepository(pool)
-	service3, err := provider.ProvideModerationService(repository4, store, logger)
+	repository5 := provider.ProvideEvaluationRepository(pool)
+	service3, err := provider.ProvideEvaluationService(config, repository5)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	moderationHandler := provider.ProvideModerationHandler(service3)
+	service4, err := provider.ProvideModerationService(repository4, store, logger, service3)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	moderationHandler := provider.ProvideModerationHandler(service4)
 	onboardingHandler := provider.ProvideOnboardingHandler(authService)
 	accountsHandler := provider.ProvideAccountsHandler(config, pool)
-	repository5 := provider.ProvideInventoryRepository(pool)
-	service4 := provider.ProvideInventoryService(repository5, store)
-	inventoryHandler := provider.ProvideInventoryHandler(service4)
+	repository6 := provider.ProvideInventoryRepository(pool)
+	service5 := provider.ProvideInventoryService(repository6, store)
+	inventoryHandler := provider.ProvideInventoryHandler(service5)
 	blender := provider.ProvideAvatarConverter(config)
-	avatarConversionService := provider.ProvideAvatarConversionService(repository5, store, blender, config)
+	avatarConversionService := provider.ProvideAvatarConversionService(repository6, store, blender, config)
 	avatarCreateHandler := provider.ProvideAvatarCreateHandler(avatarConversionService, config)
-	repository6 := provider.ProvideVoiceCatalogRepository(pool)
-	service5, err := provider.ProvideVoiceCatalogService(repository6, logger)
+	repository7 := provider.ProvideVoiceCatalogRepository(pool)
+	service6, err := provider.ProvideVoiceCatalogService(repository7, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	voiceCatalogHandler := provider.ProvideVoiceCatalogHandler(service5)
-	repository7 := provider.ProvideJobPostingRepository(pool)
-	service6, err := provider.ProvideJobPostingService(repository7, store)
+	voiceCatalogHandler := provider.ProvideVoiceCatalogHandler(service6)
+	repository8 := provider.ProvideJobPostingRepository(pool)
+	service7, err := provider.ProvideJobPostingService(repository8, store)
 	if err != nil {
 		cleanup2()
 		cleanup()
@@ -111,31 +118,24 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	jobPostingHandler := provider.ProvideJobPostingHandler(service6, extraction)
-	repository8 := provider.ProvideVoiceRepository(pool)
-	service7, err := provider.ProvideVoiceService(repository8)
+	jobPostingHandler := provider.ProvideJobPostingHandler(service7, extraction)
+	repository9 := provider.ProvideVoiceRepository(pool)
+	service8, err := provider.ProvideVoiceService(repository9)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	voiceHandler := provider.ProvideVoiceHandler(service7)
-	repository9 := provider.ProvideJobBoardRepository(pool)
-	service8, err := provider.ProvideJobBoardService(repository9, store)
+	voiceHandler := provider.ProvideVoiceHandler(service8)
+	repository10 := provider.ProvideJobBoardRepository(pool)
+	service9, err := provider.ProvideJobBoardService(repository10, store)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	jobBoardHandler := provider.ProvideJobBoardHandler(service8)
-	repository10 := provider.ProvideEvaluationRepository(pool)
-	service9, err := provider.ProvideEvaluationService(config, repository10)
-	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	evaluationHandler := provider.ProvideEvaluationHandler(service9)
+	jobBoardHandler := provider.ProvideJobBoardHandler(service9)
+	evaluationHandler := provider.ProvideEvaluationHandler(service3)
 	repository11 := provider.ProvideApplicationRepository(pool)
 	service10, err := provider.ProvideApplicationService(repository11, store)
 	if err != nil {
@@ -154,7 +154,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	adminInterviewsHandler := provider.ProvideAdminInterviewsHandler(service11)
 	repository13 := provider.ProvideInterviewRepository(pool)
 	scorer := provider.ProvideInterviewScorer(config)
-	scoring, err := provider.ProvideInterviewEvaluationService(repository10, scorer)
+	scoring, err := provider.ProvideInterviewEvaluationService(repository5, scorer)
 	if err != nil {
 		cleanup2()
 		cleanup()

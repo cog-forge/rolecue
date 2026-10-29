@@ -174,3 +174,19 @@ func (s *Service) view(status string, weights []domain.Weight) domain.PostingWei
 		Weights:       weights,
 	}
 }
+
+// ModerationWeights exposes a read-only evaluation summary to the moderation service after it
+// checks the posting exists. It uses the same effective defaults as recruitment scoring.
+func (s *Service) ModerationWeights(ctx context.Context, role string, postingID uuid.UUID) (domain.PostingWeights, error) {
+	if role != "admin" {
+		return domain.PostingWeights{}, apperror.New(apperror.CodeForbidden, "only administrators can review evaluation weights")
+	}
+	weights, err := s.repository.ListWeights(ctx, postingID)
+	if err != nil {
+		return domain.PostingWeights{}, err
+	}
+	if len(weights) > 0 {
+		return s.view("", weights), nil
+	}
+	return s.defaultView(ctx, "")
+}

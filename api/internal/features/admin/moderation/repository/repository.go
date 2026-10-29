@@ -47,7 +47,17 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.ReviewPostin
 	if err != nil {
 		return domain.ReviewPosting{}, persistenceError(err)
 	}
+	requirements, err := r.queries.ListReviewRequirements(ctx, row.JdID)
+	if err != nil {
+		return domain.ReviewPosting{}, persistenceError(err)
+	}
+	confirmed := make([]domain.Requirement, 0, len(requirements))
+	for _, requirement := range requirements {
+		confirmed = append(confirmed, domain.Requirement{Name: requirement.Name, Target: requirement.Target, Type: requirement.Type})
+	}
 	return domain.ReviewPosting{
+		CompanyName: row.CompanyName, CompanyWebsite: row.CompanyWebsite,
+		SeniorityLevel: row.SeniorityLevel, RefinementNote: row.RefinementNote, Requirements: confirmed,
 		ID: row.ID, Title: row.Title, Status: domain.PostingStatus(row.Status), RejectReason: row.RejectReason,
 		Recruiter: domain.Recruiter{ID: row.RecruiterID, Name: row.RecruiterName, Email: row.RecruiterEmail},
 		Location:  row.Location, EmploymentType: row.EmploymentType, SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax,

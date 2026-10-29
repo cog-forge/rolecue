@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/moderation/domain"
+	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -38,7 +39,12 @@ const documentLinkTTL = 15 * time.Minute
 // maxJDTextBytes matches the Job Posting feature's stored-text cap (4 bytes per rune, 20,000 runes).
 const maxJDTextBytes = 4 * 20_000
 
+type EvaluationReader interface {
+	ModerationWeights(context.Context, string, uuid.UUID) (evaluationdomain.PostingWeights, error)
+}
+
 type Service struct {
+	evaluation EvaluationReader
 	repository Repository
 	texts      TextStore
 	log        *logger.Logger
@@ -55,6 +61,9 @@ func New(repository Repository, texts TextStore, log *logger.Logger) (*Service, 
 	}
 	return &Service{repository: repository, texts: texts, log: log}, nil
 }
+
+// SetEvaluationReader supplies the shared evaluation service without duplicating its defaults.
+func (s *Service) SetEvaluationReader(reader EvaluationReader) { s.evaluation = reader }
 
 func requireAdmin(role string) error {
 	if role != adminRole {
@@ -147,6 +156,14 @@ func (s *Service) review(ctx context.Context, id uuid.UUID) (domain.ReviewPostin
 // hold a full URL, which the Admin opens instead. A missing object leaves RawText null so the Admin
 // still sees the rest of the posting and can reject it; any other storage failure fails the request.
 func (s *Service) withText(ctx context.Context, posting domain.ReviewPosting) (domain.ReviewPosting, error) {
+	if s.evaluation != nil {
+		weights, err := s.evaluation.ModerationWeights(ctx, adminRole, posting.ID)
+		if err != nil {
+			return domain.ReviewPosting{}, err
+		}
+		weights.PostingStatus = string(posting.Status)
+		posting.Evaluation = &weights
+	}
 	if posting.StoredText != nil {
 		posting.RawText = posting.StoredText
 		if posting.ContentPath == "" {
