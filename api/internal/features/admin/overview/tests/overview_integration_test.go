@@ -1,9 +1,11 @@
 //go:build integration
 
 // Package tests holds the slow, opt-in tests of the Admin overview. The counts are SQL aggregates over
-// the whole database, and the database may already hold real rows, so no test asserts an absolute total:
-// each test reads the overview before seeding, seeds its own rows, reads again and asserts the delta.
-// Tests 6 to 8 need no database beyond what is listed. They need a migrated PostgreSQL database:
+// the whole database, which may already hold real rows and which other packages' integration tests write
+// to at the same time, so no test asserts an absolute total: each test reads the overview before seeding,
+// seeds its own rows, reads again and asserts the delta. Every test runs inside one REPEATABLE READ
+// transaction that is rolled back at the end, so the snapshot cannot move between the two reads and nothing
+// has to be deleted afterwards. They need a migrated PostgreSQL database:
 //
 //	cd api && set -a && . ../.env && set +a
 //	go test -tags=integration ./internal/features/admin/overview/tests -count=1
@@ -23,6 +25,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/features/admin/overview/service"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -48,39 +51,38 @@ func openPool(t *testing.T) (context.Context, *pgxpool.Pool) {
 	return ctx, pool
 }
 
-// seeder inserts rows and deletes exactly those rows afterwards, in reverse order. Each child row is
-// registered after its parent, so the reverse order removes children first.
-type seeder struct {
-	t    *testing.T
-	ctx  context.Context
-	pool *pgxpool.Pool
-	undo []func()
+// openTx opens a REPEATABLE READ transaction and rolls it back when the test ends.
+func openTx(t *testing.T) (context.Context, pgx.Tx) {
+	t.Helper()
+	ctx, pool := openPool(t)
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	return ctx, tx
 }
 
-func newSeeder(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *seeder {
-	s := &seeder{t: t, ctx: ctx, pool: pool}
-	t.Cleanup(func() {
-		for i := len(s.undo) - 1; i >= 0; i-- {
-			s.undo[i]()
-		}
-	})
-	return s
+// seeder inserts rows through the test's transaction; rolling it back removes them.
+type seeder struct {
+	t   *testing.T
+	ctx context.Context
+	tx  pgx.Tx
+}
+
+func newSeeder(t *testing.T, ctx context.Context, tx pgx.Tx) *seeder {
+	return &seeder{t: t, ctx: ctx, tx: tx}
 }
 
 func (s *seeder) exec(sql string, args ...any) {
 	s.t.Helper()
-	if _, err := s.pool.Exec(s.ctx, sql, args...); err != nil {
+	if _, err := s.tx.Exec(s.ctx, sql, args...); err != nil {
 		s.t.Fatalf("seed %q: %v", sql, err)
 	}
 }
 
-func (s *seeder) later(sql string, args ...any) {
-	s.undo = append(s.undo, func() {
-		if _, err := s.pool.Exec(context.Background(), sql, args...); err != nil {
-			s.t.Errorf("cleanup %q: %v", sql, err)
-		}
-	})
-}
+// later was the cleanup hook of a committing seeder. The rollback removes everything now.
+func (s *seeder) later(string, ...any) {}
 
 // user inserts an account with a unique email and returns its id. Candidates and Recruiters get no
 // lock; the caller adds one with an UPDATE when a test needs it.
@@ -102,7 +104,7 @@ func (s *seeder) user(role string) uuid.UUID {
 func (s *seeder) levelID() uuid.UUID {
 	s.t.Helper()
 	var id uuid.UUID
-	if err := s.pool.QueryRow(s.ctx, `SELECT id FROM public.levels ORDER BY id LIMIT 1`).Scan(&id); err != nil {
+	if err := s.tx.QueryRow(s.ctx, `SELECT id FROM public.levels ORDER BY id LIMIT 1`).Scan(&id); err != nil {
 		s.t.Fatalf("no seniority level seeded: %v", err)
 	}
 	return id
@@ -195,9 +197,9 @@ func (r *countingRepository) Interviews(context.Context, time.Time, time.Time) (
 	return domain.OverviewInterviews{}, nil
 }
 
-func newService(t *testing.T, pool *pgxpool.Pool) *service.Service {
+func newService(t *testing.T, tx pgx.Tx) *service.Service {
 	t.Helper()
-	svc, err := service.New(repository.NewRepository(pool), &fakeFinance{})
+	svc, err := service.New(repository.NewRepositoryTx(tx), &fakeFinance{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,9 +244,9 @@ func applicationStatusCounts(a domain.OverviewApplications) map[string]int64 {
 }
 
 func TestOverviewAccountsCountCandidatesAndRecruitersWithActiveLocks(t *testing.T) {
-	ctx, pool := openPool(t)
-	s := newSeeder(t, ctx, pool)
-	svc := newService(t, pool)
+	ctx, tx := openTx(t)
+	s := newSeeder(t, ctx, tx)
+	svc := newService(t, tx)
 	before := read(t, ctx, svc, 30).Accounts
 
 	s.user("candidate")
@@ -271,9 +273,9 @@ func TestOverviewAccountsCountCandidatesAndRecruitersWithActiveLocks(t *testing.
 }
 
 func TestOverviewNewInWindowFollowsTheWindow(t *testing.T) {
-	ctx, pool := openPool(t)
-	s := newSeeder(t, ctx, pool)
-	svc := newService(t, pool)
+	ctx, tx := openTx(t)
+	s := newSeeder(t, ctx, tx)
+	svc := newService(t, tx)
 	before := map[int]int64{}
 	for _, d := range windows {
 		before[d] = read(t, ctx, svc, d).Accounts.NewInWindow
@@ -291,9 +293,9 @@ func TestOverviewNewInWindowFollowsTheWindow(t *testing.T) {
 }
 
 func TestOverviewJobPostingsCountEachStatusAllTime(t *testing.T) {
-	ctx, pool := openPool(t)
-	s := newSeeder(t, ctx, pool)
-	svc := newService(t, pool)
+	ctx, tx := openTx(t)
+	s := newSeeder(t, ctx, tx)
+	svc := newService(t, tx)
 	before := postingCounts(read(t, ctx, svc, 30).JobPostings)
 
 	recruiter := s.user("recruiter")
@@ -309,9 +311,9 @@ func TestOverviewJobPostingsCountEachStatusAllTime(t *testing.T) {
 }
 
 func TestOverviewApplicationsCountStatusesAndSubmittedInWindow(t *testing.T) {
-	ctx, pool := openPool(t)
-	s := newSeeder(t, ctx, pool)
-	svc := newService(t, pool)
+	ctx, tx := openTx(t)
+	s := newSeeder(t, ctx, tx)
+	svc := newService(t, tx)
 	beforeStatus := applicationStatusCounts(read(t, ctx, svc, 30).Applications)
 	beforeSubmitted := map[int]int64{}
 	for _, d := range windows {
@@ -343,9 +345,9 @@ func TestOverviewApplicationsCountStatusesAndSubmittedInWindow(t *testing.T) {
 }
 
 func TestOverviewInterviewsCountStartsCompletionsAndFailures(t *testing.T) {
-	ctx, pool := openPool(t)
-	s := newSeeder(t, ctx, pool)
-	svc := newService(t, pool)
+	ctx, tx := openTx(t)
+	s := newSeeder(t, ctx, tx)
+	svc := newService(t, tx)
 	beforeInterviews := map[int]domainInterviews{}
 	for _, d := range windows {
 		beforeInterviews[d] = read(t, ctx, svc, d).Interviews
@@ -384,8 +386,8 @@ func TestOverviewInterviewsCountStartsCompletionsAndFailures(t *testing.T) {
 type domainInterviews = domain.OverviewInterviews
 
 func TestOverviewResponseCarriesEveryKeyAsANumber(t *testing.T) {
-	ctx, pool := openPool(t)
-	svc := newService(t, pool)
+	ctx, tx := openTx(t)
+	svc := newService(t, tx)
 
 	// days 0 means the default 30-day window.
 	got := read(t, ctx, svc, 0)
@@ -498,9 +500,9 @@ func TestOverviewRejectsUnsupportedWindowBeforeQuerying(t *testing.T) {
 }
 
 func TestOverviewJSONCarriesNoPersonalData(t *testing.T) {
-	ctx, pool := openPool(t)
-	s := newSeeder(t, ctx, pool)
-	svc := newService(t, pool)
+	ctx, tx := openTx(t)
+	s := newSeeder(t, ctx, tx)
+	svc := newService(t, tx)
 
 	tag := uuid.NewString()
 	name := "Privacy Probe " + tag

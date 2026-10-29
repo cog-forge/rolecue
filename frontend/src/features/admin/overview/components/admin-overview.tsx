@@ -126,10 +126,10 @@ export function AdminOverview() {
 }
 
 const quickLinks = [
-  { href: routes.admin.jobPostings, label: "Moderation queue" },
-  { href: routes.admin.interviews, label: "Interview sessions" },
-  { href: routes.admin.voices, label: "Voice profiles" },
-  { href: routes.admin.billing, label: "Payment transactions" },
-  { href: routes.admin.revenue, label: "Revenue reports" },
-  { href: routes.admin.users, label: "Accounts" },
+  { href: routes.admin.jobPostings, label: "Review pending postings" },
+  { href: routes.admin.interviews, label: "Browse recent interviews" },
+  { href: routes.admin.voices, label: "Manage the voice catalog" },
+  { href: routes.admin.billing, label: "Check payments" },
+  { href: routes.admin.revenue, label: "See revenue figures" },
+  { href: routes.admin.users, label: "Find an account" },
 ];

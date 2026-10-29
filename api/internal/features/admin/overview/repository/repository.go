@@ -7,6 +7,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/overview/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -18,6 +19,12 @@ type Repository struct {
 
 func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{queries: New(pool)}
+}
+
+// NewRepositoryTx reads through one transaction, so a test sees its own uncommitted rows and a fixed
+// snapshot of everyone else's.
+func NewRepositoryTx(tx pgx.Tx) *Repository {
+	return &Repository{queries: New(tx)}
 }
 
 // Accounts counts Candidate and Recruiter accounts, the active locks and the accounts created in the window.

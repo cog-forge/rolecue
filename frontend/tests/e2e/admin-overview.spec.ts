@@ -249,12 +249,12 @@ test("quick links point to the admin routes", async ({ page }) => {
 
   const tools = page.getByRole("navigation", { name: "Admin tools" });
   const expected: Array<[string, string]> = [
-    ["Moderation queue", "/admin/job-postings"],
-    ["Interview sessions", "/admin/interviews"],
-    ["Voice profiles", "/admin/voices"],
-    ["Payment transactions", "/admin/billing"],
-    ["Revenue reports", "/admin/revenue"],
-    ["Accounts", "/admin/users"],
+    ["Review pending postings", "/admin/job-postings"],
+    ["Browse recent interviews", "/admin/interviews"],
+    ["Manage the voice catalog", "/admin/voices"],
+    ["Check payments", "/admin/billing"],
+    ["See revenue figures", "/admin/revenue"],
+    ["Find an account", "/admin/users"],
   ];
   for (const [label, href] of expected)
     await expect(
