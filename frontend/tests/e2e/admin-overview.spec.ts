@@ -139,7 +139,11 @@ test("admin sees the five overview sections with the mocked numbers", async ({
   await page.goto("/admin/dashboard");
 
   await expect(
-    page.getByRole("heading", { level: 1, name: "Admin dashboard", exact: true }),
+    page.getByRole("heading", {
+      level: 1,
+      name: "Admin dashboard",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.getByText(/^Last 30 days · Updated/)).toBeVisible();
 
@@ -198,7 +202,9 @@ test("the reporting window lives in the URL and drives the request", async ({
   ).toHaveAttribute("aria-current", "page");
   expect(api.requestedDays.at(-1)).toBe("30");
 
-  await selector.getByRole("link", { name: "Last 7 days", exact: true }).click();
+  await selector
+    .getByRole("link", { name: "Last 7 days", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/admin\/dashboard\?days=7$/);
   await expect.poll(() => api.requestedDays.at(-1)).toBe("7");
   await expect(
@@ -222,7 +228,11 @@ test("an unsupported window in the URL falls back to 30 days", async ({
   await page.goto("/admin/dashboard?days=5");
 
   await expect(
-    page.getByRole("heading", { level: 1, name: "Admin dashboard", exact: true }),
+    page.getByRole("heading", {
+      level: 1,
+      name: "Admin dashboard",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect.poll(() => api.requestedDays.at(-1)).toBe("30");
   expect(api.requestedDays).not.toContain("5");
@@ -274,7 +284,10 @@ test("a failed load shows the error state and Try again recovers", async ({
     page.getByRole("region", { name: "Accounts", exact: true }),
   ).toBeVisible();
   await expect(
-    tile(page.getByRole("region", { name: "Accounts", exact: true }), "Candidates"),
+    tile(
+      page.getByRole("region", { name: "Accounts", exact: true }),
+      "Candidates",
+    ),
   ).toHaveText("1,234");
 });
 
@@ -289,7 +302,11 @@ for (const user of [candidateUser, recruiterUser])
       user.role === "candidate" ? /\/dashboard$/ : /\/recruiter\/dashboard$/,
     );
     await expect(
-      page.getByRole("heading", { level: 1, name: "Admin dashboard", exact: true }),
+      page.getByRole("heading", {
+        level: 1,
+        name: "Admin dashboard",
+        exact: true,
+      }),
     ).toHaveCount(0);
     expect(api.requestedDays).toEqual([]);
   });
