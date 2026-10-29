@@ -22,7 +22,7 @@ COMPOSE_ARGS := -f "$(COMPOSE_FILE)"
 MIGRATION_DIR ?= $(CURDIR)/migrations
 GO_FILES := $(shell find . -type d \( -name .tools -o -name tmp -o -name vendor \) -prune -o -type f -name '*.go' -print)
 
-.PHONY: tools fmt fmt-check vet test test-race test-integration swagger build lint vuln check ensure-env db-up storage-test migrate migrate-up migrate-down migrate-down-all migrate-force migrate-version run dev sqlc
+.PHONY: tools fmt fmt-check vet test test-race test-integration swagger build lint vuln check ensure-env db-up storage-test tts-test migrate migrate-up migrate-down migrate-down-all migrate-force migrate-version run dev sqlc
 
 tools: $(GOLANGCI) $(GOVULNCHECK) $(MIGRATE)
 
@@ -34,6 +34,10 @@ db-up: ensure-env
 
 storage-test: ensure-env
 	@set -eu; set -a; . "$(ENV_FILE)"; set +a; go test -tags=storage_integration -count=1 -timeout=2m ./internal/pkg/storage/...
+
+# Calls the real Azure AI Speech service with a few dozen characters; skips when the credentials are unset.
+tts-test: ensure-env
+	@set -eu; set -a; . "$(ENV_FILE)"; set +a; go test -tags=tts_integration -count=1 -timeout=2m -v ./internal/pkg/tts/...
 
 # Applies all pending migrations from MIGRATION_DIR (defaults to migrations), then starts the API.
 run: migrate
