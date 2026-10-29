@@ -1,0 +1,19 @@
+{
+  "required": "This field is required.",
+  "email": "Please enter a valid email address.",
+  "minLength": "Use at least {min, plural, one {# character} other {# characters}}.",
+  "maxLength": "Use at most {max, plural, one {# character} other {# characters}}.",
+  "emailRequired": "Email address is required",
+  "emailInvalid": "Please enter a valid email address",
+  "passwordRequired": "Password is required",
+  "passwordMin": "Use at least {min} characters",
+  "passwordTooLong": "Password is too long",
+  "confirmPasswordRequired": "Please confirm your password",
+  "confirmNewPasswordRequired": "Please confirm your new password",
+  "passwordsMismatch": "Passwords do not match",
+  "currentPasswordRequired": "Current password is required",
+  "enterCurrentPassword": "Enter your current password",
+  "passwordSameAsCurrent": "Choose a password different from your current one",
+  "totpCode": "Enter the 6-digit code from your authenticator",
+  "backupCodeRequired": "Enter a backup code"
+}
