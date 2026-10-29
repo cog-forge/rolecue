@@ -19,6 +19,7 @@ import {
   rejectReasonLength,
   type RejectValues,
 } from "../schemas/moderation-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export type Decision = "approve" | "reject";
 
@@ -41,6 +42,7 @@ export function DecisionDialog({
   onApprove: () => void;
   onReject: (reason: string) => void;
 }) {
+  const fmt = useFormatters();
   const {
     register,
     handleSubmit,
@@ -120,8 +122,8 @@ export function DecisionDialog({
               >
                 <span>Be specific so the recruiter knows what to fix.</span>
                 <span className="tabular-nums">
-                  {rejectReasonLength(reason ?? "").toLocaleString("en")}/
-                  {MAX_REJECT_REASON.toLocaleString("en")}
+                  {fmt.number(rejectReasonLength(reason ?? ""))}/
+                  {fmt.number(MAX_REJECT_REASON)}
                 </span>
               </p>
               {reasonError && (

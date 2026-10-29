@@ -5,6 +5,7 @@ import { formatCoinAmount, formatVND } from "../lib/format";
 import type { RevenueReport } from "../schemas/billing-schema";
 import { ComparisonDelta } from "./comparison-delta";
 import { SwapValue } from "./swap-value";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 type Figure = {
   label: string;
@@ -22,6 +23,7 @@ export function RevenueKpis({
   report: RevenueReport;
   comparisonRange: string;
 }) {
+  const fmt = useFormatters();
   const { current: now, comparison: before } = report;
   const returning = Math.max(0, now.paying_users - now.new_payers);
   const figures: Figure[] = [
@@ -50,7 +52,7 @@ export function RevenueKpis({
     },
     {
       label: "Payment success",
-      value: `${now.payment_success_rate.toFixed(1)}%`,
+      value: fmt.percent(now.payment_success_rate),
       current: now.payment_success_rate,
       previous: before.payment_success_rate,
       kind: "rate",
@@ -91,6 +93,7 @@ export function RevenueKpis({
                     figure.current,
                     figure.previous,
                     figure.kind,
+                    fmt.locale,
                   )}
                 />
               </dd>

@@ -1,24 +1,13 @@
-// One place for how the Applications list and the Application detail print dates.
-const submittedFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
-// The deadline is a moment, so it is shown in the viewer's own time zone, named to avoid misreading.
-const deadlineFormat = new Intl.DateTimeFormat("en", {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZoneName: "short",
-});
+import type { Formatters } from "@/lib/i18n/formatters";
 
-export function formatSubmitted(iso: string) {
-  return submittedFormat.format(new Date(iso));
+// One place for how the Applications list and the Application detail print dates.
+export function formatSubmitted(iso: string, fmt: Formatters) {
+  return fmt.date(iso, "calendarDay");
 }
 
-export function formatDeadline(iso: string) {
-  return deadlineFormat.format(new Date(iso));
+// The deadline is a moment, so it is shown in the viewer's own time zone, named to avoid misreading.
+export function formatDeadline(iso: string, fmt: Formatters) {
+  return fmt.date(iso, "moment");
 }
 
 // An eligible Application the server no longer clears to interview has passed its deadline. The

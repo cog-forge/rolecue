@@ -3,7 +3,8 @@ import {
   QueryClientProvider,
   useQuery,
 } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   credentialsKeys,
@@ -51,7 +52,7 @@ function Sessions({ currentId }: { currentId?: string }) {
   );
 }
 function renderSessions(currentId: string | undefined = "current") {
-  render(
+  renderWithIntl(
     <QueryClientProvider client={new QueryClient()}>
       <Sessions currentId={currentId} />
     </QueryClientProvider>,

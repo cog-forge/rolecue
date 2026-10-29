@@ -32,11 +32,12 @@ describe("Billing Format Utilities", () => {
   });
 
   describe("formatCoins", () => {
-    it("formats coins with labels and dot separators", () => {
+    it("formats coins with labels and locale grouping", () => {
       expect(formatCoins(1)).toBe("1 coin");
       expect(formatCoins(2)).toBe("2 coins");
       expect(formatCoins(100)).toBe("100 coins");
-      expect(formatCoins(1500)).toBe("1.500 coins");
+      expect(formatCoins(1500)).toBe("1,500 coins");
+      expect(formatCoins(1500, "vi")).toBe("1.500 coins");
       expect(formatCoins(0)).toBe("0 coins");
     });
 
@@ -47,7 +48,8 @@ describe("Billing Format Utilities", () => {
 
   describe("formatCoinAmount", () => {
     it("formats coin values without currency label", () => {
-      expect(formatCoinAmount(1500)).toBe("1.500");
+      expect(formatCoinAmount(1500)).toBe("1,500");
+      expect(formatCoinAmount(1500, "vi")).toBe("1.500");
       expect(formatCoinAmount(20)).toBe("20");
     });
   });

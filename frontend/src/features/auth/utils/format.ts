@@ -1,24 +1,20 @@
-export function securityDate(value: Date | string | null | undefined) {
+import type { Formatters } from "@/lib/i18n/formatters";
+
+export function securityDate(
+  value: Date | string | null | undefined,
+  fmt: Formatters,
+) {
   if (!value) return "Unavailable";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Unavailable"
-    : new Intl.DateTimeFormat("en", {
-        dateStyle: "medium",
-        timeStyle: "short",
-        timeZone: "UTC",
-      }).format(date) + " UTC";
+  const text = fmt.date(value, "calendarDayTime");
+  return text ? `${text} UTC` : "Unavailable";
 }
 
-export function securityDay(value: Date | string | null | undefined) {
+export function securityDay(
+  value: Date | string | null | undefined,
+  fmt: Formatters,
+) {
   if (!value) return "Unavailable";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Unavailable"
-    : new Intl.DateTimeFormat("en", {
-        dateStyle: "medium",
-        timeZone: "UTC",
-      }).format(date);
+  return fmt.date(value, "calendarDay") || "Unavailable";
 }
 
 export function isMobileAgent(agent?: string | null) {

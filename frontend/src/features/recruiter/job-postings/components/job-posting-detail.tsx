@@ -38,6 +38,7 @@ import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingProgress } from "./posting-progress";
 import { PostingStatus } from "./posting-status";
 import { PostingTabs } from "./posting-tabs";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Codes after which the cached posting is stale: its status or question bank changed elsewhere.
 // Refetching shows the server's truth and the matching locks.
@@ -47,12 +48,9 @@ const staleCodes = new Set([
   "JOB_POSTING_TEXT_LOCKED",
   "JOB_POSTING_REQUIREMENTS_LOCKED",
 ]);
-const dateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
 
 export function JobPostingDetail({ postingId }: { postingId: string }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
   const router = useRouter();
@@ -200,7 +198,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
   const locks = postingLocks(posting);
   const hasBank = posting.core_question_count > 0;
   const action = primaryAction(posting);
-  const line = statusLine(posting, capacity.data);
+  const line = statusLine(posting, fmt, capacity.data);
   const generating = save.isPending && save.variables?.generate === true;
   const saveError =
     save.isError && !staleCodes.has(apiError(save.error).code ?? "")
@@ -225,7 +223,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
             <span>
               Created{" "}
               <time dateTime={posting.created_at} title={posting.created_at}>
-                {dateFormat.format(new Date(posting.created_at))}
+                {fmt.date(posting.created_at, "calendarDay")}
               </time>
             </span>
             <span>

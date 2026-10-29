@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { lockDurations, type LockFormValues } from "../schemas/account-lock";
+import { userTimeZone } from "@/lib/i18n/formatters";
 
 export function AccountLockFields({
   form,
@@ -126,8 +127,7 @@ export function AccountLockFields({
             {...form.register("expiresAt")}
           />
           <p id={`${id}-expiry-hint`} className="text-xs text-muted-foreground">
-            Choose a future time in{" "}
-            {Intl.DateTimeFormat().resolvedOptions().timeZone}.
+            Choose a future time in {userTimeZone()}.
           </p>
           {!indefinite && errors.expiresAt && (
             <p

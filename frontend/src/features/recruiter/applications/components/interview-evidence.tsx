@@ -16,6 +16,7 @@ import type {
 } from "../schemas/application-detail-schema";
 import { formatDeadline } from "../utils/application-dates";
 import { applicationErrorMessage } from "../utils/application-errors";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Recording and transcript are evidence: nothing is fetched until the Recruiter asks, and no media
 // starts on its own. Retention, consent and Admin access to recordings are open product gates; this
@@ -101,6 +102,7 @@ function RecordingLoader({
   postingId: string;
   applicationId: string;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const query = useQuery({
     queryKey: applicationKeys.recording(user.id, postingId, applicationId),
@@ -143,7 +145,7 @@ function RecordingLoader({
       </Button>
       {recording.expires_at && (
         <p className="text-xs text-muted-foreground">
-          The link expires {formatDeadline(recording.expires_at)}.
+          The link expires {formatDeadline(recording.expires_at, fmt)}.
         </p>
       )}
     </div>

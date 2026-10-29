@@ -5,14 +5,17 @@ import {
   securityDate,
   securityDay,
 } from "@/features/auth/utils/format";
+import { formattersFor } from "@tests/helpers/intl";
+
+const fmt = formattersFor("en");
 
 describe("security formatting", () => {
   it("formats dates in UTC and hides invalid values", () => {
-    expect(securityDate("2026-10-10T10:00:00.000Z")).toBe(
+    expect(securityDate("2026-10-10T10:00:00.000Z", fmt)).toBe(
       "Oct 10, 2026, 10:00 AM UTC",
     );
-    expect(securityDate("not a date")).toBe("Unavailable");
-    expect(securityDate(null)).toBe("Unavailable");
+    expect(securityDate("not a date", fmt)).toBe("Unavailable");
+    expect(securityDate(null, fmt)).toBe("Unavailable");
   });
 
   it.each([
@@ -27,8 +30,8 @@ describe("security formatting", () => {
   });
 
   it("prints the day alone in UTC", () => {
-    expect(securityDay("2026-09-02T23:30:00.000Z")).toBe("Sep 2, 2026");
-    expect(securityDay(undefined)).toBe("Unavailable");
+    expect(securityDay("2026-09-02T23:30:00.000Z", fmt)).toBe("Sep 2, 2026");
+    expect(securityDay(undefined, fmt)).toBe("Unavailable");
   });
 
   it.each([

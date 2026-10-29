@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { CandidateApplicationList } from "@/features/candidate/applications/components/application-list";
@@ -56,7 +57,7 @@ function renderList() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={client}>
       <CandidateApplicationList />
     </QueryClientProvider>,

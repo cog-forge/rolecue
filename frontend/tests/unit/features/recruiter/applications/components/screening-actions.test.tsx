@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { ScreeningActions } from "@/features/recruiter/applications/components/screening-actions";
@@ -102,7 +97,7 @@ function mount(app: ApplicationDetail = application()) {
   });
   client.setQueryData(["auth", "me"], mocks.user);
   client.setQueryData(detailKey, app);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <ScreeningActions
         postingId={postingId}
@@ -270,7 +265,7 @@ describe("ScreeningActions", () => {
         />
       </QueryClientProvider>
     );
-    const view = render(tree(application()));
+    const view = renderWithIntl(tree(application()));
     fireEvent.click(screen.getByRole("button", { name: "Reject CV" }));
     fireEvent.click(
       within(
@@ -305,7 +300,7 @@ describe("ScreeningActions", () => {
         />
       </QueryClientProvider>
     );
-    const view = render(tree(application()));
+    const view = renderWithIntl(tree(application()));
     fireEvent.click(screen.getByRole("button", { name: "Approve CV" }));
     await screen.findByText(/already been decided/);
 

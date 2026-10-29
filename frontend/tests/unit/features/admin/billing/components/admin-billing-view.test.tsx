@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminBillingView } from "@/features/admin/billing/components/admin-billing-view";
 
@@ -60,7 +55,7 @@ function renderComponent() {
       },
     },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={queryClient}>
       <AdminBillingView />
     </QueryClientProvider>,

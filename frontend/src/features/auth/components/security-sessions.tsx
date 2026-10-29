@@ -28,6 +28,7 @@ import { deviceLabel, isMobileAgent, securityDate } from "../utils/format";
 import { securityAccessDenied, securityData } from "../utils/security-errors";
 import { SecurityPanel, SecurityRow } from "./security-section";
 import { SecurityRequestError } from "./security-request-error";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 type Selection =
   { kind: "one"; id: string } | { kind: "others" } | { kind: "all" };
@@ -43,6 +44,7 @@ export function SecuritySessions({
   onChanged: () => Promise<void>;
   onAccessError: (error: unknown) => void;
 }) {
+  const fmt = useFormatters();
   const endLocalSession = useEndLocalSession();
   const [selection, setSelection] = useState<Selection | null>(null);
   useEffect(() => {
@@ -163,7 +165,7 @@ export function SecuritySessions({
                     description={
                       <p className="wrap-anywhere">
                         {session.ipAddress || "Unknown IP"} · Active{" "}
-                        {securityDate(session.updatedAt)}
+                        {securityDate(session.updatedAt, fmt)}
                       </p>
                     }
                     action={
@@ -193,13 +195,13 @@ export function SecuritySessions({
                         <div>
                           <dt className="text-muted-foreground">Started</dt>
                           <dd className="mt-0.5">
-                            {securityDate(session.createdAt)}
+                            {securityDate(session.createdAt, fmt)}
                           </dd>
                         </div>
                         <div>
                           <dt className="text-muted-foreground">Expires</dt>
                           <dd className="mt-0.5">
-                            {securityDate(session.expiresAt)}
+                            {securityDate(session.expiresAt, fmt)}
                           </dd>
                         </div>
                         <div className="sm:col-span-2">

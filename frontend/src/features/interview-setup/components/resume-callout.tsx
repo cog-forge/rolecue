@@ -1,31 +1,17 @@
 import type { ReactNode } from "react";
 import { History } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 import type { UnfinishedPractice } from "../api/setup-catalog";
 
-const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-const units: [Intl.RelativeTimeFormatUnit, number][] = [
-  ["minute", 60],
-  ["hour", 24],
-  ["day", 7],
-  ["week", 4.35],
-  ["month", 12],
-];
-
-export function startedAgo(iso: string, now = Date.now()) {
-  let value = (Date.parse(iso) - now) / 60_000;
-  for (const [unit, size] of units) {
-    if (Math.abs(value) < size) return relative.format(Math.round(value), unit);
-    value /= size;
-  }
-  return relative.format(Math.round(value), "year");
-}
-
 export function PracticeProgress({ session }: { session: UnfinishedPractice }) {
+  const fmt = useFormatters();
   return (
     <>
       Started{" "}
-      <time dateTime={session.startedAt}>{startedAgo(session.startedAt)}</time>
+      <time dateTime={session.startedAt}>
+        {fmt.relative(session.startedAt)}
+      </time>
       {" · "}
       <span className="tabular-nums">
         {session.answeredCount} of {session.questionCount}

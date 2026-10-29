@@ -53,6 +53,7 @@ import {
 } from "../utils/application-filters";
 import { ApplicationStatus } from "./application-status";
 import { formatDeadline, formatSubmitted } from "../utils/application-dates";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const statusOptions: { status: ApplicationStatusFilter; label: string }[] = [
   { status: "all", label: "All" },
@@ -494,6 +495,7 @@ function ApplicationRow({
   selected: boolean;
   onActivate?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
+  const fmt = useFormatters();
   const { candidate } = application;
   const pending = application.status === "pending";
   return (
@@ -531,7 +533,7 @@ function ApplicationRow({
                 dateTime={application.submitted_at}
                 title={application.submitted_at}
               >
-                {formatSubmitted(application.submitted_at)}
+                {formatSubmitted(application.submitted_at, fmt)}
               </time>
             </span>
             {pending ? (
@@ -552,6 +554,7 @@ function ApplicationRow({
 
 // What the status alone does not say: the interview deadline, or why the CV was rejected.
 function StatusDetail({ application }: { application: Application }) {
+  const fmt = useFormatters();
   const {
     status,
     interview_deadline: deadline,
@@ -565,7 +568,7 @@ function StatusDetail({ application }: { application: Application }) {
           ? "Complete interview by "
           : "Deadline passed "}
         <time dateTime={deadline} title={deadline}>
-          {formatDeadline(deadline)}
+          {formatDeadline(deadline, fmt)}
         </time>
       </span>
     );

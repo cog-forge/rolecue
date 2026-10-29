@@ -26,6 +26,7 @@ import {
 import { setupHref } from "../lib/setup-params";
 import { describeStartFailure, type StartAction } from "../lib/start-errors";
 import type { MicrophoneReadiness } from "./preflight-check";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // What pressing the button does. A resume names the session the server already has; a new start
 // names what to create. The plan, not the button, decides the price shown.
@@ -63,6 +64,7 @@ export function StartPanel({
   /** Extra facts for a new start (the recruitment deadline). */
   children?: ReactNode;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const router = useRouter();
   const cache = useQueryClient();
@@ -252,7 +254,7 @@ export function StartPanel({
               ) : wallet.isError ? (
                 "—"
               ) : (
-                `${balance?.toLocaleString("en-US")} coins`
+                `${balance === undefined ? "" : fmt.coinAmount(balance)} coins`
               )}
             </dd>
           </div>

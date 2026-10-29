@@ -25,6 +25,7 @@ import type { ApplicationDetail } from "../schemas/application-detail-schema";
 import { formatDeadline } from "../utils/application-dates";
 import { applicationErrorMessage } from "../utils/application-errors";
 import { RejectDialog } from "./reject-dialog";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Codes that mean the detail on screen is out of date: the Application left the interviewed state,
 // the final review is still locked, or the Application is gone. The detail is reloaded.
@@ -51,6 +52,7 @@ export function FinalDecision({
   applicationId: string;
   application: ApplicationDetail;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
   const [approveOpen, setApproveOpen] = useState(false);
@@ -147,7 +149,7 @@ export function FinalDecision({
           <Notice tone="locked" title="Final decision is not open yet">
             <p id={lockedId} className="text-muted-foreground">
               {opensAt
-                ? `Decisions open ${formatDeadline(opensAt)}, once the interview deadlines for this posting have passed.`
+                ? `Decisions open ${formatDeadline(opensAt, fmt)}, once the interview deadlines for this posting have passed.`
                 : "Decisions are not open for this application yet."}
             </p>
           </Notice>

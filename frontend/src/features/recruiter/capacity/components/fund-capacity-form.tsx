@@ -13,6 +13,7 @@ import {
   type FundCapacityInput,
   type FundCapacityValues,
 } from "../schemas/capacity-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Buys N interview slots in one purchase. The total is only a preview; the server charges it.
 export function FundCapacityForm({
@@ -26,6 +27,7 @@ export function FundCapacityForm({
   error: string | null;
   onSubmit: (slots: number) => void;
 }) {
+  const fmt = useFormatters();
   const inputId = useId();
   const hintId = useId();
   const errorId = useId();
@@ -78,8 +80,8 @@ export function FundCapacityForm({
           {...register("slots")}
         />
         <p id={hintId} className="text-xs text-muted-foreground">
-          {MIN_SLOTS} to {MAX_SLOTS.toLocaleString("en")} slots. Each slot costs{" "}
-          {pricePerSlot} {pricePerSlot === 1 ? "coin" : "coins"}.
+          {MIN_SLOTS} to {fmt.number(MAX_SLOTS)} slots. Each slot costs{" "}
+          {fmt.coins(pricePerSlot)}.
         </p>
         {slotError && (
           <p id={errorId} role="alert" className="text-xs text-destructive">
@@ -90,7 +92,7 @@ export function FundCapacityForm({
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {total === null
           ? "Enter a slot count to see the total."
-          : `Total: ${total.toLocaleString("en")} ${total === 1 ? "coin" : "coins"} from your wallet.`}
+          : `Total: ${fmt.coins(total)} from your wallet.`}
       </p>
       {error && (
         <p role="alert" className="text-sm text-destructive">

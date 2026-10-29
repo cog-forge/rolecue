@@ -15,6 +15,7 @@ import { AccountRoleBadge, AccountLockBadge } from "./account-badges";
 import { accountDate, accountName } from "./accounts-table";
 import { isAccountLocked } from "../schemas/account-state";
 import { useAccountClock } from "../hooks/use-account-clock";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function AccountDetailsSheet({
   id,
@@ -27,6 +28,7 @@ export function AccountDetailsSheet({
   onRestoreFocus: () => void;
   onAccessError: () => Promise<void>;
 }) {
+  const fmt = useFormatters();
   const viewer = useSessionUser();
   const detail = useQuery({
     queryKey: accountsKeys.detail(viewer.id, id),
@@ -117,18 +119,18 @@ export function AccountDetailsSheet({
                         ? "Verified"
                         : "Not verified",
                   ],
-                  ["Created", accountDate(user.createdAt)],
+                  ["Created", accountDate(user.createdAt, fmt)],
                   [
                     "Last updated",
                     user.updatedAt
-                      ? accountDate(user.updatedAt)
+                      ? accountDate(user.updatedAt, fmt)
                       : "Not available",
                   ],
                   [
                     "Lock duration",
                     locked
                       ? user.banExpires
-                        ? `Until ${accountDate(user.banExpires)}`
+                        ? `Until ${accountDate(user.banExpires, fmt)}`
                         : "Indefinitely"
                       : "No current lock",
                   ],
@@ -141,8 +143,9 @@ export function AccountDetailsSheet({
               </dl>
               {expired && user.banExpires && (
                 <p className="text-sm text-muted-foreground">
-                  Previous lock expired on {accountDate(user.banExpires)}. This
-                  account is active; previously revoked sessions remain invalid.
+                  Previous lock expired on {accountDate(user.banExpires, fmt)}.
+                  This account is active; previously revoked sessions remain
+                  invalid.
                 </p>
               )}
               {user.banned && (

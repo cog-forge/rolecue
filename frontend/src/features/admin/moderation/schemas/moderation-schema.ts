@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { defaultLocale } from "@/lib/i18n/config";
+import { formatNumber } from "@/lib/i18n/formatters";
 
 // Mirrors api/internal/features/admin/moderation/domain (snake_case JSON).
 export const postingStatuses = [
@@ -115,7 +117,7 @@ export const rejectFormSchema = z.object({
     else if (codePoints(reason) > MAX_REJECT_REASON)
       ctx.addIssue({
         code: "custom",
-        message: `Keep the reason to ${MAX_REJECT_REASON.toLocaleString("en")} characters or fewer.`,
+        message: `Keep the reason to ${formatNumber(MAX_REJECT_REASON, defaultLocale)} characters or fewer.`,
       });
     else if (reason.includes("\u0000"))
       ctx.addIssue({

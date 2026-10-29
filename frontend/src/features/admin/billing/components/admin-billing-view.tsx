@@ -21,8 +21,10 @@ import type {
   TransactionStatusFilter,
   TransactionTypeFilter,
 } from "../schemas/billing-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function AdminBillingView() {
+  const fmt = useFormatters();
   const [tab, setTab] = useState<TransactionTypeFilter>("all");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<TransactionStatusFilter>("all");
@@ -143,7 +145,7 @@ export function AdminBillingView() {
 
       if (truncated) {
         gooeyToast.warning("Export truncated to 5,000 rows", {
-          description: `Only the first 5,000 of ${totalCount.toLocaleString("en-US")} matching transactions were exported. Narrow your filters to export the rest.`,
+          description: `Only the first 5,000 of ${fmt.number(totalCount)} matching transactions were exported. Narrow your filters to export the rest.`,
         });
       }
     } catch {

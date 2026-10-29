@@ -35,6 +35,7 @@ import {
   salaryText,
   targetLabel,
 } from "../utils/format";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Only a website the profile rules accept (https, a host, no credentials) becomes a link.
 function safeWebsite(value: string | null) {
@@ -192,9 +193,10 @@ function PostingContent({
   canApply: boolean;
   variant: Variant;
 }) {
+  const fmt = useFormatters();
   const [applying, setApplying] = useState(false);
   const website = safeWebsite(posting.company_website);
-  const salary = salaryText(posting);
+  const salary = salaryText(posting, fmt);
   const Heading = variant === "page" ? "h1" : "h2";
   const Section = variant === "page" ? "h2" : "h3";
   const facts: { label: string; value: string }[] = [
@@ -257,9 +259,12 @@ function PostingContent({
               <Clock className="size-4 shrink-0" aria-hidden />
               <time
                 dateTime={posting.published_at ?? posting.created_at}
-                title={fullDate(posting.published_at ?? posting.created_at)}
+                title={fullDate(
+                  posting.published_at ?? posting.created_at,
+                  fmt,
+                )}
               >
-                {publicationText(posting)}
+                {publicationText(posting, fmt)}
               </time>
             </span>
           </p>

@@ -7,9 +7,11 @@ import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { getWallet, walletKeys } from "@/features/billing/api/wallet";
 import { CardError, CardLoading, DashboardCard } from "./dashboard-card";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // The balance is the backend's authoritative figure; the card only displays it.
 export function WalletCard() {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const query = useQuery({
     queryKey: walletKeys.wallet(user.id),
@@ -30,7 +32,7 @@ export function WalletCard() {
       ) : (
         <div className="space-y-3">
           <p className="text-2xl font-semibold tabular-nums">
-            {query.data.balance.toLocaleString("en-US")}{" "}
+            {fmt.coinAmount(query.data.balance)}{" "}
             <span className="text-sm font-medium text-muted-foreground">
               coins
             </span>

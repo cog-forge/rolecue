@@ -22,6 +22,7 @@ import {
 } from "../utils/queue-filters";
 import { PageHeader } from "@/components/layout/page-header";
 import { PostingStatus } from "./posting-status";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const tabs: { status: QueueStatus; label: string }[] = [
   { status: "pending", label: "Pending" },
@@ -37,10 +38,6 @@ const emptyText: Record<QueueStatus, string> = {
   closed: "No closed postings match these filters.",
   all: "No postings match these filters.",
 };
-const dateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
 const queueHref = (filters: QueueFilters) =>
   `${routes.admin.jobPostings}${queueSearch(filters)}`;
 
@@ -238,6 +235,7 @@ function QueueRow({
   filters: QueueFilters;
   backQuery: string;
 }) {
+  const fmt = useFormatters();
   const created = new Date(posting.created_at);
   const reviewHref = `${routes.admin.jobPosting(posting.id)}${
     backQuery ? `?back=${encodeURIComponent(backQuery)}` : ""
@@ -266,7 +264,7 @@ function QueueRow({
       </td>
       <td className="py-3 pr-4 whitespace-nowrap tabular-nums">
         <time dateTime={posting.created_at} title={posting.created_at}>
-          {dateFormat.format(created)}
+          {fmt.date(created, "calendarDay")}
         </time>
       </td>
       <td className="py-3 pr-4">

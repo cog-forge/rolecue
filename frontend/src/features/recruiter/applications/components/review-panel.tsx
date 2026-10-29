@@ -25,6 +25,7 @@ import { CvPreview } from "./cv-link";
 import { FinalDecision } from "./final-decision";
 import { InterviewResult } from "./interview-result";
 import { ScreeningActions } from "./screening-actions";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const iconButton = "size-11";
 
@@ -47,6 +48,7 @@ export function ReviewPanel({
   onDecided: (decision: "approved" | "rejected") => void;
   caughtUp: boolean;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
   const headingId = useId();
@@ -204,7 +206,7 @@ export function ReviewPanel({
               dateTime={application.submitted_at}
               title={application.submitted_at}
             >
-              {formatSubmitted(application.submitted_at)}
+              {formatSubmitted(application.submitted_at, fmt)}
             </time>
           </dd>
         </div>
@@ -228,7 +230,7 @@ export function ReviewPanel({
                 dateTime={application.interview_deadline}
                 title={application.interview_deadline}
               >
-                {formatDeadline(application.interview_deadline)}
+                {formatDeadline(application.interview_deadline, fmt)}
               </time>
             </dd>
           </div>

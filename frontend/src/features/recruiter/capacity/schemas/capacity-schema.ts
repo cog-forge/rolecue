@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { postingStatusSchema } from "@/features/recruiter/job-postings/schemas/job-posting-schema";
+import { defaultLocale } from "@/lib/i18n/config";
+import { formatNumber } from "@/lib/i18n/formatters";
 
 // Mirrors the Go CapacityState contract (KAN-128, snake_case). The submitted-CV count is not part
 // of it: submissions never count as capacity.
@@ -38,7 +40,7 @@ export const fundCapacitySchema = z.object({
         .min(MIN_SLOTS, `Fund at least ${MIN_SLOTS} slot.`)
         .max(
           MAX_SLOTS,
-          `Fund at most ${MAX_SLOTS.toLocaleString("en")} slots.`,
+          `Fund at most ${formatNumber(MAX_SLOTS, defaultLocale)} slots.`,
         ),
     ),
 });

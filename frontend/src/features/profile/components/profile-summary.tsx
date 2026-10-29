@@ -6,8 +6,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { roleLabels } from "@/config/navigation";
 import { routes } from "@/config/routes";
 import type { Profile } from "../schemas/profile-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function ProfileSummary({ profile }: { profile: Profile }) {
+  const fmt = useFormatters();
   return (
     <Card className="h-fit gap-0 py-6">
       <CardContent className="space-y-6 px-6">
@@ -44,11 +46,7 @@ export function ProfileSummary({ profile }: { profile: Profile }) {
           <div className="space-y-1">
             <dt className="text-muted-foreground">Member since</dt>
             <dd className="font-medium">
-              {new Intl.DateTimeFormat("en", {
-                month: "long",
-                year: "numeric",
-                timeZone: "UTC",
-              }).format(new Date(profile.created_at))}
+              {fmt.date(profile.created_at, "monthYear")}
             </dd>
           </div>
         </dl>

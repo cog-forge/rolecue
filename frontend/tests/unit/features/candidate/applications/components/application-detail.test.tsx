@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
+import type { AppLocale } from "@/lib/i18n/config";
 import { CandidateApplicationDetail } from "@/features/candidate/applications/components/application-detail";
 
 const mocks = vi.hoisted(() => ({
@@ -52,14 +54,15 @@ function failure(status: number) {
   });
 }
 
-function renderDetail(applicationId = id) {
+function renderDetail(applicationId = id, locale: AppLocale = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={client}>
       <CandidateApplicationDetail id={applicationId} />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -130,6 +133,18 @@ describe("CandidateApplicationDetail", () => {
       screen.getByText("Free for you. Complete it before the deadline."),
     ).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the same deadline countdown and a localized time in Vietnamese", async () => {
+    mocks.get.mockResolvedValue(
+      application({
+        status: "interview_eligible",
+        interview_deadline: hoursFromNow(3),
+        can_start_interview: true,
+      }),
+    );
+    renderDetail(id, "vi");
+    expect(await screen.findByText(/^Còn 2 giờ \d+ phút$/)).toBeInTheDocument();
   });
 
   it("offers to resume an interview that is in progress", async () => {

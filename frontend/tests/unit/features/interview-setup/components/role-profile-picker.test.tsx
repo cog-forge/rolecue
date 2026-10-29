@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RoleProfilePicker } from "@/features/interview-setup/components/role-profile-picker";
 
@@ -110,7 +111,7 @@ function renderPicker(roleProfileId?: string) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={client}>
       <RoleProfilePicker roleProfileId={roleProfileId} />
     </QueryClientProvider>,

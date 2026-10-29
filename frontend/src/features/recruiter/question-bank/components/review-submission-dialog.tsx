@@ -18,6 +18,7 @@ import {
   getWeights,
 } from "@/features/recruiter/evaluation/api/evaluation";
 import type { JobPosting } from "@/features/recruiter/job-postings/schemas/job-posting-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function ReviewSubmissionDialog({
   postingId,
@@ -38,6 +39,7 @@ export function ReviewSubmissionDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const weights = useQuery({
     queryKey: evaluationKeys.weights(user.id, postingId),
@@ -132,7 +134,9 @@ export function ReviewSubmissionDialog({
                   >
                     <dt>{weight.name}</dt>
                     <dd className="tabular-nums">
-                      {Number(weight.percentage.toFixed(2))}
+                      {fmt.number(weight.percentage, {
+                        maximumFractionDigits: 2,
+                      })}
                       {weights.data.total > 0 ? "%" : " weight"}
                     </dd>
                   </div>

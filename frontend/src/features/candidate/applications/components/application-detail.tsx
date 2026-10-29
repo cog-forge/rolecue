@@ -25,6 +25,7 @@ import {
 import { useNow } from "../utils/use-now";
 import { ApplicationProgress } from "./application-progress";
 import { CandidateApplicationStatusBadge } from "./application-status";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // One Application for the Candidate who submitted it. It never shows a transcript, audio or video.
 export function CandidateApplicationDetail({ id }: { id: string }) {
@@ -122,6 +123,7 @@ function ApplicationContent({
 }: {
   application: CandidateApplication;
 }) {
+  const fmt = useFormatters();
   const now = useNow();
   const {
     status,
@@ -161,12 +163,12 @@ function ApplicationContent({
             </Fact>
             <Fact label="Submitted">
               <time dateTime={application.created_at}>
-                {formatSubmitted(application.created_at)}
+                {formatSubmitted(application.created_at, fmt)}
               </time>
             </Fact>
             {deadline && (
               <Fact label="Interview deadline">
-                <time dateTime={deadline}>{formatDeadline(deadline)}</time>
+                <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
               </Fact>
             )}
             {application.interview && (
@@ -177,7 +179,7 @@ function ApplicationContent({
             {application.can_start_interview && deadline && (
               <Fact label="Time left">
                 <span className="tabular-nums">
-                  {timeLeftText(deadline, now)}
+                  {timeLeftText(deadline, now, fmt)}
                 </span>
               </Fact>
             )}

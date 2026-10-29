@@ -12,6 +12,7 @@ import type {
 } from "../schemas/application-detail-schema";
 import { formatDeadline } from "../utils/application-dates";
 import { InterviewEvidence } from "./interview-evidence";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const interviewStatusText: Record<InterviewStatus, string> = {
   in_progress: "In progress",
@@ -31,6 +32,7 @@ export function InterviewResult({
   applicationId: string;
   interview: ApplicationInterview;
 }) {
+  const fmt = useFormatters();
   const [open, setOpen] = useState(false);
   const finished = interview.status !== "in_progress";
 
@@ -64,7 +66,7 @@ export function InterviewResult({
                 dateTime={interview.started_at}
                 title={interview.started_at}
               >
-                {formatDeadline(interview.started_at)}
+                {formatDeadline(interview.started_at, fmt)}
               </time>
             </dd>
           </div>
@@ -76,7 +78,7 @@ export function InterviewResult({
                   dateTime={interview.completed_at}
                   title={interview.completed_at}
                 >
-                  {formatDeadline(interview.completed_at)}
+                  {formatDeadline(interview.completed_at, fmt)}
                 </time>
               ) : (
                 "Not completed yet"

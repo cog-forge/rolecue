@@ -13,6 +13,7 @@ import { CoinIcon } from "@/components/icons/coin-icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CoinPackage } from "../schemas/wallet-schema";
 import { cn } from "@/lib/utils";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 interface PackageGridProps {
   packages?: CoinPackage[];
@@ -37,6 +38,7 @@ export function PackageGrid({
   checkingOutPackageId,
   checkoutError,
 }: PackageGridProps) {
+  const fmt = useFormatters();
   const activePackages =
     packages?.filter((pkg) => pkg.is_active !== false) ?? [];
   return (
@@ -111,11 +113,11 @@ export function PackageGrid({
                   <div className="mt-5 flex items-center gap-2">
                     <CoinIcon className="size-5" />
                     <span className="text-lg font-semibold tabular-nums">
-                      {pkg.coin_amount.toLocaleString("en-US")} coins
+                      {fmt.coinAmount(pkg.coin_amount)} coins
                     </span>
                   </div>
                   <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums sm:text-[clamp(1.25rem,2.2vw,1.875rem)]">
-                    {new Intl.NumberFormat("vi-VN").format(pkg.price_vnd)}
+                    {fmt.vndAmount(pkg.price_vnd)}
                     <span className="ml-1 text-sm font-medium">VND</span>
                   </p>
                   <div className="mt-auto pt-6">

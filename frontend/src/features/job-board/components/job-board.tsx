@@ -51,6 +51,7 @@ import {
   salaryText,
 } from "../utils/format";
 import { JobPostingDetail } from "./job-posting-detail";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // The list and the selected posting sit side by side from Tailwind's lg breakpoint.
 const DESKTOP = "(min-width: 1024px)";
@@ -312,7 +313,8 @@ function PostingCard({
   filters: BoardFilters;
   selected: boolean;
 }) {
-  const salary = salaryText(posting);
+  const fmt = useFormatters();
+  const salary = salaryText(posting, fmt);
   const facts = [
     posting.employment_type,
     levelText[posting.seniority_level],
@@ -413,10 +415,10 @@ function PostingCard({
         </ul>
         <time
           dateTime={posting.published_at ?? posting.created_at}
-          title={fullDate(posting.published_at ?? posting.created_at)}
+          title={fullDate(posting.published_at ?? posting.created_at, fmt)}
           className="text-muted-foreground"
         >
-          {publicationText(posting)}
+          {publicationText(posting, fmt)}
         </time>
       </div>
     </li>

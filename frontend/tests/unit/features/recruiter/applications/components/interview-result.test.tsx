@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { InterviewResult } from "@/features/recruiter/applications/components/interview-result";
@@ -107,7 +108,7 @@ function mount(interview: ApplicationInterview = completed) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <InterviewResult
         postingId={postingId}

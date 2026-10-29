@@ -31,6 +31,7 @@ import {
   type HistoryFilters,
   type HistoryTypeFilter,
 } from "../utils/history-params";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // The Candidate's own interviews, newest first. Type and page come from the URL, so reload and
 // back keep the view.
@@ -230,6 +231,7 @@ function HistoryResults({
 }
 
 function HistoryRow({ item }: { item: HistoryItem }) {
+  const fmt = useFormatters();
   const title = item.job_posting_title ?? item.role_profile_title;
   return (
     <li className="flex flex-wrap items-start justify-between gap-3 p-4 sm:px-5">
@@ -243,7 +245,7 @@ function HistoryRow({ item }: { item: HistoryItem }) {
         <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground tabular-nums">
           <Badge variant="outline">{reportTypeLabel[item.type]}</Badge>
           <time dateTime={item.started_at}>
-            {formatInterviewTime(item.started_at)}
+            {formatInterviewTime(item.started_at, fmt)}
           </time>
         </p>
         {item.application_id ? (

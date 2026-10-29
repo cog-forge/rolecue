@@ -24,6 +24,7 @@ import { formatSubmitted, timeLeftText } from "../utils/application-text";
 import { useNow } from "../utils/use-now";
 import { ApplicationProgress } from "./application-progress";
 import { CandidateApplicationStatusBadge } from "./application-status";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Page numbers come from the URL so reload and back keep the page. Anything not a positive whole
 // number falls back to the first page.
@@ -178,6 +179,7 @@ function ApplicationItem({
   application: CandidateApplication;
   now: number;
 }) {
+  const fmt = useFormatters();
   const {
     status,
     interview_deadline: deadline,
@@ -207,7 +209,7 @@ function ApplicationItem({
         <p className="text-xs text-muted-foreground tabular-nums">
           Submitted{" "}
           <time dateTime={application.created_at}>
-            {formatSubmitted(application.created_at)}
+            {formatSubmitted(application.created_at, fmt)}
           </time>
         </p>
         {status === "rejected" && reason && (
@@ -230,7 +232,7 @@ function ApplicationItem({
             </Button>
             {deadline && (
               <p className="text-xs text-muted-foreground tabular-nums">
-                {timeLeftText(deadline, now)}
+                {timeLeftText(deadline, now, fmt)}
               </p>
             )}
           </>

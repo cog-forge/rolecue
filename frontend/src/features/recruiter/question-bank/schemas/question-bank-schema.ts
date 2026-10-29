@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { defaultLocale } from "@/lib/i18n/config";
+import { formatNumber } from "@/lib/i18n/formatters";
 
 // Mirrors the Go KAN-79 contract (snake_case, like every new feature).
 export const postingStatusSchema = z.enum([
@@ -47,7 +49,7 @@ export const questionFormSchema = (max: number) =>
       .refine((value) => questionLength(value) > 0, "Write the question first.")
       .refine(
         (value) => questionLength(value) <= max,
-        `Keep the question to ${max.toLocaleString("en")} characters or fewer.`,
+        `Keep the question to ${formatNumber(max, defaultLocale)} characters or fewer.`,
       ),
   });
 export type QuestionValues = z.infer<ReturnType<typeof questionFormSchema>>;
