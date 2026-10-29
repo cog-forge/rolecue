@@ -10,15 +10,16 @@ import (
 // the question bank, evaluation weights, interview capacity or funding, the reject reason or the
 // required avatar/voice: Candidates never see them.
 type BoardPosting struct {
-	ID             uuid.UUID `json:"id"`
-	Title          string    `json:"title"`
-	CompanyName    *string   `json:"company_name"`
-	Location       *string   `json:"location"`
-	EmploymentType *string   `json:"employment_type"`
-	SalaryMin      *int32    `json:"salary_min"`
-	SalaryMax      *int32    `json:"salary_max"`
-	SeniorityLevel string    `json:"seniority_level" enums:"intern,junior,mid,senior,lead"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID             uuid.UUID  `json:"id"`
+	Title          string     `json:"title"`
+	CompanyName    *string    `json:"company_name"`
+	Location       *string    `json:"location"`
+	EmploymentType *string    `json:"employment_type"`
+	SalaryMin      *int32     `json:"salary_min"`
+	SalaryMax      *int32     `json:"salary_max"`
+	SeniorityLevel string     `json:"seniority_level" enums:"intern,junior,mid,senior,lead"`
+	CreatedAt      time.Time  `json:"created_at"`
+	PublishedAt    *time.Time `json:"published_at"`
 }
 
 // BoardRequirement is one requirement the Recruiter confirmed for the posting.
@@ -51,6 +52,8 @@ type BoardRecord struct {
 // as substrings of the title and location; EmploymentType must match the whole value. Case is
 // ignored everywhere.
 type BoardFilter struct {
+	PublishedFrom  *time.Time
+	PublishedTo    *time.Time
 	Search         *string
 	Location       *string
 	EmploymentType *string

@@ -180,8 +180,10 @@ type Suggestion struct {
 
 // ListFilter narrows the Recruiter's list. A nil field means "no filter".
 type ListFilter struct {
-	Status *Status
-	Search *string
-	Limit  int32
-	Offset int32
+	Status          *Status
+	Search          *string
+	Funded          *bool
+	ReviewSubmitted *bool
+	Limit           int32
+	Offset          int32
 }

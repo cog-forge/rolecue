@@ -21,5 +21,5 @@ WHERE id = @id;
 
 -- name: SetInterviewSlot :execrows
 UPDATE public.job_postings
-SET interview_slot = @interview_slot
+SET interview_slot = @interview_slot, published_at = COALESCE(published_at, CURRENT_TIMESTAMP)
 WHERE id = @id AND interview_slot IS NULL;

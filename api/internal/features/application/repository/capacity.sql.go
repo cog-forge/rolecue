@@ -55,7 +55,7 @@ func (q *Queries) GetPostingRefundBasis(ctx context.Context, id uuid.UUID) (GetP
 
 const setInterviewSlot = `-- name: SetInterviewSlot :execrows
 UPDATE public.job_postings
-SET interview_slot = $1
+SET interview_slot = $1, published_at = COALESCE(published_at, CURRENT_TIMESTAMP)
 WHERE id = $2 AND interview_slot IS NULL
 `
 

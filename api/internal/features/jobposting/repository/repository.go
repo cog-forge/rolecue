@@ -75,12 +75,12 @@ func (r *Repository) List(ctx context.Context, recruiterID uuid.UUID, filter dom
 		status = &s
 	}
 	rows, err := r.queries.ListOwnedPostings(ctx, ListOwnedPostingsParams{
-		RecruiterID: recruiterID, Status: status, Search: filter.Search, PageLimit: filter.Limit, PageOffset: filter.Offset,
+		RecruiterID: recruiterID, Status: status, Search: filter.Search, Funded: filter.Funded, ReviewSubmitted: filter.ReviewSubmitted, PageLimit: filter.Limit, PageOffset: filter.Offset,
 	})
 	if err != nil {
 		return nil, 0, persistenceError(err)
 	}
-	total, err := r.queries.CountOwnedPostings(ctx, CountOwnedPostingsParams{RecruiterID: recruiterID, Status: status, Search: filter.Search})
+	total, err := r.queries.CountOwnedPostings(ctx, CountOwnedPostingsParams{RecruiterID: recruiterID, Status: status, Search: filter.Search, Funded: filter.Funded, ReviewSubmitted: filter.ReviewSubmitted})
 	if err != nil {
 		return nil, 0, persistenceError(err)
 	}

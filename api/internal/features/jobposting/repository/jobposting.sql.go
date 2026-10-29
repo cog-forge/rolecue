@@ -43,16 +43,26 @@ FROM public.job_postings jp
 WHERE jp.recruiter_id = $1
   AND ($2::text IS NULL OR jp.status::text = $2::text)
   AND ($3::text IS NULL OR jp.title ILIKE '%' || $3::text || '%')
+  AND ($4::boolean IS NULL OR (jp.interview_slot IS NOT NULL) = $4::boolean)
+  AND ($5::boolean IS NULL OR jp.review_submitted = $5::boolean)
 `
 
 type CountOwnedPostingsParams struct {
-	RecruiterID uuid.UUID
-	Status      *string
-	Search      *string
+	RecruiterID     uuid.UUID
+	Status          *string
+	Search          *string
+	Funded          *bool
+	ReviewSubmitted *bool
 }
 
 func (q *Queries) CountOwnedPostings(ctx context.Context, arg CountOwnedPostingsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countOwnedPostings, arg.RecruiterID, arg.Status, arg.Search)
+	row := q.db.QueryRow(ctx, countOwnedPostings,
+		arg.RecruiterID,
+		arg.Status,
+		arg.Search,
+		arg.Funded,
+		arg.ReviewSubmitted,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -299,16 +309,20 @@ FROM public.job_postings jp
 WHERE jp.recruiter_id = $1
   AND ($2::text IS NULL OR jp.status::text = $2::text)
   AND ($3::text IS NULL OR jp.title ILIKE '%' || $3::text || '%')
+  AND ($4::boolean IS NULL OR (jp.interview_slot IS NOT NULL) = $4::boolean)
+  AND ($5::boolean IS NULL OR jp.review_submitted = $5::boolean)
 ORDER BY jp.created_at DESC, jp.id DESC
-LIMIT $5 OFFSET $4
+LIMIT $7 OFFSET $6
 `
 
 type ListOwnedPostingsParams struct {
-	RecruiterID uuid.UUID
-	Status      *string
-	Search      *string
-	PageOffset  int32
-	PageLimit   int32
+	RecruiterID     uuid.UUID
+	Status          *string
+	Search          *string
+	Funded          *bool
+	ReviewSubmitted *bool
+	PageOffset      int32
+	PageLimit       int32
 }
 
 type ListOwnedPostingsRow struct {
@@ -330,6 +344,8 @@ func (q *Queries) ListOwnedPostings(ctx context.Context, arg ListOwnedPostingsPa
 		arg.RecruiterID,
 		arg.Status,
 		arg.Search,
+		arg.Funded,
+		arg.ReviewSubmitted,
 		arg.PageOffset,
 		arg.PageLimit,
 	)

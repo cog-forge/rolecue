@@ -12,17 +12,19 @@
 -- service has already escaped; employment_type matches the whole value, ignoring case.
 -- name: ListOpenPostings :many
 SELECT jp.id, jp.title, u.company_name, jp.location, jp.employment_type, jp.salary_min, jp.salary_max,
-       lower(l.name) AS level_name, jp.created_at
+       lower(l.name) AS level_name, jp.created_at, jp.published_at
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
 WHERE jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
+  AND (sqlc.narg(published_from)::timestamptz IS NULL OR jp.published_at >= sqlc.narg(published_from)::timestamptz)
+  AND (sqlc.narg(published_to)::timestamptz IS NULL OR jp.published_at < sqlc.narg(published_to)::timestamptz)
   AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%')
   AND (sqlc.narg(location)::text IS NULL OR jp.location ILIKE '%' || sqlc.narg(location)::text || '%')
   AND (sqlc.narg(employment_type)::text IS NULL OR lower(jp.employment_type) = lower(sqlc.narg(employment_type)::text))
-ORDER BY jp.created_at DESC, jp.id DESC
+ORDER BY jp.published_at DESC NULLS LAST, jp.created_at DESC, jp.id DESC
 LIMIT @page_limit OFFSET @page_offset;
 
 -- Joins the same tables as the list, so a posting the list cannot show is not counted either.
@@ -34,13 +36,15 @@ JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
 WHERE jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
+  AND (sqlc.narg(published_from)::timestamptz IS NULL OR jp.published_at >= sqlc.narg(published_from)::timestamptz)
+  AND (sqlc.narg(published_to)::timestamptz IS NULL OR jp.published_at < sqlc.narg(published_to)::timestamptz)
   AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%')
   AND (sqlc.narg(location)::text IS NULL OR jp.location ILIKE '%' || sqlc.narg(location)::text || '%')
   AND (sqlc.narg(employment_type)::text IS NULL OR lower(jp.employment_type) = lower(sqlc.narg(employment_type)::text));
 
 -- name: GetOpenPosting :one
 SELECT jp.id, jp.jd_id, jp.title, u.company_name, u.company_website, jp.location, jp.employment_type,
-       jp.salary_min, jp.salary_max, jp.interview_duration, lower(l.name) AS level_name, jp.created_at,
+       jp.salary_min, jp.salary_max, jp.interview_duration, lower(l.name) AS level_name, jp.created_at, jp.published_at,
        jd.content_path, jd.raw_text,
        EXISTS (
            SELECT 1 FROM public.applications a
