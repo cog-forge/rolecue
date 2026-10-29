@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { accountLockedMessage } from "@/features/auth/utils/get-auth-error-message";
 import {
   securityAccessDenied,
   securityData,
@@ -7,6 +6,9 @@ import {
   securityErrorMessage,
   securityOutcomeUncertain,
 } from "@/features/auth/utils/security-errors";
+import { errorsFor } from "@tests/helpers/intl";
+
+const te = errorsFor("en");
 
 describe("security errors", () => {
   it("reads top-level and nested Better Auth codes", () => {
@@ -20,15 +22,15 @@ describe("security errors", () => {
 
   it("maps known codes and never shows server text", () => {
     expect(
-      securityErrorMessage({ code: "INVALID_BACKUP_CODE", message: "raw" }),
+      securityErrorMessage({ code: "INVALID_BACKUP_CODE", message: "raw" }, te),
     ).toBe("That backup code is invalid or has already been used.");
-    expect(securityErrorMessage({ code: "BANNED_USER" })).toBe(
-      accountLockedMessage,
+    expect(securityErrorMessage({ code: "BANNED_USER" }, te)).toBe(
+      te("auth.accountLocked"),
     );
-    expect(securityErrorMessage({ status: 429, message: "raw" })).toBe(
+    expect(securityErrorMessage({ status: 429, message: "raw" }, te)).toBe(
       "Too many requests. Please wait a moment before trying again.",
     );
-    expect(securityErrorMessage({ code: "SOMETHING_NEW" })).not.toContain(
+    expect(securityErrorMessage({ code: "SOMETHING_NEW" }, te)).not.toContain(
       "SOMETHING_NEW",
     );
   });

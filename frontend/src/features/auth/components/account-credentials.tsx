@@ -32,6 +32,7 @@ import {
   securityOutcomeUncertain,
 } from "../utils/security-errors";
 import type { SocialProvider } from "../utils/social-providers";
+import { useTranslations } from "next-intl";
 
 export function AccountCredentials({
   enabledProviders,
@@ -43,6 +44,7 @@ export function AccountCredentials({
   // The password section, owned by account-security, sits after the summary.
   password?: ReactNode;
 }) {
+  const te = useTranslations("errors");
   const user = useSessionUser();
   const cache = useQueryClient();
   const router = useRouter();
@@ -118,7 +120,7 @@ export function AccountCredentials({
         role="alert"
         className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm"
       >
-        {securityErrorMessage(deniedError)}
+        {securityErrorMessage(deniedError, te)}
       </p>
     );
   return (

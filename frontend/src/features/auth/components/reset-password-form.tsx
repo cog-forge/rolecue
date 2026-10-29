@@ -9,16 +9,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
 import { PasswordVisibilityIcon } from "@/components/icons/password-visibility-icon";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { gooeyToast } from "goey-toast";
 import { useShakeInvalidFields } from "../hooks/use-shake-invalid-fields";
 import {
-  resetPasswordSchema,
+  createResetPasswordSchema,
   type ResetPasswordValues,
 } from "../schemas/recovery-schema";
+import { useTranslations } from "next-intl";
 
 export function ResetPasswordForm({ token }: { token?: string }) {
+  const v = useTranslations("validation");
+  const resetPasswordSchema = useMemo(() => createResetPasswordSchema(v), [v]);
   const [complete, setComplete] = useState(false);
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);

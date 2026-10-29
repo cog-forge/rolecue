@@ -18,12 +18,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
 import { CircleCheck, CircleDashed, LoaderCircle } from "lucide-react";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import {
-  changePasswordSchema,
+  createChangePasswordSchema,
   type ChangePasswordValues,
 } from "../schemas/change-password-schema";
+import { useTranslations } from "next-intl";
 
 type ChangePasswordDialogProps = {
   open: boolean;
@@ -78,6 +79,12 @@ function ChangePasswordForm({
   onDone: () => void;
   onNoPassword: () => void;
 }) {
+  const v = useTranslations("validation");
+  const changePasswordSchema = useMemo(
+    () => createChangePasswordSchema(v),
+    [v],
+  );
+  const te = useTranslations("errors");
   const cache = useQueryClient();
   const formRef = useRef<HTMLFormElement>(null);
   const [message, setMessage] = useState("");
@@ -132,14 +139,14 @@ function ChangePasswordForm({
         switch (result.error.code) {
           case "INVALID_PASSWORD":
             setError("currentPassword", {
-              message: "Current password is incorrect.",
+              message: te("auth.changePasswordWrongCurrent"),
             });
             return;
           case "PASSWORD_TOO_SHORT":
-            setError("newPassword", { message: "Use at least 8 characters" });
+            setError("newPassword", { message: v("passwordMin", { min: 8 }) });
             return;
           case "PASSWORD_TOO_LONG":
-            setError("newPassword", { message: "Password is too long" });
+            setError("newPassword", { message: v("passwordTooLong") });
             return;
           case "CREDENTIAL_ACCOUNT_NOT_FOUND":
             onNoPassword();
@@ -150,15 +157,12 @@ function ChangePasswordForm({
           result.error.status === 401 ||
           result.error.code === "UNAUTHORIZED"
         ) {
-          setMessage(
-            "Your session expired. Sign in again to change your password.",
-          );
+          setMessage(te("auth.changePasswordSessionExpired"));
           // SessionGate rechecks the session and sends the user to sign in.
           void cache.invalidateQueries({ queryKey: ["auth", "me"] });
         } else if (result.error.status === 429)
-          setMessage("Too many attempts. Wait a few seconds and try again.");
-        else
-          setMessage("Your password could not be changed. Please try again.");
+          setMessage(te("auth.changePasswordRateLimited"));
+        else setMessage(te("auth.changePasswordFailed"));
         return;
       }
       gooeyToast.success("Password updated", {
@@ -170,7 +174,7 @@ function ChangePasswordForm({
       void cache.invalidateQueries({ queryKey: credentialsKeys.all });
       onDone();
     } catch {
-      setMessage("Your password could not be changed. Please try again.");
+      setMessage(te("auth.changePasswordFailed"));
     } finally {
       onBusyChange(false);
     }

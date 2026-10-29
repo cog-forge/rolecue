@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountCredentials } from "@/features/auth/components/account-credentials";
 
@@ -28,7 +29,7 @@ function renderPage() {
   const cache = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  render(
+  renderWithIntl(
     <QueryClientProvider client={cache}>
       <AccountCredentials enabledProviders={[]} />
     </QueryClientProvider>,

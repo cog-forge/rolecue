@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LoginForm } from "@/features/auth/components/login-form";
 
@@ -39,7 +40,7 @@ describe("LoginForm", () => {
   });
 
   it("signs in with Better Auth and continues to the dashboard", async () => {
-    render(<LoginForm enabledProviders={configuredProviders} />);
+    renderWithIntl(<LoginForm enabledProviders={configuredProviders} />);
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "candidate@example.com" },
     });
@@ -67,7 +68,7 @@ describe("LoginForm", () => {
         message: "Invalid credentials.",
       },
     });
-    render(<LoginForm enabledProviders={configuredProviders} />);
+    renderWithIntl(<LoginForm enabledProviders={configuredProviders} />);
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "candidate@example.com" },
     });
@@ -90,7 +91,7 @@ describe("LoginForm", () => {
       data: null,
       error: { code: "BANNED_USER", status: 403 },
     });
-    render(<LoginForm enabledProviders={configuredProviders} />);
+    renderWithIntl(<LoginForm enabledProviders={configuredProviders} />);
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "candidate@example.com" },
     });
@@ -106,7 +107,7 @@ describe("LoginForm", () => {
   });
 
   it("explains a blocked social sign-in using Better Auth's callback code", () => {
-    render(
+    renderWithIntl(
       <LoginForm
         oauthFailed
         oauthError="BANNED_USER"
@@ -118,7 +119,7 @@ describe("LoginForm", () => {
   });
 
   it("does not describe an ended session as a confirmed account lock", () => {
-    render(<LoginForm sessionEnded />);
+    renderWithIntl(<LoginForm sessionEnded />);
     expect(screen.getByRole("status")).toHaveTextContent(
       "Your session has ended",
     );
@@ -130,7 +131,7 @@ describe("LoginForm", () => {
       data: { twoFactorRedirect: true, twoFactorMethods: ["totp"] },
       error: null,
     });
-    render(<LoginForm enabledProviders={[]} />);
+    renderWithIntl(<LoginForm enabledProviders={[]} />);
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "candidate@example.com" },
     });
@@ -148,7 +149,7 @@ describe("LoginForm", () => {
       data: { user: { role: "recruiter" } },
       error: null,
     });
-    render(<LoginForm enabledProviders={[]} />);
+    renderWithIntl(<LoginForm enabledProviders={[]} />);
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "recruiter@example.com" },
     });
@@ -168,7 +169,7 @@ describe("LoginForm", () => {
       data: null,
       error: { message: "Email not verified" },
     });
-    render(<LoginForm enabledProviders={configuredProviders} />);
+    renderWithIntl(<LoginForm enabledProviders={configuredProviders} />);
     fireEvent.change(screen.getByLabelText("Email address"), {
       target: { value: "candidate@example.com" },
     });
@@ -189,7 +190,7 @@ describe("LoginForm", () => {
   });
 
   it("explains how to recover when a social account is not linked", () => {
-    render(
+    renderWithIntl(
       <LoginForm
         enabledProviders={configuredProviders}
         oauthFailed
@@ -207,7 +208,7 @@ describe("LoginForm", () => {
     ["GitHub", "github"],
     ["Facebook", "facebook"],
   ])("starts %s OAuth through Better Auth", async (name, provider) => {
-    render(<LoginForm enabledProviders={configuredProviders} />);
+    renderWithIntl(<LoginForm enabledProviders={configuredProviders} />);
     fireEvent.click(
       screen.getByRole("button", { name: `Continue with ${name}` }),
     );
@@ -221,7 +222,7 @@ describe("LoginForm", () => {
   });
 
   it("hides social sign-in options when provider credentials are missing", () => {
-    render(<LoginForm enabledProviders={[]} />);
+    renderWithIntl(<LoginForm enabledProviders={[]} />);
     expect(
       screen.queryByRole("button", { name: "Continue with Google" }),
     ).not.toBeInTheDocument();
@@ -233,7 +234,9 @@ describe("LoginForm", () => {
     ).not.toBeInTheDocument();
   });
   it("preserves the allowlisted security return destination after an OAuth failure", async () => {
-    render(<LoginForm returnTo="/settings" enabledProviders={["google"]} />);
+    renderWithIntl(
+      <LoginForm returnTo="/settings" enabledProviders={["google"]} />,
+    );
     fireEvent.click(
       screen.getByRole("button", { name: "Continue with Google" }),
     );

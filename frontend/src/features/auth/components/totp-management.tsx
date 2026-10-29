@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
@@ -18,7 +18,7 @@ import {
 import { authClient } from "@/lib/auth/client";
 import { useShakeInvalidFields } from "../hooks/use-shake-invalid-fields";
 import {
-  currentPasswordSchema,
+  createCurrentPasswordSchema,
   type CurrentPasswordValues,
 } from "../schemas/credentials-schema";
 import { securityData } from "../utils/security-errors";
@@ -26,6 +26,7 @@ import { PasswordField } from "./password-field";
 import { SecurityRow } from "./security-section";
 import { SecurityRequestError } from "./security-request-error";
 import { BackupCodes } from "./backup-codes";
+import { useTranslations } from "next-intl";
 
 export function TotpManagement({
   enabled,
@@ -36,6 +37,11 @@ export function TotpManagement({
   onChanged: () => Promise<void>;
   onAccessError: (error: unknown) => void;
 }) {
+  const v = useTranslations("validation");
+  const currentPasswordSchema = useMemo(
+    () => createCurrentPasswordSchema(v),
+    [v],
+  );
   const [action, setAction] = useState<"disable" | "regenerate" | null>(null);
   const [codes, setCodes] = useState<string[] | null>(null);
   const formRef = useRef<HTMLFormElement>(null);

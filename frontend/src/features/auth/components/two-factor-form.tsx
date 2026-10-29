@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,12 +22,23 @@ import {
   securityErrorMessage,
 } from "../utils/security-errors";
 import {
-  backupVerificationSchema,
-  totpVerificationSchema,
+  createBackupVerificationSchema,
+  createTotpVerificationSchema,
   type VerificationValues,
 } from "../schemas/credentials-schema";
+import { useTranslations } from "next-intl";
 
 export function TwoFactorForm({ returnTo }: { returnTo?: string }) {
+  const v = useTranslations("validation");
+  const totpVerificationSchema = useMemo(
+    () => createTotpVerificationSchema(v),
+    [v],
+  );
+  const backupVerificationSchema = useMemo(
+    () => createBackupVerificationSchema(v),
+    [v],
+  );
+  const te = useTranslations("errors");
   const [method, setMethod] = useState<"totp" | "backup">("totp");
   const router = useRouter();
   const cache = useQueryClient();
@@ -153,7 +164,7 @@ export function TwoFactorForm({ returnTo }: { returnTo?: string }) {
         />
         {verification.error && (
           <p role="alert" className="text-sm text-destructive">
-            {securityErrorMessage(verification.error)}
+            {securityErrorMessage(verification.error, te)}
           </p>
         )}
         <Button

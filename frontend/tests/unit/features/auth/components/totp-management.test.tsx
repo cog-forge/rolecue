@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TotpManagement } from "@/features/auth/components/totp-management";
 const { disable, generateBackupCodes, success } = vi.hoisted(() => ({
@@ -13,7 +14,7 @@ vi.mock("@/lib/auth/client", () => ({
 }));
 function renderManagement() {
   const onChanged = vi.fn().mockResolvedValue(undefined);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={new QueryClient()}>
       <TotpManagement enabled onChanged={onChanged} onAccessError={vi.fn()} />
     </QueryClientProvider>,

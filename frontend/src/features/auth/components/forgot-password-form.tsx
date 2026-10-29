@@ -8,16 +8,22 @@ import { authClient } from "@/lib/auth/client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { gooeyToast } from "goey-toast";
 import { useShakeInvalidFields } from "../hooks/use-shake-invalid-fields";
 import {
-  forgotPasswordSchema,
+  createForgotPasswordSchema,
   type ForgotPasswordValues,
 } from "../schemas/recovery-schema";
+import { useTranslations } from "next-intl";
 
 export function ForgotPasswordForm() {
+  const v = useTranslations("validation");
+  const forgotPasswordSchema = useMemo(
+    () => createForgotPasswordSchema(v),
+    [v],
+  );
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const {

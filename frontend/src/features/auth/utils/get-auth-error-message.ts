@@ -1,3 +1,5 @@
+import type { ErrorTranslator } from "@/lib/i18n/api-errors";
+
 type ErrorRecord = Record<string, unknown>;
 
 function asRecord(value: unknown): ErrorRecord | undefined {
@@ -12,9 +14,6 @@ export function getErrorCode(error: unknown) {
   return record?.code ?? details?.code;
 }
 
-export const accountLockedMessage =
-  "Your account has been locked by an administrator. Contact support to request a review. You can sign in again once the lock expires or an administrator unlocks your account.";
-
 export function isAccountLockedError(error: unknown) {
   return getErrorCode(error) === "BANNED_USER";
 }
@@ -28,22 +27,31 @@ export function isEmailVerificationError(error: unknown) {
   );
 }
 
-export function getAuthErrorMessage(error: unknown, fallback: string) {
+// Sign-in and sign-up errors by Better Auth code. The server's own text is never shown; a code
+// without a translation falls back to the copy the screen passes in.
+export function getAuthErrorMessage(
+  error: unknown,
+  fallback: string,
+  t: ErrorTranslator,
+) {
   switch (getErrorCode(error)) {
     case "BANNED_USER":
-      return accountLockedMessage;
+      return t("auth.accountLocked");
     case "INVALID_EMAIL_OR_PASSWORD":
-      return "Email or password is incorrect.";
+      return t("auth.invalidCredentials");
     case "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL":
     case "USER_ALREADY_EXISTS":
-      return "An account with this email already exists. Try signing in.";
+      return t("auth.emailTaken");
     case "INVALID_EMAIL":
-      return "Please enter a valid email address.";
+      return t("auth.invalidEmail");
     case "INVALID_PASSWORD":
-      return "Please choose a password with at least 8 characters.";
+      return t("auth.weakPassword");
     case "EMAIL_NOT_VERIFIED":
-      return "Please verify your email before signing in.";
+      return t("auth.emailNotVerified");
     default:
-      return fallback;
+      // Some failures only carry Better Auth's English text, so unverified email is also read from it.
+      return isEmailVerificationError(error)
+        ? t("auth.emailNotVerified")
+        : fallback;
   }
 }

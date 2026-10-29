@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  backupVerificationSchema,
-  currentPasswordSchema,
+  createBackupVerificationSchema,
+  createCurrentPasswordSchema,
+  createTotpVerificationSchema,
   totpSetupSchema,
-  totpVerificationSchema,
 } from "@/features/auth/schemas/credentials-schema";
+import { validationFor } from "@tests/helpers/intl";
+
+const v = validationFor("en");
+const backupVerificationSchema = createBackupVerificationSchema(v);
+const currentPasswordSchema = createCurrentPasswordSchema(v);
+const totpVerificationSchema = createTotpVerificationSchema(v);
 
 describe("credentials schemas", () => {
   it("requires the current password", () => {

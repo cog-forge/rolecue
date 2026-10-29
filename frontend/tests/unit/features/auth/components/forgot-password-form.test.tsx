@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ForgotPasswordForm } from "@/features/auth/components/forgot-password-form";
 
@@ -25,7 +26,7 @@ describe("ForgotPasswordForm", () => {
         });
       else requestPasswordReset.mockRejectedValueOnce(new Error("Offline"));
       requestPasswordReset.mockResolvedValueOnce({ data: {}, error: null });
-      render(<ForgotPasswordForm />);
+      renderWithIntl(<ForgotPasswordForm />);
       fireEvent.change(screen.getByLabelText("Email address"), {
         target: { value: "candidate@example.com" },
       });
