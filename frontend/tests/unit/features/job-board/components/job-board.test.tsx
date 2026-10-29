@@ -17,6 +17,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  count: vi.fn(),
   search: new URLSearchParams(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
@@ -28,7 +29,14 @@ const mocks = vi.hoisted(() => ({
     image: null,
   },
 }));
-vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get } }));
+vi.mock("@/lib/api/client", () => ({
+  apiClient: {
+    get: (path: string, options: { params?: Record<string, unknown> }) =>
+      options.params?.published_from
+        ? mocks.count(path, options)
+        : mocks.get(path, options),
+  },
+}));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
 }));
@@ -100,6 +108,8 @@ const disabledLink = (name: string) => {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.get.mockReset();
+  mocks.count.mockReset();
+  mocks.count.mockResolvedValue(page([], 0));
 });
 
 describe("JobBoard", () => {

@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 import { getJobBoard, jobBoardKeys } from "../api/job-board";
 import type { BoardPosting } from "../schemas/job-board-schema";
 import { isAccessDenied } from "../utils/api-error";
@@ -41,7 +42,12 @@ import {
   parseBoardFilters,
   type BoardFilters,
 } from "../utils/board-filters";
-import { fullDate, levelText, postedText, salaryText } from "../utils/format";
+import {
+  fullDate,
+  levelText,
+  publicationText,
+  salaryText,
+} from "../utils/format";
 
 const boardHref = (filters: BoardFilters) =>
   `${routes.jobs}${boardSearch(filters)}`;
@@ -129,18 +135,10 @@ export function JobBoard() {
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
-      <header className="space-y-2 rounded-2xl border border-workspace-accent/15 bg-gradient-to-br from-workspace-accent/10 via-workspace-accent/[0.04] to-transparent p-6 duration-500 animate-in fade-in slide-in-from-bottom-2 motion-reduce:animate-none sm:p-8">
-        <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Job Board
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Find your next role
-        </h1>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Every posting here was reviewed by RoleCue and is accepting
-          applications now.
-        </p>
-      </header>
+      <PageHeader
+        title="Job Board"
+        description="Explore reviewed job postings that are accepting applications."
+      />
 
       <FilterForm
         key={`${filters.search}\n${filters.location}\n${filters.type}`}
@@ -206,7 +204,7 @@ export function JobBoard() {
           <p className="mt-2 text-sm text-muted-foreground">
             {filtered
               ? "Try fewer words, or check the employment type is spelled the way the posting uses it."
-              : "Check back soon: new postings appear here once they are approved."}
+              : "Check back soon: new postings appear after approval and funding."}
           </p>
           {filtered && (
             <Button asChild variant="outline" className="mt-4 h-11">
@@ -225,16 +223,15 @@ export function JobBoard() {
             aria-label={`Open job postings, ${firstRow}–${lastRow} of ${total}`}
             aria-busy={switching}
             className={cn(
-              "space-y-3 transition-opacity duration-200 motion-reduce:transition-none",
+              "divide-y rounded-xl border transition-opacity duration-[var(--duration-fast)] motion-reduce:transition-none",
               switching && "opacity-60",
             )}
           >
-            {page.items.map((posting, index) => (
+            {page.items.map((posting) => (
               <PostingCard
                 key={posting.id}
                 posting={posting}
                 filters={filters}
-                index={index}
               />
             ))}
           </ul>
@@ -267,11 +264,9 @@ export function JobBoard() {
 function PostingCard({
   posting,
   filters,
-  index,
 }: {
   posting: BoardPosting;
   filters: BoardFilters;
-  index: number;
 }) {
   const salary = salaryText(posting);
   const facts = [
@@ -280,11 +275,7 @@ function PostingCard({
     salary,
   ].filter(Boolean);
   return (
-    <li
-      className="group relative rounded-xl has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 border bg-card p-5 shadow-sm transition-colors duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both hover:border-workspace-accent/40 motion-reduce:animate-none"
-      // A short stagger so cards settle in order; capped so long pages are not slow.
-      style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
-    >
+    <li className="group relative p-5 transition-colors duration-[var(--duration-quick)] hover:bg-muted/30 has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 space-y-1">
           <h2 className="text-base font-semibold [overflow-wrap:anywhere]">
@@ -317,22 +308,22 @@ function PostingCard({
         />
       </div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-        <ul aria-label="Details" className="flex flex-wrap gap-1.5">
+        <ul aria-label="Details" className="flex flex-wrap gap-x-4 gap-y-1">
           {facts.map((fact, i) => (
             <li
               key={i}
-              className="rounded-full border bg-muted/50 px-2.5 py-1 font-medium [overflow-wrap:anywhere]"
+              className="text-muted-foreground [overflow-wrap:anywhere]"
             >
               {fact}
             </li>
           ))}
         </ul>
         <time
-          dateTime={posting.created_at}
-          title={fullDate(posting.created_at)}
+          dateTime={posting.published_at ?? posting.created_at}
+          title={fullDate(posting.published_at ?? posting.created_at)}
           className="text-muted-foreground"
         >
-          {postedText(posting.created_at)}
+          {publicationText(posting)}
         </time>
       </div>
     </li>
@@ -403,7 +394,7 @@ function FilterForm({ filters }: { filters: BoardFilters }) {
       noValidate
       aria-label="Search open job postings"
       onSubmit={submit}
-      className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-start"
+      className="grid gap-3 border-b pb-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-start"
     >
       {fields.map((field) => {
         const invalid = isFilterTooLong(values[field.name]);
@@ -419,6 +410,13 @@ function FilterForm({ filters }: { filters: BoardFilters }) {
             <Input
               id={field.id}
               type="search"
+              placeholder={
+                field.name === "search"
+                  ? "e.g. Backend Engineer"
+                  : field.name === "location"
+                    ? "e.g. Ho Chi Minh City"
+                    : "e.g. Full-time"
+              }
               value={values[field.name]}
               onChange={(event) =>
                 setValues((current) => ({
@@ -426,7 +424,7 @@ function FilterForm({ filters }: { filters: BoardFilters }) {
                   [field.name]: event.target.value,
                 }))
               }
-              className="h-11"
+              className="h-11 rounded-full"
               aria-invalid={invalid}
               aria-describedby={describedBy || undefined}
             />
@@ -451,12 +449,12 @@ function FilterForm({ filters }: { filters: BoardFilters }) {
         );
       })}
       <div className="flex gap-2 sm:col-span-2 lg:col-span-1 lg:pt-5">
-        <Button type="submit" className="h-11" disabled={tooLong}>
+        <Button type="submit" className="h-11 rounded-full" disabled={tooLong}>
           <Search aria-hidden />
           Search
         </Button>
         {hasTextFilters(filters) && (
-          <Button asChild variant="ghost" className="h-11">
+          <Button asChild variant="ghost" className="h-11 rounded-full">
             <FilterLink filters={defaultBoardFilters}>
               <X aria-hidden />
               Clear

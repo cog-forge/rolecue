@@ -28,7 +28,7 @@ import { apiStatus, isAccessDenied } from "../utils/api-error";
 import {
   fullDate,
   levelText,
-  postedText,
+  publicationText,
   salaryText,
   targetLabel,
 } from "../utils/format";
@@ -212,10 +212,10 @@ function PostingContent({
           <span className="inline-flex items-center gap-1.5">
             <Clock className="size-4 shrink-0" aria-hidden />
             <time
-              dateTime={posting.created_at}
-              title={fullDate(posting.created_at)}
+              dateTime={posting.published_at ?? posting.created_at}
+              title={fullDate(posting.published_at ?? posting.created_at)}
             >
-              {postedText(posting.created_at)}
+              {publicationText(posting)}
             </time>
           </span>
         </p>

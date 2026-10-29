@@ -119,7 +119,7 @@ test("candidate searches the board, opens a posting and comes back to the same r
   await page.goto("/jobs");
 
   await expect(
-    page.getByRole("heading", { level: 1, name: "Find your next role" }),
+    page.getByRole("heading", { level: 1, name: "Job Board" }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "React Developer" }),

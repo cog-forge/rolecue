@@ -24,6 +24,7 @@ export const boardPostingSchema = z.object({
   salary_max: z.number().int().nullable(),
   seniority_level: levelSchema,
   created_at: z.iso.datetime({ offset: true }),
+  published_at: z.iso.datetime({ offset: true }).nullable().optional(),
 });
 export type BoardPosting = z.infer<typeof boardPostingSchema>;
 
