@@ -36,6 +36,8 @@
     "INVALID_EXTRACTION_OUTPUT": "Kết quả trích xuất yêu cầu không đúng định dạng. Vui lòng thử lại.",
     "JOB_POSTING_NOT_FOUND": "Tin tuyển dụng này không còn khả dụng.",
     "VOICE_NOT_FOUND": "Giọng nói này không còn khả dụng.",
+    "VOICE_SYNC_FAILED": "Không kết nối được nhà cung cấp giọng nói hoặc danh sách trả về không hợp lệ.",
+    "VOICE_PROVIDER_UNAVAILABLE": "Chưa cấu hình nhà cung cấp giọng nói.",
     "CORE_QUESTION_NOT_FOUND": "Câu hỏi này không còn tồn tại.",
     "QUESTION_BANK_EXISTS": "Tin tuyển dụng này đã có bộ câu hỏi.",
     "QUESTION_BANK_LOCKED": "Không thể chỉnh sửa bộ câu hỏi ở giai đoạn này.",

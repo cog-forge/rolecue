@@ -1,8 +1,8 @@
 import { AudioLines, LoaderCircle, RotateCcw, Trash2 } from "lucide-react";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { Button } from "@/components/ui/button";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 import type { Voice } from "../schemas/voice-schema";
-import { localeName } from "../utils/voice-format";
 import { PanelReveal } from "./panel-reveal";
 import { usage } from "./remove-voice-dialog";
 import { VoiceStatus } from "./voice-status";
@@ -22,6 +22,7 @@ export function VoiceDetails({
   onActivate: (voice: Voice) => void;
   onRemove: (voice: Voice) => void;
 }) {
+  const format = useFormatters();
   if (!voice)
     return (
       <div className="flex flex-col items-center gap-2 py-10 text-center">
@@ -51,7 +52,7 @@ export function VoiceDetails({
         <Row label="Locale">
           {voice.locale ? (
             <>
-              {localeName(voice.locale)}
+              {format.languageName(voice.locale)}
               <span className="block text-xs text-muted-foreground">
                 {voice.locale}
               </span>

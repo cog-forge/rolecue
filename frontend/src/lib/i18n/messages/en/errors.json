@@ -36,6 +36,8 @@
     "INVALID_EXTRACTION_OUTPUT": "The requirements came back in an unexpected form. Try again.",
     "JOB_POSTING_NOT_FOUND": "This job posting is no longer available.",
     "VOICE_NOT_FOUND": "This interviewer voice is no longer available.",
+    "VOICE_SYNC_FAILED": "The voice provider couldn't be reached or sent an invalid list.",
+    "VOICE_PROVIDER_UNAVAILABLE": "The voice provider isn't configured.",
     "CORE_QUESTION_NOT_FOUND": "This question no longer exists.",
     "QUESTION_BANK_EXISTS": "This posting already has a question bank.",
     "QUESTION_BANK_LOCKED": "The question bank can't be changed at this stage.",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   formatDate,
+  formatLanguageName,
   formatNumber,
   formatPercent,
   formatRelative,
@@ -151,5 +152,13 @@ describe("time left on the 24-hour interview deadline", () => {
   it.each(cases)("reads correctly for %i ms remaining", (ms, en, vi) => {
     expect(formattersFor("en").timeLeft(after(ms), now)).toBe(en);
     expect(formattersFor("vi").timeLeft(after(ms), now)).toBe(vi);
+  });
+});
+
+describe("formatLanguageName", () => {
+  it("names a locale code in the UI language and falls back to the code", () => {
+    expect(formatLanguageName("en-US", "en")).toBe("English (United States)");
+    expect(formatLanguageName("en-US", "vi")).not.toBe("en-US");
+    expect(formatLanguageName("not a code!", "en")).toBe("not a code!");
   });
 });

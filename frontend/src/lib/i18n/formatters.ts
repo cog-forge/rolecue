@@ -190,6 +190,20 @@ export function formatList(
   return new Intl.ListFormat(intlLocales[locale], { type }).format(items);
 }
 
+// A language/locale code as a name in the UI language: "en-US" -> "English (United States)" /
+// "Tiếng Anh (Hoa Kỳ)". Falls back to the code when the runtime can't name it.
+export function formatLanguageName(code: string, locale: AppLocale) {
+  try {
+    const name = new Intl.DisplayNames(intlLocales[locale], {
+      type: "language",
+      languageDisplay: "standard",
+    }).of(code);
+    return name && name !== code ? name : code;
+  } catch {
+    return code;
+  }
+}
+
 // The viewer's IANA time zone, for copy such as "Choose a future time in Asia/Bangkok".
 export function userTimeZone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -231,6 +245,7 @@ export function createFormatters(locale: AppLocale, t: FormatTranslator) {
       formatTimeLeft(deadline, now, t),
     list: (items: string[], type?: "conjunction" | "disjunction") =>
       formatList(items, locale, type),
+    languageName: (code: string) => formatLanguageName(code, locale),
     number: (value: number, options?: Intl.NumberFormatOptions) =>
       formatNumber(value, locale, options),
     percent: (value: number, digits?: number) =>
