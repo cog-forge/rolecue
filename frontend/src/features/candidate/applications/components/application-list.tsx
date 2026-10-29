@@ -8,7 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Inbox } from "lucide-react";
+import { ArrowRight, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
@@ -20,7 +20,10 @@ import {
 import type { CandidateApplication } from "../schemas/candidate-application-schema";
 import { isAccessDenied } from "../utils/api-error";
 import { applicationHref } from "../utils/application-links";
-import { formatSubmitted, statusLabel } from "../utils/application-text";
+import { formatSubmitted, timeLeftText } from "../utils/application-text";
+import { useNow } from "../utils/use-now";
+import { ApplicationProgress } from "./application-progress";
+import { CandidateApplicationStatusBadge } from "./application-status";
 
 // Page numbers come from the URL so reload and back keep the page. Anything not a positive whole
 // number falls back to the first page.
@@ -35,6 +38,7 @@ export function CandidateApplicationList() {
   const cache = useQueryClient();
   const params = useSearchParams();
   const page = pageFrom(params.get("page"));
+  const now = useNow();
 
   const query = useQuery({
     queryKey: candidateApplicationKeys.list(user.id, page),
@@ -130,9 +134,16 @@ export function CandidateApplicationList() {
 
   return (
     <div className="space-y-4">
-      <ul className="divide-y rounded-2xl border bg-card">
+      <ul
+        aria-label="Your applications"
+        className="divide-y rounded-2xl border bg-card"
+      >
         {items.map((application) => (
-          <ApplicationItem key={application.id} application={application} />
+          <ApplicationItem
+            key={application.id}
+            application={application}
+            now={now}
+          />
         ))}
       </ul>
       <nav
@@ -159,28 +170,81 @@ export function CandidateApplicationList() {
   );
 }
 
+// One Application: where it stands, and the one thing to do next.
 function ApplicationItem({
   application,
+  now,
 }: {
   application: CandidateApplication;
+  now: number;
 }) {
+  const {
+    status,
+    interview_deadline: deadline,
+    reject_reason: reason,
+  } = application;
+  const where = [application.company_name, application.job_posting_location]
+    .filter(Boolean)
+    .join(" · ");
+  const resuming = application.interview?.status === "in_progress";
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 p-4 sm:px-5">
-      <div className="min-w-0 space-y-1">
-        <Link
-          href={applicationHref(application.id)}
-          className="rounded-sm font-medium underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          {application.job_posting_title}
-        </Link>
+    <li className="grid gap-4 p-4 sm:px-5 md:grid-cols-[minmax(0,1fr)_minmax(0,16rem)_auto] md:items-center md:gap-6">
+      <div className="min-w-0 space-y-1.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Link
+            href={applicationHref(application.id)}
+            className="rounded-sm font-semibold underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            {application.job_posting_title}
+          </Link>
+          <CandidateApplicationStatusBadge status={status} />
+        </div>
+        {where && (
+          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
+            {where}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground tabular-nums">
           Submitted{" "}
           <time dateTime={application.created_at}>
             {formatSubmitted(application.created_at)}
           </time>
         </p>
+        {status === "rejected" && reason && (
+          <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
+            Recruiter&apos;s note: {reason}
+          </p>
+        )}
       </div>
-      <p className="text-sm font-medium">{statusLabel[application.status]}</p>
+      <ApplicationProgress application={application} />
+      <div className="flex flex-col gap-1 md:items-end">
+        {application.can_start_interview ? (
+          <>
+            <Button asChild className="h-11">
+              <Link
+                href={`${routes.interviews.new.preflight}?applicationId=${encodeURIComponent(application.id)}`}
+              >
+                {resuming ? "Resume interview" : "Start interview"}
+                <ArrowRight aria-hidden />
+              </Link>
+            </Button>
+            {deadline && (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {timeLeftText(deadline, now)}
+              </p>
+            )}
+          </>
+        ) : (
+          <Button asChild variant="outline" className="h-11">
+            <Link
+              href={applicationHref(application.id)}
+              aria-label={`View application for ${application.job_posting_title}`}
+            >
+              View application
+            </Link>
+          </Button>
+        )}
+      </div>
     </li>
   );
 }
