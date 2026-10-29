@@ -316,8 +316,8 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
         </h2>
         {posting.status === "pending" || posting.status === "rejected" ? (
           <p className="text-sm text-muted-foreground">
-            Candidates can apply after an administrator approves this posting,
-            you fund interview slots and open intake.
+            Candidates can apply after an administrator approves this posting
+            and you fund interview slots, which opens intake.
           </p>
         ) : (
           // The list reads its filters from the URL on the client.
@@ -430,6 +430,8 @@ function nextStep(posting: JobPosting) {
     case "rejected":
       return "Make the requested changes, then resubmit the posting for approval.";
     default:
-      return "Approved, so the posting can no longer be edited.";
+      return posting.status === "open" && posting.interview_slot === null
+        ? "Approved, so the posting can no longer be edited. Fund interview slots to open intake to candidates."
+        : "Approved, so the posting can no longer be edited.";
   }
 }

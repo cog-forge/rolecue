@@ -136,8 +136,11 @@ describe("CapacityPanel funding", () => {
 
     expect(
       await screen.findByText(
-        "Interview slots are not funded yet. No CV can be approved until they are.",
+        "Approved by an administrator. Fund interview slots to open intake: candidates can't see or apply to this posting until you do.",
       ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Candidates can apply once you fund interview slots."),
     ).toBeInTheDocument();
     const input = screen.getByLabelText("Interview slots to fund");
     fireEvent.change(input, { target: { value: "5" } });
@@ -262,7 +265,19 @@ describe("CapacityPanel funding", () => {
 
     expect(
       await screen.findByText(
-        "Interview slots can be funded once an administrator approves the posting and intake opens.",
+        "Intake is closed, so interview slots can no longer be funded.",
+      ),
+    ).toBeInTheDocument();
+    expect(fundingForm()).not.toBeInTheDocument();
+  });
+
+  it("tells a pending posting that funding comes after approval and opens intake", async () => {
+    serve({ ...unfunded, posting_status: "pending" });
+    mount();
+
+    expect(
+      await screen.findByText(
+        "Interview slots can be funded once an administrator approves the posting. Funding them opens intake to candidates.",
       ),
     ).toBeInTheDocument();
     expect(fundingForm()).not.toBeInTheDocument();
