@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Plus_Jakarta_Sans } from "next/font/google";
 import "goey-toast/styles.css";
 import "./globals.css";
 import { site } from "@/config/site";
@@ -25,10 +24,12 @@ const albertSans = localFont({
   variable: "--font-albert-sans",
 });
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+// Keep CTA typography unchanged without fetching Google Fonts during builds.
+const plusJakartaSans = localFont({
+  src: "../assets/fonts/plus-jakarta-sans/plus-jakarta-sans-variable.ttf",
   variable: "--font-cta",
-  weight: ["500", "600", "700", "800"],
+  weight: "500 800",
+  style: "normal",
   display: "swap",
 });
 
