@@ -101,7 +101,10 @@ export function OverviewBody({ overview }: { overview: Overview }) {
             value: n(o.interviews.recruitment_started_in_window),
           },
           { label: "Completed", value: n(o.interviews.completed_in_window) },
-          { label: "Evaluation failed", value: n(o.interviews.evaluation_failed) },
+          {
+            label: "Evaluation failed",
+            value: n(o.interviews.evaluation_failed),
+          },
         ]}
       />
       <div className="md:col-span-2">
