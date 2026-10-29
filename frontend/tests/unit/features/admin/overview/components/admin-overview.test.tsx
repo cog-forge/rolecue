@@ -37,7 +37,13 @@ const overview = {
     to: "2026-10-30T08:00:00+07:00",
   },
   accounts: { candidates: 1234, recruiters: 56, locked: 7, new_in_window: 89 },
-  job_postings: { pending: 3, open: 4, intake_closed: 5, closed: 6, rejected: 2 },
+  job_postings: {
+    pending: 3,
+    open: 4,
+    intake_closed: 5,
+    closed: 6,
+    rejected: 2,
+  },
   applications: {
     pending: 11,
     interview_eligible: 12,
@@ -66,7 +72,13 @@ const overview = {
 const zeroOverview = {
   ...overview,
   accounts: { candidates: 0, recruiters: 0, locked: 0, new_in_window: 0 },
-  job_postings: { pending: 0, open: 0, intake_closed: 0, closed: 0, rejected: 0 },
+  job_postings: {
+    pending: 0,
+    open: 0,
+    intake_closed: 0,
+    closed: 0,
+    rejected: 0,
+  },
   applications: {
     pending: 0,
     interview_eligible: 0,
@@ -92,7 +104,8 @@ const zeroOverview = {
   },
 };
 
-const ok = (data: unknown) => Promise.resolve({ data: { success: true, data } });
+const ok = (data: unknown) =>
+  Promise.resolve({ data: { success: true, data } });
 const httpError = (status: number) =>
   new AxiosError("failed", "ERR", undefined, undefined, {
     status,
@@ -107,12 +120,12 @@ function renderPage() {
     defaultOptions: { queries: { retry: false } },
   });
   const invalidate = vi.spyOn(cache, "invalidateQueries");
-  renderWithIntl(
+  const view = renderWithIntl(
     <QueryClientProvider client={cache}>
       <AdminOverview />
     </QueryClientProvider>,
   );
-  return { invalidate };
+  return { invalidate, rerender: view.rerender };
 }
 
 function sectionOf(title: string) {
@@ -132,19 +145,33 @@ describe("AdminOverview", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Admin dashboard" }),
     ).toBeInTheDocument();
+    // The heading renders at once; the sections arrive with the data.
+    await screen.findByRole("region", { name: "Accounts" });
     const accounts = sectionOf("Accounts");
     expect(within(accounts).getByText("1,234")).toBeInTheDocument();
     expect(
       within(accounts).getByText(/Candidates and recruiters only/),
     ).toBeInTheDocument();
-    expect(sectionOf("Job postings")).toHaveTextContent("All-time counts by status.");
-    expect(within(sectionOf("Job postings")).getByText("Rejected")).toBeInTheDocument();
-    expect(sectionOf("Applications")).toHaveTextContent("Submitted counts the window.");
-    expect(within(sectionOf("Applications")).getByText("16")).toBeInTheDocument();
-    expect(sectionOf("Interviews")).toHaveTextContent("Evaluation failed is all-time.");
+    expect(sectionOf("Job postings")).toHaveTextContent(
+      "All-time counts by status.",
+    );
+    expect(
+      within(sectionOf("Job postings")).getByText("Rejected"),
+    ).toBeInTheDocument();
+    expect(sectionOf("Applications")).toHaveTextContent(
+      "Submitted counts the window.",
+    );
+    expect(
+      within(sectionOf("Applications")).getByText("16"),
+    ).toBeInTheDocument();
+    expect(sectionOf("Interviews")).toHaveTextContent(
+      "Evaluation failed is all-time.",
+    );
     expect(within(sectionOf("Interviews")).getByText("24")).toBeInTheDocument();
     const finance = sectionOf("Finance");
-    expect(finance).toHaveTextContent("Coin debits and refunds are not revenue.");
+    expect(finance).toHaveTextContent(
+      "Coin debits and refunds are not revenue.",
+    );
     expect(within(finance).getByText("100.000 ₫")).toBeInTheDocument();
     expect(within(finance).getByText("32,000")).toBeInTheDocument();
   });
@@ -153,12 +180,14 @@ describe("AdminOverview", () => {
     mocks.get.mockImplementation(() => ok(zeroOverview));
     renderPage();
 
-    const finance = sectionOf("Finance");
+    const finance = await screen.findByRole("region", { name: "Finance" });
+    expect(await within(finance).findByText("0 ₫")).toBeInTheDocument();
     expect(
-      await within(finance).findByText("0 ₫"),
-    ).toBeInTheDocument();
-    expect(within(finance).getByText("Coins refunded").nextSibling).toHaveTextContent("0");
-    expect(within(sectionOf("Accounts")).getByText("Locked now").nextSibling).toHaveTextContent("0");
+      within(finance).getByText("Coins refunded").nextSibling,
+    ).toHaveTextContent("0");
+    expect(
+      within(sectionOf("Accounts")).getByText("Locked now").nextSibling,
+    ).toHaveTextContent("0");
   });
 
   it("requests the window from the URL and shows the default when absent", async () => {
@@ -177,13 +206,14 @@ describe("AdminOverview", () => {
     const { rerender } = renderPage();
     await screen.findByRole("region", { name: "Accounts" });
 
-    const selector = screen.getByRole("navigation", { name: "Reporting window" });
+    const selector = screen.getByRole("navigation", {
+      name: "Reporting window",
+    });
     const last7 = within(selector).getByRole("link", { name: "Last 7 days" });
     expect(last7).toHaveAttribute("href", `${routes.admin.dashboard}?days=7`);
-    expect(within(selector).getByRole("link", { name: "Last 30 days" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(
+      within(selector).getByRole("link", { name: "Last 30 days" }),
+    ).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(last7);
     expect(window.location.search).toBe("?days=7");
@@ -218,7 +248,9 @@ describe("AdminOverview", () => {
     expect(alert).toHaveTextContent("We couldn't load the overview");
     fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByRole("region", { name: "Accounts" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("region", { name: "Accounts" }),
+    ).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledTimes(2);
   });
 
@@ -226,7 +258,9 @@ describe("AdminOverview", () => {
     mocks.get.mockImplementation(() => Promise.reject(httpError(403)));
     const { invalidate } = renderPage();
 
-    expect(await screen.findByText(/don't have access to the admin overview/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/don't have access to the admin overview/),
+    ).toBeInTheDocument();
     await waitFor(() =>
       expect(invalidate).toHaveBeenCalledWith({ queryKey: ["auth", "me"] }),
     );
@@ -246,26 +280,21 @@ describe("AdminOverview", () => {
     renderPage();
     await screen.findByRole("region", { name: "Accounts" });
 
-    expect(screen.getByRole("link", { name: "Moderation queue" })).toHaveAttribute(
-      "href",
-      routes.admin.jobPostings,
-    );
-    expect(screen.getByRole("link", { name: "Interview sessions" })).toHaveAttribute(
-      "href",
-      routes.admin.interviews,
-    );
-    expect(screen.getByRole("link", { name: "Voice profiles" })).toHaveAttribute(
-      "href",
-      routes.admin.voices,
-    );
-    expect(screen.getByRole("link", { name: "Payment transactions" })).toHaveAttribute(
-      "href",
-      routes.admin.billing,
-    );
-    expect(screen.getByRole("link", { name: "Revenue reports" })).toHaveAttribute(
-      "href",
-      routes.admin.revenue,
-    );
+    expect(
+      screen.getByRole("link", { name: "Moderation queue" }),
+    ).toHaveAttribute("href", routes.admin.jobPostings);
+    expect(
+      screen.getByRole("link", { name: "Interview sessions" }),
+    ).toHaveAttribute("href", routes.admin.interviews);
+    expect(
+      screen.getByRole("link", { name: "Voice profiles" }),
+    ).toHaveAttribute("href", routes.admin.voices);
+    expect(
+      screen.getByRole("link", { name: "Payment transactions" }),
+    ).toHaveAttribute("href", routes.admin.billing);
+    expect(
+      screen.getByRole("link", { name: "Revenue reports" }),
+    ).toHaveAttribute("href", routes.admin.revenue);
     expect(screen.getByRole("link", { name: "Accounts" })).toHaveAttribute(
       "href",
       routes.admin.users,

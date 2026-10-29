@@ -12,7 +12,13 @@ const data = {
     to: "2026-10-30T08:00:00+07:00",
   },
   accounts: { candidates: 10, recruiters: 2, locked: 1, new_in_window: 3 },
-  job_postings: { pending: 1, open: 2, intake_closed: 0, closed: 0, rejected: 1 },
+  job_postings: {
+    pending: 1,
+    open: 2,
+    intake_closed: 0,
+    closed: 0,
+    rejected: 1,
+  },
   applications: {
     pending: 4,
     interview_eligible: 2,
@@ -45,7 +51,9 @@ describe("overviewEnvelopeSchema", () => {
   });
 
   it("rejects a missing section", () => {
-    const { finance: _finance, ...rest } = data;
+    const rest = Object.fromEntries(
+      Object.entries(data).filter(([section]) => section !== "finance"),
+    );
     expect(() =>
       overviewEnvelopeSchema.parse({ success: true, data: rest }),
     ).toThrow();
