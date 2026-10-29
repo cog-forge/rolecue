@@ -13,6 +13,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
+	"github.com/cog-forge/rolecue/api/internal/pkg/tts"
 	"github.com/cog-forge/rolecue/api/internal/provider"
 	"github.com/cog-forge/rolecue/api/internal/server"
 )
@@ -25,6 +26,8 @@ type Application struct {
 	Config    *config.Config
 	Storage   storage.Store
 	Documents *service.RoleProfileDocumentApplication
+	// Synthesizer is the text-to-speech adapter; the interview engine and voice preview inject it.
+	Synthesizer tts.Synthesizer
 	// Expiry rejects Applications whose interview deadline passed; main starts it.
 	Expiry *applicationservice.ExpiryRunner
 }
@@ -33,6 +36,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	wire.Build(
 		provider.ProvideConfig,
 		provider.ProvideStorage,
+		provider.ProvideSynthesizer,
 		provider.ProvideInventoryRepository,
 		provider.ProvideInventoryService,
 		provider.ProvideInventoryHandler,
