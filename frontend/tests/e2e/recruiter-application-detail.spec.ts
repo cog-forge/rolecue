@@ -194,13 +194,54 @@ async function mockApplicationDetail(page: Page, options: Options = {}) {
   return { approves, rejects };
 }
 
-test("a row opens the Application with its candidate, status and CV link", async ({
+// The CV links point at object storage; serve a stub so the embedded preview never leaves the test.
+async function stubCvFiles(page: Page) {
+  await page.route("https://files.example.com/**", (route) =>
+    route.fulfill({ contentType: "application/pdf", body: "%PDF-1.4\n%%EOF" }),
+  );
+}
+
+test("on a wide screen the inbox reviews the first pending CV beside the list", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await stubCvFiles(page);
+  const api = await mockApplicationDetail(page);
+  await page.goto("/recruiter/applications");
+
+  const panel = page.getByRole("region", { name: "Bao To" });
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTitle("CV of Bao To")).toHaveAttribute(
+    "src",
+    /files\.example\.com/,
+  );
+  await expect(
+    page.getByRole("link", { name: "Review CV of Bao To" }),
+  ).toHaveAttribute("aria-current", "true");
+
+  // Approving needs no confirmation while slots remain, and stays on the inbox.
+  await panel.getByRole("button", { name: "Approve CV" }).click();
+  await expect(panel.getByText("Interview eligible")).toBeVisible();
+  await expect(page).toHaveURL(/\/recruiter\/applications/);
+  expect(api.approves).toHaveLength(1);
+
+  // Another row opens in place.
+  await page
+    .getByRole("link", { name: "Open application of Mai Pham" })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`application=${mai.id}`));
+  await expect(page.getByRole("region", { name: "Mai Pham" })).toBeVisible();
+});
+
+test("on a phone a row opens the Application with its candidate, status and CV", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await stubCvFiles(page);
   await mockApplicationDetail(page);
   await page.goto("/recruiter/applications");
 
-  await page.getByRole("table").getByRole("link", { name: "Bao To" }).click();
+  await page.getByRole("link", { name: "Review CV of Bao To" }).click();
   await expect(page).toHaveURL(detailPath(bao));
   await expect(
     page.getByRole("heading", { level: 1, name: "Bao To" }),
@@ -218,10 +259,6 @@ test("approving moves the Application to eligible with a deadline, and posts onc
   await page.goto(detailPath(bao));
 
   await page.getByRole("button", { name: "Approve CV" }).click();
-  await page
-    .getByRole("dialog", { name: "Approve this CV?" })
-    .getByRole("button", { name: "Confirm approval" })
-    .click();
 
   await expect(page.getByText("Interview eligible")).toBeVisible();
   await expect(page.getByText("Complete interview by")).toBeVisible();

@@ -3,20 +3,28 @@
 import {
   useEffect,
   useState,
+  useSyncExternalStore,
   type ComponentProps,
   type FormEvent,
   type MouseEvent,
 } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   keepPreviousData,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { Inbox, Search, X } from "lucide-react";
+import { ChevronRight, Inbox, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
@@ -30,12 +38,15 @@ import {
   applicationKeys,
   listOwnApplications,
   listPostingApplications,
+  listPostingOptions,
 } from "../api/applications";
 import type { Application } from "../schemas/application-schema";
 import {
   APPLICATION_PAGE_SIZE,
   SEARCH_MAX,
   applicationSearch,
+  defaultApplicationFilters,
+  inboxHref,
   parseApplicationFilters,
   type ApplicationFilters,
   type ApplicationStatusFilter,
@@ -43,7 +54,7 @@ import {
 import { ApplicationStatus } from "./application-status";
 import { formatDeadline, formatSubmitted } from "../utils/application-dates";
 
-const tabs: { status: ApplicationStatusFilter; label: string }[] = [
+const statusOptions: { status: ApplicationStatusFilter; label: string }[] = [
   { status: "all", label: "All" },
   { status: "pending", label: "Awaiting review" },
   { status: "interview_eligible", label: "Interview eligible" },
@@ -59,9 +70,34 @@ const emptyText: Record<ApplicationStatusFilter, string> = {
   approved: "You haven't approved anyone yet.",
   rejected: "No applications were rejected.",
 };
+const ALL_POSTINGS = "all";
+// Wide screens review beside the list; narrower ones open the Application's own page.
+const SPLIT_VIEW = "(min-width: 1024px)";
+
+export function isSplitView() {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia(SPLIT_VIEW).matches
+  );
+}
+
+// Whether the review panel can sit beside the list; false on the server and in older browsers.
+export function useSplitView() {
+  return useSyncExternalStore(
+    (onChange) => {
+      if (typeof window.matchMedia !== "function") return () => {};
+      const media = window.matchMedia(SPLIT_VIEW);
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    },
+    isSplitView,
+    () => false,
+  );
+}
+
 // Filter changes update the URL with the History API instead of a route navigation, so the page
 // is not re-rendered by the server and the current rows stay visible while the next page loads.
-function pushFilters(href: string) {
+export function pushUrl(href: string) {
   window.history.pushState(null, "", href);
 }
 
@@ -78,46 +114,40 @@ function FilterLink({
       scroll={false}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
         onClick?.(event);
-        if (
-          event.defaultPrevented ||
-          event.button !== 0 ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey
-        )
-          return;
+        if (event.defaultPrevented || modified(event)) return;
         event.preventDefault();
-        pushFilters(href);
+        pushUrl(href);
       }}
     />
   );
 }
 
-function useApplicationFilters() {
+function modified(event: MouseEvent) {
+  return (
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  );
+}
+
+// The list's filters and its page of Applications. The review inbox and the list share the query,
+// so the panel can pick the next CV from the rows on screen without a second request.
+export function useApplicationPage(postingId?: string) {
+  const user = useSessionUser();
   const params = useSearchParams();
+  const pathname = usePathname();
   const record: Record<string, string | string[]> = {};
   for (const key of new Set(params.keys())) {
     const values = params.getAll(key);
     record[key] = values.length === 1 ? values[0] : values;
   }
-  return parseApplicationFilters(record);
-}
-
-// The Recruiter's Applications. With a postingId it lists that posting's; without one it lists
-// every Application on the Recruiter's own postings.
-export function ApplicationList({ postingId }: { postingId?: string }) {
-  const user = useSessionUser();
-  const cache = useQueryClient();
-  const pathname = usePathname();
-  const filters = useApplicationFilters();
+  const filters = parseApplicationFilters(record);
   // The single-posting list takes its posting from the path, never from the URL filter.
   const scoped: ApplicationFilters = postingId
     ? { ...filters, posting: null }
     : filters;
-  const href = (next: ApplicationFilters) =>
-    `${pathname}${applicationSearch(next)}`;
-
   const query = useQuery({
     queryKey: postingId
       ? applicationKeys.posting(user.id, postingId, scoped)
@@ -128,9 +158,151 @@ export function ApplicationList({ postingId }: { postingId?: string }) {
         : listOwnApplications(scoped, signal),
     refetchOnMount: "always",
     retry: false,
-    // Keep showing the previous rows while another tab or page loads.
+    // Keep showing the previous rows while another filter or page loads.
     placeholderData: keepPreviousData,
   });
+  const href = (next: ApplicationFilters) =>
+    `${pathname}${applicationSearch(next)}`;
+  return { filters: scoped, query, href };
+}
+
+// One posting's Applications, used on the posting's page. On wide screens a row opens the review
+// inbox narrowed to this posting; on narrow ones it opens the Application's own page.
+export function ApplicationList({ postingId }: { postingId: string }) {
+  const router = useRouter();
+  return (
+    <div className="space-y-4">
+      <ApplicationToolbar postingId={postingId} />
+      <ApplicationResults
+        postingId={postingId}
+        onOpen={(application) =>
+          router.push(
+            inboxHref(
+              { ...defaultApplicationFilters, posting: postingId },
+              application.id,
+            ),
+          )
+        }
+      />
+    </div>
+  );
+}
+
+export function ApplicationToolbar({ postingId }: { postingId?: string }) {
+  const { filters, href } = useApplicationPage(postingId);
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+      <div className="flex items-center gap-2">
+        <label htmlFor="application-status" className="text-sm font-medium">
+          Status
+        </label>
+        <Select
+          value={filters.status}
+          onValueChange={(status) =>
+            pushUrl(
+              href({
+                ...filters,
+                status: status as ApplicationStatusFilter,
+                page: 1,
+              }),
+            )
+          }
+        >
+          <SelectTrigger
+            id="application-status"
+            className="w-44 rounded-full bg-background shadow-none data-[size=default]:h-9"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent position="popper" align="start">
+            {statusOptions.map((option) => (
+              <SelectItem key={option.status} value={option.status}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {!postingId && <PostingFilter filters={filters} href={href} />}
+      <SearchForm key={filters.search} filters={filters} href={href} />
+    </div>
+  );
+}
+
+// Narrows the inbox to one of the Recruiter's postings that can take Applications.
+function PostingFilter({
+  filters,
+  href,
+}: {
+  filters: ApplicationFilters;
+  href: (filters: ApplicationFilters) => string;
+}) {
+  const user = useSessionUser();
+  const options = useQuery({
+    queryKey: applicationKeys.postingOptions(user.id),
+    queryFn: ({ signal }) => listPostingOptions(signal),
+    retry: false,
+  });
+  const postings = (options.data ?? []).filter(
+    (posting) => posting.status !== "pending" && posting.status !== "rejected",
+  );
+  // A posting from a shared link that is not in the first page of options still shows by name.
+  const value = filters.posting ?? ALL_POSTINGS;
+  const known =
+    value === ALL_POSTINGS || postings.some((posting) => posting.id === value);
+  return (
+    <div className="flex items-center gap-2">
+      <label htmlFor="application-posting" className="text-sm font-medium">
+        Job posting
+      </label>
+      <Select
+        value={value}
+        onValueChange={(posting) =>
+          pushUrl(
+            href({
+              ...filters,
+              posting: posting === ALL_POSTINGS ? null : posting,
+              page: 1,
+            }),
+          )
+        }
+      >
+        <SelectTrigger
+          id="application-posting"
+          className="w-56 rounded-full bg-background shadow-none data-[size=default]:h-9"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent position="popper" align="start">
+          <SelectItem value={ALL_POSTINGS}>All job postings</SelectItem>
+          {!known && <SelectItem value={value}>Selected posting</SelectItem>}
+          {postings.map((posting) => (
+            <SelectItem key={posting.id} value={posting.id}>
+              {posting.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+// The rows. With onSelect (the review inbox) a wide-screen click selects the row in place; with
+// onOpen it hands the row to the caller. Narrow screens and modified clicks follow the link to the
+// Application's own page.
+export function ApplicationResults({
+  postingId,
+  selectedId,
+  onSelect,
+  onOpen,
+}: {
+  postingId?: string;
+  selectedId?: string | null;
+  onSelect?: (application: Application) => void;
+  onOpen?: (application: Application) => void;
+}) {
+  const cache = useQueryClient();
+  const { filters, query, href } = useApplicationPage(postingId);
   const switching = query.isPlaceholderData;
   const denied = isAccessDenied(query.error);
   const notFound = apiError(query.error).status === 404;
@@ -142,271 +314,239 @@ export function ApplicationList({ postingId }: { postingId?: string }) {
   const page = query.data;
   const total = page?.pagination.total ?? 0;
   const firstRow =
-    total === 0 ? 0 : (scoped.page - 1) * APPLICATION_PAGE_SIZE + 1;
-  const lastRow = Math.min(scoped.page * APPLICATION_PAGE_SIZE, total);
-  const filtered = scoped.status !== "all" || scoped.search !== "";
-  const showPosting = !postingId;
-  const reset: ApplicationFilters = {
-    status: "all",
-    search: "",
-    page: 1,
-    // "All applications" means all of them, so the one-posting narrowing goes too.
-    posting: null,
-  };
+    total === 0 ? 0 : (filters.page - 1) * APPLICATION_PAGE_SIZE + 1;
+  const lastRow = Math.min(filters.page * APPLICATION_PAGE_SIZE, total);
+  const filtered =
+    filters.status !== "all" || filters.search !== "" || !!filters.posting;
+  const reset: ApplicationFilters = defaultApplicationFilters;
+  const handler = onSelect ?? onOpen;
+
+  if (query.isPending)
+    return (
+      <div role="status" className="space-y-2">
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-20 rounded-lg" />
+        ))}
+        <span className="sr-only">Loading applications…</span>
+      </div>
+    );
+  if (denied)
+    return (
+      <Notice
+        role="alert"
+        tone="locked"
+        title="You don't have access to applications"
+      >
+        <p className="text-muted-foreground">
+          Checking your account access… If this stays, sign in again with a
+          recruiter account.
+        </p>
+      </Notice>
+    );
+  if (notFound)
+    return (
+      <Notice
+        role="alert"
+        tone="locked"
+        title="We couldn't find this job posting"
+      >
+        <p className="text-muted-foreground">
+          It may have been removed, or it belongs to another recruiter.
+        </p>
+      </Notice>
+    );
+  if (query.isError)
+    return (
+      <Notice
+        role="alert"
+        tone="danger"
+        title="We couldn't load the applications"
+      >
+        <p className="text-muted-foreground">Please try again in a moment.</p>
+        <Button
+          className="mt-2 h-11 bg-background"
+          variant="outline"
+          disabled={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          Try again
+        </Button>
+      </Notice>
+    );
+  if (!page) return null;
+  if (page.items.length === 0 && total > 0)
+    return (
+      <div className="rounded-xl border p-8 text-center">
+        <h3 className="font-semibold">
+          This page is past the end of the list.
+        </h3>
+        <Button asChild variant="outline" className="mt-4 h-11">
+          <FilterLink href={href({ ...filters, page: 1 })}>
+            Go to the first page
+          </FilterLink>
+        </Button>
+      </div>
+    );
+  if (page.items.length === 0)
+    return (
+      <div className="rounded-xl border border-dashed p-10 text-center">
+        <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <Inbox className="size-6" aria-hidden />
+        </span>
+        <h3 className="font-semibold">
+          {filters.search
+            ? `No applications match “${filters.search}”.`
+            : emptyText[filters.status]}
+        </h3>
+        {filtered ? (
+          <Button asChild variant="outline" className="mt-4 h-11">
+            <FilterLink href={href(reset)}>Show all applications</FilterLink>
+          </Button>
+        ) : (
+          <p className="mt-2 text-sm text-muted-foreground">
+            Candidates appear here once they apply with a CV.
+          </p>
+        )}
+      </div>
+    );
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <nav aria-label="Filter applications by status">
-          <ul className="inline-flex flex-wrap gap-1 rounded-xl border bg-muted/70 p-1">
-            {tabs.map((tab) => {
-              const active = scoped.status === tab.status;
-              return (
-                <li key={tab.status}>
-                  <FilterLink
-                    href={href({ ...scoped, status: tab.status, page: 1 })}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
-                      active &&
-                        "bg-background text-workspace-accent shadow-sm ring-1 ring-workspace-accent/20",
-                    )}
-                  >
-                    {tab.label}
-                  </FilterLink>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-        <SearchForm
-          key={scoped.search}
-          filters={scoped}
-          href={href}
-          pathname={pathname}
-        />
-      </div>
-
-      {showPosting && scoped.posting && (
-        <Notice tone="info">
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            Showing the applications of one job posting.
-            <FilterLink
-              href={href({ ...scoped, posting: null, page: 1 })}
-              className="rounded-sm font-medium underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-            >
-              Show all my postings
-            </FilterLink>
-          </p>
-        </Notice>
-      )}
-
-      {query.isPending ? (
-        <div role="status" className="space-y-3">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-14 rounded-md" />
-          ))}
-          <span className="sr-only">Loading applications…</span>
+    <div className="space-y-3">
+      <p role="status" className="sr-only">
+        {switching ? "Loading applications…" : ""}
+      </p>
+      <ul
+        aria-label={`Applications, ${firstRow}–${lastRow} of ${total}`}
+        aria-busy={switching}
+        className={cn(
+          "divide-y rounded-xl border bg-card transition-opacity duration-200 motion-reduce:transition-none",
+          switching && "opacity-60",
+        )}
+      >
+        {page.items.map((application) => (
+          <ApplicationRow
+            key={application.id}
+            application={application}
+            showPosting={!postingId}
+            selected={application.id === selectedId}
+            onActivate={
+              handler
+                ? (event) => {
+                    if (event.defaultPrevented || modified(event)) return;
+                    if (!isSplitView()) return;
+                    event.preventDefault();
+                    handler(application);
+                  }
+                : undefined
+            }
+          />
+        ))}
+      </ul>
+      <nav
+        aria-label="Applications pagination"
+        className="flex flex-wrap items-center justify-between gap-3 text-sm"
+      >
+        <p className="text-muted-foreground tabular-nums">
+          Showing {firstRow}–{lastRow} of {total}
+        </p>
+        <div className="flex gap-2">
+          <PageLink
+            label="Previous"
+            href={href({ ...filters, page: filters.page - 1 })}
+            disabled={filters.page <= 1}
+          />
+          <PageLink
+            label="Next"
+            href={href({ ...filters, page: filters.page + 1 })}
+            disabled={lastRow >= total}
+          />
         </div>
-      ) : denied ? (
-        <Notice
-          role="alert"
-          tone="locked"
-          title="You don't have access to applications"
-        >
-          <p className="text-muted-foreground">
-            Checking your account access… If this stays, sign in again with a
-            recruiter account.
-          </p>
-        </Notice>
-      ) : notFound ? (
-        <Notice
-          role="alert"
-          tone="locked"
-          title="We couldn't find this job posting"
-        >
-          <p className="text-muted-foreground">
-            It may have been removed, or it belongs to another recruiter.
-          </p>
-        </Notice>
-      ) : query.isError ? (
-        <Notice
-          role="alert"
-          tone="danger"
-          title="We couldn't load the applications"
-        >
-          <p className="text-muted-foreground">Please try again in a moment.</p>
-          <Button
-            className="mt-2 h-11 bg-background"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            Try again
-          </Button>
-        </Notice>
-      ) : page && page.items.length === 0 && total > 0 ? (
-        <div className="rounded-xl border p-8 text-center">
-          <h3 className="font-semibold">
-            This page is past the end of the list.
-          </h3>
-          <Button asChild variant="outline" className="mt-4 h-11">
-            <FilterLink href={href({ ...scoped, page: 1 })}>
-              Go to the first page
-            </FilterLink>
-          </Button>
-        </div>
-      ) : page && page.items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed bg-muted/30 p-10 text-center duration-300 animate-in fade-in zoom-in-95 motion-reduce:animate-none">
-          <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-workspace-accent/10 text-workspace-accent">
-            <Inbox className="size-6" aria-hidden />
-          </span>
-          <h3 className="font-semibold">
-            {scoped.search
-              ? `No applications match “${scoped.search}”.`
-              : emptyText[scoped.status]}
-          </h3>
-          {filtered ? (
-            <Button asChild variant="outline" className="mt-4 h-11">
-              <FilterLink href={href(reset)}>Show all applications</FilterLink>
-            </Button>
-          ) : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Candidates appear here once they apply with a CV.
-            </p>
-          )}
-        </div>
-      ) : page ? (
-        <>
-          <p role="status" className="sr-only">
-            {switching ? "Loading applications…" : ""}
-          </p>
-          <div
-            aria-busy={switching}
-            className={cn(
-              "overflow-x-auto rounded-2xl border bg-card shadow-sm transition-opacity duration-200 motion-reduce:transition-none",
-              switching && "opacity-60",
-            )}
-          >
-            <table className="w-full min-w-[720px] table-fixed text-left text-sm">
-              <colgroup>
-                <col />
-                {showPosting && <col className="w-56" />}
-                <col className="w-32" />
-                <col className="w-64" />
-              </colgroup>
-              <caption className="sr-only">
-                Applications, {firstRow}–{lastRow} of {total}
-              </caption>
-              <thead>
-                <tr className="border-b text-xs tracking-[0.08em] text-muted-foreground uppercase">
-                  <th scope="col" className="py-3 pr-4 pl-5 font-medium">
-                    Candidate
-                  </th>
-                  {showPosting && (
-                    <th scope="col" className="py-3 pr-4 font-medium">
-                      Job posting
-                    </th>
-                  )}
-                  <th scope="col" className="py-3 pr-4 font-medium">
-                    Submitted
-                  </th>
-                  <th scope="col" className="py-3 pr-5 font-medium">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {page.items.map((application, index) => (
-                  <ApplicationRow
-                    key={application.id}
-                    application={application}
-                    index={index}
-                    showPosting={showPosting}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <nav
-            aria-label="Applications pagination"
-            className="flex flex-wrap items-center justify-between gap-3 text-sm"
-          >
-            <p className="text-muted-foreground tabular-nums">
-              Showing {firstRow}–{lastRow} of {total}
-            </p>
-            <div className="flex gap-2">
-              <PageLink
-                label="Previous"
-                href={href({ ...scoped, page: scoped.page - 1 })}
-                disabled={scoped.page <= 1}
-              />
-              <PageLink
-                label="Next"
-                href={href({ ...scoped, page: scoped.page + 1 })}
-                disabled={lastRow >= total}
-              />
-            </div>
-          </nav>
-        </>
-      ) : null}
+      </nav>
     </div>
+  );
+}
+
+export function Initials({ name }: { name: string }) {
+  const letters = name
+    .split(/\s+/)
+    .filter((part) => /\p{L}/u.test(part))
+    .slice(0, 2)
+    .map((part) => Array.from(part)[0].toUpperCase())
+    .join("");
+  return (
+    <span
+      aria-hidden
+      className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-foreground/80"
+    >
+      {letters || "?"}
+    </span>
   );
 }
 
 function ApplicationRow({
   application,
-  index,
   showPosting,
+  selected,
+  onActivate,
 }: {
   application: Application;
-  index: number;
   showPosting: boolean;
+  selected: boolean;
+  onActivate?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const { candidate } = application;
+  const pending = application.status === "pending";
   return (
-    <tr
-      className="border-b align-top transition-colors duration-300 animate-in fade-in slide-in-from-bottom-1 fill-mode-both last:border-b-0 hover:bg-workspace-accent/[0.04] motion-reduce:animate-none"
-      // A short stagger so rows settle in order; capped so long pages are not slow.
-      style={{ animationDelay: `${Math.min(index, 10) * 30}ms` }}
-    >
-      <td className="py-3.5 pr-4 pl-5">
-        <Link
-          href={routes.recruiter.application(
-            application.job_posting_id,
-            application.id,
-          )}
-          className="block rounded-sm font-medium underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          {candidate.name}
-        </Link>
-        <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">
-          {candidate.email}
+    <li>
+      <Link
+        href={routes.recruiter.application(
+          application.job_posting_id,
+          application.id,
+        )}
+        scroll={false}
+        aria-current={selected ? "true" : undefined}
+        aria-label={`${pending ? "Review CV of" : "Open application of"} ${candidate.name}`}
+        onClick={onActivate}
+        className={cn(
+          "flex items-start gap-3 px-4 py-3.5 outline-none transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
+          selected && "bg-muted hover:bg-muted",
+        )}
+      >
+        <Initials name={candidate.name} />
+        <span className="min-w-0 flex-1 space-y-1">
+          <span className="flex items-start justify-between gap-3">
+            <span className="min-w-0 font-medium [overflow-wrap:anywhere]">
+              {candidate.name}
+            </span>
+            <ApplicationStatus status={application.status} />
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {candidate.email}
+          </span>
+          <span className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span className="min-w-0 truncate">
+              {showPosting && `${application.job_posting_title} · `}
+              Applied{" "}
+              <time
+                dateTime={application.submitted_at}
+                title={application.submitted_at}
+              >
+                {formatSubmitted(application.submitted_at)}
+              </time>
+            </span>
+            {pending ? (
+              <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-foreground">
+                Review
+                <ChevronRight className="size-3.5" aria-hidden />
+              </span>
+            ) : (
+              <ChevronRight className="size-3.5 shrink-0" aria-hidden />
+            )}
+          </span>
+          <StatusDetail application={application} />
         </span>
-      </td>
-      {showPosting && (
-        <td className="py-3.5 pr-4">
-          <Link
-            href={routes.recruiter.jobPosting(application.job_posting_id)}
-            className="rounded-sm underline-offset-4 outline-none [overflow-wrap:anywhere] hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            {application.job_posting_title}
-          </Link>
-        </td>
-      )}
-      <td className="py-3.5 pr-4 whitespace-nowrap text-muted-foreground tabular-nums">
-        <time
-          dateTime={application.submitted_at}
-          title={application.submitted_at}
-        >
-          {formatSubmitted(application.submitted_at)}
-        </time>
-      </td>
-      <td className="py-3.5 pr-5">
-        <ApplicationStatus status={application.status} />
-        <StatusDetail application={application} />
-      </td>
-    </tr>
+      </Link>
+    </li>
   );
 }
 
@@ -419,7 +559,7 @@ function StatusDetail({ application }: { application: Application }) {
   } = application;
   if (status === "interview_eligible" && deadline) {
     return (
-      <p className="mt-1.5 text-xs text-muted-foreground">
+      <span className="block text-xs text-muted-foreground">
         {/* Decision 4: the interview must be completed, not just started, before the deadline. */}
         {application.interview_eligible
           ? "Complete interview by "
@@ -427,14 +567,14 @@ function StatusDetail({ application }: { application: Application }) {
         <time dateTime={deadline} title={deadline}>
           {formatDeadline(deadline)}
         </time>
-      </p>
+      </span>
     );
   }
   if (status === "rejected" && reason) {
     return (
-      <p className="mt-1.5 max-w-xs text-xs text-destructive/90 [overflow-wrap:anywhere]">
+      <span className="block text-xs text-destructive/90 [overflow-wrap:anywhere]">
         Reason: {reason}
-      </p>
+      </span>
     );
   }
   return null;
@@ -451,12 +591,12 @@ function PageLink({
 }) {
   if (disabled)
     return (
-      <Button variant="outline" className="h-11" disabled>
+      <Button variant="outline" className="h-9 rounded-full" disabled>
         {label}
       </Button>
     );
   return (
-    <Button asChild variant="outline" className="h-11">
+    <Button asChild variant="outline" className="h-9 rounded-full">
       <FilterLink href={href}>{label}</FilterLink>
     </Button>
   );
@@ -468,14 +608,13 @@ function SearchForm({
 }: {
   filters: ApplicationFilters;
   href: (filters: ApplicationFilters) => string;
-  pathname: string;
 }) {
   const [value, setValue] = useState(filters.search);
   const tooLong = Array.from(value.trim()).length > SEARCH_MAX;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (tooLong) return;
-    pushFilters(href({ ...filters, search: value.trim(), page: 1 }));
+    pushUrl(href({ ...filters, search: value.trim(), page: 1 }));
   };
   return (
     <form
@@ -483,18 +622,23 @@ function SearchForm({
       noValidate
       aria-label="Search applications"
       onSubmit={submit}
-      className="flex flex-wrap items-end gap-2"
+      className="flex flex-wrap items-center gap-2"
     >
-      <div className="space-y-1">
-        <label htmlFor="application-search" className="text-xs font-medium">
-          Search by name or email
-        </label>
+      <label htmlFor="application-search" className="sr-only">
+        Search by name or email
+      </label>
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
         <Input
           id="application-search"
           type="search"
+          placeholder="Search name or email"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          className="h-11 w-64 max-w-full"
+          className="h-9 w-60 max-w-full rounded-full pl-9"
           aria-invalid={tooLong}
           aria-describedby={tooLong ? "application-search-error" : undefined}
         />
@@ -502,14 +646,13 @@ function SearchForm({
       <Button
         type="submit"
         variant="outline"
-        className="h-11"
+        className="h-9 rounded-full px-4"
         disabled={tooLong}
       >
-        <Search aria-hidden />
         Search
       </Button>
       {filters.search && (
-        <Button asChild variant="ghost" className="h-11">
+        <Button asChild variant="ghost" className="h-9 rounded-full px-3">
           <FilterLink href={href({ ...filters, search: "", page: 1 })}>
             <X aria-hidden />
             Clear search

@@ -521,9 +521,9 @@ describe("JobPostingDetail", () => {
   it("lists the applications of an approved posting", async () => {
     serve({ ...base, status: "open" });
     mount();
-    const table = await screen.findByRole("table");
-    expect(table).toHaveTextContent("Linh Tran");
-    expect(table).toHaveTextContent("linh@example.com");
+    const list = await screen.findByRole("list", { name: /^Applications,/ });
+    expect(list).toHaveTextContent("Linh Tran");
+    expect(list).toHaveTextContent("linh@example.com");
     expect(
       screen.getByRole("heading", { level: 2, name: "Applications" }),
     ).toBeInTheDocument();

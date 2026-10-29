@@ -92,6 +92,7 @@ function failure(status: number, code: string, message = "boom") {
     config: { headers: new AxiosHeaders() },
   });
 }
+const onDecided = vi.fn();
 function mount(app: ApplicationDetail = application()) {
   const client = new QueryClient({
     defaultOptions: {
@@ -107,6 +108,7 @@ function mount(app: ApplicationDetail = application()) {
         postingId={postingId}
         applicationId={applicationId}
         application={app}
+        onDecided={onDecided}
       />
     </QueryClientProvider>,
   );
@@ -122,19 +124,13 @@ beforeEach(() => {
 });
 
 describe("ScreeningActions", () => {
-  it("approves after confirmation, writes the new state into the detail and toasts", async () => {
+  it("approves in one click while slots remain, writes the new state and reports the decision", async () => {
     mocks.post.mockResolvedValue(screening());
     const client = mount();
     fireEvent.click(screen.getByRole("button", { name: "Approve CV" }));
-    const dialog = await screen.findByRole("dialog", {
-      name: "Approve this CV?",
-    });
-    expect(dialog).toHaveTextContent(/counts toward this posting/);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Confirm approval" }),
-    );
 
     await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mocks.post).toHaveBeenCalledWith(approvePath, {});
     await waitFor(() =>
       expect(mocks.toast).toHaveBeenCalledWith("CV approved"),
@@ -142,9 +138,33 @@ describe("ScreeningActions", () => {
     expect(client.getQueryData<ApplicationDetail>(detailKey)?.status).toBe(
       "interview_eligible",
     );
+    expect(onDecided).toHaveBeenCalledWith("approved");
+  });
+
+  it("asks for confirmation before taking the last interview slot", async () => {
+    mocks.post.mockResolvedValue(
+      screening({ job_posting_status: "intake_closed" }),
+    );
+    const last = application();
+    mount({
+      ...last,
+      job_posting: { ...last.job_posting, interview_slot: 2, cv_approvals: 1 },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Approve CV" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Approve the last interview slot?",
+    });
+    expect(dialog).toHaveTextContent(/other pending CVs are rejected/);
+    expect(mocks.post).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Confirm approval" }),
+    );
+    await waitFor(() => expect(mocks.post).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+    expect(onDecided).toHaveBeenCalledWith("approved");
   });
 
   it("rejects without a reason when the field is empty", async () => {
@@ -164,6 +184,7 @@ describe("ScreeningActions", () => {
     await waitFor(() =>
       expect(mocks.toast).toHaveBeenCalledWith("CV rejected"),
     );
+    expect(onDecided).toHaveBeenCalledWith("rejected");
   });
 
   it("sends the trimmed reason", async () => {
@@ -221,9 +242,6 @@ describe("ScreeningActions", () => {
     mocks.post.mockRejectedValue(failure(409, "INTERVIEW_CAPACITY_FULL"));
     const client = mount();
     fireEvent.click(screen.getByRole("button", { name: "Approve CV" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Confirm approval" }),
-    );
 
     expect(
       await screen.findByText(
@@ -289,9 +307,6 @@ describe("ScreeningActions", () => {
     );
     const view = render(tree(application()));
     fireEvent.click(screen.getByRole("button", { name: "Approve CV" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Confirm approval" }),
-    );
     await screen.findByText(/already been decided/);
 
     const closed = application({ status: "rejected" });
@@ -331,9 +346,6 @@ describe("ScreeningActions", () => {
     mocks.post.mockRejectedValue(failure(403, "FORBIDDEN"));
     const client = mount();
     fireEvent.click(screen.getByRole("button", { name: "Approve CV" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Confirm approval" }),
-    );
 
     await waitFor(() =>
       expect(client.getQueryState(["auth", "me"])?.isInvalidated).toBe(true),

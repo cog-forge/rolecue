@@ -70,16 +70,29 @@ function applyScreening(
   };
 }
 
-// The CV decision for a pending Application: Approve (confirmed first) and Reject (optional reason).
-// The server decides; the screen only explains what it can see.
+// Screening is repeated many times in a row, so Approve asks for confirmation only when it takes
+// the last interview slot: that approval also closes intake and rejects the other pending CVs.
+function takesLastSlot(posting: ApplicationDetail["job_posting"]) {
+  return (
+    posting.interview_slot !== null &&
+    posting.cv_approvals + 1 >= posting.interview_slot
+  );
+}
+
+// The CV decision for a pending Application: Approve and Reject (optional reason). The server
+// decides; the screen only explains what it can see. "inline" drops the card for the review panel.
 export function ScreeningActions({
   postingId,
   applicationId,
   application,
+  layout = "card",
+  onDecided,
 }: {
   postingId: string;
   applicationId: string;
   application: ApplicationDetail;
+  layout?: "card" | "inline";
+  onDecided?: (decision: "approved" | "rejected") => void;
 }) {
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -116,6 +129,7 @@ export function ScreeningActions({
       refresh();
       setApproveOpen(false);
       gooeyToast.success("CV approved");
+      onDecided?.("approved");
     },
     onError: (failure) => {
       setApproveOpen(false);
@@ -134,6 +148,7 @@ export function ScreeningActions({
       refresh();
       setRejectOpen(false);
       gooeyToast.success("CV rejected");
+      onDecided?.("rejected");
     },
     onError: onFailure,
   });
@@ -172,63 +187,64 @@ export function ScreeningActions({
       )
     : null;
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2>Screening</h2>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!intakeOpen ? (
-          intakeClosed ? (
-            <Notice tone="locked" title="Intake is closed">
-              <p className="text-muted-foreground">
-                This posting is no longer taking screening decisions.
+  const controls = (
+    <>
+      {!intakeOpen ? (
+        intakeClosed ? (
+          <Notice tone="locked" title="Intake is closed">
+            <p className="text-muted-foreground">
+              This posting is no longer taking screening decisions.
+            </p>
+          </Notice>
+        ) : null
+      ) : (
+        <>
+          {blocked && (
+            <Notice tone="warning" title="Approval is unavailable">
+              <p id={blockedId} className="text-muted-foreground">
+                {blocked}
               </p>
             </Notice>
-          ) : null
-        ) : (
-          <>
-            {blocked && (
-              <Notice tone="warning" title="Approval is unavailable">
-                <p id={blockedId} className="text-muted-foreground">
-                  {blocked}
-                </p>
-              </Notice>
-            )}
-            <div className="flex flex-wrap gap-3">
-              <Button
-                className="h-11"
-                disabled={blocked !== null || approve.isPending}
-                aria-describedby={blocked ? blockedId : undefined}
-                onClick={() => {
-                  approve.reset();
-                  setApproveOpen(true);
-                }}
-              >
-                Approve CV
-              </Button>
-              <Button
-                variant="outline"
-                className="h-11"
-                disabled={reject.isPending}
-                onClick={() => {
-                  reject.reset();
-                  setRejectOpen(true);
-                }}
-              >
-                Reject CV
-              </Button>
-            </div>
-            {approveError && (
-              <p role="alert" className="text-sm text-destructive">
-                {approveError}
-              </p>
-            )}
-          </>
-        )}
-      </CardContent>
+          )}
+          <div className="flex flex-wrap gap-3">
+            <Button
+              className="h-11"
+              disabled={blocked !== null || approve.isPending}
+              aria-describedby={blocked ? blockedId : undefined}
+              aria-busy={approve.isPending && !approveOpen}
+              onClick={() => {
+                approve.reset();
+                if (takesLastSlot(posting)) setApproveOpen(true);
+                else approve.mutate();
+              }}
+            >
+              {approve.isPending && !approveOpen && (
+                <LoaderCircle
+                  className="size-4 animate-spin motion-reduce:animate-none"
+                  aria-hidden
+                />
+              )}
+              Approve CV
+            </Button>
+            <Button
+              variant="outline"
+              className="h-11"
+              disabled={reject.isPending}
+              onClick={() => {
+                reject.reset();
+                setRejectOpen(true);
+              }}
+            >
+              Reject CV
+            </Button>
+          </div>
+          {approveError && (
+            <p role="alert" className="text-sm text-destructive">
+              {approveError}
+            </p>
+          )}
+        </>
+      )}
 
       <Dialog
         open={approveOpen}
@@ -238,12 +254,11 @@ export function ScreeningActions({
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Approve this CV?</DialogTitle>
+            <DialogTitle>Approve the last interview slot?</DialogTitle>
             <DialogDescription>
-              {application.candidate.name} will be cleared for an interview and
-              counts toward this posting&apos;s interview limit. When the last
-              slot is taken, intake closes and the other pending CVs are
-              rejected.
+              {application.candidate.name} takes this posting&apos;s last
+              interview slot. Intake then closes and the other pending CVs are
+              rejected automatically.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -293,6 +308,22 @@ export function ScreeningActions({
         onCancel={() => setRejectOpen(false)}
         onSubmit={(reason) => reject.mutate(reason)}
       />
+    </>
+  );
+  if (layout === "inline")
+    return (
+      <section aria-label="Screening" className="space-y-3">
+        {controls}
+      </section>
+    );
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <h2>Screening</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">{controls}</CardContent>
     </Card>
   );
 }

@@ -1,3 +1,4 @@
+import { routes } from "@/config/routes";
 import {
   applicationStatuses,
   type ApplicationStatus,
@@ -57,6 +58,18 @@ export function applicationSearch(filters: ApplicationFilters) {
   if (filters.page > 1) params.set("page", String(filters.page));
   const query = params.toString();
   return query ? `?${query}` : "";
+}
+
+// The Application open in the review panel. It is kept apart from the filters, so changing a filter
+// drops it and the panel moves to the first CV that still matches.
+export function parseSelectedApplication(value: string | null) {
+  return value && UUID.test(value) ? value.toLowerCase() : null;
+}
+
+// The review inbox with the given filters and one Application selected.
+export function inboxHref(filters: ApplicationFilters, applicationId: string) {
+  const search = applicationSearch(filters);
+  return `${routes.recruiter.applications}${search}${search ? "&" : "?"}application=${encodeURIComponent(applicationId)}`;
 }
 
 // The request query. The posting filter is sent only when the caller asks for it, because the list

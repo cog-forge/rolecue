@@ -3,6 +3,7 @@ import {
   applicationDetailEnvelopeSchema,
   screeningEnvelopeSchema,
 } from "../schemas/application-detail-schema";
+import { postingPageEnvelopeSchema } from "@/features/recruiter/job-postings/schemas/job-posting-schema";
 import { applicationPageEnvelopeSchema } from "../schemas/application-schema";
 import {
   interviewReportEnvelopeSchema,
@@ -20,6 +21,8 @@ export const applicationKeys = {
     [...applicationKeys.all(userId), "posting", postingId, filters] as const,
   own: (userId: string, filters: ApplicationFilters) =>
     [...applicationKeys.all(userId), "own", filters] as const,
+  postingOptions: (userId: string) =>
+    [...applicationKeys.all(userId), "posting-options"] as const,
   detail: (userId: string, postingId: string, applicationId: string) =>
     [
       ...applicationKeys.all(userId),
@@ -69,6 +72,16 @@ export async function listOwnApplications(
     signal,
   });
   return applicationPageEnvelopeSchema.parse(response.data).data;
+}
+
+// The Recruiter's newest postings for the inbox's posting filter. One page of the API maximum is
+// enough for a choice list; a posting beyond it can still be reached from its own page.
+export async function listPostingOptions(signal?: AbortSignal) {
+  const response = await apiClient.get<unknown>("/job-postings", {
+    params: { limit: 100, offset: 0 },
+    signal,
+  });
+  return postingPageEnvelopeSchema.parse(response.data).data.items;
 }
 
 export async function getApplicationDetail(
