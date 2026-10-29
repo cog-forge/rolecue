@@ -317,24 +317,23 @@ describe("AdminOverview", () => {
     await screen.findByRole("region", { name: "Accounts" });
 
     expect(
-      screen.getByRole("link", { name: "Moderation queue" }),
+      screen.getByRole("link", { name: "Review pending postings" }),
     ).toHaveAttribute("href", routes.admin.jobPostings);
     expect(
-      screen.getByRole("link", { name: "Interview sessions" }),
+      screen.getByRole("link", { name: "Browse recent interviews" }),
     ).toHaveAttribute("href", routes.admin.interviews);
     expect(
-      screen.getByRole("link", { name: "Voice profiles" }),
+      screen.getByRole("link", { name: "Manage the voice catalog" }),
     ).toHaveAttribute("href", routes.admin.voices);
     expect(
-      screen.getByRole("link", { name: "Payment transactions" }),
+      screen.getByRole("link", { name: "Check payments" }),
     ).toHaveAttribute("href", routes.admin.billing);
     expect(
-      screen.getByRole("link", { name: "Revenue reports" }),
+      screen.getByRole("link", { name: "See revenue figures" }),
     ).toHaveAttribute("href", routes.admin.revenue);
-    expect(screen.getByRole("link", { name: "Accounts" })).toHaveAttribute(
-      "href",
-      routes.admin.users,
-    );
+    expect(
+      screen.getByRole("link", { name: "Find an account" }),
+    ).toHaveAttribute("href", routes.admin.users);
   });
 
   it("never mentions wallet or membership", async () => {
