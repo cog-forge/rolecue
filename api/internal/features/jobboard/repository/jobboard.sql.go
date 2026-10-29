@@ -52,15 +52,12 @@ func (q *Queries) CountOpenPostings(ctx context.Context, arg CountOpenPostingsPa
 const getOpenPosting = `-- name: GetOpenPosting :one
 SELECT jp.id, jp.jd_id, jp.title, u.company_name, u.company_website, jp.location, jp.employment_type,
        jp.salary_min, jp.salary_max, jp.interview_duration, lower(l.name) AS level_name, jp.created_at, jp.published_at,
-       jd.content_path, jd.raw_text,
-       EXISTS (
-           SELECT 1 FROM public.applications a
-           WHERE a.job_posting_id = jp.id AND a.candidate_id = $1
-       ) AS already_applied
+       jd.content_path, jd.raw_text, own.id AS application_id
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
+LEFT JOIN public.applications own ON own.job_posting_id = jp.id AND own.candidate_id = $1
 WHERE jp.id = $2 AND jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
 `
@@ -86,9 +83,11 @@ type GetOpenPostingRow struct {
 	PublishedAt       pgtype.Timestamptz
 	ContentPath       *string
 	RawText           *string
-	AlreadyApplied    bool
+	ApplicationID     pgtype.UUID
 }
 
+// The Candidate's own Application to this posting, if any (apply allows one per posting): it gives
+// already_applied and the link to the Application.
 func (q *Queries) GetOpenPosting(ctx context.Context, arg GetOpenPostingParams) (GetOpenPostingRow, error) {
 	row := q.db.QueryRow(ctx, getOpenPosting, arg.CandidateID, arg.ID)
 	var i GetOpenPostingRow
@@ -108,7 +107,7 @@ func (q *Queries) GetOpenPosting(ctx context.Context, arg GetOpenPostingParams) 
 		&i.PublishedAt,
 		&i.ContentPath,
 		&i.RawText,
-		&i.AlreadyApplied,
+		&i.ApplicationID,
 	)
 	return i, err
 }
@@ -116,7 +115,13 @@ func (q *Queries) GetOpenPosting(ctx context.Context, arg GetOpenPostingParams) 
 const listOpenPostings = `-- name: ListOpenPostings :many
 
 SELECT jp.id, jp.title, u.company_name, jp.location, jp.employment_type, jp.salary_min, jp.salary_max,
-       lower(l.name) AS level_name, jp.created_at, jp.published_at
+       lower(l.name) AS level_name, jp.created_at, jp.published_at,
+       ARRAY(
+           SELECT r.name FROM public.requirements r
+           WHERE r.jd_id = jp.jd_id AND r.type = 'required'
+           ORDER BY r.name, r.id LIMIT 5
+       )::text[] AS top_skills,
+       (SELECT count(*) FROM public.requirements r WHERE r.jd_id = jp.jd_id AND r.type = 'required') AS required_skill_count
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
@@ -143,16 +148,18 @@ type ListOpenPostingsParams struct {
 }
 
 type ListOpenPostingsRow struct {
-	ID             uuid.UUID
-	Title          string
-	CompanyName    *string
-	Location       *string
-	EmploymentType *string
-	SalaryMin      *int32
-	SalaryMax      *int32
-	LevelName      string
-	CreatedAt      pgtype.Timestamptz
-	PublishedAt    pgtype.Timestamptz
+	ID                 uuid.UUID
+	Title              string
+	CompanyName        *string
+	Location           *string
+	EmploymentType     *string
+	SalaryMin          *int32
+	SalaryMax          *int32
+	LevelName          string
+	CreatedAt          pgtype.Timestamptz
+	PublishedAt        pgtype.Timestamptz
+	TopSkills          []string
+	RequiredSkillCount int64
 }
 
 // The job board is the Candidate's read-only view of Job Postings. Only status 'open' (approved by
@@ -166,6 +173,8 @@ type ListOpenPostingsRow struct {
 // required avatar/voice.
 // Every filter is optional: a NULL argument disables it. search and location are LIKE patterns the
 // service has already escaped; employment_type matches the whole value, ignoring case.
+// top_skills is a preview for the card: the first five required requirements in the same order the
+// detail lists them; required_skill_count lets the card say how many more there are.
 func (q *Queries) ListOpenPostings(ctx context.Context, arg ListOpenPostingsParams) ([]ListOpenPostingsRow, error) {
 	rows, err := q.db.Query(ctx, listOpenPostings,
 		arg.PublishedFrom,
@@ -194,6 +203,8 @@ func (q *Queries) ListOpenPostings(ctx context.Context, arg ListOpenPostingsPara
 			&i.LevelName,
 			&i.CreatedAt,
 			&i.PublishedAt,
+			&i.TopSkills,
+			&i.RequiredSkillCount,
 		); err != nil {
 			return nil, err
 		}

@@ -132,7 +132,7 @@ func TestCandidateDTOsDoNotExposePrivateFields(t *testing.T) {
 		}
 	}
 	want := []string{"id", "title", "company_name", "location", "employment_type", "salary_min", "salary_max", "seniority_level", "created_at", "published_at",
-		"company_website", "interview_duration", "raw_text", "requirements", "already_applied"}
+		"top_skills", "required_skill_count", "company_website", "interview_duration", "raw_text", "requirements", "already_applied", "application_id"}
 	raw, _ := json.Marshal(detail)
 	var fields map[string]any
 	_ = json.Unmarshal(raw, &fields)

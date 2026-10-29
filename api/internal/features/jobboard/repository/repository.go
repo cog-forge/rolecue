@@ -35,10 +35,14 @@ func (r *Repository) ListOpen(ctx context.Context, filter domain.BoardFilter) ([
 	}
 	out := make([]domain.BoardPosting, 0, len(rows))
 	for _, row := range rows {
+		if row.TopSkills == nil {
+			row.TopSkills = []string{}
+		}
 		out = append(out, domain.BoardPosting{
 			ID: row.ID, Title: row.Title, CompanyName: row.CompanyName, Location: row.Location,
 			EmploymentType: row.EmploymentType, SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax,
 			SeniorityLevel: row.LevelName, CreatedAt: row.CreatedAt.Time, PublishedAt: timeValue(row.PublishedAt),
+			TopSkills: row.TopSkills, RequiredSkillCount: row.RequiredSkillCount,
 		})
 	}
 	return out, total, nil
@@ -60,13 +64,25 @@ func (r *Repository) GetOpen(ctx context.Context, candidateID, id uuid.UUID) (do
 			SeniorityLevel: row.LevelName, CreatedAt: row.CreatedAt.Time, PublishedAt: timeValue(row.PublishedAt),
 		},
 		CompanyWebsite: row.CompanyWebsite, InterviewDuration: row.InterviewDuration,
-		AlreadyApplied: row.AlreadyApplied, Requirements: make([]domain.BoardRequirement, 0, len(requirements)),
+		AlreadyApplied: row.ApplicationID.Valid, Requirements: make([]domain.BoardRequirement, 0, len(requirements)),
 	}}
+	if row.ApplicationID.Valid {
+		id := uuid.UUID(row.ApplicationID.Bytes)
+		record.ApplicationID = &id
+	}
 	if row.ContentPath != nil {
 		record.ContentPath = *row.ContentPath
 	}
+	// The detail carries the same skill preview as the list, taken from the requirements it already read.
+	record.TopSkills = make([]string, 0, domain.MaxTopSkills)
 	for _, req := range requirements {
 		record.Requirements = append(record.Requirements, domain.BoardRequirement{Name: req.Name, Target: req.Target, Type: req.Type})
+		if req.Type == "required" {
+			record.RequiredSkillCount++
+			if len(record.TopSkills) < domain.MaxTopSkills {
+				record.TopSkills = append(record.TopSkills, req.Name)
+			}
+		}
 	}
 	return record, nil
 }

@@ -10,9 +10,17 @@
 
 -- Every filter is optional: a NULL argument disables it. search and location are LIKE patterns the
 -- service has already escaped; employment_type matches the whole value, ignoring case.
+-- top_skills is a preview for the card: the first five required requirements in the same order the
+-- detail lists them; required_skill_count lets the card say how many more there are.
 -- name: ListOpenPostings :many
 SELECT jp.id, jp.title, u.company_name, jp.location, jp.employment_type, jp.salary_min, jp.salary_max,
-       lower(l.name) AS level_name, jp.created_at, jp.published_at
+       lower(l.name) AS level_name, jp.created_at, jp.published_at,
+       ARRAY(
+           SELECT r.name FROM public.requirements r
+           WHERE r.jd_id = jp.jd_id AND r.type = 'required'
+           ORDER BY r.name, r.id LIMIT 5
+       )::text[] AS top_skills,
+       (SELECT count(*) FROM public.requirements r WHERE r.jd_id = jp.jd_id AND r.type = 'required') AS required_skill_count
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
@@ -45,15 +53,14 @@ WHERE jp.status = 'open' AND jp.interview_slot IS NOT NULL
 -- name: GetOpenPosting :one
 SELECT jp.id, jp.jd_id, jp.title, u.company_name, u.company_website, jp.location, jp.employment_type,
        jp.salary_min, jp.salary_max, jp.interview_duration, lower(l.name) AS level_name, jp.created_at, jp.published_at,
-       jd.content_path, jd.raw_text,
-       EXISTS (
-           SELECT 1 FROM public.applications a
-           WHERE a.job_posting_id = jp.id AND a.candidate_id = @candidate_id
-       ) AS already_applied
+       jd.content_path, jd.raw_text, own.id AS application_id
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
+-- The Candidate's own Application to this posting, if any (apply allows one per posting): it gives
+-- already_applied and the link to the Application.
+LEFT JOIN public.applications own ON own.job_posting_id = jp.id AND own.candidate_id = @candidate_id
 WHERE jp.id = @id AND jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()));
 
