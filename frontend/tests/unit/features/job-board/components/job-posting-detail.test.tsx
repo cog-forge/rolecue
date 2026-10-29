@@ -13,7 +13,6 @@ import { JobPostingDetail } from "@/features/job-board/components/job-posting-de
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
-  push: vi.fn(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
     full_name: "Cand",
@@ -27,9 +26,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get } }));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
-}));
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push }),
 }));
 
 const id = "33333333-3333-4333-8333-333333333333";
@@ -68,7 +64,12 @@ function failure(status: number) {
     config: { headers: new AxiosHeaders() },
   });
 }
-function mount(backQuery = "", postingId = id, seed?: unknown) {
+function mount(
+  backQuery = "",
+  postingId = id,
+  seed?: unknown,
+  variant?: "page" | "panel",
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -76,7 +77,11 @@ function mount(backQuery = "", postingId = id, seed?: unknown) {
   if (seed) client.setQueryData(jobBoardKeys.detail(mocks.user.id, id), seed);
   const view = render(
     <QueryClientProvider client={client}>
-      <JobPostingDetail id={postingId} backQuery={backQuery} />
+      <JobPostingDetail
+        id={postingId}
+        backQuery={backQuery}
+        variant={variant}
+      />
     </QueryClientProvider>,
   );
   return { client, ...view };
@@ -114,17 +119,86 @@ describe("JobPostingDetail", () => {
     expect(screen.getByText("30 minutes")).toBeInTheDocument();
   });
 
-  it("groups requirements into required and nice to have", async () => {
+  it("groups skills into required and nice to have", async () => {
     mocks.get.mockResolvedValue(detail());
     mount();
-    const required = (await screen.findByRole("heading", { name: "Required" }))
-      .nextElementSibling as HTMLElement;
-    const preferred = screen.getByRole("heading", { name: "Nice to have" })
-      .nextElementSibling as HTMLElement;
-    expect(within(required).getAllByRole("listitem")).toHaveLength(2);
-    expect(required).toHaveTextContent("GoProgramming language");
-    expect(required).toHaveTextContent("PostgreSQLDatabase");
-    expect(preferred).toHaveTextContent("KubernetesCloud platform");
+    const required = await screen.findByRole("list", { name: "Required" });
+    const preferred = screen.getByRole("list", { name: "Nice to have" });
+    const items = within(required).getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Go");
+    expect(items[0]).toHaveAttribute("title", "Programming language");
+    expect(required).toHaveTextContent("PostgreSQL");
+    expect(preferred).toHaveTextContent("Kubernetes");
+    expect(
+      screen.queryByRole("button", { name: /show all/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows ten skills first and the rest on request", async () => {
+    const requirements = Array.from({ length: 13 }, (_, i) => ({
+      name: `Skill ${i + 1}`,
+      target: "tool",
+      type: i < 11 ? "required" : "preferred",
+    }));
+    mocks.get.mockResolvedValue(detail({ requirements }));
+    mount();
+    const required = await screen.findByRole("list", { name: "Required" });
+    expect(within(required).getAllByRole("listitem")).toHaveLength(10);
+    expect(
+      screen.queryByRole("list", { name: "Nice to have" }),
+    ).not.toBeInTheDocument();
+    const more = screen.getByRole("button", { name: "Show all 13 skills" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(more);
+    expect(within(required).getAllByRole("listitem")).toHaveLength(11);
+    expect(
+      within(screen.getByRole("list", { name: "Nice to have" })).getAllByRole(
+        "listitem",
+      ),
+    ).toHaveLength(2);
+  });
+
+  it("clamps a long job description until it is expanded", async () => {
+    mocks.get.mockResolvedValue(detail({ raw_text: "Line\n".repeat(30) }));
+    mount();
+    const toggle = await screen.findByRole("button", {
+      name: "Show the full description",
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Show less" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("explains how hiring works", async () => {
+    mocks.get.mockResolvedValue(detail());
+    mount();
+    expect(
+      await screen.findByRole("heading", { name: "How hiring works" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Complete the AI interview within 24 hours"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders as a side panel with an h2 title and a link to the posting page", async () => {
+    mocks.get.mockResolvedValue(detail());
+    mount("", id, undefined, "panel");
+    expect(
+      await screen.findByRole("heading", {
+        level: 2,
+        name: "Go Backend Engineer",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Back to Job Board" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Open posting page" }),
+    ).toHaveAttribute("href", `/jobs/${id}`);
   });
 
   it("renders the job description as plain text, never as HTML", async () => {
@@ -137,18 +211,18 @@ describe("JobPostingDetail", () => {
     expect(container.querySelector("b")).toBeNull();
   });
 
-  it("offers the CV upload to a Candidate who has not applied", async () => {
+  it("opens the apply dialog for a Candidate who has not applied", async () => {
     mocks.get.mockResolvedValue(detail());
     mount();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Apply with your CV" }),
+    );
     expect(
-      await screen.findByRole("heading", { name: "Apply with your CV" }),
+      screen.getByRole("dialog", { name: "Apply for Go Backend Engineer" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Choose your CV (PDF)" }),
     ).toBeEnabled();
-    expect(
-      screen.queryByRole("button", { name: "Apply" }),
-    ).not.toBeInTheDocument();
     expect(screen.queryByText(/already applied/i)).not.toBeInTheDocument();
   });
 
@@ -158,29 +232,32 @@ describe("JobPostingDetail", () => {
     mount();
     await screen.findByRole("heading", { level: 1 });
     expect(
-      screen.queryByRole("heading", { name: "Apply with your CV" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Choose your CV (PDF)" }),
+      screen.queryByRole("button", { name: "Apply with your CV" }),
     ).not.toBeInTheDocument();
   });
 
-  it("shows a disabled Applied state with a link to My Applications", async () => {
-    mocks.get.mockResolvedValue(detail({ already_applied: true }));
-    mount();
-    const applied = await screen.findByRole("button", { name: "Applied" });
-    expect(applied).toHaveAttribute("aria-disabled", "true");
-    expect(applied).toHaveAccessibleDescription(
-      "You already applied to this posting.",
+  it("links an applied posting to the Candidate's own application", async () => {
+    const applicationId = "44444444-4444-4444-8444-444444444444";
+    mocks.get.mockResolvedValue(
+      detail({ already_applied: true, application_id: applicationId }),
     );
+    mount();
     expect(
-      screen.queryByRole("button", { name: "Apply" }),
+      await screen.findByRole("link", { name: "Applied · View application" }),
+    ).toHaveAttribute("href", `/applications/${applicationId}`);
+    expect(
+      screen.queryByRole("button", { name: "Apply with your CV" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       "You already applied to this posting.",
     );
+  });
+
+  it("falls back to My Applications when the application id is missing", async () => {
+    mocks.get.mockResolvedValue(detail({ already_applied: true }));
+    mount();
     expect(
-      screen.getByRole("link", { name: "View my applications" }),
+      await screen.findByRole("link", { name: "Applied · View application" }),
     ).toHaveAttribute("href", "/applications");
   });
 
@@ -189,10 +266,10 @@ describe("JobPostingDetail", () => {
     mount("", id, detail().data.data);
     // The cached copy shows first, then the fresh answer replaces it.
     expect(
-      screen.getByRole("button", { name: "Choose your CV (PDF)" }),
+      screen.getByRole("button", { name: "Apply with your CV" }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByRole("button", { name: "Applied" }),
+      await screen.findByRole("link", { name: "Applied · View application" }),
     ).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledTimes(1);
   });
@@ -250,7 +327,7 @@ describe("JobPostingDetail", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Salary")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/doesn't list specific requirements/),
+      screen.getByText(/doesn't list specific skills/),
     ).toBeInTheDocument();
     expect(
       screen.getByText("The recruiter hasn't added a job description."),

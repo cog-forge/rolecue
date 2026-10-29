@@ -3,6 +3,7 @@
 import {
   useEffect,
   useState,
+  useSyncExternalStore,
   type ComponentProps,
   type FormEvent,
   type MouseEvent,
@@ -40,6 +41,7 @@ import {
   hasTextFilters,
   isFilterTooLong,
   parseBoardFilters,
+  parseSelectedJob,
   type BoardFilters,
 } from "../utils/board-filters";
 import {
@@ -48,6 +50,26 @@ import {
   publicationText,
   salaryText,
 } from "../utils/format";
+import { JobPostingDetail } from "./job-posting-detail";
+
+// The list and the selected posting sit side by side from Tailwind's lg breakpoint.
+const DESKTOP = "(min-width: 1024px)";
+// How many skills a card previews before "+N".
+const CARD_SKILLS = 4;
+
+function subscribeDesktop(onChange: () => void) {
+  const media = window.matchMedia(DESKTOP);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+// False on the server and in the first client render, so the markup matches before hydration.
+function useDesktop() {
+  return useSyncExternalStore(
+    subscribeDesktop,
+    () => window.matchMedia(DESKTOP).matches,
+    () => false,
+  );
+}
 
 const boardHref = (filters: BoardFilters) =>
   `${routes.jobs}${boardSearch(filters)}`;
@@ -93,20 +115,21 @@ function FilterLink({
   );
 }
 
-function useBoardFilters() {
+function useBoardParams() {
   const params = useSearchParams();
   const record: Record<string, string | string[]> = {};
   for (const key of new Set(params.keys())) {
     const values = params.getAll(key);
     record[key] = values.length === 1 ? values[0] : values;
   }
-  return parseBoardFilters(record);
+  return { filters: parseBoardFilters(record), job: parseSelectedJob(record) };
 }
 
 export function JobBoard() {
   const user = useSessionUser();
   const cache = useQueryClient();
-  const filters = useBoardFilters();
+  const { filters, job } = useBoardParams();
+  const desktop = useDesktop();
   const query = useQuery({
     queryKey: jobBoardKeys.list(user.id, filters),
     queryFn: ({ signal }) => getJobBoard(filters, signal),
@@ -132,6 +155,8 @@ export function JobBoard() {
   const filtered = hasTextFilters(filters);
   // An empty previous result says nothing about the new search, so show loading instead.
   const loading = query.isPending || (switching && page?.items.length === 0);
+  // On wide screens a posting is always open beside the list: the one in the URL, else the first.
+  const selected = desktop ? (job ?? page?.items[0]?.id ?? null) : null;
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
@@ -219,42 +244,59 @@ export function JobBoard() {
           <p role="status" className="sr-only">
             {switching ? "Loading job postings…" : ""}
           </p>
-          <ul
-            aria-label={`Open job postings, ${firstRow}–${lastRow} of ${total}`}
-            aria-busy={switching}
-            className={cn(
-              "divide-y rounded-xl border transition-opacity duration-[var(--duration-fast)] motion-reduce:transition-none",
-              switching && "opacity-60",
-            )}
-          >
-            {page.items.map((posting) => (
-              <PostingCard
-                key={posting.id}
-                posting={posting}
-                filters={filters}
-              />
-            ))}
-          </ul>
-          <nav
-            aria-label="Pagination"
-            className="flex flex-wrap items-center justify-between gap-3 text-sm"
-          >
-            <p className="text-muted-foreground tabular-nums">
-              Showing {firstRow}–{lastRow} of {total}
-            </p>
-            <div className="flex gap-2">
-              <PageLink
-                label="Previous"
-                filters={{ ...filters, page: shownPage - 1 }}
-                disabled={switching || shownPage <= 1}
-              />
-              <PageLink
-                label="Next"
-                filters={{ ...filters, page: shownPage + 1 }}
-                disabled={switching || lastRow >= total}
-              />
+          <div className="lg:grid lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:items-start lg:gap-6">
+            <div className="space-y-4">
+              <ul
+                aria-label={`Open job postings, ${firstRow}–${lastRow} of ${total}`}
+                aria-busy={switching}
+                className={cn(
+                  "divide-y rounded-xl border transition-opacity duration-[var(--duration-fast)] motion-reduce:transition-none",
+                  switching && "opacity-60",
+                )}
+              >
+                {page.items.map((posting) => (
+                  <PostingCard
+                    key={posting.id}
+                    posting={posting}
+                    filters={filters}
+                    selected={posting.id === selected}
+                  />
+                ))}
+              </ul>
+              <nav
+                aria-label="Pagination"
+                className="flex flex-wrap items-center justify-between gap-3 text-sm"
+              >
+                <p className="text-muted-foreground tabular-nums">
+                  Showing {firstRow}–{lastRow} of {total}
+                </p>
+                <div className="flex gap-2">
+                  <PageLink
+                    label="Previous"
+                    filters={{ ...filters, page: shownPage - 1 }}
+                    disabled={switching || shownPage <= 1}
+                  />
+                  <PageLink
+                    label="Next"
+                    filters={{ ...filters, page: shownPage + 1 }}
+                    disabled={switching || lastRow >= total}
+                  />
+                </div>
+              </nav>
             </div>
-          </nav>
+            {selected && (
+              <aside
+                aria-label="Selected job posting"
+                className="hidden rounded-xl border p-6 lg:sticky lg:top-6 lg:block lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto"
+              >
+                <JobPostingDetail
+                  key={selected}
+                  id={selected}
+                  variant="panel"
+                />
+              </aside>
+            )}
+          </div>
         </>
       ) : null}
     </section>
@@ -264,9 +306,11 @@ export function JobBoard() {
 function PostingCard({
   posting,
   filters,
+  selected,
 }: {
   posting: BoardPosting;
   filters: BoardFilters;
+  selected: boolean;
 }) {
   const salary = salaryText(posting);
   const facts = [
@@ -274,14 +318,45 @@ function PostingCard({
     levelText[posting.seniority_level],
     salary,
   ].filter(Boolean);
+  const skills = posting.top_skills?.slice(0, CARD_SKILLS) ?? [];
+  const more = Math.max(
+    0,
+    (posting.required_skill_count ?? skills.length) - skills.length,
+  );
   return (
-    <li className="group relative p-5 transition-colors duration-[var(--duration-quick)] hover:bg-muted/30 has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none">
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+    <li
+      aria-current={selected || undefined}
+      className={cn(
+        "group relative p-4 transition-colors duration-[var(--duration-quick)] first:rounded-t-xl last:rounded-b-xl hover:bg-muted/30 has-[a:focus-visible]:ring-3 has-[a:focus-visible]:ring-ring/50 motion-reduce:transition-none",
+        selected &&
+          "bg-muted/50 before:absolute before:inset-y-3 before:left-0 before:w-0.5 before:rounded-full before:bg-foreground hover:bg-muted/50",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <h2 className="text-base font-semibold [overflow-wrap:anywhere]">
-            {/* The stretched link makes the whole card clickable with one tab stop. */}
+            {/* The stretched link makes the whole card clickable with one tab stop. On wide screens a
+                plain click opens the posting beside the list; below that it opens the posting page. */}
             <Link
               href={postingHref(posting.id, filters)}
+              scroll={false}
+              onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+                if (
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey ||
+                  !window.matchMedia(DESKTOP).matches
+                )
+                  return;
+                event.preventDefault();
+                window.history.pushState(
+                  null,
+                  "",
+                  `${routes.jobs}${boardSearch(filters, posting.id)}`,
+                );
+              }}
               className="outline-none after:absolute after:inset-0 after:rounded-xl group-hover:underline underline-offset-4"
             >
               {posting.title}
@@ -303,10 +378,28 @@ function PostingCard({
           </p>
         </div>
         <ChevronRight
-          className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"
+          className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none lg:hidden"
           aria-hidden
         />
       </div>
+      {skills.length > 0 && (
+        <ul aria-label="Key skills" className="mt-3 flex flex-wrap gap-1.5">
+          {skills.map((skill) => (
+            <li
+              key={skill}
+              className="rounded-md bg-muted px-2 py-0.5 text-xs [overflow-wrap:anywhere]"
+            >
+              {skill}
+            </li>
+          ))}
+          {more > 0 && (
+            <li className="px-1 py-0.5 text-xs text-muted-foreground">
+              +{more}
+              <span className="sr-only"> more</span>
+            </li>
+          )}
+        </ul>
+      )}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
         <ul aria-label="Details" className="flex flex-wrap gap-x-4 gap-y-1">
           {facts.map((fact, i) => (

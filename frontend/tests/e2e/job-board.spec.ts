@@ -93,6 +93,9 @@ async function mockBoard(
               { name: "Kubernetes", target: "tool", type: "preferred" },
             ],
             already_applied: alreadyApplied,
+            application_id: alreadyApplied
+              ? "77777777-7777-4777-8777-777777777777"
+              : null,
           },
         },
       });
@@ -112,9 +115,48 @@ async function mockBoard(
   return { listQueries, boardCalls };
 }
 
-test("candidate searches the board, opens a posting and comes back to the same results", async ({
+test("on a wide screen the board opens the selected posting beside the list", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const api = await mockBoard(page);
+  await page.goto("/jobs");
+
+  const panel = page.getByRole("complementary", {
+    name: "Selected job posting",
+  });
+  // With nothing selected, the first result is open.
+  await expect(
+    panel.getByRole("heading", { level: 2, name: "Go Backend Engineer" }),
+  ).toBeVisible();
+  await expect(panel.getByText("We build reliable APIs in Go.")).toBeVisible();
+  await expect(
+    panel.getByRole("button", { name: "Apply with your CV" }),
+  ).toBeVisible();
+  await expect(panel.getByRole("list", { name: "Required" })).toContainText(
+    "Go",
+  );
+
+  // Selecting another card changes the URL only; the list is not fetched again.
+  const listCalls = api.listQueries.length;
+  await page.getByRole("link", { name: "React Developer" }).click();
+  await expect(page).toHaveURL(new RegExp(`/jobs\\?job=${closedId}$`));
+  await expect(
+    panel.getByRole("heading", { name: "This posting is no longer available" }),
+  ).toBeVisible();
+  expect(api.listQueries).toHaveLength(listCalls);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/jobs$/);
+  await expect(
+    panel.getByRole("heading", { level: 2, name: "Go Backend Engineer" }),
+  ).toBeVisible();
+});
+
+test("on a phone a candidate searches the board, opens a posting and comes back to the same results", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   const api = await mockBoard(page);
   await page.goto("/jobs");
 
@@ -141,7 +183,7 @@ test("candidate searches the board, opens a posting and comes back to the same r
   ).toBeVisible();
   await expect(page.getByText("We build reliable APIs in Go.")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Choose your CV (PDF)" }),
+    page.getByRole("button", { name: "Apply with your CV" }),
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Back to Job Board" }).click();
@@ -201,14 +243,18 @@ test("a posting the candidate already applied to shows Applied", async ({
 }) => {
   await mockBoard(page, true);
   await page.goto(`/jobs/${goId}`);
-  await expect(page.getByRole("button", { name: "Applied" })).toHaveAttribute(
-    "aria-disabled",
-    "true",
+  await expect(
+    page.getByRole("link", { name: "Applied · View application" }),
+  ).toHaveAttribute(
+    "href",
+    "/applications/77777777-7777-4777-8777-777777777777",
   );
   await expect(
     page.getByText("You already applied to this posting."),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Apply" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Apply with your CV" }),
+  ).toHaveCount(0);
 });
 
 test("a closed or removed posting explains it is no longer available", async ({

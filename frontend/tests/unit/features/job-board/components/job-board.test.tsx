@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   fireEvent,
   render,
@@ -18,6 +18,7 @@ import {
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   count: vi.fn(),
+  detail: null as null | ((id: string) => Promise<unknown>),
   search: new URLSearchParams(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
@@ -32,9 +33,11 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     get: (path: string, options: { params?: Record<string, unknown> }) =>
-      options.params?.published_from
-        ? mocks.count(path, options)
-        : mocks.get(path, options),
+      mocks.detail && path !== "/job-board"
+        ? mocks.detail(path.split("/").pop() ?? "")
+        : options.params?.published_from
+          ? mocks.count(path, options)
+          : mocks.get(path, options),
   },
 }));
 vi.mock("@/features/auth/components/session-gate", () => ({
@@ -82,6 +85,10 @@ function failure(status: number) {
 }
 function mount(filters: BoardFilters = defaultBoardFilters) {
   mocks.search = new URLSearchParams(boardSearch(filters));
+  return mountWithSearch();
+}
+// Renders with whatever mocks.search holds, for URLs that carry more than the filters.
+function mountWithSearch() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -162,6 +169,106 @@ describe("JobBoard", () => {
     expect(
       screen.queryByRole("button", { name: /apply/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("previews up to four required skills on each card", async () => {
+    mocks.get.mockResolvedValue(
+      page([
+        posting(0, {
+          top_skills: ["AWS", "Docker", "Go", "Kafka", "PostgreSQL"],
+          required_skill_count: 7,
+        }),
+        posting(1),
+      ]),
+    );
+    mount();
+    const skills = await screen.findAllByRole("list", { name: "Key skills" });
+    expect(skills).toHaveLength(1);
+    const items = within(skills[0]).getAllByRole("listitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "AWS",
+      "Docker",
+      "Go",
+      "Kafka",
+      "+3 more",
+    ]);
+  });
+
+  describe("on a wide screen", () => {
+    const original = window.matchMedia;
+    beforeEach(() => {
+      window.matchMedia = (query: string) =>
+        ({
+          ...original(query),
+          matches: query === "(min-width: 1024px)",
+        }) as MediaQueryList;
+      mocks.detail = vi.fn((id: string) =>
+        Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              ...posting(Number(id.slice(-12))),
+              company_website: null,
+              interview_duration: 30,
+              raw_text: "JD",
+              requirements: [],
+              already_applied: false,
+            },
+          },
+        }),
+      );
+    });
+    afterEach(() => {
+      window.matchMedia = original;
+      mocks.detail = null;
+    });
+
+    it("opens the first posting beside the list when none is selected", async () => {
+      mocks.get.mockResolvedValue(page(postings(0, 2)));
+      mount();
+      const panel = await screen.findByRole("complementary", {
+        name: "Selected job posting",
+      });
+      expect(
+        await within(panel).findByRole("heading", {
+          level: 2,
+          name: "Posting 1",
+        }),
+      ).toBeInTheDocument();
+      const [first] = within(
+        screen.getByRole("list", { name: /Open job postings/ }),
+      )
+        .getAllByRole("listitem")
+        .filter((item) => item.hasAttribute("aria-current"));
+      expect(first).toHaveTextContent("Posting 1");
+    });
+
+    it("selects a posting in the URL instead of leaving the board", async () => {
+      mocks.get.mockResolvedValue(page(postings(0, 2)));
+      mount({ ...defaultBoardFilters, search: "Go" });
+      const push = vi.spyOn(window.history, "pushState");
+      fireEvent.click(await screen.findByRole("link", { name: "Posting 2" }));
+      expect(push).toHaveBeenCalledWith(
+        null,
+        "",
+        "/jobs?q=Go&job=33333333-3333-4333-8333-000000000001",
+      );
+      push.mockRestore();
+    });
+
+    it("shows the posting named in the URL", async () => {
+      mocks.get.mockResolvedValue(page(postings(0, 2)));
+      mocks.search = new URLSearchParams(
+        "job=33333333-3333-4333-8333-000000000001",
+      );
+      mountWithSearch();
+      const panel = await screen.findByRole("complementary", {
+        name: "Selected job posting",
+      });
+      expect(
+        await within(panel).findByRole("heading", { name: "Posting 2" }),
+      ).toBeInTheDocument();
+    });
   });
 
   it("sends filters to the API and keeps them in page and detail links", async () => {

@@ -49,13 +49,24 @@ export function hasTextFilters(filters: BoardFilters) {
   );
 }
 
+const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// The posting open beside the list on wide screens. It is not a filter: the API never sees it, and
+// a new search or page drops it so the first result of the new list is shown.
+export function parseSelectedJob(params: SearchParams) {
+  const job = single(params.job);
+  return job && UUID.test(job) ? job.toLowerCase() : null;
+}
+
 // URL query for the board; defaults are left out to keep links short.
-export function boardSearch(filters: BoardFilters) {
+export function boardSearch(filters: BoardFilters, job: string | null = null) {
   const params = new URLSearchParams();
   if (filters.search) params.set("q", filters.search);
   if (filters.location) params.set("location", filters.location);
   if (filters.type) params.set("type", filters.type);
   if (filters.page > 1) params.set("page", String(filters.page));
+  if (job) params.set("job", job);
   const query = params.toString();
   return query ? `?${query}` : "";
 }
