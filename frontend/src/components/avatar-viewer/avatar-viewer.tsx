@@ -49,11 +49,28 @@ export function AvatarViewer({
   label,
   onAccessExpired,
   className,
+  fallbackReason,
+  presentation = "preview",
+  cameraView = "conversation",
+  atmosphere = "warm",
+  viewResetSignal = 0,
+  onReadyChange,
+  backgroundSrc,
+  horizontalOffset = 0,
 }: {
   access: ModelAccess | null;
   label: string;
   onAccessExpired: () => void;
   className?: string;
+  /** Known absence of an asset; omit while a grant is still loading. */
+  fallbackReason?: string;
+  presentation?: "preview" | "interview";
+  cameraView?: "conversation" | "close";
+  atmosphere?: "warm" | "daylight" | "evening";
+  viewResetSignal?: number;
+  onReadyChange?: (ready: boolean) => void;
+  backgroundSrc?: string;
+  horizontalOffset?: number;
 }) {
   const webgl = useSyncExternalStore(
     noSubscription,
@@ -84,6 +101,13 @@ export function AvatarViewer({
     setStatus(next);
   }, []);
 
+  const immersive = presentation === "interview";
+  useEffect(() => {
+    onReadyChange?.(
+      webgl === true && !!access && !fallbackReason && status.state === "ready",
+    );
+  }, [webgl, access, fallbackReason, status.state, onReadyChange]);
+
   const retry = () => {
     expiredOnce.current = false;
     setStatus({ state: "loading" });
@@ -97,18 +121,35 @@ export function AvatarViewer({
       label={label}
       reason={reason}
       onRetry={canRetry ? retry : undefined}
+      immersive={immersive}
     />
   );
 
   return (
     <div
       className={cn(
-        "relative isolate aspect-[3/4] w-full overflow-hidden rounded-2xl border sm:aspect-[4/3]",
+        immersive
+          ? "relative isolate h-full w-full overflow-hidden"
+          : "relative isolate aspect-[3/4] w-full overflow-hidden rounded-2xl border sm:aspect-[4/3]",
         className,
       )}
     >
-      <StudioBackdrop />
-      {webgl === false ? (
+      <StudioBackdrop
+        src={backgroundSrc}
+        immersive={immersive}
+        className={
+          immersive
+            ? atmosphere === "evening"
+              ? "brightness-50 saturate-75"
+              : atmosphere === "daylight"
+                ? "brightness-110 saturate-50"
+                : "brightness-90 saturate-75"
+            : undefined
+        }
+      />
+      {!access && fallbackReason ? (
+        fallback(fallbackReason, false)
+      ) : webgl === false ? (
         fallback("3D preview isn't available on this device or browser.", false)
       ) : status.state === "fallback" ? (
         fallback("3D rendering stopped on this device.", true)
@@ -127,7 +168,11 @@ export function AvatarViewer({
               <div role="img" aria-label={label} className="absolute inset-0">
                 <AvatarCanvas
                   access={access}
-                  resetSignal={resetSignal}
+                  resetSignal={immersive ? viewResetSignal : resetSignal}
+                  presentation={presentation}
+                  cameraView={cameraView}
+                  atmosphere={atmosphere}
+                  horizontalOffset={horizontalOffset}
                   onStatus={handleStatus}
                 />
               </div>
@@ -136,16 +181,23 @@ export function AvatarViewer({
           {status.state === "loading" && (
             <div
               role="status"
-              className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/90 text-sm text-muted-foreground"
+              className={cn(
+                "absolute inset-0 flex flex-col items-center justify-center gap-3 text-sm",
+                immersive
+                  ? "pointer-events-none bg-black/10 pb-[50dvh] text-white drop-shadow-lg md:pb-0 md:pl-96"
+                  : "bg-background/90 text-muted-foreground",
+              )}
             >
               <LoaderCircle
                 aria-hidden
                 className="size-5 animate-spin motion-reduce:animate-none"
               />
-              Loading 3D preview…
+              {immersive
+                ? "Preparing your interviewer…"
+                : "Loading 3D preview…"}
             </div>
           )}
-          {status.state === "ready" && (
+          {status.state === "ready" && !immersive && (
             <Button
               type="button"
               variant="secondary"
@@ -165,31 +217,57 @@ function FallbackCard({
   label,
   reason,
   onRetry,
+  immersive = false,
 }: {
   label: string;
   reason: string;
   onRetry?: () => void;
+  immersive?: boolean;
 }) {
   return (
     <div
       role="alert"
-      className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-background/90 p-6 text-center"
+      className={cn(
+        "absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center",
+        immersive
+          ? "bg-black/15 pb-[50dvh] text-white md:pb-0 md:pl-[420px]"
+          : "bg-background/90",
+      )}
     >
       <span
         aria-hidden
-        className="flex size-14 items-center justify-center rounded-2xl border bg-card"
+        className={cn(
+          "flex size-14 items-center justify-center rounded-2xl border",
+          immersive
+            ? "border-white/20 bg-black/20 backdrop-blur-xl"
+            : "bg-card",
+        )}
       >
-        <Box className="size-6 text-muted-foreground" strokeWidth={1.5} />
+        <Box
+          className={cn("size-6", !immersive && "text-muted-foreground")}
+          strokeWidth={1.5}
+        />
       </span>
       <div className="space-y-1">
         <p className="text-sm font-medium [overflow-wrap:anywhere]">{label}</p>
-        <p className="max-w-xs text-sm text-muted-foreground">{reason}</p>
+        <p
+          className={cn(
+            "max-w-xs text-sm",
+            immersive ? "text-white/90" : "text-muted-foreground",
+          )}
+        >
+          {reason}
+        </p>
       </div>
       {onRetry && (
         <Button
           type="button"
           variant="outline"
-          className="h-11"
+          className={cn(
+            "h-11",
+            immersive &&
+              "border-white/20 bg-black/30 text-white hover:bg-black/50 hover:text-white",
+          )}
           onClick={onRetry}
         >
           Try again
