@@ -10,6 +10,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/email"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
@@ -30,6 +31,8 @@ type Application struct {
 	Synthesizer tts.Synthesizer
 	// Expiry rejects Applications whose interview deadline passed; main starts it.
 	Expiry *applicationservice.ExpiryRunner
+	// Email sends transactional mail asynchronously; its consumers (KAN-219) inject it, and cleanup drains it.
+	Email *email.Dispatcher
 }
 
 func InitializeApplication(configPath string) (*Application, func(), error) {
@@ -93,6 +96,9 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideAdminInterviewsRepository,
 		provider.ProvideAdminInterviewsService,
 		provider.ProvideAdminInterviewsHandler,
+		provider.ProvideAdminOverviewRepository,
+		provider.ProvideAdminOverviewService,
+		provider.ProvideAdminOverviewHandler,
 		provider.ProvideInterviewRepository,
 		provider.ProvideInterviewScorer,
 		provider.ProvideInterviewEvaluationService,
@@ -104,6 +110,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideInterviewRecordingHandler,
 		provider.ProvideInterviewHandlers,
 		provider.ProvideApplicationExpiryRunner,
+		provider.ProvideEmailSender,
+		provider.ProvideEmailDispatcher,
 		provider.ProvideRouter,
 		provider.ProvideHTTPServer,
 		wire.Struct(new(Application), "*"),

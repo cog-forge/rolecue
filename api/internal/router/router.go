@@ -33,6 +33,7 @@ type Router struct {
 	evaluationHandler      *handler.EvaluationHandler
 	applicationHandler     *handler.ApplicationHandler
 	adminInterviewsHandler *handler.AdminInterviewsHandler
+	adminOverviewHandler   *handler.AdminOverviewHandler
 	interviewHandlers      *handler.InterviewHandlers
 }
 
@@ -57,6 +58,7 @@ func NewRouter(
 	evaluationHandler *handler.EvaluationHandler,
 	applicationHandler *handler.ApplicationHandler,
 	adminInterviewsHandler *handler.AdminInterviewsHandler,
+	adminOverviewHandler *handler.AdminOverviewHandler,
 	interviewHandlers *handler.InterviewHandlers,
 ) *Router {
 	return &Router{
@@ -80,6 +82,7 @@ func NewRouter(
 		evaluationHandler:      evaluationHandler,
 		applicationHandler:     applicationHandler,
 		adminInterviewsHandler: adminInterviewsHandler,
+		adminOverviewHandler:   adminOverviewHandler,
 		interviewHandlers:      interviewHandlers,
 	}
 }
@@ -217,6 +220,7 @@ func (r *Router) Setup() *gin.Engine {
 	admin.GET("/job-postings/:id", r.moderationHandler.Get)
 	admin.POST("/job-postings/:id/approve", r.moderationHandler.Approve)
 	admin.POST("/job-postings/:id/reject", r.moderationHandler.Reject)
+	admin.GET("/overview", r.adminOverviewHandler.Get)
 	admin.GET("/interviews", r.adminInterviewsHandler.List)
 	admin.GET("/interviews/:id", r.adminInterviewsHandler.Get)
 	admin.GET("/voices", r.voiceCatalogHandler.List)

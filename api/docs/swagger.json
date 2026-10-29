@@ -1126,6 +1126,81 @@
                 }
             }
         },
+        "/admin/overview": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Read-only aggregates over a window of 7, 30 or 90 days (default 30). The window is [now-days, now). Accounts count Candidate and Recruiter users only (Admin excluded). locked means is_locked and the lock has not expired. new_in_window counts users created in the window. job_postings and applications by status are all-time counts; submitted_in_window counts applications created in the window. Interview *_started_in_window use started_at by type, completed_in_window uses completed_at, evaluation_failed is all-time. finance is the wallet billing summary over the window: revenue is successful PayOS top-ups only, and coin debits and refunds are not revenue. The response carries no personal data.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-overview"
+                ],
+                "summary": "Get the Admin platform and finance overview",
+                "parameters": [
+                    {
+                        "enum": [
+                            7,
+                            30,
+                            90
+                        ],
+                        "type": "integer",
+                        "default": 30,
+                        "description": "Window in days",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Overview"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/users": {
             "get": {
                 "security": [
@@ -8939,6 +9014,149 @@
             "type": "object",
             "properties": {
                 "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.Overview": {
+            "type": "object",
+            "properties": {
+                "accounts": {
+                    "$ref": "#/definitions/domain.OverviewAccounts"
+                },
+                "applications": {
+                    "$ref": "#/definitions/domain.OverviewApplications"
+                },
+                "finance": {
+                    "$ref": "#/definitions/domain.OverviewFinance"
+                },
+                "generated_at": {
+                    "type": "string"
+                },
+                "interviews": {
+                    "$ref": "#/definitions/domain.OverviewInterviews"
+                },
+                "job_postings": {
+                    "$ref": "#/definitions/domain.OverviewPostings"
+                },
+                "window": {
+                    "$ref": "#/definitions/domain.OverviewWindow"
+                }
+            }
+        },
+        "domain.OverviewAccounts": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "integer"
+                },
+                "locked": {
+                    "type": "integer"
+                },
+                "new_in_window": {
+                    "type": "integer"
+                },
+                "recruiters": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.OverviewApplications": {
+            "type": "object",
+            "properties": {
+                "approved": {
+                    "type": "integer"
+                },
+                "interview_eligible": {
+                    "type": "integer"
+                },
+                "interviewed": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "rejected": {
+                    "type": "integer"
+                },
+                "submitted_in_window": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.OverviewFinance": {
+            "type": "object",
+            "properties": {
+                "coins_refunded": {
+                    "type": "integer"
+                },
+                "coins_sold": {
+                    "type": "integer"
+                },
+                "coins_spent": {
+                    "type": "integer"
+                },
+                "revenue_vnd": {
+                    "type": "integer"
+                },
+                "success_rate": {
+                    "type": "number"
+                },
+                "successful_deposits": {
+                    "type": "integer"
+                },
+                "unique_payers": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.OverviewInterviews": {
+            "type": "object",
+            "properties": {
+                "completed_in_window": {
+                    "type": "integer"
+                },
+                "evaluation_failed": {
+                    "type": "integer"
+                },
+                "practice_started_in_window": {
+                    "type": "integer"
+                },
+                "recruitment_started_in_window": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.OverviewPostings": {
+            "type": "object",
+            "properties": {
+                "closed": {
+                    "type": "integer"
+                },
+                "intake_closed": {
+                    "type": "integer"
+                },
+                "open": {
+                    "type": "integer"
+                },
+                "pending": {
+                    "type": "integer"
+                },
+                "rejected": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.OverviewWindow": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "to": {
                     "type": "string"
                 }
             }

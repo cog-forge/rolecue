@@ -76,7 +76,7 @@ type OverviewInterviews struct {
 }
 
 // OverviewFinance is the wallet billing summary over the window. RevenueVND is successful PayOS
-// top-ups only. SuccessRate is the share of started top-ups that succeeded, from 0 to 1.
+// top-ups only. SuccessRate is the percent (0 to 100) of PayOS top-up attempts that succeeded, as in the admin billing summary.
 type OverviewFinance struct {
 	RevenueVND         int64   `json:"revenue_vnd"`
 	SuccessfulDeposits int64   `json:"successful_deposits"`
