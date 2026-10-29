@@ -8,5 +8,14 @@
     "title": "Đã xảy ra lỗi",
     "description": "Không thể tải ứng dụng. Vui lòng thử lại.",
     "retry": "Thử lại"
+  },
+  "format": {
+    "coins": "{count, plural, other {# xu}}",
+    "timeLeft": {
+      "passed": "Đã hết hạn",
+      "lessThanMinute": "Còn chưa đầy 1 phút",
+      "minutes": "Còn {minutes} phút",
+      "hoursMinutes": "Còn {hours} giờ {minutes} phút"
+    }
   }
 }

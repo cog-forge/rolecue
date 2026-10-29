@@ -8,5 +8,14 @@
     "title": "Something went wrong",
     "description": "The application could not load. Please try again.",
     "retry": "Try again"
+  },
+  "format": {
+    "coins": "{count, plural, one {# coin} other {# coins}}",
+    "timeLeft": {
+      "passed": "Deadline passed",
+      "lessThanMinute": "Less than a minute left",
+      "minutes": "{minutes} min left",
+      "hoursMinutes": "{hours} h {minutes} min left"
+    }
   }
 }

@@ -1,7 +1,8 @@
 import type { ReactElement, ReactNode } from "react";
 import { render, type RenderOptions } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
+import { NextIntlClientProvider, createTranslator } from "next-intl";
 import type { AppLocale } from "@/lib/i18n/config";
+import { createFormatters } from "@/lib/i18n/formatters";
 import { mergeMessages } from "@/lib/i18n/fallback";
 import en from "@/lib/i18n/messages/en";
 import vi from "@/lib/i18n/messages/vi";
@@ -11,6 +12,35 @@ const catalogs = { en, vi };
 // Same fallback rule as production: the active catalog layered over English.
 export function messagesFor(locale: AppLocale) {
   return mergeMessages(en, catalogs[locale]);
+}
+
+// The same formatters a component gets from useFormatters(), for tests of plain functions.
+export function formattersFor(locale: AppLocale = "en") {
+  return createFormatters(
+    locale,
+    createTranslator({
+      locale,
+      messages: messagesFor(locale),
+      namespace: "common.format",
+    }),
+  );
+}
+
+// Translators for plain functions: the same `useTranslations(namespace)` a component would get.
+export function validationFor(locale: AppLocale = "en") {
+  return createTranslator({
+    locale,
+    messages: messagesFor(locale),
+    namespace: "validation",
+  });
+}
+
+export function errorsFor(locale: AppLocale = "en") {
+  return createTranslator({
+    locale,
+    messages: messagesFor(locale),
+    namespace: "errors",
+  });
 }
 
 export function IntlWrapper({
