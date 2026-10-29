@@ -13,6 +13,10 @@ type Message struct {
 	To      string
 	Subject string
 	Body    string
+	// ID names this message across every retry; a provider that supports it uses it to refuse a duplicate
+	// when an attempt timed out after the provider had already accepted the mail. Dispatch fills it in
+	// when the caller leaves it empty.
+	ID string
 }
 
 // Sender delivers one message. A returned error is retried by the Dispatcher unless it is Permanent.

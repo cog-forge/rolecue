@@ -2,6 +2,8 @@ package email
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"sync"
 	"time"
@@ -106,6 +108,9 @@ func (d *Dispatcher) Dispatch(label string, msg Message) {
 	if d.closed {
 		return
 	}
+	if msg.ID == "" {
+		msg.ID = newMessageID()
+	}
 	select {
 	case d.queue <- job{label: label, msg: msg}:
 	default:
@@ -119,16 +124,34 @@ func (d *Dispatcher) Close(ctx context.Context) error {
 	d.stopOnce.Do(d.stop)
 	// An expired context means no time to drain, so the queue is abandoned even if the workers are idle.
 	if err := ctx.Err(); err != nil {
-		d.cancel()
+		d.abandon()
 		return err
 	}
 	select {
 	case <-d.done:
 		return nil
 	case <-ctx.Done():
-		d.cancel()
+		d.abandon()
 		return ctx.Err()
 	}
+}
+
+// abandon cancels in-flight sends and says how much queued mail will never go out, so a shutdown that ran
+// out of time is visible in the logs with a number.
+func (d *Dispatcher) abandon() {
+	d.cancel()
+	if n := len(d.queue); n > 0 {
+		d.log.Warn("email shutdown abandoned queued mail", logger.Int("count", n))
+	}
+}
+
+// newMessageID is a random 128-bit hex string; it only has to be unique, not secret.
+func newMessageID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b[:])
 }
 
 func (d *Dispatcher) stop() {

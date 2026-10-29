@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import { cn } from "@/lib/utils";
 import { getOverview, isAccessDenied, overviewKeys } from "../api/overview";
 import { parseOverviewDays } from "../utils/overview-days";
 import { OverviewBody } from "./overview-body";
@@ -48,7 +49,7 @@ export function AdminOverview() {
         meta={
           overview ? (
             <span>
-              Last {days} days · Updated{" "}
+              Last {overview.window.days} days · Updated{" "}
               {fmt.date(overview.generated_at, "localDateTime")}
             </span>
           ) : undefined
@@ -90,7 +91,19 @@ export function AdminOverview() {
           </Button>
         </div>
       ) : (
-        <OverviewBody overview={overview} />
+        <div
+          aria-busy={query.isPlaceholderData}
+          className={cn(
+            "transition-opacity duration-200 motion-reduce:transition-none",
+            // The numbers still belong to the previous window until the new one arrives.
+            query.isPlaceholderData && "opacity-60",
+          )}
+        >
+          <p role="status" className="sr-only">
+            {query.isPlaceholderData ? `Loading the last ${days} days…` : ""}
+          </p>
+          <OverviewBody overview={overview} />
+        </div>
       )}
 
       <nav aria-label="Admin tools" className="rounded-xl border p-5">
