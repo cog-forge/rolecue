@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { site } from "@/config/site";
 import { routes } from "@/config/routes";
 import { CurtainThemeToggle } from "@/components/ui/curtain-theme-toggle";
+import { LanguageSwitcher } from "./language-switcher";
 export async function SiteShell({
   children,
   navigation,
@@ -38,7 +39,8 @@ export async function SiteShell({
               </Link>
             ))}
           </nav>
-          <div className="ml-auto shrink-0">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <LanguageSwitcher />
             <CurtainThemeToggle />
           </div>
         </div>

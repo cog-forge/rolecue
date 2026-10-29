@@ -1,5 +1,6 @@
 import Image from "next/image";
 import * as React from "react";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 
 export interface LoginViewProps {
   children?: React.ReactNode;
@@ -10,7 +11,10 @@ export function LoginView({ children }: LoginViewProps) {
     <main className="min-h-screen bg-background text-foreground antialiased">
       <div className="flex min-h-screen">
         {/* Left column: Authentication surface */}
-        <div className="flex min-h-screen w-full flex-col lg:w-1/2">
+        <div className="relative flex min-h-screen w-full flex-col lg:w-1/2">
+          <div className="absolute top-4 right-4 z-10 sm:top-6 sm:right-8">
+            <LanguageSwitcher />
+          </div>
           <div className="mx-auto flex min-h-screen w-full max-w-140 flex-col justify-center px-6 py-10 sm:px-12 lg:px-16">
             <section
               aria-label="Account access"

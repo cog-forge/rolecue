@@ -7,6 +7,7 @@ import { useMotionValueEvent, useScroll } from "motion/react";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RoleCueMark } from "@/components/brand/rolecue-mark";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import {
   Sheet,
   SheetClose,
@@ -115,6 +116,12 @@ export function MarketingHeader() {
                   </a>
                 ))}
               </div>
+              <LanguageSwitcher
+                className={cn(
+                  landingFocus,
+                  "px-2 text-base font-medium text-(--rolecue-ink-muted) hover:bg-transparent hover:text-(--rolecue-brand-blue) max-[760px]:px-1 max-[760px]:[&>span]:hidden",
+                )}
+              />
               <Button
                 asChild
                 className={cn(

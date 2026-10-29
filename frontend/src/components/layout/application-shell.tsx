@@ -21,6 +21,7 @@ import {
   type WorkspaceAccountActions,
   type WorkspaceUser,
 } from "./workspace-sidebar";
+import { LanguageSwitcher } from "./language-switcher";
 import { WorkspaceSearch } from "./workspace-search";
 import { cn } from "@/lib/utils";
 
@@ -183,13 +184,16 @@ export function ApplicationShell({
               </p>
               <p className="mt-1 truncate text-sm font-semibold">{pageLabel}</p>
             </div>
-            <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
-              {user.role === "candidate"
-                ? "A steady place to prepare."
-                : user.role === "recruiter"
-                  ? "Your recruitment workspace."
-                  : "Platform governance."}
-            </span>
+            <div className="ml-auto flex items-center gap-3">
+              <span className="hidden text-xs text-muted-foreground sm:block">
+                {user.role === "candidate"
+                  ? "A steady place to prepare."
+                  : user.role === "recruiter"
+                    ? "Your recruitment workspace."
+                    : "Platform governance."}
+              </span>
+              <LanguageSwitcher />
+            </div>
           </header>
           <main
             id="main-content"
