@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -145,11 +147,15 @@ func (d *Dispatcher) abandon() {
 	}
 }
 
-// newMessageID is a random 128-bit hex string; it only has to be unique, not secret.
+var fallbackIDs atomic.Uint64
+
+// newMessageID is a random 128-bit hex string; it only has to be unique, not secret. If the system
+// random source fails (practically never), a clock reading plus a process-wide counter still gives every
+// message its own ID, so the idempotency key is never silently dropped.
 func newMessageID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		return ""
+		return fmt.Sprintf("fallback-%x-%x", time.Now().UnixNano(), fallbackIDs.Add(1))
 	}
 	return hex.EncodeToString(b[:])
 }

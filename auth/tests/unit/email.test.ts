@@ -70,6 +70,17 @@ describe("auth template submission", () => {
     );
     // No end date for an indefinite lock, and an unlock notice never carries one.
     expect(indefinite.template.variables.LOCK_REASON).toBe("Spam.");
+    // An empty reason still reads as one sentence, with no leading space.
+    await sendAccountStatusEmail(
+      "locked",
+      user,
+      "",
+      new Date("2026-11-05T10:00:00Z"),
+    );
+    const noReason = JSON.parse(fetchEmail.mock.calls[3][1].body);
+    expect(noReason.template.variables.LOCK_REASON).toBe(
+      "Your access returns on 2026-11-05 10:00 UTC.",
+    );
     expect(unlocked.template.variables).not.toHaveProperty("LOCK_REASON");
   });
   it("uses the same sender and transport for verification and reset", async () => {

@@ -102,7 +102,9 @@ func (c *client) Send(ctx context.Context, msg email.Message) error {
 	switch {
 	case code >= 200 && code < 300:
 		return nil
-	case code == http.StatusTooManyRequests || code == http.StatusRequestTimeout || code >= 500:
+	// 409 is Resend's concurrent_idempotent_requests: the retry arrived while the first attempt with the same
+	// key was still running, so it is worth another try (400 and 422 stay permanent).
+	case code == http.StatusTooManyRequests || code == http.StatusRequestTimeout || code == http.StatusConflict || code >= 500:
 		return fmt.Errorf("resend: provider returned HTTP %d", code)
 	default:
 		return email.Permanent(fmt.Errorf("resend: provider rejected email: HTTP %d", code))
