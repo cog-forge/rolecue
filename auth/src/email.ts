@@ -79,9 +79,13 @@ export function createMailer(config: AuthEnv["email"]) {
             ? {
                 // The published template prints only the reason, so the end of a timed lock rides with it.
                 LOCK_REASON: escapeHtml(
-                  lockEndsAt
-                    ? `${publicReason} Your access returns on ${formatLockEnd(lockEndsAt)}.`
-                    : publicReason,
+                  [
+                    publicReason,
+                    lockEndsAt &&
+                      `Your access returns on ${formatLockEnd(lockEndsAt)}.`,
+                  ]
+                    .filter(Boolean)
+                    .join(" "),
                 ),
               }
             : { LOGIN_URL: `${config.appURL}/login` }),

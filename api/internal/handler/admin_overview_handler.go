@@ -46,6 +46,7 @@ func adminOverviewDays(c *gin.Context) (int, bool) {
 // Get godoc
 // @Summary Get the Admin platform and finance overview
 // @Description Admin only. Read-only aggregates over a window of 7, 30 or 90 days (default 30). The window is [now-days, now). Accounts count Candidate and Recruiter users only (Admin excluded). locked means is_locked and the lock has not expired. new_in_window counts users created in the window. job_postings and applications by status are all-time counts; submitted_in_window counts applications created in the window. Interview *_started_in_window use started_at by type, completed_in_window uses completed_at, evaluation_failed is all-time. finance is the wallet billing summary over the window: revenue is successful PayOS top-ups only, and coin debits and refunds are not revenue. The response carries no personal data.
+// @Description The blocks are read in separate statements, not one snapshot, so figures that relate to each other (for example applications by status and applications submitted in the window) can differ slightly while data is being written.
 // @Tags admin-overview
 // @Produce json
 // @Security SessionCookie

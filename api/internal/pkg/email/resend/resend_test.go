@@ -75,6 +75,8 @@ func TestStatusClassification(t *testing.T) {
 		{http.StatusAccepted, false},
 		{http.StatusTooManyRequests, false},
 		{http.StatusRequestTimeout, false},
+		// A retry that meets the still-running first attempt (same Idempotency-Key) is retried, not dropped.
+		{http.StatusConflict, false},
 		{http.StatusInternalServerError, false},
 		{http.StatusServiceUnavailable, false},
 		{http.StatusBadRequest, true},
