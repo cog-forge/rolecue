@@ -42,15 +42,16 @@ INSERT INTO public.applications (job_posting_id, candidate_id, status, cv_path)
 VALUES (@job_posting_id, @candidate_id, 'pending', @cv_path)
 RETURNING id, job_posting_id, status::text AS status, created_at;
 
--- The Candidate's own Applications, newest first. cv_path is not selected. The interview columns carry the
+-- The Candidate's own Applications, newest first, with the posting's company and location. cv_path is not selected. The interview columns carry the
 -- session id, completion and score only: no transcript, recording or feedback text.
 -- name: ListCandidateApplications :many
-SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status,
-       a.reject_reason, a.interview_deadline, a.created_at,
+SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, u.company_name, jp.location AS job_posting_location,
+       a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at,
        i.id AS interview_id, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = jp.recruiter_id
 LEFT JOIN public.interviews i ON i.application_id = a.id
 WHERE a.candidate_id = @candidate_id
 ORDER BY a.created_at DESC, a.id DESC
@@ -60,11 +61,12 @@ LIMIT @page_limit OFFSET @page_offset;
 SELECT count(*) FROM public.applications WHERE candidate_id = @candidate_id;
 
 -- name: GetCandidateApplication :one
-SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status,
-       a.reject_reason, a.interview_deadline, a.created_at,
+SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, u.company_name, jp.location AS job_posting_location,
+       a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at,
        i.id AS interview_id, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = jp.recruiter_id
 LEFT JOIN public.interviews i ON i.application_id = a.id
 WHERE a.id = @id AND a.candidate_id = @candidate_id;

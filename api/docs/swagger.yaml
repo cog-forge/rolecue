@@ -357,6 +357,8 @@ definitions:
         type: string
       published_at:
         type: string
+      required_skill_count:
+        type: integer
       salary_max:
         type: integer
       salary_min:
@@ -371,11 +373,20 @@ definitions:
         type: string
       title:
         type: string
+      top_skills:
+        description: |-
+          TopSkills previews up to five required requirement names, in the order the detail lists them;
+          RequiredSkillCount is the full number of required requirements.
+        items:
+          type: string
+        type: array
     type: object
   domain.BoardPostingDetail:
     properties:
       already_applied:
         type: boolean
+      application_id:
+        type: string
       company_name:
         type: string
       company_website:
@@ -394,6 +405,8 @@ definitions:
         type: string
       raw_text:
         type: string
+      required_skill_count:
+        type: integer
       requirements:
         items:
           $ref: '#/definitions/domain.BoardRequirement'
@@ -412,6 +425,13 @@ definitions:
         type: string
       title:
         type: string
+      top_skills:
+        description: |-
+          TopSkills previews up to five required requirement names, in the order the detail lists them;
+          RequiredSkillCount is the full number of required requirements.
+        items:
+          type: string
+        type: array
     type: object
   domain.BoardRequirement:
     properties:
@@ -432,6 +452,10 @@ definitions:
           CanStartInterview is true only while the Application is interview_eligible and the deadline
           has not passed. Start itself is checked again on the server when it exists.
         type: boolean
+      company_name:
+        description: CompanyName and JobPostingLocation come from the posting and
+          its Recruiter, for the list card.
+        type: string
       created_at:
         type: string
       id:
@@ -446,6 +470,8 @@ definitions:
           hours.'
         type: string
       job_posting_id:
+        type: string
+      job_posting_location:
         type: string
       job_posting_title:
         type: string

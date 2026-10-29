@@ -7900,6 +7900,9 @@ const docTemplate = `{
                 "published_at": {
                     "type": "string"
                 },
+                "required_skill_count": {
+                    "type": "integer"
+                },
                 "salary_max": {
                     "type": "integer"
                 },
@@ -7918,6 +7921,13 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "top_skills": {
+                    "description": "TopSkills previews up to five required requirement names, in the order the detail lists them;\nRequiredSkillCount is the full number of required requirements.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -7926,6 +7936,9 @@ const docTemplate = `{
             "properties": {
                 "already_applied": {
                     "type": "boolean"
+                },
+                "application_id": {
+                    "type": "string"
                 },
                 "company_name": {
                     "type": "string"
@@ -7954,6 +7967,9 @@ const docTemplate = `{
                 "raw_text": {
                     "type": "string"
                 },
+                "required_skill_count": {
+                    "type": "integer"
+                },
                 "requirements": {
                     "type": "array",
                     "items": {
@@ -7978,6 +7994,13 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                },
+                "top_skills": {
+                    "description": "TopSkills previews up to five required requirement names, in the order the detail lists them;\nRequiredSkillCount is the full number of required requirements.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         },
@@ -8006,6 +8029,10 @@ const docTemplate = `{
                     "description": "CanStartInterview is true only while the Application is interview_eligible and the deadline\nhas not passed. Start itself is checked again on the server when it exists.",
                     "type": "boolean"
                 },
+                "company_name": {
+                    "description": "CompanyName and JobPostingLocation come from the posting and its Recruiter, for the list card.",
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -8025,6 +8052,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "job_posting_id": {
+                    "type": "string"
+                },
+                "job_posting_location": {
                     "type": "string"
                 },
                 "job_posting_title": {

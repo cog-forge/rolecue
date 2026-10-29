@@ -116,6 +116,7 @@ func (r *Repository) ListCandidateApplications(ctx context.Context, candidateID 
 	for _, row := range rows {
 		items = append(items, domain.CandidateApplication{
 			ID: row.ID, JobPostingID: row.JobPostingID, JobPostingTitle: row.JobPostingTitle,
+			CompanyName: row.CompanyName, JobPostingLocation: row.JobPostingLocation,
 			Status: domain.ApplicationStatus(row.Status), RejectReason: row.RejectReason,
 			InterviewDeadline: timePtr(row.InterviewDeadline), CreatedAt: row.CreatedAt.Time,
 			Interview: candidateInterview(row.InterviewID, row.InterviewCompletedAt, row.InterviewEvaluationStatus, row.InterviewScore),
@@ -136,6 +137,7 @@ func (r *Repository) GetCandidateApplication(ctx context.Context, candidateID, a
 	}
 	return domain.CandidateApplication{
 		ID: row.ID, JobPostingID: row.JobPostingID, JobPostingTitle: row.JobPostingTitle,
+		CompanyName: row.CompanyName, JobPostingLocation: row.JobPostingLocation,
 		Status: domain.ApplicationStatus(row.Status), RejectReason: row.RejectReason,
 		InterviewDeadline: timePtr(row.InterviewDeadline), CreatedAt: row.CreatedAt.Time,
 		Interview: candidateInterview(row.InterviewID, row.InterviewCompletedAt, row.InterviewEvaluationStatus, row.InterviewScore),
