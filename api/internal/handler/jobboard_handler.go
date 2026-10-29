@@ -62,7 +62,7 @@ func jobBoardFilter(c *gin.Context) (domain.BoardFilter, bool) {
 
 // List godoc
 // @Summary Browse open Job Postings
-// @Description Candidate only. Job Postings an Admin approved that still accept Applications, newest first. Search the title and location (case-insensitive, part of the text) and filter by employment type (case-insensitive, whole value). Never includes the question bank, evaluation weights, interview capacity or the reject reason.
+// @Description Candidate only. Job Postings an Admin approved and whose Recruiter funded interview slots, that still accept Applications, newest first. Search the title and location (case-insensitive, part of the text) and filter by employment type (case-insensitive, whole value). Never includes the question bank, evaluation weights, interview capacity or the reject reason.
 // @Tags job-board
 // @Produce json
 // @Security SessionCookie
@@ -100,7 +100,7 @@ func (h *JobBoardHandler) List(c *gin.Context) {
 
 // Get godoc
 // @Summary View an open Job Posting
-// @Description Candidate only. The public content of an open Job Posting: company, details, JD text and requirements, plus whether you already applied. A posting that does not exist or is not open returns the same 404.
+// @Description Candidate only. The public content of an open Job Posting: company, details, JD text and requirements, plus whether you already applied. A posting that does not exist, is not open or is not funded yet returns the same 404.
 // @Tags job-board
 // @Produce json
 // @Security SessionCookie

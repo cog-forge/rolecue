@@ -933,7 +933,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Trusted Origin required. Moves pending to open, which makes the posting available. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.",
+                "description": "Admin only. Trusted Origin required. Moves pending to open. The posting reaches Candidates on the job board only once its Recruiter funds interview slots. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3418,7 +3418,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only. Job Postings an Admin approved that still accept Applications, newest first. Search the title and location (case-insensitive, part of the text) and filter by employment type (case-insensitive, whole value). Never includes the question bank, evaluation weights, interview capacity or the reject reason.",
+                "description": "Candidate only. Job Postings an Admin approved and whose Recruiter funded interview slots, that still accept Applications, newest first. Search the title and location (case-insensitive, part of the text) and filter by employment type (case-insensitive, whole value). Never includes the question bank, evaluation weights, interview capacity or the reject reason.",
                 "produces": [
                     "application/json"
                 ],
@@ -3520,7 +3520,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only. The public content of an open Job Posting: company, details, JD text and requirements, plus whether you already applied. A posting that does not exist or is not open returns the same 404.",
+                "description": "Candidate only. The public content of an open Job Posting: company, details, JD text and requirements, plus whether you already applied. A posting that does not exist, is not open or is not funded yet returns the same 404.",
                 "produces": [
                     "application/json"
                 ],
@@ -3597,7 +3597,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only. Send one PDF as the multipart part \"file\" (at most 5 MB). The Application starts pending, is visible to the Recruiter at once and needs no interview. Submissions are not capped by interview capacity. Errors: VALIDATION_ERROR (no single PDF of at most 5 MB), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND (not open to you), INTAKE_NOT_OPEN (intake closed), ALREADY_APPLIED (you already applied to this posting).",
+                "description": "Candidate only. Send one PDF as the multipart part \"file\" (at most 5 MB). The Application starts pending, is visible to the Recruiter at once and needs no interview. Submissions are not capped by interview capacity. Errors: VALIDATION_ERROR (no single PDF of at most 5 MB), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND (not open to you), INTAKE_NOT_OPEN (intake closed, or the Recruiter has not funded interview slots yet; nothing is uploaded), ALREADY_APPLIED (you already applied to this posting).",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -5393,7 +5393,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only, own postings. Buys slots interview slots at 1 coin each in one transaction with the slot write: the coins leave the Recruiter's wallet and interview_slot is set. Funding is one-time. Sending the same slots again returns the current state and charges nothing; a different count returns INTERVIEW_CAPACITY_ALREADY_FUNDED. The posting must be open (INTAKE_NOT_OPEN otherwise). A wallet below the price returns INSUFFICIENT_BALANCE and changes nothing. Errors: VALIDATION_ERROR (bad ID or body, or slots outside 1 to 10000), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN, INTERVIEW_CAPACITY_ALREADY_FUNDED, INSUFFICIENT_BALANCE.",
+                "description": "Recruiter only, own postings. Buys slots interview slots at 1 coin each in one transaction with the slot write: the coins leave the Recruiter's wallet and interview_slot is set. Funding is one-time, and it is what opens an approved posting to Candidates on the job board. Sending the same slots again returns the current state and charges nothing; a different count returns INTERVIEW_CAPACITY_ALREADY_FUNDED. The posting must be open (INTAKE_NOT_OPEN otherwise). A wallet below the price returns INSUFFICIENT_BALANCE and changes nothing. Errors: VALIDATION_ERROR (bad ID or body, or slots outside 1 to 10000), FORBIDDEN (not a Recruiter), JOB_POSTING_NOT_FOUND (missing or not yours), INTAKE_NOT_OPEN, INTERVIEW_CAPACITY_ALREADY_FUNDED, INSUFFICIENT_BALANCE.",
                 "consumes": [
                     "application/json"
                 ],

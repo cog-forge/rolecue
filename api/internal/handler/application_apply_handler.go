@@ -40,7 +40,7 @@ func (h *ApplicationHandler) candidateService(c *gin.Context) (CandidateApplicat
 
 // Apply godoc
 // @Summary Apply to an open Job Posting with your CV
-// @Description Candidate only. Send one PDF as the multipart part "file" (at most 5 MB). The Application starts pending, is visible to the Recruiter at once and needs no interview. Submissions are not capped by interview capacity. Errors: VALIDATION_ERROR (no single PDF of at most 5 MB), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND (not open to you), INTAKE_NOT_OPEN (intake closed), ALREADY_APPLIED (you already applied to this posting).
+// @Description Candidate only. Send one PDF as the multipart part "file" (at most 5 MB). The Application starts pending, is visible to the Recruiter at once and needs no interview. Submissions are not capped by interview capacity. Errors: VALIDATION_ERROR (no single PDF of at most 5 MB), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND (not open to you), INTAKE_NOT_OPEN (intake closed, or the Recruiter has not funded interview slots yet; nothing is uploaded), ALREADY_APPLIED (you already applied to this posting).
 // @Tags job-board
 // @Accept multipart/form-data
 // @Produce json
