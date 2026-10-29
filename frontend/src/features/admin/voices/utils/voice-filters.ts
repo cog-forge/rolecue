@@ -1,5 +1,5 @@
 // The catalog filters live in the URL so reload, back and sharing keep them.
-export const VOICE_PAGE_SIZE = 20;
+export const VOICE_PAGE_SIZE = 9;
 // Matches domain.MaxVoiceQueryRunes in the Go API.
 export const MAX_VOICE_QUERY = 100;
 // Keeps the API offset inside int32 even for a hand-edited ?page=.

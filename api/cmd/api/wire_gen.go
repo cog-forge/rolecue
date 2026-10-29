@@ -99,7 +99,13 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	avatarConversionService := provider.ProvideAvatarConversionService(repository6, store, blender, config)
 	avatarCreateHandler := provider.ProvideAvatarCreateHandler(avatarConversionService, config)
 	repository7 := provider.ProvideVoiceCatalogRepository(pool)
-	service6, err := provider.ProvideVoiceCatalogService(repository7, logger)
+	voiceProvider, err := provider.ProvideVoiceCatalogProvider(config)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	service6, err := provider.ProvideVoiceCatalogService(repository7, voiceProvider, config, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()

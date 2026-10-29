@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -36,7 +37,7 @@ func (r *Repository) List(ctx context.Context, filter domain.VoiceListFilter) ([
 	}
 	out := make([]domain.VoiceProfile, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, voice(row.ID, row.Name, row.IsActive, row.InterviewCount, row.JobPostingCount))
+		out = append(out, voice(row.ID, row.Name, row.IsActive, row.InterviewCount, row.JobPostingCount, row.Provider, row.ProviderVoiceID, row.Locale, row.Gender))
 	}
 	return out, total, nil
 }
@@ -46,7 +47,7 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.VoiceProfile
 	if err != nil {
 		return domain.VoiceProfile{}, persistenceError(err)
 	}
-	return voice(row.ID, row.Name, row.IsActive, row.InterviewCount, row.JobPostingCount), nil
+	return voice(row.ID, row.Name, row.IsActive, row.InterviewCount, row.JobPostingCount, row.Provider, row.ProviderVoiceID, row.Locale, row.Gender), nil
 }
 
 // Remove deactivates a referenced voice and deletes an unreferenced one. The row lock keeps a new
@@ -98,9 +99,62 @@ func (r *Repository) Activate(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-func voice(id uuid.UUID, name string, active bool, interviews, postings int64) domain.VoiceProfile {
-	return domain.VoiceProfile{ID: id, Name: name, IsActive: active, InterviewCount: interviews, JobPostingCount: postings,
-		InUse: interviews > 0 || postings > 0}
+// Sync applies a validated provider list in one transaction: it upserts every voice and deactivates
+// the provider's voices that are missing from the list. Any error rolls everything back, so a failed
+// sync leaves the catalog as it was. Deactivation only flips is_active; interviews and postings that
+// reference the voice keep their data.
+func (r *Repository) Sync(ctx context.Context, provider string, voices []domain.ProviderVoice) (domain.VoiceSyncResult, error) {
+	result := domain.VoiceSyncResult{Provider: provider, Fetched: len(voices)}
+	payload := make([]syncVoice, 0, len(voices))
+	ids := make([]string, 0, len(voices))
+	for _, v := range voices {
+		payload = append(payload, syncVoice{Name: v.Name, ProviderVoiceID: v.ProviderVoiceID, Locale: v.Locale, Gender: v.Gender})
+		ids = append(ids, v.ProviderVoiceID)
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return domain.VoiceSyncResult{}, persistenceError(err)
+	}
+	err = pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		if err := q.LockProviderSync(ctx, provider); err != nil {
+			return err
+		}
+		changed, err := q.UpsertProviderVoices(ctx, UpsertProviderVoicesParams{Provider: provider, Voices: raw})
+		if err != nil {
+			return err
+		}
+		for _, inserted := range changed {
+			if inserted {
+				result.Added++
+			} else {
+				result.Updated++
+			}
+		}
+		deactivated, err := q.DeactivateMissingProviderVoices(ctx, DeactivateMissingProviderVoicesParams{Provider: provider, ProviderVoiceIds: ids})
+		if err != nil {
+			return err
+		}
+		result.Deactivated = int(deactivated)
+		return nil
+	})
+	if err != nil {
+		return domain.VoiceSyncResult{}, persistenceError(err)
+	}
+	result.Unchanged = result.Fetched - result.Added - result.Updated
+	return result, nil
+}
+
+type syncVoice struct {
+	Name            string `json:"name"`
+	ProviderVoiceID string `json:"provider_voice_id"`
+	Locale          string `json:"locale"`
+	Gender          string `json:"gender"`
+}
+
+func voice(id uuid.UUID, name string, active bool, interviews, postings int64, provider, providerVoiceID, locale, gender *string) domain.VoiceProfile {
+	return domain.VoiceProfile{ID: id, Name: name, IsActive: active, Provider: provider, ProviderVoiceID: providerVoiceID,
+		Locale: locale, Gender: gender, InterviewCount: interviews, JobPostingCount: postings, InUse: interviews > 0 || postings > 0}
 }
 
 func activeArg(status domain.VoiceStatusFilter) *bool {

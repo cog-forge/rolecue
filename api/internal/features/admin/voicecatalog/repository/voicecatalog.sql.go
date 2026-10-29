@@ -56,6 +56,27 @@ func (q *Queries) CountVoices(ctx context.Context, arg CountVoicesParams) (int64
 	return count, err
 }
 
+const deactivateMissingProviderVoices = `-- name: DeactivateMissingProviderVoices :execrows
+UPDATE public.voices SET is_active = false
+WHERE provider = $1::text AND provider_voice_id IS NOT NULL AND is_active
+  AND provider_voice_id <> ALL($2::text[])
+`
+
+type DeactivateMissingProviderVoicesParams struct {
+	Provider         string
+	ProviderVoiceIds []string
+}
+
+// Voices the provider stopped offering are only deactivated; interviews and postings keep them.
+// Legacy rows (no provider) never match.
+func (q *Queries) DeactivateMissingProviderVoices(ctx context.Context, arg DeactivateMissingProviderVoicesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deactivateMissingProviderVoices, arg.Provider, arg.ProviderVoiceIds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deactivateVoice = `-- name: DeactivateVoice :exec
 UPDATE public.voices SET is_active = false WHERE id = $1
 `
@@ -75,7 +96,7 @@ func (q *Queries) DeleteVoice(ctx context.Context, id uuid.UUID) error {
 }
 
 const getVoice = `-- name: GetVoice :one
-SELECT v.id, v.name, v.is_active,
+SELECT v.id, v.name, v.is_active, v.provider, v.provider_voice_id, v.locale, v.gender,
        (SELECT count(*) FROM public.interviews i WHERE i.voice_id = v.id) AS interview_count,
        (SELECT count(*) FROM public.job_postings jp WHERE jp.required_voice_id = v.id) AS job_posting_count
 FROM public.voices v
@@ -86,6 +107,10 @@ type GetVoiceRow struct {
 	ID              uuid.UUID
 	Name            string
 	IsActive        bool
+	Provider        *string
+	ProviderVoiceID *string
+	Locale          *string
+	Gender          *string
 	InterviewCount  int64
 	JobPostingCount int64
 }
@@ -97,6 +122,10 @@ func (q *Queries) GetVoice(ctx context.Context, id uuid.UUID) (GetVoiceRow, erro
 		&i.ID,
 		&i.Name,
 		&i.IsActive,
+		&i.Provider,
+		&i.ProviderVoiceID,
+		&i.Locale,
+		&i.Gender,
 		&i.InterviewCount,
 		&i.JobPostingCount,
 	)
@@ -104,7 +133,7 @@ func (q *Queries) GetVoice(ctx context.Context, id uuid.UUID) (GetVoiceRow, erro
 }
 
 const listVoices = `-- name: ListVoices :many
-SELECT v.id, v.name, v.is_active,
+SELECT v.id, v.name, v.is_active, v.provider, v.provider_voice_id, v.locale, v.gender,
        (SELECT count(*) FROM public.interviews i WHERE i.voice_id = v.id) AS interview_count,
        (SELECT count(*) FROM public.job_postings jp WHERE jp.required_voice_id = v.id) AS job_posting_count
 FROM public.voices v
@@ -125,6 +154,10 @@ type ListVoicesRow struct {
 	ID              uuid.UUID
 	Name            string
 	IsActive        bool
+	Provider        *string
+	ProviderVoiceID *string
+	Locale          *string
+	Gender          *string
 	InterviewCount  int64
 	JobPostingCount int64
 }
@@ -149,6 +182,10 @@ func (q *Queries) ListVoices(ctx context.Context, arg ListVoicesParams) ([]ListV
 			&i.ID,
 			&i.Name,
 			&i.IsActive,
+			&i.Provider,
+			&i.ProviderVoiceID,
+			&i.Locale,
+			&i.Gender,
 			&i.InterviewCount,
 			&i.JobPostingCount,
 		); err != nil {
@@ -162,6 +199,16 @@ func (q *Queries) ListVoices(ctx context.Context, arg ListVoicesParams) ([]ListV
 	return items, nil
 }
 
+const lockProviderSync = `-- name: LockProviderSync :exec
+SELECT pg_advisory_xact_lock(hashtextextended('voice_sync:' || $1::text, 0))
+`
+
+// Serializes concurrent syncs of one provider for the length of the transaction.
+func (q *Queries) LockProviderSync(ctx context.Context, provider string) error {
+	_, err := q.db.Exec(ctx, lockProviderSync, provider)
+	return err
+}
+
 const lockVoice = `-- name: LockVoice :one
 SELECT id FROM public.voices WHERE id = $1 FOR UPDATE
 `
@@ -173,4 +220,42 @@ func (q *Queries) LockVoice(ctx context.Context, id uuid.UUID) (uuid.UUID, error
 	var id_2 uuid.UUID
 	err := row.Scan(&id_2)
 	return id_2, err
+}
+
+const upsertProviderVoices = `-- name: UpsertProviderVoices :many
+INSERT INTO public.voices (name, provider, provider_voice_id, locale, gender)
+SELECT t.value->>'name', $1::text, t.value->>'provider_voice_id', t.value->>'locale', NULLIF(t.value->>'gender', '')
+FROM jsonb_array_elements($2::jsonb) AS t
+ON CONFLICT (provider, provider_voice_id) WHERE provider_voice_id IS NOT NULL DO UPDATE
+    SET name = EXCLUDED.name, locale = EXCLUDED.locale, gender = EXCLUDED.gender
+    WHERE (voices.name, voices.locale, voices.gender) IS DISTINCT FROM (EXCLUDED.name, EXCLUDED.locale, EXCLUDED.gender)
+RETURNING (xmax = 0)::boolean AS inserted
+`
+
+type UpsertProviderVoicesParams struct {
+	Provider string
+	Voices   []byte
+}
+
+// One statement upserts the whole fetched list, passed as a JSON array. A row that already matches is skipped by the WHERE,
+// so it is not returned and counts as unchanged. An update never touches is_active: an Admin's
+// deactivation survives a sync. xmax = 0 is true only for a freshly inserted row.
+func (q *Queries) UpsertProviderVoices(ctx context.Context, arg UpsertProviderVoicesParams) ([]bool, error) {
+	rows, err := q.db.Query(ctx, upsertProviderVoices, arg.Provider, arg.Voices)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []bool
+	for rows.Next() {
+		var inserted bool
+		if err := rows.Scan(&inserted); err != nil {
+			return nil, err
+		}
+		items = append(items, inserted)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

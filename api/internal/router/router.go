@@ -220,6 +220,7 @@ func (r *Router) Setup() *gin.Engine {
 	admin.GET("/interviews", r.adminInterviewsHandler.List)
 	admin.GET("/interviews/:id", r.adminInterviewsHandler.Get)
 	admin.GET("/voices", r.voiceCatalogHandler.List)
+	admin.POST("/voices/sync", r.voiceCatalogHandler.Sync)
 	admin.GET("/voices/:id", r.voiceCatalogHandler.Get)
 	admin.DELETE("/voices/:id", r.voiceCatalogHandler.Remove)
 	admin.PATCH("/voices/:id/activate", r.voiceCatalogHandler.Activate)

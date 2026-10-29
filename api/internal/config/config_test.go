@@ -188,32 +188,49 @@ func TestDefaultWriteTimeout(t *testing.T) {
 	}
 }
 
-func TestTTSConfigDefaultsAndEnvBinding(t *testing.T) {
+func TestTTSConfig(t *testing.T) {
 	t.Setenv("PAYOS_CLIENT_ID", "test-client-id")
 	t.Setenv("PAYOS_API_KEY", "test-api-key")
 	t.Setenv("PAYOS_CHECKSUM_KEY", "test-checksum-key")
-	t.Setenv("AZURE_SPEECH_KEY", "")
-	t.Setenv("AZURE_SPEECH_REGION", "")
-
-	cfg, err := Load(writeConfig(t, minimalYAML))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.TTS.Key != "" || cfg.TTS.Region != "" {
-		t.Fatalf("credentials must be optional, got %+v", cfg.TTS)
-	}
-	if cfg.TTS.Timeout != 10*time.Second {
-		t.Fatalf("default timeout = %v, want 10s", cfg.TTS.Timeout)
+	unset := func(names ...string) {
+		for _, name := range names {
+			t.Setenv(name, "")
+			if err := os.Unsetenv(name); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 
-	t.Setenv("AZURE_SPEECH_KEY", "k")
-	t.Setenv("AZURE_SPEECH_REGION", "koreacentral")
-	t.Setenv("TTS_TIMEOUT", "3s")
-	cfg, err = Load(writeConfig(t, minimalYAML))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.TTS.Key != "k" || cfg.TTS.Region != "koreacentral" || cfg.TTS.Timeout != 3*time.Second {
-		t.Fatalf("env not bound: %+v", cfg.TTS)
-	}
+	t.Run("defaults keep English voices and start without credentials", func(t *testing.T) {
+		unset("AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION", "TTS_TIMEOUT", "TTS_SYNC_LOCALES")
+		cfg, err := Load(writeConfig(t, minimalYAML))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.TTS.Key != "" || cfg.TTS.Region != "" || cfg.TTS.Timeout != 10*time.Second ||
+			len(cfg.TTS.SyncLocales) != 1 || cfg.TTS.SyncLocales[0] != "en" {
+			t.Fatalf("TTS defaults = %+v", cfg.TTS)
+		}
+	})
+	t.Run("environment overrides", func(t *testing.T) {
+		t.Setenv("AZURE_SPEECH_KEY", "k")
+		t.Setenv("AZURE_SPEECH_REGION", "eastus")
+		t.Setenv("TTS_TIMEOUT", "5s")
+		t.Setenv("TTS_SYNC_LOCALES", "en,fr-FR")
+		cfg, err := Load(writeConfig(t, minimalYAML))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.TTS.Key != "k" || cfg.TTS.Region != "eastus" || cfg.TTS.Timeout != 5*time.Second ||
+			len(cfg.TTS.SyncLocales) != 2 || cfg.TTS.SyncLocales[1] != "fr-FR" {
+			t.Fatalf("TTS from environment = %+v", cfg.TTS)
+		}
+	})
+	t.Run("negative timeout is rejected", func(t *testing.T) {
+		cfg := validConfig()
+		cfg.TTS.Timeout = -time.Second
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("expected a negative TTS timeout to fail validation")
+		}
+	})
 }

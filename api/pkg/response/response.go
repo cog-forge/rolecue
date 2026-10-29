@@ -45,6 +45,8 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeInvalidExtractionOutput:         http.StatusBadGateway,
 	apperror.CodeJobPostingNotFound:              http.StatusNotFound,
 	apperror.CodeVoiceNotFound:                   http.StatusNotFound,
+	apperror.CodeVoiceSyncFailed:                 http.StatusBadGateway,
+	apperror.CodeVoiceProviderUnavailable:        http.StatusServiceUnavailable,
 	apperror.CodeCoreQuestionNotFound:            http.StatusNotFound,
 	apperror.CodeQuestionBankExists:              http.StatusConflict,
 	apperror.CodeQuestionBankLocked:              http.StatusConflict,

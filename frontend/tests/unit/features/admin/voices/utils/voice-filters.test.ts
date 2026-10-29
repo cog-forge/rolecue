@@ -37,12 +37,12 @@ describe("voice filters", () => {
   it("builds the Go query", () => {
     expect(voiceApiParams({ status: "all", q: "", page: 3 })).toEqual({
       status: "all",
-      limit: 20,
-      offset: 40,
+      limit: 9,
+      offset: 18,
     });
     expect(voiceApiParams({ status: "active", q: "Ava", page: 1 })).toEqual({
       status: "active",
-      limit: 20,
+      limit: 9,
       offset: 0,
       q: "Ava",
     });
@@ -54,6 +54,10 @@ describe("voice schema", () => {
     id: "33333333-3333-4333-8333-333333333333",
     name: "Ava",
     is_active: true,
+    provider: "azure",
+    provider_voice_id: "en-US-AvaNeural",
+    locale: "en-US",
+    gender: "Female",
     interview_count: 2,
     job_posting_count: 0,
     in_use: true,
@@ -72,5 +76,24 @@ describe("voice schema", () => {
         data: { ...envelope.data, items: [{ ...voice, in_use: "yes" }] },
       }),
     ).toThrow();
+  });
+  it("accepts legacy voices without provider metadata but not a missing field", () => {
+    const legacy = {
+      ...voice,
+      provider: null,
+      provider_voice_id: null,
+      locale: null,
+      gender: null,
+    };
+    const page = (item: unknown) => ({
+      success: true,
+      data: { items: [item], pagination: { limit: 20, offset: 0, total: 1 } },
+    });
+    expect(
+      voicePageEnvelopeSchema.parse(page(legacy)).data.items[0]?.locale,
+    ).toBeNull();
+    const withoutLocale: Partial<typeof voice> = { ...voice };
+    delete withoutLocale.locale;
+    expect(() => voicePageEnvelopeSchema.parse(page(withoutLocale))).toThrow();
   });
 });

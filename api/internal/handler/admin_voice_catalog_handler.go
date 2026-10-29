@@ -17,6 +17,7 @@ type VoiceCatalogService interface {
 	Get(ctx context.Context, role string, id uuid.UUID) (domain.VoiceProfile, error)
 	Remove(ctx context.Context, adminID uuid.UUID, role string, id uuid.UUID) (domain.VoiceDeleteResult, error)
 	Activate(ctx context.Context, adminID uuid.UUID, role string, id uuid.UUID) (domain.VoiceProfile, error)
+	Sync(ctx context.Context, adminID uuid.UUID, role string) (domain.VoiceSyncResult, error)
 }
 type VoiceCatalogHandler struct{ service VoiceCatalogService }
 
@@ -211,6 +212,33 @@ func (h *VoiceCatalogHandler) Activate(c *gin.Context) {
 		return
 	}
 	result, err := h.service.Activate(c.Request.Context(), adminID, role, id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, result)
+}
+
+// Sync godoc
+// @Summary Sync the voice catalog from the TTS provider
+// @Description Admin only. Fetches the provider's English voices (the locales are configuration) and upserts them by provider voice ID: new voices are added, changed ones updated, and voices the provider no longer offers are deactivated (is_active=false), never deleted. Voices an Admin deactivated stay inactive. If the provider fails or answers with an invalid or empty list, nothing changes and the call fails. Repeating it changes nothing. Trusted Origin required.
+// @Tags admin-voices
+// @Produce json
+// @Security SessionCookie
+// @Param Origin header string true "Trusted frontend origin"
+// @Success 200 {object} response.Envelope{data=domain.VoiceSyncResult}
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Failure 502 {object} response.Envelope "The provider failed or returned an invalid list"
+// @Failure 503 {object} response.Envelope "The provider is not configured"
+// @Router /admin/voices/sync [post]
+func (h *VoiceCatalogHandler) Sync(c *gin.Context) {
+	adminID, role, ok := voiceCatalogUser(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.Sync(c.Request.Context(), adminID, role)
 	if err != nil {
 		response.Error(c, err)
 		return

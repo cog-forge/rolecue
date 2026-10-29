@@ -18,7 +18,9 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   delete: vi.fn(),
   patch: vi.fn(),
+  post: vi.fn(),
   push: vi.fn(),
+  desktop: true,
   toast: vi.fn(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
@@ -31,7 +33,12 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 vi.mock("@/lib/api/client", () => ({
-  apiClient: { get: mocks.get, delete: mocks.delete, patch: mocks.patch },
+  apiClient: {
+    get: mocks.get,
+    delete: mocks.delete,
+    patch: mocks.patch,
+    post: mocks.post,
+  },
 }));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
@@ -43,6 +50,10 @@ const used = {
   id: "33333333-3333-4333-8333-333333333331",
   name: "Ava",
   is_active: true,
+  provider: "azure",
+  provider_voice_id: "en-US-AvaNeural",
+  locale: "en-US",
+  gender: "Female",
   interview_count: 2,
   job_posting_count: 1,
   in_use: true,
@@ -51,6 +62,10 @@ const unused = {
   ...used,
   id: "33333333-3333-4333-8333-333333333332",
   name: "Ben",
+  provider: null,
+  provider_voice_id: null,
+  locale: null,
+  gender: null,
   interview_count: 0,
   job_posting_count: 0,
   in_use: false,
@@ -59,6 +74,7 @@ const retired = {
   ...used,
   id: "33333333-3333-4333-8333-333333333333",
   name: "Cara",
+  provider_voice_id: "en-US-CaraNeural",
   is_active: false,
 };
 const page = (items: unknown[], total = items.length) => ({
@@ -91,15 +107,34 @@ function mount(filters: VoiceFilters = defaultVoiceFilters) {
   );
 }
 
+// The details sit beside the grid from the lg breakpoint; below it they open in a sheet.
+function stubViewport() {
+  vi.stubGlobal("matchMedia", (media: string) => ({
+    matches: mocks.desktop,
+    media,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.desktop = true;
+  stubViewport();
   mocks.get.mockReset();
   mocks.delete.mockReset();
   mocks.patch.mockReset();
+  mocks.post.mockReset();
 });
 
 describe("VoiceCatalog", () => {
-  it("lists voices with status as text and usage", async () => {
+  const card = async (name: string) =>
+    within(await screen.findByRole("list", { name: "Voices" })).getByRole(
+      "button",
+      { name: new RegExp(`^${name}`) },
+    );
+
+  it("shows each voice as a card with its locale, status as text and usage", async () => {
     mocks.get.mockResolvedValue(page([used, unused, retired]));
     mount();
     expect(
@@ -108,42 +143,226 @@ describe("VoiceCatalog", () => {
     expect(mocks.get).toHaveBeenCalledWith(
       "/admin/voices",
       expect.objectContaining({
-        params: { status: "all", limit: 20, offset: 0 },
+        params: { status: "all", limit: 9, offset: 0 },
       }),
     );
-    const ava = await screen.findByRole("row", { name: /Ava/ });
-    expect(within(ava).getByText("Active")).toBeInTheDocument();
-    expect(
-      within(ava).getByText("2 interviews and 1 job posting"),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("row", { name: /Ben/ })).getByText("Not used"),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("row", { name: /Cara/ })).getByText("Inactive"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Reactivate Cara" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Deactivate Cara" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Reactivate Ava" }),
-    ).not.toBeInTheDocument();
+    const ava = await card("Ava");
+    expect(ava).toHaveTextContent("Female");
+    expect(ava).toHaveTextContent("en-US");
+    expect(ava).toHaveTextContent("Active");
+    expect(ava).toHaveTextContent("2 interviews and 1 job posting");
+    // The provider voice ID is a detail, not part of the card.
+    expect(ava).not.toHaveTextContent("en-US-AvaNeural");
+    const ben = await card("Ben");
+    expect(ben).toHaveTextContent("Gender not set");
+    expect(ben).not.toHaveTextContent("en-");
+    expect(await card("Cara")).toHaveTextContent("Inactive");
     expect(screen.getByText("Showing 1–3 of 3")).toBeInTheDocument();
   });
 
-  it("keeps Fetch from provider disabled with the reason", async () => {
-    mocks.get.mockResolvedValue(page([]));
+  it("selects the first voice beside the grid and shows its details and actions", async () => {
+    mocks.get.mockResolvedValue(page([used, unused, retired]));
     mount();
-    const fetch = await screen.findByRole("button", {
-      name: /Fetch from provider/,
+    const details = await screen.findByRole("complementary", {
+      name: "Voice details",
     });
-    expect(fetch).toBeDisabled();
-    expect(fetch).toHaveAccessibleDescription(
-      "Available once provider sync is connected.",
-    );
+    expect(
+      within(details).getByRole("heading", { name: "Ava" }),
+    ).toBeInTheDocument();
+    expect(
+      within(details).getByText("English (United States)"),
+    ).toBeInTheDocument();
+    expect(within(details).getByText("azure")).toBeInTheDocument();
+    expect(within(details).getByText("en-US-AvaNeural")).toBeInTheDocument();
+    expect(
+      within(details).getByRole("button", { name: "Deactivate Ava" }),
+    ).toBeInTheDocument();
+    expect(await card("Ava")).toHaveAttribute("aria-pressed", "true");
+
+    // A voice nobody uses can be removed; an inactive one can be reactivated.
+    fireEvent.click(await card("Ben"));
+    expect(await card("Ben")).toHaveAttribute("aria-pressed", "true");
+    expect(await card("Ava")).toHaveAttribute("aria-pressed", "false");
+    await within(details).findByRole("heading", { name: "Ben" });
+    // A legacy voice has no provider metadata: gender, locale, provider and ID all read "Not set".
+    expect(within(details).getAllByText("Not set")).toHaveLength(4);
+    expect(
+      within(details).getByRole("button", { name: "Remove Ben" }),
+    ).toBeInTheDocument();
+    fireEvent.click(await card("Cara"));
+    await within(details).findByRole("heading", { name: "Cara" });
+    expect(
+      within(details).getByRole("button", { name: "Reactivate Cara" }),
+    ).toBeInTheDocument();
+    // Cara is inactive and still in use, so only reactivating is offered.
+    expect(
+      within(details).queryByRole("button", { name: "Deactivate Cara" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(details).queryByRole("button", { name: "Reactivate Ava" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the details in a sheet on small screens", async () => {
+    mocks.desktop = false;
+    mocks.get.mockResolvedValue(page([used, unused]));
+    mount();
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(await card("Ben"));
+    const sheet = await screen.findByRole("dialog");
+    expect(
+      await within(sheet).findByRole("heading", { name: "Ben" }),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet).getByRole("button", { name: "Remove Ben" }),
+    ).toBeInTheDocument();
+  });
+
+  describe("sync from provider", () => {
+    const summary = {
+      provider: "azure",
+      fetched: 6,
+      added: 3,
+      updated: 1,
+      deactivated: 1,
+      unchanged: 1,
+    };
+    const synced = { data: { success: true, data: summary } };
+
+    it("syncs, shows progress and the result summary, and refreshes the list", async () => {
+      let finish: (value: typeof synced) => void = () => {};
+      mocks.post.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+      mocks.get.mockResolvedValue(page([used]));
+      mount();
+      const button = await screen.findByRole("button", {
+        name: "Sync from provider",
+      });
+      fireEvent.click(button);
+
+      const syncing = await screen.findByRole("button", { name: "Syncing…" });
+      expect(syncing).toBeDisabled();
+      expect(
+        screen.getByText("Syncing voices from the provider…"),
+      ).toBeInTheDocument();
+      expect(mocks.post).toHaveBeenCalledTimes(1);
+      expect(mocks.post).toHaveBeenCalledWith("/admin/voices/sync");
+
+      finish(synced);
+      await screen.findByText(/Synced 6 voices from azure/);
+      const result = screen
+        .getByText(/Synced 6 voices from azure/)
+        .closest('[role="status"]') as HTMLElement;
+      for (const [label, value] of [
+        ["Added", "3"],
+        ["Updated", "1"],
+        ["Deactivated", "1"],
+        ["Unchanged", "1"],
+      ])
+        expect(
+          within(result).getByText(label).nextElementSibling,
+        ).toHaveTextContent(value);
+      expect(
+        screen.getByRole("button", { name: "Sync from provider" }),
+      ).toBeEnabled();
+      await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+      expect(mocks.toast).toHaveBeenCalledWith(
+        "Voice catalog synced",
+        expect.objectContaining({
+          description: "3 added, 1 updated, 1 deactivated, 1 unchanged.",
+        }),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+      await waitFor(() =>
+        expect(screen.queryByText(/Synced 6 voices/)).not.toBeInTheDocument(),
+      );
+    });
+
+    it("explains a provider failure, says nothing changed and retries", async () => {
+      mocks.get.mockResolvedValue(page([used]));
+      mocks.post
+        .mockRejectedValueOnce(
+          failure(
+            502,
+            "VOICE_SYNC_FAILED",
+            "the voice provider could not be reached",
+          ),
+        )
+        .mockResolvedValueOnce(synced);
+      mount();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Sync from provider" }),
+      );
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
+        "the voice provider could not be reached. The catalog was not changed.",
+      );
+      expect(mocks.toast).not.toHaveBeenCalled();
+
+      fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+      expect(
+        await screen.findByText(/Synced 6 voices from azure/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/could not be reached/),
+      ).not.toBeInTheDocument();
+    });
+
+    it("uses the API message when the provider is not configured", async () => {
+      mocks.get.mockResolvedValue(page([]));
+      mocks.post.mockRejectedValue(
+        failure(
+          503,
+          "VOICE_PROVIDER_UNAVAILABLE",
+          "the voice provider is not configured",
+        ),
+      );
+      mount();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Sync from provider" }),
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "the voice provider is not configured. The catalog was not changed.",
+      );
+    });
+
+    it("falls back to a generic message for unexpected failures", async () => {
+      mocks.get.mockResolvedValue(page([]));
+      mocks.post.mockRejectedValue(
+        failure(500, "INTERNAL_ERROR", "sql: secret detail"),
+      );
+      mount();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Sync from provider" }),
+      );
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
+        "We couldn't sync the voices from the provider.",
+      );
+      expect(alert).not.toHaveTextContent("secret detail");
+    });
+
+    it("shows the access message when the session lost admin rights", async () => {
+      mocks.get.mockResolvedValue(page([used]));
+      mocks.post.mockRejectedValue(failure(403, "FORBIDDEN", "forbidden"));
+      mount();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Sync from provider" }),
+      );
+      expect(
+        await screen.findByRole("heading", {
+          name: /don't have access to voice profiles/,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/catalog was not changed/),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("filters through URL links and the search form", async () => {
@@ -256,16 +475,16 @@ describe("VoiceCatalog", () => {
         success: true,
         data: {
           items: [used],
-          pagination: { limit: 20, offset: 20, total: 45 },
+          pagination: { limit: 9, offset: 9, total: 55 },
         },
       },
     });
     mount({ status: "active", q: "", page: 2 });
-    expect(await screen.findByText("Showing 21–40 of 45")).toBeInTheDocument();
+    expect(await screen.findByText("Showing 10–18 of 55")).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith(
       "/admin/voices",
       expect.objectContaining({
-        params: { status: "active", limit: 20, offset: 20 },
+        params: { status: "active", limit: 9, offset: 9 },
       }),
     );
     expect(screen.getByRole("link", { name: "Previous" })).toHaveAttribute(
@@ -333,7 +552,11 @@ describe("VoiceCatalog", () => {
       .mockResolvedValue(page([used]));
     mount();
     fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
-    expect(await screen.findByText("Ava")).toBeInTheDocument();
+    expect(
+      within(await screen.findByRole("list", { name: "Voices" })).getByText(
+        "Ava",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows an access message for a non-admin", async () => {

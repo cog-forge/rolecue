@@ -147,22 +147,25 @@ type LLMConfig struct {
 	MaxRetries int           `mapstructure:"max_retries"`
 }
 
-// TTSConfig holds the Azure AI Speech settings. Key and Region may both be empty: the API then starts with
-// text-to-speech unavailable and interviews fall back to text. Timeout bounds one synthesis call,
-// including its retries. A malformed value does not stop the API: the synthesizer is wired as unavailable
-// and the reason is logged, so a TTS misconfiguration never takes the rest of the platform down.
-type TTSConfig struct {
-	Key     string        `mapstructure:"key"`
-	Region  string        `mapstructure:"region"`
-	Timeout time.Duration `mapstructure:"timeout"`
-}
-
 type PayOSConfig struct {
 	ClientID    string        `mapstructure:"client_id"`
 	APIKey      string        `mapstructure:"api_key"`
 	ChecksumKey string        `mapstructure:"checksum_key"`
 	Timeout     time.Duration `mapstructure:"timeout"`
 	MaxRetries  int           `mapstructure:"max_retries"`
+}
+
+// TTSConfig holds the Azure AI Speech settings, shared by interview text-to-speech and the Admin voice
+// sync. Key and Region may both be empty: the API still starts, interviews fall back to text and the voice
+// sync reports the provider as not configured. Timeout bounds one provider call, including its retries.
+// A malformed value does not stop the API: the synthesizer is wired as unavailable and the reason is
+// logged. SyncLocales limits the voice sync to those locales ("en" matches en-US, en-GB and so on;
+// empty means all).
+type TTSConfig struct {
+	Key         string        `mapstructure:"key"`
+	Region      string        `mapstructure:"region"`
+	Timeout     time.Duration `mapstructure:"timeout"`
+	SyncLocales []string      `mapstructure:"sync_locales"`
 }
 
 // QuestionBankConfig holds the core-question bank settings. Size is the number of questions
@@ -251,6 +254,7 @@ func Load(configPath string) (*Config, error) {
 		"tts.key":                            "AZURE_SPEECH_KEY",
 		"tts.region":                         "AZURE_SPEECH_REGION",
 		"tts.timeout":                        "TTS_TIMEOUT",
+		"tts.sync_locales":                   "TTS_SYNC_LOCALES",
 		"payos.client_id":                    "PAYOS_CLIENT_ID",
 		"payos.api_key":                      "PAYOS_API_KEY",
 		"payos.checksum_key":                 "PAYOS_CHECKSUM_KEY",
@@ -356,8 +360,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("llm.timeout", "30s")
 	v.SetDefault("llm.max_retries", 1)
 
-	// TTS defaults
+	// TTS defaults: one provider call gets 10s; the interview speaks English only, so the voice sync keeps English locales.
 	v.SetDefault("tts.timeout", "10s")
+	v.SetDefault("tts.sync_locales", []string{"en"})
 
 	// PayOS defaults
 	v.SetDefault("payos.timeout", "30s")
@@ -416,6 +421,9 @@ func (c *Config) Validate() error {
 
 	if c.QuestionBank.Size < 0 || c.QuestionBank.Size > MaxQuestionBankSize {
 		return fmt.Errorf("question_bank.size must be between 0 and %d", MaxQuestionBankSize)
+	}
+	if c.TTS.Timeout < 0 {
+		return errors.New("tts.timeout must not be negative")
 	}
 	if c.Interview.QuestionLimit < 0 || c.Interview.QuestionLimit > MaxInterviewQuestionLimit {
 		return fmt.Errorf("interview.question_limit must be between 0 and %d", MaxInterviewQuestionLimit)
