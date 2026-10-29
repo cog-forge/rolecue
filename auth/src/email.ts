@@ -17,6 +17,11 @@ function escapeHtml(value: string) {
     .replace(/'/g, "&#39;");
 }
 
+// "2026-11-05 10:00 UTC": unambiguous for a user in any time zone.
+function formatLockEnd(date: Date) {
+  return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 export function createMailer(config: AuthEnv["email"]) {
   async function sendTemplateEmail(
     kind: EmailKind,
@@ -61,6 +66,7 @@ export function createMailer(config: AuthEnv["email"]) {
       kind: "locked" | "unlocked",
       user: EmailUser,
       publicReason: string,
+      lockEndsAt?: Date | null,
     ) {
       const { supportEmail } = config;
       if (!supportEmail) throw new Error("Missing support email");
@@ -70,7 +76,18 @@ export function createMailer(config: AuthEnv["email"]) {
         {
           SUPPORT_EMAIL: escapeHtml(supportEmail),
           ...(kind === "locked"
-            ? { LOCK_REASON: escapeHtml(publicReason) }
+            ? {
+                // The published template prints only the reason, so the end of a timed lock rides with it.
+                LOCK_REASON: escapeHtml(
+                  [
+                    publicReason,
+                    lockEndsAt &&
+                      `Your access returns on ${formatLockEnd(lockEndsAt)}.`,
+                  ]
+                    .filter(Boolean)
+                    .join(" "),
+                ),
+              }
             : { LOGIN_URL: `${config.appURL}/login` }),
         },
         {

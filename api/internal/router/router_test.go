@@ -70,7 +70,7 @@ func TestQuestionBankRoutesRequireOnboarding(t *testing.T) {
 			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 				handler.NewWalletHandler(nil), handler.NewQuestionBankHandler(nil, time.Minute),
-				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
+				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.AdminOverviewHandler{}, &handler.InterviewHandlers{}).Setup()
 			for _, route := range routes {
 				t.Run(route.method+" "+route.path, func(t *testing.T) {
 					req := httptest.NewRequest(route.method, route.path, nil)
@@ -184,7 +184,7 @@ func TestWalletRoutesRequireOnboarding(t *testing.T) {
 				r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 					handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 					handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
-					&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
+					&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.AdminOverviewHandler{}, &handler.InterviewHandlers{}).Setup()
 				for _, route := range routes {
 					t.Run(route.method+" "+route.path, func(t *testing.T) {
 						wallet.calls = 0
@@ -219,7 +219,7 @@ func TestPayOSWebhookDoesNotRequireSession(t *testing.T) {
 	r := NewRouter(&config.Config{}, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 		handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
-		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
+		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.AdminOverviewHandler{}, &handler.InterviewHandlers{}).Setup()
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/wallet/webhook/payos", strings.NewReader(`{}`)))
 	if w.Code != http.StatusOK || wallet.calls != 1 {
@@ -267,7 +267,7 @@ func TestAdminBillingRoutesRequireAdminRoleAndDisallowMutations(t *testing.T) {
 			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 				handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
-				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
+				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.AdminOverviewHandler{}, &handler.InterviewHandlers{}).Setup()
 
 			for _, path := range readRoutes {
 				wallet.calls = 0
@@ -290,7 +290,7 @@ func TestAdminBillingRoutesRequireAdminRoleAndDisallowMutations(t *testing.T) {
 	r := NewRouter(&config.Config{}, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
 		handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
 		handler.NewWalletHandler(wallet), handler.NewQuestionBankHandler(nil, time.Minute),
-		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.InterviewHandlers{}).Setup()
+		&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.AdminOverviewHandler{}, &handler.InterviewHandlers{}).Setup()
 
 	removedMutationRoutes := []string{
 		"/admin/billing/transactions/" + txID.String() + "/sync",
@@ -305,5 +305,52 @@ func TestAdminBillingRoutesRequireAdminRoleAndDisallowMutations(t *testing.T) {
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("POST %s returned %d, want 404 Not Found (read-only admin billing)", path, w.Code)
 		}
+	}
+}
+
+// The overview is Admin-only and read-only (KAN-71). Non-admins never reach the handler, which here has
+// no service, so reaching it would panic.
+func TestAdminOverviewRouteRequiresAdminAndIsReadOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const origin = "http://localhost:3000"
+	for _, tc := range []struct {
+		name    string
+		role    string
+		authErr error
+		want    int
+	}{
+		{"unauthenticated", "", authdomain.ErrInvalidSession, http.StatusUnauthorized},
+		{"candidate", "candidate", nil, http.StatusForbidden},
+		{"recruiter", "recruiter", nil, http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			auth := routerAuth{
+				user: authdomain.User{ID: uuid.New(), Role: tc.role, EmailVerified: true, OnboardingRoleSelected: true, OnboardingCompleted: true},
+				err:  tc.authErr,
+			}
+			cfg := &config.Config{CORS: config.CORSConfig{AllowOrigins: []string{origin}}}
+			r := NewRouter(cfg, &logger.Logger{Logger: zap.NewNop()}, handler.NewAuthHandler(auth),
+				handler.NewHealthHandler(), &handler.RoleProfileHandler{}, &handler.ProfileHandler{},
+				handler.NewWalletHandler(&routerWallet{}), handler.NewQuestionBankHandler(nil, time.Minute),
+				&handler.ModerationHandler{}, &handler.OnboardingHandler{}, &handler.AccountsHandler{}, &handler.InventoryHandler{}, &handler.AvatarCreateHandler{}, &handler.VoiceCatalogHandler{}, &handler.JobPostingHandler{}, &handler.VoiceHandler{}, &handler.JobBoardHandler{}, &handler.EvaluationHandler{}, &handler.ApplicationHandler{}, &handler.AdminInterviewsHandler{}, &handler.AdminOverviewHandler{}, &handler.InterviewHandlers{}).Setup()
+
+			req := httptest.NewRequest(http.MethodGet, "/admin/overview?days=7", nil)
+			req.Header.Set("Origin", origin)
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, req)
+			if w.Code != tc.want {
+				t.Fatalf("GET /admin/overview as %s: status = %d, want %d", tc.name, w.Code, tc.want)
+			}
+			// Nothing but GET exists on the route.
+			for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {
+				req := httptest.NewRequest(method, "/admin/overview", nil)
+				req.Header.Set("Origin", origin)
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, req)
+				if w.Code != http.StatusNotFound && w.Code != http.StatusMethodNotAllowed && w.Code != tc.want {
+					t.Fatalf("%s /admin/overview as %s: status = %d", method, tc.name, w.Code)
+				}
+			}
+		})
 	}
 }

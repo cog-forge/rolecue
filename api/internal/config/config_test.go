@@ -234,3 +234,62 @@ func TestTTSConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestEmailConfig(t *testing.T) {
+	t.Setenv("PAYOS_CLIENT_ID", "test-client-id")
+	t.Setenv("PAYOS_API_KEY", "test-api-key")
+	t.Setenv("PAYOS_CHECKSUM_KEY", "test-checksum-key")
+	names := []string{"EMAIL_PROVIDER", "EMAIL_FROM", "RESEND_API_KEY", "EMAIL_TIMEOUT", "EMAIL_WORKERS", "EMAIL_QUEUE_SIZE", "EMAIL_MAX_ATTEMPTS", "EMAIL_BACKOFF"}
+	reset := func() {
+		for _, name := range names {
+			t.Setenv(name, "")
+			if err := os.Unsetenv(name); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	t.Run("defaults only log and need no credentials", func(t *testing.T) {
+		reset()
+		cfg, err := Load(writeConfig(t, minimalYAML))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := EmailConfig{Provider: "log", Timeout: 10 * time.Second, Workers: 2, QueueSize: 256, MaxAttempts: 3, Backoff: time.Second}
+		if cfg.Email != want {
+			t.Fatalf("email defaults = %+v, want %+v", cfg.Email, want)
+		}
+	})
+	t.Run("resend needs a key and a sender", func(t *testing.T) {
+		reset()
+		t.Setenv("EMAIL_PROVIDER", "resend")
+		if _, err := Load(writeConfig(t, minimalYAML)); err == nil {
+			t.Fatal("resend without credentials loaded")
+		}
+		t.Setenv("RESEND_API_KEY", "re_test")
+		t.Setenv("EMAIL_FROM", "RoleCue <no-reply@example.test>")
+		cfg, err := Load(writeConfig(t, minimalYAML))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Email.Provider != "resend" || cfg.Email.APIKey != "re_test" || cfg.Email.From == "" {
+			t.Fatalf("email = %+v", cfg.Email)
+		}
+	})
+	t.Run("rejects an unknown provider and out-of-range pool settings", func(t *testing.T) {
+		for name, env := range map[string][2]string{
+			"unknown provider": {"EMAIL_PROVIDER", "smtp"},
+			"zero workers":     {"EMAIL_WORKERS", "0"},
+			"too many workers": {"EMAIL_WORKERS", "33"},
+			"empty queue":      {"EMAIL_QUEUE_SIZE", "0"},
+			"zero attempts":    {"EMAIL_MAX_ATTEMPTS", "0"},
+			"negative timeout": {"EMAIL_TIMEOUT", "-1s"},
+		} {
+			reset()
+			t.Setenv(env[0], env[1])
+			if _, err := Load(writeConfig(t, minimalYAML)); err == nil {
+				t.Fatalf("%s: config loaded", name)
+			}
+		}
+	})
+}

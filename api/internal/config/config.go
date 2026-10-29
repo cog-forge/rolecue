@@ -26,6 +26,7 @@ type Config struct {
 	Tracer           TracerConfig           `mapstructure:"tracer"`
 	LLM              LLMConfig              `mapstructure:"llm"`
 	TTS              TTSConfig              `mapstructure:"tts"`
+	Email            EmailConfig            `mapstructure:"email"`
 	Storage          StorageConfig          `mapstructure:"storage"`
 	PayOS            PayOSConfig            `mapstructure:"payos"`
 	QuestionBank     QuestionBankConfig     `mapstructure:"question_bank"`
@@ -168,6 +169,19 @@ type TTSConfig struct {
 	SyncLocales []string      `mapstructure:"sync_locales"`
 }
 
+// EmailConfig configures the Go API's transactional email (KAN-213). Provider "log" sends nothing and
+// only logs, which is the default for local development and tests; "resend" sends through Resend.
+type EmailConfig struct {
+	Provider    string        `mapstructure:"provider"`
+	From        string        `mapstructure:"from"`
+	APIKey      string        `mapstructure:"api_key"`
+	Timeout     time.Duration `mapstructure:"timeout"`
+	Workers     int           `mapstructure:"workers"`
+	QueueSize   int           `mapstructure:"queue_size"`
+	MaxAttempts int           `mapstructure:"max_attempts"`
+	Backoff     time.Duration `mapstructure:"backoff"`
+}
+
 // QuestionBankConfig holds the core-question bank settings. Size is the number of questions
 // generated per bank. The team chose a large bank (50) so any interview duration is covered,
 // because one interview only asks fewer than ten core questions. 0 disables generation.
@@ -255,6 +269,14 @@ func Load(configPath string) (*Config, error) {
 		"tts.region":                         "AZURE_SPEECH_REGION",
 		"tts.timeout":                        "TTS_TIMEOUT",
 		"tts.sync_locales":                   "TTS_SYNC_LOCALES",
+		"email.provider":                     "EMAIL_PROVIDER",
+		"email.from":                         "EMAIL_FROM",
+		"email.api_key":                      "RESEND_API_KEY",
+		"email.timeout":                      "EMAIL_TIMEOUT",
+		"email.workers":                      "EMAIL_WORKERS",
+		"email.queue_size":                   "EMAIL_QUEUE_SIZE",
+		"email.max_attempts":                 "EMAIL_MAX_ATTEMPTS",
+		"email.backoff":                      "EMAIL_BACKOFF",
 		"payos.client_id":                    "PAYOS_CLIENT_ID",
 		"payos.api_key":                      "PAYOS_API_KEY",
 		"payos.checksum_key":                 "PAYOS_CHECKSUM_KEY",
@@ -364,6 +386,14 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("tts.timeout", "10s")
 	v.SetDefault("tts.sync_locales", []string{"en"})
 
+	// Email defaults: log only (nothing is sent), two workers, three attempts with a doubling backoff.
+	v.SetDefault("email.provider", "log")
+	v.SetDefault("email.timeout", "10s")
+	v.SetDefault("email.workers", 2)
+	v.SetDefault("email.queue_size", 256)
+	v.SetDefault("email.max_attempts", 3)
+	v.SetDefault("email.backoff", "1s")
+
 	// PayOS defaults
 	v.SetDefault("payos.timeout", "30s")
 	v.SetDefault("payos.max_retries", 2)
@@ -424,6 +454,22 @@ func (c *Config) Validate() error {
 	}
 	if c.TTS.Timeout < 0 {
 		return errors.New("tts.timeout must not be negative")
+	}
+	// Load always sets a provider (default "log"); a hand-built Config without one has no email section to check.
+	if c.Email.Provider != "" {
+		switch c.Email.Provider {
+		case "log":
+		case "resend":
+			if c.Email.APIKey == "" || c.Email.From == "" {
+				return errors.New("email.provider resend requires RESEND_API_KEY and EMAIL_FROM")
+			}
+		default:
+			return errors.New("email.provider must be log or resend")
+		}
+		if c.Email.Timeout < 0 || c.Email.Backoff < 0 || c.Email.Workers < 1 || c.Email.Workers > 32 ||
+			c.Email.QueueSize < 1 || c.Email.QueueSize > 10000 || c.Email.MaxAttempts < 1 || c.Email.MaxAttempts > 10 {
+			return errors.New("email workers (1-32), queue_size (1-10000) and max_attempts (1-10) must be in range, timeout and backoff not negative")
+		}
 	}
 	if c.Interview.QuestionLimit < 0 || c.Interview.QuestionLimit > MaxInterviewQuestionLimit {
 		return fmt.Errorf("interview.question_limit must be between 0 and %d", MaxInterviewQuestionLimit)

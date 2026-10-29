@@ -47,6 +47,42 @@ describe("auth template submission", () => {
       "https://app.example.com/login",
     );
   });
+  it("tells the user when a timed lock ends, in UTC and inside the escaped reason", async () => {
+    const user = { email: "user@example.com", name: "Alex" };
+    await sendAccountStatusEmail(
+      "locked",
+      user,
+      "Spam <messages>.",
+      new Date("2026-11-05T10:00:45.000Z"),
+    );
+    await sendAccountStatusEmail("locked", user, "Spam.", null);
+    await sendAccountStatusEmail(
+      "unlocked",
+      user,
+      "",
+      new Date("2026-11-05T10:00:00Z"),
+    );
+    const timed = JSON.parse(fetchEmail.mock.calls[0][1].body);
+    const indefinite = JSON.parse(fetchEmail.mock.calls[1][1].body);
+    const unlocked = JSON.parse(fetchEmail.mock.calls[2][1].body);
+    expect(timed.template.variables.LOCK_REASON).toBe(
+      "Spam &lt;messages&gt;. Your access returns on 2026-11-05 10:00 UTC.",
+    );
+    // No end date for an indefinite lock, and an unlock notice never carries one.
+    expect(indefinite.template.variables.LOCK_REASON).toBe("Spam.");
+    // An empty reason still reads as one sentence, with no leading space.
+    await sendAccountStatusEmail(
+      "locked",
+      user,
+      "",
+      new Date("2026-11-05T10:00:00Z"),
+    );
+    const noReason = JSON.parse(fetchEmail.mock.calls[3][1].body);
+    expect(noReason.template.variables.LOCK_REASON).toBe(
+      "Your access returns on 2026-11-05 10:00 UTC.",
+    );
+    expect(unlocked.template.variables).not.toHaveProperty("LOCK_REASON");
+  });
   it("uses the same sender and transport for verification and reset", async () => {
     const user = { email: "user@example.com", name: "<Alex> & Team" };
     await sendVerificationEmail(user, "https://app.example.com/verify");
