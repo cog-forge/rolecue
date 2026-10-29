@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl as render } from "@tests/helpers/intl";
 import { expect, it, vi } from "vitest";
 import { FaqSection } from "@/features/marketing/components/faq-section";
 import { HeroLottieSequence } from "@/features/marketing/components/hero-lottie-sequence";

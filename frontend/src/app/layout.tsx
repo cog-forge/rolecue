@@ -4,6 +4,8 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "goey-toast/styles.css";
 import "./globals.css";
 import { site } from "@/config/site";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale } from "next-intl/server";
 import { AppProviders } from "@/providers/app-providers";
 
 const albertSans = localFont({
@@ -46,11 +48,12 @@ export const metadata: Metadata = {
     ],
   },
 };
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const locale = await getLocale();
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -61,7 +64,9 @@ export default function RootLayout({
       <body
         className={`${albertSans.variable} ${plusJakartaSans.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
-        <AppProviders>{children}</AppProviders>
+        <NextIntlClientProvider>
+          <AppProviders>{children}</AppProviders>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

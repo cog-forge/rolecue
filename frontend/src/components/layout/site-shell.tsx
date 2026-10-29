@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { site } from "@/config/site";
 import { routes } from "@/config/routes";
 import { CurtainThemeToggle } from "@/components/ui/curtain-theme-toggle";
-export function SiteShell({
+export async function SiteShell({
   children,
   navigation,
   label,
@@ -11,13 +12,14 @@ export function SiteShell({
   navigation: readonly { label: string; href: string }[];
   label: string;
 }) {
+  const common = await getTranslations("common");
   return (
     <>
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:block focus:p-4"
       >
-        Skip to content
+        {common("skipToContent")}
       </a>
       <header className="border-b">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-6 px-6 py-5">

@@ -1,0 +1,12 @@
+{
+  "skipToContent": "Skip to content",
+  "language": {
+    "label": "Language",
+    "change": "Change language"
+  },
+  "globalError": {
+    "title": "Something went wrong",
+    "description": "The application could not load. Please try again.",
+    "retry": "Try again"
+  }
+}

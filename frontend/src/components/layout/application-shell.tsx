@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,6 +36,7 @@ export function ApplicationShell({
   sidebarFooter?: (collapsed: boolean) => React.ReactNode;
   navigationBadges?: Readonly<Record<string, { count: number; label: string }>>;
 } & WorkspaceAccountActions) {
+  const common = useTranslations("common");
   const preferences = useWorkspacePreferences();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -113,7 +115,7 @@ export function ApplicationShell({
         href="#main-content"
         className="sr-only z-100 rounded-lg bg-primary px-4 py-3 text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
       >
-        Skip to content
+        {common("skipToContent")}
       </a>
       <div
         data-slot="workspace-shell"

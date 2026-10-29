@@ -1,0 +1,12 @@
+{
+  "skipToContent": "Chuyển đến nội dung chính",
+  "language": {
+    "label": "Ngôn ngữ",
+    "change": "Đổi ngôn ngữ"
+  },
+  "globalError": {
+    "title": "Đã xảy ra lỗi",
+    "description": "Không thể tải ứng dụng. Vui lòng thử lại.",
+    "retry": "Thử lại"
+  }
+}
