@@ -1,5 +1,7 @@
 import { cn } from "@/lib/utils";
 import type { PostingStatus } from "../schemas/job-posting-schema";
+import type { Formatters } from "@/lib/i18n/formatters";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 type StepState = "done" | "current" | "upcoming" | "blocked";
 type Step = { label: string; detail: string; state: StepState };
@@ -12,9 +14,11 @@ export type ProgressPosting = {
   interview_slot?: number | null;
 } | null;
 
-const numberFormat = new Intl.NumberFormat("en");
-
-function steps(posting: ProgressPosting, generating: boolean): Step[] {
+function steps(
+  posting: ProgressPosting,
+  generating: boolean,
+  fmt: Formatters,
+): Step[] {
   const count = posting?.core_question_count ?? 0;
   const live =
     posting != null &&
@@ -40,7 +44,7 @@ function steps(posting: ProgressPosting, generating: boolean): Step[] {
     : hasBank
       ? {
           label: "Questions",
-          detail: `${numberFormat.format(count)} ${count === 1 ? "question" : "questions"}`,
+          detail: `${fmt.number(count)} ${count === 1 ? "question" : "questions"}`,
           state: "done",
         }
       : {
@@ -138,6 +142,7 @@ export function PostingProgress({
   generating?: boolean;
   className?: string;
 }) {
+  const fmt = useFormatters();
   return (
     <ol
       aria-label="Posting progress"
@@ -146,7 +151,7 @@ export function PostingProgress({
         className,
       )}
     >
-      {steps(posting, generating).map((step) => (
+      {steps(posting, generating, fmt).map((step) => (
         <li
           key={step.label}
           aria-current={step.state === "current" ? "step" : undefined}

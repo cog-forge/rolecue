@@ -32,13 +32,13 @@ import {
   summarizeDeadlines,
 } from "../api/dashboard";
 import type { Todo } from "../schemas/dashboard-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const postingsHref = (status: ListStatus) =>
   `${routes.recruiter.jobPostings}${listSearch({ ...defaultListFilters, status })}`;
 const inboxHref = (status: "pending" | "interview_eligible") =>
   `${routes.recruiter.applications}${applicationSearch({ ...defaultApplicationFilters, status })}`;
 
-const numberFormat = new Intl.NumberFormat("en");
 // Counts go stale while the Recruiter works elsewhere, so they refresh when the tab regains focus.
 const queryOptions = { refetchOnWindowFocus: true, retry: false } as const;
 
@@ -53,6 +53,7 @@ function usePostingCount(status: ListStatus) {
 
 // What needs the Recruiter now: one row per kind of work, with how much there is and where to do it.
 export function RecruiterDashboard() {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
   const pending = useQuery({
@@ -87,7 +88,7 @@ export function RecruiterDashboard() {
       href: inboxHref("interview_eligible"),
       explain: (todo) =>
         [
-          todo.detail && `Earliest: ${formatDeadline(todo.detail)}.`,
+          todo.detail && `Earliest: ${formatDeadline(todo.detail, fmt)}.`,
           todo.atLeast &&
             "Only the first 100 cleared candidates were checked, so more may be due.",
         ]
@@ -200,6 +201,7 @@ function TodoRow({
   href,
   explain,
 }: TodoRowProps) {
+  const fmt = useFormatters();
   if (query.isPending)
     return (
       <li>
@@ -238,9 +240,9 @@ function TodoRow({
       <div className="flex min-w-0 items-start gap-4">
         <p
           className="min-w-12 text-2xl leading-8 font-semibold text-rolecue-brand tabular-nums dark:text-sky-300"
-          aria-label={`${numberFormat.format(todo.count)}${todo.atLeast ? " or more" : ""}`}
+          aria-label={`${fmt.number(todo.count)}${todo.atLeast ? " or more" : ""}`}
         >
-          {numberFormat.format(todo.count)}
+          {fmt.number(todo.count)}
           {todo.atLeast && "+"}
         </p>
         <div className="min-w-0 space-y-1">
@@ -272,6 +274,7 @@ function Glance({
   live: UseQueryResult<Todo>;
   closed: UseQueryResult<Todo>;
 }) {
+  const fmt = useFormatters();
   if (!live.isSuccess || !closed.isSuccess) return null;
   const items = [
     { label: "Live", count: live.data.count, href: postingsHref("open") },
@@ -298,7 +301,7 @@ function Glance({
                 {item.label}
               </span>
               <span className="text-lg font-semibold tabular-nums">
-                {numberFormat.format(item.count)}
+                {fmt.number(item.count)}
               </span>
             </Link>
           </li>

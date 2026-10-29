@@ -1,14 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { VoiceCatalog } from "@/features/admin/voices/components/voice-catalog";
+import { renderWithIntl } from "@tests/helpers/intl";
 import {
   defaultVoiceFilters,
   type VoiceFilters,
@@ -100,7 +95,7 @@ function mount(filters: VoiceFilters = defaultVoiceFilters) {
     },
   });
   client.setQueryData(["auth", "me"], mocks.user);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <VoiceCatalog filters={filters} />
     </QueryClientProvider>,

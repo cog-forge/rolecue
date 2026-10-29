@@ -30,6 +30,7 @@ import { CvPreview } from "./cv-link";
 import { FinalDecision } from "./final-decision";
 import { InterviewResult } from "./interview-result";
 import { ScreeningActions } from "./screening-actions";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // The label follows the list's wording: an eligible Application shows the time left to interview.
 // A missed deadline is shown as rejected, so its deadline is labelled as the former deadline.
@@ -48,6 +49,7 @@ export function ApplicationDetail({
   postingId: string;
   applicationId: string;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
   const query = useQuery({
@@ -208,7 +210,7 @@ export function ApplicationDetail({
                   dateTime={application.submitted_at}
                   title={application.submitted_at}
                 >
-                  {formatSubmitted(application.submitted_at)}
+                  {formatSubmitted(application.submitted_at, fmt)}
                 </time>
               </dd>
             </div>
@@ -222,7 +224,7 @@ export function ApplicationDetail({
                     dateTime={application.interview_deadline}
                     title={application.interview_deadline}
                   >
-                    {formatDeadline(application.interview_deadline)}
+                    {formatDeadline(application.interview_deadline, fmt)}
                   </time>
                 </dd>
               </div>

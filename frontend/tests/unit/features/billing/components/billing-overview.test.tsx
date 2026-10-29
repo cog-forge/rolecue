@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WalletPurchase } from "@/features/billing/components/wallet-purchase";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -45,7 +46,7 @@ function renderComponent() {
       },
     },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WalletPurchase

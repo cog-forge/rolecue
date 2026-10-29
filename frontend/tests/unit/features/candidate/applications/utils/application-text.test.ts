@@ -9,6 +9,9 @@ import {
   timeLeftText,
 } from "@/features/candidate/applications/utils/application-text";
 import { applicationHref } from "@/features/candidate/applications/utils/application-links";
+import { errorsFor, formattersFor } from "@tests/helpers/intl";
+
+const te = errorsFor("en");
 
 const now = Date.parse("2026-10-25T08:00:00Z");
 
@@ -29,7 +32,7 @@ describe("timeLeftText", () => {
     ["2026-10-25T08:00:30Z", "Less than a minute left"],
     ["2026-10-25T07:59:00Z", "Deadline passed"],
   ])("reads %s as %s", (deadline, text) => {
-    expect(timeLeftText(deadline, now)).toBe(text);
+    expect(timeLeftText(deadline, now, formattersFor("en"))).toBe(text);
   });
 
   it("marks a deadline at exactly now as passed", () => {
@@ -40,7 +43,7 @@ describe("timeLeftText", () => {
 
 describe("application error copy", () => {
   it("maps known codes to fixed copy and keeps retries for transient failures", () => {
-    expect(applyErrorMessage(apiFailure(409, "ALREADY_APPLIED"))).toBe(
+    expect(applyErrorMessage(apiFailure(409, "ALREADY_APPLIED"), te)).toBe(
       "You already applied to this posting.",
     );
     expect(canRetryApply(apiFailure(409, "ALREADY_APPLIED"))).toBe(false);
@@ -49,11 +52,11 @@ describe("application error copy", () => {
     expect(canRetryApply(new Error("network"))).toBe(true);
   });
 
-  it("uses the server's words for a validation error and a generic line otherwise", () => {
+  it("never shows the server's words: a validation error and an unknown failure use fixed copy", () => {
     expect(
-      applyErrorMessage(apiFailure(400, "VALIDATION_ERROR", "Not a PDF.")),
-    ).toBe("Not a PDF.");
-    expect(applyErrorMessage(new Error("boom"))).toBe(
+      applyErrorMessage(apiFailure(400, "VALIDATION_ERROR", "Not a PDF."), te),
+    ).toBe("Choose a PDF file up to 5 MB.");
+    expect(applyErrorMessage(new Error("boom"), te)).toBe(
       "We couldn't upload your CV. Try again.",
     );
   });

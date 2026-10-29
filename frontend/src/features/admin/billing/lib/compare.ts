@@ -1,3 +1,5 @@
+import { defaultLocale, type AppLocale } from "@/lib/i18n/config";
+import { formatNumber } from "@/lib/i18n/formatters";
 import { formatCoinAmount, formatVND } from "./format";
 
 // Period comparison for the revenue report. Every metric here is better when it rises. A rate moves
@@ -18,11 +20,14 @@ export type Comparison =
 
 const MINUS = "−";
 
-function signed(value: number, kind: ComparisonKind) {
+const oneDecimal = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+
+function signed(value: number, kind: ComparisonKind, locale: AppLocale) {
   const sign = value > 0 ? "+" : MINUS;
   const size = Math.abs(value);
   if (kind === "money") return `${sign}${formatVND(size)}`;
-  if (kind === "rate") return `${sign}${size.toFixed(1)} pts`;
+  if (kind === "rate")
+    return `${sign}${formatNumber(size, locale, oneDecimal)} pts`;
   return `${sign}${formatCoinAmount(size)}`;
 }
 
@@ -30,6 +35,7 @@ export function compareValues(
   current: number,
   previous: number,
   kind: ComparisonKind,
+  locale: AppLocale = defaultLocale,
 ): Comparison {
   const diff =
     kind === "rate"
@@ -45,9 +51,9 @@ export function compareValues(
     direction: up ? "up" : "down",
     percent:
       kind === "rate"
-        ? `${Math.abs(diff).toFixed(1)} pts`
+        ? `${formatNumber(Math.abs(diff), locale, oneDecimal)} pts`
         : `${Math.round((Math.abs(diff) / previous) * 100)}%`,
-    absolute: signed(diff, kind),
+    absolute: signed(diff, kind, locale),
   };
 }
 

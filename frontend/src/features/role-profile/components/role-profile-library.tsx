@@ -37,8 +37,10 @@ import {
   roleError,
 } from "../api/requests";
 import { RoleProfileStatus } from "./role-profile-status";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function RoleProfileLibrary() {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
   const [offset, setOffset] = useState(0);
@@ -107,11 +109,7 @@ export function RoleProfileLibrary() {
           dateTime={profile.createdAt}
           className="text-xs text-muted-foreground"
         >
-          {new Date(profile.createdAt).toLocaleDateString("en-GB", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          })}
+          {fmt.date(profile.createdAt, "dayMonthYear")}
         </time>
       ),
     },

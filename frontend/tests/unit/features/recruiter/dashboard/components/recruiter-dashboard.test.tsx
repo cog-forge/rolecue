@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { RecruiterDashboard } from "@/features/recruiter/dashboard/components/recruiter-dashboard";
@@ -100,7 +101,7 @@ function mount() {
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
   client.setQueryData(["auth", "me"], mocks.user);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <RecruiterDashboard />
     </QueryClientProvider>,

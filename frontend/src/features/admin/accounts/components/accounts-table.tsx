@@ -7,19 +7,14 @@ import type { AdminAccount } from "../api/accounts";
 import { AccountRoleBadge, AccountLockBadge } from "./account-badges";
 import { AccountRowActions } from "./account-row-actions";
 import { isAccountLocked } from "../schemas/account-state";
+import type { Formatters } from "@/lib/i18n/formatters";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function accountName(user: AdminAccount) {
   return user.name?.trim() || user.email;
 }
-export function accountDate(date: Date) {
-  return new Intl.DateTimeFormat(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZoneName: "short",
-  }).format(date);
+export function accountDate(date: Date, fmt: Formatters) {
+  return fmt.date(date, "momentPadded");
 }
 
 export function AccountsTable({
@@ -35,6 +30,7 @@ export function AccountsTable({
   onAction: (user: AdminAccount, trigger: HTMLButtonElement | null) => void;
   onView: (user: AdminAccount, trigger: HTMLButtonElement | null) => void;
 }) {
+  const fmt = useFormatters();
   const columns: DataTableColumn<AdminAccount>[] = [
     {
       id: "account",
@@ -76,7 +72,7 @@ export function AccountsTable({
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {user.banExpires
-                  ? `Until ${accountDate(user.banExpires)}`
+                  ? `Until ${accountDate(user.banExpires, fmt)}`
                   : "Indefinitely"}
               </p>
             </>
@@ -90,7 +86,7 @@ export function AccountsTable({
       className: "whitespace-nowrap px-5 py-4 text-xs text-muted-foreground",
       cell: (user) => (
         <time dateTime={user.createdAt.toISOString()}>
-          {accountDate(user.createdAt)}
+          {accountDate(user.createdAt, fmt)}
         </time>
       ),
     },

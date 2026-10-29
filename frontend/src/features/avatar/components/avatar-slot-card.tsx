@@ -20,12 +20,7 @@ import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { avatarPortraitKey, getAvatar } from "../api/inventory";
 import { slotPriceCoins, type Avatar } from "../schemas/avatar-schema";
-
-const dateFormat = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const noSubscription = () => () => {};
 
@@ -54,6 +49,7 @@ export function AvatarSlotCard({
   onOpen: () => void;
   onDelete: (trigger: HTMLButtonElement) => void;
 }) {
+  const fmt = useFormatters();
   const card = useRef<HTMLLIElement>(null);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -187,7 +183,7 @@ export function AvatarSlotCard({
             </h2>
             <p className="text-xs text-muted-foreground">
               <time dateTime={avatar.created_at}>
-                {dateFormat.format(new Date(avatar.created_at))}
+                {fmt.date(avatar.created_at, "dayMonthYear")}
               </time>
             </p>
           </div>

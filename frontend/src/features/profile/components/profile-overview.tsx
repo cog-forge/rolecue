@@ -17,6 +17,8 @@ import {
 import { getMyProfile, updateMyProfile, profileKeys } from "../api/profile";
 import { ProfileForm } from "./profile-form";
 import { ProfileSummary } from "./profile-summary";
+import { apiErrorMessage } from "@/lib/i18n/api-errors";
+import { useTranslations } from "next-intl";
 
 function denied(error: unknown) {
   return (
@@ -24,6 +26,7 @@ function denied(error: unknown) {
   );
 }
 export function ProfileOverview() {
+  const errorsT = useTranslations("errors");
   const user = useSessionUser();
   const cache = useQueryClient();
   const key = profileKeys.me(user.id);
@@ -76,15 +79,11 @@ export function ProfileOverview() {
   }, [accessDenied, refreshAccess]);
   let saveError: string | null = null;
   if (mutation.error) {
-    const payload = isAxiosError<{ error?: { message?: unknown } }>(
+    saveError = apiErrorMessage(
+      errorsT,
       mutation.error,
-    )
-      ? mutation.error.response?.data
-      : undefined;
-    saveError =
-      typeof payload?.error?.message === "string"
-        ? payload.error.message
-        : "We couldn't save your profile. Your changes are still here. Please try again.";
+      "We couldn't save your profile. Your changes are still here. Please try again.",
+    );
   }
   return (
     <section className="mx-auto w-full max-w-5xl space-y-8">

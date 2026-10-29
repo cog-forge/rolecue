@@ -11,13 +11,16 @@ import {
 import { formatVND } from "../lib/format";
 import { buildTrendRows, type TrendRow } from "../lib/revenue-chart";
 import type { RevenueReport } from "../schemas/billing-schema";
+import type { Formatters } from "@/lib/i18n/formatters";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const CURRENT = "var(--rolecue-brand-blue)";
 const COMPARISON =
   "color-mix(in oklch, var(--rolecue-ink-subtle) 45%, transparent)";
 
-function compactVND(value: number) {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+function compactVND(value: number, fmt: Formatters) {
+  if (value >= 1_000_000)
+    return `${fmt.number(value / 1_000_000, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
   if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
   return String(value);
 }
@@ -33,6 +36,7 @@ export function RevenueTrendChart({
   range: string;
   comparisonRange: string;
 }) {
+  const fmt = useFormatters();
   const rows = buildTrendRows(report);
   const config = {
     comparison: { label: comparisonRange, color: COMPARISON },
@@ -93,7 +97,7 @@ export function RevenueTrendChart({
                 tickLine={false}
                 axisLine={false}
                 width={40}
-                tickFormatter={compactVND}
+                tickFormatter={(value: number) => compactVND(value, fmt)}
                 allowDecimals={false}
               />
               <ChartTooltip

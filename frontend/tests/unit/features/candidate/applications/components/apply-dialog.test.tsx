@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApplyDialog } from "@/features/candidate/applications/components/apply-dialog";
 
@@ -32,7 +33,7 @@ function renderDialog(onOpenChange = vi.fn()) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <ApplyDialog posting={posting} open onOpenChange={onOpenChange} />
     </QueryClientProvider>,

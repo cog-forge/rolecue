@@ -11,6 +11,7 @@ import {
   questionLength,
   type QuestionValues,
 } from "../schemas/question-bank-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // One form for adding and editing a question. The draft stays when the request fails, because
 // the parent keeps the editor mounted and only closes it on success.
@@ -39,6 +40,7 @@ export function QuestionEditor({
   onCancel?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const fmt = useFormatters();
   const {
     register,
     handleSubmit,
@@ -87,8 +89,7 @@ export function QuestionEditor({
       >
         <span>Asked by the AI interviewer. Candidates never see the bank.</span>
         <span className="tabular-nums">
-          {questionLength(content ?? "").toLocaleString("en")}/
-          {maxLength.toLocaleString("en")}
+          {fmt.number(questionLength(content ?? ""))}/{fmt.number(maxLength)}
         </span>
       </p>
       {fieldError && (

@@ -42,6 +42,7 @@ import {
 import { Notice } from "./notice";
 import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingStatus } from "./posting-status";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const statusOptions: { status: ListStatus; label: string }[] = [
   { status: "all", label: "All" },
@@ -63,10 +64,6 @@ const emptyText: Record<ListStatus, string> = {
   closed: "No postings are closed.",
   rejected: "No postings were rejected.",
 };
-const dateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
 const listHref = (filters: ListFilters) =>
   `${routes.recruiter.jobPostings}${listSearch(filters)}`;
 
@@ -335,6 +332,7 @@ export function JobPostingList() {
 }
 
 function PostingRow({ posting }: { posting: PostingSummary }) {
+  const fmt = useFormatters();
   const details = [posting.location, posting.employment_type]
     .filter(Boolean)
     .join(" · ");
@@ -355,7 +353,7 @@ function PostingRow({ posting }: { posting: PostingSummary }) {
           <span className="xl:hidden">
             {" · "}
             {count} {count === 1 ? "question" : "questions"} · Created{" "}
-            {dateFormat.format(new Date(posting.created_at))}
+            {fmt.date(posting.created_at, "calendarDay")}
           </span>
         </span>
         {posting.status === "rejected" && posting.reject_reason && (
@@ -377,7 +375,7 @@ function PostingRow({ posting }: { posting: PostingSummary }) {
       </td>
       <td className="hidden text-left whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell xl:py-3.5 xl:pr-4">
         <time dateTime={posting.created_at} title={posting.created_at}>
-          {dateFormat.format(new Date(posting.created_at))}
+          {fmt.date(posting.created_at, "calendarDay")}
         </time>
       </td>
       <td className="col-span-2 xl:py-2.5 xl:pr-5">

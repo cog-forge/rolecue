@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChangePasswordDialog } from "@/features/account-security/components/change-password-dialog";
@@ -19,7 +20,7 @@ function renderDialog() {
   const onNoPassword = vi.fn();
   const client = new QueryClient();
   const invalidate = vi.spyOn(client, "invalidateQueries");
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <ChangePasswordDialog
         open

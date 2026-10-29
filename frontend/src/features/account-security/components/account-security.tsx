@@ -20,14 +20,14 @@ import { KeyRound, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { ChangePasswordDialog } from "./change-password-dialog";
+import type { Formatters } from "@/lib/i18n/formatters";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
-function listSignInMethods(providerIds: string[]) {
+function listSignInMethods(providerIds: string[], fmt: Formatters) {
   const names = providerIds
     .filter((id) => id !== "credential")
     .map(providerName);
-  return names.length > 0
-    ? new Intl.ListFormat("en", { type: "disjunction" }).format(names)
-    : "a social account";
+  return names.length > 0 ? fmt.list(names, "disjunction") : "a social account";
 }
 
 export function AccountSecurity({ children }: { children?: ReactNode }) {
@@ -57,6 +57,7 @@ export function AccountSecurity({ children }: { children?: ReactNode }) {
 }
 
 export function PasswordSettings() {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const [dialogOpen, setDialogOpen] = useState(false);
   // Set when change-password reports no password even though the list showed one.
@@ -125,8 +126,8 @@ export function PasswordSettings() {
             title="No password"
             description={
               <p role="status">
-                You sign in with {listSignInMethods(accounts.data)}, so this
-                account has no password to change. To add one, use{" "}
+                You sign in with {listSignInMethods(accounts.data, fmt)}, so
+                this account has no password to change. To add one, use{" "}
                 <Link
                   href={routes.forgotPassword}
                   className="font-medium text-foreground underline-offset-4 hover:underline"

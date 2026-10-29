@@ -1,3 +1,4 @@
+import type { Formatters } from "@/lib/i18n/formatters";
 import type { ReportStatus, ReportType } from "../schemas/report-schema";
 
 export const reportTypeLabel: Record<ReportType, string> = {
@@ -12,13 +13,8 @@ export const reportStatusLabel: Record<ReportStatus, string> = {
   failed: "Evaluation failed",
 };
 
-const dateTimeFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-export function formatInterviewTime(iso: string) {
-  return dateTimeFormat.format(new Date(iso));
+export function formatInterviewTime(iso: string, fmt: Formatters) {
+  return fmt.date(iso, "localDateTime");
 }
 
 export function scoreText(score: number | null) {

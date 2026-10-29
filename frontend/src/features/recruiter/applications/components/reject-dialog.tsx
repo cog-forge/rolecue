@@ -19,6 +19,7 @@ import {
   screeningRejectSchema,
   type ScreeningRejectValues,
 } from "../schemas/application-detail-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // The optional reason of a rejection, shared by CV screening and the final decision. The reason
 // draft lives in RejectForm, which unmounts with the dialog, so a new open starts empty. A failed
@@ -84,6 +85,7 @@ function RejectForm({
   onCancel: () => void;
   onSubmit: (reason: string | undefined) => void;
 }) {
+  const fmt = useFormatters();
   const reasonId = useId();
   const hintId = useId();
   const errorId = useId();
@@ -135,7 +137,7 @@ function RejectForm({
           <span>Leave it empty to reject without a reason.</span>
           <span className="tabular-nums">
             {Array.from((reason ?? "").trim()).length}/
-            {MAX_SCREENING_REASON.toLocaleString("en")}
+            {fmt.number(MAX_SCREENING_REASON)}
           </span>
         </p>
         {reasonError && (

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { TransactionHistory } from "@/features/billing/components/transaction-history";
 import type { TransactionPage } from "@/features/billing/schemas/wallet-schema";
 
@@ -26,7 +27,7 @@ it("scopes filters and counts to the current page, preserving access to matching
     page: 1,
     page_size: 20,
   };
-  const { rerender } = render(
+  const { rerender } = renderWithIntl(
     <TransactionHistory {...props} data={firstPage} />,
   );
   fireEvent.mouseDown(screen.getByRole("tab", { name: "Coin Spending" }), {
@@ -78,7 +79,7 @@ describe("unavailable transaction dates", () => {
   it.each([undefined, "0001-01-01T00:00:00Z", "invalid"])(
     "renders a placeholder for %s",
     (created_at) => {
-      render(
+      renderWithIntl(
         <TransactionHistory
           currentUserId="user"
           isLoading={false}
@@ -119,7 +120,7 @@ it("shows when each transaction happened in the viewer's local time", () => {
     minute: "2-digit",
   }).format(new Date(createdAt));
 
-  render(
+  renderWithIntl(
     <TransactionHistory
       currentUserId="user"
       isLoading={false}
@@ -164,7 +165,7 @@ describe("what each row says", () => {
   };
 
   it("names ledger rows by what happened, without internal IDs", () => {
-    render(
+    renderWithIntl(
       <TransactionHistory
         {...base}
         data={{
@@ -191,7 +192,7 @@ describe("what each row says", () => {
   });
 
   it("does not show coins for a top-up that was never paid", () => {
-    render(
+    renderWithIntl(
       <TransactionHistory
         {...base}
         data={{

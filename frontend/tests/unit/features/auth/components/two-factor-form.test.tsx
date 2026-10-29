@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TwoFactorForm } from "@/features/auth/components/two-factor-form";
 
@@ -20,7 +21,7 @@ function renderForm(returnTo?: string) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <TwoFactorForm returnTo={returnTo} />
     </QueryClientProvider>,

@@ -29,6 +29,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { describeTransaction } from "../lib/describe-transaction";
 import type { Transaction, TransactionPage } from "../schemas/wallet-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
+import { apiErrorMessage } from "@/lib/i18n/api-errors";
+import { useTranslations } from "next-intl";
 
 type FilterTab = "all" | "topup" | "spend" | "refund";
 
@@ -53,6 +56,8 @@ export function TransactionHistory({
   onPageChange,
   onRefresh,
 }: TransactionHistoryProps) {
+  const fmt = useFormatters();
+  const errorsT = useTranslations("errors");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
 
   const items = data?.items ?? [];
@@ -93,18 +98,7 @@ export function TransactionHistory({
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr || dateStr.startsWith("0001-01-01")) return "—";
-    try {
-      const d = new Date(dateStr);
-      return new Intl.DateTimeFormat("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(d);
-    } catch {
-      return "—";
-    }
+    return fmt.date(dateStr, "transaction") || "—";
   };
 
   const renderStatusBadge = (status: Transaction["status"]) => {
@@ -252,7 +246,11 @@ export function TransactionHistory({
                   Unable to load transaction history
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {error.message || "Please try refreshing the page."}
+                  {apiErrorMessage(
+                    errorsT,
+                    error,
+                    "Please try refreshing the page.",
+                  )}
                 </p>
                 <Button
                   type="button"
@@ -300,7 +298,7 @@ export function TransactionHistory({
                     // A PayOS top-up adds coins only once it is paid.
                     const unpaid =
                       tx.payos_order_code != null && tx.status !== "success";
-                    const coins = `${positive ? "+" : "-"}${Math.abs(tx.amount).toLocaleString("en-US")}`;
+                    const coins = `${positive ? "+" : "-"}${fmt.coinAmount(Math.abs(tx.amount))}`;
                     const Icon = refund
                       ? RotateCcw
                       : positive

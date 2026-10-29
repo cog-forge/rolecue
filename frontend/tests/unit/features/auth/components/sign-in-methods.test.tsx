@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SignInMethods } from "@/features/auth/components/sign-in-methods";
 const { unlinkAccount, linkSocial, success } = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ function renderMethods(
   providers = ["credential", "google"],
   enabledProviders: ("google" | "github" | "facebook")[] = ["github"],
 ) {
-  render(
+  renderWithIntl(
     <QueryClientProvider client={new QueryClient()}>
       <SignInMethods
         accounts={providers.map(account)}

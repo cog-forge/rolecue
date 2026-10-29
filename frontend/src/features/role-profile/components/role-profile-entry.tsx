@@ -31,6 +31,7 @@ import {
 } from "../api/requests";
 import { DocumentUploadPanel } from "./document-upload-panel";
 import { RoleProfileSteps } from "./role-profile-steps";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const phaseLabels = {
   upload: {
@@ -48,6 +49,7 @@ const phaseLabels = {
 };
 
 export function RoleProfileEntry() {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const router = useRouter();
   const cache = useQueryClient();
@@ -244,10 +246,8 @@ export function RoleProfileEntry() {
                 >
                   <span>100–20,000 characters after whitespace cleanup.</span>
                   <span>
-                    {[
-                      ...normalizeRoleText(rawText ?? ""),
-                    ].length.toLocaleString()}{" "}
-                    / 20,000
+                    {fmt.number([...normalizeRoleText(rawText ?? "")].length)} /
+                    20,000
                   </span>
                 </div>
                 <p

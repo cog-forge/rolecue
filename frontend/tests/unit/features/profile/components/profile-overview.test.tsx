@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import {
   QueryClient,
   QueryClientProvider,
@@ -53,7 +48,7 @@ function mount() {
     },
   });
   client.setQueryData(["auth", "me"], mocks.user);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <ProfileOverview />
     </QueryClientProvider>,
@@ -209,7 +204,9 @@ describe("own profile screen", () => {
       ).toBeEnabled(),
     );
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Save failed");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "We couldn't save your profile. Your changes are still here. Please try again.",
+    );
     expect(screen.getByLabelText("Display name")).toHaveValue("Draft");
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(screen.getByLabelText("Display name")).toHaveValue("Nam");

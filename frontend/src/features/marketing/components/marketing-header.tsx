@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useMotionValueEvent, useScroll } from "motion/react";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RoleCueMark } from "@/components/brand/rolecue-mark";
+import { LanguageSwitcher } from "@/components/layout/language-switcher";
 import {
   Sheet,
   SheetClose,
@@ -37,6 +39,8 @@ const mobileNavLink = cn(
 );
 
 export function MarketingHeader() {
+  const common = useTranslations("common");
+  const t = useTranslations("public.header");
   const [isCompact, setIsCompact] = useState(false);
   const { scrollY } = useScroll();
 
@@ -56,7 +60,7 @@ export function MarketingHeader() {
         )}
         href="#main-content"
       >
-        Skip to content
+        {common("skipToContent")}
       </a>
 
       <header className="pointer-events-none sticky top-0 z-60 flex h-[5.3rem] justify-center -mb-[5.3rem] max-[760px]:h-19 max-[760px]:-mb-19">
@@ -112,6 +116,12 @@ export function MarketingHeader() {
                   </a>
                 ))}
               </div>
+              <LanguageSwitcher
+                className={cn(
+                  landingFocus,
+                  "px-2 text-base font-medium text-(--rolecue-ink-muted) hover:bg-transparent hover:text-(--rolecue-brand-blue) max-[760px]:px-1 max-[760px]:[&>span]:hidden",
+                )}
+              />
               <Button
                 asChild
                 className={cn(
@@ -120,7 +130,7 @@ export function MarketingHeader() {
                   "min-h-11 px-4 py-2 text-[0.8rem] max-[760px]:px-3 max-[760px]:text-xs",
                 )}
               >
-                <Link href={routes.login}>Sign in</Link>
+                <Link href={routes.login}>{t("signIn")}</Link>
               </Button>
 
               <Sheet>
@@ -182,7 +192,7 @@ export function MarketingHeader() {
                         )}
                         href={routes.login}
                       >
-                        Sign in
+                        {t("signIn")}
                         <ArrowRight
                           aria-hidden="true"
                           className="transition-transform duration-(--duration-fast) ease-(--ease-smooth-out) group-hover/button:translate-x-1 motion-reduce:transform-none! motion-reduce:transition-none!"

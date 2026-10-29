@@ -4,6 +4,9 @@ import {
   salaryText,
   targetLabel,
 } from "@/features/job-board/utils/format";
+import { formattersFor } from "@tests/helpers/intl";
+
+const fmt = formattersFor("en");
 
 describe("salaryText", () => {
   it.each([
@@ -13,7 +16,9 @@ describe("salaryText", () => {
     [null, 2500, "Up to 2,500"],
     [null, null, null],
   ])("formats %s to %s with no currency", (min, max, expected) => {
-    expect(salaryText({ salary_min: min, salary_max: max })).toBe(expected);
+    expect(salaryText({ salary_min: min, salary_max: max }, fmt)).toBe(
+      expected,
+    );
   });
 });
 
@@ -26,7 +31,7 @@ describe("postedText", () => {
     ["2026-10-15T12:00:00Z", "Posted 3 days ago"],
     ["2026-09-01T12:00:00Z", "Posted Sep 1, 2026"],
   ])("%s → %s", (createdAt, expected) => {
-    expect(postedText(createdAt, now)).toBe(expected);
+    expect(postedText(createdAt, fmt, now)).toBe(expected);
   });
 });
 
@@ -40,6 +45,6 @@ describe("targetLabel", () => {
 
 it("uses UTC calendar days for publication labels, matching the new-today badge", () => {
   const now = Date.parse("2026-10-29T00:01:00Z");
-  expect(postedText("2026-10-28T23:59:00Z", now)).toBe("Posted yesterday");
-  expect(postedText("2026-10-29T00:00:00Z", now)).toBe("Posted today");
+  expect(postedText("2026-10-28T23:59:00Z", fmt, now)).toBe("Posted yesterday");
+  expect(postedText("2026-10-29T00:00:00Z", fmt, now)).toBe("Posted today");
 });

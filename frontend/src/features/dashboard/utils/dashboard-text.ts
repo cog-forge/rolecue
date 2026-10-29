@@ -1,3 +1,4 @@
+import type { Formatters } from "@/lib/i18n/formatters";
 import type { RoleProfileStatus } from "../schemas/dashboard-schema";
 
 export const roleProfileStatusLabel: Record<RoleProfileStatus, string> = {
@@ -23,11 +24,6 @@ export const applicationStatusLabel = {
   rejected: "Not selected",
 } as const;
 
-const dateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeZone: "UTC",
-});
-
-export function formatDate(iso: string) {
-  return dateFormat.format(new Date(iso));
+export function formatDate(iso: string, fmt: Formatters) {
+  return fmt.date(iso, "calendarDay");
 }

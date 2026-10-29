@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { CvApplyForm } from "@/features/candidate/applications/components/cv-apply-form";
@@ -68,7 +63,7 @@ function renderForm() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={client}>
       <CvApplyForm
         postingId={postingId}
@@ -220,7 +215,7 @@ describe("CvApplyForm", () => {
     expect(mocks.applied).not.toHaveBeenCalled();
   });
 
-  it("shows the server's own message for a validation error", async () => {
+  it("never shows the server's own message for a validation error", async () => {
     mocks.post.mockRejectedValue(
       apiFailure(400, "VALIDATION_ERROR", "The CV is not a readable PDF."),
     );
@@ -228,9 +223,9 @@ describe("CvApplyForm", () => {
     pick(pdf());
     fireEvent.click(applyButton());
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The CV is not a readable PDF.",
-    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Choose a PDF file up to 5 MB.");
+    expect(alert).not.toHaveTextContent("readable");
     expect(
       screen.getByRole("button", { name: "Try again" }),
     ).toBeInTheDocument();

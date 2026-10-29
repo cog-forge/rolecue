@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminRevenueView } from "@/features/admin/billing/components/admin-revenue-view";
 import type { RevenueReport } from "@/features/admin/billing/schemas/billing-schema";
@@ -53,7 +48,7 @@ function renderView() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={queryClient}>
       <AdminRevenueView />
     </QueryClientProvider>,
@@ -169,7 +164,7 @@ describe("AdminRevenueView", () => {
     expect(within(coins).getByText("Avatar storage")).toBeInTheDocument();
 
     const owed = screen.getByRole("region", { name: "Coins users still hold" });
-    expect(owed).toHaveTextContent("1.258 coins");
+    expect(owed).toHaveTextContent("1,258 coins");
     expect(owed).toHaveTextContent("1.258.000 ₫");
     expect(owed).toHaveTextContent("not revenue");
   });

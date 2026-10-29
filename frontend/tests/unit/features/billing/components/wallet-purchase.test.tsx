@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AddCoinsDialog } from "@/features/billing/components/wallet-purchase";
 
@@ -17,7 +18,7 @@ function renderDialog(returnPath?: string) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <AddCoinsDialog
         open

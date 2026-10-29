@@ -24,12 +24,7 @@ import { useUnfinishedPractice } from "../api/setup-catalog";
 import { setupHref } from "../lib/setup-params";
 import { PracticeProgress, ResumeCallout } from "./resume-callout";
 import { SetupHeader } from "./setup-header";
-
-const dateFormat = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-});
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Step 3: the confirmed Role Profile the interview is built from. The choice lives in the URL.
 export function RoleProfilePicker({
@@ -37,6 +32,7 @@ export function RoleProfilePicker({
 }: {
   roleProfileId?: string;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const router = useRouter();
   const headingId = useId();
@@ -217,7 +213,7 @@ export function RoleProfilePicker({
                       </span>
                       {" · Created "}
                       <time dateTime={profile.createdAt}>
-                        {dateFormat.format(new Date(profile.createdAt))}
+                        {fmt.date(profile.createdAt, "dayMonthYear")}
                       </time>
                     </span>
                   </span>

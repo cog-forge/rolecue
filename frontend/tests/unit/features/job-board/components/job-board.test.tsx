@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { JobBoard } from "@/features/job-board/components/job-board";
@@ -98,7 +93,7 @@ function mountWithSearch() {
       <JobBoard />
     </QueryClientProvider>
   );
-  const view = render(tree());
+  const view = renderWithIntl(tree());
   // Simulates the URL changing (pushState or browser Back) and the page reading it again.
   const navigate = (next: BoardFilters) => {
     mocks.search = new URLSearchParams(boardSearch(next));

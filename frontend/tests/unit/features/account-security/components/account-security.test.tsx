@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -33,7 +34,7 @@ function accounts(...providerIds: string[]) {
 }
 
 function renderPage() {
-  render(
+  renderWithIntl(
     <QueryClientProvider client={new QueryClient()}>
       <AccountSecurity>
         <PasswordSettings />

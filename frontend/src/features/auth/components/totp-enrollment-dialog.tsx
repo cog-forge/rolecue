@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
@@ -21,9 +21,9 @@ import {
 import { authClient } from "@/lib/auth/client";
 import { useShakeInvalidFields } from "../hooks/use-shake-invalid-fields";
 import {
-  currentPasswordSchema,
+  createCurrentPasswordSchema,
   totpSetupSchema,
-  totpVerificationSchema,
+  createTotpVerificationSchema,
   type CurrentPasswordValues,
   type TotpSetup,
   type VerificationValues,
@@ -33,6 +33,7 @@ import { PasswordField } from "./password-field";
 import { SecurityRequestError } from "./security-request-error";
 import { BackupCodes } from "./backup-codes";
 import { CopyButton } from "./copy-button";
+import { useTranslations } from "next-intl";
 
 const steps = [
   {
@@ -77,6 +78,15 @@ export function TotpEnrollmentDialog({
   onAccessError: (error: unknown) => void;
   enabled?: boolean;
 }) {
+  const v = useTranslations("validation");
+  const currentPasswordSchema = useMemo(
+    () => createCurrentPasswordSchema(v),
+    [v],
+  );
+  const totpVerificationSchema = useMemo(
+    () => createTotpVerificationSchema(v),
+    [v],
+  );
   const [open, setOpen] = useState(false);
   const [setup, setSetup] = useState<TotpSetup | null>(null);
   const passwordFormRef = useRef<HTMLFormElement>(null);

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isAxiosError } from "axios";
 import { apiClient } from "@/lib/api/client";
 import { banRequestSchema, targetRequestSchema } from "../schemas/account-lock";
+import { apiErrorMessage, type ErrorTranslator } from "@/lib/i18n/api-errors";
 
 export const ACCOUNTS_PAGE_SIZE = 20;
 
@@ -120,12 +121,12 @@ export async function updateAccountLock(action: AccountAction) {
     .parse(response.data).data;
 }
 
-export function getAccountActionError(error: unknown) {
-  if (isAxiosError(error) && error.response && error.response.status < 500) {
-    const parsed = z
-      .object({ error: z.object({ message: z.string() }) })
-      .safeParse(error.response.data);
-    if (parsed.success) return parsed.data.error.message;
-  }
-  return "We couldn't confirm the change. Please refresh before trying again.";
+// A client error is shown by its stable API code in the active language; the server's own text
+// never reaches the screen.
+export function getAccountActionError(error: unknown, t: ErrorTranslator) {
+  const fallback =
+    "We couldn't confirm the change. Please refresh before trying again.";
+  return isAxiosError(error) && error.response && error.response.status < 500
+    ? apiErrorMessage(t, error, fallback)
+    : fallback;
 }

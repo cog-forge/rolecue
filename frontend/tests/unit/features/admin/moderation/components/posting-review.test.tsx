@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { PostingReview } from "@/features/admin/moderation/components/posting-review";
@@ -104,7 +99,7 @@ function mount() {
     },
   });
   client.setQueryData(["auth", "me"], mocks.user);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <PostingReview id={id} backQuery="status=all" />
     </QueryClientProvider>,

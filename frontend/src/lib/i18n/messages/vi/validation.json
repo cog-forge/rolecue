@@ -1,0 +1,19 @@
+{
+  "required": "Vui lòng không để trống mục này.",
+  "email": "Vui lòng nhập địa chỉ email hợp lệ.",
+  "minLength": "Vui lòng nhập ít nhất {min} ký tự.",
+  "maxLength": "Vui lòng nhập tối đa {max} ký tự.",
+  "emailRequired": "Vui lòng nhập địa chỉ email",
+  "emailInvalid": "Vui lòng nhập địa chỉ email hợp lệ",
+  "passwordRequired": "Vui lòng nhập mật khẩu",
+  "passwordMin": "Mật khẩu cần có ít nhất {min} ký tự",
+  "passwordTooLong": "Mật khẩu quá dài",
+  "confirmPasswordRequired": "Vui lòng nhập lại mật khẩu để xác nhận",
+  "confirmNewPasswordRequired": "Vui lòng nhập lại mật khẩu mới để xác nhận",
+  "passwordsMismatch": "Mật khẩu nhập lại không khớp",
+  "currentPasswordRequired": "Vui lòng nhập mật khẩu hiện tại",
+  "enterCurrentPassword": "Vui lòng nhập mật khẩu hiện tại",
+  "passwordSameAsCurrent": "Hãy chọn mật khẩu khác với mật khẩu hiện tại",
+  "totpCode": "Nhập mã 6 chữ số từ ứng dụng xác thực của bạn",
+  "backupCodeRequired": "Vui lòng nhập mã dự phòng"
+}

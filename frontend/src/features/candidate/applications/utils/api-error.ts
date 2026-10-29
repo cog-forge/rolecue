@@ -1,4 +1,5 @@
 import { isAxiosError } from "axios";
+import { apiErrorMessage, type ErrorTranslator } from "@/lib/i18n/api-errors";
 
 // Reads the Go envelope { success:false, error:{ code, message } } without trusting its shape.
 export function apiError(error: unknown) {
@@ -31,14 +32,14 @@ const applyMessages: Record<string, string> = {
   FORBIDDEN: "Only candidate accounts can apply to job postings.",
 };
 
-// Fixed copy for known codes; a validation error shows the server's own words.
-export function applyErrorMessage(error: unknown) {
-  const { code, message } = apiError(error);
+// Fixed copy for known codes; any other code uses the shared translated message for it. The
+// server's own text is never shown.
+export function applyErrorMessage(error: unknown, t: ErrorTranslator) {
+  const { code } = apiError(error);
   if (code !== null && Object.hasOwn(applyMessages, code))
     return applyMessages[code];
-  if (code === "VALIDATION_ERROR")
-    return message ?? "Choose a PDF file up to 5 MB.";
-  return "We couldn't upload your CV. Try again.";
+  if (code === "VALIDATION_ERROR") return "Choose a PDF file up to 5 MB.";
+  return apiErrorMessage(t, error, "We couldn't upload your CV. Try again.");
 }
 
 export function canRetryApply(error: unknown) {

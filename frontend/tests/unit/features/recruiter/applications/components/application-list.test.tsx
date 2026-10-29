@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { ApplicationList } from "@/features/recruiter/applications/components/application-list";
@@ -119,7 +120,7 @@ function mount(
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
   client.setQueryData(["auth", "me"], mocks.user);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       {props.postingId ? (
         <ApplicationList postingId={props.postingId} />

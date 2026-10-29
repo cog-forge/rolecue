@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Wallet as WalletType } from "../schemas/wallet-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 interface BalanceCardProps {
   wallet?: WalletType;
@@ -21,6 +22,7 @@ export function BalanceCard({
   error,
   onRefresh,
 }: BalanceCardProps) {
+  const fmt = useFormatters();
   return (
     <Card className="relative overflow-hidden border-border/80 bg-gradient-to-br from-card via-card to-muted/40 shadow-sm transition-all duration-300">
       <CardContent className="p-6 md:p-8">
@@ -61,7 +63,9 @@ export function BalanceCard({
               <div className="space-y-1">
                 <div className="flex items-baseline gap-2.5">
                   <span className="text-4xl font-extrabold tracking-tight text-foreground md:text-5xl">
-                    {wallet?.balance?.toLocaleString("en-US") ?? 0}
+                    {wallet?.balance === undefined
+                      ? 0
+                      : fmt.coinAmount(wallet.balance)}
                   </span>
                   <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
                     <Coins className="h-3.5 w-3.5" />

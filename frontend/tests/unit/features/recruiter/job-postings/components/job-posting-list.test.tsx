@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { JobPostingList } from "@/features/recruiter/job-postings/components/job-posting-list";
@@ -82,7 +77,7 @@ function mount(filters = defaultListFilters) {
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
   client.setQueryData(["auth", "me"], mocks.user);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <JobPostingList />
     </QueryClientProvider>,

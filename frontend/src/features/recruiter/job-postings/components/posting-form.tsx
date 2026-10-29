@@ -59,6 +59,7 @@ import { apiError, isAccessDenied } from "../utils/api-error";
 import { InterviewerPreview } from "./interviewer-preview";
 import { JdDocumentLink } from "./jd-document-link";
 import { Notice } from "./notice";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const levelText: Record<Level, string> = {
   intern: "Intern",
@@ -104,6 +105,7 @@ export function PostingForm({
   submitError: string | null;
   onSubmit: (values: PostingValues, requirementsChanged: boolean) => void;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
   const form = useForm<PostingValues>({
@@ -363,7 +365,7 @@ export function PostingForm({
                   {rawText}
                 </div>
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {textLength.toLocaleString("en")} characters
+                  {fmt.number(textLength)} characters
                 </p>
               </div>
             )}

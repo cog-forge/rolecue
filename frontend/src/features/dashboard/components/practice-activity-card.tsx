@@ -9,6 +9,7 @@ import { dashboardKeys, listPracticeInterviews } from "../api/dashboard";
 import type { InterviewHistoryItem } from "../schemas/dashboard-schema";
 import { formatDate, interviewStatusLabel } from "../utils/dashboard-text";
 import { CardError, CardLoading, DashboardCard } from "./dashboard-card";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 const PREVIEW_COUNT = 3;
 
@@ -63,6 +64,7 @@ export function PracticeActivityCard() {
 }
 
 function PracticeRow({ item }: { item: InterviewHistoryItem }) {
+  const fmt = useFormatters();
   return (
     <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
       <div className="min-w-0">
@@ -73,7 +75,8 @@ function PracticeRow({ item }: { item: InterviewHistoryItem }) {
           {item.role_profile_title}
         </Link>
         <p className="text-xs text-muted-foreground">
-          {formatDate(item.started_at)} · {interviewStatusLabel[item.status]}
+          {formatDate(item.started_at, fmt)} ·{" "}
+          {interviewStatusLabel[item.status]}
         </p>
       </div>
       {item.score !== null ? (

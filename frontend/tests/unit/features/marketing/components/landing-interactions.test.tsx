@@ -1,9 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl as render } from "@tests/helpers/intl";
 import { expect, it, vi } from "vitest";
 import { FaqSection } from "@/features/marketing/components/faq-section";
 import { HeroLottieSequence } from "@/features/marketing/components/hero-lottie-sequence";
 import { RoleCueLanding } from "@/features/marketing/components/rolecue-landing";
 import { WorkWheelSection } from "@/features/marketing/components/work-wheel-section";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 it("renders the new hero with Walk in ready headline and Start now CTA", () => {
   render(<RoleCueLanding />);
@@ -112,4 +117,13 @@ it("opens and closes an FAQ response with shadcn Accordion state", async () => {
 
   fireEvent.click(question);
   expect(question).toHaveAttribute("aria-expanded", "false");
+});
+
+it("shows the landing header in the active language and offers the language switcher", () => {
+  render(<RoleCueLanding />, { locale: "vi" });
+  const signIn = screen.getAllByRole("link", { name: "Đăng nhập" });
+  expect(signIn.length).toBeGreaterThan(0);
+  expect(
+    screen.getByRole("button", { name: "Đổi ngôn ngữ: Tiếng Việt" }),
+  ).toBeInTheDocument();
 });

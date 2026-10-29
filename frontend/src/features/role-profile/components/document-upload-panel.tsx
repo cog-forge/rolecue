@@ -5,6 +5,7 @@ import { FileText, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { pdfFileError } from "../api/contract";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function DocumentUploadPanel({
   file,
@@ -17,6 +18,7 @@ export function DocumentUploadPanel({
   disabled: boolean;
   progress: number | null;
 }) {
+  const fmt = useFormatters();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const select = (selected: File | undefined) => {
@@ -57,7 +59,7 @@ export function DocumentUploadPanel({
           className="max-w-sm text-xs leading-relaxed text-muted-foreground"
         >
           {file
-            ? `${(file.size / 1024).toFixed(1)} KB · PDF selected`
+            ? `${fmt.number(file.size / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB · PDF selected`
             : "PDF with selectable text, up to 5 MB. Scanned or encrypted PDFs aren’t supported."}
         </p>
         <Input

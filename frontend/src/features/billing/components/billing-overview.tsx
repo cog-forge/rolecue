@@ -18,8 +18,10 @@ import {
 } from "./payment-status-banner";
 import { TransactionHistory } from "./transaction-history";
 import { AddCoinsDialog } from "./wallet-purchase";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function BillingOverview() {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const queryClient = useQueryClient();
 
@@ -113,7 +115,7 @@ export function BillingOverview() {
             <p className="text-xs text-muted-foreground">Balance</p>
             <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">
               {wallet.data
-                ? `${wallet.data.balance.toLocaleString("en-US")} coins`
+                ? `${fmt.coinAmount(wallet.data.balance)} coins`
                 : "—"}
             </p>
           </div>

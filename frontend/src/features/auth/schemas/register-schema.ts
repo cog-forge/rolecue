@@ -1,18 +1,26 @@
 import { z } from "zod";
+import type { Validation } from "@/lib/i18n/validation";
 
-export const registerSchema = z
-  .object({
-    email: z
-      .string()
-      .trim()
-      .min(1, "Email address is required")
-      .email("Please enter a valid email address"),
-    password: z.string().min(8, "Use at least 8 characters").max(128),
-    confirmPassword: z.string().min(1, "Please confirm your password"),
-  })
-  .refine((values) => values.password === values.confirmPassword, {
-    path: ["confirmPassword"],
-    message: "Passwords do not match",
-  });
+export function createRegisterSchema(v: Validation) {
+  return z
+    .object({
+      email: z
+        .string()
+        .trim()
+        .min(1, v("emailRequired"))
+        .email(v("emailInvalid")),
+      password: z
+        .string()
+        .min(8, v("passwordMin", { min: 8 }))
+        .max(128, v("passwordTooLong")),
+      confirmPassword: z.string().min(1, v("confirmPasswordRequired")),
+    })
+    .refine((values) => values.password === values.confirmPassword, {
+      path: ["confirmPassword"],
+      message: v("passwordsMismatch"),
+    });
+}
 
-export type RegisterFormValues = z.output<typeof registerSchema>;
+export type RegisterFormValues = z.output<
+  ReturnType<typeof createRegisterSchema>
+>;

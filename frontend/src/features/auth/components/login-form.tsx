@@ -14,7 +14,6 @@ import {
   getAuthErrorMessage,
   isEmailVerificationError,
   isAccountLockedError,
-  accountLockedMessage,
 } from "@/features/auth/utils/get-auth-error-message";
 import { authClient } from "@/lib/auth/client";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,17 +21,21 @@ import { LoaderCircle, LockKeyhole } from "lucide-react";
 import { PasswordVisibilityIcon } from "@/components/icons/password-visibility-icon";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { gooeyToast as toast } from "goey-toast";
 import { useShakeInvalidFields } from "../hooks/use-shake-invalid-fields";
-import { loginSchema, type LoginFormValues } from "../schemas/login-schema";
+import {
+  createLoginSchema,
+  type LoginFormValues,
+} from "../schemas/login-schema";
 import {
   challengeDestination,
   securityReturnTo,
   signedInDestination,
 } from "../utils/auth-navigation";
 import { providerName, type SocialProvider } from "../utils/social-providers";
+import { useTranslations } from "next-intl";
 
 const providerOptions: readonly {
   name: string;
@@ -65,6 +68,9 @@ export function LoginForm({
   returnTo?: string;
   enabledProviders?: readonly SocialProvider[];
 }) {
+  const v = useTranslations("validation");
+  const loginSchema = useMemo(() => createLoginSchema(v), [v]);
+  const te = useTranslations("errors");
   const [showPassword, setShowPassword] = useState(false);
   const [socialPendingProvider, setSocialPendingProvider] =
     useState<SocialProvider | null>(null);
@@ -113,6 +119,7 @@ export function LoginForm({
         description: getAuthErrorMessage(
           error,
           "Unable to sign in. Please check your connection and try again.",
+          te,
         ),
       });
       if (isEmailVerificationError(error)) setVerificationEmail(values.email);
@@ -170,7 +177,7 @@ export function LoginForm({
             Account locked
           </div>
           <p className="mt-2 leading-relaxed text-muted-foreground">
-            {accountLockedMessage}
+            {te("auth.accountLocked")}
           </p>
         </div>
       ) : oauthFailed ? (
@@ -238,6 +245,7 @@ export function LoginForm({
                     description: getAuthErrorMessage(
                       error,
                       `Unable to continue with ${name}. Please try again.`,
+                      te,
                     ),
                   });
                   setSocialPendingProvider(null);

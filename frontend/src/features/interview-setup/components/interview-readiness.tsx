@@ -46,6 +46,7 @@ import { PreflightCheck, type MicrophoneReadiness } from "./preflight-check";
 import { PracticeProgress, ResumeCallout } from "./resume-callout";
 import { SetupHeader } from "./setup-header";
 import { StartPanel } from "./start-panel";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Step 5: the microphone check and the one real operation of setup, start or resume. The layout
 // reads summary, microphone, start on a phone; on a desktop the microphone takes the main column
@@ -402,6 +403,7 @@ function RecruitmentReadiness({
   readiness: MicrophoneReadiness;
   microphone: ReactNode;
 }) {
+  const fmt = useFormatters();
   const user = useSessionUser();
   const application = useQuery({
     queryKey: candidateApplicationKeys.detail(user.id, applicationId),
@@ -530,7 +532,7 @@ function RecruitmentReadiness({
                       <>
                         Complete it by{" "}
                         <time dateTime={deadline}>
-                          {formatDeadline(deadline)}
+                          {formatDeadline(deadline, fmt)}
                         </time>
                       </>
                     ) : undefined
@@ -547,7 +549,7 @@ function RecruitmentReadiness({
           <div className="flex items-center justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Complete by</dt>
             <dd className="text-right font-semibold">
-              <time dateTime={deadline}>{formatDeadline(deadline)}</time>
+              <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4 px-4 py-3">
@@ -592,10 +594,11 @@ function SummaryRow({
 
 // The countdown is re-read once a minute; it stops with the component.
 function TimeLeft({ deadline }: { deadline: string }) {
+  const fmt = useFormatters();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
   }, []);
-  return timeLeftText(deadline, now);
+  return timeLeftText(deadline, now, fmt);
 }

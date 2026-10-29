@@ -21,23 +21,16 @@ import { apiError, isAccessDenied } from "../utils/api-error";
 import { DecisionDialog, type Decision } from "./decision-dialog";
 import { JdViewer } from "./jd-viewer";
 import { PostingStatus } from "./posting-status";
-
-const dateFormat = new Intl.DateTimeFormat("en", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "UTC",
-});
-const numberFormat = new Intl.NumberFormat("en");
+import type { Formatters } from "@/lib/i18n/formatters";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Units and currency aren't defined in the schema yet, so numbers are shown as stored.
-function salary(posting: ReviewPosting) {
+function salary(posting: ReviewPosting, fmt: Formatters) {
   const { salary_min: min, salary_max: max } = posting;
   if (min === null && max === null) return null;
   if (min !== null && max !== null)
-    return `${numberFormat.format(min)} – ${numberFormat.format(max)}`;
-  return min !== null
-    ? `From ${numberFormat.format(min)}`
-    : `Up to ${numberFormat.format(max!)}`;
+    return `${fmt.number(min)} – ${fmt.number(max)}`;
+  return min !== null ? `From ${fmt.number(min)}` : `Up to ${fmt.number(max!)}`;
 }
 
 export function PostingReview({
@@ -236,6 +229,7 @@ function DecisionPanel({
   posting: ReviewPosting;
   onDecide: (decision: Decision) => void;
 }) {
+  const fmt = useFormatters();
   const count = posting.core_question_count;
   // A posting still being prepared cannot be decided; approval also needs questions.
   const notSubmitted = !posting.review_submitted;
@@ -252,7 +246,7 @@ function DecisionPanel({
         <p className="text-sm text-muted-foreground">Question bank</p>
         <p className="text-sm">
           <span className="text-2xl font-semibold tabular-nums">
-            {numberFormat.format(count)}
+            {fmt.number(count)}
           </span>{" "}
           {count === 1 ? "core question" : "core questions"}
         </p>
@@ -305,6 +299,7 @@ function DecisionPanel({
 }
 
 function DetailsCard({ posting }: { posting: ReviewPosting }) {
+  const fmt = useFormatters();
   const rows: [string, ReactNode][] = [
     [
       "Recruiter",
@@ -318,25 +313,25 @@ function DetailsCard({ posting }: { posting: ReviewPosting }) {
     [
       "Created",
       <time key="t" dateTime={posting.created_at}>
-        {dateFormat.format(new Date(posting.created_at))} UTC
+        {fmt.date(posting.created_at, "calendarDayTime")} UTC
       </time>,
     ],
     ["Company", posting.company_name ?? null],
     ["Seniority", posting.seniority_level ?? null],
     ["Location", posting.location],
     ["Employment type", posting.employment_type],
-    ["Salary", salary(posting)],
+    ["Salary", salary(posting, fmt)],
     [
       "Interview slots",
       posting.interview_slot === null
         ? null
-        : numberFormat.format(posting.interview_slot),
+        : fmt.number(posting.interview_slot),
     ],
     [
       "Interview duration",
       posting.interview_duration === null
         ? null
-        : `${numberFormat.format(posting.interview_duration)} minutes`,
+        : `${fmt.number(posting.interview_duration)} minutes`,
     ],
     ["3D interviewer", posting.required_avatar?.name ?? null],
     ["Voice profile", posting.required_voice?.name ?? null],
@@ -370,6 +365,7 @@ function DetailsCard({ posting }: { posting: ReviewPosting }) {
 }
 
 function PostingDossier({ posting }: { posting: ReviewPosting }) {
+  const fmt = useFormatters();
   const evaluation = posting.evaluation;
   return (
     <>
@@ -438,7 +434,9 @@ function PostingDossier({ posting }: { posting: ReviewPosting }) {
                 >
                   <dt>{weight.name}</dt>
                   <dd className="tabular-nums">
-                    {Number(weight.percentage.toFixed(2))}
+                    {fmt.number(weight.percentage, {
+                      maximumFractionDigits: 2,
+                    })}
                     {evaluation.total > 0 ? "%" : " weight"}
                   </dd>
                 </div>

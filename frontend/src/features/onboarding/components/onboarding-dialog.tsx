@@ -31,8 +31,10 @@ import { cn } from "@/lib/utils";
 import { selectOnboardingRole, onboardingError } from "../api/onboarding";
 import type { OnboardingRole } from "../schemas/onboarding-schema";
 import { OnboardingForm } from "./onboarding-form";
+import { useTranslations } from "next-intl";
 
 export function OnboardingDialog({ user }: { user: SessionUser }) {
+  const errorsT = useTranslations("errors");
   const cache = useQueryClient();
   const router = useRouter();
   const signOut = useSignOut();
@@ -210,7 +212,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                 </fieldset>
                 {choose.isError && (
                   <p role="alert" className="text-sm text-destructive">
-                    {onboardingError(choose.error)}
+                    {onboardingError(choose.error, errorsT)}
                   </p>
                 )}
                 <div>
@@ -249,7 +251,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                 key={user.id + user.role}
                 profile={profile.data}
                 saving={save.isPending}
-                error={save.error ? onboardingError(save.error) : null}
+                error={save.error ? onboardingError(save.error, errorsT) : null}
                 onSave={async (patch) => {
                   try {
                     await save.mutateAsync(patch);

@@ -10,6 +10,7 @@ import {
   reportTypeLabel,
   scoreText,
 } from "../utils/report-text";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Renders what the API returned. Metric names and weights come from the server, never from here.
 // Null sections (a recruitment report seen by the Candidate) are simply not shown.
@@ -22,6 +23,7 @@ export function ReportBody({
   onCheckAgain: () => void;
   checking: boolean;
 }) {
+  const fmt = useFormatters();
   const { type, status, overall_score: score } = report;
   const finished = status === "completed";
 
@@ -39,14 +41,14 @@ export function ReportBody({
           <span className="tabular-nums">
             Started{" "}
             <time dateTime={report.started_at}>
-              {formatInterviewTime(report.started_at)}
+              {formatInterviewTime(report.started_at, fmt)}
             </time>
           </span>
           {report.completed_at ? (
             <span className="tabular-nums">
               Completed{" "}
               <time dateTime={report.completed_at}>
-                {formatInterviewTime(report.completed_at)}
+                {formatInterviewTime(report.completed_at, fmt)}
               </time>
             </span>
           ) : null}

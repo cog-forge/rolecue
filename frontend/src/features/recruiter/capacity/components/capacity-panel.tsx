@@ -31,6 +31,8 @@ import type { CapacityState } from "../schemas/capacity-schema";
 import { capacityErrorMessage } from "../utils/capacity-errors";
 import { CloseIntakeDialog } from "./close-intake-dialog";
 import { FundCapacityForm } from "./fund-capacity-form";
+import { useFormatters } from "@/lib/i18n/use-formatters";
+import { useTranslations } from "next-intl";
 
 // Codes that mean the shown capacity is out of date: reload it so the screen shows the server's truth.
 const staleFundingCodes = new Set([
@@ -38,12 +40,11 @@ const staleFundingCodes = new Set([
   "INTERVIEW_CAPACITY_ALREADY_FUNDED",
 ]);
 
-const coins = (amount: number) =>
-  `${amount.toLocaleString("en")} ${amount === 1 ? "coin" : "coins"}`;
-
 // The Recruiter's view of one posting's interview capacity. Submitted CVs are shown apart from the
 // slots: a submission never uses a slot, only an approval does.
 export function CapacityPanel({ postingId }: { postingId: string }) {
+  const fmt = useFormatters();
+  const errorsT = useTranslations("errors");
   const user = useSessionUser();
   const cache = useQueryClient();
   const key = capacityKeys.detail(user.id, postingId);
@@ -225,7 +226,7 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 p-3">
               <p>
                 {wallet.isSuccess
-                  ? `Wallet balance: ${coins(wallet.data.balance)}`
+                  ? `Wallet balance: ${fmt.coins(wallet.data.balance)}`
                   : wallet.isPending
                     ? "Loading wallet balance…"
                     : "Wallet balance unavailable."}
@@ -244,6 +245,7 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
                 fund.isError
                   ? capacityErrorMessage(
                       fund.error,
+                      errorsT,
                       "We couldn't fund the interview slots. Try again.",
                     )
                   : null
@@ -302,7 +304,7 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
               <p className="text-muted-foreground">
                 {posting.refunded === 0
                   ? "No coins were returned to your wallet when this posting closed."
-                  : `${coins(posting.refunded)} were returned to your wallet when this posting closed.`}
+                  : `${fmt.coins(posting.refunded)} were returned to your wallet when this posting closed.`}
               </p>
             </Notice>
           )}
@@ -314,6 +316,7 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
             close.isError
               ? capacityErrorMessage(
                   close.error,
+                  errorsT,
                   "We couldn't close intake. Try again.",
                 )
               : null

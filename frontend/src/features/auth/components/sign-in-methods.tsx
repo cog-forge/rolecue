@@ -27,6 +27,7 @@ import { securityData } from "../utils/security-errors";
 import { providerName, type SocialProvider } from "../utils/social-providers";
 import { SecurityPanel, SecurityRow } from "./security-section";
 import { SecurityRequestError } from "./security-request-error";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Provider marks keep their own brand colours; email sign-in uses the neutral key.
 function ProviderIcon({ provider }: { provider: string }) {
@@ -57,6 +58,7 @@ export function SignInMethods({
   onChanged: () => Promise<void>;
   onAccessError: (error: unknown) => void;
 }) {
+  const fmt = useFormatters();
   const [disconnectId, setDisconnectId] = useState<string | null>(null);
   const disconnect = useMutation({
     gcTime: 0,
@@ -126,7 +128,7 @@ export function SignInMethods({
             icon={<ProviderIcon provider={account.providerId} />}
             title={providerName(account.providerId)}
             status={<Badge variant="positive">Connected</Badge>}
-            description={`Since ${securityDay(account.createdAt)}`}
+            description={`Since ${securityDay(account.createdAt, fmt)}`}
             action={
               account.providerId !== "credential" && (
                 <Button

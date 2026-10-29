@@ -1,3 +1,4 @@
+import type { Formatters } from "@/lib/i18n/formatters";
 import { routes } from "@/config/routes";
 import type { CapacityState } from "@/features/recruiter/capacity/schemas/capacity-schema";
 import {
@@ -58,12 +59,13 @@ export function primaryAction(posting: JobPosting): Action | null {
   }
 }
 
-const coins = (amount: number) =>
-  `${amount.toLocaleString("en")} ${amount === 1 ? "coin" : "coins"}`;
-
 // One line of state for the header, for the statuses where a number or a next step helps. The
 // slot figures come from the capacity state; without it the line stays out rather than guess.
-export function statusLine(posting: JobPosting, capacity?: CapacityState) {
+export function statusLine(
+  posting: JobPosting,
+  fmt: Formatters,
+  capacity?: CapacityState,
+) {
   switch (posting.status) {
     case "pending":
       return posting.review_submitted ? "Waiting for admin review" : null;
@@ -88,7 +90,7 @@ export function statusLine(posting: JobPosting, capacity?: CapacityState) {
         return "Closed without funded slots";
       if (capacity.refunded === null) return null;
       return capacity.refunded > 0
-        ? `Closed: ${coins(capacity.refunded)} from unused slots returned to your wallet`
+        ? `Closed: ${fmt.coins(capacity.refunded)} from unused slots returned to your wallet`
         : "Closed: no unused slots to return";
   }
 }

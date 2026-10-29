@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TotpEnrollmentDialog } from "@/features/auth/components/totp-enrollment-dialog";
 const { enable, verifyTotp, success } = vi.hoisted(() => ({
@@ -14,7 +15,7 @@ vi.mock("@/lib/auth/client", () => ({
 function renderEnrollment() {
   const onChanged = vi.fn().mockResolvedValue(undefined);
   const cache = new QueryClient();
-  render(
+  renderWithIntl(
     <QueryClientProvider client={cache}>
       <TotpEnrollmentDialog onChanged={onChanged} onAccessError={vi.fn()} />
     </QueryClientProvider>,

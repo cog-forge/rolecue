@@ -22,6 +22,7 @@ import {
 } from "../api/accounts";
 import { useAccountClock } from "./use-account-clock";
 import { isAccountLocked } from "../schemas/account-state";
+import { useTranslations } from "next-intl";
 
 const initialQuery: AccountQuery = {
   offset: 0,
@@ -31,6 +32,7 @@ const initialQuery: AccountQuery = {
 
 // Owns remote state, transition reconciliation and access recovery for the Accounts screen.
 export function useAccountManagement() {
+  const errorsT = useTranslations("errors");
   const viewer = useSessionUser();
   const cache = useQueryClient();
   const [params, setParams] = useState(initialQuery);
@@ -245,7 +247,9 @@ export function useAccountManagement() {
       account: selected,
       pending: mutation.isPending,
       blocked: needsRefresh || !!list.error || list.isFetching,
-      error: mutation.error ? getAccountActionError(mutation.error) : null,
+      error: mutation.error
+        ? getAccountActionError(mutation.error, errorsT)
+        : null,
       open: (user: AdminAccount) => {
         mutation.reset();
         setSelected({ ...user, banned: isAccountLocked(user, now) });

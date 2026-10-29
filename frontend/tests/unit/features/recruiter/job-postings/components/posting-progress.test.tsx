@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import {
   PostingProgress,
   type ProgressPosting,
@@ -14,7 +15,7 @@ const posting = (over: Partial<NonNullable<ProgressPosting>> = {}) => ({
 });
 
 function steps(value: ProgressPosting) {
-  render(<PostingProgress posting={value} />);
+  renderWithIntl(<PostingProgress posting={value} />);
   const list = screen.getByRole("list", { name: "Posting progress" });
   return within(list)
     .getAllByRole("listitem")

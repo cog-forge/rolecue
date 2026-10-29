@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { avatarKeys, getAvatar } from "../api/inventory";
 import type { Avatar } from "../schemas/avatar-schema";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function AvatarPreviewDialog({
   userId,
@@ -28,6 +29,7 @@ export function AvatarPreviewDialog({
   onClose: () => void;
   onDelete: (avatar: Avatar) => void;
 }) {
+  const fmt = useFormatters();
   const cache = useQueryClient();
   const detail = useQuery({
     queryKey: avatarKeys.detail(userId, avatarId ?? ""),
@@ -118,10 +120,7 @@ export function AvatarPreviewDialog({
                     <dt className="text-xs text-muted-foreground">Created</dt>
                     <dd className="mt-1">
                       <time dateTime={avatar.created_at}>
-                        {new Date(avatar.created_at).toLocaleDateString(
-                          "en-GB",
-                          { day: "numeric", month: "short", year: "numeric" },
-                        )}
+                        {fmt.date(avatar.created_at, "dayMonthYear")}
                       </time>
                     </dd>
                   </div>

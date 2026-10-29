@@ -10,19 +10,23 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
 import { PasswordVisibilityIcon } from "@/components/icons/password-visibility-icon";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { gooeyToast } from "goey-toast";
 import { useShakeInvalidFields } from "../hooks/use-shake-invalid-fields";
 import {
-  registerSchema,
+  createRegisterSchema,
   type RegisterFormValues,
 } from "../schemas/register-schema";
+import { useTranslations } from "next-intl";
 
 // Better Auth requires a name during sign-up; onboarding collects the real name.
 const SIGN_UP_PLACEHOLDER_NAME = "New user";
 
 export function RegisterForm() {
+  const v = useTranslations("validation");
+  const registerSchema = useMemo(() => createRegisterSchema(v), [v]);
+  const te = useTranslations("errors");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState("");
@@ -57,12 +61,14 @@ export function RegisterForm() {
           getAuthErrorMessage(
             result.error,
             "Unable to create your account. Please try again.",
+            te,
           ),
         );
         gooeyToast.error("Account could not be created", {
           description: getAuthErrorMessage(
             result.error,
             "Please try again in a moment.",
+            te,
           ),
         });
         return;
