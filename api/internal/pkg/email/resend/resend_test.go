@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -73,6 +74,7 @@ func TestStatusClassification(t *testing.T) {
 		{http.StatusOK, false},
 		{http.StatusAccepted, false},
 		{http.StatusTooManyRequests, false},
+		{http.StatusRequestTimeout, false},
 		{http.StatusInternalServerError, false},
 		{http.StatusServiceUnavailable, false},
 		{http.StatusBadRequest, true},
@@ -168,5 +170,32 @@ func TestRedirectIsNotFollowed(t *testing.T) {
 	}
 	if !email.IsPermanent(err) {
 		t.Fatalf("a 3xx response must be permanent, got %v", err)
+	}
+}
+
+func TestIdempotencyKeyIsTheMessageIDOnEveryAttempt(t *testing.T) {
+	var keys []string
+	var mu sync.Mutex
+	s := newSender(t, func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		keys = append(keys, r.Header.Get("Idempotency-Key"))
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}, 5*time.Second)
+	withID := sample
+	withID.ID = "msg-123"
+	for i := 0; i < 2; i++ {
+		if err := s.Send(context.Background(), withID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A message without an ID sends no key rather than an empty one.
+	if err := s.Send(context.Background(), sample); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(keys) != 3 || keys[0] != "msg-123" || keys[1] != "msg-123" || keys[2] != "" {
+		t.Fatalf("idempotency keys = %q", keys)
 	}
 }

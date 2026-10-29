@@ -53,6 +53,12 @@ func msg(i int) email.Message {
 }
 
 // closeNow drains the dispatcher with a generous budget and fails the test if the drain did not finish.
+// withoutID drops the ID Dispatch generates, so a test can compare the rest of the message.
+func withoutID(m email.Message) email.Message {
+	m.ID = ""
+	return m
+}
+
 func closeNow(t *testing.T, d *email.Dispatcher) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -68,7 +74,7 @@ func TestDispatchDeliversOnSuccess(t *testing.T) {
 	d.Dispatch("welcome", msg(1))
 	closeNow(t, d)
 
-	if got := s.Sent(); len(got) != 1 || got[0] != msg(1) {
+	if got := s.Sent(); len(got) != 1 || withoutID(got[0]) != msg(1) {
 		t.Fatalf("sent = %+v", got)
 	}
 }
@@ -236,7 +242,7 @@ func TestPanicInSendIsRecovered(t *testing.T) {
 	if s.Calls() != 2 {
 		t.Fatalf("calls = %d, want 2", s.Calls())
 	}
-	if got := s.Sent(); len(got) != 1 || got[0] != msg(2) {
+	if got := s.Sent(); len(got) != 1 || withoutID(got[0]) != msg(2) {
 		t.Fatalf("sent = %+v, want only the second message", got)
 	}
 }
@@ -285,5 +291,35 @@ func TestBackoffStopsWhenCloseRunsOut(t *testing.T) {
 	}
 	if s.Calls() != 1 {
 		t.Fatalf("calls = %d, want 1 (no retry after abort)", s.Calls())
+	}
+}
+
+func TestDispatchGivesEachMessageAnIDAndKeepsItAcrossRetries(t *testing.T) {
+	s := &fakeSender{send: func(_ context.Context, call int, _ email.Message) error {
+		if call < 3 {
+			return errors.New("timeout")
+		}
+		return nil
+	}}
+	d := email.NewDispatcher(s, email.DispatcherOptions{MaxAttempts: 3})
+	d.Dispatch("welcome", msg(1))
+	kept := msg(2)
+	kept.ID = "caller-chosen"
+	d.Dispatch("welcome", kept)
+	closeNow(t, d)
+
+	sent := s.Sent()
+	if len(sent) != 2 {
+		t.Fatalf("sent %d messages, want 2", len(sent))
+	}
+	ids := map[string]bool{}
+	for _, m := range sent {
+		if m.ID == "" {
+			t.Fatal("a dispatched message has no ID")
+		}
+		ids[m.ID] = true
+	}
+	if len(ids) != 2 || !ids["caller-chosen"] {
+		t.Fatalf("IDs = %v, want two distinct IDs including the caller's", ids)
 	}
 }

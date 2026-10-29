@@ -85,6 +85,11 @@ func (c *client) Send(ctx context.Context, msg email.Message) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	// The same key on every retry of one message, so Resend drops a duplicate if an earlier attempt had
+	// already been accepted when it timed out.
+	if msg.ID != "" {
+		req.Header.Set("Idempotency-Key", msg.ID)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -97,7 +102,7 @@ func (c *client) Send(ctx context.Context, msg email.Message) error {
 	switch {
 	case code >= 200 && code < 300:
 		return nil
-	case code == http.StatusTooManyRequests || code >= 500:
+	case code == http.StatusTooManyRequests || code == http.StatusRequestTimeout || code >= 500:
 		return fmt.Errorf("resend: provider returned HTTP %d", code)
 	default:
 		return email.Permanent(fmt.Errorf("resend: provider rejected email: HTTP %d", code))

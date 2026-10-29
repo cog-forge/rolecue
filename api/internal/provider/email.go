@@ -21,6 +21,11 @@ func ProvideEmailSender(cfg *config.Config, log *logger.Logger) email.Sender {
 		log.Info("Transactional email enabled", logger.String("provider", "resend"))
 		return resend.New(resend.Config{APIKey: cfg.Email.APIKey, From: cfg.Email.From, Timeout: cfg.Email.Timeout})
 	}
+	if cfg.IsProduction() {
+		// A deploy that forgot EMAIL_PROVIDER would otherwise run silently without sending any mail.
+		log.Warn("Transactional email is log-only in production: set EMAIL_PROVIDER=resend to send mail")
+		return logsender.New(log)
+	}
 	log.Info("Transactional email logs only: EMAIL_PROVIDER is not resend")
 	return logsender.New(log)
 }

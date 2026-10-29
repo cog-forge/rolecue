@@ -231,6 +231,42 @@ describe("AdminOverview", () => {
     );
   });
 
+  it("marks the numbers as stale while another window loads", async () => {
+    mocks.get.mockImplementationOnce(() => ok(overview));
+    const cache = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const page = (
+      <QueryClientProvider client={cache}>
+        <AdminOverview />
+      </QueryClientProvider>
+    );
+    const { rerender } = renderWithIntl(page);
+    const accounts = await screen.findByRole("region", { name: "Accounts" });
+    expect(accounts.closest('[aria-busy="true"]')).toBeNull();
+    expect(screen.getByText(/Last 30 days · Updated/)).toBeInTheDocument();
+
+    // The next window never answers, so the previous numbers stay on screen, marked as not current.
+    mocks.get.mockImplementation(() => new Promise(() => {}));
+    fireEvent.click(
+      within(
+        screen.getByRole("navigation", { name: "Reporting window" }),
+      ).getByRole("link", { name: "Last 90 days" }),
+    );
+    rerender(page);
+
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole("region", { name: "Accounts" })
+          .closest('[aria-busy="true"]'),
+      ).not.toBeNull(),
+    );
+    expect(screen.getByText("Loading the last 90 days…")).toBeInTheDocument();
+    // The label still says which window these numbers are for.
+    expect(screen.getByText(/Last 30 days · Updated/)).toBeInTheDocument();
+  });
+
   it("shows a loading status while the first request is pending", () => {
     mocks.get.mockImplementation(() => new Promise(() => {}));
     renderPage();
