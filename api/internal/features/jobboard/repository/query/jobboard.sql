@@ -1,5 +1,7 @@
 -- The job board is the Candidate's read-only view of Job Postings. Only status 'open' (approved by
--- an Admin and still accepting Applications) is discoverable; every other status is not found.
+-- an Admin and still accepting Applications) is discoverable, and only once its Recruiter has funded
+-- interview slots (interview_slot IS NOT NULL): funding is what opens intake to Candidates. An
+-- approved posting that is not funded yet is not found, like every other status.
 -- A posting whose Recruiter is currently locked is hidden too (is_locked with no expiry or an
 -- expiry still ahead). Nothing is written: once the lock is lifted or expires the posting shows
 -- again, and its status, Applications and refunds are untouched. Every query repeats the predicate.
@@ -15,7 +17,7 @@ FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
-WHERE jp.status = 'open'
+WHERE jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
   AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%')
   AND (sqlc.narg(location)::text IS NULL OR jp.location ILIKE '%' || sqlc.narg(location)::text || '%')
@@ -30,7 +32,7 @@ FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
-WHERE jp.status = 'open'
+WHERE jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()))
   AND (sqlc.narg(search)::text IS NULL OR jp.title ILIKE '%' || sqlc.narg(search)::text || '%')
   AND (sqlc.narg(location)::text IS NULL OR jp.location ILIKE '%' || sqlc.narg(location)::text || '%')
@@ -48,7 +50,7 @@ FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
 JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
-WHERE jp.id = @id AND jp.status = 'open'
+WHERE jp.id = @id AND jp.status = 'open' AND jp.interview_slot IS NOT NULL
   AND NOT (u.is_locked IS TRUE AND (u.lock_expires_at IS NULL OR u.lock_expires_at > now()));
 
 -- name: ListPostingRequirements :many

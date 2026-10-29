@@ -26,6 +26,9 @@ type applyRepository struct {
 	insertedUser uuid.UUID
 	insertedPost uuid.UUID
 
+	checkErr   error
+	checkCalls int
+
 	items      []domain.CandidateApplication
 	total      int64
 	listLimit  int32
@@ -47,6 +50,11 @@ func (r *applyRepository) InsertCandidateApplication(_ context.Context, candidat
 		return domain.Submission{}, r.insertErr
 	}
 	return r.submission, nil
+}
+
+func (r *applyRepository) CheckIntakeFunded(_ context.Context, _ uuid.UUID) error {
+	r.checkCalls++
+	return r.checkErr
 }
 
 func (r *applyRepository) ListCandidateApplications(_ context.Context, _ uuid.UUID, limit, offset int32) ([]domain.CandidateApplication, int64, error) {
@@ -132,6 +140,26 @@ func TestApplyStoresCVAndInsertsPendingApplication(t *testing.T) {
 	}
 	if len(store.deleted) != 0 {
 		t.Fatalf("a stored CV was deleted: %v", store.deleted)
+	}
+}
+
+// An approved posting that was never funded refuses the Candidate before the CV is stored, so no
+// object is uploaded and nothing needs deleting.
+func TestApplyRefusesAnUnfundedPostingBeforeUploadingTheCV(t *testing.T) {
+	repo := newApplyRepository()
+	repo.checkErr = domain.ErrIntakeNotOpen
+	store := newApplyCVStore()
+	svc := applyService(t, repo, store)
+
+	_, err := svc.Apply(context.Background(), candidateID, candidateRole, postingID, validCV())
+	if !apperror.IsCode(err, apperror.CodeIntakeNotOpen) {
+		t.Fatalf("Apply() error = %v, want INTAKE_NOT_OPEN", err)
+	}
+	if repo.checkCalls != 1 {
+		t.Fatalf("funded checks = %d, want 1", repo.checkCalls)
+	}
+	if store.uploads != 0 || len(store.deleted) != 0 || repo.insertCalls != 0 {
+		t.Fatalf("uploads=%d deletes=%v inserts=%d, want none", store.uploads, store.deleted, repo.insertCalls)
 	}
 }
 

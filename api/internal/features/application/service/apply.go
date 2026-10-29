@@ -18,6 +18,8 @@ const cvContentType = "application/pdf"
 // Applications. The Repository implementation provides it; the service asserts it at call time, so
 // the screening fakes keep satisfying Repository alone.
 type CandidateRepository interface {
+	// CheckIntakeFunded reports INTAKE_NOT_OPEN for an approved posting still without interview slots.
+	CheckIntakeFunded(ctx context.Context, postingID uuid.UUID) error
 	InsertCandidateApplication(ctx context.Context, candidateID, postingID uuid.UUID, cvKey string) (domain.Submission, error)
 	ListCandidateApplications(ctx context.Context, candidateID uuid.UUID, limit, offset int32) ([]domain.CandidateApplication, int64, error)
 	GetCandidateApplication(ctx context.Context, candidateID, applicationID uuid.UUID) (domain.CandidateApplication, error)
@@ -30,8 +32,9 @@ type CVStore interface {
 	Delete(ctx context.Context, key string) error
 }
 
-// Apply submits the Candidate's CV to an open Job Posting. The CV is validated and uploaded before
-// the Application is inserted, and the upload is deleted again when the insert fails (KTD6), so a
+// Apply submits the Candidate's CV to an open, funded Job Posting. The CV is validated, and a posting
+// whose Recruiter has not funded interview slots is refused, before anything is uploaded. The CV is
+// uploaded before the Application is inserted, and the upload is deleted again when the insert fails (KTD6), so a
 // rejected submission stores nothing. The Application starts pending and needs no interview.
 func (s *Service) Apply(ctx context.Context, candidateID uuid.UUID, role string, postingID uuid.UUID, data []byte) (domain.Submission, error) {
 	if role != candidateRole {
@@ -42,6 +45,9 @@ func (s *Service) Apply(ctx context.Context, candidateID uuid.UUID, role string,
 	}
 	repository, store, err := s.applyDependencies()
 	if err != nil {
+		return domain.Submission{}, err
+	}
+	if err := repository.CheckIntakeFunded(ctx, postingID); err != nil {
 		return domain.Submission{}, err
 	}
 	key, err := store.Upload(ctx, bytes.NewReader(data), cvContentType)

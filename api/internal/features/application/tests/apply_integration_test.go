@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
+	"github.com/cog-forge/rolecue/api/internal/features/application/repository"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -20,7 +21,7 @@ func TestApplyHappyPathStoresPendingAndShowsItToTheRecruiter(t *testing.T) {
 	store := &fakeCVStore{}
 	svc := newApplyService(t, pool, store)
 	owner, candidate := s.user("recruiter"), s.user("candidate")
-	postingID := s.posting(owner, "open", nil)
+	postingID := s.posting(owner, "open", slot(3))
 
 	got, err := svc.Apply(ctx, candidate, "candidate", postingID, pdfBytes(64))
 	if err != nil {
@@ -60,7 +61,7 @@ func TestSecondApplyToSamePostingIsAlreadyApplied(t *testing.T) {
 	store := &fakeCVStore{}
 	svc := newApplyService(t, pool, store)
 	candidate := s.user("candidate")
-	postingID := s.posting(s.user("recruiter"), "open", nil)
+	postingID := s.posting(s.user("recruiter"), "open", slot(3))
 
 	if _, err := svc.Apply(ctx, candidate, "candidate", postingID, pdfBytes(32)); err != nil {
 		t.Fatal(err)
@@ -83,7 +84,7 @@ func TestConcurrentApplySameCandidateStoresOneRow(t *testing.T) {
 	store := &fakeCVStore{}
 	svc := newApplyService(t, pool, store)
 	candidate := s.user("candidate")
-	postingID := s.posting(s.user("recruiter"), "open", nil)
+	postingID := s.posting(s.user("recruiter"), "open", slot(3))
 
 	const attempts = 6
 	var wg sync.WaitGroup
@@ -165,6 +166,70 @@ func TestApplyNeedsAnOpenPosting(t *testing.T) {
 	}
 }
 
+// Approval opens a posting, but Candidates can only apply once the Recruiter funds interview slots.
+// The refusal comes before the CV is stored, so nothing is uploaded and no row is written; the
+// Recruiter keeps seeing the posting as open without capacity. Funding then lets the same Candidate in.
+func TestApplyToAnApprovedUnfundedPostingIsRefusedUntilFunded(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	store := &fakeCVStore{}
+	svc := newApplyService(t, pool, store)
+	owner, candidate := s.user("recruiter"), s.user("candidate")
+	s.wallet(owner, 20)
+	postingID := s.posting(owner, "open", nil)
+
+	_, err := svc.Apply(ctx, candidate, "candidate", postingID, pdfBytes(16))
+	assertCode(t, err, apperror.CodeIntakeNotOpen)
+	if n := applicationCount(t, s, postingID); n != 0 {
+		t.Fatalf("unfunded posting stored %d Applications, want 0", n)
+	}
+	if store.uploadCount() != 0 || len(store.deleted()) != 0 {
+		t.Fatalf("uploads %v, deletes %v, want no CV stored at all", store.uploads, store.deleted())
+	}
+
+	// The Recruiter's view is unchanged: still open, no capacity, no Applications.
+	state, err := svc.GetCapacity(ctx, owner, "recruiter", postingID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.PostingStatus != "open" || state.Funded || state.InterviewSlot != nil {
+		t.Fatalf("recruiter capacity = %+v, want open and unfunded", state)
+	}
+	items, total, err := svc.ListOwn(ctx, owner, "recruiter", domain.ListFilter{JobPostingID: &postingID, Limit: 20})
+	if err != nil || total != 0 || len(items) != 0 {
+		t.Fatalf("recruiter list = %+v (total %d, err %v), want empty", items, total, err)
+	}
+
+	if _, err := svc.FundCapacity(ctx, owner, "recruiter", postingID, 3); err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.Apply(ctx, candidate, "candidate", postingID, pdfBytes(16))
+	if err != nil {
+		t.Fatalf("Apply() after funding error = %v", err)
+	}
+	if got.JobPostingID != postingID || got.Status != domain.StatusPending {
+		t.Fatalf("Apply() = %+v, want a pending Application", got)
+	}
+	if _, n := s.applicationRowFor(t, postingID, candidate); n != 1 || store.uploadCount() != 1 {
+		t.Fatalf("Applications = %d, uploads = %d, want 1 each", n, store.uploadCount())
+	}
+}
+
+// The locked check in the insert is the authoritative one: a posting that is unfunded when the insert
+// runs is refused even if the pre-check was bypassed.
+func TestInsertCandidateApplicationRefusesAnUnfundedPostingUnderTheLock(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	repo := repository.NewRepository(pool)
+	postingID := s.posting(s.user("recruiter"), "open", nil)
+
+	_, err := repo.InsertCandidateApplication(ctx, s.user("candidate"), postingID, "cvs/direct.pdf")
+	assertCode(t, err, apperror.CodeIntakeNotOpen)
+	if n := applicationCount(t, s, postingID); n != 0 {
+		t.Fatalf("stored %d Applications, want 0", n)
+	}
+}
+
 func TestApplyHidesPendingRejectedAndLockedPostings(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
@@ -224,7 +289,7 @@ func TestApplyRejectsNonPDFAndStoresNothing(t *testing.T) {
 func TestApplyFailedUploadStoresNothing(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
-	postingID := s.posting(s.user("recruiter"), "open", nil)
+	postingID := s.posting(s.user("recruiter"), "open", slot(3))
 	candidate := s.user("candidate")
 	store := &fakeCVStore{uploadErr: context.DeadlineExceeded}
 	svc := newApplyService(t, pool, store)
@@ -386,7 +451,7 @@ func TestCandidateViewsNeverExposeTheCVKey(t *testing.T) {
 	store := &fakeCVStore{}
 	svc := newApplyService(t, pool, store)
 	candidate := s.user("candidate")
-	postingID := s.posting(s.user("recruiter"), "open", nil)
+	postingID := s.posting(s.user("recruiter"), "open", slot(3))
 	sub, err := svc.Apply(ctx, candidate, "candidate", postingID, pdfBytes(16))
 	if err != nil {
 		t.Fatal(err)

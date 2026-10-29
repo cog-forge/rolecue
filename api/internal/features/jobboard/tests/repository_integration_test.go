@@ -110,6 +110,7 @@ type postingSpec struct {
 	createdAt            time.Time
 	requirements         []string
 	slot                 int32
+	unfunded             bool // interview_slot stays NULL: approved, but the Recruiter has not funded it
 	rejectReason         *string
 }
 
@@ -125,10 +126,14 @@ func (s *seed) posting(recruiter uuid.UUID, p postingSpec) uuid.UUID {
 	s.later(`DELETE FROM public.requirements WHERE jd_id = $1`, jdID)
 	s.exec(`INSERT INTO public.core_questions (jd_id, content) VALUES ($1, 'secret question')`, jdID)
 	s.later(`DELETE FROM public.core_questions WHERE jd_id = $1`, jdID)
+	var slot *int32
+	if !p.unfunded {
+		slot = &p.slot
+	}
 	s.exec(`INSERT INTO public.job_postings (id, status, jd_id, recruiter_id, title, location, employment_type,
 			salary_min, salary_max, interview_duration, interview_slot, reject_reason, created_at)
 		VALUES ($1, $2::public.job_posting_status, $3, $4, $5, $6, $7, 1000, 2000, 30, $8, $9, $10)`,
-		id, p.status, jdID, recruiter, s.tag+" "+p.title, p.location, p.employment, p.slot, p.rejectReason, p.createdAt)
+		id, p.status, jdID, recruiter, s.tag+" "+p.title, p.location, p.employment, slot, p.rejectReason, p.createdAt)
 	s.later(`DELETE FROM public.job_postings WHERE id = $1`, id)
 	return id
 }
@@ -223,6 +228,44 @@ func TestOnlyOpenPostingsAreDiscoverable(t *testing.T) {
 	_, pending := b.repo.GetOpen(ctx, b.candidate, hidden["pending"])
 	if codeOf(missing) != codeOf(pending) || missing.Error() != pending.Error() {
 		t.Fatalf("missing = %v, pending = %v; want the same error", missing, pending)
+	}
+}
+
+// Approval sets open, but intake only opens to Candidates once the Recruiter funds interview slots
+// (interview_slot is set). Until then the posting is hidden from the list, the count and the detail,
+// and the detail answers exactly as for a posting that does not exist. Funding makes it appear.
+func TestApprovedButUnfundedPostingIsHiddenUntilFunded(t *testing.T) {
+	ctx, b := newBoard(t)
+	unfunded := b.seed.posting(b.recruiter, postingSpec{title: "unfunded", status: "open", rawText: ptr("jd"),
+		createdAt: b.base, unfunded: true})
+	funded := b.seed.posting(b.recruiter, postingSpec{title: "funded", status: "open", rawText: ptr("jd"),
+		createdAt: b.base.Add(time.Hour), slot: 3})
+
+	items, total, err := b.repo.ListOpen(ctx, b.filter(100, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameIDs(t, items, funded)
+	if total != 1 {
+		t.Fatalf("total = %d, want 1 (the unfunded posting is not counted)", total)
+	}
+	_, hidden := b.repo.GetOpen(ctx, b.candidate, unfunded)
+	_, missing := b.repo.GetOpen(ctx, b.candidate, uuid.New())
+	if codeOf(hidden) != apperror.CodeJobPostingNotFound || hidden.Error() != missing.Error() {
+		t.Fatalf("unfunded = %v, missing = %v; want the same JOB_POSTING_NOT_FOUND", hidden, missing)
+	}
+
+	b.seed.exec(`UPDATE public.job_postings SET interview_slot = 5 WHERE id = $1`, unfunded)
+	items, total, err = b.repo.ListOpen(ctx, b.filter(100, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameIDs(t, items, funded, unfunded)
+	if total != 2 {
+		t.Fatalf("total = %d, want 2 after funding", total)
+	}
+	if _, err := b.repo.GetOpen(ctx, b.candidate, unfunded); err != nil {
+		t.Fatalf("funded posting: %v", err)
 	}
 }
 
