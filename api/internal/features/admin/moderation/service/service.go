@@ -142,18 +142,21 @@ func (s *Service) review(ctx context.Context, id uuid.UUID) (domain.ReviewPostin
 }
 
 // withText fills the JD the Admin reviews. A posting with a PDF gets a short-lived link to it plus
-// its stored text. Rows created before PDF upload hold a plain-text object, which is read back;
-// older rows hold a full URL, which the Admin opens instead. A missing object leaves RawText null so
-// the Admin still sees the rest of the posting and can reject it; any other storage failure fails
-// the request.
+// its stored text; one with stored text but no file (an empty content_path) gets the text alone, with
+// no link. Rows created before PDF upload hold a plain-text object, which is read back; older rows
+// hold a full URL, which the Admin opens instead. A missing object leaves RawText null so the Admin
+// still sees the rest of the posting and can reject it; any other storage failure fails the request.
 func (s *Service) withText(ctx context.Context, posting domain.ReviewPosting) (domain.ReviewPosting, error) {
 	if posting.StoredText != nil {
+		posting.RawText = posting.StoredText
+		if posting.ContentPath == "" {
+			return posting, nil
+		}
 		link, err := s.texts.PresignGet(ctx, posting.ContentPath, documentLinkTTL)
 		if err != nil {
 			return domain.ReviewPosting{}, apperror.Wrap(apperror.CodeInternal, "job posting file storage failed", err)
 		}
 		posting.DocumentURL, posting.DocumentExpiresAt = &link.URL, &link.ExpiresAt
-		posting.RawText = posting.StoredText
 		return posting, nil
 	}
 	if isWebURL(posting.ContentPath) {
