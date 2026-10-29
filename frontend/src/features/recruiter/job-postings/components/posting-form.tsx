@@ -413,6 +413,7 @@ export function PostingForm({
       </FormSection>
 
       <FormSection
+        id="posting-requirements"
         title="Role and requirements"
         contentClassName="space-y-5"
         description={
@@ -1130,18 +1131,23 @@ export { FormSection, levelText, targetText };
 // One part of the posting: what it is for on the left, its fields on the right. On a phone the
 // description sits above the fields.
 function FormSection({
+  id,
   title,
   description,
   contentClassName,
   children,
 }: {
+  id?: string;
   title: string;
   description: ReactNode;
   contentClassName?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="grid gap-x-10 gap-y-4 border-t py-8 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+    <section
+      id={id}
+      className="grid scroll-mt-6 gap-x-10 gap-y-4 border-t py-8 first:border-t-0 first:pt-0 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]"
+    >
       <div className="space-y-1">
         <h2 className="text-base font-semibold">{title}</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">

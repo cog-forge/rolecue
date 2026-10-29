@@ -144,7 +144,7 @@ export function JobPostingList() {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
       <PageHeader
-        title="Job postings"
+        title="My Job Postings"
         description="Prepare your posting, questions and evaluation criteria. After approval, fund interview slots to publish it."
         actions={
           <Button asChild className={pillClass}>

@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
+import { PostingTabs } from "@/features/recruiter/job-postings/components/posting-tabs";
 import { PageHeader, pillClass } from "@/components/layout/page-header";
 import {
   apiError,
@@ -74,10 +75,7 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
     if (denied) void cache.invalidateQueries({ queryKey: ["auth", "me"] });
   }, [cache, denied]);
 
-  const back = {
-    href: routes.recruiter.jobPostingQuestions(postingId),
-    label: "Back to questions & submission",
-  };
+  const back = { href: routes.recruiter.jobPostings, label: "My Job Postings" };
 
   if (weights.isPending || metrics.isPending)
     return (
@@ -141,53 +139,60 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
       cache.refetchQueries({ queryKey: metricsKey }),
     ]).then(() => setVersion((value) => value + 1));
   return (
-    <section className="mx-auto w-full max-w-3xl space-y-6">
+    <section className="mx-auto w-full max-w-5xl space-y-6">
       <PageHeader
         back={back}
         title="Evaluation criteria"
         description="Decide how much each skill counts when a candidate’s interview is scored. This is separate from the question bank."
       />
-      {notice && (
-        <Notice role="status" tone="info">
-          <p>{notice}</p>
-        </Notice>
-      )}
-      {saved.editable ? (
-        <WeightsForm
-          key={version}
-          postingId={postingId}
-          metrics={metrics.data}
-          saved={saved}
-          onDirtyChange={setDirty}
-          onSaved={(next) => {
-            cache.setQueryData(weightsKey, next);
-            setNotice(null);
-            setVersion((value) => value + 1);
-          }}
-          onReset={(next) => {
-            cache.setQueryData(weightsKey, next);
-            setNotice(null);
-            refresh();
-          }}
-          onStale={() => {
-            setNotice(
-              "This posting changed, so we refreshed the criteria and your unsaved changes were discarded.",
-            );
-            refresh();
-          }}
-        />
-      ) : (
-        <ReadOnlyWeights saved={saved} />
-      )}
-      <ConfirmDialog
-        open={guard.leaving}
-        title="Leave without saving?"
-        description="Your changes to the weights haven’t been saved. If you leave now, they will be lost."
-        cancelLabel="Stay on this page"
-        confirmLabel="Leave without saving"
-        onCancel={guard.stay}
-        onConfirm={guard.leave}
+      <PostingTabs
+        postingId={postingId}
+        active="evaluation"
+        status={saved.posting_status}
       />
+      <div className="max-w-3xl space-y-6">
+        {notice && (
+          <Notice role="status" tone="info">
+            <p>{notice}</p>
+          </Notice>
+        )}
+        {saved.editable ? (
+          <WeightsForm
+            key={version}
+            postingId={postingId}
+            metrics={metrics.data}
+            saved={saved}
+            onDirtyChange={setDirty}
+            onSaved={(next) => {
+              cache.setQueryData(weightsKey, next);
+              setNotice(null);
+              setVersion((value) => value + 1);
+            }}
+            onReset={(next) => {
+              cache.setQueryData(weightsKey, next);
+              setNotice(null);
+              refresh();
+            }}
+            onStale={() => {
+              setNotice(
+                "This posting changed, so we refreshed the criteria and your unsaved changes were discarded.",
+              );
+              refresh();
+            }}
+          />
+        ) : (
+          <ReadOnlyWeights saved={saved} />
+        )}
+        <ConfirmDialog
+          open={guard.leaving}
+          title="Leave without saving?"
+          description="Your changes to the weights haven’t been saved. If you leave now, they will be lost."
+          cancelLabel="Stay on this page"
+          confirmLabel="Leave without saving"
+          onCancel={guard.stay}
+          onConfirm={guard.leave}
+        />
+      </div>
     </section>
   );
 }

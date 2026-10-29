@@ -56,7 +56,7 @@ import { formatDeadline, formatSubmitted } from "../utils/application-dates";
 
 const statusOptions: { status: ApplicationStatusFilter; label: string }[] = [
   { status: "all", label: "All" },
-  { status: "pending", label: "Awaiting review" },
+  { status: "pending", label: "Awaiting CV review" },
   { status: "interview_eligible", label: "Interview eligible" },
   { status: "interviewed", label: "Interviewed" },
   { status: "approved", label: "Approved" },

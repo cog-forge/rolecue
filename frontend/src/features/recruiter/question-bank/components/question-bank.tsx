@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ReviewSubmissionDialog } from "./review-submission-dialog";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +19,7 @@ import {
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
 import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingProgress } from "@/features/recruiter/job-postings/components/posting-progress";
+import { PostingTabs } from "@/features/recruiter/job-postings/components/posting-tabs";
 import { PostingStatus } from "@/features/recruiter/job-postings/components/posting-status";
 import {
   addQuestion,
@@ -218,10 +218,23 @@ export function QuestionBank({ postingId }: { postingId: string }) {
     }
   };
 
-  const back = {
-    href: routes.recruiter.jobPosting(postingId),
-    label: posting.data?.title ?? "Job posting",
-  };
+  const back = { href: routes.recruiter.jobPostings, label: "My Job Postings" };
+
+  // Why Submit is off, in the order the Recruiter can fix things: nothing to send, then work in
+  // progress that would be lost, then saves still running.
+  const submitBlock = !query.data
+    ? null
+    : query.data.questions.length === 0
+      ? "Generate or add at least one question to submit."
+      : editingId !== null
+        ? "Save or cancel the question you are editing to submit."
+        : addDirty
+          ? "Add or discard the question you started to submit."
+          : add.isPending || update.isPending || remove.isPending
+            ? "Saving your changes…"
+            : generate.isPending
+              ? "Generating questions…"
+              : null;
 
   return (
     <section className="mx-auto w-full max-w-5xl space-y-8">
@@ -294,33 +307,37 @@ export function QuestionBank({ postingId }: { postingId: string }) {
             description={bankState(query.data)}
             actions={
               preparing(query.data) && !query.data.review_submitted ? (
-                <Button
-                  className={pillClass}
-                  disabled={
-                    query.data.questions.length === 0 ||
-                    editingId !== null ||
-                    addDirty ||
-                    add.isPending ||
-                    update.isPending ||
-                    remove.isPending ||
-                    generate.isPending ||
-                    sendForReview.isPending
-                  }
-                  aria-busy={sendForReview.isPending}
-                  onClick={() => setReviewOpen(true)}
-                >
-                  {sendForReview.isPending && (
-                    <LoaderCircle
-                      className="size-4 animate-spin motion-reduce:animate-none"
-                      aria-hidden
-                    />
+                <div className="flex flex-col gap-1.5 sm:items-end">
+                  <Button
+                    className={pillClass}
+                    disabled={submitBlock !== null || sendForReview.isPending}
+                    aria-busy={sendForReview.isPending}
+                    aria-describedby={
+                      submitBlock ? "submit-block-reason" : undefined
+                    }
+                    onClick={() => setReviewOpen(true)}
+                  >
+                    {sendForReview.isPending && (
+                      <LoaderCircle
+                        className="size-4 animate-spin motion-reduce:animate-none"
+                        aria-hidden
+                      />
+                    )}
+                    {sendForReview.isPending
+                      ? "Submitting…"
+                      : query.data.posting_status === "rejected"
+                        ? "Resubmit for approval"
+                        : "Submit for approval"}
+                  </Button>
+                  {submitBlock && (
+                    <p
+                      id="submit-block-reason"
+                      className="max-w-64 text-xs text-muted-foreground sm:text-right"
+                    >
+                      {submitBlock}
+                    </p>
                   )}
-                  {sendForReview.isPending
-                    ? "Submitting…"
-                    : query.data.posting_status === "rejected"
-                      ? "Resubmit for approval"
-                      : "Submit for approval"}
-                </Button>
+                </div>
               ) : query.data.review_submitted &&
                 query.data.posting_status === "pending" ? (
                 <span className="inline-flex h-10 items-center gap-2 text-sm font-medium">
@@ -371,26 +388,16 @@ export function QuestionBank({ postingId }: { postingId: string }) {
             generating={generate.isPending}
           />
 
-          <nav
-            aria-label="Posting preparation"
-            className="flex flex-wrap items-center gap-3 border-b pb-4"
-          >
-            <Button asChild variant="outline" className={pillClass}>
-              <Link href={routes.recruiter.jobPosting(postingId)}>
-                Posting details
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className={pillClass}>
-              <Link href={routes.recruiter.jobPostingEvaluation(postingId)}>
-                Evaluation criteria
-              </Link>
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              {preparing(query.data)
-                ? "Use the default criteria or customize them before submitting."
-                : "Evaluation criteria are locked after approval."}
-            </p>
-          </nav>
+          <PostingTabs
+            postingId={postingId}
+            active="questions"
+            status={query.data.posting_status}
+          />
+          <p className="text-sm text-muted-foreground">
+            {preparing(query.data)
+              ? "Use the default evaluation criteria or customize them before submitting."
+              : "Evaluation criteria are locked after approval."}
+          </p>
           {reviewOpen && (
             <ReviewSubmissionDialog
               postingId={postingId}

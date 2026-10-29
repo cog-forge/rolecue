@@ -434,13 +434,64 @@ describe("QuestionBank", () => {
   });
 });
 
+describe("why submission is unavailable", () => {
+  const submit = async () =>
+    screen.findByRole("button", { name: "Submit for approval" });
+
+  it("says a bank needs a question before it can be sent", async () => {
+    mocks.get.mockResolvedValue(envelope(bank({ questions: [] })));
+    mount();
+    const button = await submit();
+    expect(button).toBeDisabled();
+    const reason = screen.getByText(
+      "Generate or add at least one question to submit.",
+    );
+    expect(button).toHaveAttribute("aria-describedby", reason.id);
+  });
+
+  it("names the question still being edited", async () => {
+    mocks.get.mockResolvedValue(envelope(bank()));
+    mount();
+    const button = await submit();
+    expect(button).toBeEnabled();
+    expect(screen.queryByText(/to submit\.$/)).not.toBeInTheDocument();
+    expect(button).not.toHaveAttribute("aria-describedby");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit question 1" }));
+    expect(button).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Save or cancel the question you are editing to submit.",
+      ),
+    ).toBeInTheDocument();
+    expect(button).toHaveAttribute("aria-describedby", "submit-block-reason");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(button).toBeEnabled();
+  });
+
+  it("names the new question that was started but not added", async () => {
+    mocks.get.mockResolvedValue(envelope(bank()));
+    mount();
+    const button = await submit();
+    const form = await screen.findByRole("form", { name: "Add a question" });
+    fireEvent.change(within(form).getByLabelText("Add a question"), {
+      target: { value: "Describe a hard bug you fixed." },
+    });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(
+      screen.getByText("Add or discard the question you started to submit."),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("submission follows question review", () => {
   it("makes evaluation criteria accessible before the first submission", async () => {
     mocks.get.mockResolvedValue(envelope(bank()));
     mount();
 
     expect(
-      await screen.findByRole("link", { name: "Evaluation criteria" }),
+      await screen.findByRole("link", { name: "Evaluation" }),
     ).toHaveAttribute(
       "href",
       `/recruiter/job-postings/${postingId}/evaluation`,

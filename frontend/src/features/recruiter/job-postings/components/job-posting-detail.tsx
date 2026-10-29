@@ -1,17 +1,19 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ListChecks, Scale } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import { ApplicationList } from "@/features/recruiter/applications/components/application-list";
+import {
+  capacityKeys,
+  getCapacity,
+} from "@/features/recruiter/capacity/api/capacity";
 import { CapacityPanel } from "@/features/recruiter/capacity/components/capacity-panel";
 import { getPosting, jobPostingKeys, updatePosting } from "../api/job-postings";
 import {
@@ -22,6 +24,8 @@ import {
 } from "../schemas/job-posting-schema";
 import { generateBank } from "@/features/recruiter/question-bank/api/question-bank";
 import { apiError, isAccessDenied } from "../utils/api-error";
+import { primaryAction, statusLine } from "../utils/posting-guidance";
+import { PostingApplications } from "./posting-applications";
 import { JdDocumentLink } from "./jd-document-link";
 import {
   FormSection,
@@ -33,6 +37,7 @@ import { Notice } from "./notice";
 import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingProgress } from "./posting-progress";
 import { PostingStatus } from "./posting-status";
+import { PostingTabs } from "./posting-tabs";
 
 // Codes after which the cached posting is stale: its status or question bank changed elsewhere.
 // Refetching shows the server's truth and the matching locks.
@@ -68,6 +73,14 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
   useEffect(() => {
     if (denied) void cache.invalidateQueries({ queryKey: ["auth", "me"] });
   }, [cache, denied]);
+
+  // The same request the capacity panel makes, so the header's slot figures cost nothing extra.
+  const capacity = useQuery({
+    queryKey: capacityKeys.detail(user.id, postingId),
+    queryFn: ({ signal }) => getCapacity(postingId, signal),
+    refetchOnMount: "always",
+    retry: false,
+  });
 
   const applySaved = (saved: JobPosting) => {
     cache.setQueryData(key, saved);
@@ -125,7 +138,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
     onError: onStale,
   });
 
-  const back = { href: routes.recruiter.jobPostings, label: "Job postings" };
+  const back = { href: routes.recruiter.jobPostings, label: "My Job Postings" };
 
   if (query.isPending)
     return (
@@ -186,11 +199,8 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
   const posting = query.data;
   const locks = postingLocks(posting);
   const hasBank = posting.core_question_count > 0;
-  // The bank is the next stop whenever the posting can be sent for review from there.
-  const readyToSend =
-    hasBank &&
-    ((posting.status === "pending" && !posting.review_submitted) ||
-      posting.status === "rejected");
+  const action = primaryAction(posting);
+  const line = statusLine(posting, capacity.data);
   const generating = save.isPending && save.variables?.generate === true;
   const saveError =
     save.isError && !staleCodes.has(apiError(save.error).code ?? "")
@@ -224,38 +234,24 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
                 {posting.interview_slot ?? "not funded yet"}
               </span>
             </span>
+            {line && (
+              <span className="font-medium text-foreground">{line}</span>
+            )}
           </>
         }
         description={nextStep(posting)}
         actions={
-          <>
-            <Button
-              asChild
-              variant={readyToSend ? "default" : "outline"}
-              className={pillClass}
-            >
-              <Link href={routes.recruiter.jobPostingQuestions(posting.id)}>
-                <ListChecks aria-hidden />
-                {readyToSend
-                  ? posting.status === "rejected"
-                    ? "Review questions and resubmit"
-                    : "Review questions and submit"
-                  : "Question bank"}
-                {!readyToSend && hasBank && (
-                  <span className="text-muted-foreground tabular-nums">
-                    {posting.core_question_count}
-                  </span>
-                )}
-              </Link>
+          action && (
+            <Button asChild className={pillClass}>
+              <Link href={action.href}>{action.label}</Link>
             </Button>
-            <Button asChild variant="outline" className={pillClass}>
-              <Link href={routes.recruiter.jobPostingEvaluation(posting.id)}>
-                <Scale aria-hidden />
-                Evaluation criteria
-              </Link>
-            </Button>
-          </>
+          )
         }
+      />
+      <PostingTabs
+        postingId={posting.id}
+        active="overview"
+        status={posting.status}
       />
       <PostingProgress posting={posting} generating={generating} />
 
@@ -308,25 +304,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
         <ReadOnlyPosting posting={posting} />
       )}
 
-      <section
-        aria-labelledby="applications-heading"
-        className="space-y-4 border-t pt-8"
-      >
-        <h2 id="applications-heading" className="text-base font-semibold">
-          Applications
-        </h2>
-        {posting.status === "pending" || posting.status === "rejected" ? (
-          <p className="text-sm text-muted-foreground">
-            Candidates can apply after an administrator approves this posting
-            and you fund interview slots, which opens intake.
-          </p>
-        ) : (
-          // The list reads its filters from the URL on the client.
-          <Suspense>
-            <ApplicationList postingId={posting.id} />
-          </Suspense>
-        )}
-      </section>
+      <PostingApplications posting={posting} />
     </section>
   );
 }

@@ -70,7 +70,7 @@ export function NewJobPosting() {
   return (
     <section className="mx-auto w-full max-w-5xl space-y-8">
       <PageHeader
-        back={{ href: routes.recruiter.jobPostings, label: "Job postings" }}
+        back={{ href: routes.recruiter.jobPostings, label: "My Job Postings" }}
         title="New job posting"
         description="Upload the job description and review the requirements RoleCue suggests. Confirming them generates the question bank. Review the questions and evaluation criteria before submitting for approval."
       />

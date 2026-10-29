@@ -124,6 +124,47 @@ async function mockWorkspace(page: Page, role: Role = "recruiter") {
       );
       return pageOf(selected);
     }
+    // One posting's workspace: its detail, capacity and applications, shaped like the Go contracts.
+    const own = url.pathname.match(
+      /^\/job-postings\/(33333333-3333-4333-8333-\d{12})(\/.+)?$/,
+    );
+    const posting = postings.find((item) => item.id === own?.[1]);
+    if (own && posting) {
+      const approvals = posting.id === id(2) ? 1 : 0;
+      const slot = posting.interview_slot;
+      if (!own[2])
+        return ok({
+          ...posting,
+          raw_text: "Build reliable Go services with PostgreSQL.",
+          has_document: false,
+          seniority_level: "senior",
+          requirements: [
+            { name: "Go", target: "programming_language", type: "required" },
+          ],
+          salary_min: null,
+          salary_max: null,
+          interview_duration: 30,
+          required_avatar: { id: avatarId, name: avatar.name },
+          required_voice: { id: voiceId, name: "Ava" },
+          refinement_note: "",
+        });
+      if (own[2] === "/interview-capacity")
+        return ok({
+          interview_slot: slot,
+          funded: slot !== null,
+          price_per_slot: 1,
+          cv_approvals: approvals,
+          consumed: 0,
+          available_to_approve: slot === null ? 0 : slot - approvals,
+          refundable: slot === null ? 0 : slot - approvals,
+          posting_status: posting.status,
+          refunded: null,
+        });
+      if (own[2] === "/applications") {
+        const waiting = url.searchParams.get("status") === "pending";
+        return pageOf([], waiting ? 1 : 4);
+      }
+    }
     if (url.pathname === "/admin/job-postings")
       return pageOf(
         [
@@ -383,4 +424,70 @@ test("candidate sidebar badge uses a global dated count rather than visible rows
   await expect(
     page.getByRole("link", { name: "Live backend role", exact: true }),
   ).toBeVisible();
+});
+
+test("a posting's header offers one next action, its sections as tabs and where it stands", async ({
+  page,
+}) => {
+  await mockWorkspace(page);
+
+  // Live: screening is the next step, with the slot figures and the inbox one click away.
+  await page.goto(`/recruiter/job-postings/${id(2)}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Live backend role" }),
+  ).toBeVisible();
+  const inbox = `/recruiter/applications?posting=${id(2)}`;
+  await expect(
+    page.getByRole("link", { name: "Review applications" }),
+  ).toHaveAttribute("href", inbox);
+  await expect(page.getByText("1 of 2 interview slots approved")).toBeVisible();
+  const tabs = page.getByRole("navigation", { name: "Posting sections" });
+  await expect(tabs.getByRole("link", { name: "Overview" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(
+    tabs.getByRole("link", { name: "Applications" }),
+  ).toHaveAttribute("href", inbox);
+  await expect(tabs.getByRole("link", { name: "Questions" })).toHaveAttribute(
+    "href",
+    `/recruiter/job-postings/${id(2)}/questions`,
+  );
+  await expect(tabs.getByRole("link", { name: "Evaluation" })).toHaveAttribute(
+    "href",
+    `/recruiter/job-postings/${id(2)}/evaluation`,
+  );
+  const applications = page.getByRole("region", { name: "Applications" });
+  await expect(applications).toContainText("4 applications, 1 awaiting review");
+  await expect(
+    applications.getByRole("link", { name: "Review 1 awaiting CV" }),
+  ).toHaveAttribute(
+    "href",
+    `/recruiter/applications?status=pending&posting=${id(2)}`,
+  );
+  const progress = page.getByRole("list", { name: "Posting progress" });
+  await expect(progress.getByRole("listitem").last()).toContainText(
+    "Taking applications",
+  );
+
+  // Approved but not funded: funding is the next action.
+  await page.goto(`/recruiter/job-postings/${id(1)}`);
+  await expect(
+    page.getByRole("link", { name: "Fund & publish" }),
+  ).toHaveAttribute("href", "#interview-capacity");
+  await expect(
+    page.getByText("Approved: fund interview slots to publish"),
+  ).toBeVisible();
+
+  // A draft without questions: nothing to review yet, and Applications stays off with its reason.
+  await page.goto(`/recruiter/job-postings/${id(4)}`);
+  await expect(
+    page.getByRole("link", { name: "Review requirements" }),
+  ).toHaveAttribute("href", "#posting-requirements");
+  const draftTabs = page.getByRole("navigation", { name: "Posting sections" });
+  const disabled = draftTabs.getByRole("link", { name: /Applications/ });
+  await expect(disabled).toHaveAttribute("aria-disabled", "true");
+  await expect(disabled).toHaveAccessibleName(
+    /available once an administrator approves the posting/,
+  );
 });

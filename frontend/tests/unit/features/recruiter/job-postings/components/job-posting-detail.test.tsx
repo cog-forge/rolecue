@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { JobPostingDetail } from "@/features/recruiter/job-postings/components/job-posting-detail";
@@ -98,8 +104,27 @@ const applicationRow = {
   reject_reason: null,
   updated_at: "2026-10-20T08:00:00Z",
 };
-function serve(posting: Posting | Error) {
-  mocks.get.mockImplementation((path: string) => {
+const capacityState = (over: Record<string, unknown> = {}) => ({
+  interview_slot: 5,
+  funded: true,
+  price_per_slot: 1,
+  cv_approvals: 2,
+  consumed: 1,
+  available_to_approve: 3,
+  refundable: 4,
+  posting_status: "open",
+  refunded: null,
+  ...over,
+});
+function serve(
+  posting: Posting | Error,
+  capacity: ReturnType<typeof capacityState> | null = null,
+) {
+  mocks.get.mockImplementation((path: string, config?: { params?: object }) => {
+    if (path === `/job-postings/${postingId}/interview-capacity`)
+      return capacity
+        ? Promise.resolve(envelope(capacity))
+        : Promise.reject(failure(500, "INTERNAL_ERROR", "boom"));
     if (path === "/voices")
       return Promise.resolve(pageOf([{ id: voiceId, name: "Ava" }]));
     if (path === "/inventory/avatars")
@@ -115,10 +140,19 @@ function serve(posting: Posting | Error) {
         ]),
       );
     if (path === `/job-postings/${postingId}/applications`)
+      // Three applications in all, one of them awaiting a decision.
       return Promise.resolve(
         envelope({
           items: [applicationRow],
-          pagination: { limit: 20, offset: 0, total: 1 },
+          pagination: {
+            limit: 20,
+            offset: 0,
+            total:
+              (config?.params as { status?: string } | undefined)?.status ===
+              "pending"
+                ? 1
+                : 3,
+          },
         }),
       );
     if (path === `/job-postings/${postingId}/document`)
@@ -487,7 +521,7 @@ describe("JobPostingDetail", () => {
     serve({ ...base, interview_slot: 5 });
     mount();
     expect(
-      await screen.findByRole("link", { name: "Evaluation criteria" }),
+      await screen.findByRole("link", { name: "Evaluation" }),
     ).toHaveAttribute(
       "href",
       `/recruiter/job-postings/${postingId}/evaluation`,
@@ -518,19 +552,166 @@ describe("JobPostingDetail", () => {
     ).toBe(false);
   });
 
-  it("lists the applications of an approved posting", async () => {
-    serve({ ...base, status: "open" });
+  it("summarises the applications of an approved posting and links to the review inbox", async () => {
+    serve({ ...base, status: "open", interview_slot: 5 });
     mount();
-    const list = await screen.findByRole("list", { name: /^Applications,/ });
-    expect(list).toHaveTextContent("Linh Tran");
-    expect(list).toHaveTextContent("linh@example.com");
+    const summary = await screen.findByRole("region", {
+      name: "Applications",
+    });
     expect(
-      screen.getByRole("heading", { level: 2, name: "Applications" }),
-    ).toBeInTheDocument();
+      await within(summary).findByRole("link", {
+        name: "Review 1 awaiting CV",
+      }),
+    ).toHaveAttribute(
+      "href",
+      `/recruiter/applications?status=pending&posting=${postingId}`,
+    );
+    expect(summary).toHaveTextContent("3 applications, 1 awaiting review");
+    // The list itself lives in the inbox, so no row is rendered here.
+    expect(screen.queryByText("Linh Tran")).not.toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith(
       `/job-postings/${postingId}/applications`,
       { params: { limit: 20, offset: 0 }, signal: expect.any(AbortSignal) },
     );
+  });
+
+  it("shows the posting's sections as tabs and keeps Applications off until it takes applications", async () => {
+    serve(base);
+    mount();
+    const tabs = await screen.findByRole("navigation", {
+      name: "Posting sections",
+    });
+    expect(
+      within(tabs).getByRole("link", { name: "Overview" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(tabs).getByRole("link", { name: "Questions" }),
+    ).toHaveAttribute("href", `/recruiter/job-postings/${postingId}/questions`);
+    const applications = within(tabs).getByRole("link", {
+      name: /Applications/,
+    });
+    expect(applications).toHaveAttribute("aria-disabled", "true");
+    expect(applications).not.toHaveAttribute("href");
+    expect(applications).toHaveTextContent(
+      /available once an administrator approves the posting/,
+    );
+  });
+
+  it("opens the review inbox for this posting from the Applications tab once approved", async () => {
+    serve({ ...base, status: "open", interview_slot: 5 });
+    mount();
+    const tabs = await screen.findByRole("navigation", {
+      name: "Posting sections",
+    });
+    expect(
+      within(tabs).getByRole("link", { name: "Applications" }),
+    ).toHaveAttribute("href", `/recruiter/applications?posting=${postingId}`);
+  });
+
+  it.each([
+    [
+      "a bank ready to send",
+      { ...base, review_submitted: false },
+      "Review & submit",
+      `/recruiter/job-postings/${postingId}/questions`,
+    ],
+    [
+      "a posting without a bank",
+      { ...base, review_submitted: false, core_question_count: 0 },
+      "Review requirements",
+      "#posting-requirements",
+    ],
+    [
+      "a rejected posting",
+      { ...base, status: "rejected", reject_reason: "Vague." },
+      "Edit and resubmit",
+      `/recruiter/job-postings/${postingId}/questions`,
+    ],
+    [
+      "an approved posting that is not funded",
+      { ...base, status: "open", interview_slot: null },
+      "Fund & publish",
+      "#interview-capacity",
+    ],
+    [
+      "a live posting",
+      { ...base, status: "open", interview_slot: 5 },
+      "Review applications",
+      `/recruiter/applications?posting=${postingId}`,
+    ],
+  ])("offers one next action for %s", async (_name, posting, label, href) => {
+    serve(posting as Posting);
+    mount();
+    await screen.findByRole("heading", { level: 1, name: "Backend Engineer" });
+    const link = screen.getByRole("link", { name: label });
+    expect(link).toHaveAttribute("href", href);
+    // The action is the header's single primary link, so the label is not repeated elsewhere.
+    expect(screen.getAllByRole("link", { name: label })).toHaveLength(1);
+  });
+
+  it("offers no next action while the posting waits for review or after it ended", async () => {
+    serve(base);
+    mount();
+    await screen.findByRole("heading", { level: 1, name: "Backend Engineer" });
+    for (const label of [
+      "Review & submit",
+      "Edit and resubmit",
+      "Fund & publish",
+      "Review applications",
+    ])
+      expect(
+        screen.queryByRole("link", { name: label }),
+      ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["Waiting for admin review", base, null],
+    [
+      "Rejected: see the reason below",
+      { ...base, status: "rejected", reject_reason: "Vague." },
+      null,
+    ],
+    [
+      "Approved: fund interview slots to publish",
+      { ...base, status: "open", interview_slot: null },
+      null,
+    ],
+    [
+      "2 of 5 interview slots approved",
+      { ...base, status: "open", interview_slot: 5 },
+      capacityState(),
+    ],
+    [
+      "Intake closed: 2 of 5 slots approved",
+      { ...base, status: "intake_closed", interview_slot: 5 },
+      capacityState({ posting_status: "intake_closed" }),
+    ],
+    [
+      "Intake closed: all 5 slots approved",
+      { ...base, status: "intake_closed", interview_slot: 5 },
+      capacityState({ posting_status: "intake_closed", cv_approvals: 5 }),
+    ],
+    [
+      "Closed: 4 coins from unused slots returned to your wallet",
+      { ...base, status: "closed", interview_slot: 5 },
+      capacityState({ posting_status: "closed", refunded: 4 }),
+    ],
+    [
+      "Closed: no unused slots to return",
+      { ...base, status: "closed", interview_slot: 5 },
+      capacityState({ posting_status: "closed", refunded: 0 }),
+    ],
+  ])("states where the posting stands: %s", async (line, posting, capacity) => {
+    serve(posting as Posting, capacity);
+    mount();
+    expect(await screen.findByText(line)).toBeInTheDocument();
+  });
+
+  it("leaves the slot figures out of the header when the capacity cannot be read", async () => {
+    serve({ ...base, status: "open", interview_slot: 5 }, null);
+    mount();
+    await screen.findByRole("heading", { level: 1, name: "Backend Engineer" });
+    expect(screen.queryByText(/interview slots approved/)).toBeNull();
   });
 
   it("keeps a saved voice that is no longer in the catalog", async () => {

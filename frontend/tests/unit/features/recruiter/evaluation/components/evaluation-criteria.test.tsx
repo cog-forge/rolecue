@@ -369,9 +369,7 @@ describe("EvaluationCriteria", () => {
     // Stands in for the workspace sidebar, which lives outside the editor.
     mount(<a href="/recruiter/applications">Applications</a>);
     await screen.findByLabelText("Clarity");
-    const back = screen.getByRole("link", {
-      name: /Back to questions & submission/,
-    });
+    const back = screen.getByRole("link", { name: "My Job Postings" });
     const sidebar = screen.getByRole("link", { name: "Applications" });
     // Keeps jsdom from trying to load a link the guard lets through.
     const stopLoad = (event: Event) => event.preventDefault();
@@ -403,9 +401,7 @@ describe("EvaluationCriteria", () => {
         await screen.findByRole("dialog", { name: "Leave without saving?" }),
       ).getByRole("button", { name: "Leave without saving" }),
     );
-    expect(mocks.replace).toHaveBeenCalledWith(
-      `/recruiter/job-postings/${postingId}/questions`,
-    );
+    expect(mocks.replace).toHaveBeenCalledWith("/recruiter/job-postings");
     document.removeEventListener("click", stopLoad);
   });
 

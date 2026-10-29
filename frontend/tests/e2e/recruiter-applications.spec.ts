@@ -177,34 +177,28 @@ test("a filtered URL reloads into the same list", async ({ page }) => {
   );
 });
 
-test("an approved posting lists its applications and links to the criteria", async ({
+test("an approved posting summarises its applications and links to the review inbox", async ({
   page,
 }) => {
-  const api = await mockApplications(page);
+  await mockApplications(page);
   await page.goto(`/recruiter/job-postings/${postingId}`);
 
   await expect(
     page.getByRole("heading", { level: 1, name: "Backend Engineer" }),
   ).toBeVisible();
+  const summary = page.getByRole("region", { name: "Applications" });
+  await expect(summary).toContainText("3 applications");
+  await expect(summary).toContainText("awaiting review");
   await expect(
-    page.getByRole("heading", { level: 2, name: "Applications" }),
-  ).toBeVisible();
-  const table = page.getByRole("list", { name: /^Applications,/ });
-  await expect(table.getByText("Linh Tran")).toBeVisible();
-  // The posting is already known, so rows do not repeat its title.
-  await expect(table.getByText(/Backend Engineer ·/)).toHaveCount(0);
-  await expect(
-    page.getByRole("link", { name: "Evaluation criteria" }),
+    page
+      .getByRole("navigation", { name: "Posting sections" })
+      .getByRole("link", { name: "Evaluation" }),
   ).toHaveAttribute("href", `/recruiter/job-postings/${postingId}/evaluation`);
   await expect(page.getByText("Interview slots:")).toContainText("5");
 
-  await page.getByLabel("Search by name or email").fill("bao@");
-  // Scoped to the form: the sidebar also has a "Search pages" button.
-  await page
-    .getByRole("search", { name: "Search applications" })
-    .getByRole("button", { name: "Search", exact: true })
+  await summary
+    .getByRole("link", { name: /^Review \d+ awaiting CVs?$/ })
     .click();
-  await expect(table.getByText("Bao To")).toBeVisible();
-  await expect(table.getByText("Linh Tran")).toHaveCount(0);
-  expect(api.queries.some((q) => q.q === "bao@")).toBe(true);
+  await expect(page).toHaveURL(new RegExp(`posting=${postingId}`));
+  await expect(page).toHaveURL(/status=pending/);
 });
