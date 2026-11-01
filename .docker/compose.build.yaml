@@ -1,0 +1,23 @@
+name: rolecue
+
+services:
+  api:
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-api:${IMAGE_TAG:-local}
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+
+  auth:
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-auth:${IMAGE_TAG:-local}
+    build:
+      context: ../auth
+      dockerfile: Dockerfile
+
+  frontend:
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-frontend:${IMAGE_TAG:-local}
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+        NEXT_PUBLIC_AVATURN_PROJECT_URL: ${NEXT_PUBLIC_AVATURN_PROJECT_URL:-https://rolecue.avaturn.dev}
