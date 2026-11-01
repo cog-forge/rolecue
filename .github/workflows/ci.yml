@@ -233,6 +233,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_tag: ${{ steps.tag.outputs.value }}
     steps:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
@@ -243,9 +245,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set immutable image tag
+        id: tag
+        run: echo "value=sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
       - name: Push exactly the scanned images
         run: |
-          tag="sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tag='${{ steps.tag.outputs.value }}'
           for component in api frontend auth; do
             docker load -i "images/image-$component/image.tar"
             image="ghcr.io/cog-forge/rolecue-$component"
@@ -259,3 +264,79 @@ jobs:
             docker tag "rolecue-$component:ci" "$image:latest"
             docker push "$image:latest"
           done
+
+  deploy:
+    name: Deploy production
+    needs: publish
+    if: >-
+      github.repository == 'cog-forge/rolecue' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, linux, x64, rolecue-production]
+    timeout-minutes: 20
+    concurrency:
+      group: rolecue-production
+      cancel-in-progress: false
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    env:
+      REGISTRY: ghcr.io/cog-forge
+      IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
+      APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+      API_DOMAIN: ${{ secrets.API_DOMAIN }}
+      APP_URL: ${{ secrets.APP_URL }}
+      AUTH_BASE_URL: ${{ secrets.AUTH_BASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DB_DATABASE: ${{ secrets.DB_DATABASE }}
+      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+      LOGGER_LEVEL: ${{ vars.LOGGER_LEVEL }}
+      LOGGER_FORMAT: ${{ vars.LOGGER_FORMAT }}
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+      BETTER_AUTH_COOKIE_PREFIX: ${{ secrets.BETTER_AUTH_COOKIE_PREFIX }}
+      BETTER_AUTH_COOKIE_DOMAIN: ${{ secrets.BETTER_AUTH_COOKIE_DOMAIN }}
+      ADMIN_AUTH_INTERNAL_SECRET: ${{ secrets.ADMIN_AUTH_INTERNAL_SECRET }}
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+      GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+      FACEBOOK_CLIENT_ID: ${{ secrets.FACEBOOK_CLIENT_ID }}
+      FACEBOOK_CLIENT_SECRET: ${{ secrets.FACEBOOK_CLIENT_SECRET }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+      RESEND_VERIFY_EMAIL_TEMPLATE_ID: ${{ secrets.RESEND_VERIFY_EMAIL_TEMPLATE_ID }}
+      RESEND_RESET_PASSWORD_TEMPLATE_ID: ${{ secrets.RESEND_RESET_PASSWORD_TEMPLATE_ID }}
+      RESEND_ACCOUNT_LOCKED_TEMPLATE_ID: ${{ secrets.RESEND_ACCOUNT_LOCKED_TEMPLATE_ID }}
+      RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID: ${{ secrets.RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID }}
+      SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL }}
+      PAYOS_CLIENT_ID: ${{ secrets.PAYOS_CLIENT_ID }}
+      PAYOS_API_KEY: ${{ secrets.PAYOS_API_KEY }}
+      PAYOS_CHECKSUM_KEY: ${{ secrets.PAYOS_CHECKSUM_KEY }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+      S3_REGION: ${{ vars.S3_REGION }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
+      S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+      S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+      S3_SESSION_TOKEN: ${{ secrets.S3_SESSION_TOKEN }}
+      AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+      AZURE_SPEECH_REGION: ${{ vars.AZURE_SPEECH_REGION }}
+      AVATAR_CONVERSION_ENABLED: ${{ vars.AVATAR_CONVERSION_ENABLED }}
+      AVATAR_VRM_COMMERCIAL_USAGE: ${{ vars.AVATAR_VRM_COMMERCIAL_USAGE }}
+      AVATAR_VRM_LICENSE_URL: ${{ vars.AVATAR_VRM_LICENSE_URL }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull promoted images and deploy
+        run: |
+          set -eu
+          docker compose -p rolecue -f .docker/compose.deploy.yaml pull
+          docker compose -p rolecue -f .docker/compose.deploy.yaml up \
+            --detach --remove-orphans api auth frontend caddy
