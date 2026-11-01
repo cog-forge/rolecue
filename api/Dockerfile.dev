@@ -1,0 +1,17 @@
+FROM golang:1.27.3-trixie
+
+ARG AIR_VERSION=v1.67.4
+ARG SQLC_VERSION=v1.31.1
+
+RUN go install github.com/air-verse/air@${AIR_VERSION} \
+    && go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION} \
+    && chmod -R a+rwX /go
+
+WORKDIR /workspace
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+
+ENV GOCACHE=/tmp/go-build-cache
+EXPOSE 8080
+CMD ["air", "-c", ".air.toml"]
