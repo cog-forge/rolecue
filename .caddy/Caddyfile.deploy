@@ -1,0 +1,30 @@
+{
+	admin off
+	# Request error logs may contain OAuth or password-reset tokens in URLs.
+	log default {
+		exclude http.log.error
+	}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	handle /api/auth/* {
+		reverse_proxy auth:3001 {
+			header_up -X-RoleCue-Admin-Secret
+			header_up -X-RoleCue-Account-Notification
+			header_up -Forwarded
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 30s
+			}
+		}
+	}
+	handle {
+		reverse_proxy frontend:3000
+	}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:8080
+}
