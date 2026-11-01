@@ -1,0 +1,191 @@
+name: rolecue
+
+services:
+  postgres:
+    image: postgres:18.6
+    container_name: rolecue-postgres
+    restart: unless-stopped
+    environment:
+      PGDATA: /var/lib/postgresql/18/docker
+      POSTGRES_DB: ${DB_DATABASE:?Set DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME:?Set DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks: [private]
+
+  migrate:
+    image: migrate/migrate:v4.19.0
+    container_name: rolecue-migrate
+    command:
+      - -path
+      - /migrations
+      - -database
+      - ${DATABASE_URL:?Set DATABASE_URL}
+      - up
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../api/migrations:/migrations:ro
+    networks: [private]
+
+  auth:
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-auth:${IMAGE_TAG:?Set IMAGE_TAG}
+    container_name: rolecue-auth
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      APP_URL: ${APP_URL:?Set APP_URL}
+      AUTH_BASE_URL: ${AUTH_BASE_URL:?Set AUTH_BASE_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
+      BETTER_AUTH_DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
+      BETTER_AUTH_COOKIE_PREFIX: ${BETTER_AUTH_COOKIE_PREFIX:-rolecue}
+      BETTER_AUTH_COOKIE_DOMAIN: ${BETTER_AUTH_COOKIE_DOMAIN:?Set BETTER_AUTH_COOKIE_DOMAIN}
+      ADMIN_AUTH_INTERNAL_SECRET: ${ADMIN_AUTH_INTERNAL_SECRET:?Set ADMIN_AUTH_INTERNAL_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:?Set RESEND_API_KEY}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:?Set RESEND_FROM_EMAIL}
+      RESEND_VERIFY_EMAIL_TEMPLATE_ID: ${RESEND_VERIFY_EMAIL_TEMPLATE_ID:?Set RESEND_VERIFY_EMAIL_TEMPLATE_ID}
+      RESEND_RESET_PASSWORD_TEMPLATE_ID: ${RESEND_RESET_PASSWORD_TEMPLATE_ID:?Set RESEND_RESET_PASSWORD_TEMPLATE_ID}
+      RESEND_ACCOUNT_LOCKED_TEMPLATE_ID: ${RESEND_ACCOUNT_LOCKED_TEMPLATE_ID:-}
+      RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID: ${RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID:-}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    expose: ["3001"]
+    networks: [private]
+
+  api:
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-api:${IMAGE_TAG:?Set IMAGE_TAG}
+    container_name: rolecue-api
+    restart: unless-stopped
+    environment:
+      APP_ENVIRONMENT: production
+      APP_VERSION: ${IMAGE_TAG}
+      APP_DEBUG: "false"
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      LOGGER_LEVEL: ${LOGGER_LEVEL:-info}
+      LOGGER_FORMAT: ${LOGGER_FORMAT:-json}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
+      AUTH_UPSTREAM_URL: http://auth:3001
+      AUTH_BASE_URL: ${AUTH_BASE_URL:?Set AUTH_BASE_URL}
+      AUTH_SECURE_COOKIES: "true"
+      BETTER_AUTH_COOKIE_PREFIX: ${BETTER_AUTH_COOKIE_PREFIX:-rolecue}
+      BETTER_AUTH_COOKIE_DOMAIN: ${BETTER_AUTH_COOKIE_DOMAIN:?Set BETTER_AUTH_COOKIE_DOMAIN}
+      ADMIN_AUTH_INTERNAL_SECRET: ${ADMIN_AUTH_INTERNAL_SECRET:?Set ADMIN_AUTH_INTERNAL_SECRET}
+      CORS_ALLOW_ORIGINS: ${APP_URL:?Set APP_URL}
+      CORS_ALLOW_CREDENTIALS: "true"
+      PAYOS_CLIENT_ID: ${PAYOS_CLIENT_ID:?Set PAYOS_CLIENT_ID}
+      PAYOS_API_KEY: ${PAYOS_API_KEY:?Set PAYOS_API_KEY}
+      PAYOS_CHECKSUM_KEY: ${PAYOS_CHECKSUM_KEY:?Set PAYOS_CHECKSUM_KEY}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_SESSION_TOKEN: ${S3_SESSION_TOKEN:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      LLM_API_KEY: ${LLM_API_KEY:?Set LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gemini-3.1-flash-lite}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-30s}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-koreacentral}
+      TTS_TIMEOUT: ${TTS_TIMEOUT:-10s}
+      TTS_SYNC_LOCALES: ${TTS_SYNC_LOCALES:-en}
+      QUESTION_BANK_SIZE: ${QUESTION_BANK_SIZE:-50}
+      EVALUATION_WEIGHT_TOTAL: ${EVALUATION_WEIGHT_TOTAL:-100}
+      AVATAR_CONVERSION_ENABLED: ${AVATAR_CONVERSION_ENABLED:-false}
+      AVATAR_BLENDER_BINARY: ${AVATAR_BLENDER_BINARY:-blender}
+      AVATAR_CONVERSION_TIMEOUT: ${AVATAR_CONVERSION_TIMEOUT:-120s}
+      AVATAR_MAX_INPUT_BYTES: ${AVATAR_MAX_INPUT_BYTES:-52428800}
+      AVATAR_MAX_OUTPUT_BYTES: ${AVATAR_MAX_OUTPUT_BYTES:-104857600}
+      AVATAR_VRM_COMMERCIAL_USAGE: ${AVATAR_VRM_COMMERCIAL_USAGE:-}
+      AVATAR_VRM_LICENSE_URL: ${AVATAR_VRM_LICENSE_URL:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      auth:
+        condition: service_healthy
+    expose: ["8080"]
+    networks: [private]
+
+  frontend:
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-frontend:${IMAGE_TAG:?Set IMAGE_TAG}
+    container_name: rolecue-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    expose: ["3000"]
+    networks: [private]
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    container_name: rolecue-caddy
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ../.caddy/Caddyfile.deploy:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      auth:
+        condition: service_healthy
+      api:
+        condition: service_started
+      frontend:
+        condition: service_healthy
+    networks: [private]
+
+networks:
+  private:
+    name: rolecue-private
+
+volumes:
+  postgres-data:
+    name: rolecue-postgres-data
+  caddy-data:
+    name: rolecue-caddy-data
+  caddy-config:
+    name: rolecue-caddy-config
