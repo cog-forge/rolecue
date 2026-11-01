@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -48,7 +49,7 @@ func TestSanitize(t *testing.T) {
 		{"token stops at ampersand", "GET /cb?token=sekret&state=ok", "GET /cb?[redacted]&state=ok"},
 		{"password with colon", "password: hunter2", "[redacted]"},
 		{"bearer token", "Bearer tok123 and more", "[redacted] and more"},
-		{"aws signature redacted", "https://s3/x?X-Amz-Signature=deadbeef&a=1", "https://s3/x?[redacted]&a=1"},
+		{"aws signature redacted", "https://s3/x?X-Amz-Signature=deadbeef&a=1", "https://s3/x?[redacted]"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := logger.Sanitize(tc.in); got != tc.want {
@@ -110,7 +111,7 @@ func TestErrorChain(t *testing.T) {
 	})
 
 	t.Run("depth is capped at eight", func(t *testing.T) {
-		var err error = errors.New("bottom")
+		err := errors.New("bottom")
 		for i := 0; i < 20; i++ {
 			err = fmt.Errorf("layer %d: %w", i, err)
 		}
@@ -300,5 +301,29 @@ func TestWithContext_AddsRequestIDAndTraceID(t *testing.T) {
 	m := logs.All()[0].ContextMap()
 	if m["request_id"] != "req-9" || m["trace_id"] != "trace-7" {
 		t.Fatalf("fields = %v", m)
+	}
+}
+
+func TestSanitize_TruncatesOnRuneBoundary(t *testing.T) {
+	// "ệ" is three bytes; a byte-offset cut at 400 would land inside one of them.
+	text := strings.Repeat("ệ", 300)
+	got := logger.Sanitize(text)
+	if !utf8.ValidString(got) {
+		t.Fatalf("truncated text is not valid UTF-8: %q", got)
+	}
+	if !strings.HasSuffix(got, "…") {
+		t.Fatalf("expected truncation marker, got length %d", len(got))
+	}
+}
+
+func TestSanitize_StripsURLQueryAndEmail(t *testing.T) {
+	got := logger.Sanitize(`GET https://bucket.s3.example.com/obj/abc?X-Amz-Credential=AKIA123&sig=zzz failed for user@example.vn`)
+	for _, leaked := range []string{"AKIA123", "sig=zzz", "user@example.vn", "X-Amz-Credential"} {
+		if strings.Contains(got, leaked) {
+			t.Fatalf("%q leaked into %q", leaked, got)
+		}
+	}
+	if !strings.Contains(got, "https://bucket.s3.example.com/obj/abc") {
+		t.Fatalf("URL path should survive for diagnosis: %q", got)
 	}
 }

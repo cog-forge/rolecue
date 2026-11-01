@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"fmt"
+
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/cog-forge/rolecue/api/pkg/response"
@@ -13,7 +15,7 @@ func RecoveryMiddleware(log *logger.Logger) gin.HandlerFunc {
 		defer func() {
 			if err := recover(); err != nil {
 				log.WithContext(c.Request.Context()).Error("Panic recovered in HTTP request",
-					logger.Any("error", err),
+					logger.String("panic", logger.Sanitize(fmt.Sprint(err))),
 					logger.String("path", c.Request.URL.Path),
 				)
 				response.Error(c, apperror.New(apperror.CodeInternal, "Internal server error"))

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"go.uber.org/zap"
 )
@@ -31,14 +32,26 @@ const (
 	maxCauseDepth  = 8
 )
 
+// A URL keeps its path but loses its query string, where presigned signatures and tokens live.
+var urlQueryPattern = regexp.MustCompile(`(https?://[^\s"'?]+)\?[^\s"']*`)
+
+var emailPattern = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+`)
+
 var secretPattern = regexp.MustCompile(`(?i)(key|token|secret|signature|password|credential|x-amz-[a-z-]+|authorization)(=|:\s*|%3d)(?:bearer\s+|basic\s+)?[^&\s"',}]+|bearer\s+\S+`)
 
 // Sanitize removes credential-looking values from text and bounds its length, so an error
 // message can be logged without leaking secrets from URLs or headers.
 func Sanitize(text string) string {
+	text = urlQueryPattern.ReplaceAllString(text, "${1}?[redacted]")
 	text = secretPattern.ReplaceAllString(text, "[redacted]")
+	text = emailPattern.ReplaceAllString(text, "[email]")
 	if len(text) > maxCauseLength {
-		text = text[:maxCauseLength] + "…"
+		// Cut on a rune boundary: the app handles Vietnamese text, and a mid-rune cut is invalid UTF-8.
+		cut := maxCauseLength
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		text = text[:cut] + "…"
 	}
 	return text
 }

@@ -48,7 +48,7 @@ func TestFailedAttemptLogsClassifiedReason(t *testing.T) {
 			}
 			var b strings.Builder
 			for _, e := range entries {
-				b.WriteString(fmt.Sprint(e.Message, e.ContextMap()))
+				fmt.Fprint(&b, e.Message, e.ContextMap())
 			}
 			if dump := b.String(); strings.Contains(dump, secretText) || strings.Contains(dump, testKey) {
 				t.Fatalf("log leaks text or key: %s", dump)

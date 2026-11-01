@@ -113,8 +113,8 @@ func TestTracer_PgErrorOmitsDetailValues(t *testing.T) {
 	const email = "a@b.c"
 	pgErr := &pgconn.PgError{
 		Severity:       "ERROR",
-		Code:           "23505",
-		Message:        `duplicate key value violates unique constraint "users_email_key"`,
+		Code:           "42P01",
+		Message:        `relation "users" does not exist`,
 		Detail:         "Key (email)=(" + email + ") already exists.",
 		TableName:      "users",
 		ConstraintName: "users_email_key",
@@ -132,7 +132,7 @@ func TestTracer_PgErrorOmitsDetailValues(t *testing.T) {
 	}
 	m := e.ContextMap()
 	want := map[string]string{
-		"pg_code":       "23505",
+		"pg_code":       "42P01",
 		"pg_table":      "users",
 		"pg_constraint": "users_email_key",
 		"query":         "CreateUser",
@@ -147,6 +147,34 @@ func TestTracer_PgErrorOmitsDetailValues(t *testing.T) {
 	rendered := fmt.Sprintf("%s %v", e.Message, m)
 	if strings.Contains(rendered, email) || strings.Contains(rendered, "Key (email)") {
 		t.Fatalf("detail leaked into log: %s", rendered)
+	}
+}
+
+func TestTracer_HandledConflictsLogAtWarnWithoutDetail(t *testing.T) {
+	const email = "a@b.c"
+	for _, code := range []string{"23505", "23503", "40001", "40P01"} {
+		pgErr := &pgconn.PgError{
+			Severity: "ERROR",
+			Code:     code,
+			Message:  "conflict",
+			Detail:   "Key (email)=(" + email + ") already exists.",
+		}
+		ctx, logs := newObservedCtx()
+		run(New(), ctx, "-- name: StartInterview :one\nINSERT ...", pgErr)
+
+		if n := len(logs.FilterMessage("database query failed").All()); n != 0 {
+			t.Fatalf("%s: handled conflict logged as a failure", code)
+		}
+		entries := logs.FilterMessage("database query conflict").All()
+		if len(entries) != 1 || entries[0].Level != zapcore.WarnLevel {
+			t.Fatalf("%s: want one warn conflict entry, got %v", code, logs.AllUntimed())
+		}
+		if entries[0].ContextMap()["pg_code"] != code {
+			t.Fatalf("%s: pg_code missing: %v", code, entries[0].ContextMap())
+		}
+		if rendered := fmt.Sprintf("%s %v", entries[0].Message, entries[0].ContextMap()); strings.Contains(rendered, email) {
+			t.Fatalf("%s: detail leaked: %s", code, rendered)
+		}
 	}
 }
 

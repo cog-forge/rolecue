@@ -68,9 +68,21 @@ func (t *Tracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQ
 				zap.String("pg_table", pgErr.TableName),
 				zap.String("pg_constraint", pgErr.ConstraintName),
 			)
+			if isExpectedConflict(pgErr.Code) {
+				// The code handles these on purpose (idempotency keys, retried transactions), so they must
+				// not page anyone or carry a stack trace; response.Error logs the request if it fails.
+				log.Warn("database query conflict", append(fields, logger.Cause(err))...)
+				return
+			}
 		}
 		log.Error("database query failed", append(fields, logger.Cause(err))...)
 	}
+}
+
+// isExpectedConflict reports SQLSTATE classes that callers routinely handle: 23 (integrity constraint
+// violations such as unique_violation) and 40 (serialization failure, deadlock).
+func isExpectedConflict(sqlState string) bool {
+	return strings.HasPrefix(sqlState, "23") || strings.HasPrefix(sqlState, "40")
 }
 
 // QueryName extracts the sqlc name from the leading "-- name: X :kind" comment, or "unnamed".
