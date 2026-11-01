@@ -11,11 +11,27 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/voicecatalog/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/admin/voicecatalog/service"
+	"github.com/google/uuid"
 )
 
 const azureBody = `[
   {"Name":"Microsoft Server Speech Text to Speech Voice (en-US, AvaNeural)","DisplayName":"Ava","LocalName":"Ava","ShortName":"en-US-AvaNeural","Gender":"Female","Locale":"en-US","LocaleName":"English (United States)","StyleList":["cheerful"],"SampleRateHertz":"48000","VoiceType":"Neural","Status":"GA","WordsPerMinute":"152"},
-  {"Name":"Microsoft Server Speech Text to Speech Voice (zh-CN, YunxiNeural)","DisplayName":"","LocalName":"云希","ShortName":"zh-CN-YunxiNeural","Gender":"Male","Locale":"zh-CN","Status":"GA"}
+  {"Name":"Microsoft Server Speech Text to Speech Voice (zh-CN, YunxiNeural)","DisplayName":"","LocalName":"云希","ShortName":"zh-CN-YunxiNeural","Gender":"Male","Locale":"zh-CN","VoiceType":"Neural","Status":"GA"}
+]`
+
+// mixedBody mirrors the shapes of the real list: standard neural voices, multilingual voices (own type in the
+// language-support page), HD voices (":DragonHD..." names, from the HD voices page) and a non-neural type.
+const mixedBody = `[
+  {"DisplayName":"Jenny","ShortName":"en-US-JennyNeural","Gender":"Female","Locale":"en-US","VoiceType":"Neural","Status":"GA"},
+  {"DisplayName":"Guy","ShortName":"en-US-GuyNeural","Gender":"Male","Locale":"en-US","VoiceType":"Neural","Status":"GA"},
+  {"DisplayName":"Jenny Multilingual","ShortName":"en-US-JennyMultilingualNeural","Gender":"Female","Locale":"en-US","SecondaryLocaleList":["de-DE"],"VoiceType":"Neural","Status":"GA"},
+  {"DisplayName":"Alloy Turbo Multilingual","ShortName":"en-US-AlloyTurboMultilingualNeural","Gender":"Male","Locale":"en-US","VoiceType":"Neural","Status":"GA"},
+  {"DisplayName":"Ava HD","ShortName":"en-US-Ava:DragonHDLatestNeural","Gender":"Female","Locale":"en-US","VoiceType":"Neural","Status":"GA"},
+  {"DisplayName":"Andrew3 HD","ShortName":"en-us-Andrew3:DragonHDLatestNeural","Gender":"Male","Locale":"en-US","VoiceType":"Neural","Status":"Preview"},
+  {"DisplayName":"Conrad Omni","ShortName":"de-DE-Conrad:DragonHDOmniLatestNeural","Gender":"Male","Locale":"de-DE","VoiceType":"Neural","Status":"GA"},
+  {"DisplayName":"Ava HD typed","ShortName":"en-US-AvaHD","Gender":"Female","Locale":"en-US","VoiceType":"NeuralHD","Status":"GA"},
+  {"DisplayName":"No type","ShortName":"en-US-NoTypeNeural","Gender":"Female","Locale":"en-US","Status":"GA"},
+  {"DisplayName":"Sonia","ShortName":"en-GB-SoniaNeural","Gender":"Female","Locale":"en-GB","VoiceType":"Neural","Status":"GA"}
 ]`
 
 func stub(t *testing.T, handler http.HandlerFunc) *Azure {
@@ -139,5 +155,84 @@ func TestFakeReportsItsVoicesAndFailures(t *testing.T) {
 	f.Set()
 	if got, err := f.ListVoices(context.Background()); err != nil || len(got) != 0 {
 		t.Fatalf("Set should clear the failure: %v, %v", got, err)
+	}
+}
+
+func TestAzureKeepsOnlyStandardNeuralVoices(t *testing.T) {
+	a := stub(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(mixedBody)) })
+	got, err := a.ListVoices(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, v := range got {
+		ids = append(ids, v.ProviderVoiceID)
+	}
+	want := []string{"en-US-JennyNeural", "en-US-GuyNeural", "en-GB-SoniaNeural"}
+	if strings.Join(ids, ",") != strings.Join(want, ",") {
+		t.Fatalf("kept %v, want %v", ids, want)
+	}
+}
+
+// recordingCatalog is the part of the repository a sync needs: it stores what Sync receives, and, like the SQL,
+// deactivates the provider's voices that are not offered anymore and never deletes a row.
+type recordingCatalog struct {
+	service.Repository
+	active map[string]bool
+	synced []string
+}
+
+func (c *recordingCatalog) Sync(_ context.Context, name string, voices []domain.ProviderVoice) (domain.VoiceSyncResult, error) {
+	result := domain.VoiceSyncResult{Provider: name, Fetched: len(voices)}
+	offered := map[string]bool{}
+	c.synced = c.synced[:0]
+	for _, v := range voices {
+		offered[v.ProviderVoiceID] = true
+		c.synced = append(c.synced, v.ProviderVoiceID)
+		if _, known := c.active[v.ProviderVoiceID]; !known {
+			c.active[v.ProviderVoiceID] = true
+			result.Added++
+		}
+	}
+	for id, active := range c.active {
+		if active && !offered[id] {
+			c.active[id] = false
+			result.Deactivated++
+		}
+	}
+	result.Unchanged = result.Fetched - result.Added
+	return result, nil
+}
+
+// A voice that is now filtered out but was synced before (an HD or multilingual voice from an older catalog) goes
+// through the normal "no longer offered" path: the row stays, inactive.
+func TestSyncDeactivatesAFilteredOutVoiceAndNeverDeletesIt(t *testing.T) {
+	a := stub(t, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(mixedBody)) })
+	catalog := &recordingCatalog{active: map[string]bool{
+		"en-US-JennyNeural":              true,
+		"en-US-JennyMultilingualNeural":  true,
+		"en-US-Ava:DragonHDLatestNeural": true,
+	}}
+	svc, err := service.New(catalog, a, []string{"en-US"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := svc.Sync(context.Background(), uuid.New(), "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(catalog.synced, ",") != "en-US-JennyNeural,en-US-GuyNeural" {
+		t.Fatalf("the repository received %v; only en-US standard neural voices may reach it", catalog.synced)
+	}
+	if got.Fetched != 2 || got.Added != 1 || got.Deactivated != 2 || got.Unchanged != 1 {
+		t.Fatalf("result = %+v, want fetched 2, added 1, deactivated 2, unchanged 1", got)
+	}
+	if len(catalog.active) != 4 {
+		t.Fatalf("catalog has %d rows, a sync must never delete", len(catalog.active))
+	}
+	for _, id := range []string{"en-US-JennyMultilingualNeural", "en-US-Ava:DragonHDLatestNeural"} {
+		if active, known := catalog.active[id]; !known || active {
+			t.Fatalf("%s should stay as an inactive row (known=%v active=%v)", id, known, active)
+		}
 	}
 }

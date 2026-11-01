@@ -201,14 +201,14 @@ func TestTTSConfig(t *testing.T) {
 		}
 	}
 
-	t.Run("defaults keep English voices and start without credentials", func(t *testing.T) {
+	t.Run("defaults keep en-US voices and start without credentials", func(t *testing.T) {
 		unset("AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION", "TTS_TIMEOUT", "TTS_SYNC_LOCALES")
 		cfg, err := Load(writeConfig(t, minimalYAML))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if cfg.TTS.Key != "" || cfg.TTS.Region != "" || cfg.TTS.Timeout != 10*time.Second ||
-			len(cfg.TTS.SyncLocales) != 1 || cfg.TTS.SyncLocales[0] != "en" {
+			len(cfg.TTS.SyncLocales) != 1 || cfg.TTS.SyncLocales[0] != "en-US" {
 			t.Fatalf("TTS defaults = %+v", cfg.TTS)
 		}
 	})
