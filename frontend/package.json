@@ -6,6 +6,7 @@
   "packageManager": "bun@1.4.2",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --port 3002",
+    "dev:container": "next dev --hostname 0.0.0.0 --port 3002",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
