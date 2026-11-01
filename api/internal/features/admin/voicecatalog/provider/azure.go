@@ -6,13 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/cog-forge/rolecue/api/internal/features/admin/voicecatalog/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/admin/voicecatalog/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 )
 
 // AzureName is stored in voices.provider for voices synced from Azure AI Speech.
@@ -100,10 +104,20 @@ func isStandardNeural(v azureVoice) bool {
 // ListVoices returns the standard neural voices of the region (see isStandardNeural). Filtering happens here, so
 // the service validates and writes only voices the catalog may offer; an HD or multilingual voice that an earlier
 // sync stored is simply no longer offered and the sync deactivates it.
-func (a *Azure) ListVoices(ctx context.Context) ([]domain.ProviderVoice, error) {
+func (a *Azure) ListVoices(ctx context.Context) (voices []domain.ProviderVoice, err error) {
 	if a.key == "" || a.baseURL == "" {
 		return nil, service.ErrProviderNotConfigured
 	}
+	done := logger.Start(ctx, "voicecatalog.list_azure", logger.String("provider", AzureName))
+	var failure []zap.Field
+	defer func() {
+		if err != nil {
+			done(err, failure...)
+			return
+		}
+		done(nil, logger.Int("voices", len(voices)))
+	}()
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/cognitiveservices/voices/list", nil)
 	if err != nil {
 		return nil, fmt.Errorf("build azure voices request: %w", err)
@@ -113,25 +127,30 @@ func (a *Azure) ListVoices(ctx context.Context) ([]domain.ProviderVoice, error) 
 	resp, err := a.client.Do(req)
 	if err != nil {
 		// The error carries the URL but never the key, which travels in a header.
+		failure = []zap.Field{logger.String("reason", transportReason(err))}
 		return nil, fmt.Errorf("azure voices request: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		failure = []zap.Field{logger.String("reason", statusReason(resp.StatusCode)), logger.Int("status_code", resp.StatusCode)}
 		return nil, fmt.Errorf("azure voices request returned status %d", resp.StatusCode)
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
+		failure = []zap.Field{logger.String("reason", "read_error")}
 		return nil, fmt.Errorf("read azure voices response: %w", err)
 	}
 	if len(body) > maxResponseBytes {
+		failure = []zap.Field{logger.String("reason", "response_too_large")}
 		return nil, errors.New("azure voices response is too large")
 	}
 	var raw []azureVoice
 	if err := json.Unmarshal(body, &raw); err != nil {
+		failure = []zap.Field{logger.String("reason", "decode_error")}
 		return nil, fmt.Errorf("decode azure voices response: %w", err)
 	}
-	voices := make([]domain.ProviderVoice, 0, len(raw))
+	voices = make([]domain.ProviderVoice, 0, len(raw))
 	for _, v := range raw {
 		if !isStandardNeural(v) {
 			continue
@@ -143,4 +162,29 @@ func (a *Azure) ListVoices(ctx context.Context) ([]domain.ProviderVoice, error) 
 		voices = append(voices, domain.ProviderVoice{ProviderVoiceID: v.ShortName, Name: name, Locale: v.Locale, Gender: v.Gender})
 	}
 	return voices, nil
+}
+
+// transportReason classifies a failed request that never produced a response.
+func transportReason(err error) string {
+	var netErr net.Error
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
+		return "timeout"
+	}
+	return "unreachable"
+}
+
+// statusReason classifies a non-200 answer by its HTTP status class.
+func statusReason(code int) string {
+	switch {
+	case code == http.StatusUnauthorized || code == http.StatusForbidden:
+		return "auth_rejected"
+	case code == http.StatusTooManyRequests:
+		return "rate_limited"
+	case code >= 500:
+		return "http_5xx"
+	}
+	return "http_4xx"
 }

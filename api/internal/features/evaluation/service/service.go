@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -139,6 +140,13 @@ func (s *Service) ReplaceWeights(ctx context.Context, recruiterID uuid.UUID, rol
 	if err != nil {
 		return domain.PostingWeights{}, err
 	}
+	logger.FromContext(ctx).Info("evaluation weights replaced",
+		logger.Op("evaluation.replace_weights"),
+		logger.String("user_id", recruiterID.String()),
+		logger.String("posting_id", postingID.String()),
+		logger.String("status", status),
+		logger.Int("count", len(saved)),
+	)
 	return s.view(status, saved), nil
 }
 
@@ -159,6 +167,12 @@ func (s *Service) ResetWeights(ctx context.Context, recruiterID uuid.UUID, role 
 	if err := s.repository.ClearWeights(ctx, recruiterID, postingID); err != nil {
 		return domain.PostingWeights{}, err
 	}
+	logger.FromContext(ctx).Info("evaluation weights reset",
+		logger.Op("evaluation.reset_weights"),
+		logger.String("user_id", recruiterID.String()),
+		logger.String("posting_id", postingID.String()),
+		logger.String("status", status),
+	)
 	return s.defaultView(ctx, status)
 }
 

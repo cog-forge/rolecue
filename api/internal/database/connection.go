@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/pkg/dbtrace"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -45,6 +46,9 @@ func NewDatabasePool(cfg *config.DatabaseConfig) (*pgxpool.Pool, error) {
 	if cfg.ConnMaxLifetime > 0 {
 		pgxConfig.MaxConnLifetime = cfg.ConnMaxLifetime
 	}
+
+	// Failed and slow queries are logged by query name, never with their parameters.
+	pgxConfig.ConnConfig.Tracer = dbtrace.New()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // cvContentType is the stored content type of a CV, the same as the JD PDF.
@@ -50,7 +52,9 @@ func (s *Service) Apply(ctx context.Context, candidateID uuid.UUID, role string,
 	if err := repository.CheckIntakeFunded(ctx, postingID); err != nil {
 		return domain.Submission{}, err
 	}
+	done := logger.Start(ctx, "application.cv_upload", zap.Int("bytes", len(data)))
 	key, err := store.Upload(ctx, bytes.NewReader(data), cvContentType)
+	done(err)
 	if err != nil {
 		return domain.Submission{}, apperror.Wrap(apperror.CodeInternal, "application CV storage failed", err)
 	}
@@ -60,10 +64,16 @@ func (s *Service) Apply(ctx context.Context, candidateID uuid.UUID, role string,
 		// error is the one the Candidate needs; a failed delete leaves only an orphan object.
 		// The request context may already be cancelled (the client dropped), which would cancel this cleanup too.
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
-		_ = store.Delete(cleanupCtx, key)
+		if deleteErr := store.Delete(cleanupCtx, key); deleteErr != nil {
+			logger.FromContext(ctx).Warn("application CV cleanup failed", logger.Op("application.apply"),
+				zap.String("reason", "cv_object_orphaned"), zap.String("posting_id", postingID.String()), logger.Cause(deleteErr))
+		}
 		cancel()
 		return domain.Submission{}, err
 	}
+	logger.FromContext(ctx).Info("application submitted", logger.Op("application.apply"),
+		zap.String("application_id", submission.ID.String()), zap.String("posting_id", postingID.String()),
+		zap.String("user_id", candidateID.String()), zap.String("status", string(submission.Status)))
 	return submission, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -184,5 +185,9 @@ func (s *Service) draft(ctx context.Context, jdID uuid.UUID) ([]string, error) {
 	if len(input.Requirements) == 0 {
 		return nil, apperror.New(apperror.CodeRequirementsNotConfirmed, "confirm the job description requirements before generating questions")
 	}
-	return s.generateWithRetry(ctx, input)
+	done := logger.Start(ctx, "questionbank.generate", logger.String("jd_id", jdID.String()),
+		logger.Int("requested", s.size), logger.Int("requirements", len(input.Requirements)))
+	contents, err := s.generateWithRetry(ctx, input)
+	done(err, logger.Int("count", len(contents)))
+	return contents, err
 }

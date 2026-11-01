@@ -8,9 +8,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const (
@@ -56,7 +58,15 @@ func (s *Service) ApproveCV(ctx context.Context, recruiterID uuid.UUID, role str
 	if role != recruiterRole {
 		return domain.Screening{}, apperror.New(apperror.CodeForbidden, "only recruiters can screen CVs")
 	}
-	return s.repository.ApproveCV(ctx, recruiterID, postingID, applicationID)
+	screening, err := s.repository.ApproveCV(ctx, recruiterID, postingID, applicationID)
+	if err != nil {
+		return domain.Screening{}, err
+	}
+	logger.FromContext(ctx).Info("application cv approved", logger.Op("application.approve_cv"),
+		zap.String("application_id", applicationID.String()), zap.String("posting_id", postingID.String()),
+		zap.String("user_id", recruiterID.String()), zap.String("from_status", string(domain.StatusPending)),
+		zap.String("to_status", string(screening.Status)), zap.String("posting_status", screening.JobPostingStatus))
+	return screening, nil
 }
 
 // GetDetail reads one Application of a posting the Recruiter owns for Application Detail. The CV is
@@ -102,7 +112,16 @@ func (s *Service) RejectCV(ctx context.Context, recruiterID uuid.UUID, role stri
 	if err != nil {
 		return domain.Screening{}, err
 	}
-	return s.repository.RejectCV(ctx, recruiterID, postingID, applicationID, normalized)
+	screening, err := s.repository.RejectCV(ctx, recruiterID, postingID, applicationID, normalized)
+	if err != nil {
+		return domain.Screening{}, err
+	}
+	// The reason text is not logged: the Recruiter writes it about a Candidate.
+	logger.FromContext(ctx).Info("application cv rejected", logger.Op("application.reject_cv"),
+		zap.String("application_id", applicationID.String()), zap.String("posting_id", postingID.String()),
+		zap.String("user_id", recruiterID.String()), zap.String("from_status", string(domain.StatusPending)),
+		zap.String("to_status", string(screening.Status)), zap.Bool("has_reason", normalized != nil))
+	return screening, nil
 }
 
 // CloseIntake stops a posting from taking more CVs. Pending Applications are rejected with the

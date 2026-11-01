@@ -12,7 +12,7 @@ func RecoveryMiddleware(log *logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Error("Panic recovered in HTTP request",
+				log.WithContext(c.Request.Context()).Error("Panic recovered in HTTP request",
 					logger.Any("error", err),
 					logger.String("path", c.Request.URL.Path),
 				)

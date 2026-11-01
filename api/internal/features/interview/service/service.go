@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"runtime/debug"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -92,6 +92,15 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 	if err != nil {
 		return domain.Session{}, false, err
 	}
+	if created {
+		logger.FromContext(ctx).Info("interview started",
+			logger.Op("interview.start"),
+			logger.String("interview_id", session.ID.String()),
+			logger.String("user_id", candidateID.String()),
+			logger.String("type", string(session.Type)),
+			logger.Int("question_count", int(session.QuestionCount)),
+		)
+	}
 	return presentSession(session), created, nil
 }
 
@@ -140,6 +149,15 @@ func (s *Service) AppendTurn(ctx context.Context, candidateID uuid.UUID, role st
 	if err != nil {
 		return domain.Session{}, err
 	}
+	logger.FromContext(ctx).Info("interview answer recorded",
+		logger.Op("interview.answer"),
+		logger.String("interview_id", id.String()),
+		logger.String("user_id", candidateID.String()),
+		logger.Int("question_index", int(position)),
+		logger.Int("answered_count", int(session.AnsweredCount)),
+		logger.Int("question_count", int(session.QuestionCount)),
+		logger.Int("bytes", len(normalized)),
+	)
 	return presentSession(session), nil
 }
 
@@ -156,6 +174,18 @@ func (s *Service) Complete(ctx context.Context, candidateID uuid.UUID, role stri
 	// The repository claims the evaluation for one caller: the first completion, a failed evaluation
 	// retried by a repeat, or a pending one whose run died. A live or finished one is never run twice.
 	if startEvaluation {
+		var duration time.Duration
+		if session.CompletedAt != nil {
+			duration = session.CompletedAt.Sub(session.StartedAt)
+		}
+		logger.FromContext(ctx).Info("interview completed",
+			logger.Op("interview.complete"),
+			logger.String("interview_id", session.ID.String()),
+			logger.String("user_id", candidateID.String()),
+			logger.Int("answered_count", int(session.AnsweredCount)),
+			logger.Int("question_count", int(session.QuestionCount)),
+			logger.Duration("duration", duration),
+		)
 		s.startEvaluation(ctx, session.ID)
 	}
 	return presentSession(session), nil
@@ -166,6 +196,11 @@ func (s *Service) Complete(ctx context.Context, candidateID uuid.UUID, role stri
 func (s *Service) startEvaluation(ctx context.Context, interviewID uuid.UUID) {
 	evaluator := s.evaluator
 	if evaluator == nil {
+		logger.FromContext(ctx).Warn("interview evaluation not started",
+			logger.Op("interview.evaluate"),
+			logger.String("interview_id", interviewID.String()),
+			logger.String("reason", "no evaluator configured"),
+		)
 		return
 	}
 	go func() {
@@ -175,7 +210,11 @@ func (s *Service) startEvaluation(ctx context.Context, interviewID uuid.UUID) {
 		evalCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), evaluationTimeout)
 		defer cancel()
 		if err := evaluator.Evaluate(evalCtx, interviewID); err != nil {
-			slog.ErrorContext(evalCtx, "interview evaluation failed", "interview_id", interviewID, "error", err)
+			logger.FromContext(evalCtx).Error("interview evaluation failed",
+				logger.Op("interview.evaluate"),
+				logger.String("interview_id", interviewID.String()),
+				logger.Cause(err),
+			)
 		}
 	}()
 }
@@ -187,11 +226,22 @@ func (s *Service) recoverEvaluation(ctx context.Context, interviewID uuid.UUID) 
 	if recovered == nil {
 		return
 	}
-	slog.Error("interview evaluation panicked", "interview_id", interviewID, "panic", recovered, "stack", string(debug.Stack()))
+	// The panic value is not logged: a scorer panic can carry the answer text it was given.
+	log := logger.FromContext(ctx)
+	log.Error("interview evaluation panicked",
+		logger.Op("interview.evaluate"),
+		logger.String("interview_id", interviewID.String()),
+		logger.String("panic_type", fmt.Sprintf("%T", recovered)),
+		logger.String("stack", string(debug.Stack())),
+	)
 	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), failureWriteTimeout)
 	defer cancel()
 	if err := s.repository.MarkEvaluationFailed(markCtx, interviewID); err != nil {
-		slog.Error("mark panicked interview evaluation failed", "interview_id", interviewID, "error", err)
+		log.Error("mark panicked interview evaluation failed",
+			logger.Op("interview.evaluate"),
+			logger.String("interview_id", interviewID.String()),
+			logger.Cause(err),
+		)
 	}
 }
 

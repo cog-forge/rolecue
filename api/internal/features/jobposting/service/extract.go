@@ -9,6 +9,8 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
 	roleprofiledomain "github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // JDExtractor is the shared JD extraction pipeline (the Role Profile one), which owns retries and
@@ -40,11 +42,15 @@ func (e *Extraction) Suggest(ctx context.Context, role, raw string) (domain.Sugg
 	}
 	ctx, cancel := context.WithTimeout(ctx, e.budget)
 	defer cancel()
+	done := logger.Start(ctx, "jobposting.suggest")
 	jd, err := e.extractor.Extract(ctx, raw)
 	if err != nil {
+		done(err)
 		return domain.Suggestion{}, err
 	}
-	return suggestionFrom(jd), nil
+	suggestion := suggestionFrom(jd)
+	done(nil, zap.Int("count", len(suggestion.Requirements)))
+	return suggestion, nil
 }
 
 // suggestionFrom maps extraction output onto posting requirements: a skill keeps its category as

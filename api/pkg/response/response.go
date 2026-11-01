@@ -1,11 +1,14 @@
 package response
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
@@ -112,6 +115,13 @@ func Created(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusCreated, Envelope{Success: true, Data: data})
 }
 
+// ErrorCodeKey is the gin context key under which Error records the response error code, for the
+// access log.
+const ErrorCodeKey = "response_error_code"
+
+// Error writes the client-safe error envelope and logs the root cause, which the envelope hides.
+// Client errors (4xx) log at warn and server errors (5xx) at error, both with the request ID,
+// the application error code and the sanitized cause chain.
 func Error(c *gin.Context, err error) {
 	var appErr *apperror.AppError
 	if errors.As(err, &appErr) && appErr != nil {
@@ -119,6 +129,7 @@ func Error(c *gin.Context, err error) {
 		if !known {
 			status = http.StatusInternalServerError
 		}
+		logFailure(c, status, string(appErr.Code), err)
 		c.JSON(status, Envelope{
 			Success: false,
 			Error:   &ErrorBody{Code: appErr.Code, Message: appErr.Message},
@@ -126,8 +137,33 @@ func Error(c *gin.Context, err error) {
 		return
 	}
 
+	logFailure(c, http.StatusInternalServerError, string(apperror.CodeInternal), err)
 	c.JSON(http.StatusInternalServerError, Envelope{
 		Success: false,
 		Error:   &ErrorBody{Code: apperror.CodeInternal, Message: "something wrong happen"},
 	})
+}
+
+func logFailure(c *gin.Context, status int, code string, err error) {
+	c.Set(ErrorCodeKey, code)
+	ctx := context.Background()
+	if c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	// Skip logFailure and Error so the logged caller is the handler that returned the error.
+	log := logger.FromContext(ctx).WithOptions(zap.AddCallerSkip(2))
+	fields := []zap.Field{
+		logger.Code(code),
+		zap.Int("status", status),
+		zap.String("route", c.FullPath()),
+		logger.Cause(err),
+	}
+	if c.Request != nil {
+		fields = append(fields, zap.String("method", c.Request.Method))
+	}
+	if status >= http.StatusInternalServerError {
+		log.Error("request failed", fields...)
+		return
+	}
+	log.Warn("request rejected", fields...)
 }

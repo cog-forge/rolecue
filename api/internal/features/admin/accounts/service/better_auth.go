@@ -4,13 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/features/admin/accounts/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/authcookie"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -25,13 +30,15 @@ func NewBetterAuthAdmin(cfg config.AuthConfig) *BetterAuthAdmin {
 	return &BetterAuthAdmin{cfg: cfg, client: &http.Client{Timeout: cfg.Timeout + 11*time.Second, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}}
 }
 
-func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UUID, locking, notify bool, input domain.LockRequest) (domain.Transition, error) {
+func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UUID, locking, notify bool, input domain.LockRequest) (result domain.Transition, err error) {
 	if a.cfg.AdminSecret == "" {
 		return domain.Transition{}, apperror.New(apperror.CodeAuthUnavailable, "account management is not configured")
 	}
+	action := "unlock"
 	path := "/admin/unban-user"
 	body := map[string]any{"userId": id.String()}
 	if locking {
+		action = "lock"
 		path = "/admin/ban-user"
 		body["banReason"] = input.Reason
 		if input.ExpiresIn != nil {
@@ -42,8 +49,18 @@ func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UU
 	if err != nil {
 		return domain.Transition{}, err
 	}
+	done := logger.Start(ctx, "accounts.set_lock", logger.String("action", action), logger.String("user_id", id.String()), zap.Bool("notify", notify))
+	var failure []zap.Field
+	defer func() {
+		if err != nil {
+			done(err, failure...)
+			return
+		}
+		done(nil)
+	}()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.cfg.URL+"/api/auth"+path, bytes.NewReader(data))
 	if err != nil {
+		failure = []zap.Field{logger.String("reason", "build_request")}
 		return domain.Transition{}, apperror.Wrap(apperror.CodeAuthUnavailable, "account access change could not be confirmed", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -61,6 +78,7 @@ func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UU
 	}
 	resp, err := a.client.Do(req)
 	if err != nil {
+		failure = []zap.Field{logger.String("reason", lockTransportReason(err))}
 		return domain.Transition{}, apperror.Wrap(apperror.CodeAuthUnavailable, "account access change could not be confirmed", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -72,6 +90,7 @@ func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UU
 		if resp.StatusCode == http.StatusForbidden {
 			code = apperror.CodeForbidden
 		}
+		failure = []zap.Field{logger.String("reason", lockStatusReason(resp.StatusCode)), logger.Int("status_code", resp.StatusCode)}
 		return domain.Transition{}, apperror.New(code, "account access change could not be confirmed")
 	}
 	var payload struct {
@@ -90,7 +109,12 @@ func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UU
 			UpdatedAt     time.Time  `json:"updatedAt"`
 		} `json:"user"`
 	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&payload); err != nil || payload.User.ID != id || payload.User.Banned != locking {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&payload); err != nil {
+		failure = []zap.Field{logger.String("reason", "decode_error")}
+		return domain.Transition{}, apperror.New(apperror.CodeAuthUnavailable, "account access change could not be confirmed")
+	}
+	if payload.User.ID != id || payload.User.Banned != locking {
+		failure = []zap.Field{logger.String("reason", "unexpected_response")}
 		return domain.Transition{}, apperror.New(apperror.CodeAuthUnavailable, "account access change could not be confirmed")
 	}
 	user := payload.User
@@ -103,5 +127,34 @@ func (a *BetterAuthAdmin) SetLock(ctx context.Context, cookie string, id uuid.UU
 	} else if payload.Notification.Status != "accepted" && payload.Notification.Status != "failed" {
 		payload.Notification.Status = "failed"
 	}
+	if payload.Notification.Status == "failed" {
+		logger.FromContext(ctx).Warn("account change confirmed but notification failed",
+			logger.Op("accounts.set_lock"), logger.String("action", action), logger.String("user_id", id.String()), logger.String("reason", "notification_failed"))
+	}
 	return domain.Transition{User: account, Changed: true, Notification: payload.Notification}, nil
+}
+
+// lockTransportReason classifies a request that never produced a response.
+func lockTransportReason(err error) string {
+	var netErr net.Error
+	switch {
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.Is(err, context.DeadlineExceeded), errors.As(err, &netErr) && netErr.Timeout():
+		return "timeout"
+	}
+	return "unreachable"
+}
+
+// lockStatusReason classifies a non-200 answer by its HTTP status class.
+func lockStatusReason(code int) string {
+	switch {
+	case code == http.StatusUnauthorized:
+		return "auth_rejected"
+	case code == http.StatusForbidden:
+		return "forbidden"
+	case code >= 500:
+		return "http_5xx"
+	}
+	return "http_4xx"
 }

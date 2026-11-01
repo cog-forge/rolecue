@@ -71,7 +71,7 @@ func New(cfg Config) (*Logger, error) {
 	}
 
 	core := zapcore.NewCore(encoder, writer, level)
-	l := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1), zap.AddStacktrace(zapcore.ErrorLevel))
+	l := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 
 	return &Logger{Logger: l}, nil
 }
@@ -121,9 +121,19 @@ func (l *Logger) WithError(err error) *Logger {
 	return &Logger{Logger: l.With(zap.Error(err))}
 }
 
+// FromContext returns the request-scoped logger, then the process default, then a no-op logger,
+// so feature code can always log without having a logger injected.
 func FromContext(ctx context.Context) *Logger {
-	if l, ok := ctx.Value(LoggerKey).(*Logger); ok {
-		return l
+	if ctx != nil {
+		if l, ok := ctx.Value(LoggerKey).(*Logger); ok && l != nil {
+			return l
+		}
+	}
+	if l := defaultLogger.Load(); l != nil {
+		if ctx == nil {
+			return l
+		}
+		return l.WithContext(ctx)
 	}
 	return &Logger{Logger: zap.NewNop()}
 }

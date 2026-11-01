@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -128,7 +129,12 @@ func (r *RoleProfileRepository) CreateProfile(ctx context.Context, user uuid.UUI
 	if err != nil {
 		return domain.RoleProfile{}, err
 	}
-	return result, rolePersistenceError(tx.Commit(ctx))
+	err = rolePersistenceError(tx.Commit(ctx))
+	if err == nil {
+		logger.FromContext(ctx).Info("role profile created", logger.Op("roleprofile.create"), logger.String("profile_id", result.ID.String()),
+			logger.String("to_status", string(result.Status)))
+	}
+	return result, err
 }
 
 func (r *RoleProfileRepository) ListProfiles(ctx context.Context, user uuid.UUID, limit, offset int32) ([]domain.RoleProfile, int64, error) {
@@ -181,50 +187,95 @@ func writeReview(ctx context.Context, q *Queries, row GetRoleProfileRow, review 
 	return q.CompleteProfileReview(ctx, CompleteProfileReviewParams{ID: row.ID, Title: review.Title})
 }
 
+// logTransition records a Role Profile status change. Call it only after the transaction committed.
+func logTransition(ctx context.Context, op string, id uuid.UUID, from, to string) {
+	logger.FromContext(ctx).Info("role profile status changed", logger.Op(op), logger.String("profile_id", id.String()),
+		logger.String("from_status", from), logger.String("to_status", to))
+}
+
+// logConflict records a rejected transition. The same error is also returned to the client.
+func logConflict(ctx context.Context, op string, id uuid.UUID, status string) {
+	logger.FromContext(ctx).Warn("role profile transition conflict", logger.Op(op), logger.String("profile_id", id.String()),
+		logger.String("status", status))
+}
+
 func (r *RoleProfileRepository) SaveProfile(ctx context.Context, user, id uuid.UUID, in domain.SaveRoleProfile) (domain.RoleProfile, error) {
-	return r.withOwned(ctx, user, id, func(q *Queries, row GetRoleProfileRow) error {
+	profile, err := r.withOwned(ctx, user, id, func(q *Queries, row GetRoleProfileRow) error {
 		if row.Status != "review" {
+			logConflict(ctx, "roleprofile.save", id, row.Status)
 			return conflict("Analyze and review this Role Profile before saving.")
 		}
 		return writeReview(ctx, q, row, in.RoleReview)
 	})
+	if err == nil {
+		logger.FromContext(ctx).Info("role profile review saved", logger.Op("roleprofile.save"), logger.String("profile_id", id.String()),
+			logger.String("status", string(profile.Status)), logger.Int("requirements", len(profile.Requirements)))
+	}
+	return profile, err
 }
 
 func (r *RoleProfileRepository) ConfirmProfile(ctx context.Context, user, id uuid.UUID) (domain.RoleProfile, error) {
-	return r.withOwned(ctx, user, id, func(q *Queries, row GetRoleProfileRow) error {
+	var from string
+	profile, err := r.withOwned(ctx, user, id, func(q *Queries, row GetRoleProfileRow) error {
+		from = row.Status
 		if row.Status == "confirmed" {
 			return nil
 		}
 		if row.Status != "review" {
+			logConflict(ctx, "roleprofile.confirm", id, row.Status)
 			return conflict("Analyze and review this Role Profile before confirming.")
 		}
 		return q.ConfirmRoleProfile(ctx, id)
 	})
+	if err == nil && from == "confirmed" {
+		logger.FromContext(ctx).Debug("role profile already confirmed", logger.Op("roleprofile.confirm"), logger.String("profile_id", id.String()))
+	} else if err == nil {
+		logTransition(ctx, "roleprofile.confirm", id, from, string(profile.Status))
+	}
+	return profile, err
 }
 
 func (r *RoleProfileRepository) ClaimAnalysis(ctx context.Context, user, id uuid.UUID) (domain.RoleProfile, error) {
-	return r.withOwned(ctx, user, id, func(q *Queries, row GetRoleProfileRow) error {
+	var from string
+	profile, err := r.withOwned(ctx, user, id, func(q *Queries, row GetRoleProfileRow) error {
+		from = row.Status
 		if row.Status == "review" {
 			return nil
 		}
 		if row.Status != "draft" && row.Status != "analyzing" {
+			logConflict(ctx, "roleprofile.claim_analysis", id, row.Status)
 			return conflict("This Role Profile is not ready for analysis.")
 		}
 		return q.ClaimProfileAnalysis(ctx, id)
 	})
+	if err == nil && from != "review" {
+		// From analyzing to analyzing means an earlier claim was taken over.
+		logTransition(ctx, "roleprofile.claim_analysis", id, from, string(profile.Status))
+	}
+	return profile, err
 }
 
 func (r *RoleProfileRepository) ReleaseAnalysis(ctx context.Context, id uuid.UUID) error {
-	return rolePersistenceError(r.queries.ReleaseProfileAnalysis(ctx, id))
+	err := rolePersistenceError(r.queries.ReleaseProfileAnalysis(ctx, id))
+	if err == nil {
+		// The query has no row count, so this logs the intended analyzing-to-draft move even if no row matched.
+		logTransition(ctx, "roleprofile.release_analysis", id, "analyzing", "draft")
+	}
+	return err
 }
 
 func (r *RoleProfileRepository) CompleteAnalysis(ctx context.Context, user, id uuid.UUID, review domain.RoleReview) (domain.RoleProfile, error) {
-	return r.withOwned(ctx, user, id, func(q *Queries, row GetRoleProfileRow) error {
+	profile, err := r.withOwned(ctx, user, id, func(q *Queries, row GetRoleProfileRow) error {
 		if row.Status != "analyzing" {
+			logConflict(ctx, "roleprofile.complete_analysis", id, row.Status)
 			return conflict("This Role Profile is not being analyzed.")
 		}
 		return writeReview(ctx, q, row, review)
 	})
+	if err == nil {
+		logTransition(ctx, "roleprofile.complete_analysis", id, "analyzing", string(profile.Status))
+	}
+	return profile, err
 }
 
 func (r *RoleProfileRepository) DeleteProfile(ctx context.Context, user, id uuid.UUID) error {
@@ -242,6 +293,7 @@ func (r *RoleProfileRepository) DeleteProfile(ctx context.Context, user, id uuid
 		return err
 	}
 	if profile.Status == domain.Analyzing {
+		logConflict(ctx, "roleprofile.delete", id, string(profile.Status))
 		return conflict("Wait for the current operation before deleting.")
 	}
 	used, err := q.ProfileHasInterviews(ctx, id)
@@ -249,6 +301,7 @@ func (r *RoleProfileRepository) DeleteProfile(ctx context.Context, user, id uuid
 		return rolePersistenceError(err)
 	}
 	if used {
+		logConflict(ctx, "roleprofile.delete", id, string(profile.Status))
 		return apperror.New(apperror.CodeJDInUse, "This Role Profile has interviews and cannot be deleted.")
 	}
 	for _, remove := range []func(context.Context, uuid.UUID) error{q.DeleteProfileQuestions, q.DeleteProfileRequirements} {
@@ -262,5 +315,10 @@ func (r *RoleProfileRepository) DeleteProfile(ctx context.Context, user, id uuid
 	if err = q.DeleteProfileJD(ctx, profile.JDID); err != nil {
 		return rolePersistenceError(err)
 	}
-	return rolePersistenceError(tx.Commit(ctx))
+	err = rolePersistenceError(tx.Commit(ctx))
+	if err == nil {
+		logger.FromContext(ctx).Info("role profile deleted", logger.Op("roleprofile.delete"), logger.String("profile_id", id.String()),
+			logger.String("from_status", string(profile.Status)))
+	}
+	return err
 }

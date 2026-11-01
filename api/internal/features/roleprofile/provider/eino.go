@@ -13,6 +13,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
@@ -65,13 +66,20 @@ func (e *EinoExtractor) Extract(ctx context.Context, normalizedJD string) (domai
 	if err != nil {
 		return domain.ExtractionCandidate{}, fmt.Errorf("encode JD: %w", err)
 	}
+	done := logger.Start(ctx, "roleprofile.llm_extract", logger.Int("length_chars", utf8.RuneCountInString(normalizedJD)))
 	response, err := e.model.Generate(ctx, []*schema.Message{
 		schema.SystemMessage(extractionInstruction),
 		schema.UserMessage(string(data)),
 	})
 	if err != nil {
+		done(err)
 		return domain.ExtractionCandidate{}, fmt.Errorf("generate extraction: %w", err)
 	}
+	responseChars := 0
+	if response != nil {
+		responseChars = utf8.RuneCountInString(response.Content)
+	}
+	done(nil, logger.Int("response_length_chars", responseChars))
 	if err := ctx.Err(); err != nil {
 		return domain.ExtractionCandidate{}, err
 	}
@@ -79,8 +87,11 @@ func (e *EinoExtractor) Extract(ctx context.Context, normalizedJD string) (domai
 		return domain.ExtractionCandidate{}, invalidOutput(fmt.Errorf("missing model response"))
 	}
 	content := response.Content
-	if !utf8.ValidString(content) || len(content) > 1<<20 {
-		return domain.ExtractionCandidate{}, invalidOutput(fmt.Errorf("invalid or oversized response content"))
+	if len(content) > 1<<20 {
+		return domain.ExtractionCandidate{}, invalidOutput(fmt.Errorf("oversized response content"))
+	}
+	if !utf8.ValidString(content) {
+		return domain.ExtractionCandidate{}, invalidOutput(fmt.Errorf("invalid UTF-8 response content"))
 	}
 	if !strings.HasPrefix(strings.TrimSpace(content), "{") {
 		return domain.ExtractionCandidate{}, invalidOutput(fmt.Errorf("expected JSON object"))

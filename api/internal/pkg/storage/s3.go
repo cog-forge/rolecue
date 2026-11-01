@@ -19,7 +19,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type s3Store struct {
@@ -66,10 +68,14 @@ func (s *s3Store) Upload(ctx context.Context, body io.ReadSeeker, contentType st
 		return "", fmt.Errorf("%w: upload body must be seekable and positioned at its start", ErrInvalidInput)
 	}
 	key := uuid.NewString()
+	done := logger.Start(ctx, "storage.upload", logger.String("key", key), logger.String("content_class", contentTypeClass(contentType)))
 	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key), Body: body, ContentType: aws.String(contentType)})
 	if err != nil {
-		return "", fmt.Errorf("upload object: %w", err)
+		err = fmt.Errorf("upload object: %w", err)
+		done(err, failureFields(err)...)
+		return "", err
 	}
+	done(nil)
 	return key, nil
 }
 
@@ -77,15 +83,50 @@ func (s *s3Store) Download(ctx context.Context, key string) (Object, error) {
 	if err := validateKey(key); err != nil {
 		return Object{}, err
 	}
+	done := logger.Start(ctx, "storage.download", logger.String("key", key))
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
 	if err != nil {
 		var apiErr smithy.APIError
 		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
-			return Object{}, fmt.Errorf("download object: %w: %w", ErrNotFound, err)
+			err = fmt.Errorf("download object: %w: %w", ErrNotFound, err)
+		} else {
+			err = fmt.Errorf("download object: %w", err)
 		}
-		return Object{}, fmt.Errorf("download object: %w", err)
+		done(err, failureFields(err)...)
+		return Object{}, err
 	}
+	done(nil, zap.Int64("bytes", aws.ToInt64(out.ContentLength)), zap.String("content_class", contentTypeClass(aws.ToString(out.ContentType))))
 	return Object{Body: out.Body, ContentType: aws.ToString(out.ContentType), Size: aws.ToInt64(out.ContentLength)}, nil
+}
+
+// contentTypeClass keeps only the media type family ("text", "audio"), which is enough to diagnose
+// a bad object without logging the full type string.
+func contentTypeClass(contentType string) string {
+	class, _, _ := strings.Cut(contentType, "/")
+	return class
+}
+
+// failureFields classifies a storage failure for the step log. The sanitized cause chain carries the
+// SDK message; the reason and HTTP status make the failure class searchable.
+func failureFields(err error) []zap.Field {
+	if err == nil {
+		return nil
+	}
+	reason := "other"
+	switch {
+	case errors.Is(err, ErrNotFound):
+		reason = "not_found"
+	case errors.Is(err, context.Canceled):
+		reason = "canceled"
+	case errors.Is(err, context.DeadlineExceeded):
+		reason = "timeout"
+	}
+	fields := []zap.Field{logger.String("reason", reason)}
+	var respErr *awshttp.ResponseError
+	if errors.As(err, &respErr) {
+		fields = append(fields, logger.Int("status_code", respErr.HTTPStatusCode()))
+	}
+	return fields
 }
 
 func validateContentType(contentType string) error {
@@ -100,10 +141,14 @@ func (s *s3Store) Delete(ctx context.Context, key string) error {
 	if err := validateKey(key); err != nil {
 		return err
 	}
+	done := logger.Start(ctx, "storage.delete", logger.String("key", key))
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
 	if err != nil {
-		return fmt.Errorf("delete object: %w", err)
+		err = fmt.Errorf("delete object: %w", err)
+		done(err, failureFields(err)...)
+		return err
 	}
+	done(nil)
 	return nil
 }
 
@@ -124,10 +169,14 @@ func (s *s3Store) PresignGet(ctx context.Context, key string, ttl time.Duration)
 	if err := validateTTL(ttl); err != nil {
 		return SignedRequest{}, err
 	}
+	done := logger.Start(ctx, "storage.presign_get", logger.String("key", key), zap.Duration("ttl", ttl))
 	out, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)}, func(o *s3.PresignOptions) { o.Expires = ttl })
 	if err != nil {
-		return SignedRequest{}, fmt.Errorf("presign GET: %w", err)
+		err = fmt.Errorf("presign GET: %w", err)
+		done(err, failureFields(err)...)
+		return SignedRequest{}, err
 	}
+	done(nil)
 	return signedRequest(out, ttl)
 }
 
@@ -148,10 +197,14 @@ func (s *s3Store) PresignPut(ctx context.Context, contentType string, size int64
 		return UploadGrant{}, fmt.Errorf("%w: upload grant TTL must not exceed 15 minutes", ErrInvalidInput)
 	}
 	key := uuid.NewString()
+	done := logger.Start(ctx, "storage.presign_put", logger.String("key", key), zap.Int64("bytes", size), logger.String("content_class", contentTypeClass(contentType)), zap.Duration("ttl", ttl))
 	out, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key), ContentType: aws.String(contentType), ContentLength: aws.Int64(size)}, func(o *s3.PresignOptions) { o.Expires = ttl })
 	if err != nil {
-		return UploadGrant{}, fmt.Errorf("presign PUT: %w", err)
+		err = fmt.Errorf("presign PUT: %w", err)
+		done(err, failureFields(err)...)
+		return UploadGrant{}, err
 	}
+	done(nil)
 	request, err := signedRequest(out, ttl)
 	if err != nil {
 		return UploadGrant{}, err

@@ -1,6 +1,8 @@
 package service
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -30,18 +32,19 @@ func normalizeContent(content string) (string, error) {
 // distinct valid questions, of which the first size are kept. Every failure is an invalid-output
 // error, which the retry loop is allowed to retry.
 func validateCandidate(c domain.GenerationCandidate, size int) ([]string, error) {
-	badOutput := func(msg string) error {
-		return apperror.New(apperror.CodeInvalidQuestionGenerationOutput, msg)
+	// The cause names the rule and counts only; question text is never placed in an error.
+	badOutput := func(msg string, cause error) error {
+		return apperror.Wrap(apperror.CodeInvalidQuestionGenerationOutput, msg, cause)
 	}
 	if c.Questions == nil {
-		return nil, badOutput("question generation returned no questions")
+		return nil, badOutput("question generation returned no questions", errors.New("questions array is missing"))
 	}
 	seen := make(map[string]struct{}, len(c.Questions))
 	out := make([]string, 0, len(c.Questions))
-	for _, raw := range c.Questions {
+	for index, raw := range c.Questions {
 		q, err := normalizeContent(raw)
 		if err != nil {
-			return nil, badOutput("question generation returned an unusable question")
+			return nil, badOutput("question generation returned an unusable question", fmt.Errorf("question %d: %w", index+1, err))
 		}
 		key := strings.ToLower(q)
 		if _, dup := seen[key]; dup {
@@ -51,7 +54,8 @@ func validateCandidate(c domain.GenerationCandidate, size int) ([]string, error)
 		out = append(out, q)
 	}
 	if len(out) < size {
-		return nil, badOutput("question generation returned too few distinct questions")
+		return nil, badOutput("question generation returned too few distinct questions",
+			fmt.Errorf("%d distinct questions, %d required", len(out), size))
 	}
 	// Extra distinct questions are harmless; keep exactly size so the bank matches the config.
 	return out[:size], nil

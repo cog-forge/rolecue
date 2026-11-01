@@ -115,6 +115,7 @@ func (s *Service) Remove(ctx context.Context, adminID uuid.UUID, role string, id
 		voice.IsActive = false
 	}
 	s.log.WithContext(ctx).Info("voice profile removed",
+		logger.Op("voice.remove"),
 		logger.String("voice_id", id.String()),
 		logger.String("admin_id", adminID.String()),
 		logger.String("outcome", string(outcome)))
@@ -135,6 +136,7 @@ func (s *Service) Activate(ctx context.Context, adminID uuid.UUID, role string, 
 		return domain.VoiceProfile{}, err
 	}
 	s.log.WithContext(ctx).Info("voice profile reactivated",
+		logger.Op("voice.activate"),
 		logger.String("voice_id", id.String()),
 		logger.String("admin_id", adminID.String()))
 	return voice, nil
@@ -152,7 +154,7 @@ func (s *Service) Sync(ctx context.Context, adminID uuid.UUID, role string) (dom
 	name := s.provider.Name()
 	fetched, err := s.provider.ListVoices(ctx)
 	if err != nil {
-		s.log.WithContext(ctx).Warn("voice sync failed to fetch", logger.String("provider", name), logger.Error(err))
+		s.log.WithContext(ctx).Warn("voice sync failed to fetch", logger.Op("voice.sync"), logger.String("provider", name), logger.Error(err))
 		if errors.Is(err, ErrProviderNotConfigured) {
 			return domain.VoiceSyncResult{}, apperror.Wrap(apperror.CodeVoiceProviderUnavailable, "the voice provider is not configured", err)
 		}
@@ -160,7 +162,7 @@ func (s *Service) Sync(ctx context.Context, adminID uuid.UUID, role string) (dom
 	}
 	voices, err := s.validate(fetched)
 	if err != nil {
-		s.log.WithContext(ctx).Warn("voice sync rejected provider response", logger.String("provider", name), logger.Error(err))
+		s.log.WithContext(ctx).Warn("voice sync rejected provider response", logger.Op("voice.sync"), logger.String("provider", name), logger.Error(err))
 		return domain.VoiceSyncResult{}, apperror.Wrap(apperror.CodeVoiceSyncFailed, "the voice provider returned an invalid voice list", err)
 	}
 	result, err := s.repository.Sync(ctx, name, voices)
@@ -168,6 +170,7 @@ func (s *Service) Sync(ctx context.Context, adminID uuid.UUID, role string) (dom
 		return domain.VoiceSyncResult{}, err
 	}
 	s.log.WithContext(ctx).Info("voice catalog synced",
+		logger.Op("voice.sync"),
 		logger.String("provider", name),
 		logger.String("admin_id", adminID.String()),
 		logger.Int("fetched", result.Fetched),

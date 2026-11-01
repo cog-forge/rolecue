@@ -1,6 +1,7 @@
 package service
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"unicode/utf8"
@@ -166,13 +167,15 @@ func targetHasExplicitEvidence(target, name string, evidence *string) bool {
 // Evidence is a quote from source data, not a second source of AI-authored facts.
 func ValidateEvidence(review domain.RoleReview, raw string) error {
 	source := strings.Join(strings.Fields(raw), " ")
-	for _, item := range review.Requirements {
+	for index, item := range review.Requirements {
 		if item.EvidenceText == nil || strings.TrimSpace(*item.EvidenceText) == "" {
 			continue
 		}
 		excerpt := strings.Join(strings.Fields(*item.EvidenceText), " ")
 		if !strings.Contains(source, excerpt) {
-			return apperror.New(apperror.CodeValidation, "Requirement evidence must be an excerpt of the original job description.")
+			// The cause names the requirement position, never the excerpt itself.
+			return apperror.Wrap(apperror.CodeValidation, "Requirement evidence must be an excerpt of the original job description.",
+				fmt.Errorf("evidence for requirement %d not found in source text", index))
 		}
 	}
 	return nil

@@ -95,6 +95,7 @@ func (r *Router) Setup() *gin.Engine {
 	router := gin.New()
 
 	// Core middlewares
+	router.Use(middleware.RequestIDMiddleware(r.logger))
 	router.Use(middleware.RecoveryMiddleware(r.logger))
 	router.Use(middleware.LoggingMiddleware(r.logger))
 	router.Use(middleware.CORSMiddleware(r.cfg.CORS))

@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 )
 
 // Repository stores CV screening decisions. Each decision runs in one transaction that holds the
@@ -173,7 +175,15 @@ func closeIntake(ctx context.Context, q *Queries, postingID uuid.UUID) (int64, e
 	if err != nil {
 		return 0, internal(err)
 	}
+	logPostingStatus(ctx, "application.intake_close", postingID, "open", "intake_closed", rejected)
 	return rejected, nil
+}
+
+// logPostingStatus records a posting status change. The write is in the caller's transaction, so the
+// line is final once that transaction commits.
+func logPostingStatus(ctx context.Context, op string, postingID uuid.UUID, from, to string, count int64) {
+	logger.FromContext(ctx).Info("posting status change applied in transaction", logger.Op(op), zap.String("posting_id", postingID.String()),
+		zap.String("from_status", from), zap.String("to_status", to), zap.Int64("count", count))
 }
 
 // evaluateTerminalClose moves an intake_closed posting to closed when no Application is still
@@ -197,6 +207,7 @@ func evaluateTerminalClose(ctx context.Context, q *Queries, postingID uuid.UUID,
 	}
 	// The refund rides on the one close that changed the row, so it runs once per posting (KAN-119).
 	if closed > 0 {
+		logPostingStatus(ctx, "application.terminal_close", postingID, "intake_closed", "closed", 0)
 		if err := refundUnusedCapacity(ctx, q, postingID); err != nil {
 			return "", err
 		}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/cog-forge/rolecue/api/internal/features/auth/domain"
@@ -36,6 +37,8 @@ func (s *Service) SelectRole(ctx context.Context, id uuid.UUID, role string) (do
 	return s.users.SelectRole(ctx, id, role)
 }
 
+// Authenticate returns the current user for a valid session. The rejection reasons (locked, unverified,
+// role not permitted) travel in the error chain, which the response layer logs; the client message is unchanged.
 func (s *Service) Authenticate(ctx context.Context, req *http.Request) (domain.User, []string, error) {
 	verified, err := s.verifier.Verify(ctx, req)
 	if err != nil {
@@ -47,10 +50,12 @@ func (s *Service) Authenticate(ctx context.Context, req *http.Request) (domain.U
 		return domain.User{}, verified.SetCookies, err
 	}
 	if user.IsLocked || !user.EmailVerified {
-		return domain.User{}, verified.SetCookies, apperror.New(apperror.CodeForbidden, "account is locked or email is unverified")
+		cause := fmt.Errorf("locked=%t email_verified=%t user_id=%s", user.IsLocked, user.EmailVerified, user.ID)
+		return domain.User{}, verified.SetCookies, apperror.Wrap(apperror.CodeForbidden, "account is locked or email is unverified", cause)
 	}
 	if user.Role != "candidate" && user.Role != "recruiter" && user.Role != "admin" {
-		return domain.User{}, verified.SetCookies, apperror.New(apperror.CodeForbidden, "account role is not permitted")
+		cause := fmt.Errorf("role %q is not permitted user_id=%s", user.Role, user.ID)
+		return domain.User{}, verified.SetCookies, apperror.Wrap(apperror.CodeForbidden, "account role is not permitted", cause)
 	}
 	return user, verified.SetCookies, nil
 }
