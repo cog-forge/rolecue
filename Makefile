@@ -55,5 +55,19 @@ frontend-audit:
 
 # IMAGE must name an image already built/loaded into the local Docker daemon.
 image-scan:
-	@test -n "$(IMAGE)" || { echo 'Usage: make image-scan IMAGE=rolecue-api:local'; exit 1; }
+	@test -n "$(IMAGE)" || { echo 'Usage: make image-scan IMAGE=ghcr.io/cog-forge/rolecue-api:local'; exit 1; }
 	$(TRIVY) image --scanners vuln --severity HIGH,CRITICAL --exit-code 1 "$(IMAGE)"
+
+image-build:
+	docker compose -f .docker/compose.build.yaml build
+
+deploy-pull:
+	@test -f "$(DEPLOY_ENV_FILE)" || { echo 'Copy .docker/deploy.env.example to .docker/deploy.env and configure it first.'; exit 1; }
+	docker compose $(DEPLOY_COMPOSE) pull
+
+deploy-up: deploy-pull
+	docker compose $(DEPLOY_COMPOSE) up --detach --remove-orphans api auth frontend caddy
+
+deploy-down:
+	@test -f "$(DEPLOY_ENV_FILE)" || { echo 'Copy .docker/deploy.env.example to .docker/deploy.env and configure it first.'; exit 1; }
+	docker compose $(DEPLOY_COMPOSE) down --remove-orphans
