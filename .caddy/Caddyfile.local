@@ -8,17 +8,16 @@
 }
 
 :3000 {
-	bind 127.0.0.1
+	bind 0.0.0.0
 	handle /_dev/health {
 		respond 200
 	}
 
-	# Preserve the full /api/auth/* path; Better Auth owns cookies and CSRF.
+	# Keep Better Auth same-origin while forwarding to its separate container.
 	handle /api/auth/* {
-		reverse_proxy 127.0.0.1:3001 {
+		reverse_proxy auth:3001 {
 			header_up -X-RoleCue-Admin-Secret
 			header_up -X-RoleCue-Account-Notification
-			# Caddy overwrites X-Forwarded-* from untrusted clients; Forwarded is not managed.
 			header_up -Forwarded
 			transport http {
 				dial_timeout 5s
@@ -28,7 +27,7 @@
 	}
 
 	handle {
-		reverse_proxy 127.0.0.1:3002
+		reverse_proxy frontend:3002
 	}
 
 	handle_errors 502 504 {
