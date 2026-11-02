@@ -1303,8 +1303,7 @@
         "voiceGone": "Giọng nói bạn đã chọn không còn khả dụng.",
         "voiceError": "Không thể tải giọng nói này.",
         "jobPosting": "Tin tuyển dụng",
-        "companyInterviewer": "Người phỏng vấn do công ty chọn",
-        "companyNote": "Công ty đã đặt người phỏng vấn và giọng nói cho cuộc phỏng vấn này."
+        "companyInterviewer": "Người phỏng vấn do công ty chọn"
       },
       "checking": "Đang kiểm tra cuộc phỏng vấn chưa hoàn thành…",
       "recruitment": {

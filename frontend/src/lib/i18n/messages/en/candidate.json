@@ -1303,8 +1303,7 @@
         "voiceGone": "The voice you chose is no longer available.",
         "voiceError": "We couldn't load this voice.",
         "jobPosting": "Job posting",
-        "companyInterviewer": "Interviewer chosen by the company",
-        "companyNote": "The company has set the interviewer and voice for this interview."
+        "companyInterviewer": "Interviewer chosen by the company"
       },
       "checking": "Checking for an unfinished interview…",
       "recruitment": {
