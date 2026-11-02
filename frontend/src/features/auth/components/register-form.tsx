@@ -24,6 +24,7 @@ import { useTranslations } from "next-intl";
 const SIGN_UP_PLACEHOLDER_NAME = "New user";
 
 export function RegisterForm() {
+  const t = useTranslations("auth.register");
   const v = useTranslations("validation");
   const registerSchema = useMemo(() => createRegisterSchema(v), [v]);
   const te = useTranslations("errors");
@@ -57,33 +58,20 @@ export function RegisterForm() {
         callbackURL: routes.afterEmailVerification,
       });
       if (result.error) {
-        setMessage(
-          getAuthErrorMessage(
-            result.error,
-            "Unable to create your account. Please try again.",
-            te,
-          ),
-        );
-        gooeyToast.error("Account could not be created", {
-          description: getAuthErrorMessage(
-            result.error,
-            "Please try again in a moment.",
-            te,
-          ),
+        setMessage(getAuthErrorMessage(result.error, t("createFailed"), te));
+        gooeyToast.error(t("failedTitle"), {
+          description: getAuthErrorMessage(result.error, t("later"), te),
         });
         return;
       }
       setSubmittedEmail(email);
-      gooeyToast.success("Account created", {
-        description:
-          "Check your email to verify your account before signing in.",
+      gooeyToast.success(t("created"), {
+        description: t("verifyHint"),
       });
     } catch {
-      setMessage(
-        "Unable to create your account. Please check your connection and try again.",
-      );
-      gooeyToast.error("Account could not be created", {
-        description: "Please check your connection and try again.",
+      setMessage(t("connectionError"));
+      gooeyToast.error(t("failedTitle"), {
+        description: t("connectionHint"),
       });
     }
   };
@@ -96,14 +84,14 @@ export function RegisterForm() {
         callbackURL: routes.afterEmailVerification,
       });
       if (result.error) throw new Error("Verification email failed");
-      setMessage("Verification email sent.");
-      gooeyToast.success("Verification email sent", {
-        description: "Check your inbox and spam folder for the link.",
+      setMessage(t("sentMessage"));
+      gooeyToast.success(t("sent"), {
+        description: t("inboxHint"),
       });
     } catch {
-      setMessage("Unable to resend the email right now.");
-      gooeyToast.error("Email could not be sent", {
-        description: "Please try again in a moment.",
+      setMessage(t("resendFailed"));
+      gooeyToast.error(t("emailFailed"), {
+        description: t("later"),
       });
     } finally {
       setIsResending(false);
@@ -115,11 +103,13 @@ export function RegisterForm() {
       <section className="w-full text-center motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
         <RoleCueMark className="mx-auto size-28 object-contain" priority />
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#121814]">
-          Check your email
+          {t("checkEmail")}
         </h1>
         <p className="mt-2 text-sm leading-6 text-[#5c5c5c]">
-          We sent a verification link to <strong>{submittedEmail}</strong>.
-          Verify your email to finish creating your account.
+          {t.rich("verification", {
+            email: submittedEmail,
+            emailTag: (chunks) => <strong>{chunks}</strong>,
+          })}
         </p>
         {message && (
           <p
@@ -139,15 +129,15 @@ export function RegisterForm() {
           className="mt-5 h-11 w-full rounded-xl transition-colors duration-150 sm:h-12"
         >
           {isResending && <LoaderCircle className="animate-spin" aria-hidden />}
-          {isResending ? "Sending…" : "Resend verification email"}
+          {isResending ? t("sending") : t("resend")}
         </Button>
         <p className="mt-5 text-sm text-[#5c5c5c]">
-          Already verified?{" "}
+          {t("alreadyVerified")}{" "}
           <Link
             href={routes.login}
             className="font-semibold text-[#121814] hover:underline"
           >
-            Sign in
+            {t("signIn")}
           </Link>
         </p>
       </section>
@@ -159,11 +149,9 @@ export function RegisterForm() {
       <header className="mb-6 text-center">
         <RoleCueMark className="mx-auto size-28 object-contain" priority />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#121814]">
-          Create your RoleCue account
+          {t("heading")}
         </h1>
-        <p className="mt-1.5 text-sm text-[#5c5c5c]">
-          Start practicing for your next interview.
-        </p>
+        <p className="mt-1.5 text-sm text-[#5c5c5c]">{t("description")}</p>
       </header>
       <form
         ref={formRef}
@@ -173,7 +161,7 @@ export function RegisterForm() {
       >
         <Field
           id="register-email"
-          label="Email address"
+          label={t("email")}
           error={errors.email?.message}
         >
           <Input
@@ -189,7 +177,7 @@ export function RegisterForm() {
         </Field>
         <Field
           id="register-password"
-          label="Password"
+          label={t("password")}
           error={errors.password?.message}
         >
           <div className="relative">
@@ -212,7 +200,7 @@ export function RegisterForm() {
               variant="ghost"
               size="icon-sm"
               onClick={() => setShowPassword((visible) => !visible)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("hide") : t("show")}
               aria-controls="register-password"
               aria-pressed={showPassword}
               className="absolute top-1/2 right-1 size-11 -translate-y-1/2 active:not-aria-[haspopup]:-translate-y-1/2 text-[#595959] hover:text-[#262626]"
@@ -222,13 +210,13 @@ export function RegisterForm() {
           </div>
           {!errors.password && (
             <p id="register-password-help" className="text-xs text-[#595959]">
-              Use at least 8 characters.
+              {t("passwordHint")}
             </p>
           )}
         </Field>
         <Field
           id="register-confirm-password"
-          label="Confirm password"
+          label={t("confirm")}
           error={errors.confirmPassword?.message}
         >
           <div className="relative">
@@ -252,9 +240,7 @@ export function RegisterForm() {
               size="icon-sm"
               onClick={() => setShowConfirmPassword((visible) => !visible)}
               aria-label={
-                showConfirmPassword
-                  ? "Hide confirmation password"
-                  : "Show confirmation password"
+                showConfirmPassword ? t("hideConfirm") : t("showConfirm")
               }
               aria-controls="register-confirm-password"
               aria-pressed={showConfirmPassword}
@@ -278,33 +264,36 @@ export function RegisterForm() {
           {isSubmitting && (
             <LoaderCircle className="animate-spin" aria-hidden />
           )}
-          {isSubmitting ? "Creating account…" : "Create account"}
+          {isSubmitting ? t("creating") : t("create")}
         </Button>
       </form>
       <p className="mt-4 text-center text-xs leading-5 text-[#595959]">
-        By creating an account, you agree to the{" "}
-        <Link
-          href={routes.terms}
-          className="font-medium text-[#262626] underline underline-offset-2"
-        >
-          Terms of Service
-        </Link>{" "}
-        and acknowledge that you have read our{" "}
-        <Link
-          href={routes.privacy}
-          className="font-medium text-[#262626] underline underline-offset-2"
-        >
-          Privacy Policy
-        </Link>
-        .
+        {t.rich("consent", {
+          terms: (chunks) => (
+            <Link
+              href={routes.terms}
+              className="font-medium text-[#262626] underline underline-offset-2"
+            >
+              {chunks}
+            </Link>
+          ),
+          privacy: (chunks) => (
+            <Link
+              href={routes.privacy}
+              className="font-medium text-[#262626] underline underline-offset-2"
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
       <p className="mt-5 text-center text-sm text-[#5c5c5c]">
-        Already have an account?{" "}
+        {t("alreadyAccount")}{" "}
         <Link
           href={routes.login}
           className="font-semibold text-[#121814] hover:underline"
         >
-          Sign in
+          {t("signIn")}
         </Link>
       </p>
     </div>

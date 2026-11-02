@@ -1,20 +1,7 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-const steps = [
-  {
-    title: "The recruiter reviews your CV",
-    detail: "No interview starts until your CV is approved.",
-  },
-  {
-    title: "Complete the AI interview within 24 hours",
-    detail:
-      "If your CV is approved, the interview opens in My Applications. It is free for you.",
-  },
-  {
-    title: "The recruiter makes the final decision",
-    detail: "Your application shows the outcome once they decide.",
-  },
-] as const;
+const steps = ["review", "interview", "decision"] as const;
 
 // What happens after applying. With current set (0-based), that step is marked as the one under way.
 export function HiringSteps({
@@ -24,13 +11,14 @@ export function HiringSteps({
   current?: number;
   className?: string;
 }) {
+  const t = useTranslations("candidate.applications.hiringSteps");
   return (
     <ol className={cn("space-y-3", className)}>
       {steps.map((step, index) => {
         const active = index === current;
         return (
           <li
-            key={step.title}
+            key={step}
             aria-current={active ? "step" : undefined}
             className="flex gap-3"
           >
@@ -45,10 +33,10 @@ export function HiringSteps({
             </span>
             <div className="min-w-0 text-sm">
               <p className="font-medium">
-                {step.title}
-                {active && <span className="sr-only"> (current step)</span>}
+                {t(`${step}.title`)}
+                {active && <span className="sr-only">{t("current")}</span>}
               </p>
-              <p className="text-muted-foreground">{step.detail}</p>
+              <p className="text-muted-foreground">{t(`${step}.detail`)}</p>
             </div>
           </li>
         );

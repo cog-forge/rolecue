@@ -32,6 +32,18 @@ vi.mock("goey-toast", () => ({
 const configuredProviders = ["google", "github", "facebook"] as const;
 
 describe("LoginForm", () => {
+  it("renders sign-in controls in Vietnamese", () => {
+    renderWithIntl(<LoginForm enabledProviders={["google"]} />, {
+      locale: "vi",
+    });
+    expect(
+      screen.getByRole("heading", { name: "Đăng nhập vào RoleCue" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Địa chỉ email")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Tiếp tục với Google" }),
+    ).toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     emailSignIn.mockResolvedValue({ data: {}, error: null });

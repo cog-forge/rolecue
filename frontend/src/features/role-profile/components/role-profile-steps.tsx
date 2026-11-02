@@ -1,26 +1,26 @@
+"use client";
+
 import { Check } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
-const steps = [
-  { id: "input", label: "Add JD" },
-  { id: "review", label: "Review role" },
-  { id: "confirmed", label: "Confirmed" },
-] as const;
+const steps = ["input", "review", "confirmed"] as const;
 
 export function RoleProfileSteps({
   current,
 }: {
-  current: (typeof steps)[number]["id"];
+  current: (typeof steps)[number];
 }) {
-  const active = steps.findIndex((step) => step.id === current);
+  const t = useTranslations("candidate.roleProfiles.steps");
+  const active = steps.indexOf(current);
   return (
     <ol
-      aria-label="Role Profile progress"
+      aria-label={t("ariaLabel")}
       className="flex flex-wrap items-center gap-x-5 gap-y-3 text-xs sm:gap-x-8"
     >
       {steps.map((step, index) => (
         <li
-          key={step.id}
+          key={step}
           aria-current={index === active ? "step" : undefined}
           className={cn(
             "flex items-center gap-2",
@@ -40,13 +40,13 @@ export function RoleProfileSteps({
           >
             {index < active ? <Check className="size-3.5" /> : index + 1}
           </span>
-          {step.label}
+          {t(step)}
           <span className="sr-only">
             {index < active
-              ? ", complete"
+              ? t("complete")
               : index === active
-                ? ", current step"
-                : ", upcoming"}
+                ? t("current")
+                : t("upcoming")}
           </span>
         </li>
       ))}

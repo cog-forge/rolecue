@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
 
-export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: "Review the terms that apply to using RoleCue.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("public.terms");
+  return { title: t("title"), description: t("metadataDescription") };
+}
 
-export default function TermsPage() {
-  return (
-    <RoutePlaceholder
-      title="Terms of Service"
-      description="Terms of service documentation will be published before production launch."
-    />
-  );
+export default async function TermsPage() {
+  const t = await getTranslations("public.terms");
+  return <RoutePlaceholder title={t("title")} description={t("description")} />;
 }

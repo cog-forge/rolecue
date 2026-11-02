@@ -17,5 +17,184 @@
       "minutes": "{minutes} min left",
       "hoursMinutes": "{hours} h {minutes} min left"
     }
+  },
+  "notFound": {
+    "title": "Page not found",
+    "home": "Return home"
+  },
+  "workspaceError": {
+    "title": "Unable to load this page"
+  },
+  "loadingPage": "Loading page",
+  "shell": {
+    "preparing": "Preparing your workspace…",
+    "sidebarLabel": "Workspace sidebar",
+    "openNavigation": "Open workspace navigation",
+    "navigationTitle": "Workspace navigation",
+    "navigationDescription": "{role, select, candidate {Candidate} recruiter {Recruiter} other {Administrator}} pages and account actions.",
+    "workspaceOf": "{role, select, candidate {Candidate} recruiter {Recruiter} other {Administrator}} workspace",
+    "roleNavigation": "{role, select, candidate {Candidate} recruiter {Recruiter} other {Administrator}} navigation",
+    "roles": {
+      "candidate": "Candidate",
+      "recruiter": "Recruiter",
+      "admin": "Administrator"
+    },
+    "brandLink": "RoleCue workspace",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "searchPages": "Search pages",
+    "pageProfile": "Your Profile",
+    "pageSecurity": "Account Security",
+    "pageDefault": "Workspace",
+    "tagline": {
+      "candidate": "A steady place to prepare.",
+      "recruiter": "Your recruitment workspace.",
+      "admin": "Platform governance."
+    },
+    "account": {
+      "fallbackName": "Your account",
+      "open": "Open account menu",
+      "profile": "Your Profile",
+      "security": "Account Security",
+      "appearance": "Appearance",
+      "colorTheme": "Color theme",
+      "themeLight": "Light",
+      "themeSystem": "System",
+      "themeDark": "Dark",
+      "signingOut": "Signing out…",
+      "signOut": "Sign out",
+      "signOutFailed": "Sign out did not complete. Please try again."
+    },
+    "signedOut": {
+      "title": "Signed out",
+      "description": "You have safely signed out of RoleCue.",
+      "failedTitle": "Sign-out failed",
+      "failedDescription": "You are still signed in. Please try again."
+    },
+    "nav": {
+      "groups": {
+        "practice": "Practice",
+        "career": "Career",
+        "account": "Account",
+        "recruitment": "Recruitment",
+        "governance": "Governance",
+        "operations": "Operations",
+        "finance": "Finance"
+      },
+      "items": {
+        "dashboard": "Dashboard",
+        "roleProfiles": "Role Profiles",
+        "interviewHistory": "Interview History",
+        "avatarStudio": "Personal Avatar Studio",
+        "jobBoard": "Job Board",
+        "myApplications": "My Applications",
+        "transactions": "Transactions",
+        "myJobPostings": "My Job Postings",
+        "receivedApplications": "Received Applications",
+        "accounts": "Accounts",
+        "jobPostingModeration": "Job Posting Moderation",
+        "interviewSessions": "Interview Sessions",
+        "voiceProfiles": "Voice Profiles",
+        "paymentTransactions": "Payment Transactions",
+        "revenueReports": "Revenue Reports"
+      }
+    },
+    "badges": {
+      "pendingReview": "job postings waiting for review",
+      "newToday": "job postings new today"
+    },
+    "search": {
+      "title": "Find a page",
+      "description": "Quick navigation within your workspace.",
+      "label": "Search workspace pages",
+      "placeholder": "Where would you like to go?",
+      "results": "Workspace pages",
+      "empty": "No matching pages.",
+      "hint": "Use ↑ ↓ to choose a page, Enter to open, Esc to close."
+    },
+    "session": {
+      "checkingSession": "Checking your session…",
+      "checkingAccount": "Checking your account…",
+      "noAccess": "You do not have access to this page.",
+      "checkFailed": "Unable to check your session. Please try again.",
+      "retry": "Retry",
+      "openingWorkspace": "Opening your workspace…",
+      "signedInTitle": "Signed in",
+      "signedInVerify": "Verify your email to open your dashboard.",
+      "signedInWelcome": "Welcome back to RoleCue.",
+      "verifiedTitle": "Email verified",
+      "verifiedDescription": "Your account is ready. Welcome to RoleCue."
+    }
+  },
+  "dataTable": {
+    "results": "{start}–{end} of {total} · Page {page} of {pages}",
+    "noResults": "0 results",
+    "firstPage": "First page",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page",
+    "page": "Page {number}",
+    "goToPage": "Go to page",
+    "jumpTo": "Jump to page",
+    "go": "Go"
+  },
+  "profile": {
+    "header": {
+      "eyebrow": "Your account",
+      "title": "Your profile",
+      "description": "A little about you. Keep your details current wherever you work in RoleCue."
+    },
+    "access": {
+      "checking": "Checking your account access…",
+      "failed": "We couldn't confirm your account access. Please try again.",
+      "retry": "Retry"
+    },
+    "loading": "Loading your profile…",
+    "loadFailed": {
+      "title": "We couldn't load your profile",
+      "description": "Please try again in a moment.",
+      "retry": "Retry"
+    },
+    "refreshFailed": "Unable to refresh your profile. Your draft is still here.",
+    "refreshRetry": "Retry",
+    "saveFailed": "We couldn't save your profile. Your changes are still here. Please try again.",
+    "summary": {
+      "email": "Email address",
+      "emailStatus": "Email status",
+      "verified": "Verified",
+      "unverified": "Unverified",
+      "memberSince": "Member since",
+      "securityHint": "Manage your password and account security in settings.",
+      "security": "Account security"
+    },
+    "form": {
+      "label": "Edit your profile",
+      "personal": "Personal",
+      "personalTitle": "Personal information",
+      "personalDescription": "Keep your name and photo up to date.",
+      "displayName": "Display name",
+      "avatarUrl": "Avatar URL",
+      "avatarHint": "Use an HTTPS link to your photo. Leave this blank for your generated avatar.",
+      "company": "Company",
+      "companyTitle": "Company information",
+      "companyDescription": "You can update these details after onboarding.",
+      "companyName": "Company name",
+      "companyWebsite": "Company website",
+      "websiteHint": "We’ll add https:// if you enter a domain without it.",
+      "saving": "Saving your changes…",
+      "unsaved": "You have unsaved changes.",
+      "saved": "Your profile has been saved.",
+      "idle": "Your changes will appear across your workspace.",
+      "discard": "Discard",
+      "savingButton": "Saving…",
+      "save": "Save changes"
+    },
+    "validation": {
+      "name": "Enter a display name between 1 and 100 characters.",
+      "image": "Use an HTTPS image URL without credentials, up to 2048 characters.",
+      "companyLength": "Company name must be 200 characters or fewer.",
+      "website": "Use an HTTPS website URL without credentials, up to 2048 characters."
+    },
+    "loadingLabel": "Loading your profile"
   }
 }

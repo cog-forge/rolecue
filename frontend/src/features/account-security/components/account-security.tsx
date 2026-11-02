@@ -19,35 +19,45 @@ import { useQuery } from "@tanstack/react-query";
 import { KeyRound, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { ChangePasswordDialog } from "./change-password-dialog";
 import type { Formatters } from "@/lib/i18n/formatters";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
-function listSignInMethods(providerIds: string[], fmt: Formatters) {
+function listSignInMethods(
+  providerIds: string[],
+  fmt: Formatters,
+  fallback: string,
+) {
   const names = providerIds
     .filter((id) => id !== "credential")
     .map(providerName);
-  return names.length > 0 ? fmt.list(names, "disjunction") : "a social account";
+  return names.length > 0 ? fmt.list(names, "disjunction") : fallback;
 }
 
 export function AccountSecurity({ children }: { children?: ReactNode }) {
+  const t = useTranslations("auth.security");
   const user = useSessionUser();
   return (
     <section className="mx-auto w-full max-w-5xl">
       <header className="flex flex-wrap items-end justify-between gap-4 pb-8">
         <div className="min-w-0 space-y-1">
           <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight">
-            Account security
+            {t("page.title")}
           </h1>
           <p className="wrap-anywhere text-sm text-muted-foreground">
-            How you sign in as{" "}
-            <span className="font-medium text-foreground">{user.email}</span>
+            {t.rich("page.signedInAs", {
+              email: user.email,
+              emailTag: (chunks) => (
+                <span className="font-medium text-foreground">{chunks}</span>
+              ),
+            })}
           </p>
         </div>
         <Button variant="outline" asChild className="min-h-11">
           <Link href={routes.profile}>
             <UserRound aria-hidden />
-            Edit profile
+            {t("page.editProfile")}
           </Link>
         </Button>
       </header>
@@ -57,6 +67,7 @@ export function AccountSecurity({ children }: { children?: ReactNode }) {
 }
 
 export function PasswordSettings() {
+  const t = useTranslations("auth.security");
   const fmt = useFormatters();
   const user = useSessionUser();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -73,18 +84,18 @@ export function PasswordSettings() {
   return (
     <SecuritySection
       id="password-settings"
-      title="Password"
-      description="Change the password you use to sign in with your email."
+      title={t("password.title")}
+      description={t("password.description")}
     >
       <SecurityPanel>
         {accounts.isPending ? (
           <div role="status" className="py-4">
-            <span className="sr-only">Loading sign-in methods…</span>
+            <span className="sr-only">{t("password.loading")}</span>
             <Skeleton className="h-11 w-full max-w-sm" />
           </div>
         ) : accounts.isError ? (
           <SecurityRow
-            title="We couldn't load your sign-in methods."
+            title={t("password.loadFailed")}
             action={
               <Button
                 variant="outline"
@@ -92,16 +103,16 @@ export function PasswordSettings() {
                 disabled={accounts.isFetching}
                 onClick={() => void accounts.refetch()}
               >
-                Try again
+                {t("tryAgain")}
               </Button>
             }
           />
         ) : accounts.data.includes("credential") && !noPassword ? (
           <SecurityRow
             icon={<KeyRound />}
-            title="Password"
-            status={<Badge variant="positive">Set</Badge>}
-            description="At least 8 characters. Changing it can also sign out your other devices."
+            title={t("password.title")}
+            status={<Badge variant="positive">{t("status.set")}</Badge>}
+            description={t("password.rowDescription")}
             action={
               <>
                 <Button
@@ -109,7 +120,7 @@ export function PasswordSettings() {
                   className="min-h-11"
                   onClick={() => setDialogOpen(true)}
                 >
-                  Change password
+                  {t("password.change")}
                 </Button>
                 <ChangePasswordDialog
                   open={dialogOpen}
@@ -123,18 +134,24 @@ export function PasswordSettings() {
           // Better Auth's reset flow adds a password to an account that only has a social sign-in.
           <SecurityRow
             icon={<KeyRound />}
-            title="No password"
+            title={t("password.noPassword")}
             description={
               <p role="status">
-                You sign in with {listSignInMethods(accounts.data, fmt)}, so
-                this account has no password to change. To add one, use{" "}
-                <Link
-                  href={routes.forgotPassword}
-                  className="font-medium text-foreground underline-offset-4 hover:underline"
-                >
-                  Forgot password
-                </Link>
-                .
+                {t.rich("password.noPasswordText", {
+                  methods: listSignInMethods(
+                    accounts.data,
+                    fmt,
+                    t("password.socialAccount"),
+                  ),
+                  link: (chunks) => (
+                    <Link
+                      href={routes.forgotPassword}
+                      className="font-medium text-foreground underline-offset-4 hover:underline"
+                    >
+                      {chunks}
+                    </Link>
+                  ),
+                })}
               </p>
             }
           />

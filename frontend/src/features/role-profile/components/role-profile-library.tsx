@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import {
   ArrowUpRight,
   FileText,
@@ -27,19 +28,22 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import { cn } from "@/lib/utils";
 import type { RoleSummary } from "../api/contract";
 import { roleProfileKeys } from "../api/keys";
 import {
   deleteRoleProfile,
   listRoleProfiles,
   ROLE_PROFILES_PAGE_SIZE,
-  roleError,
 } from "../api/requests";
+import { seniorityLabel } from "../lib/labels";
+import { useRoleError } from "../lib/use-role-error";
 import { RoleProfileStatus } from "./role-profile-status";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function RoleProfileLibrary() {
+  const t = useTranslations("candidate.roleProfiles");
+  const labels = useTranslations("candidate.roleProfiles.labels");
+  const roleError = useRoleError();
   const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -70,7 +74,7 @@ export function RoleProfileLibrary() {
   const columns: DataTableColumn<RoleSummary>[] = [
     {
       id: "role",
-      header: "Role",
+      header: t("library.columns.role"),
       cell: (profile) => (
         <Link
           href={routes.roleProfiles.detail(profile.id)}
@@ -83,26 +87,23 @@ export function RoleProfileLibrary() {
               aria-hidden="true"
             />
           </span>
-          <span
-            className={cn(
-              "mt-1 text-sm text-muted-foreground",
-              profile.seniorityLevel && "capitalize",
-            )}
-          >
-            {profile.seniorityLevel ?? "Seniority to review"}
+          <span className="mt-1 text-sm text-muted-foreground">
+            {profile.seniorityLevel
+              ? seniorityLabel(labels, profile.seniorityLevel)
+              : t("library.seniorityToReview")}
           </span>
         </Link>
       ),
     },
     {
       id: "status",
-      header: "Status",
-      className: "w-36 px-5 py-4 align-middle",
+      header: t("library.columns.status"),
+      className: "w-44 px-5 py-4 align-middle",
       cell: (profile) => <RoleProfileStatus status={profile.status} />,
     },
     {
       id: "created",
-      header: "Created",
+      header: t("library.columns.created"),
       className: "w-36 px-5 py-4 align-middle",
       cell: (profile) => (
         <time
@@ -115,14 +116,14 @@ export function RoleProfileLibrary() {
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t("library.columns.actions"),
       className: "w-16 px-5 py-4 align-middle",
       cell: (profile) => (
         <Button
           variant="ghost"
           size="icon"
           className="size-11 text-muted-foreground hover:text-destructive"
-          aria-label={`Delete ${profile.title}`}
+          aria-label={t("library.deleteLabel", { title: profile.title })}
           onClick={(event) => {
             deleteTrigger.current = event.currentTarget;
             remove.reset();
@@ -139,26 +140,25 @@ export function RoleProfileLibrary() {
       <header className="flex flex-wrap items-end justify-between gap-5">
         <div className="space-y-3">
           <p className="text-xs font-semibold tracking-widest text-workspace-accent uppercase">
-            Your practice context
+            {t("library.eyebrow")}
           </p>
           <h1 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-            Role Profiles
+            {t("library.heading")}
           </h1>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Keep your Role Profiles, review their requirements, and pick up
-            where you left off. Your Role Profiles stay private.
+            {t("library.description")}
           </p>
         </div>
-        <Button asChild className="h-11">
+        <Button asChild className="h-auto min-h-11 py-2 whitespace-normal">
           <Link href={routes.roleProfiles.new} ref={createLink}>
-            <Plus aria-hidden="true" /> Add Role Profile
+            <Plus aria-hidden="true" /> {t("library.add")}
           </Link>
         </Button>
       </header>
       {query.isPending ? (
         <div
           role="status"
-          aria-label="Loading Role Profiles"
+          aria-label={t("library.loading")}
           className="space-y-3"
         >
           <Skeleton className="h-24 rounded-xl" />
@@ -169,10 +169,10 @@ export function RoleProfileLibrary() {
           <p>{roleError(query.error)}</p>
           <Button
             variant="outline"
-            className="h-11"
+            className="h-auto min-h-11 py-2 whitespace-normal"
             onClick={() => void query.refetch()}
           >
-            Try again
+            {t("library.retry")}
           </Button>
         </div>
       ) : query.data.items.length === 0 ? (
@@ -184,15 +184,17 @@ export function RoleProfileLibrary() {
             />
           </div>
           <h2 className="text-2xl font-semibold tracking-tight">
-            Your next role starts here.
+            {t("library.empty.title")}
           </h2>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-            Create a Role Profile from a job description, review what matters,
-            and shape the focus of your next practice interview.
+            {t("library.empty.description")}
           </p>
-          <Button asChild className="mt-7 h-11">
+          <Button
+            asChild
+            className="mt-7 h-auto min-h-11 py-2 whitespace-normal"
+          >
             <Link href={routes.roleProfiles.new}>
-              Bring in a role <ArrowUpRight aria-hidden="true" />
+              {t("library.empty.cta")} <ArrowUpRight aria-hidden="true" />
             </Link>
           </Button>
         </div>
@@ -202,7 +204,7 @@ export function RoleProfileLibrary() {
             rows={query.data.items}
             columns={columns}
             getRowId={(profile) => profile.id}
-            label="Role Profiles"
+            label={t("library.tableLabel")}
           />
           {query.data.pagination.total > ROLE_PROFILES_PAGE_SIZE && (
             <DataTablePagination
@@ -210,7 +212,7 @@ export function RoleProfileLibrary() {
               pageSize={ROLE_PROFILES_PAGE_SIZE}
               total={query.data.pagination.total}
               disabled={query.isFetching}
-              label="Role Profile pages"
+              label={t("library.pagesLabel")}
               onPageChange={(page) =>
                 setOffset((page - 1) * ROLE_PROFILES_PAGE_SIZE)
               }
@@ -234,10 +236,11 @@ export function RoleProfileLibrary() {
           }}
         >
           <DialogHeader>
-            <DialogTitle>Delete this Role Profile?</DialogTitle>
+            <DialogTitle>{t("library.delete.title")}</DialogTitle>
             <DialogDescription>
-              {selected?.title} and its saved requirements will be removed. Role
-              Profiles with interview history cannot be deleted.
+              {t("library.delete.description", {
+                title: selected?.title ?? "",
+              })}
             </DialogDescription>
           </DialogHeader>
           {remove.error && (
@@ -248,15 +251,15 @@ export function RoleProfileLibrary() {
           <DialogFooter>
             <Button
               variant="outline"
-              className="h-11"
+              className="h-auto min-h-11 py-2 whitespace-normal"
               disabled={remove.isPending}
               onClick={() => setSelected(null)}
             >
-              Keep profile
+              {t("library.delete.keep")}
             </Button>
             <Button
               variant="destructive"
-              className="h-11"
+              className="h-auto min-h-11 py-2 whitespace-normal"
               disabled={remove.isPending}
               onClick={() => {
                 if (selected) remove.mutate(selected.id);
@@ -268,7 +271,9 @@ export function RoleProfileLibrary() {
                   aria-hidden="true"
                 />
               )}
-              {remove.isPending ? "Deleting…" : "Delete Role Profile"}
+              {remove.isPending
+                ? t("library.delete.pending")
+                : t("library.delete.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

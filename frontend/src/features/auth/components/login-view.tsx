@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import * as React from "react";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -7,6 +8,7 @@ export interface LoginViewProps {
 }
 
 export function LoginView({ children }: LoginViewProps) {
+  const t = useTranslations("auth.login");
   return (
     <main className="min-h-screen bg-background text-foreground antialiased">
       <div className="flex min-h-screen">
@@ -17,7 +19,7 @@ export function LoginView({ children }: LoginViewProps) {
           </div>
           <div className="mx-auto flex min-h-screen w-full max-w-140 flex-col justify-center px-6 py-10 sm:px-12 lg:px-16">
             <section
-              aria-label="Account access"
+              aria-label={t("access")}
               className="relative mx-auto w-full max-w-100 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-2 motion-safe:duration-500"
             >
               {children}

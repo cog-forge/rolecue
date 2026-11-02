@@ -3,6 +3,7 @@
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
+import { useTranslations } from "next-intl";
 import { Trash2 } from "lucide-react";
 import { AvatarViewer } from "@/components/avatar-viewer/avatar-viewer";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export function AvatarPreviewDialog({
   onClose: () => void;
   onDelete: (avatar: Avatar) => void;
 }) {
+  const t = useTranslations("candidate.avatars.preview");
   const fmt = useFormatters();
   const cache = useQueryClient();
   const detail = useQuery({
@@ -75,34 +77,32 @@ export function AvatarPreviewDialog({
       <DialogContent className="max-h-dvh overflow-y-auto max-sm:h-dvh max-sm:max-w-none max-sm:rounded-none max-sm:content-start sm:max-w-3xl sm:p-6">
         <DialogHeader className="pr-8">
           <DialogTitle className="text-lg [overflow-wrap:anywhere]">
-            {avatar?.name ?? "Avatar preview"}
+            {avatar?.name ?? t("defaultTitle")}
           </DialogTitle>
-          <DialogDescription>
-            Drag to turn the avatar, scroll or pinch to zoom.
-          </DialogDescription>
+          <DialogDescription>{t("hint")}</DialogDescription>
         </DialogHeader>
         {missing ? (
           <p role="alert" className="text-sm">
-            This avatar no longer exists in your inventory.
+            {t("missing")}
           </p>
         ) : detail.isError ? (
           <div role="alert" className="space-y-3">
-            <p className="text-sm text-destructive">
-              We couldn&apos;t open this avatar right now.
-            </p>
+            <p className="text-sm text-destructive">{t("openFailed")}</p>
             <Button
               variant="outline"
               className="h-11"
               onClick={() => void refetch()}
             >
-              Try again
+              {t("retry")}
             </Button>
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <AvatarViewer
               access={access}
-              label={`3D preview of ${avatar?.name ?? "your avatar"}`}
+              label={t("viewerLabel", {
+                name: avatar?.name ?? t("viewerFallback"),
+              })}
               onAccessExpired={() => void refetch()}
             />
             <div className="min-w-0 space-y-5">
@@ -110,14 +110,16 @@ export function AvatarPreviewDialog({
                 <dl className="space-y-4 text-sm">
                   <div>
                     <dt className="text-xs text-muted-foreground">
-                      Personality
+                      {t("personality")}
                     </dt>
                     <dd className="mt-1 leading-relaxed whitespace-pre-line [overflow-wrap:anywhere]">
                       {avatar.personality}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-xs text-muted-foreground">Created</dt>
+                    <dt className="text-xs text-muted-foreground">
+                      {t("created")}
+                    </dt>
                     <dd className="mt-1">
                       <time dateTime={avatar.created_at}>
                         {fmt.date(avatar.created_at, "dayMonthYear")}
@@ -129,7 +131,7 @@ export function AvatarPreviewDialog({
                 <div role="status" className="space-y-3">
                   <Skeleton className="h-4 w-24" />
                   <Skeleton className="h-16 w-full" />
-                  <span className="sr-only">Loading avatar details…</span>
+                  <span className="sr-only">{t("loading")}</span>
                 </div>
               )}
               {avatar && (
@@ -138,7 +140,7 @@ export function AvatarPreviewDialog({
                   className="h-11 text-destructive hover:text-destructive"
                   onClick={() => onDelete(avatar)}
                 >
-                  <Trash2 aria-hidden /> Delete avatar
+                  <Trash2 aria-hidden /> {t("delete")}
                 </Button>
               )}
             </div>

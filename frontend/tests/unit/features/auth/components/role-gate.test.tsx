@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { RoleGate } from "@/features/auth/components/role-gate";
 
 const mocks = vi.hoisted(() => ({
@@ -21,7 +22,7 @@ describe("RoleGate", () => {
     "admits a %s to a shared page",
     (role) => {
       mocks.user = { id: "u", role };
-      render(
+      renderWithIntl(
         <RoleGate role={["candidate", "recruiter"]}>
           <p>Studio</p>
         </RoleGate>,
@@ -33,7 +34,7 @@ describe("RoleGate", () => {
 
   it("sends an admin home without rendering the page", () => {
     mocks.user = { id: "u", role: "admin" };
-    render(
+    renderWithIntl(
       <RoleGate role={["candidate", "recruiter"]}>
         <p>Studio</p>
       </RoleGate>,
@@ -44,12 +45,27 @@ describe("RoleGate", () => {
 
   it("still accepts a single role", () => {
     mocks.user = { id: "u", role: "recruiter" };
-    render(
+    renderWithIntl(
       <RoleGate role="candidate">
         <p>Practice</p>
       </RoleGate>,
     );
     expect(screen.queryByText("Practice")).not.toBeInTheDocument();
     expect(mocks.replace).toHaveBeenCalledWith("/recruiter/dashboard");
+  });
+});
+
+describe("RoleGate in Vietnamese", () => {
+  it("translates the redirect notice", () => {
+    mocks.user = { id: "u", role: "admin" };
+    renderWithIntl(
+      <RoleGate role="candidate">
+        <p>Studio</p>
+      </RoleGate>,
+      { locale: "vi" },
+    );
+    expect(
+      screen.getByText("Đang mở không gian làm việc của bạn…"),
+    ).toBeInTheDocument();
   });
 });

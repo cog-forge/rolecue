@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2, XCircle, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl";
 import type { Transaction } from "../schemas/wallet-schema";
 
 export interface PaymentReturnEvent {
@@ -24,6 +25,7 @@ export function PaymentStatusBanner({
   onPaymentReturn,
   verification,
 }: PaymentStatusBannerProps) {
+  const t = useTranslations("candidate.billing.paymentBanner");
   const searchParams = useSearchParams();
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const handledKeyRef = useRef<string | null>(null);
@@ -106,12 +108,10 @@ export function PaymentStatusBanner({
         <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1 space-y-1">
           <h4 className="text-sm font-semibold">
-            {checking ? "Verifying Payment" : "Payment Pending"}
+            {checking ? t("verifyingTitle") : t("pendingTitle")}
           </h4>
           <p className="text-sm text-muted-foreground">
-            {checking
-              ? "Checking your payment with the payment provider. Please wait."
-              : "Your payment has not been confirmed yet. Coins have not been credited."}
+            {checking ? t("verifyingBody") : t("pendingBody")}
           </p>
           {isPending && (
             <Button
@@ -119,7 +119,7 @@ export function PaymentStatusBanner({
               size="sm"
               onClick={() => onPaymentReturn({ orderCode: validCode! })}
             >
-              Check again
+              {t("checkAgain")}
             </Button>
           )}
         </div>
@@ -127,7 +127,7 @@ export function PaymentStatusBanner({
           variant="ghost"
           size="sm"
           onClick={handleDismiss}
-          aria-label="Dismiss payment notification"
+          aria-label={t("dismiss")}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -148,12 +148,12 @@ export function PaymentStatusBanner({
           </div>
           <div className="flex-1 space-y-1">
             <h4 className="text-sm font-semibold tracking-tight text-emerald-900 dark:text-emerald-100">
-              Payment Completed Successfully
+              {t("successTitle")}
             </h4>
             <p className="text-sm text-emerald-800/90 dark:text-emerald-300/90">
               {orderCode
-                ? `Order #${orderCode} was processed. Your coin balance has been credited.`
-                : "Your deposit was processed. Your coin balance has been credited."}
+                ? t("successOrder", { code: orderCode })
+                : t("success")}
             </p>
           </div>
           <Button
@@ -161,7 +161,7 @@ export function PaymentStatusBanner({
             variant="ghost"
             size="sm"
             onClick={handleDismiss}
-            aria-label="Dismiss payment notification"
+            aria-label={t("dismiss")}
             className="h-8 w-8 p-0 text-emerald-800 hover:bg-emerald-500/20 hover:text-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-500/20 dark:hover:text-emerald-100"
           >
             <X className="h-4 w-4" />
@@ -184,12 +184,12 @@ export function PaymentStatusBanner({
           </div>
           <div className="flex-1 space-y-1">
             <h4 className="text-sm font-semibold tracking-tight text-amber-900 dark:text-amber-100">
-              Payment Cancelled
+              {t("cancelledTitle")}
             </h4>
             <p className="text-sm text-amber-800/90 dark:text-amber-300/90">
               {orderCode
-                ? `Payment for Order #${orderCode} was cancelled. No coins were credited.`
-                : "Payment was cancelled. No coins were credited."}
+                ? t("cancelledOrder", { code: orderCode })
+                : t("cancelled")}
             </p>
           </div>
           <Button
@@ -197,7 +197,7 @@ export function PaymentStatusBanner({
             variant="ghost"
             size="sm"
             onClick={handleDismiss}
-            aria-label="Dismiss payment notification"
+            aria-label={t("dismiss")}
             className="h-8 w-8 p-0 text-amber-800 hover:bg-amber-500/20 hover:text-amber-950 dark:text-amber-300 dark:hover:bg-amber-500/20 dark:hover:text-amber-100"
           >
             <X className="h-4 w-4" />
@@ -220,13 +220,11 @@ export function PaymentStatusBanner({
         <div className="flex-1 space-y-1">
           <h4 className="text-sm font-semibold tracking-tight">
             {result?.status === "failed"
-              ? "Payment Unsuccessful"
-              : "Unable to Verify Payment"}
+              ? t("failedTitle")
+              : t("unverifiedTitle")}
           </h4>
           <p className="text-sm opacity-90">
-            {orderCode
-              ? `We could not verify payment for Order #${orderCode}. If you were charged, please contact support with your order code.`
-              : "We could not verify your payment. Return with a valid order code or contact support if you were charged."}
+            {orderCode ? t("failedOrder", { code: orderCode }) : t("failed")}
           </p>
           {validCode && !result && (
             <Button
@@ -234,7 +232,7 @@ export function PaymentStatusBanner({
               size="sm"
               onClick={() => onPaymentReturn({ orderCode: validCode })}
             >
-              Check again
+              {t("checkAgain")}
             </Button>
           )}
         </div>
@@ -243,7 +241,7 @@ export function PaymentStatusBanner({
           variant="ghost"
           size="sm"
           onClick={handleDismiss}
-          aria-label="Dismiss payment notification"
+          aria-label={t("dismiss")}
           className="h-8 w-8 p-0 text-destructive hover:bg-destructive/20"
         >
           <X className="h-4 w-4" />

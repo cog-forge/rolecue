@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { AboutHeading } from "./about-heading";
 import { FeatureCarousel } from "./feature-carousel";
@@ -5,6 +6,7 @@ import { MarketingBackdrop } from "./marketing-backdrop";
 import { eyebrow, landingContainer } from "./rolecue-landing-styles";
 
 export function AboutRolecueSection() {
+  const t = useTranslations("public.landing");
   return (
     <section
       aria-labelledby="about-rolecue-title"
@@ -15,11 +17,10 @@ export function AboutRolecueSection() {
         <FeatureCarousel
           intro={
             <>
-              <p className={eyebrow}>Meet RoleCue</p>
+              <p className={eyebrow}>{t("meet")}</p>
               <AboutHeading />
               <p className="mt-6 mb-0 max-w-[42ch] text-pretty text-(length:--rolecue-type-body-lg) leading-(--rolecue-leading-copy) text-(--rolecue-ink-muted)">
-                RoleCue combines job context, spoken conversation and interview
-                evaluation in one private practice space.
+                {t("about")}
               </p>
             </>
           }

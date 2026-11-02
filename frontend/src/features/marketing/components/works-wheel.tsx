@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import {
   useCallback,
   useEffect,
@@ -47,6 +48,7 @@ export function WorksWheel({
   items: readonly WorksWheelItem[];
   label: string;
 }) {
+  const t = useTranslations("public.landing.practiceLoop");
   const id = useId();
   const stageRef = useRef<HTMLDivElement>(null);
   const wheelRef = useRef<HTMLDivElement>(null);
@@ -334,14 +336,14 @@ export function WorksWheel({
         {items[active].title}
       </div>
       <ol
-        aria-label="Choose a practice moment"
+        aria-label={t("chooseLabel")}
         className="absolute top-[7%] right-[4%] text-right text-sm max-sm:top-auto max-sm:inset-x-4 max-sm:bottom-4 max-sm:flex max-sm:justify-center max-sm:gap-2"
       >
         {items.map((item, index) => (
           <li key={item.title}>
             <button
               type="button"
-              aria-label={`Show ${item.title}`}
+              aria-label={t("show", { title: item.title })}
               aria-pressed={index === active}
               onClick={() => to(index + 1)}
               className={cn(
@@ -360,13 +362,13 @@ export function WorksWheel({
         ))}
       </ol>
       <p id={`${id}-instructions`} className="sr-only">
-        Use the arrow keys or choose a moment to explore the practice loop.
+        {t("instructions")}
       </p>
       <p
         aria-hidden="true"
         className="pointer-events-none absolute bottom-6 inset-x-0 text-center text-xs text-(--rolecue-ink-subtle) max-sm:hidden"
       >
-        {reduced ? "Choose a moment" : "Scroll or drag to explore"}
+        {reduced ? t("hintReduced") : t("hintMotion")}
       </p>
     </div>
   );

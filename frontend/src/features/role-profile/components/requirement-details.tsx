@@ -1,6 +1,7 @@
 "use client";
 
 import { Controller, useWatch, type UseFormReturn } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -9,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { categoryLabels, type RoleReview } from "../api/contract";
+import { categorySchema, type RoleReview } from "../api/contract";
+import { categoryLabel, kindLabel, priorityLabel } from "../lib/labels";
 
 export function RequirementDetails({
   form,
@@ -22,6 +24,8 @@ export function RequirementDetails({
   disabled: boolean;
   customTarget: boolean;
 }) {
+  const t = useTranslations("candidate.roleProfiles.requirement");
+  const labels = useTranslations("candidate.roleProfiles.labels");
   const prefix = `requirement-${index}`;
   const error = form.formState.errors.requirements?.[index];
   const kind = useWatch({
@@ -35,7 +39,7 @@ export function RequirementDetails({
           htmlFor={`${prefix}-kind`}
           className="text-xs text-muted-foreground"
         >
-          Kind
+          {t("kind")}
         </label>
         <Controller
           control={form.control}
@@ -64,11 +68,13 @@ export function RequirementDetails({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" align="start">
-                <SelectItem value="skill">Technical skill</SelectItem>
-                <SelectItem value="technology">Technology</SelectItem>
-                <SelectItem value="domain_knowledge">
-                  Domain knowledge
-                </SelectItem>
+                {(["skill", "technology", "domain_knowledge"] as const).map(
+                  (kind) => (
+                    <SelectItem key={kind} value={kind}>
+                      {kindLabel(labels, kind)}
+                    </SelectItem>
+                  ),
+                )}
               </SelectContent>
             </Select>
           )}
@@ -80,7 +86,7 @@ export function RequirementDetails({
             htmlFor={`${prefix}-category`}
             className="text-xs text-muted-foreground"
           >
-            Skill category
+            {t("category")}
           </label>
           <Controller
             control={form.control}
@@ -98,12 +104,12 @@ export function RequirementDetails({
                   className="w-full data-[size=default]:h-11"
                   aria-invalid={Boolean(error?.category)}
                 >
-                  <SelectValue placeholder="Select a category" />
+                  <SelectValue placeholder={t("categoryPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent position="popper" align="start">
-                  {Object.entries(categoryLabels).map(([value, label]) => (
+                  {categorySchema.options.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {label}
+                      {categoryLabel(labels, value)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -117,7 +123,7 @@ export function RequirementDetails({
           htmlFor={`${prefix}-type`}
           className="text-xs text-muted-foreground"
         >
-          Priority
+          {t("priority")}
         </label>
         <Controller
           control={form.control}
@@ -139,9 +145,13 @@ export function RequirementDetails({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper" align="start">
-                <SelectItem value="unspecified">Unspecified</SelectItem>
-                <SelectItem value="required">Required</SelectItem>
-                <SelectItem value="preferred">Preferred</SelectItem>
+                {(["unspecified", "required", "preferred"] as const).map(
+                  (priority) => (
+                    <SelectItem key={priority} value={priority}>
+                      {priorityLabel(labels, priority)}
+                    </SelectItem>
+                  ),
+                )}
               </SelectContent>
             </Select>
           )}
@@ -153,7 +163,7 @@ export function RequirementDetails({
             htmlFor={`${prefix}-saved-target`}
             className="text-xs text-muted-foreground"
           >
-            Saved target
+            {t("savedTarget")}
           </label>
           <Input
             id={`${prefix}-saved-target`}
@@ -162,8 +172,7 @@ export function RequirementDetails({
             aria-invalid={Boolean(error?.target)}
           />
           <p className="text-xs text-muted-foreground">
-            This role has a target saved in the earlier format. It stays as
-            written until you change it.
+            {t("savedTargetHelp")}
           </p>
         </div>
       )}

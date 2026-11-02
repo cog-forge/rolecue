@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { meSchema, type SessionUser } from "../schemas/session-schema";
 export type { SessionUser } from "../schemas/session-schema";
 import { apiClient } from "@/lib/api/client";
@@ -22,6 +23,7 @@ export function useSessionUser() {
 }
 
 export function SessionGate({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("common.shell.session");
   const router = useRouter();
   const cache = useQueryClient();
   const session = useQuery({
@@ -88,10 +90,10 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
         "",
         url.pathname + url.search + url.hash,
       );
-      gooeyToast.success("Signed in", {
+      gooeyToast.success(t("signedInTitle"), {
         description: needsVerification
-          ? "Verify your email to open your dashboard."
-          : "Welcome back to RoleCue.",
+          ? t("signedInVerify")
+          : t("signedInWelcome"),
         id: "auth-sign-in",
       });
     } else if (event === "email-verified" && validated) {
@@ -101,8 +103,8 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
         "",
         url.pathname + url.search + url.hash,
       );
-      gooeyToast.success("Email verified", {
-        description: "Your account is ready. Welcome to RoleCue.",
+      gooeyToast.success(t("verifiedTitle"), {
+        description: t("verifiedDescription"),
         id: "auth-email-verified",
       });
     }
@@ -114,11 +116,12 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
     account.data,
     account.error,
     account.isFetching,
+    t,
   ]);
   if (session.isPending || unauthorized || (!session.error && checkingEntry))
-    return <p role="status">Checking your session…</p>;
+    return <p role="status">{t("checkingSession")}</p>;
   if (forbidden && account.isPending)
-    return <p role="status">Checking your account…</p>;
+    return <p role="status">{t("checkingAccount")}</p>;
   if (
     forbidden &&
     account.data &&
@@ -132,15 +135,14 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
         checking={session.isFetching || account.isFetching}
       />
     );
-  if (forbidden && !account.error)
-    return <p role="alert">You do not have access to this page.</p>;
+  if (forbidden && !account.error) return <p role="alert">{t("noAccess")}</p>;
   // An old successful result must never render protected content after a failed recheck.
   if (session.error)
     return (
       <div role="alert" className="space-y-4">
-        <p>Unable to check your session. Please try again.</p>
+        <p>{t("checkFailed")}</p>
         <Button onClick={retry} disabled={session.isFetching}>
-          Retry
+          {t("retry")}
         </Button>
       </div>
     );

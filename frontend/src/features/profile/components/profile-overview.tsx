@@ -27,6 +27,7 @@ function denied(error: unknown) {
 }
 export function ProfileOverview() {
   const errorsT = useTranslations("errors");
+  const t = useTranslations("common.profile");
   const user = useSessionUser();
   const cache = useQueryClient();
   const key = profileKeys.me(user.id);
@@ -79,45 +80,40 @@ export function ProfileOverview() {
   }, [accessDenied, refreshAccess]);
   let saveError: string | null = null;
   if (mutation.error) {
-    saveError = apiErrorMessage(
-      errorsT,
-      mutation.error,
-      "We couldn't save your profile. Your changes are still here. Please try again.",
-    );
+    saveError = apiErrorMessage(errorsT, mutation.error, t("saveFailed"));
   }
   return (
     <section className="mx-auto w-full max-w-5xl space-y-8">
       <header className="space-y-2">
         <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Your account
+          {t("header.eyebrow")}
         </p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Your profile
+          {t("header.title")}
         </h1>
         <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-          A little about you. Keep your details current wherever you work in
-          RoleCue.
+          {t("header.description")}
         </p>
       </header>
       {accessDenied ? (
         <div className="space-y-4">
           <p role="status">
             {checkingSession || query.isFetching
-              ? "Checking your account access…"
-              : "We couldn't confirm your account access. Please try again."}
+              ? t("access.checking")
+              : t("access.failed")}
           </p>
           <Button
             variant="outline"
             disabled={checkingSession || query.isFetching}
             onClick={() => void refreshAccess()}
           >
-            Retry
+            {t("access.retry")}
           </Button>
         </div>
       ) : query.isPending ? (
         <div
           role="status"
-          aria-label="Loading your profile"
+          aria-label={t("loadingLabel")}
           className="grid gap-6 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]"
         >
           <Skeleton className="h-80 rounded-xl" />
@@ -125,13 +121,13 @@ export function ProfileOverview() {
             <Skeleton className="h-64 rounded-xl" />
             <Skeleton className="h-12" />
           </div>
-          <span className="sr-only">Loading your profile…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : !query.data ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">We couldn&apos;t load your profile</h2>
+          <h2 className="font-semibold">{t("loadFailed.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Please try again in a moment.
+            {t("loadFailed.description")}
           </p>
           <Button
             className="mt-4"
@@ -139,7 +135,7 @@ export function ProfileOverview() {
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Retry
+            {t("loadFailed.retry")}
           </Button>
         </div>
       ) : (
@@ -148,13 +144,13 @@ export function ProfileOverview() {
           <div className="min-w-0 space-y-4">
             {query.error && (
               <p role="alert" className="rounded-xl border p-4 text-sm">
-                Unable to refresh your profile. Your draft is still here.{" "}
+                {t("refreshFailed")}{" "}
                 <Button
                   variant="link"
                   disabled={query.isFetching}
                   onClick={() => void query.refetch()}
                 >
-                  Retry
+                  {t("refreshRetry")}
                 </Button>
               </p>
             )}

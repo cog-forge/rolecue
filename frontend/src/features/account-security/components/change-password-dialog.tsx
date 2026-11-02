@@ -41,6 +41,7 @@ export function ChangePasswordDialog({
   onOpenChange,
   onNoPassword,
 }: ChangePasswordDialogProps) {
+  const t = useTranslations("auth.security.changePassword");
   const [busy, setBusy] = useState(false);
   return (
     <Dialog
@@ -52,10 +53,8 @@ export function ChangePasswordDialog({
     >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Change password</DialogTitle>
-          <DialogDescription>
-            Confirm your current password, then choose a new one.
-          </DialogDescription>
+          <DialogTitle>{t("title")}</DialogTitle>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         <ChangePasswordForm
           onBusyChange={setBusy}
@@ -79,6 +78,7 @@ function ChangePasswordForm({
   onDone: () => void;
   onNoPassword: () => void;
 }) {
+  const t = useTranslations("auth.security.changePassword");
   const v = useTranslations("validation");
   const changePasswordSchema = useMemo(
     () => createChangePasswordSchema(v),
@@ -110,13 +110,13 @@ function ChangePasswordForm({
   });
   // Mirrors changePasswordSchema so the rules are visible before submitting.
   const requirements = [
-    { label: "At least 8 characters", met: newPassword.length >= 8 },
+    { label: t("minLength"), met: newPassword.length >= 8 },
     {
-      label: "Different from your current password",
+      label: t("different"),
       met: newPassword.length > 0 && newPassword !== currentPassword,
     },
     {
-      label: "Both new passwords match",
+      label: t("match"),
       met: confirmPassword.length > 0 && newPassword === confirmPassword,
     },
   ];
@@ -165,10 +165,10 @@ function ChangePasswordForm({
         else setMessage(te("auth.changePasswordFailed"));
         return;
       }
-      gooeyToast.success("Password updated", {
+      gooeyToast.success(t("updatedTitle"), {
         description: revokeOtherSessions
-          ? "Your other devices have been signed out."
-          : "Use your new password the next time you sign in.",
+          ? t("updatedRevoked")
+          : t("updatedKept"),
       });
       void cache.invalidateQueries({ queryKey: ["auth", "me"] });
       void cache.invalidateQueries({ queryKey: credentialsKeys.all });
@@ -189,26 +189,26 @@ function ChangePasswordForm({
     >
       <PasswordField
         id="current-password"
-        label="Current password"
+        label={t("current")}
         autoComplete="current-password"
         error={errors.currentPassword}
         registration={register("currentPassword")}
       />
       <PasswordField
         id="new-password"
-        label="New password"
+        label={t("new")}
         autoComplete="new-password"
         error={errors.newPassword}
         registration={register("newPassword")}
       />
       <PasswordField
         id="confirm-new-password"
-        label="Confirm new password"
+        label={t("confirm")}
         autoComplete="new-password"
         error={errors.confirmPassword}
         registration={register("confirmPassword")}
       />
-      <ul aria-label="Password requirements" className="space-y-1.5">
+      <ul aria-label={t("requirements")} className="space-y-1.5">
         {requirements.map((requirement) => (
           <li
             key={requirement.label}
@@ -224,7 +224,7 @@ function ChangePasswordForm({
             )}
             {requirement.label}
             <span className="sr-only">
-              {requirement.met ? "(met)" : "(not met)"}
+              {requirement.met ? t("met") : t("notMet")}
             </span>
           </li>
         ))}
@@ -244,9 +244,9 @@ function ChangePasswordForm({
               htmlFor="revoke-other-sessions"
               className="text-sm leading-snug"
             >
-              Sign out of other devices
+              {t("revoke")}
               <span className="block text-xs text-muted-foreground">
-                This device stays signed in.
+                {t("revokeHint")}
               </span>
             </label>
           </div>
@@ -265,7 +265,7 @@ function ChangePasswordForm({
           onClick={onDone}
           disabled={isSubmitting}
         >
-          Cancel
+          {t("cancel")}
         </Button>
         <Button
           type="submit"
@@ -276,7 +276,7 @@ function ChangePasswordForm({
           {isSubmitting && (
             <LoaderCircle className="animate-spin" aria-hidden />
           )}
-          {isSubmitting ? "Updating…" : "Update password"}
+          {isSubmitting ? t("updating") : t("update")}
         </Button>
       </DialogFooter>
     </form>

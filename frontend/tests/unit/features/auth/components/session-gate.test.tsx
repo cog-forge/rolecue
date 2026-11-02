@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { RoleGate } from "@/features/auth/components/role-gate";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
@@ -42,7 +43,7 @@ function mount(
   role?: "candidate" | "recruiter" | "admin",
   client = new QueryClient({ defaultOptions: { queries: { gcTime: 0 } } }),
 ) {
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <SessionGate>
         {role ? (

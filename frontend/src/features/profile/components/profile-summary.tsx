@@ -1,14 +1,16 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Check, ShieldCheck } from "lucide-react";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { roleLabels } from "@/config/navigation";
 import { routes } from "@/config/routes";
 import type { Profile } from "../schemas/profile-schema";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function ProfileSummary({ profile }: { profile: Profile }) {
+  const t = useTranslations("common.profile.summary");
+  const roles = useTranslations("common.shell.roles");
   const fmt = useFormatters();
   return (
     <Card className="h-fit gap-0 py-6">
@@ -25,26 +27,26 @@ export function ProfileSummary({ profile }: { profile: Profile }) {
               {profile.full_name}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {roleLabels[profile.role]}
+              {roles(profile.role)}
             </p>
           </div>
         </div>
         <dl className="space-y-4 border-t pt-5 text-sm">
           <div className="space-y-1">
-            <dt className="text-muted-foreground">Email address</dt>
+            <dt className="text-muted-foreground">{t("email")}</dt>
             <dd className="wrap-anywhere font-medium">{profile.email}</dd>
           </div>
           <div className="space-y-1">
-            <dt className="text-muted-foreground">Email status</dt>
+            <dt className="text-muted-foreground">{t("emailStatus")}</dt>
             <dd className="flex items-center gap-1.5 font-medium">
               {profile.email_verified && (
                 <Check className="size-4 text-workspace-accent" aria-hidden />
               )}
-              {profile.email_verified ? "Verified" : "Unverified"}
+              {profile.email_verified ? t("verified") : t("unverified")}
             </dd>
           </div>
           <div className="space-y-1">
-            <dt className="text-muted-foreground">Member since</dt>
+            <dt className="text-muted-foreground">{t("memberSince")}</dt>
             <dd className="font-medium">
               {fmt.date(profile.created_at, "monthYear")}
             </dd>
@@ -52,12 +54,12 @@ export function ProfileSummary({ profile }: { profile: Profile }) {
         </dl>
         <div className="border-t pt-5">
           <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
-            Manage your password and account security in settings.
+            {t("securityHint")}
           </p>
           <Button variant="outline" asChild className="w-full">
             <Link href={routes.settings}>
               <ShieldCheck aria-hidden />
-              Account security
+              {t("security")}
             </Link>
           </Button>
         </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
   ArrowRight,
@@ -33,7 +34,10 @@ import {
   inventoryFailure,
   isAccessDenied,
 } from "../api/inventory";
-import { downloadAvaturnExport } from "../api/avaturn-export";
+import {
+  AvaturnExportError,
+  downloadAvaturnExport,
+} from "../api/avaturn-export";
 import type { Avatar, AvatarMetadata } from "../schemas/avatar-schema";
 import { AvatarDetailsForm } from "./avatar-details-form";
 import { AvaturnCreator } from "./avaturn-creator";
@@ -58,50 +62,25 @@ type Stage =
   | "failed";
 
 // Each confirmed failure returns before the avatar row is inserted, so resending is safe.
-const saveFailures: Record<string, { message: string; retry: boolean }> = {
-  VALIDATION_ERROR: {
-    message:
-      "RoleCue couldn't read this avatar export. Export it again in Avaturn.",
-    retry: false,
-  },
-  AVATAR_SOURCE_UNSUPPORTED: {
-    message:
-      "This avatar can't be used as an interviewer. Choose an avatar with facial animation (T2), then export it again.",
-    retry: false,
-  },
-  AVATAR_SOURCE_TOO_LARGE: {
-    message:
-      "This avatar is larger than the 50 MB upload limit. Export a lighter version.",
-    retry: false,
-  },
-  INVENTORY_FULL: {
-    message:
-      "Your inventory filled up before this avatar was saved. Free or buy a slot in your inventory, then try saving again.",
-    retry: true,
-  },
-  AVATAR_CONVERTER_UNAVAILABLE: {
-    message:
-      "Avatar conversion is busy right now. Nothing was saved; try again in a minute.",
-    retry: true,
-  },
-  AVATAR_CONVERSION_TIMEOUT: {
-    message:
-      "Converting this avatar took too long. Nothing was saved; try again.",
-    retry: true,
-  },
-  AVATAR_CONVERSION_FAILED: {
-    message:
-      "We couldn't convert this avatar. Nothing was saved; try again or export it again.",
-    retry: true,
-  },
-  AVATAR_PERSISTENCE_FAILED: {
-    message:
-      "We couldn't store this avatar. Nothing was saved; try again in a minute.",
-    retry: true,
-  },
-};
+const saveFailures = {
+  VALIDATION_ERROR: { key: "validation", retry: false },
+  AVATAR_SOURCE_UNSUPPORTED: { key: "unsupported", retry: false },
+  AVATAR_SOURCE_TOO_LARGE: { key: "tooLarge", retry: false },
+  INVENTORY_FULL: { key: "inventoryFull", retry: true },
+  AVATAR_CONVERTER_UNAVAILABLE: { key: "converterUnavailable", retry: true },
+  AVATAR_CONVERSION_TIMEOUT: { key: "conversionTimeout", retry: true },
+  AVATAR_CONVERSION_FAILED: { key: "conversionFailed", retry: true },
+  AVATAR_PERSISTENCE_FAILED: { key: "persistenceFailed", retry: true },
+} as const;
+
+function knownSaveFailure(code: string) {
+  return Object.hasOwn(saveFailures, code)
+    ? saveFailures[code as keyof typeof saveFailures]
+    : undefined;
+}
 
 function PersonalAvatarStudio({ userId }: { userId: string }) {
+  const t = useTranslations("candidate.avatarStudio");
   const url = getAvaturnProjectUrl();
   const cache = useQueryClient();
   const [stage, setStage] = useState<Stage>("ready");
@@ -190,7 +169,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
         if (failure.denied)
           void cache.invalidateQueries({ queryKey: ["auth", "me"] });
         const known = failure.confirmed
-          ? saveFailures[failure.code]
+          ? knownSaveFailure(failure.code)
           : undefined;
         if (!failure.confirmed) {
           // Never resend after an unconfirmed outcome: the first request may have saved it.
@@ -202,8 +181,8 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
           setCanRetry(!!known?.retry);
           setError(
             failure.denied
-              ? "Your session can't save avatars right now. Sign in again, then create the avatar again."
-              : (known?.message ?? "We couldn't save this avatar. Try again."),
+              ? t("saveErrors.denied")
+              : t(`saveErrors.${known?.key ?? "generic"}`),
           );
           setStage("failed");
         }
@@ -213,7 +192,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
         void cache.invalidateQueries({ queryKey: avatarKeys.all(userId) });
       }
     },
-    [mutateAsync, reset, cache, userId],
+    [mutateAsync, reset, cache, userId, t],
   );
 
   const receiveExport = useCallback(
@@ -231,9 +210,9 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
         } catch (cause) {
           if (!mounted.current || abort.signal.aborted) return;
           setError(
-            cause instanceof Error
-              ? cause.message
-              : "We couldn't read the avatar export. Try exporting again.",
+            cause instanceof AvaturnExportError
+              ? t(`exportErrors.${cause.code}`)
+              : t("exportErrors.generic"),
           );
           exportLocked.current = false;
           setStage("editing");
@@ -244,7 +223,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
         await submit(file, metadata);
       })();
     },
-    [metadata, submit],
+    [metadata, submit, t],
   );
 
   const canCreate =
@@ -265,20 +244,19 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
     >
       <Button asChild variant="ghost" className="-ml-3 h-11 px-3">
         <Link href={routes.avatarStudio}>
-          <ArrowLeft aria-hidden /> Personal Avatar Studio
+          <ArrowLeft aria-hidden /> {t("header.back")}
         </Link>
       </Button>
       <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
         <div className="space-y-3">
           <p className="text-xs font-semibold tracking-widest text-workspace-accent uppercase">
-            Your interviewer, your way
+            {t("header.eyebrow")}
           </p>
           <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Create an avatar
+            {t("header.title")}
           </h1>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            A familiar face for your next interview. Add a personality, create
-            the look in Avaturn, and make it part of your practice.
+            {t("header.intro")}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3 rounded-xl border bg-card p-3 sm:min-w-64">
@@ -291,16 +269,21 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
           <div className="flex-1">
             <p role="status" className="text-xs font-medium">
               {capacity.isPending
-                ? "Checking avatar slots…"
+                ? t("header.slotsChecking")
                 : capacity.error
-                  ? "Couldn't check your avatar slots."
+                  ? t("header.slotsFailed")
                   : capacity.data
-                    ? `${capacity.data.used} of ${capacity.data.capacity} avatar slots used`
-                    : "Avatar slots unavailable."}
+                    ? t("header.slotsUsed", {
+                        used: capacity.data.used,
+                        capacity: capacity.data.capacity,
+                      })
+                    : t("header.slotsUnavailable")}
             </p>
             {capacity.data && (
               <p className="mt-1 text-xs text-muted-foreground">
-                {capacity.data.available} available for your next creation
+                {t("header.slotsAvailable", {
+                  available: capacity.data.available,
+                })}
               </p>
             )}
           </div>
@@ -308,8 +291,8 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
             className="size-11"
             size="icon"
             variant="ghost"
-            aria-label="Refresh slots"
-            title="Refresh slots"
+            aria-label={t("header.refresh")}
+            title={t("header.refresh")}
             disabled={capacity.isFetching}
             onClick={() => void capacity.refetch()}
           >
@@ -327,7 +310,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
       <StudioJourney current={step} complete={stage === "success"} />
       {!url && (
         <p role="alert" className="rounded-xl border bg-muted p-4 text-sm">
-          The Avaturn project is not configured. Please contact support.
+          {t("notConfigured")}
         </p>
       )}
       {capacity.data?.is_full &&
@@ -336,15 +319,12 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
             role="alert"
             className="space-y-1 rounded-xl border bg-muted p-4 text-sm"
           >
-            <p>
-              Your avatar inventory is full. Delete an avatar or buy more slots
-              before creating another one.
-            </p>
+            <p>{t("inventoryFull.message")}</p>
             <Link
               href={routes.avatarStudio}
               className="font-medium underline underline-offset-4"
             >
-              Manage your inventory
+              {t("inventoryFull.manage")}
             </Link>
           </div>
         )}
@@ -367,7 +347,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
                 if (file && metadata) void submit(file, metadata);
               }}
             >
-              <RotateCcw aria-hidden /> Try saving again
+              <RotateCcw aria-hidden /> {t("retrySave")}
             </Button>
           )}
         </div>
@@ -381,10 +361,10 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
                 tabIndex={-1}
                 className="text-xl font-semibold break-words tracking-tight outline-none"
               >
-                Creating {metadata?.name}
+                {t("creating.title", { name: metadata?.name ?? "" })}
               </h2>
               <p className="text-sm text-muted-foreground">
-                Take your photos, customize the look, then choose Next to save.
+                {t("creating.intro")}
               </p>
             </div>
             <Button
@@ -392,7 +372,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
               variant="outline"
               onClick={() => setConfirmClose(true)}
             >
-              <X aria-hidden /> Close creator
+              <X aria-hidden /> {t("creating.close")}
             </Button>
           </div>
           <div
@@ -419,51 +399,57 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
                   />
                   <span
                     className="t-shimmer"
-                    data-text="Reading your exported avatar…"
+                    data-text={t("creating.reading")}
                     aria-hidden
                   >
-                    Reading your exported avatar…
+                    {t("creating.reading")}
                   </span>
-                  <span className="sr-only">Reading your exported avatar…</span>
+                  <span className="sr-only">{t("creating.reading")}</span>
                 </p>
               )}
             </div>
             <aside
-              aria-label="Your avatar details"
+              aria-label={t("creating.asideLabel")}
               className={cn(
                 "space-y-5 rounded-2xl border bg-card p-5",
                 focusMode && "hidden",
               )}
             >
               <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-                Your avatar
+                {t("creating.asideTitle")}
               </p>
               <dl className="space-y-4">
                 <div>
-                  <dt className="text-xs text-muted-foreground">Name</dt>
+                  <dt className="text-xs text-muted-foreground">
+                    {t("creating.name")}
+                  </dt>
                   <dd className="mt-1 text-sm font-medium break-words">
                     {metadata?.name}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-muted-foreground">Personality</dt>
+                  <dt className="text-xs text-muted-foreground">
+                    {t("creating.personality")}
+                  </dt>
                   <dd className="mt-1 text-sm leading-relaxed break-words">
                     {metadata?.personality}
                   </dd>
                 </div>
               </dl>
               <div className="space-y-2 border-t pt-5">
-                <h3 className="text-sm font-medium">Before you finish</h3>
+                <h3 className="text-sm font-medium">
+                  {t("creating.beforeTitle")}
+                </h3>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  Use an avatar with facial animation support (T2). RoleCue
-                  needs it for an expressive interviewer.
+                  {t("creating.beforeBody")}
                 </p>
               </div>
               <div className="space-y-2 border-t pt-5">
-                <h3 className="text-sm font-medium">The final step</h3>
+                <h3 className="text-sm font-medium">
+                  {t("creating.finalTitle")}
+                </h3>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  Choose Next inside Avaturn. We’ll handle the save and confirm
-                  when your avatar is in your inventory.
+                  {t("creating.finalBody")}
                 </p>
               </div>
             </aside>
@@ -481,24 +467,24 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
             />
           </span>
           <p className="mb-2 text-xs font-medium tracking-wider text-muted-foreground uppercase">
-            Step 03 / Save
+            {t("processing.step")}
           </p>
           <h2
             ref={stageHeading}
             tabIndex={-1}
             className="t-shimmer text-2xl font-semibold tracking-tight outline-none"
-            data-text="Processing avatar"
-            aria-label="Processing avatar"
+            data-text={t("processing.title")}
+            aria-label={t("processing.title")}
           >
-            Processing avatar
+            {t("processing.title")}
           </h2>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Converting and saving {metadata?.name || "your avatar"}. This can
-            take a few minutes.
+            {t("processing.body", {
+              name: metadata?.name || t("processing.bodyFallback"),
+            })}
           </p>
           <p className="mt-8 max-w-sm text-xs leading-relaxed text-muted-foreground">
-            Keep this page open to see the result. Saving may continue if you
-            leave.
+            {t("processing.keepOpen")}
           </p>
         </div>
       ) : stage === "success" && saved ? (
@@ -511,22 +497,21 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
               <Check className="size-6 text-rolecue-brand animate-in zoom-in duration-(--duration-slow) motion-reduce:animate-none" />
             </span>
             <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-              Saved to your personal inventory
+              {t("success.eyebrow")}
             </p>
             <h2
               ref={stageHeading}
               tabIndex={-1}
               className="text-2xl font-semibold break-words tracking-tight outline-none"
             >
-              {saved.name} has been saved
+              {t("success.title", { name: saved.name })}
             </h2>
             <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Your personal avatar is in your inventory. Preview it in 3D or
-              create another character.
+              {t("success.body")}
             </p>
             <div className="max-w-xl border-t pt-4">
               <p className="text-xs font-medium text-muted-foreground">
-                Personality
+                {t("success.personality")}
               </p>
               <p className="mt-2 text-sm leading-relaxed break-words">
                 {saved.personality}
@@ -536,11 +521,11 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Button className="min-h-11 px-4" asChild>
               <Link href={routes.avatarStudioPreview(saved.id)}>
-                <Eye aria-hidden /> Preview in 3D
+                <Eye aria-hidden /> {t("success.preview")}
               </Link>
             </Button>
             <Button className="min-h-11 px-4" variant="outline" asChild>
-              <Link href={routes.avatarStudio}>Back to inventory</Link>
+              <Link href={routes.avatarStudio}>{t("success.back")}</Link>
             </Button>
             <Button
               className="min-h-11 px-4"
@@ -550,7 +535,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
                 setStage("ready");
               }}
             >
-              Create another avatar
+              {t("success.another")}
             </Button>
           </div>
         </div>
@@ -561,17 +546,14 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
             tabIndex={-1}
             className="text-xl font-semibold outline-none"
           >
-            Check your inventory before trying again
+            {t("unknown.title")}
           </h2>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            We couldn&apos;t confirm whether your avatar was saved. Saving was
-            sent to RoleCue and may still finish; closing or reloading this page
-            does not cancel it. Your export will not be resent, because sending
-            it again could create a duplicate.
+            {t("unknown.body")}
           </p>
           <Button className="mt-2 min-h-11 px-4" variant="outline" asChild>
             <Link href={routes.avatarStudio}>
-              Check inventory <ArrowRight aria-hidden />
+              {t("unknown.check")} <ArrowRight aria-hidden />
             </Link>
           </Button>
         </div>
@@ -593,9 +575,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
                   fresh.data.is_full ||
                   fresh.data.available <= 0
                 ) {
-                  setError(
-                    "An available avatar slot couldn't be confirmed. Refresh slots and try again.",
-                  );
+                  setError(t("slotNotConfirmed"));
                   return;
                 }
                 exportLocked.current = false;
@@ -610,18 +590,15 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
       )}
       <Dialog open={confirmClose} onOpenChange={setConfirmClose}>
         <DialogContent>
-          <DialogTitle>Discard this avatar draft?</DialogTitle>
-          <DialogDescription>
-            Your unsaved export will be discarded. No avatar has been sent to
-            RoleCue yet.
-          </DialogDescription>
+          <DialogTitle>{t("discard.title")}</DialogTitle>
+          <DialogDescription>{t("discard.description")}</DialogDescription>
           <DialogFooter>
             <Button
               className="min-h-11"
               variant="outline"
               onClick={() => setConfirmClose(false)}
             >
-              Keep editing
+              {t("discard.keep")}
             </Button>
             <Button
               className="min-h-11"
@@ -636,7 +613,7 @@ function PersonalAvatarStudio({ userId }: { userId: string }) {
                 setConfirmClose(false);
               }}
             >
-              Discard draft
+              {t("discard.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

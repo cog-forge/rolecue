@@ -1,15 +1,10 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { CandidateApplication } from "../schemas/candidate-application-schema";
 
-const labels = ["Applied", "CV review", "Interview", "Decision"] as const;
+const labels = ["applied", "review", "interview", "decision"] as const;
 type StepState = "done" | "current" | "ended" | "upcoming";
 
-const stateText: Record<StepState, string> = {
-  done: "done",
-  current: "in progress",
-  ended: "ended here",
-  upcoming: "not reached",
-};
 const barClass: Record<StepState, string> = {
   done: "bg-foreground/70",
   current: "bg-rolecue-brand",
@@ -60,10 +55,11 @@ export function ApplicationProgress({
   >;
   className?: string;
 }) {
+  const t = useTranslations("candidate.applications.progress");
   const states = progressSteps(application);
   return (
     <ol
-      aria-label="Application progress"
+      aria-label={t("label")}
       className={cn("grid grid-cols-4 gap-1.5", className)}
     >
       {labels.map((label, i) => (
@@ -78,14 +74,16 @@ export function ApplicationProgress({
           />
           <span
             className={cn(
-              "block truncate text-xs",
+              "block text-xs break-words",
               states[i] === "upcoming"
                 ? "text-muted-foreground"
                 : "font-medium text-foreground",
             )}
           >
-            {label}
-            <span className="sr-only">: {stateText[states[i]]}</span>
+            {t(`steps.${label}`)}
+            <span className="sr-only">
+              {t("stateAnnounce", { state: t(`state.${states[i]}`) })}
+            </span>
           </span>
         </li>
       ))}

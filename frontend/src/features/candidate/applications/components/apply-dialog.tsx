@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { CircleCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +36,7 @@ export function ApplyDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const t = useTranslations("candidate.applications.apply");
   const [busy, setBusy] = useState(false);
   const [created, setCreated] = useState<CreatedApplication | null>(null);
   const where = [posting.company_name, posting.location]
@@ -55,10 +57,9 @@ export function ApplyDialog({
               <span className="mb-1 flex size-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
                 <CircleCheck className="size-5" aria-hidden />
               </span>
-              <DialogTitle>Application sent</DialogTitle>
+              <DialogTitle>{t("sentTitle")}</DialogTitle>
               <DialogDescription>
-                Your CV for {posting.title} is with the recruiter. Here is what
-                happens next.
+                {t("sentBody", { title: posting.title })}
               </DialogDescription>
             </DialogHeader>
             <HiringSteps current={0} className="rounded-xl border p-4" />
@@ -69,22 +70,19 @@ export function ApplyDialog({
                 className="h-11"
                 onClick={() => onOpenChange(false)}
               >
-                Keep browsing
+                {t("keepBrowsing")}
               </Button>
               <Button asChild className="h-11">
-                <Link href={applicationHref(created.id)}>
-                  View my application
-                </Link>
+                <Link href={applicationHref(created.id)}>{t("viewMine")}</Link>
               </Button>
             </DialogFooter>
           </>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Apply for {posting.title}</DialogTitle>
+              <DialogTitle>{t("title", { title: posting.title })}</DialogTitle>
               <DialogDescription>
-                {where ? `${where}. ` : ""}The recruiter reviews your CV first;
-                no interview starts from this step.
+                {where ? t("descriptionWhere", { where }) : t("description")}
               </DialogDescription>
             </DialogHeader>
             <CvApplyForm

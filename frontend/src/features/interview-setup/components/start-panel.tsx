@@ -3,6 +3,7 @@
 import { useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
 import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
@@ -39,12 +40,12 @@ export type StartPlan =
       callout: ReactNode;
     };
 
-const micHints: Record<Exclude<MicrophoneReadiness, "ready">, string> = {
-  "not-ready": "Turn on your microphone to start.",
-  muted: "Unmute your microphone to start.",
-  interrupted: "Your microphone needs attention. Retry the check to start.",
-  error: "Your microphone needs attention. Retry the check to start.",
-};
+const micHintKeys = {
+  "not-ready": "notReady",
+  muted: "muted",
+  interrupted: "attention",
+  error: "attention",
+} as const satisfies Record<Exclude<MicrophoneReadiness, "ready">, string>;
 
 const deniedCodes = new Set(["FORBIDDEN", "INVALID_TOKEN", "USER_INACTIVE"]);
 
@@ -64,6 +65,9 @@ export function StartPanel({
   /** Extra facts for a new start (the recruitment deadline). */
   children?: ReactNode;
 }) {
+  const t = useTranslations("candidate.setup.startPanel");
+  const tSetup = useTranslations("candidate.setup");
+  const errorsT = useTranslations("candidate.setup.startErrors");
   const fmt = useFormatters();
   const user = useSessionUser();
   const router = useRouter();
@@ -113,8 +117,8 @@ export function StartPanel({
       // A 200 to a new start is a session that already existed. It may be a replay of a start
       // that was charged, so nothing is said about coins.
       if (existing)
-        gooeyToast.info("Opening your existing interview", {
-          description: "You already had this interview in progress.",
+        gooeyToast.info(t("existing.title"), {
+          description: t("existing.description"),
         });
       router.push(routes.interviews.room(session.id));
     },
@@ -151,28 +155,32 @@ export function StartPanel({
   const micReady = readiness === "ready";
   const disabled = busy || !micReady || walletBlocks;
   const problem = start.isError
-    ? describeStartFailure(startFailure(start.error), {
-        type,
-        resume: plan.kind === "resume",
-        balance,
-      })
+    ? describeStartFailure(
+        startFailure(start.error),
+        {
+          type,
+          resume: plan.kind === "resume",
+          balance,
+        },
+        errorsT,
+      )
     : null;
   const resume = plan.kind === "resume";
   const label = start.isSuccess
-    ? "Opening the interview room…"
+    ? t("label.opening")
     : start.isPending
       ? resume
-        ? "Resuming…"
-        : "Starting…"
+        ? t("label.resuming")
+        : t("label.starting")
       : resume
-        ? "Resume interview"
+        ? tSetup("resume.action")
         : paid
-          ? `Start interview · ${PRACTICE_SESSION_COINS} coins`
-          : "Start interview";
+          ? t("label.startPaid", { cost: fmt.coins(PRACTICE_SESSION_COINS) })
+          : t("label.start");
   const hint = !micReady
-    ? micHints[readiness]
+    ? t(`hint.${micHintKeys[readiness]}`)
     : paid && wallet.isError
-      ? "Start is unavailable until your balance loads."
+      ? t("hint.balance")
       : null;
 
   const action = (
@@ -188,7 +196,7 @@ export function StartPanel({
       )}
       <Button
         type="button"
-        className="h-11 w-full"
+        className="h-auto min-h-11 whitespace-normal py-2 w-full"
         disabled={disabled}
         aria-describedby={hint ? `${ids}-hint` : undefined}
         onClick={() => start.mutate(plan)}
@@ -228,33 +236,35 @@ export function StartPanel({
     >
       <div className="space-y-1">
         <h2 id={`${ids}-title`} className="font-semibold">
-          {paid ? "Practice interview" : "Recruitment interview"}
+          {paid ? t("practiceTitle") : t("recruitmentTitle")}
         </h2>
         <p className="text-sm text-muted-foreground">
           {paid
-            ? `${PRACTICE_SESSION_COINS} coins are charged once, when the interview starts. Resuming it later is free.`
-            : "Free for you. The company covers this interview."}
+            ? t("practiceNote", { cost: fmt.coins(PRACTICE_SESSION_COINS) })
+            : t("recruitmentNote")}
         </p>
       </div>
 
       {paid && (
         <dl className="divide-y rounded-lg border text-sm">
           <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-muted-foreground">Price</dt>
+            <dt className="text-muted-foreground">{t("price")}</dt>
             <dd className="flex items-center gap-1.5 font-semibold tabular-nums">
               <CoinIcon className="size-4" />
-              {PRACTICE_SESSION_COINS} coins
+              {fmt.coins(PRACTICE_SESSION_COINS)}
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-muted-foreground">Your balance</dt>
+            <dt className="text-muted-foreground">{t("balance")}</dt>
             <dd className="font-semibold tabular-nums">
               {wallet.isPending ? (
                 <Skeleton className="h-5 w-16" />
               ) : wallet.isError ? (
                 "—"
               ) : (
-                `${balance === undefined ? "" : fmt.coinAmount(balance)} coins`
+                t("balanceValue", {
+                  amount: balance === undefined ? "" : fmt.coinAmount(balance),
+                })
               )}
             </dd>
           </div>
@@ -267,34 +277,35 @@ export function StartPanel({
           role="alert"
           className="flex flex-wrap items-center justify-between gap-3 text-sm"
         >
-          <p>We couldn&apos;t load your balance.</p>
+          <p>{t("balanceFailed")}</p>
           <Button
             type="button"
             variant="outline"
-            className="h-11"
+            className="h-auto min-h-11 whitespace-normal py-2"
             disabled={wallet.isFetching}
             onClick={() => void wallet.refetch()}
           >
-            Try again
+            {tSetup("tryAgain")}
           </Button>
         </div>
       )}
       {short > 0 && !problem && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/60 p-3 text-sm">
           <p>
-            You need{" "}
-            <span className="font-semibold tabular-nums">
-              {short} more {short === 1 ? "coin" : "coins"}
-            </span>{" "}
-            to start.
+            {t.rich("needMore", {
+              count: short,
+              amount: (chunks) => (
+                <span className="font-semibold tabular-nums">{chunks}</span>
+              ),
+            })}
           </p>
           <Button
             type="button"
             variant="outline"
-            className="h-11 bg-background"
+            className="h-auto min-h-11 whitespace-normal py-2 bg-background"
             onClick={() => setAddingCoins(true)}
           >
-            <CoinIcon className="size-4" /> Add coins
+            <CoinIcon className="size-4" /> {t("addCoins")}
           </Button>
         </div>
       )}
@@ -327,8 +338,14 @@ function Problem({
   onAddCoins: () => void;
   onStartNew: () => void;
 }) {
+  const t = useTranslations("candidate.setup.startPanel.action");
+  const tPanel = useTranslations("candidate.setup.startPanel");
   const link = (href: string, text: string) => (
-    <Button asChild variant="outline" className="h-11 bg-background">
+    <Button
+      asChild
+      variant="outline"
+      className="h-auto min-h-11 whitespace-normal py-2 bg-background"
+    >
       <Link href={href}>{text}</Link>
     </Button>
   );
@@ -338,10 +355,10 @@ function Problem({
       <Button
         type="button"
         variant="outline"
-        className="h-11 bg-background"
+        className="h-auto min-h-11 whitespace-normal py-2 bg-background"
         onClick={onAddCoins}
       >
-        <CoinIcon className="size-4" /> Add coins
+        <CoinIcon className="size-4" /> {tPanel("addCoins")}
       </Button>
     );
   else if (action === "start-new")
@@ -349,28 +366,25 @@ function Problem({
       <Button
         type="button"
         variant="outline"
-        className="h-11 bg-background"
+        className="h-auto min-h-11 whitespace-normal py-2 bg-background"
         onClick={onStartNew}
       >
-        Set up a new interview
+        {t("startNew")}
       </Button>
     );
   else if (action === "role-profile" && roleProfileId)
-    control = link(
-      routes.roleProfiles.detail(roleProfileId),
-      "Open Role Profile",
-    );
+    control = link(routes.roleProfiles.detail(roleProfileId), t("openProfile"));
   else if (action === "setup")
-    control = link(routes.interviews.new.setup, "Choose a Role Profile");
+    control = link(routes.interviews.new.setup, t("chooseProfile"));
   else if (action === "interviewer" && roleProfileId)
     control = link(
       setupHref(routes.interviews.new.interviewer, { roleProfileId }),
-      "Change interviewer",
+      t("changeInterviewer"),
     );
   else if (action === "application" && applicationId)
-    control = link(routes.application(applicationId), "Back to application");
+    control = link(routes.application(applicationId), t("backToApplication"));
   else if (action === "applications")
-    control = link(routes.applications, "Back to applications");
+    control = link(routes.applications, t("backToApplications"));
 
   return (
     <div

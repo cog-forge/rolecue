@@ -178,3 +178,29 @@ test("admin has no personal purchase control or wallet requests", async ({
   ).toHaveCount(0);
   expect(walletRequests).toBe(0);
 });
+
+test("the transaction history and coin dialog speak Vietnamese when NEXT_LOCALE is vi", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await walletSession(page, "candidate");
+  await page.goto("/billing");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Lịch sử giao dịch" }),
+  ).toBeVisible();
+  await expect(page.getByRole("table", { name: "Giao dịch xu" })).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: "Tất cả giao dịch" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Thêm xu" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm xu" });
+  await expect(dialog).toBeVisible();
+  // The package name comes from the API and is not translated.
+  await expect(
+    dialog.getByRole("button", { name: "Mua Practice Pack bằng PayOS" }),
+  ).toBeVisible();
+});

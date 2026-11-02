@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { authClient } from "@/lib/auth/client";
 import { routes } from "@/config/routes";
 import { gooeyToast } from "goey-toast";
@@ -20,6 +21,7 @@ export function useEndLocalSession() {
 }
 
 export function useSignOut() {
+  const t = useTranslations("common.shell.signedOut");
   const endLocalSession = useEndLocalSession();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
@@ -30,14 +32,14 @@ export function useSignOut() {
     try {
       const result = await authClient.signOut();
       if (result.error) throw new Error("Sign out failed");
-      gooeyToast.success("Signed out", {
-        description: "You have safely signed out of RoleCue.",
+      gooeyToast.success(t("title"), {
+        description: t("description"),
       });
       await endLocalSession();
     } catch {
       setError(true);
-      gooeyToast.error("Sign-out failed", {
-        description: "You are still signed in. Please try again.",
+      gooeyToast.error(t("failedTitle"), {
+        description: t("failedDescription"),
       });
     } finally {
       setPending(false);

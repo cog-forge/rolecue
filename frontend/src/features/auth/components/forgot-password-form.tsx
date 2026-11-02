@@ -19,6 +19,7 @@ import {
 import { useTranslations } from "next-intl";
 
 export function ForgotPasswordForm() {
+  const t = useTranslations("auth.forgotPassword");
   const v = useTranslations("validation");
   const forgotPasswordSchema = useMemo(
     () => createForgotPasswordSchema(v),
@@ -43,13 +44,12 @@ export function ForgotPasswordForm() {
       if (result.error) throw new Error("Password reset request failed");
       // Keep the response generic so the UI does not reveal whether an account exists.
       setSubmitted(true);
-      gooeyToast.info("Check your inbox", {
-        description:
-          "If an account exists for that email, you will receive a password reset link shortly.",
+      gooeyToast.info(t("toastTitle"), {
+        description: t("toastDescription"),
       });
     } catch {
-      gooeyToast.error("Reset link could not be requested", {
-        description: "Please check your connection and try again in a moment.",
+      gooeyToast.error(t("error"), {
+        description: t("errorDescription"),
       });
     }
   };
@@ -59,11 +59,10 @@ export function ForgotPasswordForm() {
       <header className="mb-6 text-center">
         <RoleCueMark className="mx-auto size-28 object-contain" priority />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#121814]">
-          Reset your password
+          {t("title")}
         </h1>
         <p className="mt-1.5 text-sm leading-6 text-[#5c5c5c]">
-          Enter your email and we’ll send a password reset link if an account
-          exists.
+          {t("description")}
         </p>
       </header>
       {submitted ? (
@@ -72,8 +71,7 @@ export function ForgotPasswordForm() {
           aria-live="polite"
           className="rounded-xl border border-[#d9d9d9] bg-white p-4 text-center text-sm leading-6 text-[#595959] motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200"
         >
-          If an account exists for that email, you’ll receive a password reset
-          link shortly.
+          {t("sent")}
         </div>
       ) : (
         <form
@@ -89,7 +87,7 @@ export function ForgotPasswordForm() {
               htmlFor="forgot-email"
               className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
             >
-              Email address
+              {t("email")}
             </label>
             <Input
               id="forgot-email"
@@ -120,7 +118,7 @@ export function ForgotPasswordForm() {
             {isSubmitting && (
               <LoaderCircle className="animate-spin" aria-hidden />
             )}
-            {isSubmitting ? "Sending…" : "Send reset link"}
+            {isSubmitting ? t("sending") : t("send")}
           </Button>
         </form>
       )}
@@ -129,7 +127,7 @@ export function ForgotPasswordForm() {
           href={routes.login}
           className="rounded-sm font-semibold text-[#262626] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rolecue-brand"
         >
-          Back to sign in
+          {t("back")}
         </Link>
       </p>
     </div>

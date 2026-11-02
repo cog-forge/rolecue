@@ -37,6 +37,7 @@ export function TotpManagement({
   onChanged: () => Promise<void>;
   onAccessError: (error: unknown) => void;
 }) {
+  const t = useTranslations("auth.security");
   const v = useTranslations("validation");
   const currentPasswordSchema = useMemo(
     () => createCurrentPasswordSchema(v),
@@ -61,8 +62,8 @@ export function TotpManagement({
         securityData(await authClient.twoFactor.disable({ password }));
         form.reset();
         setAction(null);
-        gooeyToast.success("Authenticator disabled", {
-          description: "Password sign-in no longer asks for a code.",
+        gooeyToast.success(t("totp.disabledTitle"), {
+          description: t("totp.disabledDescription"),
         });
         await onChanged();
       } else {
@@ -71,8 +72,8 @@ export function TotpManagement({
         );
         form.reset();
         setCodes(result.backupCodes);
-        gooeyToast.success("Backup codes regenerated", {
-          description: "Your previous backup codes no longer work.",
+        gooeyToast.success(t("totp.regeneratedTitle"), {
+          description: t("totp.regeneratedDescription"),
         });
       }
     },
@@ -94,29 +95,29 @@ export function TotpManagement({
         <>
           <SecurityRow
             icon={<ListChecks />}
-            title="Backup codes"
-            description="Use one if you lose access to your authenticator. Each code works once."
+            title={t("totp.backupTitle")}
+            description={t("totp.backupDescription")}
             action={
               <Button
                 variant="outline"
                 className="min-h-11"
                 onClick={() => setAction("regenerate")}
               >
-                Regenerate backup codes
+                {t("totp.regenerate")}
               </Button>
             }
           />
           <SecurityRow
             icon={<ShieldOff />}
-            title="Turn off two-factor"
-            description="Password sign-in will no longer ask for a code."
+            title={t("totp.offTitle")}
+            description={t("totp.offDescription")}
             action={
               <Button
                 variant="destructive"
                 className="min-h-11"
                 onClick={() => setAction("disable")}
               >
-                Disable authenticator
+                {t("totp.disable")}
               </Button>
             }
           />
@@ -136,17 +137,17 @@ export function TotpManagement({
           <DialogHeader>
             <DialogTitle>
               {codes
-                ? "Save your new backup codes"
+                ? t("totp.saveNewTitle")
                 : action === "disable"
-                  ? "Disable authenticator?"
-                  : "Regenerate backup codes?"}
+                  ? t("totp.disableTitle")
+                  : t("totp.regenerateTitle")}
             </DialogTitle>
             <DialogDescription>
               {codes
-                ? "These codes replace your previous recovery codes."
+                ? t("totp.saveNewDescription")
                 : action === "disable"
-                  ? "This removes authenticator protection from password sign-in and invalidates your backup codes."
-                  : "Your old backup codes will stop working immediately. Save the replacement codes privately."}
+                  ? t("totp.disableDescription")
+                  : t("totp.regenerateDescription")}
             </DialogDescription>
           </DialogHeader>
           {codes ? (
@@ -157,7 +158,7 @@ export function TotpManagement({
                 className="min-h-11 w-full"
                 onClick={close}
               >
-                Close without saving
+                {t("totp.closeWithoutSaving")}
               </Button>
             </div>
           ) : (
@@ -169,7 +170,7 @@ export function TotpManagement({
             >
               <PasswordField
                 id="manage-totp-password"
-                label="Current password"
+                label={t("totp.currentPassword")}
                 autoComplete="current-password"
                 disabled={mutation.isPending}
                 error={form.formState.errors.password}
@@ -186,7 +187,7 @@ export function TotpManagement({
                   disabled={mutation.isPending}
                   onClick={close}
                 >
-                  Cancel
+                  {t("cancel")}
                 </Button>
                 <Button
                   type="submit"
@@ -199,10 +200,10 @@ export function TotpManagement({
                     <LoaderCircle className="animate-spin" aria-hidden />
                   )}
                   {mutation.isPending
-                    ? "Updating…"
+                    ? t("totp.updating")
                     : action === "disable"
-                      ? "Confirm disable"
-                      : "Generate new codes"}
+                      ? t("totp.confirmDisable")
+                      : t("totp.generate")}
                 </Button>
               </DialogFooter>
             </form>

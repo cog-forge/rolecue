@@ -9,8 +9,19 @@ export const roleSelectionSchema = z.object({
   role: z.enum(["candidate", "recruiter"]),
 });
 export type OnboardingRole = z.infer<typeof roleSelectionSchema>["role"];
-export function createOnboardingSchema(profile: Profile) {
-  return createProfileFormSchema(profile)
+export function createOnboardingSchema(
+  profile: Profile,
+  messages?: {
+    name: string;
+    image: string;
+    companyLength: string;
+    website: string;
+    companyRequired: string;
+    websiteRequired: string;
+    companyWebsiteInvalid: string;
+  },
+) {
+  return createProfileFormSchema(profile, messages)
     .safeExtend({
       company_website: z
         .string()
@@ -26,13 +37,13 @@ export function createOnboardingSchema(profile: Profile) {
         ctx.addIssue({
           code: "custom",
           path: ["company_name"],
-          message: "Enter your company name.",
+          message: messages?.companyRequired ?? "Enter your company name.",
         });
       if (!values.company_website.trim())
         ctx.addIssue({
           code: "custom",
           path: ["company_website"],
-          message: "Enter your company website.",
+          message: messages?.websiteRequired ?? "Enter your company website.",
         });
       if (
         values.company_website.trim() &&
@@ -41,7 +52,9 @@ export function createOnboardingSchema(profile: Profile) {
         ctx.addIssue({
           code: "custom",
           path: ["company_website"],
-          message: "Use a full HTTPS company website.",
+          message:
+            messages?.companyWebsiteInvalid ??
+            "Use a full HTTPS company website.",
         });
     });
 }

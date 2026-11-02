@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -31,6 +32,7 @@ export function DataTablePagination({
   onPageChange: (page: number) => void;
   label: string;
 }) {
+  const t = useTranslations("common.dataTable");
   const id = useId();
   const [jump, setJump] = useState("");
   const page = Math.floor(offset / pageSize) + 1;
@@ -45,8 +47,14 @@ export function DataTablePagination({
     <div className="flex flex-wrap items-center justify-between gap-4 border-t pt-4">
       <p role="status" className="text-xs text-muted-foreground">
         {total
-          ? `${offset + 1}–${Math.min(offset + pageSize, total)} of ${total} · Page ${page} of ${pages}`
-          : "0 results"}
+          ? t("results", {
+              start: String(offset + 1),
+              end: String(Math.min(offset + pageSize, total)),
+              total: String(total),
+              page: String(page),
+              pages: String(pages),
+            })
+          : t("noResults")}
       </p>
       <div className="flex flex-wrap items-center gap-4">
         <Pagination aria-label={label} className="mx-0 w-auto">
@@ -55,7 +63,7 @@ export function DataTablePagination({
               <Button
                 variant="outline"
                 className="size-11"
-                aria-label="First page"
+                aria-label={t("firstPage")}
                 disabled={disabled || page <= 1 || !pages}
                 onClick={() => onPageChange(1)}
               >
@@ -66,7 +74,7 @@ export function DataTablePagination({
               <Button
                 variant="outline"
                 className="size-11"
-                aria-label="Previous page"
+                aria-label={t("previousPage")}
                 disabled={disabled || page <= 1 || !pages}
                 onClick={() => onPageChange(page - 1)}
               >
@@ -88,7 +96,7 @@ export function DataTablePagination({
                 <Button
                   variant={number === page ? "secondary" : "ghost"}
                   className="size-11"
-                  aria-label={`Page ${number}`}
+                  aria-label={t("page", { number: String(number) })}
                   aria-current={number === page ? "page" : undefined}
                   disabled={disabled}
                   onClick={() => onPageChange(number)}
@@ -101,7 +109,7 @@ export function DataTablePagination({
               <Button
                 variant="outline"
                 className="size-11"
-                aria-label="Next page"
+                aria-label={t("nextPage")}
                 disabled={disabled || page >= pages || !pages}
                 onClick={() => onPageChange(page + 1)}
               >
@@ -112,7 +120,7 @@ export function DataTablePagination({
               <Button
                 variant="outline"
                 className="size-11"
-                aria-label="Last page"
+                aria-label={t("lastPage")}
                 disabled={disabled || page >= pages || !pages}
                 onClick={() => onPageChange(pages)}
               >
@@ -122,7 +130,7 @@ export function DataTablePagination({
           </PaginationContent>
         </Pagination>
         <form
-          aria-label="Go to page"
+          aria-label={t("goToPage")}
           className="flex items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
@@ -133,7 +141,7 @@ export function DataTablePagination({
           }}
         >
           <label htmlFor={id} className="text-xs text-muted-foreground">
-            Jump to page
+            {t("jumpTo")}
           </label>
           <Input
             id={id}
@@ -153,7 +161,7 @@ export function DataTablePagination({
             className="h-11"
             disabled={disabled || !validJump}
           >
-            Go
+            {t("go")}
           </Button>
         </form>
       </div>

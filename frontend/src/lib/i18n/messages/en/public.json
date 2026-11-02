@@ -1,5 +1,181 @@
 {
   "header": {
-    "signIn": "Sign in"
+    "signIn": "Sign in",
+    "features": "Features",
+    "how": "How it works",
+    "questions": "Questions",
+    "mainNavigation": "Main navigation",
+    "home": "RoleCue home",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation",
+    "explore": "Explore RoleCue",
+    "navigationDescription": "Site navigation and account access.",
+    "mobileNavigation": "Mobile navigation"
+  },
+  "terms": {
+    "title": "Terms of Service",
+    "metadataDescription": "Review the terms that apply to using RoleCue.",
+    "description": "Terms of service documentation will be published before production launch."
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "metadataDescription": "Learn how RoleCue handles account and product information.",
+    "description": "Privacy policy documentation will be published before production launch."
+  },
+  "landing": {
+    "focus": "Role-focused practice",
+    "footerNavigation": "Footer navigation",
+    "features": "Features",
+    "how": "How it works",
+    "questions": "Questions",
+    "start": "Start",
+    "madeFor": "Made for clearer technical conversations",
+    "meet": "Meet RoleCue",
+    "about": "RoleCue combines job context, spoken conversation and interview evaluation in one private practice space.",
+    "hero": {
+      "ariaLabel": "RoleCue hero",
+      "headline": "Walk in ready.",
+      "headlineLeft": "WALK IN",
+      "headlineRight": "READY.",
+      "roleBasedTitle": "100% Role-Based",
+      "roleBasedText": "Built around your job description",
+      "feedbackTitle": "Instant Feedback",
+      "feedbackText": "A clearer next response",
+      "practiceTitle": "Real interview practice",
+      "practiceText": "Get feedback, build confidence, and perform better.",
+      "tagline": "Practice the role before the room.",
+      "start": "Start now",
+      "sideLabel": "ROLE-BASED",
+      "sideText": "Practice from the actual job requirements."
+    },
+    "aboutHeading": {
+      "line1": "A practice room",
+      "middle": "for the ",
+      "highlight": "role ahead."
+    },
+    "featureCarousel": {
+      "ariaLabel": "Explore RoleCue features",
+      "tabListLabel": "RoleCue features",
+      "previous": "Previous feature",
+      "next": "Next feature",
+      "play": "Play feature previews",
+      "pause": "Pause feature previews",
+      "items": {
+        "roleContext": {
+          "label": "Job description context",
+          "description": "Technical skills and topics drawn from your target job description.",
+          "alt": "A candidate reviewing a target role brief at a softly lit blue desk"
+        },
+        "spokenInterviews": {
+          "label": "Voice-first conversations",
+          "description": "A spoken interview with an AI interviewer, in your own words.",
+          "alt": "A candidate speaking thoughtfully toward a laptop during interview practice"
+        },
+        "followUpQuestions": {
+          "label": "Adaptive questions",
+          "description": "Each question responds to your answer and the role context.",
+          "alt": "A candidate sketching technical ideas while explaining an approach"
+        },
+        "personalInterviewer": {
+          "label": "Interviewer options",
+          "description": "System or personal 3D avatars, with a voice profile you choose.",
+          "alt": "An inviting interview workspace with an interviewer portrait on a laptop"
+        },
+        "usefulFeedback": {
+          "label": "Session evaluation",
+          "description": "A post-interview report on your technical responses.",
+          "alt": "Hands reviewing feedback and noting an improvement at a pastel blue desk"
+        }
+      }
+    },
+    "practiceLoop": {
+      "ariaLabel": "A closer look at the RoleCue loop.",
+      "titleStart": "A <flip/> look",
+      "titleEnd": " at the RoleCue loop.",
+      "flipWords": {
+        "first": "closer",
+        "second": "deeper",
+        "third": "clearer"
+      },
+      "intro": "Five moments in one rehearsal, from your first job brief to the real interview.",
+      "wheelLabel": "The practice loop",
+      "chooseLabel": "Choose a practice moment",
+      "show": "Show {title}",
+      "instructions": "Use the arrow keys or choose a moment to explore the practice loop.",
+      "hintReduced": "Choose a moment",
+      "hintMotion": "Scroll or drag to explore",
+      "moments": {
+        "brief": {
+          "title": "Bring the job brief",
+          "alt": "A sunlit desk with a laptop and notebook beside an open window."
+        },
+        "setup": {
+          "title": "Set up your session",
+          "alt": "A bright, welcoming practice room with two chairs and a wooden table."
+        },
+        "answer": {
+          "title": "Answer out loud",
+          "alt": "Two professionals having a thoughtful conversation in a warm, light-filled office."
+        },
+        "review": {
+          "title": "Review the conversation",
+          "alt": "A person quietly reviewing a notebook beside a laptop in afternoon sunlight."
+        },
+        "next": {
+          "title": "Take it into the interview",
+          "alt": "A person walking toward an open office doorway filled with warm daylight."
+        }
+      }
+    },
+    "faq": {
+      "eyebrow": "Before you begin",
+      "title": "A few things to know.",
+      "ariaLabel": "Questions about RoleCue",
+      "items": {
+        "audience": {
+          "question": "Who is RoleCue for?",
+          "answer": "RoleCue is for people preparing for technical interviews, whether you’re starting out or moving to a new role."
+        },
+        "gettingStarted": {
+          "question": "What do I need to get started?",
+          "answer": "Create an account, bring a target job description, and have a microphone ready for the spoken interview."
+        },
+        "jobDescription": {
+          "question": "Are the questions based on my job description?",
+          "answer": "Yes. RoleCue uses the technical context in your job description to guide the interview. Later questions also respond to your answers."
+        },
+        "interviewer": {
+          "question": "Can I choose my interviewer?",
+          "answer": "Yes. For your own practice sessions, choose an available system or personal 3D avatar and a voice profile."
+        },
+        "afterSession": {
+          "question": "What do I get after a session?",
+          "answer": "You get an interview report with an evaluation of your technical responses, so you can review your attempt and see what to improve."
+        },
+        "free": {
+          "question": "Can I start for free?",
+          "answer": "Yes. You can create an account and start practicing for free."
+        }
+      }
+    },
+    "closing": {
+      "titleLine1": "Your next interview",
+      "titleLine2": "starts here.",
+      "text": "A little practice before the real conversation.",
+      "cta": "Start for free"
+    }
+  },
+  "metadata": {
+    "description": "Role-focused technical interview practice"
+  },
+  "pricing": {
+    "title": "Pricing",
+    "description": "Interview credit packages and plan information will be available once pricing is defined.",
+    "shellLabel": "Public",
+    "nav": {
+      "home": "Home",
+      "pricing": "Pricing",
+      "login": "Log in"
+    }
   }
 }

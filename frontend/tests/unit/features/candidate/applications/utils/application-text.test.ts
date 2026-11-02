@@ -9,9 +9,15 @@ import {
   timeLeftText,
 } from "@/features/candidate/applications/utils/application-text";
 import { applicationHref } from "@/features/candidate/applications/utils/application-links";
-import { errorsFor, formattersFor } from "@tests/helpers/intl";
+import { createTranslator } from "next-intl";
+import { errorsFor, formattersFor, messagesFor } from "@tests/helpers/intl";
 
 const te = errorsFor("en");
+const ta = createTranslator({
+  locale: "en",
+  messages: messagesFor("en"),
+  namespace: "candidate.applications.applyErrors",
+});
 
 const now = Date.parse("2026-10-25T08:00:00Z");
 
@@ -43,7 +49,7 @@ describe("timeLeftText", () => {
 
 describe("application error copy", () => {
   it("maps known codes to fixed copy and keeps retries for transient failures", () => {
-    expect(applyErrorMessage(apiFailure(409, "ALREADY_APPLIED"), te)).toBe(
+    expect(applyErrorMessage(apiFailure(409, "ALREADY_APPLIED"), te, ta)).toBe(
       "You already applied to this posting.",
     );
     expect(canRetryApply(apiFailure(409, "ALREADY_APPLIED"))).toBe(false);
@@ -54,9 +60,13 @@ describe("application error copy", () => {
 
   it("never shows the server's words: a validation error and an unknown failure use fixed copy", () => {
     expect(
-      applyErrorMessage(apiFailure(400, "VALIDATION_ERROR", "Not a PDF."), te),
+      applyErrorMessage(
+        apiFailure(400, "VALIDATION_ERROR", "Not a PDF."),
+        te,
+        ta,
+      ),
     ).toBe("Choose a PDF file up to 5 MB.");
-    expect(applyErrorMessage(new Error("boom"), te)).toBe(
+    expect(applyErrorMessage(new Error("boom"), te, ta)).toBe(
       "We couldn't upload your CV. Try again.",
     );
   });

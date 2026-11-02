@@ -1,11 +1,8 @@
+import { useTranslations } from "next-intl";
 import { Camera, Check, ScanFace, Sun, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const steps = [
-  { title: "Details", description: "Name & personality" },
-  { title: "Create", description: "Photos & appearance" },
-  { title: "Save", description: "Your personal avatar" },
-];
+const steps = ["details", "create", "save"] as const;
 
 export function StudioJourney({
   current,
@@ -14,16 +11,17 @@ export function StudioJourney({
   current: number;
   complete: boolean;
 }) {
+  const t = useTranslations("candidate.avatarStudio.journey");
   return (
     <ol
-      aria-label="Avatar creation progress"
+      aria-label={t("label")}
       className="grid grid-cols-3 border-y py-5 sm:py-6"
     >
       {steps.map((step, index) => {
         const done = complete || index < current;
         return (
           <li
-            key={step.title}
+            key={step}
             aria-current={!complete && current === index ? "step" : undefined}
             className={cn(
               "flex min-w-0 items-center gap-2 sm:gap-3",
@@ -50,17 +48,17 @@ export function StudioJourney({
                   current < index && !complete && "text-muted-foreground",
                 )}
               >
-                {step.title}
+                {t(`${step}.title`)}
                 <span className="sr-only">
                   {done
-                    ? ", complete"
+                    ? t("complete")
                     : current === index
-                      ? ", current step"
-                      : ", upcoming"}
+                      ? t("current")
+                      : t("upcoming")}
                 </span>
               </p>
               <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">
-                {step.description}
+                {t(`${step}.description`)}
               </p>
             </div>
           </li>
@@ -71,27 +69,16 @@ export function StudioJourney({
 }
 
 const photoTips = [
-  {
-    icon: Sun,
-    title: "Find soft, even light",
-    detail: "Face a window. Avoid strong shadows or light behind you.",
-  },
-  {
-    icon: ScanFace,
-    title: "Keep your face clear",
-    detail: "Use a neutral expression and keep hair away from your face.",
-  },
-  {
-    icon: Camera,
-    title: "Follow the photo prompts",
-    detail: "Avaturn guides you through capture or uploading photos.",
-  },
-];
+  { icon: Sun, key: "light" },
+  { icon: ScanFace, key: "face" },
+  { icon: Camera, key: "prompts" },
+] as const;
 
 export function StudioPhotoGuide() {
+  const t = useTranslations("candidate.avatarStudio.photoGuide");
   return (
     <aside
-      aria-label="Photo preparation guide"
+      aria-label={t("label")}
       className="rounded-2xl bg-muted/60 p-6 sm:p-8"
     >
       <div
@@ -105,31 +92,30 @@ export function StudioPhotoGuide() {
         />
       </div>
       <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-        A little preparation helps
+        {t("eyebrow")}
       </p>
       <h2 className="mt-2 text-xl font-semibold tracking-tight">
-        A good photo makes it yours.
+        {t("title")}
       </h2>
       <ul className="mt-6 space-y-5">
-        {photoTips.map(({ icon: Icon, title, detail }) => (
-          <li key={title} className="flex gap-3">
+        {photoTips.map(({ icon: Icon, key }) => (
+          <li key={key} className="flex gap-3">
             <Icon
               aria-hidden
               className="mt-0.5 size-5 shrink-0 text-muted-foreground"
               strokeWidth={1.5}
             />
             <div>
-              <p className="text-sm font-medium">{title}</p>
+              <p className="text-sm font-medium">{t(`${key}Title`)}</p>
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                {detail}
+                {t(`${key}Detail`)}
               </p>
             </div>
           </li>
         ))}
       </ul>
       <p className="mt-6 border-t pt-4 text-xs leading-relaxed text-muted-foreground">
-        You’ll sign in to Avaturn separately. Your photos are captured or
-        uploaded inside Avaturn.
+        {t("footer")}
       </p>
     </aside>
   );

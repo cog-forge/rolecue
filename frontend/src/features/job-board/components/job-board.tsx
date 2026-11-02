@@ -9,6 +9,7 @@ import {
   type MouseEvent,
 } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import {
   keepPreviousData,
@@ -127,6 +128,8 @@ function useBoardParams() {
 }
 
 export function JobBoard() {
+  const t = useTranslations("candidate.jobBoard.board");
+  const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
   const { filters, job } = useBoardParams();
@@ -153,6 +156,11 @@ export function JobBoard() {
   const shownPage = Math.floor(offset / BOARD_PAGE_SIZE) + 1;
   const firstRow = total === 0 ? 0 : offset + 1;
   const lastRow = Math.min(offset + (page?.items.length ?? 0), total);
+  const counts = {
+    first: fmt.number(firstRow),
+    last: fmt.number(lastRow),
+    total: fmt.number(total),
+  };
   const filtered = hasTextFilters(filters);
   // An empty previous result says nothing about the new search, so show loading instead.
   const loading = query.isPending || (switching && page?.items.length === 0);
@@ -161,10 +169,7 @@ export function JobBoard() {
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
-      <PageHeader
-        title="Job Board"
-        description="Explore reviewed job postings that are accepting applications."
-      />
+      <PageHeader title={t("title")} description={t("description")} />
 
       <FilterForm
         key={`${filters.search}\n${filters.location}\n${filters.type}`}
@@ -176,16 +181,13 @@ export function JobBoard() {
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-28 rounded-xl" />
           ))}
-          <span className="sr-only">Loading open job postings…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-          <h2 className="font-semibold">
-            You don&apos;t have access to the Job Board
-          </h2>
+          <h2 className="font-semibold">{t("deniedTitle")}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Checking your account access… If this stays, sign in again with a
-            candidate account.
+            {t("accessChecking")}
           </p>
         </div>
       ) : query.isError ? (
@@ -193,27 +195,27 @@ export function JobBoard() {
           role="alert"
           className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
         >
-          <h2 className="font-semibold">We couldn&apos;t load the Job Board</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Your search is still here. Please try again in a moment.
-          </p>
+          <h2 className="font-semibold">{t("errorTitle")}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t("errorText")}</p>
           <Button
-            className="mt-4 h-11 bg-background"
+            className="mt-4 h-auto min-h-11 py-2 whitespace-normal bg-background"
             variant="outline"
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Try again
+            {t("retry")}
           </Button>
         </div>
       ) : page && page.items.length === 0 && total > 0 ? (
         <div className="rounded-xl border p-8 text-center">
-          <h2 className="font-semibold">
-            This page is past the end of the list.
-          </h2>
-          <Button asChild variant="outline" className="mt-4 h-11">
+          <h2 className="font-semibold">{t("pastEnd")}</h2>
+          <Button
+            asChild
+            variant="outline"
+            className="mt-4 h-auto min-h-11 py-2 whitespace-normal"
+          >
             <FilterLink filters={{ ...filters, page: 1 }}>
-              Go to the first page
+              {t("firstPage")}
             </FilterLink>
           </Button>
         </div>
@@ -223,19 +225,19 @@ export function JobBoard() {
             <BriefcaseBusiness className="size-6" aria-hidden />
           </span>
           <h2 className="font-semibold">
-            {filtered
-              ? "No open postings match your search."
-              : "There are no open job postings yet."}
+            {filtered ? t("noMatchTitle") : t("emptyTitle")}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {filtered
-              ? "Try fewer words, or check the employment type is spelled the way the posting uses it."
-              : "Check back soon: new postings appear after approval and funding."}
+            {filtered ? t("noMatchText") : t("emptyText")}
           </p>
           {filtered && (
-            <Button asChild variant="outline" className="mt-4 h-11">
+            <Button
+              asChild
+              variant="outline"
+              className="mt-4 h-auto min-h-11 py-2 whitespace-normal"
+            >
               <FilterLink filters={defaultBoardFilters}>
-                Clear search
+                {t("clearSearch")}
               </FilterLink>
             </Button>
           )}
@@ -243,12 +245,12 @@ export function JobBoard() {
       ) : page ? (
         <>
           <p role="status" className="sr-only">
-            {switching ? "Loading job postings…" : ""}
+            {switching ? t("switching") : ""}
           </p>
           <div className="lg:grid lg:grid-cols-[minmax(0,25rem)_minmax(0,1fr)] lg:items-start lg:gap-6">
             <div className="space-y-4">
               <ul
-                aria-label={`Open job postings, ${firstRow}–${lastRow} of ${total}`}
+                aria-label={t("list", counts)}
                 aria-busy={switching}
                 className={cn(
                   "divide-y rounded-xl border transition-opacity duration-[var(--duration-fast)] motion-reduce:transition-none",
@@ -265,20 +267,20 @@ export function JobBoard() {
                 ))}
               </ul>
               <nav
-                aria-label="Pagination"
+                aria-label={t("pagination")}
                 className="flex flex-wrap items-center justify-between gap-3 text-sm"
               >
                 <p className="text-muted-foreground tabular-nums">
-                  Showing {firstRow}–{lastRow} of {total}
+                  {t("showing", counts)}
                 </p>
                 <div className="flex gap-2">
                   <PageLink
-                    label="Previous"
+                    label={t("previous")}
                     filters={{ ...filters, page: shownPage - 1 }}
                     disabled={switching || shownPage <= 1}
                   />
                   <PageLink
-                    label="Next"
+                    label={t("next")}
                     filters={{ ...filters, page: shownPage + 1 }}
                     disabled={switching || lastRow >= total}
                   />
@@ -287,7 +289,7 @@ export function JobBoard() {
             </div>
             {selected && (
               <aside
-                aria-label="Selected job posting"
+                aria-label={t("selected")}
                 className="hidden rounded-xl border p-6 lg:sticky lg:top-6 lg:block lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto"
               >
                 <JobPostingDetail
@@ -313,11 +315,12 @@ function PostingCard({
   filters: BoardFilters;
   selected: boolean;
 }) {
+  const t = useTranslations("candidate.jobBoard");
   const fmt = useFormatters();
-  const salary = salaryText(posting, fmt);
+  const salary = salaryText(posting, fmt, t);
   const facts = [
     posting.employment_type,
-    levelText[posting.seniority_level],
+    levelText(posting.seniority_level, t),
     salary,
   ].filter(Boolean);
   const skills = posting.top_skills?.slice(0, CARD_SKILLS) ?? [];
@@ -385,7 +388,10 @@ function PostingCard({
         />
       </div>
       {skills.length > 0 && (
-        <ul aria-label="Key skills" className="mt-3 flex flex-wrap gap-1.5">
+        <ul
+          aria-label={t("board.skills")}
+          className="mt-3 flex flex-wrap gap-1.5"
+        >
           {skills.map((skill) => (
             <li
               key={skill}
@@ -396,14 +402,17 @@ function PostingCard({
           ))}
           {more > 0 && (
             <li className="px-1 py-0.5 text-xs text-muted-foreground">
-              +{more}
-              <span className="sr-only"> more</span>
+              +{fmt.number(more)}
+              <span className="sr-only"> {t("board.moreSkills")}</span>
             </li>
           )}
         </ul>
       )}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-        <ul aria-label="Details" className="flex flex-wrap gap-x-4 gap-y-1">
+        <ul
+          aria-label={t("board.details")}
+          className="flex flex-wrap gap-x-4 gap-y-1"
+        >
           {facts.map((fact, i) => (
             <li
               key={i}
@@ -418,7 +427,7 @@ function PostingCard({
           title={fullDate(posting.published_at ?? posting.created_at, fmt)}
           className="text-muted-foreground"
         >
-          {publicationText(posting, fmt)}
+          {publicationText(posting, fmt, t)}
         </time>
       </div>
     </li>
@@ -439,7 +448,7 @@ function PageLink({
     <Button
       asChild
       variant="outline"
-      className="h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+      className="h-auto min-h-11 py-2 whitespace-normal aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
     >
       <FilterLink
         filters={filters}
@@ -455,18 +464,14 @@ function PageLink({
 }
 
 const fields = [
-  { name: "search", id: "board-search", label: "Job title" },
-  { name: "location", id: "board-location", label: "Location" },
-  {
-    name: "type",
-    id: "board-type",
-    label: "Employment type",
-    hint: "Exact match, e.g. Full-time",
-  },
+  { name: "search", id: "board-search" },
+  { name: "location", id: "board-location" },
+  { name: "type", id: "board-type" },
 ] as const;
 type FieldName = (typeof fields)[number]["name"];
 
 function FilterForm({ filters }: { filters: BoardFilters }) {
+  const t = useTranslations("candidate.jobBoard.filters");
   const [values, setValues] = useState<Record<FieldName, string>>({
     search: filters.search,
     location: filters.location,
@@ -487,31 +492,25 @@ function FilterForm({ filters }: { filters: BoardFilters }) {
     <form
       role="search"
       noValidate
-      aria-label="Search open job postings"
+      aria-label={t("form")}
       onSubmit={submit}
       className="grid gap-3 border-b pb-5 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-start"
     >
       {fields.map((field) => {
         const invalid = isFilterTooLong(values[field.name]);
-        const hint = "hint" in field ? `${field.id}-hint` : null;
+        const hint = field.name === "type" ? `${field.id}-hint` : null;
         const describedBy = [hint, invalid ? `${field.id}-error` : null]
           .filter(Boolean)
           .join(" ");
         return (
           <div key={field.name} className="space-y-1">
             <label htmlFor={field.id} className="text-xs font-medium">
-              {field.label}
+              {t(`${field.name}.label`)}
             </label>
             <Input
               id={field.id}
               type="search"
-              placeholder={
-                field.name === "search"
-                  ? "e.g. Backend Engineer"
-                  : field.name === "location"
-                    ? "e.g. Ho Chi Minh City"
-                    : "e.g. Full-time"
-              }
+              placeholder={t(`${field.name}.placeholder`)}
               value={values[field.name]}
               onChange={(event) =>
                 setValues((current) => ({
@@ -523,12 +522,12 @@ function FilterForm({ filters }: { filters: BoardFilters }) {
               aria-invalid={invalid}
               aria-describedby={describedBy || undefined}
             />
-            {"hint" in field && (
+            {field.name === "type" && (
               <p
                 id={hint ?? undefined}
                 className="text-xs text-muted-foreground"
               >
-                {field.hint}
+                {t("type.hint")}
               </p>
             )}
             {invalid && (
@@ -537,22 +536,30 @@ function FilterForm({ filters }: { filters: BoardFilters }) {
                 role="alert"
                 className="text-xs text-destructive"
               >
-                Keep this to {FILTER_MAX} characters or fewer.
+                {t("tooLong", { max: FILTER_MAX })}
               </p>
             )}
           </div>
         );
       })}
       <div className="flex gap-2 sm:col-span-2 lg:col-span-1 lg:pt-5">
-        <Button type="submit" className="h-11 rounded-full" disabled={tooLong}>
+        <Button
+          type="submit"
+          className="h-auto min-h-11 py-2 whitespace-normal rounded-full"
+          disabled={tooLong}
+        >
           <Search aria-hidden />
-          Search
+          {t("submit")}
         </Button>
         {hasTextFilters(filters) && (
-          <Button asChild variant="ghost" className="h-11 rounded-full">
+          <Button
+            asChild
+            variant="ghost"
+            className="h-auto min-h-11 py-2 whitespace-normal rounded-full"
+          >
             <FilterLink filters={defaultBoardFilters}>
               <X aria-hidden />
-              Clear
+              {t("clear")}
             </FilterLink>
           </Button>
         )}

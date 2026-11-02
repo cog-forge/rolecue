@@ -1,4 +1,5 @@
 "use client";
+import { useTranslations } from "next-intl";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -35,6 +36,7 @@ export function OnboardingForm({
   error: string | null;
   onSave: (patch: ProfilePatch) => Promise<void>;
 }) {
+  const t = useTranslations("auth.onboarding");
   const values = profileValues(profile);
   if (
     ["new user", "new candidate", "new recruiter"].includes(
@@ -50,7 +52,17 @@ export function OnboardingForm({
     setValue,
     formState: { errors },
   } = useForm<ProfileValues>({
-    resolver: zodResolver(createOnboardingSchema(profile)),
+    resolver: zodResolver(
+      createOnboardingSchema(profile, {
+        name: t("nameValidation"),
+        image: t("imageValidation"),
+        companyLength: t("companyLength"),
+        website: t("websiteValidation"),
+        companyRequired: t("companyRequired"),
+        websiteRequired: t("websiteRequired"),
+        companyWebsiteInvalid: t("companyWebsiteInvalid"),
+      }),
+    ),
     defaultValues: values,
     mode: "onBlur",
   });
@@ -62,15 +74,15 @@ export function OnboardingForm({
   const fields = [
     {
       key: "full_name" as const,
-      label: "Display name",
+      label: t("displayName"),
       type: "text",
       required: true,
-      placeholder: "How should we call you?",
+      placeholder: t("displayPlaceholder"),
       Icon: UserRound,
     },
     {
       key: "image" as const,
-      label: "Avatar URL",
+      label: t("avatarUrl"),
       type: "url",
       required: false,
       placeholder: "https://example.com/your-photo.jpg",
@@ -80,15 +92,15 @@ export function OnboardingForm({
       ? [
           {
             key: "company_name" as const,
-            label: "Company name",
+            label: t("companyName"),
             type: "text",
             required: true,
-            placeholder: "Your company’s name",
+            placeholder: t("companyPlaceholder"),
             Icon: Building2,
           },
           {
             key: "company_website" as const,
-            label: "Company website",
+            label: t("companyWebsite"),
             type: "url",
             required: true,
             placeholder: "your-company.com",
@@ -100,7 +112,7 @@ export function OnboardingForm({
   return (
     <form
       noValidate
-      aria-label="Your onboarding details"
+      aria-label={t("form")}
       onSubmit={handleSubmit(async (v) => {
         const patch: ProfilePatch = {
           ...profilePatch(v, profile),
@@ -126,10 +138,10 @@ export function OnboardingForm({
           />
           <div className="min-w-0 text-left">
             <p className="text-sm font-semibold text-[#202438] dark:text-[#eef2ff]">
-              Your avatar
+              {t("avatar")}
             </p>
             <p className="mt-0.5 text-xs leading-relaxed text-[#727b8d] dark:text-[#aab7cf]">
-              {image ? "Your photo is ready" : "Your Peek avatar is ready"}
+              {image ? t("photoReady") : t("peekReady")}
             </p>
           </div>
         </div>
@@ -142,7 +154,7 @@ export function OnboardingForm({
           className="h-9 self-end rounded-lg border-[#dedfe7] bg-white px-3 text-xs text-[#283047] hover:bg-[#f5f6fa] dark:border-[#45516a] dark:bg-[#243049] dark:text-[#eef2ff] dark:hover:bg-[#2f4364]"
         >
           <ImagePlus className="size-3.5" aria-hidden />
-          {image ? "Change photo" : "Add photo URL"}
+          {image ? t("changePhoto") : t("addPhoto")}
         </Button>
       </div>
       <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
@@ -157,7 +169,7 @@ export function OnboardingForm({
                 {field.label}
                 {!field.required && (
                   <span className="ml-2 text-xs font-normal text-[#8b91a0] dark:text-[#aab7cf]">
-                    Optional
+                    {t("optional")}
                   </span>
                 )}
               </label>
@@ -212,7 +224,7 @@ export function OnboardingForm({
                   id="avatar-hint"
                   className="text-xs text-[#80899a] dark:text-[#aab7cf]"
                 >
-                  Leave blank to use your Peek avatar.
+                  {t("avatarHint")}
                 </p>
               )}
               {field.key === "company_website" && (
@@ -220,7 +232,7 @@ export function OnboardingForm({
                   id="website-hint"
                   className="text-xs text-[#80899a] dark:text-[#aab7cf]"
                 >
-                  We’ll add https:// automatically if you enter a domain.
+                  {t("websiteHint")}
                 </p>
               )}
               {errors[field.key] && (
@@ -258,11 +270,11 @@ export function OnboardingForm({
               aria-hidden
             />
           )}
-          {saving ? "Saving your profile…" : "Open my workspace"}
+          {saving ? t("saving") : t("open")}
           {!saving && <ArrowRight className="ml-1 size-4" aria-hidden />}
         </Button>
         <p className="text-center text-xs leading-relaxed text-[#858d9c] dark:text-[#aab7cf]">
-          You can edit these details later in your profile.
+          {t("later")}
         </p>
       </div>
     </form>

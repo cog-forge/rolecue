@@ -1,5 +1,6 @@
 import { useId } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/config/routes";
@@ -15,11 +16,12 @@ const heroShape =
   "M 0 0 L 1440 0 L 1440 615 C 1440 638, 1422 655, 1395 655 L 1060 655 C 980 655, 930 740, 885 815 C 850 875, 820 900, 775 900 L 665 900 C 620 900, 590 875, 555 815 C 510 740, 460 655, 380 655 L 45 655 C 18 655, 0 638, 0 615 Z";
 
 export function LandingHero() {
+  const t = useTranslations("public.landing.hero");
   const surfaceClipId = useId();
 
   return (
     <section
-      aria-label="RoleCue hero"
+      aria-label={t("ariaLabel")}
       className="relative isolate flex min-h-svh flex-col bg-(--rolecue-canvas) px-3 pt-3 sm:px-5 sm:pt-4 lg:px-6 lg:pt-5"
       id="top"
     >
@@ -60,21 +62,21 @@ export function LandingHero() {
           style={{ clipPath: `url(#${surfaceClipId})` }}
         >
           <span className="absolute -right-8 bottom-[17%] text-[clamp(10rem,17vw,18rem)] leading-none font-black tracking-[-0.05em] text-(--rolecue-brand-blue)/[0.055] uppercase">
-            READY.
+            {t("headlineRight")}
           </span>
         </div>
 
         <div className="h-20 shrink-0 sm:h-24" aria-hidden="true" />
 
         <div className="relative flex flex-1 flex-col justify-center">
-          <h1 className="sr-only">Walk in ready.</h1>
+          <h1 className="sr-only">{t("headline")}</h1>
           <HeroEntrance
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 hidden overflow-hidden select-none min-[1024px]:block"
             delay={0.18}
           >
             <span className="absolute top-0 left-8 text-[clamp(8rem,15vw,15rem)] leading-none font-black tracking-[-0.05em] text-(--rolecue-ink)/[0.035] uppercase">
-              WALK IN
+              {t("headlineLeft")}
             </span>
           </HeroEntrance>
 
@@ -87,14 +89,14 @@ export function LandingHero() {
               delay={0.2}
             >
               <span className={cn(headline, "text-(--rolecue-ink)")}>
-                WALK IN
+                {t("headlineLeft")}
               </span>
               <div className="relative mt-8 hidden w-48 border-b border-white/90 pb-3 text-left min-[1180px]:block">
                 <span className="block text-base font-semibold text-(--rolecue-ink)">
-                  100% Role-Based
+                  {t("roleBasedTitle")}
                 </span>
                 <span className="mt-1 block text-sm text-(--rolecue-ink-muted)">
-                  Built around your job description
+                  {t("roleBasedText")}
                 </span>
                 <svg
                   className="pointer-events-none absolute top-1/2 left-full h-12 w-28 -translate-y-1/2"
@@ -128,10 +130,10 @@ export function LandingHero() {
             >
               <div className="relative mb-8 hidden w-44 border-b border-white/90 pb-3 min-[1180px]:block">
                 <span className="block text-base font-semibold text-(--rolecue-ink)">
-                  Instant Feedback
+                  {t("feedbackTitle")}
                 </span>
                 <span className="mt-1 block text-sm text-(--rolecue-ink-muted)">
-                  A clearer next response
+                  {t("feedbackText")}
                 </span>
                 <svg
                   className="pointer-events-none absolute top-1/2 right-full h-12 w-28 -translate-y-1/2"
@@ -154,7 +156,7 @@ export function LandingHero() {
                 </svg>
               </div>
               <span className={cn(headline, "text-(--rolecue-brand-blue)")}>
-                READY.
+                {t("headlineRight")}
               </span>
             </HeroEntrance>
           </div>
@@ -166,10 +168,10 @@ export function LandingHero() {
             delay={0.58}
           >
             <p className="m-0 text-sm font-semibold tracking-tight text-(--rolecue-ink) sm:text-base">
-              Real interview practice
+              {t("practiceTitle")}
             </p>
             <p className="mt-2 mb-0 max-w-[25ch] text-sm leading-relaxed text-(--rolecue-ink-muted)">
-              Get feedback, build confidence, and perform better.
+              {t("practiceText")}
             </p>
           </HeroEntrance>
 
@@ -178,7 +180,7 @@ export function LandingHero() {
             delay={0.7}
           >
             <p className="m-0 text-base font-medium tracking-tight text-(--rolecue-ink) sm:text-lg">
-              Practice the role before the room.
+              {t("tagline")}
             </p>
             <Button
               asChild
@@ -189,7 +191,7 @@ export function LandingHero() {
             >
               <Link href={routes.interviews.new.jobDescription}>
                 <span className="transition-transform duration-(--duration-fast) ease-(--ease-smooth-out) group-hover:translate-x-0.5 group-focus-visible:translate-x-0.5 motion-reduce:translate-none! motion-reduce:transition-none!">
-                  Start now
+                  {t("start")}
                 </span>
                 <span
                   aria-hidden="true"
@@ -211,10 +213,10 @@ export function LandingHero() {
             delay={0.66}
           >
             <p className="m-0 text-xs font-medium tracking-[0.12em] text-(--rolecue-ink-muted) uppercase">
-              ROLE-BASED
+              {t("sideLabel")}
             </p>
             <p className="mt-2 mb-0 max-w-[25ch] text-sm leading-relaxed text-(--rolecue-ink) sm:text-base">
-              Practice from the actual job requirements.
+              {t("sideText")}
             </p>
           </HeroEntrance>
         </div>

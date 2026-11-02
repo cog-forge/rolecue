@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { ProductRole } from "@/config/permissions";
 import { workspaceHome } from "@/config/navigation";
 import { useSessionUser } from "./session-gate";
@@ -14,6 +15,7 @@ export function RoleGate({
   children: React.ReactNode;
   role: ProductRole | readonly ProductRole[];
 }) {
+  const t = useTranslations("common.shell.session");
   const user = useSessionUser();
   const router = useRouter();
   const pathname = usePathname();
@@ -24,6 +26,6 @@ export function RoleGate({
     if (!allowed) router.replace(workspaceHome(user.role));
   }, [allowed, user.role, router, pathname]);
 
-  if (!allowed) return <p role="status">Opening your workspace…</p>;
+  if (!allowed) return <p role="status">{t("openingWorkspace")}</p>;
   return children;
 }

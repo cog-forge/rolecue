@@ -1,3 +1,4 @@
+import type { useTranslations } from "next-intl";
 import { z } from "zod";
 
 // Mirrors Go domain.PricePerSlot (Decision 7). The API checks the balance, so it stays authoritative.
@@ -5,32 +6,89 @@ export const slotPriceCoins = 1;
 export const maxSlotsPerPurchase = 10;
 
 // Mirrors domain.CreateAvatarInput.Validate: trimmed, counted in code points like Go runes.
-function metadataText(label: string, max: number) {
+type MetadataMessages = {
+  nameRequired: string;
+  nameInvalid: string;
+  personalityRequired: string;
+  personalityInvalid: string;
+};
+
+function metadataText(required: string, invalid: string, max: number) {
   return z
     .string()
     .trim()
-    .min(1, `${label} is required.`)
+    .min(1, required)
     .refine(
       (value) => Array.from(value).length <= max && !value.includes("\0"),
-      `${label} must be at most ${max} characters and contain no null characters.`,
+      invalid,
     );
 }
 
-export const avatarMetadataSchema = z.object({
-  name: metadataText("Name", 100),
-  personality: metadataText("Personality", 2000),
+function buildMetadataSchema(messages: MetadataMessages) {
+  return z.object({
+    name: metadataText(messages.nameRequired, messages.nameInvalid, 100),
+    personality: metadataText(
+      messages.personalityRequired,
+      messages.personalityInvalid,
+      2000,
+    ),
+  });
+}
+
+type PurchaseMessages = {
+  amountRequired: string;
+  amountInteger: string;
+  amountMin: string;
+  amountMax: string;
+};
+
+function buildPurchaseSchema(messages: PurchaseMessages) {
+  return z.object({
+    amount: z
+      .number({ error: messages.amountRequired })
+      .int(messages.amountInteger)
+      .min(1, messages.amountMin)
+      .max(maxSlotsPerPurchase, messages.amountMax),
+  });
+}
+
+// Field messages come from `candidate.avatars.validation`: build the schema from the screen's translator.
+export type AvatarValidation = ReturnType<
+  typeof useTranslations<"candidate.avatars.validation">
+>;
+
+export function createAvatarMetadataSchema(t: AvatarValidation) {
+  return buildMetadataSchema({
+    nameRequired: t("nameRequired"),
+    nameInvalid: t("nameInvalid", { max: 100 }),
+    personalityRequired: t("personalityRequired"),
+    personalityInvalid: t("personalityInvalid", { max: 2000 }),
+  });
+}
+
+export function createPurchaseFormSchema(t: AvatarValidation) {
+  return buildPurchaseSchema({
+    amountRequired: t("amountRequired"),
+    amountInteger: t("amountInteger"),
+    amountMin: t("amountMin"),
+    amountMax: t("amountMax", { max: maxSlotsPerPurchase }),
+  });
+}
+
+// For the API layer, which only checks the shape: its messages are never shown.
+export const avatarMetadataSchema = buildMetadataSchema({
+  nameRequired: "nameRequired",
+  nameInvalid: "nameInvalid",
+  personalityRequired: "personalityRequired",
+  personalityInvalid: "personalityInvalid",
 });
 export type AvatarMetadata = z.infer<typeof avatarMetadataSchema>;
 
-export const purchaseFormSchema = z.object({
-  amount: z
-    .number({ error: "Enter a number of slots." })
-    .int("Enter a whole number of slots.")
-    .min(1, "Buy at least 1 slot.")
-    .max(
-      maxSlotsPerPurchase,
-      `Buy at most ${maxSlotsPerPurchase} slots at once.`,
-    ),
+export const purchaseFormSchema = buildPurchaseSchema({
+  amountRequired: "amountRequired",
+  amountInteger: "amountInteger",
+  amountMin: "amountMin",
+  amountMax: "amountMax",
 });
 export type PurchaseForm = z.infer<typeof purchaseFormSchema>;
 

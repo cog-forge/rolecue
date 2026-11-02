@@ -1,1 +1,1327 @@
-{}
+{
+  "dashboard": {
+    "heading": "Tổng quan",
+    "eyebrow": "Ứng viên",
+    "description": "Theo dõi JD mục tiêu, quá trình luyện tập, đơn ứng tuyển và số dư xu tại đây.",
+    "retry": "Thử lại",
+    "applications": {
+      "title": "Đơn ứng tuyển",
+      "loading": "Đang tải đơn ứng tuyển…",
+      "error": "Không thể tải đơn ứng tuyển của bạn.",
+      "empty": "Bạn chưa ứng tuyển tin tuyển dụng nào.",
+      "browse": "Xem bảng tin tuyển dụng",
+      "count": "{countText} đơn ứng tuyển",
+      "next": "Bước tiếp theo: bắt đầu phỏng vấn cho <name>{title}</name>.",
+      "view": "Xem tất cả đơn ứng tuyển",
+      "status": {
+        "pending": "Đang chờ xét duyệt CV",
+        "interview_eligible": "Đủ điều kiện phỏng vấn",
+        "interviewed": "Đã phỏng vấn",
+        "approved": "Đã duyệt",
+        "rejected": "Không được chọn"
+      }
+    },
+    "practice": {
+      "title": "Hoạt động luyện tập",
+      "loading": "Đang tải hoạt động luyện tập…",
+      "error": "Không thể tải hoạt động luyện tập của bạn.",
+      "empty": "Bạn chưa có buổi luyện tập nào. Hãy bắt đầu để xem phản hồi tại đây.",
+      "start": "Bắt đầu phỏng vấn luyện tập",
+      "count": "{countText} buổi luyện tập",
+      "view": "Xem toàn bộ lịch sử phỏng vấn",
+      "status": {
+        "in_progress": "Đang diễn ra",
+        "pending": "Đang chuẩn bị phản hồi",
+        "completed": "Đã có phản hồi",
+        "failed": "Không có phản hồi"
+      }
+    },
+    "profiles": {
+      "title": "JD mục tiêu",
+      "loading": "Đang tải JD mục tiêu…",
+      "error": "Không thể tải JD mục tiêu của bạn.",
+      "empty": "Bạn chưa thêm JD mục tiêu. Hãy thêm một JD để định hướng các buổi luyện tập.",
+      "add": "Thêm JD mục tiêu",
+      "count": "{countText} JD mục tiêu",
+      "next": "Bước tiếp theo: {status} cho <name>{title}</name>.",
+      "ready": "Các JD mục tiêu đã sẵn sàng để luyện tập.",
+      "manage": "Quản lý JD mục tiêu",
+      "status": {
+        "draft": "Bản nháp",
+        "analyzing": "Đang phân tích mô tả công việc",
+        "review": "Đang chờ bạn xem lại",
+        "confirmed": "Sẵn sàng luyện tập"
+      }
+    },
+    "wallet": {
+      "title": "Số dư xu",
+      "loading": "Đang tải số dư xu…",
+      "error": "Không thể tải số dư xu của bạn.",
+      "unit": "xu",
+      "description": "Xu được dùng để luyện tập phỏng vấn với AI.",
+      "view": "Xem giao dịch"
+    }
+  },
+  "history": {
+    "eyebrow": "Luyện tập",
+    "heading": "Lịch sử phỏng vấn",
+    "description": "Các buổi phỏng vấn của bạn, mới nhất trước. Mở một buổi để xem báo cáo.",
+    "loading": "Đang tải lịch sử phỏng vấn…",
+    "denied": "Bạn không có quyền xem lịch sử phỏng vấn",
+    "checking": "Đang kiểm tra quyền truy cập tài khoản… Nếu tình trạng này vẫn tiếp diễn, hãy đăng nhập lại bằng tài khoản ứng viên.",
+    "error": "Không thể tải lịch sử phỏng vấn",
+    "tryLater": "Vui lòng thử lại sau ít phút.",
+    "retry": "Thử lại",
+    "filter": "Lọc phỏng vấn theo loại",
+    "types": {
+      "all": "Tất cả phỏng vấn",
+      "practice": "Luyện tập",
+      "recruitment": "Tuyển dụng"
+    },
+    "pastEnd": "Trang này nằm ngoài lịch sử phỏng vấn của bạn.",
+    "firstPage": "Về trang đầu",
+    "empty": "Bạn chưa có buổi phỏng vấn nào.",
+    "emptyPractice": "Bạn chưa có buổi phỏng vấn luyện tập nào.",
+    "emptyRecruitment": "Bạn chưa có buổi phỏng vấn tuyển dụng nào.",
+    "emptyDescription": "Các buổi phỏng vấn luyện tập và tuyển dụng sẽ xuất hiện tại đây.",
+    "dashboard": "Về trang tổng quan",
+    "list": "Các buổi phỏng vấn của bạn",
+    "pagination": "Phân trang lịch sử phỏng vấn",
+    "showing": "Hiển thị {first}–{last} trên {total}",
+    "previous": "Trước",
+    "next": "Tiếp",
+    "reportType": {
+      "practice": "Phỏng vấn luyện tập",
+      "recruitment": "Phỏng vấn tuyển dụng"
+    },
+    "status": {
+      "in_progress": "Đang diễn ra",
+      "pending": "Đang đánh giá",
+      "completed": "Đã hoàn thành",
+      "failed": "Đánh giá không thành công"
+    },
+    "application": "Xem đơn ứng tuyển",
+    "noScore": "Chưa có điểm"
+  },
+  "setupNavigation": {
+    "stepsLabel": "Các bước tạo cuộc phỏng vấn",
+    "steps": {
+      "0": "Hồ sơ vị trí",
+      "1": "Yêu cầu",
+      "2": "Thiết lập",
+      "3": "Người phỏng vấn",
+      "4": "Kiểm tra trước"
+    },
+    "unfinished": "Cuộc phỏng vấn chưa hoàn thành",
+    "progress": "Bắt đầu <time>{when}</time> · Đã trả lời <count>{answered}/{total}</count> câu hỏi"
+  },
+  "jobBoard": {
+    "board": {
+      "title": "Bảng tin tuyển dụng",
+      "description": "Khám phá các tin tuyển dụng đã được duyệt và đang nhận đơn ứng tuyển.",
+      "loading": "Đang tải các tin tuyển dụng đang mở…",
+      "deniedTitle": "Bạn không có quyền truy cập bảng tin tuyển dụng",
+      "accessChecking": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản ứng viên.",
+      "errorTitle": "Không thể tải bảng tin tuyển dụng",
+      "errorText": "Nội dung tìm kiếm của bạn vẫn được giữ nguyên. Vui lòng thử lại sau ít phút.",
+      "retry": "Thử lại",
+      "pastEnd": "Trang này nằm ngoài danh sách.",
+      "firstPage": "Về trang đầu tiên",
+      "noMatchTitle": "Không có tin tuyển dụng nào đang mở khớp với tìm kiếm của bạn.",
+      "noMatchText": "Hãy thử dùng ít từ khóa hơn, hoặc kiểm tra xem loại hình công việc có được viết đúng như trong tin tuyển dụng không.",
+      "emptyTitle": "Hiện chưa có tin tuyển dụng nào đang mở.",
+      "emptyText": "Hãy quay lại sau: tin tuyển dụng mới sẽ xuất hiện sau khi được duyệt và nạp quỹ.",
+      "clearSearch": "Xóa tìm kiếm",
+      "switching": "Đang tải các tin tuyển dụng…",
+      "list": "Tin tuyển dụng đang mở, {first}–{last} trên {total}",
+      "pagination": "Phân trang",
+      "showing": "Hiển thị {first}–{last} trên {total}",
+      "previous": "Trước",
+      "next": "Sau",
+      "selected": "Tin tuyển dụng đang chọn",
+      "skills": "Kỹ năng chính",
+      "moreSkills": "kỹ năng nữa",
+      "details": "Chi tiết"
+    },
+    "filters": {
+      "form": "Tìm tin tuyển dụng đang mở",
+      "search": {
+        "label": "Chức danh",
+        "placeholder": "VD: Backend Engineer"
+      },
+      "location": {
+        "label": "Địa điểm",
+        "placeholder": "VD: Ho Chi Minh City"
+      },
+      "type": {
+        "label": "Loại hình công việc",
+        "hint": "Khớp chính xác, VD: Full-time",
+        "placeholder": "VD: Full-time"
+      },
+      "tooLong": "Chỉ nhập tối đa {max} ký tự.",
+      "submit": "Tìm kiếm",
+      "clear": "Xóa"
+    },
+    "detail": {
+      "invalidTitle": "Liên kết này không hợp lệ",
+      "invalidText": "Hãy kiểm tra lại địa chỉ, hoặc tìm tin tuyển dụng trên bảng tin tuyển dụng.",
+      "browse": "Xem các tin tuyển dụng đang mở",
+      "loading": "Đang tải tin tuyển dụng…",
+      "deniedTitle": "Bạn không có quyền xem tin tuyển dụng này",
+      "accessChecking": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản ứng viên.",
+      "unavailableTitle": "Tin tuyển dụng này không còn khả dụng",
+      "unavailableText": "Tin đã ngừng nhận đơn ứng tuyển hoặc đã bị gỡ. Vẫn còn nhiều tin tuyển dụng đang mở trên bảng tin tuyển dụng.",
+      "errorTitle": "Không thể tải tin tuyển dụng này",
+      "errorText": "Vui lòng thử lại sau ít phút.",
+      "retry": "Thử lại",
+      "back": "Quay lại bảng tin tuyển dụng",
+      "applied": "Đã ứng tuyển · Xem đơn ứng tuyển",
+      "apply": "Ứng tuyển bằng CV của bạn",
+      "openPage": "Mở trang tin tuyển dụng",
+      "alreadyApplied": "Bạn đã ứng tuyển vào tin tuyển dụng này.",
+      "newTab": "(mở trong tab mới)",
+      "facts": {
+        "level": "Cấp bậc",
+        "employmentType": "Loại hình công việc",
+        "salary": "Mức lương",
+        "interviewLength": "Thời lượng phỏng vấn",
+        "minutes": "{count} phút"
+      },
+      "skillsHeading": "Kỹ năng",
+      "noSkills": "Tin tuyển dụng này không nêu kỹ năng cụ thể. Hãy đọc phần mô tả công việc bên dưới.",
+      "required": "Bắt buộc",
+      "niceToHave": "Nên có",
+      "showAll": "Xem tất cả {count} kỹ năng",
+      "showFewer": "Thu gọn danh sách kỹ năng",
+      "howHiring": "Quy trình tuyển dụng",
+      "description": "Mô tả công việc",
+      "noDescription": "Nhà tuyển dụng chưa thêm mô tả công việc.",
+      "showFull": "Xem toàn bộ mô tả",
+      "showLess": "Thu gọn"
+    },
+    "level": {
+      "intern": "Thực tập sinh",
+      "junior": "Junior",
+      "mid": "Middle",
+      "senior": "Senior",
+      "lead": "Lead"
+    },
+    "target": {
+      "programming_language": "Ngôn ngữ lập trình",
+      "framework": "Framework",
+      "database": "Cơ sở dữ liệu",
+      "tool": "Công cụ",
+      "technology": "Công nghệ",
+      "domain_knowledge": "Kiến thức chuyên ngành",
+      "other": "Kỹ năng khác",
+      "skill": "Kỹ năng"
+    },
+    "posted": {
+      "today": "Đăng hôm nay",
+      "relative": "Đăng {when}",
+      "date": "Đăng ngày {date}",
+      "created": "Tạo ngày {date}"
+    },
+    "salary": {
+      "from": "Từ {amount}",
+      "upTo": "Tối đa {amount}"
+    }
+  },
+  "report": {
+    "backToHistory": "Quay lại lịch sử phỏng vấn",
+    "eyebrow": "Báo cáo phỏng vấn",
+    "type": {
+      "practice": "Phỏng vấn luyện tập",
+      "recruitment": "Phỏng vấn tuyển dụng"
+    },
+    "status": {
+      "in_progress": "Đang diễn ra",
+      "pending": "Đang đánh giá",
+      "completed": "Hoàn tất",
+      "failed": "Đánh giá thất bại"
+    },
+    "startedAt": "Bắt đầu lúc <time>{when}</time>",
+    "completedAt": "Hoàn tất lúc <time>{when}</time>",
+    "overallScore": "Điểm tổng thể",
+    "summary": "Tóm tắt",
+    "breakdown": "Điểm theo tiêu chí",
+    "questions": "Câu hỏi",
+    "answer": "Câu trả lời:",
+    "feedback": "Nhận xét:",
+    "noAnswer": "Chưa ghi nhận câu trả lời.",
+    "recruitmentNote": "Phản hồi chi tiết của phỏng vấn tuyển dụng không được hiển thị tại đây.",
+    "score": "{score} / 100",
+    "scoreText": "{score} trên 100",
+    "noScore": "Chưa có điểm",
+    "notice": {
+      "in_progress": {
+        "title": "Buổi phỏng vấn này chưa kết thúc",
+        "text": "Báo cáo sẽ xuất hiện tại đây sau khi buổi phỏng vấn hoàn tất."
+      },
+      "pending": {
+        "title": "Buổi phỏng vấn của bạn đang được đánh giá",
+        "text": "Điểm số và phản hồi sẽ xuất hiện tại đây khi quá trình đánh giá hoàn tất."
+      },
+      "failed": {
+        "title": "Không thể đánh giá buổi phỏng vấn này",
+        "text": "Chưa có điểm nào được lưu nên hiện chưa có gì để hiển thị."
+      }
+    },
+    "checkAgain": "Kiểm tra lại",
+    "invalidTitle": "Liên kết này không hợp lệ",
+    "invalidText": "Hãy kiểm tra lại địa chỉ, hoặc mở báo cáo từ lịch sử phỏng vấn của bạn.",
+    "loading": "Đang tải báo cáo của bạn…",
+    "deniedTitle": "Bạn không có quyền xem báo cáo này",
+    "accessChecking": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản ứng viên.",
+    "notFoundTitle": "Không tìm thấy báo cáo này",
+    "notFoundText": "Báo cáo có thể đã bị xóa hoặc không phải của bạn.",
+    "openHistory": "Mở lịch sử phỏng vấn",
+    "errorTitle": "Không thể tải báo cáo này",
+    "errorText": "Vui lòng thử lại sau ít phút.",
+    "retry": "Thử lại"
+  },
+  "avatars": {
+    "inventory": {
+      "eyebrow": "Người phỏng vấn theo cách của bạn",
+      "title": "Avatar Studio cá nhân",
+      "intro": "Tạo avatar 3D từ ảnh của bạn, đặt tính cách cho từng avatar và lưu chúng trong kho avatar riêng.",
+      "buySlots": "Mua ô avatar",
+      "createAvatar": "Tạo avatar",
+      "checking": "Đang kiểm tra các ô avatar của bạn.",
+      "checkFailed": "Không thể kiểm tra các ô avatar của bạn.",
+      "loading": "Đang tải avatar của bạn…",
+      "accessChecking": "Đang kiểm tra quyền truy cập tài khoản… Nếu tình trạng này kéo dài, hãy đăng nhập lại.",
+      "loadFailed": "Không thể tải avatar của bạn.",
+      "retry": "Thử lại",
+      "pastEnd": "Trang này nằm ngoài phạm vi kho avatar của bạn.",
+      "firstPage": "Về trang đầu",
+      "slotsList": "Ô avatar, đã dùng {used}/{capacity}",
+      "pagination": "Các trang ô avatar",
+      "capacity": {
+        "label": "Ô avatar",
+        "checking": "Đang kiểm tra các ô avatar của bạn…",
+        "failed": "Không thể kiểm tra các ô avatar của bạn.",
+        "usedOf": "Đã dùng <used></used>/<total></total>",
+        "full": "Đã đầy",
+        "fullHint": "Hãy xóa avatar bạn không cần nữa hoặc mua thêm ô để tạo avatar mới.",
+        "free": "{count, plural, other {Còn {countText} ô trống cho avatar mới.}}",
+        "refresh": "Làm mới ô avatar",
+        "buy": "Mua ô avatar"
+      },
+      "delete": {
+        "title": "Xóa {name}?",
+        "description": "Thao tác này giải phóng một ô trong kho avatar. Sức chứa của bạn không đổi. Không thể hoàn tác.",
+        "keep": "Giữ avatar",
+        "confirm": "Xóa avatar",
+        "pending": "Đang xóa…",
+        "deleted": "Đã xóa avatar",
+        "alreadyDeleted": "Avatar này đã được xóa trước đó",
+        "freed": "Kho avatar của bạn đã trống thêm một ô.",
+        "unconfirmed": "Chúng tôi không thể xác nhận việc xóa. Danh sách đã được làm mới; nếu avatar vẫn còn, hãy thử lại.",
+        "inUse": "Avatar này đang được dùng trong một tin tuyển dụng hoặc buổi phỏng vấn nên không thể xóa.",
+        "denied": "Phiên đăng nhập của bạn hiện không thể xóa avatar. Hãy đăng nhập lại rồi thử lại.",
+        "failed": "Không thể xóa avatar này. Hãy thử lại."
+      }
+    },
+    "card": {
+      "renderUnavailable": "Thiết bị này không hỗ trợ 3D",
+      "previewFailed": "Không thể hiển thị bản xem trước",
+      "open3d": "Mở {name} ở chế độ 3D",
+      "badge3d": "3D",
+      "retry": "Thử lại",
+      "delete": "Xóa {name}",
+      "emptyCreateLabel": "Tạo avatar ở ô trống {slot}/{capacity}",
+      "create": "Tạo avatar",
+      "empty": "Ô trống",
+      "slotOf": "Ô {slot}/{capacity}",
+      "addMore": "Thêm ô avatar",
+      "price": "{price} mỗi ô"
+    },
+    "preview": {
+      "defaultTitle": "Xem trước avatar",
+      "hint": "Kéo để xoay avatar, cuộn hoặc chụm hai ngón để phóng to.",
+      "missing": "Avatar này không còn trong kho avatar của bạn.",
+      "openFailed": "Hiện không thể mở avatar này.",
+      "retry": "Thử lại",
+      "viewerLabel": "Xem trước 3D của {name}",
+      "viewerFallback": "avatar của bạn",
+      "personality": "Tính cách",
+      "created": "Ngày tạo",
+      "loading": "Đang tải thông tin avatar…",
+      "delete": "Xóa avatar"
+    },
+    "buy": {
+      "title": "Mua ô avatar",
+      "description": "Mỗi ô avatar thêm chỗ chứa cho kho avatar của bạn. Mỗi ô có giá {price} và được trừ từ ví của bạn.",
+      "amountLabel": "Số ô",
+      "fewer": "Bớt một ô",
+      "more": "Thêm một ô",
+      "hint": "Mỗi lần mua từ 1 đến {max} ô.",
+      "total": "Tổng",
+      "balance": "Số dư của bạn",
+      "balanceChecking": "Đang kiểm tra…",
+      "balanceUnavailable": "Không khả dụng",
+      "capacityAfter": "Sức chứa sau khi mua",
+      "capacityAfterValue": "{count, plural, other {{countText} ô}}",
+      "needMore": "Bạn cần thêm {amount}. <addCoins>Nạp thêm xu</addCoins>",
+      "addCoins": "Nạp thêm xu",
+      "cancel": "Hủy",
+      "pending": "Đang mua…",
+      "submitEmpty": "Mua ô avatar",
+      "submit": "Mua với giá {price}",
+      "toastTitle": "{count, plural, other {Đã thêm # ô avatar}}",
+      "toastDescription": "Sức chứa kho avatar của bạn đã được cập nhật.",
+      "errors": {
+        "insufficientBalance": "Bạn không đủ xu cho giao dịch này. Hãy nạp thêm vào ví rồi thử lại.",
+        "validation": "Hãy chọn từ 1 đến {max} ô.",
+        "denied": "Phiên đăng nhập của bạn hiện không thể mua ô avatar. Hãy đăng nhập lại rồi thử lại.",
+        "failed": "Không thể mua ô avatar.",
+        "unconfirmed": "Chúng tôi không thể xác nhận giao dịch mua. Sức chứa và số dư đã được làm mới; hãy kiểm tra lại trước khi mua tiếp."
+      }
+    },
+    "validation": {
+      "nameRequired": "Vui lòng nhập tên.",
+      "nameInvalid": "Tên tối đa {max} ký tự và không được chứa ký tự null.",
+      "personalityRequired": "Vui lòng nhập tính cách.",
+      "personalityInvalid": "Tính cách tối đa {max} ký tự và không được chứa ký tự null.",
+      "amountRequired": "Hãy nhập số ô.",
+      "amountInteger": "Hãy nhập số ô là số nguyên.",
+      "amountMin": "Hãy mua ít nhất 1 ô.",
+      "amountMax": "Mỗi lần chỉ được mua tối đa {max} ô."
+    }
+  },
+  "roleProfiles": {
+    "labels": {
+      "status": {
+        "draft": "Bản nháp",
+        "analyzing": "Đang phân tích",
+        "review": "Cần xem lại",
+        "confirmed": "Đã xác nhận"
+      },
+      "seniority": {
+        "intern": "Thực tập sinh",
+        "junior": "Junior",
+        "mid": "Mid-level",
+        "senior": "Senior",
+        "lead": "Lead"
+      },
+      "category": {
+        "programming_language": "Ngôn ngữ",
+        "framework": "Framework",
+        "database": "Cơ sở dữ liệu",
+        "tool": "Công cụ",
+        "technology": "Công nghệ",
+        "other": "Kỹ năng kỹ thuật"
+      },
+      "kind": {
+        "skill": "Kỹ năng kỹ thuật",
+        "technology": "Công nghệ",
+        "domain_knowledge": "Kiến thức lĩnh vực"
+      },
+      "priority": {
+        "unspecified": "Chưa chỉ định",
+        "required": "Bắt buộc",
+        "preferred": "Ưu tiên"
+      },
+      "proficiency": {
+        "Unspecified": "Chưa chỉ định",
+        "New": "Mới làm quen",
+        "Familiar": "Quen thuộc",
+        "Proficient": "Thành thạo",
+        "Expert": "Chuyên gia"
+      },
+      "savedTarget": "Mục tiêu đã lưu",
+      "classified": "{classification} · {priority}"
+    },
+    "validation": {
+      "textLength": "Hãy nhập từ {min} đến {max} ký tự.",
+      "entryLength": "Hãy dán từ 100 đến 20.000 ký tự văn bản mô tả công việc.",
+      "categoryRequired": "Hãy chọn danh mục kỹ năng.",
+      "categoryOnlySkills": "Chỉ kỹ năng mới có danh mục.",
+      "requirementsMin": "Hãy giữ lại ít nhất một yêu cầu kỹ thuật."
+    },
+    "errors": {
+      "canceled": "Đã hủy. Bạn có thể thử lại hoặc mở bản nháp đã lưu.",
+      "notReady": "Mô tả công việc này chưa sẵn sàng cho thao tác đó. Hãy làm mới trang và thử lại.",
+      "generic": "Chúng tôi không thể hoàn tất bước đó. Vui lòng thử lại.",
+      "pdfUnavailable": "Hiện không thể đọc PDF. Hãy dán văn bản JD của bạn để tiếp tục.",
+      "extractionFailed": "Phân tích không thành công. Hãy thử lại với bản nháp đã lưu."
+    },
+    "steps": {
+      "ariaLabel": "Tiến trình hồ sơ vị trí",
+      "input": "Thêm JD",
+      "review": "Xem lại vị trí",
+      "confirmed": "Đã xác nhận",
+      "complete": ", đã hoàn tất",
+      "current": ", bước hiện tại",
+      "upcoming": ", sắp tới"
+    },
+    "library": {
+      "eyebrow": "Bối cảnh luyện tập của bạn",
+      "heading": "Hồ sơ vị trí",
+      "description": "Lưu giữ các hồ sơ vị trí của bạn, xem lại yêu cầu và tiếp tục từ chỗ bạn đã dừng. Hồ sơ vị trí của bạn luôn được giữ riêng tư.",
+      "add": "Thêm hồ sơ vị trí",
+      "loading": "Đang tải hồ sơ vị trí",
+      "retry": "Thử lại",
+      "tableLabel": "Hồ sơ vị trí",
+      "pagesLabel": "Các trang hồ sơ vị trí",
+      "seniorityToReview": "Cần xem lại cấp bậc",
+      "deleteLabel": "Xóa {title}",
+      "columns": {
+        "role": "Vị trí",
+        "status": "Trạng thái",
+        "created": "Ngày tạo",
+        "actions": "Thao tác"
+      },
+      "empty": {
+        "title": "Vị trí tiếp theo của bạn bắt đầu từ đây.",
+        "description": "Tạo hồ sơ vị trí từ một bản mô tả công việc, xem lại những điểm quan trọng và định hướng trọng tâm cho buổi phỏng vấn luyện tập tiếp theo của bạn.",
+        "cta": "Thêm một vị trí"
+      },
+      "delete": {
+        "title": "Xóa hồ sơ vị trí này?",
+        "description": "{title} và các yêu cầu đã lưu của hồ sơ sẽ bị xóa. Không thể xóa hồ sơ vị trí đã có lịch sử phỏng vấn.",
+        "keep": "Giữ hồ sơ",
+        "confirm": "Xóa hồ sơ vị trí",
+        "pending": "Đang xóa…"
+      }
+    },
+    "entry": {
+      "back": "Hồ sơ vị trí",
+      "heading": "Đưa vị trí vào phòng phỏng vấn.",
+      "description": "Hãy bắt đầu với một bản mô tả công việc. Chúng tôi sẽ trích xuất bối cảnh của vị trí, còn bạn vẫn nắm quyền xem lại.",
+      "sourceLabel": "Nguồn mô tả công việc",
+      "textTab": "Dán văn bản",
+      "pdfTab": "Tải lên PDF",
+      "textLabel": "Nội dung mô tả công việc",
+      "placeholder": "Dán vị trí, trách nhiệm, yêu cầu, công nghệ và bối cảnh lĩnh vực vào đây.",
+      "help": "100–20.000 ký tự sau khi làm sạch khoảng trắng.",
+      "counter": "{count} / 20.000",
+      "draftLink": "Mở bản nháp đã lưu",
+      "submit": "Phân tích vị trí",
+      "cancel": "Hủy",
+      "private": "Hồ sơ vị trí của bạn được giữ riêng tư.",
+      "phase": {
+        "upload": {
+          "action": "Đang tải PDF lên…",
+          "status": "Đang tải PDF của bạn lên một cách an toàn."
+        },
+        "reading": {
+          "action": "Đang đọc PDF…",
+          "status": "Đang đọc PDF của bạn và lưu bản gốc."
+        },
+        "analysis": {
+          "action": "Đang phân tích vị trí…",
+          "status": "Đang lưu hồ sơ vị trí và trích xuất các yêu cầu kỹ thuật."
+        }
+      },
+      "next": {
+        "title": "Điều gì xảy ra tiếp theo",
+        "save": "Chúng tôi lưu riêng tư văn bản JD hoặc bản PDF gốc của bạn.",
+        "extract": "AI trích xuất các yêu cầu và mức thành thạo kỳ vọng.",
+        "review": "Bạn xem lại và xác nhận bối cảnh của vị trí."
+      }
+    },
+    "upload": {
+      "dropHere": "Thả tệp PDF của bạn vào đây",
+      "selected": "{size} KB · Đã chọn PDF",
+      "help": "PDF có văn bản chọn được, tối đa 5 MB. Không hỗ trợ PDF dạng quét hoặc có mã hóa.",
+      "inputLabel": "PDF mô tả công việc",
+      "choose": "Chọn PDF",
+      "replace": "Thay PDF",
+      "remove": "Xóa PDF",
+      "progressLabel": "Tiến trình tải PDF lên",
+      "uploaded": "Đã tải lên {progress}%",
+      "errors": {
+        "notPdf": "Hãy chọn một tài liệu PDF.",
+        "empty": "PDF này trống. Hãy chọn tài liệu khác.",
+        "tooLarge": "Hãy chọn PDF tối đa 5 MB.",
+        "oneAtATime": "Hãy chọn từng PDF một."
+      }
+    },
+    "detail": {
+      "loading": "Đang tải hồ sơ vị trí",
+      "heading": "Hồ sơ vị trí",
+      "retry": "Thử lại",
+      "backToLibrary": "Quay lại danh sách hồ sơ vị trí",
+      "back": "Hồ sơ vị trí",
+      "refresh": "Làm mới trạng thái",
+      "title": {
+        "review": "Xác nhận vị trí trước khi luyện tập.",
+        "analysis": "Cùng tìm trọng tâm của vị trí.",
+        "confirmed": "Hồ sơ vị trí của bạn đã được xác nhận."
+      },
+      "description": {
+        "review": "Kết quả trích xuất của AI chỉ là điểm khởi đầu. Hãy xem lại, tinh chỉnh và lưu những gì quan trọng với bạn.",
+        "analysis": "Bản mô tả công việc gốc của bạn đã được lưu. Hãy trích xuất các yêu cầu kỹ thuật để bắt đầu xem lại.",
+        "confirmed": "Các yêu cầu, cấp bậc và ghi chú tinh chỉnh bạn đã xem lại được lưu cho bước tiếp theo."
+      },
+      "refreshFailed": "Không thể làm mới. Bản xem lại hiện tại của bạn vẫn còn đây; hãy thử làm mới lại.",
+      "analyzing": "Đang phân tích các yêu cầu kỹ thuật. Bạn có thể làm mới để kiểm tra trạng thái đã lưu.",
+      "analysisFailed": "Phân tích chưa hoàn tất. Văn bản của bạn vẫn an toàn; hãy thử lại.",
+      "ready": "Sẵn sàng phân tích bản mô tả công việc đã lưu của bạn.",
+      "analyze": "Phân tích vị trí",
+      "retryAnalysis": "Thử phân tích lại",
+      "retryHint": "Nếu lần thử trước vẫn đang chạy, việc thử lại sẽ giữ nguyên lần đó và không bắt đầu thêm lần mới.",
+      "originalTitle": "Bản mô tả công việc gốc",
+      "originalMissing": "Không có văn bản gốc cho hồ sơ vị trí cũ này."
+    },
+    "original": {
+      "label": "PDF gốc",
+      "private": "Tài liệu riêng tư",
+      "open": "Mở PDF gốc",
+      "opening": "Đang mở PDF…",
+      "popupBlocked": "Hãy cho phép cửa sổ bật lên của trang này để mở PDF riêng tư trong tab mới."
+    },
+    "review": {
+      "legend": "Xem lại hồ sơ vị trí",
+      "intro": "Chỉnh sửa vị trí và các yêu cầu ngay bên dưới. Những gì bạn xác nhận sẽ là bối cảnh vị trí được lưu cho buổi luyện tập của bạn.",
+      "roleTitle": "Tên vị trí",
+      "seniority": "Cấp bậc",
+      "chooseLevel": "Chọn cấp bậc",
+      "seniorityRequired": "Hãy chọn cấp bậc trước khi xác nhận.",
+      "requirementsTitle": "Yêu cầu kỹ thuật",
+      "requirementsHelp": "Đặt mức thành thạo mà vị trí này đòi hỏi. Mở phần chi tiết để chỉnh phân loại hoặc mức ưu tiên. Loại dùng để nhóm một năng lực, một công nghệ cụ thể hoặc kiến thức lĩnh vực; danh mục mô tả kiểu kỹ năng kỹ thuật, chẳng hạn ngôn ngữ, framework, cơ sở dữ liệu hoặc công cụ.",
+      "addRequirement": "Thêm yêu cầu",
+      "noteLabel": "Biến buổi luyện tập thành của riêng bạn.",
+      "noteHelp": "Thêm một trọng tâm hoặc điều cần loại trừ, ví dụ “Tập trung vào caching và xử lý đồng thời” hoặc “Loại trừ C#”. Ghi chú của bạn định hướng việc chuẩn bị phỏng vấn. Lưu hoặc xác nhận đều lưu ghi chú này cùng các chỉnh sửa hiện tại. Xác nhận sẽ lưu bản xem lại trước, rồi mới chuẩn bị nội dung phỏng vấn.",
+      "notePlaceholder": "Bạn muốn tập trung vào điều gì?",
+      "noteCounter": "{count} / 2.000",
+      "confirmNote": "Xác nhận sẽ chuẩn bị và lưu nội dung phỏng vấn cho vị trí này.",
+      "status": {
+        "confirming": "Đang chuẩn bị nội dung phỏng vấn…",
+        "saving": "Đang lưu bản xem lại của bạn…",
+        "unsaved": "Bạn có thay đổi chưa lưu.",
+        "saved": "Bản xem lại mới nhất của bạn đã được lưu."
+      },
+      "save": "Lưu bản xem lại",
+      "saveBusy": "Đang lưu…",
+      "confirm": "Xác nhận vị trí",
+      "confirmBusy": "Đang xác nhận…"
+    },
+    "requirement": {
+      "legend": "Yêu cầu kỹ thuật {number}",
+      "nameLabel": "Yêu cầu {number}",
+      "namePlaceholder": "Tên kỹ năng hoặc chủ đề",
+      "proficiencyLabel": "Mức thành thạo cho yêu cầu {number}",
+      "proficiencyPlaceholder": "Chọn mức thành thạo",
+      "remove": "Xóa yêu cầu {number}",
+      "detailsLabel": "Chi tiết của yêu cầu {number}",
+      "details": "Chi tiết",
+      "fromJd": "Từ JD",
+      "kind": "Loại",
+      "category": "Danh mục kỹ năng",
+      "categoryPlaceholder": "Chọn danh mục",
+      "priority": "Mức ưu tiên",
+      "savedTarget": "Mục tiêu đã lưu",
+      "savedTargetHelp": "Vị trí này có một mục tiêu được lưu theo định dạng cũ. Mục tiêu giữ nguyên như đã viết cho đến khi bạn thay đổi."
+    },
+    "summary": {
+      "requirementsTitle": "Yêu cầu kỹ thuật",
+      "requirementsHelp": "Các yêu cầu và mức thành thạo đã lưu cho vị trí này.",
+      "proficiencyLabel": "Mức thành thạo cho {name}",
+      "sourceLabel": "Nguồn của yêu cầu {number}",
+      "fromJd": "Từ JD",
+      "noteTitle": "Ghi chú tinh chỉnh của bạn",
+      "savedTitle": "Bản xem lại vị trí của bạn đã được lưu.",
+      "savedStatus": "Các yêu cầu và nội dung phỏng vấn của bạn đã được lưu. Hồ sơ vị trí của bạn đã sẵn sàng cho bước tiếp theo.",
+      "continue": "Tiếp tục thiết lập"
+    }
+  },
+  "billing": {
+    "coinsAmount": "{amount} xu",
+    "balanceCard": {
+      "label": "Số dư xu khả dụng",
+      "loadError": "Không thể tải số dư xu",
+      "retry": "Thử lại",
+      "unit": "XU",
+      "description": "Dùng xu cho các buổi phỏng vấn luyện tập với AI, tạo giọng nói và đánh giá ứng viên.",
+      "refreshAria": "Làm mới số dư",
+      "refreshing": "Đang làm mới…",
+      "refresh": "Làm mới số dư",
+      "ledger": "Sổ giao dịch chính thức & thanh toán PayOS an toàn"
+    },
+    "overview": {
+      "adminTitle": "Ví & xu",
+      "adminDescription": "Số dư xu và việc nạp xu chỉ dành cho không gian luyện tập của ứng viên và không gian đăng tin của nhà tuyển dụng.",
+      "adminAlertTitle": "Tài khoản quản trị viên không có ví cá nhân",
+      "adminAlertBody": "Việc kiểm toán thanh toán và theo dõi doanh thu của nền tảng được thực hiện trong cổng Tài chính dành cho quản trị viên.",
+      "title": "Lịch sử giao dịch",
+      "description": "Xu bạn đã mua, đã dùng và được hoàn lại.",
+      "balanceGroup": "Số dư xu",
+      "balance": "Số dư",
+      "addCoins": "Thêm xu",
+      "historyHeading": "Lịch sử giao dịch"
+    },
+    "transactions": {
+      "title": "Giao dịch của bạn",
+      "subtitle": "Mua xu, chi tiêu và hoàn xu tại một nơi.",
+      "refreshAria": "Làm mới lịch sử giao dịch",
+      "refresh": "Làm mới",
+      "refreshing": "Đang làm mới…",
+      "filterScope": "Bộ lọc chỉ áp dụng cho các giao dịch trên trang này.",
+      "filterLabel": "Lọc giao dịch trên trang này",
+      "tabs": {
+        "all": "Tất cả giao dịch",
+        "topup": "Nạp xu (PayOS)",
+        "spend": "Chi tiêu xu",
+        "refund": "Hoàn xu"
+      },
+      "status": {
+        "success": "Thành công",
+        "pending": "Đang chờ",
+        "cancelled": "Đã hủy",
+        "failed": "Thất bại"
+      },
+      "loadError": "Không thể tải lịch sử giao dịch",
+      "loadErrorFallback": "Vui lòng thử tải lại trang.",
+      "retry": "Thử lại",
+      "emptyTitle": "Không tìm thấy giao dịch nào",
+      "emptyNone": "Bạn chưa có giao dịch xu nào. Hãy nạp xu ở trên để bắt đầu.",
+      "emptyPage": "Không có giao dịch nào trên trang này. Hãy thử trang khác hoặc làm mới.",
+      "emptyFiltered": {
+        "topup": "Không có giao dịch nạp xu nào trên trang này. Các trang khác có thể có giao dịch phù hợp.",
+        "spend": "Không có giao dịch chi tiêu xu nào trên trang này. Các trang khác có thể có giao dịch phù hợp.",
+        "refund": "Không có giao dịch hoàn xu nào trên trang này. Các trang khác có thể có giao dịch phù hợp."
+      },
+      "tableLabel": "Giao dịch xu",
+      "columns": {
+        "transaction": "Giao dịch",
+        "status": "Trạng thái",
+        "coins": "Xu"
+      },
+      "fallbackDeposit": "Nạp xu",
+      "fallbackRefund": "Hoàn xu",
+      "fallbackSpend": "Chi tiêu xu",
+      "order": "Đơn hàng #{code}",
+      "noCoins": "Chưa cộng xu",
+      "coinsAria": "{coins} xu",
+      "coinsAriaWhenPaid": "{coins} xu khi đã thanh toán",
+      "coinsSr": " xu",
+      "whenPaid": "khi đã thanh toán",
+      "showing": "Hiển thị {shown} trong {total} giao dịch trên trang này.",
+      "pagination": "Trang {page}/{totalPages} (tổng {total} giao dịch thuộc mọi loại)",
+      "previous": "Trang trước",
+      "next": "Trang sau"
+    },
+    "describe": {
+      "pack": "Gói {name}",
+      "practice": "Phỏng vấn luyện tập",
+      "refundNamed": "Hoàn lượt phỏng vấn chưa dùng: {title}",
+      "refund": "Hoàn lượt phỏng vấn chưa dùng",
+      "slotsNamed": "Lượt phỏng vấn: {title}",
+      "slots": "Lượt phỏng vấn",
+      "avatar": "Dung lượng lưu trữ avatar",
+      "other": "Giao dịch xu",
+      "slotCount": "{count} lượt",
+      "avatarSlotCount": "{count} ô"
+    },
+    "packages": {
+      "loadError": "Không thể tải các gói xu",
+      "loadErrorHint": "Vui lòng thử lại sau giây lát.",
+      "retryLoading": "Thử tải lại các gói",
+      "emptyTitle": "Chưa có gói nào",
+      "emptyHint": "Vui lòng quay lại sau.",
+      "buyAria": "Mua {name} bằng PayOS",
+      "preparing": "Đang chuẩn bị PayOS…",
+      "continue": "Tiếp tục"
+    },
+    "purchase": {
+      "buyCoins": "Mua xu",
+      "tooltip": "Thêm xu",
+      "tooltipUnavailable": "Không thể tải số dư · Thêm xu",
+      "dialogTitle": "Thêm xu",
+      "dialogDescription": "Thanh toán một lần · PayOS"
+    },
+    "paymentBanner": {
+      "verifyingTitle": "Đang xác minh thanh toán",
+      "pendingTitle": "Thanh toán đang chờ xử lý",
+      "verifyingBody": "Đang kiểm tra thanh toán của bạn với đơn vị thanh toán. Vui lòng đợi.",
+      "pendingBody": "Thanh toán của bạn chưa được xác nhận. Xu chưa được cộng vào tài khoản.",
+      "checkAgain": "Kiểm tra lại",
+      "dismiss": "Đóng thông báo thanh toán",
+      "successTitle": "Thanh toán thành công",
+      "successOrder": "Đơn hàng #{code} đã được xử lý. Số dư xu của bạn đã được cộng.",
+      "success": "Khoản nạp của bạn đã được xử lý. Số dư xu của bạn đã được cộng.",
+      "cancelledTitle": "Đã hủy thanh toán",
+      "cancelledOrder": "Thanh toán cho đơn hàng #{code} đã bị hủy. Không có xu nào được cộng.",
+      "cancelled": "Thanh toán đã bị hủy. Không có xu nào được cộng.",
+      "failedTitle": "Thanh toán không thành công",
+      "unverifiedTitle": "Không thể xác minh thanh toán",
+      "failedOrder": "Chúng tôi không thể xác minh thanh toán cho đơn hàng #{code}. Nếu bạn đã bị trừ tiền, vui lòng liên hệ bộ phận hỗ trợ kèm mã đơn hàng.",
+      "failed": "Chúng tôi không thể xác minh thanh toán của bạn. Hãy quay lại với mã đơn hàng hợp lệ hoặc liên hệ bộ phận hỗ trợ nếu bạn đã bị trừ tiền."
+    }
+  },
+  "applications": {
+    "page": {
+      "eyebrow": "Ứng viên",
+      "title": "Đơn ứng tuyển của tôi",
+      "description": "Mọi CV bạn đã gửi, kèm trạng thái hiện tại, mới nhất trước."
+    },
+    "status": {
+      "pending": "Đang chờ xét duyệt CV",
+      "interview_eligible": "Đủ điều kiện phỏng vấn",
+      "interviewed": "Đã phỏng vấn",
+      "approved": "Đã duyệt",
+      "rejected": "Không được chọn"
+    },
+    "actions": {
+      "start": "Bắt đầu phỏng vấn",
+      "resume": "Tiếp tục phỏng vấn",
+      "tryAgain": "Thử lại"
+    },
+    "progress": {
+      "label": "Tiến trình đơn ứng tuyển",
+      "steps": {
+        "applied": "Đã nộp",
+        "review": "Duyệt CV",
+        "interview": "Phỏng vấn",
+        "decision": "Quyết định"
+      },
+      "state": {
+        "done": "hoàn tất",
+        "current": "đang diễn ra",
+        "ended": "dừng tại đây",
+        "upcoming": "chưa tới"
+      },
+      "stateAnnounce": ": {state}"
+    },
+    "list": {
+      "loading": "Đang tải đơn ứng tuyển của bạn…",
+      "deniedTitle": "Bạn không có quyền truy cập đơn ứng tuyển",
+      "deniedBody": "Đang kiểm tra quyền truy cập tài khoản… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản ứng viên.",
+      "errorTitle": "Không thể tải đơn ứng tuyển của bạn",
+      "errorBody": "Vui lòng thử lại sau giây lát.",
+      "pastEnd": "Trang này nằm ngoài danh sách của bạn.",
+      "firstPage": "Về trang đầu tiên",
+      "emptyTitle": "Bạn chưa ứng tuyển tin tuyển dụng nào.",
+      "emptyBody": "Hãy tìm một tin tuyển dụng đang mở trên bảng tin tuyển dụng và ứng tuyển bằng CV của bạn.",
+      "browse": "Xem bảng tin tuyển dụng",
+      "listLabel": "Đơn ứng tuyển của bạn",
+      "paginationLabel": "Phân trang đơn ứng tuyển",
+      "showing": "Hiển thị {first}–{last} trên {total}",
+      "previous": "Trước",
+      "next": "Sau",
+      "submitted": "Đã nộp <time>{date}</time>",
+      "recruiterNote": "Ghi chú của nhà tuyển dụng: {reason}",
+      "viewApplication": "Xem đơn ứng tuyển",
+      "viewAria": "Xem đơn ứng tuyển cho {title}"
+    },
+    "detail": {
+      "back": "Quay lại đơn ứng tuyển của tôi",
+      "invalidTitle": "Liên kết này không hợp lệ",
+      "invalidBody": "Hãy kiểm tra lại địa chỉ hoặc mở đơn ứng tuyển từ danh sách của bạn.",
+      "loading": "Đang tải đơn ứng tuyển của bạn…",
+      "deniedTitle": "Bạn không có quyền truy cập đơn ứng tuyển này",
+      "deniedBody": "Đang kiểm tra quyền truy cập tài khoản… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản ứng viên.",
+      "notFoundTitle": "Không tìm thấy đơn ứng tuyển này",
+      "notFoundBody": "Đơn có thể đã bị xóa hoặc không phải của bạn.",
+      "errorTitle": "Không thể tải đơn ứng tuyển này",
+      "errorBody": "Vui lòng thử lại sau giây lát.",
+      "eyebrow": "Đơn ứng tuyển",
+      "facts": {
+        "status": "Trạng thái",
+        "submitted": "Đã nộp",
+        "deadline": "Hạn phỏng vấn",
+        "result": "Kết quả phỏng vấn",
+        "timeLeft": "Thời gian còn lại"
+      },
+      "message": {
+        "pending": "CV của bạn đang chờ được xét duyệt. Trang này sẽ cập nhật khi nhà tuyển dụng quyết định.",
+        "eligible": "CV của bạn đã được duyệt. Hãy hoàn thành buổi phỏng vấn trước thời hạn.",
+        "eligiblePassed": "Đã quá hạn. Thời gian phỏng vấn cho đơn ứng tuyển này đã đóng.",
+        "interviewed": "Bạn đã hoàn thành buổi phỏng vấn. Nhà tuyển dụng sẽ xem xét tiếp theo.",
+        "approved": "Nhà tuyển dụng đã duyệt đơn ứng tuyển của bạn.",
+        "rejected": "Đơn ứng tuyển này không được chọn cho vị trí này."
+      },
+      "reason": "Lý do: {reason}",
+      "result": {
+        "score": "{score} / 100",
+        "unavailable": "Không có",
+        "evaluating": "Đang được đánh giá",
+        "inProgress": "Đang diễn ra"
+      },
+      "resumeNote": "Tiếp tục từ chỗ bạn đã dừng. Việc tiếp tục không tốn thêm lượt phỏng vấn mới.",
+      "startNote": "Miễn phí cho bạn. Hãy hoàn thành trước thời hạn."
+    },
+    "hiringSteps": {
+      "review": {
+        "title": "Nhà tuyển dụng xem xét CV của bạn",
+        "detail": "Sẽ không có buổi phỏng vấn nào bắt đầu cho đến khi CV của bạn được duyệt."
+      },
+      "interview": {
+        "title": "Hoàn thành phỏng vấn AI trong vòng 24 giờ",
+        "detail": "Nếu CV của bạn được duyệt, buổi phỏng vấn sẽ mở trong Đơn ứng tuyển của tôi. Bạn không mất phí."
+      },
+      "decision": {
+        "title": "Nhà tuyển dụng đưa ra quyết định cuối cùng",
+        "detail": "Đơn ứng tuyển của bạn sẽ hiển thị kết quả khi họ quyết định."
+      },
+      "current": " (bước hiện tại)"
+    },
+    "apply": {
+      "sentTitle": "Đã gửi đơn ứng tuyển",
+      "sentBody": "CV của bạn cho vị trí {title} đã đến tay nhà tuyển dụng. Các bước tiếp theo như sau.",
+      "keepBrowsing": "Tiếp tục xem tin",
+      "viewMine": "Xem đơn ứng tuyển của tôi",
+      "title": "Ứng tuyển {title}",
+      "description": "Nhà tuyển dụng sẽ xem CV của bạn trước; chưa có buổi phỏng vấn nào bắt đầu từ bước này.",
+      "descriptionWhere": "{where}. Nhà tuyển dụng sẽ xem CV của bạn trước; chưa có buổi phỏng vấn nào bắt đầu từ bước này."
+    },
+    "cvForm": {
+      "errors": {
+        "notPdf": "Hãy chọn một tệp PDF.",
+        "empty": "Tệp này trống. Hãy chọn một tệp PDF khác.",
+        "tooLarge": "Tệp PDF này quá lớn. Hãy chọn tệp tối đa 5 MB."
+      },
+      "sizeKb": "{size} KB",
+      "sizeMb": "{size} MB",
+      "chooseAnother": "Chọn tệp PDF khác",
+      "choose": "Chọn CV của bạn (PDF)",
+      "hint": "Hoặc kéo thả vào đây. Một tệp PDF có thể chọn được văn bản, tối đa 5 MB.",
+      "progressLabel": "Tiến độ tải CV lên",
+      "uploading": "Đang tải CV của bạn lên… {progress}%",
+      "saving": "Đang lưu CV của bạn…",
+      "viewMine": "Xem đơn ứng tuyển của tôi",
+      "tryAgain": "Thử lại",
+      "sending": "Đang gửi…",
+      "send": "Gửi đơn ứng tuyển"
+    },
+    "applyErrors": {
+      "ALREADY_APPLIED": "Bạn đã ứng tuyển tin tuyển dụng này rồi.",
+      "INTAKE_NOT_OPEN": "Tin tuyển dụng này không còn nhận đơn ứng tuyển.",
+      "JOB_POSTING_NOT_FOUND": "Tin tuyển dụng này không còn tồn tại.",
+      "FORBIDDEN": "Chỉ tài khoản ứng viên mới có thể ứng tuyển tin tuyển dụng.",
+      "validation": "Hãy chọn tệp PDF tối đa 5 MB.",
+      "upload": "Không thể tải CV của bạn lên. Hãy thử lại."
+    }
+  },
+  "avatarStudio": {
+    "header": {
+      "back": "Avatar Studio cá nhân",
+      "eyebrow": "Người phỏng vấn theo cách của bạn",
+      "title": "Tạo avatar",
+      "intro": "Một gương mặt quen thuộc cho buổi phỏng vấn sắp tới. Hãy đặt tính cách, tạo diện mạo trong Avaturn và đưa avatar vào quá trình luyện tập của bạn.",
+      "slotsChecking": "Đang kiểm tra các ô avatar…",
+      "slotsFailed": "Không thể kiểm tra các ô avatar của bạn.",
+      "slotsUsed": "Đã dùng {used}/{capacity} ô avatar",
+      "slotsUnavailable": "Không có thông tin về ô avatar.",
+      "slotsAvailable": "Còn {available} ô cho avatar tiếp theo của bạn",
+      "refresh": "Làm mới ô avatar"
+    },
+    "notConfigured": "Dự án Avaturn chưa được cấu hình. Vui lòng liên hệ bộ phận hỗ trợ.",
+    "inventoryFull": {
+      "message": "Kho avatar của bạn đã đầy. Hãy xóa một avatar hoặc mua thêm ô trước khi tạo avatar khác.",
+      "manage": "Quản lý kho avatar"
+    },
+    "slotNotConfirmed": "Không thể xác nhận còn ô avatar trống. Hãy làm mới ô avatar rồi thử lại.",
+    "retrySave": "Thử lưu lại",
+    "creating": {
+      "title": "Đang tạo {name}",
+      "intro": "Chụp ảnh, tùy chỉnh diện mạo, rồi chọn Next để lưu.",
+      "close": "Đóng trình tạo",
+      "reading": "Đang đọc avatar bạn vừa xuất…",
+      "asideLabel": "Thông tin avatar của bạn",
+      "asideTitle": "Avatar của bạn",
+      "name": "Tên",
+      "personality": "Tính cách",
+      "beforeTitle": "Trước khi hoàn tất",
+      "beforeBody": "Hãy dùng avatar có hỗ trợ hoạt ảnh khuôn mặt (T2). RoleCue cần loại này để người phỏng vấn có biểu cảm sinh động.",
+      "finalTitle": "Bước cuối cùng",
+      "finalBody": "Chọn Next trong Avaturn. Chúng tôi sẽ lưu avatar và báo cho bạn khi avatar đã nằm trong kho."
+    },
+    "processing": {
+      "step": "Bước 03 / Lưu",
+      "title": "Đang xử lý avatar",
+      "body": "Đang chuyển đổi và lưu {name}. Việc này có thể mất vài phút.",
+      "bodyFallback": "avatar của bạn",
+      "keepOpen": "Hãy giữ trang này mở để xem kết quả. Quá trình lưu có thể vẫn tiếp tục nếu bạn rời đi."
+    },
+    "success": {
+      "eyebrow": "Đã lưu vào kho avatar cá nhân",
+      "title": "Đã lưu {name}",
+      "body": "Avatar cá nhân của bạn đã nằm trong kho. Bạn có thể xem trước ở chế độ 3D hoặc tạo thêm một nhân vật khác.",
+      "personality": "Tính cách",
+      "preview": "Xem trước 3D",
+      "back": "Về kho avatar",
+      "another": "Tạo avatar khác"
+    },
+    "unknown": {
+      "title": "Hãy kiểm tra kho avatar trước khi thử lại",
+      "body": "Chúng tôi không thể xác nhận avatar của bạn đã được lưu hay chưa. Yêu cầu lưu đã được gửi đến RoleCue và có thể vẫn đang xử lý; đóng hoặc tải lại trang này sẽ không hủy yêu cầu đó. Bản xuất của bạn sẽ không được gửi lại vì gửi lần nữa có thể tạo ra avatar trùng lặp.",
+      "check": "Kiểm tra kho avatar"
+    },
+    "discard": {
+      "title": "Bỏ bản nháp avatar này?",
+      "description": "Bản xuất chưa lưu của bạn sẽ bị bỏ. Chưa có avatar nào được gửi đến RoleCue.",
+      "keep": "Tiếp tục chỉnh sửa",
+      "confirm": "Bỏ bản nháp"
+    },
+    "saveErrors": {
+      "validation": "RoleCue không đọc được bản xuất avatar này. Hãy xuất lại trong Avaturn.",
+      "unsupported": "Avatar này không thể dùng làm người phỏng vấn. Hãy chọn avatar có hoạt ảnh khuôn mặt (T2), rồi xuất lại.",
+      "tooLarge": "Avatar này lớn hơn giới hạn tải lên 50 MB. Hãy xuất một phiên bản nhẹ hơn.",
+      "inventoryFull": "Kho avatar của bạn đã đầy trước khi avatar này được lưu. Hãy giải phóng hoặc mua thêm một ô trong kho, rồi thử lưu lại.",
+      "converterUnavailable": "Hệ thống chuyển đổi avatar đang bận. Chưa có gì được lưu; hãy thử lại sau ít phút.",
+      "conversionTimeout": "Việc chuyển đổi avatar này mất quá nhiều thời gian. Chưa có gì được lưu; hãy thử lại.",
+      "conversionFailed": "Không thể chuyển đổi avatar này. Chưa có gì được lưu; hãy thử lại hoặc xuất lại avatar.",
+      "persistenceFailed": "Không thể lưu trữ avatar này. Chưa có gì được lưu; hãy thử lại sau ít phút.",
+      "denied": "Phiên đăng nhập của bạn hiện không thể lưu avatar. Hãy đăng nhập lại, rồi tạo lại avatar.",
+      "generic": "Không thể lưu avatar này. Hãy thử lại."
+    },
+    "exportErrors": {
+      "unreadable": "Avaturn đã gửi một bản xuất mà RoleCue không đọc được. Hãy chọn Next trong Avaturn lần nữa.",
+      "noFacialAnimation": "Avatar này không có hoạt ảnh khuôn mặt (được tạo ở dạng T1). Hãy tạo avatar mới trong Avaturn, rồi chọn Next lần nữa.",
+      "badLink": "Avaturn đã gửi một liên kết tải xuống mà RoleCue không thể dùng. Hãy chọn Next trong Avaturn lần nữa.",
+      "tooLarge": "Avatar này vượt quá giới hạn tải lên 50 MB của trình duyệt.",
+      "downloadFailed": "Không thể tải avatar đã xuất. Hãy xuất lại trong Avaturn.",
+      "invalidFile": "Avaturn trả về một tệp GLB không hợp lệ. Vui lòng xuất lại.",
+      "generic": "Không thể đọc bản xuất avatar. Hãy thử xuất lại."
+    },
+    "journey": {
+      "label": "Tiến trình tạo avatar",
+      "details": {
+        "title": "Thông tin",
+        "description": "Tên và tính cách"
+      },
+      "create": {
+        "title": "Tạo",
+        "description": "Ảnh và diện mạo"
+      },
+      "save": {
+        "title": "Lưu",
+        "description": "Avatar cá nhân của bạn"
+      },
+      "complete": ", đã hoàn tất",
+      "current": ", bước hiện tại",
+      "upcoming": ", sắp tới"
+    },
+    "photoGuide": {
+      "label": "Hướng dẫn chuẩn bị ảnh",
+      "eyebrow": "Chuẩn bị một chút sẽ giúp ích",
+      "title": "Một bức ảnh đẹp giúp avatar giống bạn hơn.",
+      "lightTitle": "Chọn ánh sáng dịu và đều",
+      "lightDetail": "Quay mặt về phía cửa sổ. Tránh bóng đổ gắt hoặc ánh sáng phía sau lưng.",
+      "faceTitle": "Để lộ rõ khuôn mặt",
+      "faceDetail": "Giữ vẻ mặt tự nhiên và vén tóc ra khỏi mặt.",
+      "promptsTitle": "Làm theo hướng dẫn chụp ảnh",
+      "promptsDetail": "Avaturn sẽ hướng dẫn bạn chụp hoặc tải ảnh lên.",
+      "footer": "Bạn sẽ đăng nhập Avaturn riêng. Ảnh của bạn được chụp hoặc tải lên ngay trong Avaturn."
+    },
+    "details": {
+      "label": "Thông tin avatar",
+      "step": "Bước 01 / Thông tin",
+      "title": "Hãy tạo nét riêng cho người phỏng vấn của bạn.",
+      "intro": "Bắt đầu bằng một cái tên và một tính cách. Bạn sẽ tạo diện mạo ở bước tiếp theo.",
+      "nameLabel": "Tên avatar",
+      "namePlaceholder": "Đặt tên cho người phỏng vấn của bạn",
+      "personalityLabel": "Tính cách",
+      "presetsLabel": "Gợi ý tính cách",
+      "presetSupportive": "Hỗ trợ",
+      "presetDirect": "Thẳng thắn",
+      "presetTechnical": "Kỹ thuật",
+      "personalityPlaceholder": "Mô tả phong cách và tính cách của người phỏng vấn",
+      "hint": "Chọn một gợi ý hoặc tự viết. Bạn có thể chỉnh sửa nội dung ở trên.",
+      "checking": "Đang kiểm tra khả năng tạo…",
+      "open": "Mở trình tạo Avaturn",
+      "footnote": "Sẽ không có gì được lưu cho đến khi bạn hoàn tất trong Avaturn và RoleCue xác nhận đã lưu."
+    },
+    "creator": {
+      "connecting": "Đang kết nối với Avaturn…",
+      "openFailed": "Không thể mở Avaturn. Hãy thử tải lại trình tạo.",
+      "ready": "Tạo và tùy chỉnh avatar của bạn, rồi chọn Next trong Avaturn.",
+      "restore": "Khôi phục bố cục",
+      "expand": "Mở rộng trình chỉnh sửa",
+      "reload": "Tải lại trình tạo",
+      "gettingReady": "Đang chuẩn bị studio của bạn",
+      "frameTitle": "Trình tạo avatar Avaturn",
+      "restartTitle": "Khởi động lại trình tạo Avaturn?",
+      "restartBody": "Tải lại có thể làm mất các chỉnh sửa diện mạo hiện tại trong Avaturn. Tên và tính cách bạn đã đặt trong RoleCue vẫn được giữ lại ở đây.",
+      "keepEditing": "Tiếp tục chỉnh sửa",
+      "restart": "Khởi động lại trình tạo"
+    }
+  },
+  "setup": {
+    "context": "Thiết lập phỏng vấn",
+    "tryAgain": "Thử lại",
+    "resume": {
+      "title": "Bạn có một cuộc phỏng vấn chưa hoàn thành cho vị trí này",
+      "note": "Tiếp tục hoàn toàn miễn phí và giữ nguyên người phỏng vấn cùng giọng nói.",
+      "action": "Tiếp tục phỏng vấn",
+      "calloutTitle": "Cuộc phỏng vấn chưa hoàn thành",
+      "noCharge": "Tiếp tục phỏng vấn sẽ không bị trừ xu."
+    },
+    "index": {
+      "title": "Phỏng vấn",
+      "description": "Tạo một cuộc phỏng vấn hoặc quay lại phiên đang làm khi dịch vụ phiên phỏng vấn được kết nối.",
+      "create": "Tạo cuộc phỏng vấn"
+    },
+    "avatar": {
+      "previewUnavailable": "Không có bản xem trước"
+    },
+    "roleProfile": {
+      "title": "Chọn hồ sơ vị trí",
+      "loading": {
+        "description": "Đang kiểm tra các hồ sơ vị trí đã lưu của bạn…",
+        "status": "Đang tải các hồ sơ vị trí của bạn…"
+      },
+      "intro": "Cuộc phỏng vấn của bạn được xây dựng từ một hồ sơ vị trí đã xác nhận.",
+      "loadFailed": "Chúng tôi không thể hoàn tất bước này. Vui lòng thử lại.",
+      "confirmFirst": {
+        "title": "Hãy xác nhận vị trí này trước.",
+        "description": "Xem lại và xác nhận các yêu cầu cùng cấp độ kinh nghiệm trước khi thiết lập.",
+        "action": "Quay lại hồ sơ vị trí"
+      },
+      "notFound": "Chúng tôi không tìm thấy hồ sơ vị trí đó. Hãy chọn một hồ sơ bên dưới.",
+      "empty": {
+        "title": "Hãy chọn hồ sơ vị trí trước.",
+        "description": "Xem lại và xác nhận một vị trí trước khi thiết lập cuộc phỏng vấn.",
+        "openAll": "Mở các hồ sơ vị trí"
+      },
+      "add": "Thêm hồ sơ vị trí",
+      "description": "Cuộc phỏng vấn sẽ hỏi về các yêu cầu của vị trí đã xác nhận mà bạn chọn. Các câu hỏi được ẩn cho đến khi bạn bắt đầu.",
+      "listLabel": "Các hồ sơ vị trí đã xác nhận",
+      "seniority": {
+        "notSet": "Chưa đặt cấp độ",
+        "intern": "Thực tập sinh",
+        "junior": "Junior",
+        "mid": "Middle",
+        "senior": "Senior",
+        "lead": "Lead"
+      },
+      "created": "Tạo ngày <time>{date}</time>",
+      "unfinishedBadge": "Phỏng vấn chưa hoàn thành",
+      "loadMore": "Xem thêm hồ sơ vị trí",
+      "loadingMore": "Đang tải thêm…",
+      "continue": "Tiếp tục chọn người phỏng vấn",
+      "hint": {
+        "checking": "Đang kiểm tra cuộc phỏng vấn chưa hoàn thành…",
+        "choose": "Hãy chọn một hồ sơ vị trí để tiếp tục."
+      }
+    },
+    "interviewer": {
+      "title": "Chọn người phỏng vấn",
+      "description": "Chọn người phỏng vấn bạn và giọng nói của họ. Cả hai đều không bắt buộc: nếu không chọn avatar, bạn sẽ gặp người phỏng vấn 2D, hoạt động được trên mọi thiết bị.",
+      "needProfile": {
+        "title": "Hãy chọn hồ sơ vị trí trước.",
+        "description": "Chọn vị trí đã xác nhận mà bạn muốn luyện tập, rồi chọn người phỏng vấn.",
+        "action": "Chọn hồ sơ vị trí"
+      },
+      "alreadySet": {
+        "title": "Người phỏng vấn đã được chọn",
+        "description": "Vị trí này có một cuộc phỏng vấn chưa hoàn thành. Cuộc phỏng vấn giữ nguyên người phỏng vấn và giọng nói như lúc bắt đầu."
+      },
+      "legend": "Người phỏng vấn",
+      "inventoryNote": "Avatar lấy từ kho avatar của bạn. <link>Mở Avatar Studio</link>",
+      "twoD": {
+        "title": "Người phỏng vấn 2D",
+        "detail": "Sóng âm giọng nói có chuyển động."
+      },
+      "avatarGone": "Avatar bạn đã chọn không còn trong kho avatar, nên người phỏng vấn 2D đang được chọn.",
+      "previous": "Trước",
+      "next": "Sau",
+      "page": "Trang {page}/{pageCount}",
+      "loadError": "Không thể tải các avatar của bạn. Bạn vẫn có thể dùng người phỏng vấn 2D.",
+      "noAvatars": "Bạn chưa có avatar nào. <link>Tạo avatar trong Avatar Studio</link> để thấy avatar ở đây.",
+      "voice": {
+        "label": "Giọng nói",
+        "default": "Giọng mặc định",
+        "loading": "Đang tải các giọng nói…",
+        "error": "Không thể tải các giọng nói. Sẽ dùng giọng mặc định.",
+        "none": "Chưa có giọng nói nào. Sẽ dùng giọng mặc định.",
+        "gone": "Giọng nói bạn đã chọn không còn khả dụng, nên giọng mặc định đang được chọn.",
+        "active": "Chỉ hiển thị các giọng nói đang hoạt động."
+      },
+      "back": "Quay lại hồ sơ vị trí",
+      "continue": "Tiếp tục kiểm tra trước"
+    },
+    "readiness": {
+      "generic": {
+        "title": "Kiểm tra âm thanh và độ sẵn sàng phỏng vấn",
+        "description": "Hãy kiểm tra micro trước khi phỏng vấn. Bạn có thể đổi thiết bị đầu vào hoặc thử lại nếu có vấn đề.",
+        "sideTitle": "Sẵn sàng luyện tập?",
+        "sideText": "Hãy chọn một hồ sơ vị trí đã xác nhận để bắt đầu phỏng vấn luyện tập.",
+        "action": "Chọn hồ sơ vị trí"
+      },
+      "practice": {
+        "resumeTitle": "Tiếp tục cuộc phỏng vấn của bạn",
+        "startTitle": "Chuẩn bị bắt đầu",
+        "resumeDescription": "Hãy kiểm tra micro, rồi tiếp tục từ chỗ bạn đã dừng.",
+        "startDescription": "Hãy kiểm tra micro, rồi bắt đầu. Cuộc phỏng vấn sẽ mở ngay trong phòng phỏng vấn.",
+        "confirm": "Hãy xác nhận hồ sơ vị trí này trước khi bắt đầu.",
+        "notFound": "Chúng tôi không tìm thấy hồ sơ vị trí này. Hãy chọn hồ sơ khác.",
+        "openProfile": "Mở hồ sơ vị trí",
+        "chooseProfile": "Chọn hồ sơ vị trí"
+      },
+      "summary": {
+        "title": "Cuộc phỏng vấn của bạn",
+        "roleProfile": "Hồ sơ vị trí",
+        "changeProfile": "Đổi hồ sơ vị trí",
+        "edit": "Sửa",
+        "keptLabel": "Người phỏng vấn và giọng nói",
+        "kept": "Giữ nguyên từ cuộc phỏng vấn chưa hoàn thành của bạn",
+        "interviewer": "Người phỏng vấn",
+        "changeInterviewer": "Đổi người phỏng vấn",
+        "twoD": "Người phỏng vấn 2D",
+        "avatarGone": "Avatar bạn đã chọn không còn trong kho avatar.",
+        "avatarError": "Không thể tải avatar này.",
+        "voice": "Giọng nói",
+        "defaultVoice": "Giọng mặc định",
+        "voiceGone": "Giọng nói bạn đã chọn không còn khả dụng.",
+        "voiceError": "Không thể tải giọng nói này.",
+        "jobPosting": "Tin tuyển dụng",
+        "companyInterviewer": "Người phỏng vấn do công ty chọn",
+        "companyNote": "Công ty đã đặt người phỏng vấn và giọng nói cho cuộc phỏng vấn này."
+      },
+      "checking": "Đang kiểm tra cuộc phỏng vấn chưa hoàn thành…",
+      "recruitment": {
+        "context": "Phỏng vấn tuyển dụng",
+        "resumeTitle": "Tiếp tục cuộc phỏng vấn của bạn",
+        "startTitle": "Chuẩn bị cho cuộc phỏng vấn",
+        "description": "Hãy kiểm tra micro trước khi bắt đầu. Công ty sẽ xem lại cuộc phỏng vấn này.",
+        "back": "Quay lại đơn ứng tuyển",
+        "loading": "Đang tải đơn ứng tuyển của bạn…",
+        "notFound": "Chúng tôi không tìm thấy đơn ứng tuyển này.",
+        "loadFailed": "Chúng tôi không thể tải đơn ứng tuyển này. Vui lòng thử lại.",
+        "notEligible": "Đơn ứng tuyển này hiện chưa thể bắt đầu phỏng vấn.",
+        "completeIt": "Hoàn thành trước <time>{deadline}</time>",
+        "resumeNote": "Tiếp tục phỏng vấn không tốn thêm lượt phỏng vấn nào.",
+        "completeBy": "Hoàn thành trước",
+        "timeLeft": "Thời gian còn lại",
+        "status": {
+          "pending": "Đang chờ xét duyệt CV",
+          "interview_eligible": "Đủ điều kiện phỏng vấn",
+          "interviewed": "Đã phỏng vấn xong",
+          "approved": "Đã được duyệt",
+          "rejected": "Không được chọn"
+        }
+      }
+    },
+    "startPanel": {
+      "practiceTitle": "Phỏng vấn luyện tập",
+      "recruitmentTitle": "Phỏng vấn tuyển dụng",
+      "practiceNote": "{cost} sẽ được trừ một lần khi cuộc phỏng vấn bắt đầu. Tiếp tục lại sau đó là miễn phí.",
+      "recruitmentNote": "Miễn phí cho bạn. Công ty chi trả cuộc phỏng vấn này.",
+      "price": "Giá",
+      "balance": "Số dư của bạn",
+      "balanceValue": "{amount} xu",
+      "balanceFailed": "Chúng tôi không thể tải số dư của bạn.",
+      "needMore": "Bạn cần thêm <amount>{count, plural, other {# xu}}</amount> để bắt đầu.",
+      "addCoins": "Nạp thêm xu",
+      "label": {
+        "opening": "Đang mở phòng phỏng vấn…",
+        "resuming": "Đang tiếp tục…",
+        "starting": "Đang bắt đầu…",
+        "startPaid": "Bắt đầu phỏng vấn · {cost}",
+        "start": "Bắt đầu phỏng vấn"
+      },
+      "hint": {
+        "notReady": "Hãy bật micro để bắt đầu.",
+        "muted": "Hãy bật tiếng micro để bắt đầu.",
+        "attention": "Micro của bạn cần được kiểm tra. Hãy thử lại bước kiểm tra để bắt đầu.",
+        "balance": "Chưa thể bắt đầu cho đến khi số dư được tải xong."
+      },
+      "existing": {
+        "title": "Đang mở cuộc phỏng vấn hiện có của bạn",
+        "description": "Bạn đã có cuộc phỏng vấn này đang diễn ra."
+      },
+      "action": {
+        "startNew": "Thiết lập cuộc phỏng vấn mới",
+        "openProfile": "Mở hồ sơ vị trí",
+        "chooseProfile": "Chọn hồ sơ vị trí",
+        "changeInterviewer": "Đổi người phỏng vấn",
+        "backToApplication": "Quay lại đơn ứng tuyển",
+        "backToApplications": "Quay lại các đơn ứng tuyển"
+      }
+    },
+    "startErrors": {
+      "unconfirmed": "Chúng tôi không thể xác nhận cuộc phỏng vấn của bạn đã bắt đầu. Hãy thử lại. Bạn sẽ không bị trừ xu hai lần.",
+      "insufficientBalance": "Bạn cần {cost, plural, other {# xu}} để bắt đầu một cuộc phỏng vấn luyện tập.",
+      "insufficientBalanceWithBalance": "Bạn cần {cost, plural, other {# xu}} để bắt đầu một cuộc phỏng vấn luyện tập. Số dư của bạn là {balance}.",
+      "roleProfileRequired": "Hãy xác nhận hồ sơ vị trí này trước khi bắt đầu.",
+      "profileNotFound": "Chúng tôi không tìm thấy hồ sơ vị trí này. Hãy chọn hồ sơ khác.",
+      "questionBankPractice": "Các câu hỏi phỏng vấn của bạn vẫn đang được chuẩn bị. Hãy thử lại sau một phút.",
+      "questionBankRecruitment": "Cuộc phỏng vấn này chưa sẵn sàng. Hãy thử lại sau.",
+      "avatarGone": "Avatar này không còn trong kho avatar của bạn. Hãy chọn avatar khác.",
+      "voiceGone": "Giọng nói này không còn khả dụng. Hãy chọn giọng khác.",
+      "invalid": "Có điều gì đó trong phần thiết lập của bạn chưa hợp lệ. Hãy xem lại lựa chọn và thử lại.",
+      "applicationNotFound": "Chúng tôi không tìm thấy đơn ứng tuyển này.",
+      "notEligible": "Đơn ứng tuyển này hiện chưa thể bắt đầu phỏng vấn. Có thể đã quá hạn.",
+      "capacityNotFunded": "Công ty chưa mở lượt phỏng vấn cho tin tuyển dụng này. Hãy thử lại sau.",
+      "capacityFull": "Tất cả lượt phỏng vấn của tin tuyển dụng này đã được sử dụng hết.",
+      "completedPractice": "Cuộc phỏng vấn này đã kết thúc. Bạn có thể bắt đầu một cuộc mới.",
+      "completedRecruitment": "Cuộc phỏng vấn này đã kết thúc.",
+      "interviewNotFoundPractice": "Chúng tôi không tìm thấy cuộc phỏng vấn này. Bạn có thể bắt đầu một cuộc mới.",
+      "interviewNotFoundRecruitment": "Chúng tôi không tìm thấy cuộc phỏng vấn này.",
+      "denied": "Chỉ tài khoản ứng viên mới có thể bắt đầu phỏng vấn. Hãy đăng nhập lại nếu bạn thấy điều này không đúng."
+    },
+    "preflight": {
+      "status": {
+        "requesting": "Đang chờ cấp quyền micro",
+        "ready": "Micro đã sẵn sàng",
+        "muted": "Micro đang tắt tiếng",
+        "interrupted": "Micro bị gián đoạn",
+        "error": "Micro cần được kiểm tra",
+        "stopped": "Đã dừng kiểm tra micro",
+        "idle": "Chưa kiểm tra micro"
+      },
+      "activity": {
+        "speaking": "Đã phát hiện âm thanh",
+        "silent": "Đang lắng nghe — hãy nói để kiểm tra đầu vào",
+        "unavailable": "Không có mức âm đầu vào",
+        "inactive": "Mức âm đầu vào chưa hoạt động"
+      },
+      "title": "Kiểm tra micro của bạn",
+      "intro": "Hãy cho phép truy cập khi trình duyệt hỏi, rồi nói vài câu. Bước kiểm tra này chỉ diễn ra trên thiết bị của bạn, không bắt đầu cuộc phỏng vấn và không tốn xu.",
+      "inputLabel": "Đầu vào micro",
+      "systemDefault": "Mặc định của hệ thống",
+      "selectedMissing": "Micro đã chọn (không khả dụng)",
+      "currentInput": "Đầu vào hiện tại: {label}",
+      "inputsHint": "Danh sách thiết bị sẽ xuất hiện sau khi bạn cho phép truy cập micro.",
+      "inputLevel": "Mức âm đầu vào",
+      "meterLabel": "Mức âm đầu vào của micro",
+      "quietNote": "Có lúc yên lặng là bình thường. Chỉ báo âm thanh chỉ giúp bạn kiểm tra âm thanh của mình.",
+      "interrupted": "Micro của bạn tạm thời ngừng cung cấp âm thanh. Hãy kiểm tra thiết bị hoặc thử lại bước kiểm tra micro.",
+      "cancelled": "Đã hủy kiểm tra. Hãy đóng hoặc bỏ qua hộp thoại cấp quyền của trình duyệt trước khi thử lại. Mọi thiết bị đầu vào mà hộp thoại mở sẽ được giải phóng.",
+      "refreshInputs": "Làm mới danh sách",
+      "retryAudio": "Thử lại kiểm tra âm thanh",
+      "button": {
+        "checking": "Đang kiểm tra micro…",
+        "retry": "Thử lại micro",
+        "test": "Kiểm tra micro",
+        "unmute": "Bật tiếng micro",
+        "mute": "Tắt tiếng micro",
+        "stop": "Dừng kiểm tra micro",
+        "cancel": "Hủy kiểm tra micro"
+      },
+      "releaseNote": "Hãy dừng kiểm tra hoặc rời khỏi trang này để giải phóng micro. Trang này không yêu cầu quyền truy cập camera.",
+      "capabilities": {
+        "label": "Các tính năng khác của trình duyệt",
+        "check": "Kiểm tra tính năng của trình duyệt",
+        "note": "Các bước kiểm tra này chỉ cho biết API có sẵn hay không. Việc phát âm thanh qua loa, chất lượng kết nối và độ sẵn sàng phỏng vấn đầy đủ vẫn cần được kiểm tra riêng.",
+        "available": "Có sẵn",
+        "unavailable": "Không có sẵn",
+        "name": {
+          "microphone": "Micro",
+          "camera": "Camera",
+          "mediaRecorder": "MediaRecorder",
+          "webAudio": "Web Audio",
+          "webGL": "WebGL",
+          "online": "Kết nối mạng"
+        }
+      },
+      "message": {
+        "permissionDenied": "Chưa được cho phép truy cập micro. Hãy kiểm tra quyền của trình duyệt đối với trang này, cài đặt quyền riêng tư của hệ thống hoặc chính sách trang, rồi thử lại.",
+        "unsupportedBrowser": "Trình duyệt này không thể thu âm từ micro. Hãy thử trình duyệt được hỗ trợ và kiểm tra cài đặt thiết bị.",
+        "noDevice": "Không tìm thấy micro. Hãy kết nối micro hoặc chọn thiết bị đầu vào khác, rồi thử lại.",
+        "deviceUnavailable": "Không thể mở micro. Hãy kiểm tra kết nối và đóng các ứng dụng khác đang dùng micro, rồi thử lại.",
+        "constraints": "Micro đã chọn không khả dụng. Hãy chọn thiết bị đầu vào khác và thử lại.",
+        "unknown": "Không thể hoàn tất kiểm tra micro. Hãy kiểm tra thiết bị và thử lại.",
+        "secureContext": "Truy cập micro cần trình duyệt được hỗ trợ, chạy trên HTTPS hoặc localhost.",
+        "deviceLost": "Micro đã bị ngắt kết nối. Hãy kết nối lại hoặc chọn thiết bị đầu vào khác, rồi thử lại.",
+        "deviceListFailed": "Không thể làm mới danh sách micro. Thiết bị hiện tại có thể vẫn hoạt động; hãy làm mới danh sách để thử lại.",
+        "analysisUnavailable": "Mức âm đầu vào và phát hiện giọng nói không khả dụng. Hãy thử lại bước kiểm tra âm thanh để bật chúng."
+      }
+    }
+  }
+}

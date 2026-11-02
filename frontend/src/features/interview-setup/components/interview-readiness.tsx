@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { ArrowLeft, AudioLines, Building2 } from "lucide-react";
@@ -27,14 +28,10 @@ import {
 } from "@/features/candidate/applications/api/applications";
 import {
   formatDeadline,
-  statusLabel,
   timeLeftText,
 } from "@/features/candidate/applications/utils/application-text";
 import { roleProfileKeys } from "@/features/role-profile/api/keys";
-import {
-  getRoleProfile,
-  roleError,
-} from "@/features/role-profile/api/requests";
+import { getRoleProfile } from "@/features/role-profile/api/requests";
 import {
   interviewSetupKeys,
   listActiveVoices,
@@ -46,12 +43,14 @@ import { PreflightCheck, type MicrophoneReadiness } from "./preflight-check";
 import { PracticeProgress, ResumeCallout } from "./resume-callout";
 import { SetupHeader } from "./setup-header";
 import { StartPanel } from "./start-panel";
+import { apiErrorMessage } from "@/lib/i18n/api-errors";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Step 5: the microphone check and the one real operation of setup, start or resume. The layout
 // reads summary, microphone, start on a phone; on a desktop the microphone takes the main column
 // and the summary and start panel sit beside it.
 export function InterviewReadiness(params: SetupParams) {
+  const t = useTranslations("candidate.setup");
   const [readiness, setReadiness] = useState<MicrophoneReadiness>("not-ready");
   const onReadiness = useCallback(
     (value: MicrophoneReadiness) => setReadiness(value),
@@ -79,21 +78,26 @@ export function InterviewReadiness(params: SetupParams) {
   return (
     <section className="space-y-8">
       <SetupHeader
-        context="Interview setup"
-        title="Test audio & interview readiness"
-        description="Check your microphone before your interview. You can change your input or try again if something needs attention."
+        context={t("context")}
+        title={t("readiness.generic.title")}
+        description={t("readiness.generic.description")}
       />
       <Layout
         microphone={microphone}
         side={
           <div className="space-y-3 rounded-xl border bg-card p-5 text-sm">
-            <h2 className="font-semibold">Ready to practise?</h2>
+            <h2 className="font-semibold">
+              {t("readiness.generic.sideTitle")}
+            </h2>
             <p className="text-muted-foreground">
-              Choose a confirmed Role Profile to start a practice interview.
+              {t("readiness.generic.sideText")}
             </p>
-            <Button asChild className="h-11 w-full">
+            <Button
+              asChild
+              className="h-auto min-h-11 whitespace-normal py-2 w-full"
+            >
               <Link href={routes.interviews.new.setup}>
-                Choose a Role Profile
+                {t("readiness.generic.action")}
               </Link>
             </Button>
           </div>
@@ -148,6 +152,8 @@ function PracticeReadiness({
   readiness: MicrophoneReadiness;
   microphone: ReactNode;
 }) {
+  const t = useTranslations("candidate.setup");
+  const errors = useTranslations("errors");
   const user = useSessionUser();
   const cache = useQueryClient();
   const profile = useQuery({
@@ -192,12 +198,16 @@ function PracticeReadiness({
   });
   const header = (
     <SetupHeader
-      context="Interview setup"
-      title={resume ? "Resume your interview" : "Get ready to start"}
+      context={t("context")}
+      title={
+        resume
+          ? t("readiness.practice.resumeTitle")
+          : t("readiness.practice.startTitle")
+      }
       description={
         resume
-          ? "Check your microphone, then pick up where you left off."
-          : "Check your microphone, then start. The interview opens in the room right away."
+          ? t("readiness.practice.resumeDescription")
+          : t("readiness.practice.startDescription")
       }
     />
   );
@@ -215,13 +225,21 @@ function PracticeReadiness({
         >
           <p>
             {profile.data
-              ? "Confirm this Role Profile before starting."
+              ? t("readiness.practice.confirm")
               : isAxiosError(profile.error) &&
                   profile.error.response?.status === 404
-                ? "We couldn't find this Role Profile. Choose another one."
-                : roleError(profile.error)}
+                ? t("readiness.practice.notFound")
+                : apiErrorMessage(
+                    errors,
+                    profile.error,
+                    t("roleProfile.loadFailed"),
+                  )}
           </p>
-          <Button asChild variant="outline" className="h-11 bg-background">
+          <Button
+            asChild
+            variant="outline"
+            className="h-auto min-h-11 whitespace-normal py-2 bg-background"
+          >
             <Link
               href={
                 profile.data
@@ -229,7 +247,9 @@ function PracticeReadiness({
                   : routes.interviews.new.setup
               }
             >
-              {profile.data ? "Open Role Profile" : "Choose a Role Profile"}
+              {profile.data
+                ? t("readiness.practice.openProfile")
+                : t("readiness.practice.chooseProfile")}
             </Link>
           </Button>
         </div>
@@ -242,22 +262,22 @@ function PracticeReadiness({
       className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4"
       aria-label={label}
     >
-      Edit
+      {t("readiness.summary.edit")}
     </Link>
   );
 
   const summary = (
     <section
-      aria-label="Your interview"
+      aria-label={t("readiness.summary.title")}
       className="rounded-xl border bg-card p-5"
     >
-      <h2 className="font-semibold">Your interview</h2>
+      <h2 className="font-semibold">{t("readiness.summary.title")}</h2>
       <dl className="mt-3 divide-y text-sm">
         <SummaryRow
-          label="Role Profile"
+          label={t("readiness.summary.roleProfile")}
           action={editLink(
             setupHref(routes.interviews.new.setup, { roleProfileId }),
-            "Change Role Profile",
+            t("readiness.summary.changeProfile"),
           )}
         >
           {profile.data ? (
@@ -267,20 +287,20 @@ function PracticeReadiness({
           )}
         </SummaryRow>
         {resume ? (
-          <SummaryRow label="Interviewer and voice">
-            Kept from your unfinished interview
+          <SummaryRow label={t("readiness.summary.keptLabel")}>
+            {t("readiness.summary.kept")}
           </SummaryRow>
         ) : (
           <>
             <SummaryRow
-              label="Interviewer"
+              label={t("readiness.summary.interviewer")}
               action={editLink(
                 setupHref(routes.interviews.new.interviewer, {
                   roleProfileId,
                   avatarId,
                   voiceId,
                 }),
-                "Change interviewer",
+                t("readiness.summary.changeInterviewer"),
               )}
             >
               {!avatarId || avatarGone ? (
@@ -292,10 +312,10 @@ function PracticeReadiness({
                     />
                   </span>
                   <span>
-                    2D interviewer
+                    {t("readiness.summary.twoD")}
                     {avatarGone && (
                       <span className="block text-xs font-normal text-muted-foreground">
-                        The avatar you chose is no longer in your inventory.
+                        {t("readiness.summary.avatarGone")}
                       </span>
                     )}
                   </span>
@@ -313,25 +333,25 @@ function PracticeReadiness({
                   </span>
                 </span>
               ) : avatar.isError ? (
-                "We couldn't load this avatar."
+                t("readiness.summary.avatarError")
               ) : (
                 <Skeleton className="h-10 w-32" />
               )}
             </SummaryRow>
-            <SummaryRow label="Voice">
+            <SummaryRow label={t("readiness.summary.voice")}>
               {!voiceId || voiceGone ? (
                 <>
-                  Default voice
+                  {t("readiness.summary.defaultVoice")}
                   {voiceGone && (
                     <span className="block text-xs font-normal text-muted-foreground">
-                      The voice you chose is no longer available.
+                      {t("readiness.summary.voiceGone")}
                     </span>
                   )}
                 </>
               ) : voice ? (
                 voice.name
               ) : voices.isError ? (
-                "We couldn't load this voice."
+                t("readiness.summary.voiceError")
               ) : (
                 <Skeleton className="h-5 w-28" />
               )}
@@ -346,7 +366,7 @@ function PracticeReadiness({
     <div role="status" className="space-y-3 rounded-xl border bg-card p-5">
       <Skeleton className="h-5 w-40" />
       <Skeleton className="h-11 w-full" />
-      <span className="sr-only">Checking for an unfinished interview…</span>
+      <span className="sr-only">{t("readiness.checking")}</span>
     </div>
   ) : (
     <StartPanel
@@ -361,9 +381,9 @@ function PracticeReadiness({
               sessionId: resume.id,
               callout: (
                 <ResumeCallout
-                  title="Unfinished interview"
+                  title={t("resume.calloutTitle")}
                   details={<PracticeProgress session={resume} />}
-                  note="No coins are charged to resume."
+                  note={t("resume.noCharge")}
                 />
               ),
             }
@@ -403,6 +423,7 @@ function RecruitmentReadiness({
   readiness: MicrophoneReadiness;
   microphone: ReactNode;
 }) {
+  const t = useTranslations("candidate.setup");
   const fmt = useFormatters();
   const user = useSessionUser();
   const application = useQuery({
@@ -420,16 +441,18 @@ function RecruitmentReadiness({
       className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <ArrowLeft className="size-4" aria-hidden />
-      Back to application
+      {t("readiness.recruitment.back")}
     </Link>
   );
   const header = (
     <SetupHeader
-      context={data?.job_posting_title ?? "Recruitment interview"}
+      context={data?.job_posting_title ?? t("readiness.recruitment.context")}
       title={
-        inProgress ? "Resume your interview" : "Get ready for your interview"
+        inProgress
+          ? t("readiness.recruitment.resumeTitle")
+          : t("readiness.recruitment.startTitle")
       }
-      description="Check your microphone before you start. The company reviews this interview."
+      description={t("readiness.recruitment.description")}
     />
   );
 
@@ -440,7 +463,7 @@ function RecruitmentReadiness({
         <div role="status" className="space-y-4">
           <Skeleton className="h-10 w-2/3" />
           <Skeleton className="h-48 rounded-xl" />
-          <span className="sr-only">Loading your application…</span>
+          <span className="sr-only">{t("readiness.recruitment.loading")}</span>
         </div>
       </section>
     );
@@ -456,16 +479,16 @@ function RecruitmentReadiness({
           <p>
             {isAxiosError(application.error) &&
             application.error.response?.status === 404
-              ? "We couldn't find this application."
-              : "We couldn't load this application. Please try again."}
+              ? t("readiness.recruitment.notFound")
+              : t("readiness.recruitment.loadFailed")}
           </p>
           <Button
             variant="outline"
-            className="h-11 bg-background"
+            className="h-auto min-h-11 whitespace-normal py-2 bg-background"
             disabled={application.isFetching}
             onClick={() => void application.refetch()}
           >
-            Try again
+            {t("tryAgain")}
           </Button>
         </div>
       </section>
@@ -473,13 +496,15 @@ function RecruitmentReadiness({
 
   const summary = (
     <section
-      aria-label="Your interview"
+      aria-label={t("readiness.summary.title")}
       className="rounded-xl border bg-card p-5"
     >
-      <h2 className="font-semibold">Your interview</h2>
+      <h2 className="font-semibold">{t("readiness.summary.title")}</h2>
       <dl className="mt-3 divide-y text-sm">
-        <SummaryRow label="Job posting">{data.job_posting_title}</SummaryRow>
-        <SummaryRow label="Interviewer and voice">
+        <SummaryRow label={t("readiness.summary.jobPosting")}>
+          {data.job_posting_title}
+        </SummaryRow>
+        <SummaryRow label={t("readiness.summary.keptLabel")}>
           <span className="flex items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted">
               <Building2
@@ -488,10 +513,9 @@ function RecruitmentReadiness({
               />
             </span>
             <span>
-              Interviewer chosen by the company
+              {t("readiness.summary.companyInterviewer")}
               <span className="block text-xs font-normal text-muted-foreground">
-                The company has set the interviewer and voice for this
-                interview.
+                {t("readiness.summary.companyNote")}
               </span>
             </span>
           </span>
@@ -503,13 +527,19 @@ function RecruitmentReadiness({
   const deadline = data.interview_deadline;
   const side = !data.can_start_interview ? (
     <div className="space-y-3 rounded-xl border bg-card p-5 text-sm">
-      <h2 className="font-semibold">{statusLabel[data.status]}</h2>
+      <h2 className="font-semibold">
+        {t(`readiness.recruitment.status.${data.status}`)}
+      </h2>
       <p role="status" className="text-muted-foreground">
-        This application can&apos;t start an interview now.
+        {t("readiness.recruitment.notEligible")}
       </p>
-      <Button asChild variant="outline" className="h-11 w-full">
+      <Button
+        asChild
+        variant="outline"
+        className="h-auto min-h-11 whitespace-normal py-2 w-full"
+      >
         <Link href={routes.application(applicationId)}>
-          Back to application
+          {t("readiness.recruitment.back")}
         </Link>
       </Button>
     </div>
@@ -526,18 +556,18 @@ function RecruitmentReadiness({
               sessionId: data.interview.id,
               callout: (
                 <ResumeCallout
-                  title="Unfinished interview"
+                  title={t("resume.calloutTitle")}
                   details={
-                    deadline ? (
-                      <>
-                        Complete it by{" "}
-                        <time dateTime={deadline}>
-                          {formatDeadline(deadline, fmt)}
-                        </time>
-                      </>
-                    ) : undefined
+                    deadline
+                      ? t.rich("readiness.recruitment.completeIt", {
+                          deadline: formatDeadline(deadline, fmt),
+                          time: (chunks) => (
+                            <time dateTime={deadline}>{chunks}</time>
+                          ),
+                        })
+                      : undefined
                   }
-                  note="Resuming uses no new interview slot."
+                  note={t("readiness.recruitment.resumeNote")}
                 />
               ),
             }
@@ -547,13 +577,17 @@ function RecruitmentReadiness({
       {deadline && (
         <dl className="divide-y rounded-lg border text-sm">
           <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-muted-foreground">Complete by</dt>
+            <dt className="text-muted-foreground">
+              {t("readiness.recruitment.completeBy")}
+            </dt>
             <dd className="text-right font-semibold">
               <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
             </dd>
           </div>
           <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-muted-foreground">Time left</dt>
+            <dt className="text-muted-foreground">
+              {t("readiness.recruitment.timeLeft")}
+            </dt>
             <dd className="font-semibold tabular-nums">
               <TimeLeft deadline={deadline} />
             </dd>

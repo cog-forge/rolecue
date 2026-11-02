@@ -1,16 +1,20 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { routes } from "@/config/routes";
 import type { Report } from "../schemas/report-schema";
-import {
-  formatInterviewTime,
-  reportStatusLabel,
-  reportTypeLabel,
-  scoreText,
-} from "../utils/report-text";
+import { formatInterviewTime, scoreText } from "../utils/report-text";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+
+// The tag name in the message becomes a <time> element carrying the machine-readable instant.
+function timeTag(iso: string) {
+  return {
+    time: (chunks: ReactNode) => <time dateTime={iso}>{chunks}</time>,
+  };
+}
 
 // Renders what the API returned. Metric names and weights come from the server, never from here.
 // Null sections (a recruitment report seen by the Candidate) are simply not shown.
@@ -23,6 +27,7 @@ export function ReportBody({
   onCheckAgain: () => void;
   checking: boolean;
 }) {
+  const t = useTranslations("candidate.report");
   const fmt = useFormatters();
   const { type, status, overall_score: score } = report;
   const finished = status === "completed";
@@ -31,25 +36,25 @@ export function ReportBody({
     <div className="space-y-6 duration-300 animate-in fade-in motion-reduce:animate-none">
       <header className="space-y-3">
         <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Interview report
+          {t("eyebrow")}
         </p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          {reportTypeLabel[type]}
+          {t(`type.${type}`)}
         </h1>
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <Badge variant="outline">{reportStatusLabel[status]}</Badge>
+          <Badge variant="outline">{t(`status.${status}`)}</Badge>
           <span className="tabular-nums">
-            Started{" "}
-            <time dateTime={report.started_at}>
-              {formatInterviewTime(report.started_at, fmt)}
-            </time>
+            {t.rich("startedAt", {
+              when: formatInterviewTime(report.started_at, fmt),
+              ...timeTag(report.started_at),
+            })}
           </span>
           {report.completed_at ? (
             <span className="tabular-nums">
-              Completed{" "}
-              <time dateTime={report.completed_at}>
-                {formatInterviewTime(report.completed_at, fmt)}
-              </time>
+              {t.rich("completedAt", {
+                when: formatInterviewTime(report.completed_at, fmt),
+                ...timeTag(report.completed_at),
+              })}
             </span>
           ) : null}
         </div>
@@ -65,16 +70,16 @@ export function ReportBody({
         <Card>
           <CardHeader>
             <CardTitle>
-              <h2 className="text-lg font-semibold">Overall score</h2>
+              <h2 className="text-lg font-semibold">{t("overallScore")}</h2>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-4xl font-semibold tabular-nums">
-              {scoreText(score)}
+              {scoreText(score, fmt, t)}
             </p>
             {report.summary ? (
               <div className="space-y-2">
-                <h3 className="font-medium">Summary</h3>
+                <h3 className="font-medium">{t("summary")}</h3>
                 <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
                   {report.summary}
                 </p>
@@ -88,7 +93,7 @@ export function ReportBody({
         <Card>
           <CardHeader>
             <CardTitle>
-              <h2 className="text-lg font-semibold">Breakdown</h2>
+              <h2 className="text-lg font-semibold">{t("breakdown")}</h2>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -99,7 +104,9 @@ export function ReportBody({
                     <span className="font-medium [overflow-wrap:anywhere]">
                       {metric.name}
                     </span>
-                    <span className="tabular-nums">{metric.score} / 100</span>
+                    <span className="tabular-nums">
+                      {t("score", { score: fmt.number(metric.score) })}
+                    </span>
                   </div>
                   <div
                     role="progressbar"
@@ -107,7 +114,9 @@ export function ReportBody({
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={metric.score}
-                    aria-valuetext={`${metric.score} out of 100`}
+                    aria-valuetext={t("scoreText", {
+                      score: fmt.number(metric.score),
+                    })}
                     className="h-2 w-full overflow-hidden rounded-full bg-muted"
                   >
                     <div
@@ -126,7 +135,7 @@ export function ReportBody({
         <Card>
           <CardHeader>
             <CardTitle>
-              <h2 className="text-lg font-semibold">Questions</h2>
+              <h2 className="text-lg font-semibold">{t("questions")}</h2>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -144,14 +153,14 @@ export function ReportBody({
                   </h3>
                   <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
                     <span className="font-medium text-foreground">
-                      Answer:{" "}
+                      {t("answer")}{" "}
                     </span>
-                    {item.answer ?? "No answer recorded."}
+                    {item.answer ?? t("noAnswer")}
                   </p>
                   {item.feedback ? (
                     <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
                       <span className="font-medium text-foreground">
-                        Feedback:{" "}
+                        {t("feedback")}{" "}
                       </span>
                       {item.feedback}
                     </p>
@@ -164,13 +173,15 @@ export function ReportBody({
       ) : null}
 
       {finished && type === "recruitment" && !report.breakdown ? (
-        <p className="text-sm text-muted-foreground">
-          Detailed feedback for recruitment interviews is not shown here.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("recruitmentNote")}</p>
       ) : null}
 
-      <Button asChild variant="outline" className="h-11">
-        <Link href={routes.history}>Back to interview history</Link>
+      <Button
+        asChild
+        variant="outline"
+        className="h-auto min-h-11 py-2 whitespace-normal"
+      >
+        <Link href={routes.history}>{t("backToHistory")}</Link>
       </Button>
     </div>
   );
@@ -185,22 +196,8 @@ function StatusNotice({
   onCheckAgain: () => void;
   checking: boolean;
 }) {
+  const t = useTranslations("candidate.report");
   if (status === "completed") return null;
-
-  const copy = {
-    in_progress: {
-      title: "This interview isn't finished yet",
-      text: "The report appears here once the interview is completed.",
-    },
-    pending: {
-      title: "Your interview is being evaluated",
-      text: "Scores and feedback will appear here when the evaluation is done.",
-    },
-    failed: {
-      title: "We couldn't evaluate this interview",
-      text: "No scores were saved for it, so there is nothing to show yet.",
-    },
-  }[status];
 
   return (
     <section
@@ -208,17 +205,19 @@ function StatusNotice({
       className="rounded-xl border bg-muted/40 p-5"
     >
       <h2 id="report-status-title" className="font-semibold">
-        {copy.title}
+        {t(`notice.${status}.title`)}
       </h2>
-      <p className="mt-2 text-sm text-muted-foreground">{copy.text}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {t(`notice.${status}.text`)}
+      </p>
       {status === "pending" || status === "in_progress" ? (
         <Button
           variant="outline"
-          className="mt-4 h-11 bg-background"
+          className="mt-4 h-auto min-h-11 py-2 whitespace-normal bg-background"
           disabled={checking}
           onClick={onCheckAgain}
         >
-          Check again
+          {t("checkAgain")}
         </Button>
       ) : null}
     </section>

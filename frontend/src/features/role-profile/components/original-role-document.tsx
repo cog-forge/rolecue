@@ -3,11 +3,15 @@
 import { useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowUpRight, FileText, LoaderCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import type { RoleProfile } from "../api/contract";
-import { getOriginalDocument, roleError } from "../api/requests";
+import { getOriginalDocument } from "../api/requests";
+import { useRoleError } from "../lib/use-role-error";
 
 export function OriginalRoleDocument({ profile }: { profile: RoleProfile }) {
+  const t = useTranslations("candidate.roleProfiles.original");
+  const roleError = useRoleError();
   const tabRef = useRef<Window | null>(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
   const open = useMutation({
@@ -33,14 +37,14 @@ export function OriginalRoleDocument({ profile }: { profile: RoleProfile }) {
             aria-hidden="true"
           />
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Original PDF</p>
-            <p className="mt-1 text-sm font-medium">Private document</p>
+            <p className="text-xs text-muted-foreground">{t("label")}</p>
+            <p className="mt-1 text-sm font-medium">{t("private")}</p>
           </div>
         </div>
         <Button
           type="button"
           variant="outline"
-          className="h-11"
+          className="h-auto min-h-11 py-2 whitespace-normal"
           disabled={open.isPending}
           onClick={() => {
             const tab = window.open("about:blank", "_blank");
@@ -61,7 +65,7 @@ export function OriginalRoleDocument({ profile }: { profile: RoleProfile }) {
           ) : (
             <ArrowUpRight className="size-4" aria-hidden="true" />
           )}
-          {open.isPending ? "Opening PDF…" : "Open original PDF"}
+          {open.isPending ? t("opening") : t("open")}
         </Button>
       </div>
       {open.error && (
@@ -71,7 +75,7 @@ export function OriginalRoleDocument({ profile }: { profile: RoleProfile }) {
       )}
       {popupBlocked && (
         <p role="alert" className="mt-3 text-sm text-destructive">
-          Allow pop-ups for this site to open the private PDF in a new tab.
+          {t("popupBlocked")}
         </p>
       )}
     </div>

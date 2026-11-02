@@ -25,6 +25,7 @@ import { useNow } from "../utils/use-now";
 import { ApplicationProgress } from "./application-progress";
 import { CandidateApplicationStatusBadge } from "./application-status";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import { useTranslations } from "next-intl";
 
 // Page numbers come from the URL so reload and back keep the page. Anything not a positive whole
 // number falls back to the first page.
@@ -35,6 +36,7 @@ function pageFrom(value: string | null) {
 
 // The Candidate's own Applications, newest first.
 export function CandidateApplicationList() {
+  const t = useTranslations("candidate.applications");
   const user = useSessionUser();
   const cache = useQueryClient();
   const params = useSearchParams();
@@ -59,19 +61,16 @@ export function CandidateApplicationList() {
         {Array.from({ length: 4 }, (_, i) => (
           <Skeleton key={i} className="h-20 rounded-xl" />
         ))}
-        <span className="sr-only">Loading your applications…</span>
+        <span className="sr-only">{t("list.loading")}</span>
       </div>
     );
 
   if (denied)
     return (
       <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-        <h2 className="font-semibold">
-          You don&apos;t have access to applications
-        </h2>
+        <h2 className="font-semibold">{t("list.deniedTitle")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Checking your account access… If this stays, sign in again with a
-          candidate account.
+          {t("list.deniedBody")}
         </p>
       </div>
     );
@@ -82,11 +81,9 @@ export function CandidateApplicationList() {
         role="alert"
         className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
       >
-        <h2 className="font-semibold">
-          We couldn&apos;t load your applications
-        </h2>
+        <h2 className="font-semibold">{t("list.errorTitle")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Please try again in a moment.
+          {t("list.errorBody")}
         </p>
         <Button
           className="mt-4 h-11 bg-background"
@@ -94,7 +91,7 @@ export function CandidateApplicationList() {
           disabled={query.isFetching}
           onClick={() => void query.refetch()}
         >
-          Try again
+          {t("actions.tryAgain")}
         </Button>
       </div>
     );
@@ -106,11 +103,13 @@ export function CandidateApplicationList() {
   if (items.length === 0 && page > 1)
     return (
       <div className="rounded-xl border p-8 text-center">
-        <h2 className="font-semibold">
-          This page is past the end of your list.
-        </h2>
-        <Button asChild variant="outline" className="mt-4 h-11">
-          <Link href={routes.applications}>Go to the first page</Link>
+        <h2 className="font-semibold">{t("list.pastEnd")}</h2>
+        <Button
+          asChild
+          variant="outline"
+          className="mt-4 h-auto min-h-11 whitespace-normal py-2"
+        >
+          <Link href={routes.applications}>{t("list.firstPage")}</Link>
         </Button>
       </div>
     );
@@ -121,14 +120,16 @@ export function CandidateApplicationList() {
         <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-workspace-accent/10 text-workspace-accent">
           <Inbox className="size-6" aria-hidden />
         </span>
-        <h2 className="font-semibold">
-          You haven&apos;t applied to any postings yet.
-        </h2>
+        <h2 className="font-semibold">{t("list.emptyTitle")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Find an open posting on the Job Board and apply with your CV.
+          {t("list.emptyBody")}
         </p>
-        <Button asChild variant="outline" className="mt-4 h-11">
-          <Link href={routes.jobs}>Browse the Job Board</Link>
+        <Button
+          asChild
+          variant="outline"
+          className="mt-4 h-auto min-h-11 whitespace-normal py-2"
+        >
+          <Link href={routes.jobs}>{t("list.browse")}</Link>
         </Button>
       </div>
     );
@@ -136,7 +137,7 @@ export function CandidateApplicationList() {
   return (
     <div className="space-y-4">
       <ul
-        aria-label="Your applications"
+        aria-label={t("list.listLabel")}
         className="divide-y rounded-2xl border bg-card"
       >
         {items.map((application) => (
@@ -148,20 +149,20 @@ export function CandidateApplicationList() {
         ))}
       </ul>
       <nav
-        aria-label="Applications pagination"
+        aria-label={t("list.paginationLabel")}
         className="flex flex-wrap items-center justify-between gap-3 text-sm"
       >
         <p className="text-muted-foreground tabular-nums">
-          Showing {firstRow}–{lastRow} of {total}
+          {t("list.showing", { first: firstRow, last: lastRow, total })}
         </p>
         <div className="flex gap-2">
           <PageButton
-            label="Previous"
+            label={t("list.previous")}
             href={`${routes.applications}?page=${page - 1}`}
             disabled={page <= 1}
           />
           <PageButton
-            label="Next"
+            label={t("list.next")}
             href={`${routes.applications}?page=${page + 1}`}
             disabled={lastRow >= total}
           />
@@ -180,6 +181,7 @@ function ApplicationItem({
   now: number;
 }) {
   const fmt = useFormatters();
+  const t = useTranslations("candidate.applications");
   const {
     status,
     interview_deadline: deadline,
@@ -207,14 +209,16 @@ function ApplicationItem({
           </p>
         )}
         <p className="text-xs text-muted-foreground tabular-nums">
-          Submitted{" "}
-          <time dateTime={application.created_at}>
-            {formatSubmitted(application.created_at, fmt)}
-          </time>
+          {t.rich("list.submitted", {
+            date: formatSubmitted(application.created_at, fmt),
+            time: (chunks) => (
+              <time dateTime={application.created_at}>{chunks}</time>
+            ),
+          })}
         </p>
         {status === "rejected" && reason && (
           <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-            Recruiter&apos;s note: {reason}
+            {t("list.recruiterNote", { reason })}
           </p>
         )}
       </div>
@@ -226,7 +230,7 @@ function ApplicationItem({
               <Link
                 href={`${routes.interviews.new.preflight}?applicationId=${encodeURIComponent(application.id)}`}
               >
-                {resuming ? "Resume interview" : "Start interview"}
+                {resuming ? t("actions.resume") : t("actions.start")}
                 <ArrowRight aria-hidden />
               </Link>
             </Button>
@@ -240,9 +244,11 @@ function ApplicationItem({
           <Button asChild variant="outline" className="h-11">
             <Link
               href={applicationHref(application.id)}
-              aria-label={`View application for ${application.job_posting_title}`}
+              aria-label={t("list.viewAria", {
+                title: application.job_posting_title,
+              })}
             >
-              View application
+              {t("list.viewApplication")}
             </Link>
           </Button>
         )}

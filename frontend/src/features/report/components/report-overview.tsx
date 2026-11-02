@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { ReportBody } from "./report-body";
 // One interview report for the user who may read it. The Go API decides visibility; a refused or
 // missing report looks the same (404), so this screen does not reveal whether it exists.
 export function ReportOverview({ reportId }: { reportId: string }) {
+  const t = useTranslations("candidate.report");
   const user = useSessionUser();
   const cache = useQueryClient();
   const validId = z.uuid().safeParse(reportId).success;
@@ -37,42 +39,41 @@ export function ReportOverview({ reportId }: { reportId: string }) {
         href={routes.history}
         className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        Back to interview history
+        {t("backToHistory")}
       </Link>
 
       {!validId ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">This link isn&apos;t valid</h1>
+          <h1 className="text-xl font-semibold">{t("invalidTitle")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Check the address, or open the report from your interview history.
+            {t("invalidText")}
           </p>
         </div>
       ) : query.isPending ? (
         <div role="status" className="space-y-4">
           <Skeleton className="h-10 w-2/3" />
           <Skeleton className="h-48 rounded-xl" />
-          <span className="sr-only">Loading your report…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-          <h1 className="text-xl font-semibold">
-            You don&apos;t have access to this report
-          </h1>
+          <h1 className="text-xl font-semibold">{t("deniedTitle")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Checking your account access… If this stays, sign in again with a
-            candidate account.
+            {t("accessChecking")}
           </p>
         </div>
       ) : apiStatus(query.error) === 404 ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">
-            We couldn&apos;t find this report
-          </h1>
+          <h1 className="text-xl font-semibold">{t("notFoundTitle")}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            It may have been removed, or it isn&apos;t yours.
+            {t("notFoundText")}
           </p>
-          <Button asChild variant="outline" className="mt-4 h-11">
-            <Link href={routes.history}>Open interview history</Link>
+          <Button
+            asChild
+            variant="outline"
+            className="mt-4 h-auto min-h-11 py-2 whitespace-normal"
+          >
+            <Link href={routes.history}>{t("openHistory")}</Link>
           </Button>
         </div>
       ) : query.isError ? (
@@ -80,19 +81,15 @@ export function ReportOverview({ reportId }: { reportId: string }) {
           role="alert"
           className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
         >
-          <h1 className="text-xl font-semibold">
-            We couldn&apos;t load this report
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Please try again in a moment.
-          </p>
+          <h1 className="text-xl font-semibold">{t("errorTitle")}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{t("errorText")}</p>
           <Button
-            className="mt-4 h-11 bg-background"
+            className="mt-4 h-auto min-h-11 py-2 whitespace-normal bg-background"
             variant="outline"
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Try again
+            {t("retry")}
           </Button>
         </div>
       ) : (

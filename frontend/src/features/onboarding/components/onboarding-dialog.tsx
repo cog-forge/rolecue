@@ -34,6 +34,7 @@ import { OnboardingForm } from "./onboarding-form";
 import { useTranslations } from "next-intl";
 
 export function OnboardingDialog({ user }: { user: SessionUser }) {
+  const t = useTranslations("auth.onboarding");
   const errorsT = useTranslations("errors");
   const cache = useQueryClient();
   const router = useRouter();
@@ -103,12 +104,12 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                 className="h-8 rounded-full border-white/70 bg-white/85 px-3 text-[#1c2848] shadow-sm backdrop-blur-md hover:bg-white dark:border-white/20 dark:bg-[#223451]/90 dark:text-[#eef2ff] dark:hover:bg-[#2f4364]"
               >
                 <LogOut className="size-3.5" aria-hidden />
-                {signOut.pending ? "Signing out…" : "Sign out"}
+                {signOut.pending ? t("signingOut") : t("signOut")}
               </Button>
             }
             progress={
               <ol
-                aria-label="Onboarding progress"
+                aria-label={t("progress")}
                 className="mx-auto mb-5 flex max-w-[350px] items-center gap-2 text-[11px] font-medium text-[#536079] dark:text-[#aab7cf] sm:mb-6"
               >
                 <li
@@ -118,7 +119,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                   <span className="grid size-5 place-items-center rounded-full bg-[#1c2848] text-[10px] text-white dark:bg-[#9abbff] dark:text-[#12213a]">
                     {selected ? <Check className="size-3" aria-hidden /> : "1"}
                   </span>
-                  Choose your role
+                  {t("choose")}
                 </li>
                 <li
                   role="presentation"
@@ -142,7 +143,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                   >
                     2
                   </span>
-                  Your details
+                  {t("details")}
                 </li>
               </ol>
             }
@@ -152,22 +153,22 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                 tabIndex={-1}
                 className="text-[25px] leading-tight font-bold tracking-tight text-[#202438] dark:text-[#eef2ff] outline-none sm:text-[30px]"
               >
-                {selected
-                  ? "Make this space yours"
-                  : "Welcome to your next chapter"}
+                {selected ? t("selectedHeading") : t("welcome")}
               </DialogTitle>
             }
             description={
               <DialogDescription className="mx-auto max-w-[410px] text-sm leading-relaxed text-[#677084] dark:text-[#aab7cf]">
                 {selected
-                  ? `Add a few details to set up your ${user.role} profile. Your email is already saved.`
-                  : "Tell us what brings you here. You’ll choose your role once, then make your profile your own."}
+                  ? t("selectedDescription", {
+                      role: t(user.role),
+                    })
+                  : t("description")}
               </DialogDescription>
             }
           >
             {!selected ? (
               <form
-                aria-label="Choose your role"
+                aria-label={t("choose")}
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (role) choose.mutate(role);
@@ -178,7 +179,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                   disabled={choose.isPending}
                   className="grid gap-3 sm:grid-cols-2"
                 >
-                  <legend className="sr-only">Your role</legend>
+                  <legend className="sr-only">{t("role")}</legend>
                   {(["candidate", "recruiter"] as const).map((value) => {
                     const Icon =
                       value === "candidate" ? UserRound : BriefcaseBusiness;
@@ -198,12 +199,12 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                             aria-hidden
                           />
                           <span className="font-semibold capitalize">
-                            {value}
+                            {t(value)}
                           </span>
                           <span className="mt-2 text-[13px] leading-relaxed text-[#667084] dark:text-[#aab7cf]">
                             {value === "candidate"
-                              ? "Practice interviews, build confidence, and find your next opportunity."
-                              : "Create job postings and discover candidates for your company."}
+                              ? t("candidateDescription")
+                              : t("recruiterDescription")}
                           </span>
                         </span>
                       </label>
@@ -230,20 +231,20 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                     ) : (
                       <ArrowRight className="size-4" aria-hidden />
                     )}
-                    Continue{role && ` as ${role}`}
+                    {role ? t("continueAs", { role: t(role) }) : t("continue")}
                   </Button>
                 </div>
               </form>
             ) : profile.isPending ? (
-              <p role="status">Loading your profile…</p>
+              <p role="status">{t("loading")}</p>
             ) : profile.error ? (
               <div role="alert" className="space-y-3">
-                <p>Unable to load your profile.</p>
+                <p>{t("loadError")}</p>
                 <Button
                   variant="outline"
                   onClick={() => void profile.refetch()}
                 >
-                  Try again
+                  {t("retry")}
                 </Button>
               </div>
             ) : (
@@ -263,7 +264,7 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
             )}
             {signOut.error && (
               <p role="alert" className="mt-4 text-sm text-destructive">
-                Sign-out failed. Please try again.
+                {t("signOutError")}
               </p>
             )}
           </OnboardingFrame>

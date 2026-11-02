@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, LoaderCircle } from "lucide-react";
@@ -7,27 +9,29 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  avatarMetadataSchema,
+  createAvatarMetadataSchema,
   type AvatarMetadata,
 } from "../schemas/avatar-schema";
 
+// The preset text becomes the avatar's stored personality, which feeds the (English) interviewer,
+// so only the button labels are translated.
 const personalities = [
   {
-    label: "Supportive",
+    label: "presetSupportive",
     value:
       "Patient and encouraging. Ask clear questions and help me feel comfortable sharing my thought process.",
   },
   {
-    label: "Direct",
+    label: "presetDirect",
     value:
       "Concise and professional. Ask focused questions and challenge me to explain my decisions clearly.",
   },
   {
-    label: "Technical",
+    label: "presetTechnical",
     value:
       "Curious and analytical. Explore technical tradeoffs and ask thoughtful follow-up questions.",
   },
-];
+] as const;
 
 export function AvatarDetailsForm({
   disabled,
@@ -38,6 +42,9 @@ export function AvatarDetailsForm({
   onStart: (metadata: AvatarMetadata) => Promise<void>;
   initialValues?: AvatarMetadata;
 }) {
+  const t = useTranslations("candidate.avatarStudio.details");
+  const v = useTranslations("candidate.avatars.validation");
+  const schema = useMemo(() => createAvatarMetadataSchema(v), [v]);
   const {
     register,
     control,
@@ -45,37 +52,34 @@ export function AvatarDetailsForm({
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<AvatarMetadata>({
-    resolver: zodResolver(avatarMetadataSchema),
+    resolver: zodResolver(schema),
     defaultValues: initialValues ?? { name: "", personality: "" },
   });
   const personality = useWatch({ control, name: "personality" });
   return (
     <form
-      aria-label="Avatar details"
+      aria-label={t("label")}
       className="space-y-6"
       noValidate
       onSubmit={handleSubmit(onStart)}
     >
       <div className="space-y-2">
         <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-          Step 01 / Details
+          {t("step")}
         </p>
-        <h2 className="text-2xl font-semibold tracking-tight">
-          Give your interviewer a character.
-        </h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{t("title")}</h2>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Start with a name and a personality. You’ll create the appearance
-          next.
+          {t("intro")}
         </p>
       </div>
       <div className="space-y-2">
         <label htmlFor="avatar-name" className="text-sm font-medium">
-          Avatar name
+          {t("nameLabel")}
         </label>
         <Input
           id="avatar-name"
           className="h-11"
-          placeholder="Give your interviewer a name"
+          placeholder={t("namePlaceholder")}
           autoComplete="off"
           {...register("name")}
           aria-invalid={!!errors.name}
@@ -94,11 +98,11 @@ export function AvatarDetailsForm({
       </div>
       <div className="space-y-2">
         <label htmlFor="avatar-personality" className="text-sm font-medium">
-          Personality
+          {t("personalityLabel")}
         </label>
         <div
           role="group"
-          aria-label="Personality starting points"
+          aria-label={t("presetsLabel")}
           className="flex flex-wrap gap-2 py-1"
         >
           {personalities.map((preset) => (
@@ -116,14 +120,14 @@ export function AvatarDetailsForm({
                 })
               }
             >
-              {preset.label}
+              {t(preset.label)}
             </Button>
           ))}
         </div>
         <Textarea
           id="avatar-personality"
           rows={4}
-          placeholder="Describe your interviewer's style and personality"
+          placeholder={t("personalityPlaceholder")}
           {...register("personality")}
           aria-invalid={!!errors.personality}
           aria-describedby={`avatar-personality-hint${errors.personality ? " avatar-personality-error" : ""}`}
@@ -133,8 +137,7 @@ export function AvatarDetailsForm({
           id="avatar-personality-hint"
           className="text-xs text-muted-foreground"
         >
-          Choose a starting point or write your own. You can edit the text
-          above.
+          {t("hint")}
         </p>
         {errors.personality && (
           <p
@@ -151,7 +154,7 @@ export function AvatarDetailsForm({
         type="submit"
         disabled={disabled || isSubmitting}
       >
-        {isSubmitting ? "Checking availability…" : "Open Avaturn creator"}
+        {isSubmitting ? t("checking") : t("open")}
         {isSubmitting ? (
           <LoaderCircle
             aria-hidden
@@ -165,8 +168,7 @@ export function AvatarDetailsForm({
         )}
       </Button>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Nothing is saved until you finish in Avaturn and RoleCue confirms the
-        save.
+        {t("footnote")}
       </p>
     </form>
   );

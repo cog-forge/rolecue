@@ -1,12 +1,7 @@
 import { StrictMode } from "react";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { PreflightCheck } from "@/features/interview-setup/components/preflight-check";
 import { deferred, installMediaFakes } from "../../interview/audio/media-fakes";
 
@@ -19,7 +14,7 @@ afterEach(() => {
 });
 
 it("does not access media on mount, including Strict Mode; checks real readiness on action", async () => {
-  const view = render(
+  const view = renderWithIntl(
     <StrictMode>
       <PreflightCheck />
     </StrictMode>,
@@ -45,7 +40,7 @@ it("explains permission denial and retries explicitly", async () => {
   browser.media.getUserMedia.mockRejectedValueOnce(
     new DOMException("blocked", "NotAllowedError"),
   );
-  render(<PreflightCheck />);
+  renderWithIntl(<PreflightCheck />);
   fireEvent.click(screen.getByRole("button", { name: "Test microphone" }));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     /browser permission/,
@@ -58,7 +53,7 @@ it("explains permission denial and retries explicitly", async () => {
 it("cancels a permission prompt, disables new requests until it settles, and releases the late stream", async () => {
   const request = deferred<MediaStream>();
   browser.media.getUserMedia.mockReturnValueOnce(request.promise);
-  render(<PreflightCheck />);
+  renderWithIntl(<PreflightCheck />);
   fireEvent.click(screen.getByRole("button", { name: "Test microphone" }));
   fireEvent.click(
     screen.getByRole("button", { name: "Cancel microphone check" }),
@@ -77,7 +72,7 @@ it("cancels a permission prompt, disables new requests until it settles, and rel
 });
 
 it("shows device loss with recovery and no interview start action", async () => {
-  render(<PreflightCheck />);
+  renderWithIntl(<PreflightCheck />);
   fireEvent.click(screen.getByRole("button", { name: "Test microphone" }));
   await screen.findByText("Microphone ready");
   act(() => browser.tracks[0].end());
@@ -96,7 +91,7 @@ it("shows device loss with recovery and no interview start action", async () => 
 
 it("reports whether the microphone is live right now, so Start can follow it", async () => {
   const onReadinessChange = vi.fn();
-  render(<PreflightCheck onReadinessChange={onReadinessChange} />);
+  renderWithIntl(<PreflightCheck onReadinessChange={onReadinessChange} />);
   expect(onReadinessChange).toHaveBeenLastCalledWith("not-ready");
   fireEvent.click(screen.getByRole("button", { name: "Test microphone" }));
   await screen.findByText("Microphone ready");

@@ -58,6 +58,8 @@ export function TransactionHistory({
 }: TransactionHistoryProps) {
   const fmt = useFormatters();
   const errorsT = useTranslations("errors");
+  const t = useTranslations("candidate.billing.transactions");
+  const describeT = useTranslations("candidate.billing.describe");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
 
   const items = data?.items ?? [];
@@ -110,7 +112,7 @@ export function TransactionHistory({
             className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-medium"
           >
             <CheckCircle2 className="h-3 w-3" />
-            Success
+            {t("status.success")}
           </Badge>
         );
       case "pending":
@@ -120,7 +122,7 @@ export function TransactionHistory({
             className="gap-1 border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[11px] font-medium"
           >
             <Clock className="h-3 w-3" />
-            Pending
+            {t("status.pending")}
           </Badge>
         );
       case "cancelled":
@@ -130,7 +132,7 @@ export function TransactionHistory({
             className="gap-1 border-muted bg-muted/50 text-muted-foreground text-[11px] font-medium"
           >
             <AlertCircle className="h-3 w-3" />
-            Cancelled
+            {t("status.cancelled")}
           </Badge>
         );
       case "failed":
@@ -140,7 +142,7 @@ export function TransactionHistory({
             className="gap-1 border-destructive/30 bg-destructive/10 text-destructive text-[11px] font-medium"
           >
             <XCircle className="h-3 w-3" />
-            Failed
+            {t("status.failed")}
           </Badge>
         );
       default:
@@ -158,11 +160,9 @@ export function TransactionHistory({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="text-lg font-semibold tracking-tight text-foreground">
-              Your transactions
+              {t("title")}
             </h3>
-            <p className="text-xs text-muted-foreground">
-              Purchases, spending, and refunds in one place.
-            </p>
+            <p className="text-xs text-muted-foreground">{t("subtitle")}</p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -172,13 +172,13 @@ export function TransactionHistory({
               size="sm"
               onClick={onRefresh}
               disabled={isLoading || isFetching}
-              aria-label="Refresh transaction history"
+              aria-label={t("refreshAria")}
               className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
             >
               <RefreshCw
                 className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
               />
-              <span>{isFetching ? "Refreshing…" : "Refresh"}</span>
+              <span>{isFetching ? t("refreshing") : t("refresh")}</span>
             </Button>
           </div>
         </div>
@@ -192,27 +192,20 @@ export function TransactionHistory({
             id="transaction-filter-scope"
             className="text-xs text-muted-foreground"
           >
-            Filters apply to the transactions on this page.
+            {t("filterScope")}
           </p>
           <TabsList
-            aria-label="Filter transactions on this page"
+            aria-label={t("filterLabel")}
             aria-describedby="transaction-filter-scope"
             className="grid w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-auto sm:grid-cols-4"
           >
-            {(
-              [
-                { id: "all", label: "All Transactions" },
-                { id: "topup", label: "Top-ups (PayOS)" },
-                { id: "spend", label: "Coin Spending" },
-                { id: "refund", label: "Refunds" },
-              ] as const
-            ).map((tab) => (
+            {(["all", "topup", "spend", "refund"] as const).map((tab) => (
               <TabsTrigger
-                key={tab.id}
-                value={tab.id}
+                key={tab}
+                value={tab}
                 className="text-xs min-h-9 whitespace-normal"
               >
-                {tab.label}
+                {t(`tabs.${tab}`)}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -243,14 +236,10 @@ export function TransactionHistory({
             ) : error ? (
               <div className="flex flex-col items-center justify-center p-8 text-center">
                 <p className="text-sm font-medium text-destructive">
-                  Unable to load transaction history
+                  {t("loadError")}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {apiErrorMessage(
-                    errorsT,
-                    error,
-                    "Please try refreshing the page.",
-                  )}
+                  {apiErrorMessage(errorsT, error, t("loadErrorFallback"))}
                 </p>
                 <Button
                   type="button"
@@ -263,30 +252,36 @@ export function TransactionHistory({
                   <RefreshCw
                     className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
                   />
-                  Retry
+                  {t("retry")}
                 </Button>
               </div>
             ) : filteredItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
                 <Receipt className="h-10 w-10 stroke-1 opacity-40" />
                 <p className="mt-2 text-sm font-medium text-foreground">
-                  No transactions found
+                  {t("emptyTitle")}
                 </p>
                 <p className="max-w-xs text-xs text-muted-foreground">
                   {activeTab === "all"
                     ? total === 0
-                      ? "You haven't made any coin transactions yet. Top up coins above to get started."
-                      : "No transactions on this page. Try another page or refresh."
-                    : `No ${activeTab} transactions on this page. Other pages may contain matching transactions.`}
+                      ? t("emptyNone")
+                      : t("emptyPage")
+                    : t(`emptyFiltered.${activeTab}`)}
                 </p>
               </div>
             ) : (
-              <Table aria-label="Coin transactions" className="table-fixed">
+              <Table aria-label={t("tableLabel")} className="table-fixed">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[50%]">Transaction</TableHead>
-                    <TableHead className="w-[25%]">Status</TableHead>
-                    <TableHead className="w-[25%] text-right">Coins</TableHead>
+                    <TableHead className="w-[50%]">
+                      {t("columns.transaction")}
+                    </TableHead>
+                    <TableHead className="w-[25%]">
+                      {t("columns.status")}
+                    </TableHead>
+                    <TableHead className="w-[25%] text-right">
+                      {t("columns.coins")}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -294,7 +289,11 @@ export function TransactionHistory({
                     const refund = isRefund(tx);
                     const deposit = isDeposit(tx) && !refund;
                     const positive = deposit || refund;
-                    const described = describeTransaction(tx.description);
+                    const described = describeTransaction(
+                      tx.description,
+                      describeT,
+                      fmt,
+                    );
                     // A PayOS top-up adds coins only once it is paid.
                     const unpaid =
                       tx.payos_order_code != null && tx.status !== "success";
@@ -316,10 +315,10 @@ export function TransactionHistory({
                                 {tx.description
                                   ? described.title
                                   : deposit
-                                    ? "Coin Deposit"
+                                    ? t("fallbackDeposit")
                                     : refund
-                                      ? "Coin Refund"
-                                      : "Coin Spending"}
+                                      ? t("fallbackRefund")
+                                      : t("fallbackSpend")}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 <time dateTime={tx.created_at}>
@@ -331,7 +330,7 @@ export function TransactionHistory({
                               </p>
                               {tx.payos_order_code != null && (
                                 <p className="text-xs break-all text-muted-foreground">
-                                  Order #{tx.payos_order_code}
+                                  {t("order", { code: tx.payos_order_code })}
                                 </p>
                               )}
                             </div>
@@ -342,14 +341,18 @@ export function TransactionHistory({
                         </TableCell>
                         {unpaid && tx.status !== "pending" ? (
                           <TableCell
-                            aria-label="No coins added"
+                            aria-label={t("noCoins")}
                             className="text-right text-xs text-muted-foreground whitespace-normal"
                           >
-                            No coins added
+                            {t("noCoins")}
                           </TableCell>
                         ) : (
                           <TableCell
-                            aria-label={`${coins} Coins${unpaid ? " when paid" : ""}`}
+                            aria-label={
+                              unpaid
+                                ? t("coinsAriaWhenPaid", { coins })
+                                : t("coinsAria", { coins })
+                            }
                             className="text-right font-semibold tabular-nums whitespace-normal"
                           >
                             <span
@@ -362,11 +365,11 @@ export function TransactionHistory({
                               }
                             >
                               {coins}
-                              <span className="sr-only"> Coins</span>
+                              <span className="sr-only">{t("coinsSr")}</span>
                             </span>
                             {unpaid && (
                               <span className="block text-xs font-normal text-muted-foreground">
-                                when paid
+                                {t("whenPaid")}
                               </span>
                             )}
                           </TableCell>
@@ -381,18 +384,14 @@ export function TransactionHistory({
         </Tabs>
         {!isLoading && !error && (
           <p className="mt-3 text-xs text-muted-foreground">
-            Showing {filteredItems.length} of {items.length} transactions on
-            this page.
+            {t("showing", { shown: filteredItems.length, total: items.length })}
           </p>
         )}
 
         {/* Pagination Bar */}
         {total > pageSize && (
           <div className="mt-6 flex flex-wrap gap-3 items-center justify-between border-t border-border/60 pt-4 text-xs text-muted-foreground">
-            <div>
-              Showing page {page} of {totalPages} ({total} transactions across
-              all types)
-            </div>
+            <div>{t("pagination", { page, totalPages, total })}</div>
 
             <div className="flex items-center gap-1.5">
               <Button
@@ -402,7 +401,7 @@ export function TransactionHistory({
                 onClick={() => onPageChange(page - 1)}
                 disabled={page <= 1 || isLoading || isFetching}
                 className="h-8 w-8 p-0"
-                aria-label="Previous page"
+                aria-label={t("previous")}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -414,7 +413,7 @@ export function TransactionHistory({
                 onClick={() => onPageChange(page + 1)}
                 disabled={page >= totalPages || isLoading || isFetching}
                 className="h-8 w-8 p-0"
-                aria-label="Next page"
+                aria-label={t("next")}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>

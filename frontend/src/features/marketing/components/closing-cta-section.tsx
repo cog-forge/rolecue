@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { motion, useReducedMotion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/config/routes";
@@ -12,6 +13,7 @@ const ease = [0.22, 1, 0.36, 1] as const;
 
 /** A single light opens above the final invitation when it enters the viewport. */
 export function ClosingCtaSection() {
+  const t = useTranslations("public.landing.closing");
   const reducedMotion = useReducedMotion();
   const lighting = {
     dim: { opacity: 0, scaleX: 0.48 },
@@ -73,12 +75,12 @@ export function ClosingCtaSection() {
           id="closing-cta-title"
           className="mx-auto m-0 max-w-[16ch] text-balance text-[clamp(2.7rem,6vw,5.5rem)] leading-[1.04] tracking-[-0.055em] font-(--rolecue-weight-heading)"
         >
-          Your next interview
+          {t("titleLine1")}
           <br />
-          starts here.
+          {t("titleLine2")}
         </h2>
         <p className="mx-auto mt-6 mb-0 max-w-[34ch] text-balance text-[clamp(1.05rem,1.7vw,1.35rem)] leading-relaxed text-(--rolecue-ink-muted)">
-          A little practice before the real conversation.
+          {t("text")}
         </p>
         <Button
           asChild
@@ -87,15 +89,15 @@ export function ClosingCtaSection() {
             "group/closing relative mt-9 h-16 min-w-72 gap-5 overflow-hidden rounded-2xl border border-white/10 bg-(--rolecue-button-primary) px-8 text-lg font-semibold text-(--rolecue-on-primary) shadow-[0_6px_20px_-8px_rgb(44_68_98/45%)] transition-[transform,background-color,border-color,box-shadow] duration-(--rolecue-cta-duration) ease-(--ease-smooth-out) hover:scale-[1.02] hover:border-[#b3cde8]/60 hover:bg-(--rolecue-button-primary-hover) hover:shadow-[0_8px_24px_-8px_rgb(44_68_98/45%)] focus-visible:scale-[1.02] active:scale-[0.98] active:duration-(--rolecue-cta-press-duration) motion-reduce:transform-none! motion-reduce:transition-none!",
           )}
         >
-          <Link href={routes.register} aria-label="Start for free">
+          <Link href={routes.register} aria-label={t("cta")}>
             <span
               aria-hidden="true"
               className="relative block h-7 overflow-hidden leading-7"
             >
               <span className="block transition-transform duration-(--duration-slow) ease-(--ease-smooth-out) group-hover/closing:-translate-y-full group-focus-visible/closing:-translate-y-full motion-reduce:transform-none! motion-reduce:transition-none!">
-                <span className="block">Start for free</span>
+                <span className="block">{t("cta")}</span>
                 <span className="absolute top-full left-0 block">
-                  Start for free
+                  {t("cta")}
                 </span>
               </span>
             </span>

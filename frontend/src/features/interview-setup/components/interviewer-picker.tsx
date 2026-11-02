@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,6 +58,7 @@ export function InterviewerPicker({
   avatarId?: string;
   voiceId?: string;
 }) {
+  const t = useTranslations("candidate.setup");
   const user = useSessionUser();
   const router = useRouter();
   const ids = useId();
@@ -86,12 +88,14 @@ export function InterviewerPicker({
     return (
       <section className="space-y-6">
         <SetupHeader
-          context="Interview setup"
-          title="Choose your Role Profile first."
-          description="Pick the confirmed role you want to practise for, then choose your interviewer."
+          context={t("context")}
+          title={t("interviewer.needProfile.title")}
+          description={t("interviewer.needProfile.description")}
         />
-        <Button asChild className="h-11">
-          <Link href={routes.interviews.new.setup}>Choose a Role Profile</Link>
+        <Button asChild className="h-auto min-h-11 whitespace-normal py-2">
+          <Link href={routes.interviews.new.setup}>
+            {t("interviewer.needProfile.action")}
+          </Link>
         </Button>
       </section>
     );
@@ -101,22 +105,25 @@ export function InterviewerPicker({
     return (
       <section className="space-y-8">
         <SetupHeader
-          context="Interview setup"
-          title="Your interviewer is already set"
-          description="This role has an unfinished interview. It keeps the interviewer and voice it started with."
+          context={t("context")}
+          title={t("interviewer.alreadySet.title")}
+          description={t("interviewer.alreadySet.description")}
         />
         <ResumeCallout
-          title="You have an unfinished interview for this role"
+          title={t("resume.title")}
           details={<PracticeProgress session={resume} />}
-          note="Resuming is free and keeps its interviewer and voice."
+          note={t("resume.note")}
         >
-          <Button asChild className="h-11 w-full sm:w-auto">
+          <Button
+            asChild
+            className="h-auto min-h-11 whitespace-normal py-2 w-full sm:w-auto"
+          >
             <Link
               href={setupHref(routes.interviews.new.preflight, {
                 roleProfileId,
               })}
             >
-              Resume interview <ArrowRight aria-hidden="true" />
+              {t("resume.action")} <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
         </ResumeCallout>
@@ -161,21 +168,24 @@ export function InterviewerPicker({
   return (
     <form className="space-y-10" onSubmit={(event) => void submit(event)}>
       <SetupHeader
-        context="Interview setup"
-        title="Choose your interviewer"
-        description="Pick who interviews you and how they sound. Both are optional: without an avatar you get the 2D interviewer, which works on every device."
+        context={t("context")}
+        title={t("interviewer.title")}
+        description={t("interviewer.description")}
       />
 
       <fieldset className="space-y-4">
-        <legend className="font-semibold">Interviewer</legend>
+        <legend className="font-semibold">{t("interviewer.legend")}</legend>
         <p className="-mt-2 text-sm text-muted-foreground">
-          Avatars come from your own inventory.{" "}
-          <Link
-            href={routes.avatarStudio}
-            className="font-medium text-foreground underline underline-offset-4"
-          >
-            Open Avatar Studio
-          </Link>
+          {t.rich("interviewer.inventoryNote", {
+            link: (chunks) => (
+              <Link
+                href={routes.avatarStudio}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
 
         <Controller
@@ -184,7 +194,7 @@ export function InterviewerPicker({
           render={({ field }) => (
             <>
               <RadioGroup
-                aria-label="Interviewer"
+                aria-label={t("interviewer.legend")}
                 value={avatarGone(field.value) ? NO_AVATAR : field.value}
                 onValueChange={field.onChange}
                 className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
@@ -198,8 +208,8 @@ export function InterviewerPicker({
                     />
                   </span>
                   <CardText
-                    title="2D interviewer"
-                    detail="An animated voice waveform."
+                    title={t("interviewer.twoD.title")}
+                    detail={t("interviewer.twoD.detail")}
                   />
                   <RadioGroupItem
                     id={`${ids}-2d`}
@@ -239,8 +249,7 @@ export function InterviewerPicker({
               </RadioGroup>
               {avatarGone(field.value) && (
                 <p role="status" className="text-sm text-muted-foreground">
-                  The avatar you chose is no longer in your inventory, so the 2D
-                  interviewer is selected.
+                  {t("interviewer.avatarGone")}
                 </p>
               )}
             </>
@@ -252,23 +261,26 @@ export function InterviewerPicker({
             <Button
               type="button"
               variant="outline"
-              className="h-11"
+              className="h-auto min-h-11 whitespace-normal py-2"
               disabled={page <= 1}
               onClick={() => setPage((value) => value - 1)}
             >
-              Previous
+              {t("interviewer.previous")}
             </Button>
             <span className="text-muted-foreground tabular-nums">
-              Page {page} of {pageCount}
+              {t("interviewer.page", {
+                page: String(page),
+                pageCount: String(pageCount),
+              })}
             </span>
             <Button
               type="button"
               variant="outline"
-              className="h-11"
+              className="h-auto min-h-11 whitespace-normal py-2"
               disabled={page >= pageCount}
               onClick={() => setPage((value) => value + 1)}
             >
-              Next
+              {t("interviewer.next")}
             </Button>
           </div>
         )}
@@ -277,38 +289,37 @@ export function InterviewerPicker({
             role="alert"
             className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm"
           >
-            <p>
-              We couldn&apos;t load your avatars. You can still use the 2D
-              interviewer.
-            </p>
+            <p>{t("interviewer.loadError")}</p>
             <Button
               type="button"
               variant="outline"
-              className="h-11 bg-background"
+              className="h-auto min-h-11 whitespace-normal py-2 bg-background"
               disabled={avatars.isFetching}
               onClick={() => void avatars.refetch()}
             >
-              Try again
+              {t("tryAgain")}
             </Button>
           </div>
         )}
         {avatarPage && avatarPage.pagination.total === 0 && (
           <p className="text-sm text-muted-foreground">
-            You don&apos;t have an avatar yet.{" "}
-            <Link
-              href={routes.avatarStudioNew}
-              className="font-medium text-foreground underline underline-offset-4"
-            >
-              Create one in Avatar Studio
-            </Link>{" "}
-            to see it here.
+            {t.rich("interviewer.noAvatars", {
+              link: (chunks) => (
+                <Link
+                  href={routes.avatarStudioNew}
+                  className="font-medium text-foreground underline underline-offset-4"
+                >
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
         )}
       </fieldset>
 
       <div className="max-w-md space-y-2">
         <h2 id={`${ids}-voice-label`} className="font-semibold">
-          Voice
+          {t("interviewer.voice.label")}
         </h2>
         <Controller
           control={form.control}
@@ -327,7 +338,9 @@ export function InterviewerPicker({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={DEFAULT_VOICE}>Default voice</SelectItem>
+                <SelectItem value={DEFAULT_VOICE}>
+                  {t("interviewer.voice.default")}
+                </SelectItem>
                 {voices.data?.map((voice) => (
                   <SelectItem key={voice.id} value={voice.id}>
                     {voice.name}
@@ -343,37 +356,44 @@ export function InterviewerPicker({
           role={voices.isError ? "alert" : undefined}
         >
           {voices.isPending
-            ? "Loading voices…"
+            ? t("interviewer.voice.loading")
             : voices.isError
-              ? "We couldn't load the voices. The default voice is used."
+              ? t("interviewer.voice.error")
               : voices.data.length === 0
-                ? "No voices are available yet. The default voice is used."
+                ? t("interviewer.voice.none")
                 : voiceGone(form.getValues("voiceId"))
-                  ? "The voice you chose is no longer available, so the default voice is selected."
-                  : "Only active voices are listed."}
+                  ? t("interviewer.voice.gone")
+                  : t("interviewer.voice.active")}
         </p>
         {voices.isError && (
           <Button
             type="button"
             variant="outline"
-            className="h-11"
+            className="h-auto min-h-11 whitespace-normal py-2"
             onClick={() => void voices.refetch()}
           >
-            Try again
+            {t("tryAgain")}
           </Button>
         )}
       </div>
 
       <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <Button asChild variant="ghost" className="h-11">
+        <Button
+          asChild
+          variant="ghost"
+          className="h-auto min-h-11 whitespace-normal py-2"
+        >
           <Link
             href={setupHref(routes.interviews.new.setup, { roleProfileId })}
           >
-            <ArrowLeft aria-hidden="true" /> Back to Role Profile
+            <ArrowLeft aria-hidden="true" /> {t("interviewer.back")}
           </Link>
         </Button>
-        <Button type="submit" className="h-11">
-          Continue to preflight <ArrowRight aria-hidden="true" />
+        <Button
+          type="submit"
+          className="h-auto min-h-11 whitespace-normal py-2"
+        >
+          {t("interviewer.continue")} <ArrowRight aria-hidden="true" />
         </Button>
       </div>
     </form>

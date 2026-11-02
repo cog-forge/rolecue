@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -14,19 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import {
-  formatInterviewTime,
-  reportStatusLabel,
-  reportTypeLabel,
-  scoreText,
-} from "@/features/report/utils/report-text";
+import { formatInterviewTime } from "@/features/report/utils/report-text";
 import { historyKeys, listInterviewHistory } from "../api/history";
 import { HISTORY_PAGE_SIZE, type HistoryItem } from "../schemas/history-schema";
 import { isAccessDenied } from "../utils/api-status";
 import {
   historyHref,
   historyTypeFilters,
-  historyTypeLabel,
   parseHistoryFilters,
   type HistoryFilters,
   type HistoryTypeFilter,
@@ -36,6 +32,7 @@ import { useFormatters } from "@/lib/i18n/use-formatters";
 // The Candidate's own interviews, newest first. Type and page come from the URL, so reload and
 // back keep the view.
 export function InterviewHistory() {
+  const t = useTranslations("candidate.history");
   const user = useSessionUser();
   const cache = useQueryClient();
   const params = useSearchParams();
@@ -57,13 +54,13 @@ export function InterviewHistory() {
     <section className="mx-auto w-full max-w-4xl space-y-6">
       <header className="space-y-2">
         <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Practice
+          {t("eyebrow")}
         </p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Interview history
+          {t("heading")}
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Your past interviews, newest first. Open one to see its report.
+          {t("description")}
         </p>
       </header>
 
@@ -74,36 +71,27 @@ export function InterviewHistory() {
           {Array.from({ length: 4 }, (_, i) => (
             <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
-          <span className="sr-only">Loading your interview history…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-          <h2 className="font-semibold">
-            You don&apos;t have access to interview history
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Checking your account access… If this stays, sign in again with a
-            candidate account.
-          </p>
+          <h2 className="font-semibold">{t("denied")}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t("checking")}</p>
         </div>
       ) : query.isError ? (
         <div
           role="alert"
           className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
         >
-          <h2 className="font-semibold">
-            We couldn&apos;t load your interview history
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Please try again in a moment.
-          </p>
+          <h2 className="font-semibold">{t("error")}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t("tryLater")}</p>
           <Button
             className="mt-4 h-11 bg-background"
             variant="outline"
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Try again
+            {t("retry")}
           </Button>
         </div>
       ) : (
@@ -118,9 +106,10 @@ export function InterviewHistory() {
 }
 
 function TypeFilter({ filters }: { filters: HistoryFilters }) {
+  const t = useTranslations("candidate.history");
   const current: HistoryTypeFilter = filters.type ?? "all";
   return (
-    <nav aria-label="Filter interviews by type">
+    <nav aria-label={t("filter")}>
       <ul className="flex flex-wrap gap-2">
         {historyTypeFilters.map((type) => {
           const active = type === current;
@@ -139,7 +128,7 @@ function TypeFilter({ filters }: { filters: HistoryFilters }) {
                     : "inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium text-muted-foreground hover:text-foreground"
                 }
               >
-                {historyTypeLabel[type]}
+                {t(`types.${type}`)}
               </Link>
             </li>
           );
@@ -158,6 +147,7 @@ function HistoryResults({
   items: HistoryItem[];
   total: number;
 }) {
+  const t = useTranslations("candidate.history");
   const page = filters.page;
   const firstRow = total === 0 ? 0 : (page - 1) * HISTORY_PAGE_SIZE + 1;
   const lastRow = Math.min(page * HISTORY_PAGE_SIZE, total);
@@ -165,12 +155,10 @@ function HistoryResults({
   if (items.length === 0 && page > 1)
     return (
       <div className="rounded-xl border p-8 text-center">
-        <h2 className="font-semibold">
-          This page is past the end of your history.
-        </h2>
+        <h2 className="font-semibold">{t("pastEnd")}</h2>
         <Button asChild variant="outline" className="mt-4 h-11">
           <Link href={historyHref({ type: filters.type, page: 1 })}>
-            Go to the first page
+            {t("firstPage")}
           </Link>
         </Button>
       </div>
@@ -183,15 +171,17 @@ function HistoryResults({
           <Inbox className="size-6" aria-hidden />
         </span>
         <h2 className="font-semibold">
-          {filters.type
-            ? `You have no ${historyTypeLabel[filters.type].toLowerCase()} interviews yet.`
-            : "You have no interviews yet."}
+          {filters.type === "practice"
+            ? t("emptyPractice")
+            : filters.type === "recruitment"
+              ? t("emptyRecruitment")
+              : t("empty")}
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Your practice and recruitment interviews will be listed here.
+          {t("emptyDescription")}
         </p>
         <Button asChild variant="outline" className="mt-4 h-11">
-          <Link href={routes.dashboard}>Go to the dashboard</Link>
+          <Link href={routes.dashboard}>{t("dashboard")}</Link>
         </Button>
       </div>
     );
@@ -199,7 +189,7 @@ function HistoryResults({
   return (
     <div className="space-y-4">
       <ul
-        aria-label="Your interviews"
+        aria-label={t("list")}
         className="divide-y rounded-2xl border bg-card"
       >
         {items.map((item) => (
@@ -207,20 +197,24 @@ function HistoryResults({
         ))}
       </ul>
       <nav
-        aria-label="Interview history pagination"
+        aria-label={t("pagination")}
         className="flex flex-wrap items-center justify-between gap-3 text-sm"
       >
         <p className="text-muted-foreground tabular-nums">
-          Showing {firstRow}–{lastRow} of {total}
+          {t("showing", {
+            first: String(firstRow),
+            last: String(lastRow),
+            total: String(total),
+          })}
         </p>
         <div className="flex gap-2">
           <PageButton
-            label="Previous"
+            label={t("previous")}
             href={historyHref({ type: filters.type, page: page - 1 })}
             disabled={page <= 1}
           />
           <PageButton
-            label="Next"
+            label={t("next")}
             href={historyHref({ type: filters.type, page: page + 1 })}
             disabled={lastRow >= total}
           />
@@ -231,6 +225,7 @@ function HistoryResults({
 }
 
 function HistoryRow({ item }: { item: HistoryItem }) {
+  const t = useTranslations("candidate.history");
   const fmt = useFormatters();
   const title = item.job_posting_title ?? item.role_profile_title;
   return (
@@ -243,7 +238,7 @@ function HistoryRow({ item }: { item: HistoryItem }) {
           {title}
         </Link>
         <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground tabular-nums">
-          <Badge variant="outline">{reportTypeLabel[item.type]}</Badge>
+          <Badge variant="outline">{t(`reportType.${item.type}`)}</Badge>
           <time dateTime={item.started_at}>
             {formatInterviewTime(item.started_at, fmt)}
           </time>
@@ -253,14 +248,14 @@ function HistoryRow({ item }: { item: HistoryItem }) {
             href={routes.application(item.application_id)}
             className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium text-workspace-accent underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            View application
+            {t("application")}
           </Link>
         ) : null}
       </div>
       <div className="space-y-1 text-right text-sm">
-        <p className="font-medium">{reportStatusLabel[item.status]}</p>
+        <p className="font-medium">{t(`status.${item.status}`)}</p>
         <p className="text-muted-foreground tabular-nums">
-          {scoreText(item.score)}
+          {item.score === null ? t("noScore") : `${item.score} / 100`}
         </p>
       </div>
     </li>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Check, LoaderCircle, Plus, Save } from "lucide-react";
@@ -15,11 +16,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  reviewSchema,
+  createReviewSchema,
   type RoleProfile,
   type RoleReview,
 } from "../api/contract";
-import { roleError } from "../api/requests";
+import { seniorityLabel } from "../lib/labels";
+import { useRoleError } from "../lib/use-role-error";
 import { RequirementRow } from "./requirement-row";
 
 export function RoleReviewForm({
@@ -33,6 +35,13 @@ export function RoleReviewForm({
   onSave: (review: RoleReview) => Promise<RoleProfile>;
   onConfirm: (review: RoleReview) => Promise<RoleProfile>;
 }) {
+  const t = useTranslations("candidate.roleProfiles");
+  const labels = useTranslations("candidate.roleProfiles.labels");
+  const roleError = useRoleError();
+  const reviewSchema = useMemo(
+    () => createReviewSchema((key, values) => t(`validation.${key}`, values)),
+    [t],
+  );
   const form = useForm<RoleReview>({
     resolver: zodResolver(reviewSchema),
     defaultValues: {
@@ -51,7 +60,7 @@ export function RoleReviewForm({
     if (confirming && !values.seniorityLevel) {
       form.setError(
         "seniorityLevel",
-        { message: "Select a seniority level before confirming." },
+        { message: t("review.seniorityRequired") },
         { shouldFocus: true },
       );
       return;
@@ -87,20 +96,17 @@ export function RoleReviewForm({
           className="mt-0.5 size-4 shrink-0 text-workspace-accent"
           aria-hidden="true"
         />
-        <p>
-          Edit the role and requirements directly below. What you confirm is the
-          role context saved for your practice.
-        </p>
+        <p>{t("review.intro")}</p>
       </div>
       <fieldset disabled={disabled} className="min-w-0 space-y-7">
-        <legend className="sr-only">Review Role Profile</legend>
+        <legend className="sr-only">{t("review.legend")}</legend>
         <div className="grid gap-5 sm:grid-cols-[minmax(0,1fr)_14rem]">
           <div className="space-y-2">
             <label
               htmlFor="role-title"
               className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
             >
-              Role title
+              {t("review.roleTitle")}
             </label>
             <Input
               id="role-title"
@@ -118,7 +124,7 @@ export function RoleReviewForm({
               htmlFor="role-seniority"
               className="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
             >
-              Seniority
+              {t("review.seniority")}
             </label>
             <Controller
               control={form.control}
@@ -142,12 +148,16 @@ export function RoleReviewForm({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent position="popper" align="start">
-                    <SelectItem value="unspecified">Choose a level</SelectItem>
-                    <SelectItem value="intern">Intern</SelectItem>
-                    <SelectItem value="junior">Junior</SelectItem>
-                    <SelectItem value="mid">Mid</SelectItem>
-                    <SelectItem value="senior">Senior</SelectItem>
-                    <SelectItem value="lead">Lead</SelectItem>
+                    <SelectItem value="unspecified">
+                      {t("review.chooseLevel")}
+                    </SelectItem>
+                    {(
+                      ["intern", "junior", "mid", "senior", "lead"] as const
+                    ).map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {seniorityLabel(labels, level)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               )}
@@ -165,23 +175,19 @@ export function RoleReviewForm({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
             <div className="space-y-1">
               <h2 className="text-lg font-semibold tracking-tight">
-                Technical requirements{" "}
+                {t("review.requirementsTitle")}{" "}
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                   {rows.fields.length}
                 </span>
               </h2>
               <p className="text-sm text-muted-foreground">
-                Set the proficiency this role calls for. Open details to adjust
-                classification or priority. Kind groups an ability, a named
-                technology, or domain knowledge; category describes the type of
-                technical skill, such as a language, framework, database, or
-                tool.
+                {t("review.requirementsHelp")}
               </p>
             </div>
             <Button
               type="button"
               variant="outline"
-              className="h-11"
+              className="h-auto min-h-11 py-2 whitespace-normal"
               disabled={rows.fields.length >= 200}
               onClick={() =>
                 rows.append({
@@ -194,7 +200,8 @@ export function RoleReviewForm({
                 })
               }
             >
-              <Plus className="size-4" aria-hidden="true" /> Add requirement
+              <Plus className="size-4" aria-hidden="true" />{" "}
+              {t("review.addRequirement")}
             </Button>
           </div>
           {rows.fields.map((field, index) => (
@@ -219,22 +226,19 @@ export function RoleReviewForm({
         </section>
         <div className="space-y-3 rounded-xl border bg-card p-5 sm:p-6">
           <label htmlFor="refinement-note" className="font-semibold">
-            Make the practice your own.
+            {t("review.noteLabel")}
           </label>
           <p
             id="refinement-help"
             className="text-sm leading-relaxed text-muted-foreground"
           >
-            Add a focus or exclusion, such as “Focus on caching and concurrency”
-            or “Exclude C#”. Your note guides interview preparation. Saving or
-            confirming saves this note and your current edits. Confirm saves the
-            review first, then prepares interview content.
+            {t("review.noteHelp")}
           </p>
           <Textarea
             id="refinement-note"
             {...form.register("refinementNote")}
             rows={4}
-            placeholder="What would you like to focus on?"
+            placeholder={t("review.notePlaceholder")}
             aria-invalid={Boolean(form.formState.errors.refinementNote)}
             aria-describedby="refinement-help refinement-error"
           />
@@ -242,7 +246,9 @@ export function RoleReviewForm({
             <p id="refinement-error" className="text-destructive">
               {form.formState.errors.refinementNote?.message}
             </p>
-            <span>{[...note].length} / 2,000</span>
+            <span>
+              {t("review.noteCounter", { count: String([...note].length) })}
+            </span>
           </div>
         </div>
       </fieldset>
@@ -257,7 +263,7 @@ export function RoleReviewForm({
       <footer className="flex flex-wrap items-center justify-between gap-5 border-t pt-6">
         <div className="max-w-md space-y-1">
           <p className="text-sm text-muted-foreground">
-            Confirmation prepares and saves interview content for this role.
+            {t("review.confirmNote")}
           </p>
           <p
             role="status"
@@ -266,11 +272,11 @@ export function RoleReviewForm({
           >
             {disabled
               ? action === "confirm"
-                ? "Preparing interview content…"
-                : "Saving your review…"
+                ? t("review.status.confirming")
+                : t("review.status.saving")
               : form.formState.isDirty
-                ? "You have unsaved changes."
-                : "Your latest review is saved."}
+                ? t("review.status.unsaved")
+                : t("review.status.saved")}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -278,7 +284,7 @@ export function RoleReviewForm({
             type="submit"
             variant="outline"
             disabled={disabled}
-            className="h-11"
+            className="h-auto min-h-11 py-2 whitespace-normal"
           >
             {action === "save" ? (
               <LoaderCircle
@@ -288,12 +294,12 @@ export function RoleReviewForm({
             ) : (
               <Save className="size-4" aria-hidden="true" />
             )}
-            {action === "save" ? "Saving…" : "Save review"}
+            {action === "save" ? t("review.saveBusy") : t("review.save")}
           </Button>
           <Button
             type="button"
             disabled={disabled}
-            className="h-11"
+            className="h-auto min-h-11 py-2 whitespace-normal"
             onClick={() =>
               void form.handleSubmit((values) => submit(values, true))()
             }
@@ -306,7 +312,9 @@ export function RoleReviewForm({
             ) : (
               <ArrowRight className="size-4" aria-hidden="true" />
             )}
-            {action === "confirm" ? "Confirming…" : "Confirm role"}
+            {action === "confirm"
+              ? t("review.confirmBusy")
+              : t("review.confirm")}
           </Button>
         </div>
       </footer>

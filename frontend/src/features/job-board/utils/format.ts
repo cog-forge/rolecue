@@ -1,45 +1,48 @@
+import type { useTranslations } from "next-intl";
 import type { Formatters } from "@/lib/i18n/formatters";
 import type { BoardPosting, Level } from "../schemas/job-board-schema";
 
-export const levelText: Record<Level, string> = {
-  intern: "Intern",
-  junior: "Junior",
-  mid: "Mid-level",
-  senior: "Senior",
-  lead: "Lead",
-};
+export type JobBoardTranslator = ReturnType<
+  typeof useTranslations<"candidate.jobBoard">
+>;
 
-const targetText: Record<string, string> = {
-  programming_language: "Programming language",
-  framework: "Framework",
-  database: "Database",
-  tool: "Tool",
-  technology: "Technology",
-  technologies: "Technology",
-  domain_knowledge: "Domain knowledge",
-  other: "Other skill",
-};
+export function levelText(level: Level, t: JobBoardTranslator) {
+  return t(`level.${level}`);
+}
+
+// Several API targets share one label; anything else is shown as words.
+const targetKeys = {
+  programming_language: "programming_language",
+  framework: "framework",
+  database: "database",
+  tool: "tool",
+  technology: "technology",
+  technologies: "technology",
+  domain_knowledge: "domain_knowledge",
+  other: "other",
+} as const;
 
 // An unknown target still reads as words ("cloud_platform" → "Cloud platform").
-export function targetLabel(target: string) {
-  const known = targetText[target];
-  if (known) return known;
+export function targetLabel(target: string, t: JobBoardTranslator) {
+  if (Object.hasOwn(targetKeys, target))
+    return t(`target.${targetKeys[target as keyof typeof targetKeys]}`);
   const words = target.replaceAll("_", " ").trim();
-  return words ? words[0].toUpperCase() + words.slice(1) : "Skill";
+  return words ? words[0].toUpperCase() + words.slice(1) : t("target.skill");
 }
 
 // The API stores salary as plain integers with no currency, so numbers are shown as stored.
 export function salaryText(
   posting: Pick<BoardPosting, "salary_min" | "salary_max">,
   fmt: Formatters,
+  t: JobBoardTranslator,
 ) {
   const { salary_min: min, salary_max: max } = posting;
   if (min !== null && max !== null)
     return min === max
       ? fmt.number(min)
       : `${fmt.number(min)} – ${fmt.number(max)}`;
-  if (min !== null) return `From ${fmt.number(min)}`;
-  if (max !== null) return `Up to ${fmt.number(max)}`;
+  if (min !== null) return t("salary.from", { amount: fmt.number(min) });
+  if (max !== null) return t("salary.upTo", { amount: fmt.number(max) });
   return null;
 }
 
@@ -49,6 +52,7 @@ const DAY = 86_400_000;
 export function postedText(
   createdAt: string,
   fmt: Formatters,
+  t: JobBoardTranslator,
   now = Date.now(),
 ) {
   const published = new Date(createdAt);
@@ -64,9 +68,10 @@ export function postedText(
     current.getUTCDate(),
   );
   const days = Math.round((today - publicationDay) / DAY);
-  if (days <= 0) return "Posted today";
-  if (days < 28) return `Posted ${fmt.relativeUnit(-days, "day")}`;
-  return `Posted ${fmt.date(createdAt, "calendarDay")}`;
+  if (days <= 0) return t("posted.today");
+  if (days < 28)
+    return t("posted.relative", { when: fmt.relativeUnit(-days, "day") });
+  return t("posted.date", { date: fmt.date(createdAt, "calendarDay") });
 }
 
 export function fullDate(createdAt: string, fmt: Formatters) {
@@ -85,8 +90,9 @@ export function publicationDay(now = new Date()) {
 export function publicationText(
   posting: Pick<BoardPosting, "published_at" | "created_at">,
   fmt: Formatters,
+  t: JobBoardTranslator,
 ) {
   return posting.published_at
-    ? postedText(posting.published_at, fmt)
-    : `Created ${fullDate(posting.created_at, fmt)}`;
+    ? postedText(posting.published_at, fmt, t)
+    : t("posted.created", { date: fullDate(posting.created_at, fmt) });
 }

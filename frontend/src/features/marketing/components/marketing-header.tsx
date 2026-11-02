@@ -21,9 +21,9 @@ import { cn } from "@/lib/utils";
 import { landingFocus, primaryButton } from "./rolecue-landing-styles";
 
 const navigation = [
-  { href: "#about", label: "Features" },
-  { href: "#practice", label: "How it works" },
-  { href: "#questions", label: "Questions" },
+  { href: "#about", label: "features" },
+  { href: "#practice", label: "how" },
+  { href: "#questions", label: "questions" },
 ] as const;
 
 const compactHeaderThreshold = 48;
@@ -65,7 +65,7 @@ export function MarketingHeader() {
 
       <header className="pointer-events-none sticky top-0 z-60 flex h-[5.3rem] justify-center -mb-[5.3rem] max-[760px]:h-19 max-[760px]:-mb-19">
         <nav
-          aria-label="Main navigation"
+          aria-label={t("mainNavigation")}
           className={cn(
             "pointer-events-auto min-w-0 h-full transition-[width,height,margin,padding,border-radius,background-color,border-color,box-shadow] duration-400 ease-[cubic-bezier(0.22,0.61,0.36,1)] motion-reduce:transition-none! max-[760px]:px-3",
             isCompact
@@ -75,7 +75,7 @@ export function MarketingHeader() {
         >
           <div className="grid h-full grid-cols-[auto_1fr] items-center gap-6 max-[760px]:grid-cols-[minmax(0,1fr)_auto] max-[760px]:gap-3">
             <Link
-              aria-label="RoleCue home"
+              aria-label={t("home")}
               className={cn(
                 landingFocus,
                 "inline-flex items-center gap-2.5 justify-self-start transition-transform duration-300",
@@ -112,7 +112,7 @@ export function MarketingHeader() {
               <div className="flex items-center gap-9 max-[920px]:gap-6 max-[760px]:hidden">
                 {navigation.map((item) => (
                   <a className={navLink} href={item.href} key={item.href}>
-                    {item.label}
+                    {t(item.label)}
                   </a>
                 ))}
               </div>
@@ -136,7 +136,7 @@ export function MarketingHeader() {
               <Sheet>
                 <SheetTrigger asChild>
                   <Button
-                    aria-label="Open navigation"
+                    aria-label={t("openNavigation")}
                     className={cn(
                       landingFocus,
                       "hidden size-11 rounded-lg border-(--rolecue-border) bg-(--rolecue-surface) p-0 text-(--rolecue-ink) shadow-none hover:border-(--rolecue-border-strong) hover:bg-(--rolecue-surface) max-[760px]:inline-flex",
@@ -155,14 +155,14 @@ export function MarketingHeader() {
                 >
                   <div className="flex min-h-11 items-center justify-between px-2">
                     <SheetTitle className="text-sm font-semibold text-(--rolecue-ink)">
-                      Explore RoleCue
+                      {t("explore")}
                     </SheetTitle>
                     <SheetDescription className="sr-only">
-                      Site navigation and account access.
+                      {t("navigationDescription")}
                     </SheetDescription>
                     <SheetClose asChild>
                       <Button
-                        aria-label="Close navigation"
+                        aria-label={t("closeNavigation")}
                         className={cn(
                           landingFocus,
                           "size-11 rounded-lg text-(--rolecue-ink)",
@@ -175,11 +175,11 @@ export function MarketingHeader() {
                       </Button>
                     </SheetClose>
                   </div>
-                  <nav aria-label="Mobile navigation" className="grid">
+                  <nav aria-label={t("mobileNavigation")} className="grid">
                     {navigation.map((item) => (
                       <SheetClose asChild key={item.href}>
                         <a className={mobileNavLink} href={item.href}>
-                          {item.label}
+                          {t(item.label)}
                         </a>
                       </SheetClose>
                     ))}

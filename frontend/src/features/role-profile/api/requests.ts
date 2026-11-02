@@ -1,4 +1,4 @@
-import axios, { isAxiosError } from "axios";
+import axios from "axios";
 import { apiClient } from "@/lib/api/client";
 import {
   documentEnvelopeSchema,
@@ -105,24 +105,4 @@ export async function uploadPDF(
     onUploadProgress: (event) =>
       progress(Math.min(100, Math.round((event.loaded / file.size) * 100))),
   });
-}
-export function roleError(error: unknown) {
-  if (isAxiosError(error)) {
-    if (error.code === "ERR_CANCELED")
-      return "Canceled. You can retry or open your saved draft.";
-    const payload: unknown = error.response?.data;
-    if (payload && typeof payload === "object" && "error" in payload) {
-      const detail = payload.error;
-      if (
-        detail &&
-        typeof detail === "object" &&
-        "message" in detail &&
-        typeof detail.message === "string"
-      )
-        return detail.message;
-    }
-    if (error.response?.status === 409)
-      return "This job description is not ready for that action. Refresh and try again.";
-  }
-  return "We couldn't complete that step. Please try again.";
 }

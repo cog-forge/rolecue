@@ -40,8 +40,11 @@ test.describe("language", () => {
     await page.getByRole("menuitemradio", { name: "Tiếng Việt" }).click();
 
     await expect(page.locator("html")).toHaveAttribute("lang", "vi");
+    await expect(
+      page.getByRole("heading", { name: "Đăng nhập vào RoleCue" }),
+    ).toBeVisible();
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByLabel("Email address")).toHaveValue(
+    await expect(page.getByLabel("Địa chỉ email")).toHaveValue(
       "typed@example.com",
     );
 
@@ -59,7 +62,7 @@ test.describe("language", () => {
         { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
       ]);
     await page.goto("/login");
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Đăng nhập" }).click();
     await expect(page.getByText("Vui lòng nhập mật khẩu")).toBeVisible();
   });
 });

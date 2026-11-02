@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CircleCheck, CircleDashed, MonitorSmartphone } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 type Item = {
   label: string;
@@ -23,45 +24,63 @@ export function SecuritySummary({
   twoFactorEnabled: boolean;
   sessionCount?: number;
 }) {
+  const t = useTranslations("auth.security");
   const items: Item[] = [
     {
-      label: "Email",
-      value: emailVerified ? "Verified" : "Not verified",
+      label: t("summary.email"),
+      value: emailVerified ? t("status.verified") : t("status.notVerified"),
       ok: emailVerified,
-      detail: emailVerified ? "Used for recovery" : "Check your inbox",
+      detail: emailVerified
+        ? t("summary.emailVerifiedDetail")
+        : t("summary.emailUnverifiedDetail"),
       href: "#sign-in-methods",
     },
     {
-      label: "Password",
-      value: hasPassword === undefined ? "—" : hasPassword ? "Set" : "Not set",
+      label: t("summary.password"),
+      value:
+        hasPassword === undefined
+          ? "—"
+          : hasPassword
+            ? t("status.set")
+            : t("status.notSet"),
       ok: Boolean(hasPassword),
-      detail: hasPassword === false ? "Social sign-in only" : "Email sign-in",
+      detail:
+        hasPassword === false
+          ? t("summary.passwordSocialOnly")
+          : t("summary.passwordEmail"),
       href: "#password-settings",
     },
     {
-      label: "Two-factor",
-      value: twoFactorEnabled ? "On" : "Off",
+      label: t("summary.twoFactor"),
+      value: twoFactorEnabled ? t("status.on") : t("status.off"),
       ok: twoFactorEnabled,
-      detail: twoFactorEnabled ? "Authenticator app" : "Recommended",
+      detail: twoFactorEnabled
+        ? t("summary.twoFactorOnDetail")
+        : t("summary.twoFactorOffDetail"),
       href: "#two-factor-settings",
     },
     {
-      label: "Signed in",
+      label: t("summary.signedIn"),
       value:
         sessionCount === undefined
           ? "—"
-          : `${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}`,
+          : t("summary.sessions", {
+              count: sessionCount,
+              countText: String(sessionCount),
+            }),
       ok: "neutral",
       detail:
         sessionCount === undefined || sessionCount < 2
-          ? "This browser only"
-          : `This browser and ${sessionCount - 1} more`,
+          ? t("summary.thisBrowserOnly")
+          : t("summary.thisBrowserAndMore", {
+              countText: String(sessionCount - 1),
+            }),
       href: "#active-sessions",
     },
   ];
   return (
     <nav
-      aria-label="Security summary"
+      aria-label={t("summary.label")}
       className="grid grid-cols-2 overflow-hidden rounded-2xl border lg:grid-cols-4"
     >
       {items.map((item, index) => (

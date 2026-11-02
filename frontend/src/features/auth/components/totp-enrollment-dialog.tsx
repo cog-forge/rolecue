@@ -35,33 +35,15 @@ import { BackupCodes } from "./backup-codes";
 import { CopyButton } from "./copy-button";
 import { useTranslations } from "next-intl";
 
-const steps = [
-  {
-    title: "Confirm it's you",
-    description:
-      "Enter your current password to start setting up an authenticator app.",
-  },
-  {
-    title: "Connect your authenticator",
-    description:
-      "Scan the code with an app such as Google Authenticator or 1Password, then enter the code it shows.",
-  },
-  {
-    title: "Save your backup codes",
-    description:
-      "Each code signs you in once if you lose your phone. They are shown only now.",
-  },
-];
-
 // Pasted codes often arrive grouped as "012 345".
 const withoutSpaces = (value: string) => value.replace(/\s/g, "");
 
 function SetupProgress({ step }: { step: number }) {
   return (
     <div className="flex gap-1.5" aria-hidden>
-      {steps.map((item, index) => (
+      {[1, 2, 3].map((item, index) => (
         <span
-          key={item.title}
+          key={item}
           className={`h-1 flex-1 rounded-full transition-colors duration-(--duration-fast) ${index < step ? "bg-foreground" : "bg-muted"}`}
         />
       ))}
@@ -78,6 +60,7 @@ export function TotpEnrollmentDialog({
   onAccessError: (error: unknown) => void;
   enabled?: boolean;
 }) {
+  const t = useTranslations("auth.security.enroll");
   const v = useTranslations("validation");
   const currentPasswordSchema = useMemo(
     () => createCurrentPasswordSchema(v),
@@ -145,8 +128,8 @@ export function TotpEnrollmentDialog({
       );
       code.reset();
       setVerified(true);
-      gooeyToast.success("Authenticator enabled", {
-        description: "Password sign-in now asks for a code.",
+      gooeyToast.success(t("enabled"), {
+        description: t("enabledDescription"),
       });
     },
     onSuccess: (): void => {
@@ -168,6 +151,11 @@ export function TotpEnrollmentDialog({
   }
   const error = setup ? verification.error : enrollment.error;
   const step = verified ? 3 : setup ? 2 : 1;
+  const stepText = [
+    { title: t("confirmTitle"), description: t("confirmDescription") },
+    { title: t("connectTitle"), description: t("connectDescription") },
+    { title: t("saveTitle"), description: t("saveDescription") },
+  ][step - 1];
   const secret = setup
     ? (new URL(setup.totpURI).searchParams.get("secret") ?? "")
     : "";
@@ -182,7 +170,7 @@ export function TotpEnrollmentDialog({
     >
       <DialogTrigger asChild>
         <Button className={enabled ? "hidden" : "min-h-11"} disabled={enabled}>
-          Enable authenticator
+          {t("enable")}
         </Button>
       </DialogTrigger>
       <DialogContent
@@ -192,8 +180,8 @@ export function TotpEnrollmentDialog({
       >
         <DialogHeader className="gap-3">
           <SetupProgress step={step} />
-          <DialogTitle>{steps[step - 1].title}</DialogTitle>
-          <DialogDescription>{steps[step - 1].description}</DialogDescription>
+          <DialogTitle>{stepText.title}</DialogTitle>
+          <DialogDescription>{stepText.description}</DialogDescription>
         </DialogHeader>
         {verified && setup ? (
           <div className="space-y-4">
@@ -211,36 +199,31 @@ export function TotpEnrollmentDialog({
                   <path d="M5 12l4 4L19 6" />
                 </svg>
               </span>
-              <p className="text-sm font-medium">Authenticator enabled</p>
+              <p className="text-sm font-medium">{t("enabled")}</p>
             </div>
             <BackupCodes codes={setup.backupCodes} onDone={close} />
             <Button variant="ghost" className="min-h-11 w-full" onClick={close}>
-              Close without saving
+              {t("closeWithoutSaving")}
             </Button>
           </div>
         ) : setup ? (
           <div className="space-y-6">
             <div className="grid gap-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
               <div className="mx-auto rounded-xl border bg-white p-3">
-                <QRCode
-                  value={setup.totpURI}
-                  size={148}
-                  title="Scan this QR code with your authenticator"
-                />
+                <QRCode value={setup.totpURI} size={148} title={t("qrTitle")} />
               </div>
               <div className="min-w-0 space-y-3">
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Can&apos;t scan it? Add the account in your app with this
-                  setup key instead.
+                  {t("cantScan")}
                 </p>
                 <div className="flex items-center gap-2 rounded-xl bg-muted py-1.5 pr-1.5 pl-3">
                   <code
-                    aria-label="Setup key"
+                    aria-label={t("setupKey")}
                     className="min-w-0 flex-1 font-mono text-sm tracking-wider wrap-anywhere select-all"
                   >
                     {secret}
                   </code>
-                  <CopyButton value={secret} label="Copy setup key" />
+                  <CopyButton value={secret} label={t("copySetupKey")} />
                 </div>
               </div>
             </div>
@@ -257,7 +240,7 @@ export function TotpEnrollmentDialog({
                   htmlFor="enrollment-code"
                   className="block text-sm font-medium"
                 >
-                  Authenticator code
+                  {t("code")}
                 </label>
                 <Input
                   id="enrollment-code"
@@ -287,8 +270,7 @@ export function TotpEnrollmentDialog({
                     id="enrollment-code-help"
                     className="text-xs text-muted-foreground"
                   >
-                    The 6-digit code your app shows for RoleCue. It changes
-                    every 30 seconds.
+                    {t("codeHelp")}
                   </p>
                 )}
               </div>
@@ -301,7 +283,7 @@ export function TotpEnrollmentDialog({
                   disabled={pending}
                   onClick={close}
                 >
-                  Cancel setup
+                  {t("cancelSetup")}
                 </Button>
                 <Button
                   type="submit"
@@ -312,7 +294,7 @@ export function TotpEnrollmentDialog({
                   {pending && (
                     <LoaderCircle className="animate-spin" aria-hidden />
                   )}
-                  {pending ? "Verifying…" : "Verify authenticator"}
+                  {pending ? t("verifying") : t("verify")}
                 </Button>
               </DialogFooter>
             </form>
@@ -326,7 +308,7 @@ export function TotpEnrollmentDialog({
           >
             <PasswordField
               id="enrollment-password"
-              label="Current password"
+              label={t("currentPassword")}
               autoComplete="current-password"
               disabled={pending}
               error={password.formState.errors.password}
@@ -341,7 +323,7 @@ export function TotpEnrollmentDialog({
                 disabled={pending}
                 onClick={close}
               >
-                Cancel setup
+                {t("cancelSetup")}
               </Button>
               <Button
                 type="submit"
@@ -352,7 +334,7 @@ export function TotpEnrollmentDialog({
                 {pending && (
                   <LoaderCircle className="animate-spin" aria-hidden />
                 )}
-                {pending ? "Preparing…" : "Continue"}
+                {pending ? t("preparing") : t("continue")}
               </Button>
             </DialogFooter>
           </form>

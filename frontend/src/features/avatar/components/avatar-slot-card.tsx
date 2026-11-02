@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import {
   Coins,
   Plus,
@@ -49,6 +50,7 @@ export function AvatarSlotCard({
   onOpen: () => void;
   onDelete: (trigger: HTMLButtonElement) => void;
 }) {
+  const t = useTranslations("candidate.avatars.card");
   const fmt = useFormatters();
   const card = useRef<HTMLLIElement>(null);
   const [visible, setVisible] = useState(false);
@@ -119,9 +121,7 @@ export function AvatarSlotCard({
               strokeWidth={1.25}
             />
             <p className="text-xs text-muted-foreground">
-              {webgl === false
-                ? "3D isn't available on this device"
-                : "Couldn't render the preview"}
+              {webgl === false ? t("renderUnavailable") : t("previewFailed")}
             </p>
           </div>
         ) : (
@@ -155,12 +155,12 @@ export function AvatarSlotCard({
         <button
           type="button"
           onClick={onOpen}
-          aria-label={`Open ${avatar.name} in 3D`}
+          aria-label={t("open3d", { name: avatar.name })}
           className="absolute inset-0 z-10 rounded-t-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         >
           <span className="absolute right-2.5 bottom-2.5 flex items-center gap-1 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground">
             <Rotate3d aria-hidden className="size-3.5" />
-            3D
+            {t("badge3d")}
           </span>
         </button>
         {portrait.isError && (
@@ -171,7 +171,7 @@ export function AvatarSlotCard({
             className="absolute bottom-2.5 left-2.5 z-20 h-8"
             onClick={() => void portrait.refetch()}
           >
-            <RotateCcw aria-hidden /> Retry
+            <RotateCcw aria-hidden /> {t("retry")}
           </Button>
         )}
       </div>
@@ -191,7 +191,7 @@ export function AvatarSlotCard({
             variant="ghost"
             size="icon"
             className="-mt-1.5 size-11 shrink-0 text-muted-foreground hover:text-destructive"
-            aria-label={`Delete ${avatar.name}`}
+            aria-label={t("delete", { name: avatar.name })}
             onClick={(event) => onDelete(event.currentTarget)}
           >
             <Trash2 aria-hidden />
@@ -226,6 +226,7 @@ export function EmptySlotCard({
   index: number;
   first: boolean;
 }) {
+  const t = useTranslations("candidate.avatars.card");
   const entrance = slotEntrance(index);
   return (
     <li
@@ -239,7 +240,7 @@ export function EmptySlotCard({
     >
       <Link
         href={routes.avatarStudioNew}
-        aria-label={`Create an avatar in empty slot ${slot} of ${capacity}`}
+        aria-label={t("emptyCreateLabel", { slot, capacity })}
         className="flex h-full flex-col rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <SlotPortraitPlaceholder>
@@ -265,10 +266,10 @@ export function EmptySlotCard({
               first ? "font-medium" : "text-muted-foreground",
             )}
           >
-            {first ? "Create an avatar" : "Empty slot"}
+            {first ? t("create") : t("empty")}
           </p>
           <p className="text-xs text-muted-foreground">
-            Slot {slot} of {capacity}
+            {t("slotOf", { slot, capacity })}
           </p>
         </div>
       </Link>
@@ -283,6 +284,8 @@ export function AddSlotsCard({
   index: number;
   onBuy: () => void;
 }) {
+  const t = useTranslations("candidate.avatars.card");
+  const fmt = useFormatters();
   const entrance = slotEntrance(index);
   return (
     <li
@@ -308,9 +311,9 @@ export function AddSlotsCard({
           </span>
         </SlotPortraitPlaceholder>
         <div className="p-3.5">
-          <p className="text-sm font-medium">Add more slots</p>
+          <p className="text-sm font-medium">{t("addMore")}</p>
           <p className="text-xs text-muted-foreground">
-            {slotPriceCoins} coin per slot
+            {t("price", { price: fmt.coins(slotPriceCoins) })}
           </p>
         </div>
       </button>

@@ -28,47 +28,69 @@ export const proficiencyLevels = [
   "Proficient",
   "Expert",
 ] as const;
-const text = (min: number, max: number) =>
+
+type ValidationKey =
+  | "textLength"
+  | "entryLength"
+  | "categoryRequired"
+  | "categoryOnlySkills"
+  | "requirementsMin";
+// The form's `useTranslations("candidate.roleProfiles.validation")` satisfies this. The numbers are
+// passed as strings so that English keeps "2000" and not "2,000".
+export type RoleValidation = (
+  key: ValidationKey,
+  values?: { min: string; max: string },
+) => string;
+const text = (v: RoleValidation, min: number, max: number) =>
   z
     .string()
     .trim()
     .refine(
       (value) => [...value].length >= min && [...value].length <= max,
-      `Use ${min}–${max} characters.`,
+      v("textLength", { min: String(min), max: String(max) }),
     );
-export const requirementSchema = z
-  .object({
-    name: text(1, 200),
-    target: text(1, 2000),
-    kind: z.enum(["skill", "technology", "domain_knowledge"]),
-    category: categorySchema.nullable(),
-    type: z.enum(["required", "preferred"]).nullable(),
-    evidenceText: z.string().nullable(),
-  })
-  .strict()
-  .superRefine((value, context) => {
-    if (value.kind === "skill" && !value.category)
-      context.addIssue({
-        code: "custom",
-        path: ["category"],
-        message: "Select a skill category.",
-      });
-    if (value.kind !== "skill" && value.category)
-      context.addIssue({
-        code: "custom",
-        path: ["category"],
-        message: "Only skills have a category.",
-      });
+export function createRequirementSchema(v: RoleValidation) {
+  return z
+    .object({
+      name: text(v, 1, 200),
+      target: text(v, 1, 2000),
+      kind: z.enum(["skill", "technology", "domain_knowledge"]),
+      category: categorySchema.nullable(),
+      type: z.enum(["required", "preferred"]).nullable(),
+      evidenceText: z.string().nullable(),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      if (value.kind === "skill" && !value.category)
+        context.addIssue({
+          code: "custom",
+          path: ["category"],
+          message: v("categoryRequired"),
+        });
+      if (value.kind !== "skill" && value.category)
+        context.addIssue({
+          code: "custom",
+          path: ["category"],
+          message: v("categoryOnlySkills"),
+        });
+    });
+}
+export function createReviewSchema(v: RoleValidation) {
+  return z.object({
+    title: text(v, 1, 200),
+    seniorityLevel: senioritySchema.nullable(),
+    requirements: z
+      .array(createRequirementSchema(v))
+      .min(1, v("requirementsMin"))
+      .max(200),
+    refinementNote: text(v, 0, 2000),
   });
-export const reviewSchema = z.object({
-  title: text(1, 200),
-  seniorityLevel: senioritySchema.nullable(),
-  requirements: z
-    .array(requirementSchema)
-    .min(1, "Keep at least one technical requirement.")
-    .max(200),
-  refinementNote: text(0, 2000),
-});
+}
+// Request and response guards: their messages are never shown, so they stay as plain keys.
+// Screens validate user input with the translated factories above.
+const guardMessages: RoleValidation = (key) => key;
+export const requirementSchema = createRequirementSchema(guardMessages);
+export const reviewSchema = createReviewSchema(guardMessages);
 export const roleProfileSchema = z
   .object({
     title: z.string(),
@@ -113,14 +135,17 @@ export const documentEnvelopeSchema = z.object({
   data: signedRequestSchema,
 });
 export type UploadTicket = z.infer<typeof uploadTicketSchema>;
-export function pdfFileError(file: File) {
+export type PdfErrorTranslator = (
+  key: "notPdf" | "empty" | "tooLarge",
+) => string;
+export function pdfFileError(file: File, t: PdfErrorTranslator) {
   if (
     !file.name.toLowerCase().endsWith(".pdf") ||
     (file.type && file.type !== "application/pdf")
   )
-    return "Choose a PDF document.";
-  if (file.size === 0) return "This PDF is empty. Choose another document.";
-  if (file.size > maxPDFBytes) return "Choose a PDF up to 5 MB.";
+    return t("notPdf");
+  if (file.size === 0) return t("empty");
+  if (file.size > maxPDFBytes) return t("tooLarge");
   return null;
 }
 export const summarySchema = z
@@ -153,45 +178,24 @@ export function normalizeRoleText(raw: string) {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
-export const entrySchema = z.object({
-  rawText: z.string().refine((value) => {
-    const length = [...normalizeRoleText(value)].length;
-    return length >= 100 && length <= 20_000;
-  }, "Paste 100–20,000 characters of job description text."),
-});
+export function createEntrySchema(v: RoleValidation) {
+  return z.object({
+    rawText: z.string().refine((value) => {
+      const length = [...normalizeRoleText(value)].length;
+      return length >= 100 && length <= 20_000;
+    }, v("entryLength")),
+  });
+}
+export const entrySchema = createEntrySchema(guardMessages);
 export type RoleProfile = z.infer<typeof roleProfileSchema>;
 export type RoleReview = z.infer<typeof reviewSchema>;
 export type RoleRequirement = z.infer<typeof requirementSchema>;
 export type RoleSummary = z.infer<typeof summarySchema>;
 export type EntryValues = z.infer<typeof entrySchema>;
-export const statusLabels: Record<RoleProfile["status"], string> = {
-  draft: "Draft",
-  analyzing: "Analyzing",
-  review: "Needs review",
-  confirmed: "Confirmed",
-};
-export const categoryLabels: Record<z.infer<typeof categorySchema>, string> = {
-  programming_language: "Language",
-  framework: "Framework",
-  database: "Database",
-  tool: "Tool",
-  technology: "Technology",
-  other: "Technical skill",
-};
 export function isKnownTarget(target: string) {
   return proficiencyLevels.some((value) => value === target);
 }
 // Targets saved before proficiency levels existed are free text; keep them as written.
 export function isCustomTarget({ name, target }: RoleRequirement) {
   return Boolean(target) && !isKnownTarget(target) && target !== name;
-}
-export function requirementLabel({ kind, category, type }: RoleRequirement) {
-  const classification =
-    kind === "skill" && category
-      ? categoryLabels[category]
-      : kind === "technology"
-        ? "Technology"
-        : "Domain knowledge";
-  if (!type) return classification;
-  return `${classification} · ${type === "required" ? "Required" : "Preferred"}`;
 }

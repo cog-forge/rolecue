@@ -1,5 +1,181 @@
 {
   "header": {
-    "signIn": "Đăng nhập"
+    "signIn": "Đăng nhập",
+    "features": "Tính năng",
+    "how": "Cách hoạt động",
+    "questions": "Câu hỏi",
+    "mainNavigation": "Điều hướng chính",
+    "home": "Trang chủ RoleCue",
+    "openNavigation": "Mở điều hướng",
+    "closeNavigation": "Đóng điều hướng",
+    "explore": "Khám phá RoleCue",
+    "navigationDescription": "Điều hướng trang web và truy cập tài khoản.",
+    "mobileNavigation": "Điều hướng trên di động"
+  },
+  "terms": {
+    "title": "Điều khoản dịch vụ",
+    "metadataDescription": "Xem các điều khoản áp dụng khi sử dụng RoleCue.",
+    "description": "Điều khoản dịch vụ sẽ được công bố trước khi sản phẩm chính thức ra mắt."
+  },
+  "privacy": {
+    "title": "Chính sách bảo mật",
+    "metadataDescription": "Tìm hiểu cách RoleCue xử lý thông tin tài khoản và sản phẩm.",
+    "description": "Chính sách bảo mật sẽ được công bố trước khi sản phẩm chính thức ra mắt."
+  },
+  "landing": {
+    "focus": "Luyện tập theo vị trí",
+    "footerNavigation": "Điều hướng cuối trang",
+    "features": "Tính năng",
+    "how": "Cách hoạt động",
+    "questions": "Câu hỏi",
+    "start": "Bắt đầu",
+    "madeFor": "Giúp bạn trao đổi kỹ thuật rõ ràng hơn",
+    "meet": "Khám phá RoleCue",
+    "about": "RoleCue kết hợp bối cảnh công việc, hội thoại trực tiếp và đánh giá phỏng vấn trong một không gian luyện tập riêng tư.",
+    "hero": {
+      "ariaLabel": "Phần đầu trang RoleCue",
+      "headline": "Sẵn sàng bước vào.",
+      "headlineLeft": "SẴN SÀNG",
+      "headlineRight": "BƯỚC VÀO.",
+      "roleBasedTitle": "100% theo vị trí",
+      "roleBasedText": "Xây dựng quanh JD của bạn",
+      "feedbackTitle": "Phản hồi tức thì",
+      "feedbackText": "Câu trả lời tiếp theo rõ ràng hơn",
+      "practiceTitle": "Luyện phỏng vấn như thật",
+      "practiceText": "Nhận phản hồi, thêm tự tin và thể hiện tốt hơn.",
+      "tagline": "Luyện đúng vị trí trước khi bước vào phòng.",
+      "start": "Bắt đầu ngay",
+      "sideLabel": "THEO VỊ TRÍ",
+      "sideText": "Luyện tập từ chính yêu cầu công việc thực tế."
+    },
+    "aboutHeading": {
+      "line1": "Phòng luyện tập",
+      "middle": "cho ",
+      "highlight": "vị trí sắp tới."
+    },
+    "featureCarousel": {
+      "ariaLabel": "Khám phá tính năng RoleCue",
+      "tabListLabel": "Tính năng RoleCue",
+      "previous": "Tính năng trước",
+      "next": "Tính năng tiếp theo",
+      "play": "Phát xem trước tính năng",
+      "pause": "Tạm dừng xem trước tính năng",
+      "items": {
+        "roleContext": {
+          "label": "Bối cảnh từ JD",
+          "description": "Kỹ năng và chủ đề kỹ thuật được rút ra từ JD mục tiêu của bạn.",
+          "alt": "Một ứng viên xem bản mô tả vị trí mục tiêu bên chiếc bàn làm việc xanh dịu, đủ ánh sáng"
+        },
+        "spokenInterviews": {
+          "label": "Hội thoại bằng giọng nói",
+          "description": "Buổi phỏng vấn bằng giọng nói với người phỏng vấn AI, theo cách của chính bạn.",
+          "alt": "Một ứng viên trầm ngâm nói chuyện với laptop khi luyện phỏng vấn"
+        },
+        "followUpQuestions": {
+          "label": "Câu hỏi linh hoạt",
+          "description": "Mỗi câu hỏi đều phản hồi theo câu trả lời của bạn và bối cảnh vị trí.",
+          "alt": "Một ứng viên phác thảo ý tưởng kỹ thuật khi trình bày cách tiếp cận"
+        },
+        "personalInterviewer": {
+          "label": "Tùy chọn người phỏng vấn",
+          "description": "Avatar 3D hệ thống hoặc cá nhân, cùng hồ sơ giọng nói do bạn chọn.",
+          "alt": "Không gian phỏng vấn dễ chịu với chân dung người phỏng vấn trên laptop"
+        },
+        "usefulFeedback": {
+          "label": "Đánh giá buổi phỏng vấn",
+          "description": "Báo cáo sau phỏng vấn về các câu trả lời kỹ thuật của bạn.",
+          "alt": "Đôi tay xem lại phản hồi và ghi chú điểm cần cải thiện trên bàn làm việc xanh pastel"
+        }
+      }
+    },
+    "practiceLoop": {
+      "ariaLabel": "Nhìn gần hơn vào vòng luyện tập của RoleCue.",
+      "titleStart": "Nhìn <flip/>",
+      "titleEnd": " vào vòng luyện tập của RoleCue.",
+      "flipWords": {
+        "first": "gần hơn",
+        "second": "sâu hơn",
+        "third": "rõ hơn"
+      },
+      "intro": "Năm khoảnh khắc trong một buổi diễn tập, từ bản mô tả công việc đầu tiên đến buổi phỏng vấn thật.",
+      "wheelLabel": "Vòng luyện tập",
+      "chooseLabel": "Chọn một khoảnh khắc luyện tập",
+      "show": "Xem: {title}",
+      "instructions": "Dùng phím mũi tên hoặc chọn một khoảnh khắc để khám phá vòng luyện tập.",
+      "hintReduced": "Chọn một khoảnh khắc",
+      "hintMotion": "Cuộn hoặc kéo để khám phá",
+      "moments": {
+        "brief": {
+          "title": "Mang theo mô tả công việc",
+          "alt": "Bàn làm việc ngập nắng với laptop và sổ tay cạnh cửa sổ mở."
+        },
+        "setup": {
+          "title": "Thiết lập buổi luyện tập",
+          "alt": "Phòng luyện tập sáng sủa, thân thiện với hai chiếc ghế và một chiếc bàn gỗ."
+        },
+        "answer": {
+          "title": "Trả lời thành tiếng",
+          "alt": "Hai người đi làm trò chuyện nghiêm túc trong văn phòng ấm áp, tràn ngập ánh sáng."
+        },
+        "review": {
+          "title": "Xem lại cuộc trò chuyện",
+          "alt": "Một người lặng lẽ xem sổ tay bên cạnh laptop trong nắng chiều."
+        },
+        "next": {
+          "title": "Mang vào buổi phỏng vấn thật",
+          "alt": "Một người bước về phía ô cửa văn phòng đang mở, tràn ngập ánh nắng ấm."
+        }
+      }
+    },
+    "faq": {
+      "eyebrow": "Trước khi bắt đầu",
+      "title": "Vài điều nên biết.",
+      "ariaLabel": "Câu hỏi về RoleCue",
+      "items": {
+        "audience": {
+          "question": "RoleCue dành cho ai?",
+          "answer": "RoleCue dành cho những ai đang chuẩn bị cho phỏng vấn kỹ thuật, dù bạn mới bắt đầu hay đang chuyển sang một vị trí mới."
+        },
+        "gettingStarted": {
+          "question": "Tôi cần chuẩn bị gì để bắt đầu?",
+          "answer": "Hãy tạo tài khoản, chuẩn bị một JD mục tiêu và một chiếc micro cho buổi phỏng vấn bằng giọng nói."
+        },
+        "jobDescription": {
+          "question": "Câu hỏi có dựa trên JD của tôi không?",
+          "answer": "Có. RoleCue dùng bối cảnh kỹ thuật trong JD của bạn để định hướng buổi phỏng vấn. Các câu hỏi sau đó cũng bám theo câu trả lời của bạn."
+        },
+        "interviewer": {
+          "question": "Tôi có thể chọn người phỏng vấn không?",
+          "answer": "Có. Với các buổi luyện tập của riêng bạn, hãy chọn một avatar 3D hệ thống hoặc cá nhân đang có, cùng một hồ sơ giọng nói."
+        },
+        "afterSession": {
+          "question": "Tôi nhận được gì sau mỗi buổi luyện tập?",
+          "answer": "Bạn nhận được báo cáo phỏng vấn kèm đánh giá các câu trả lời kỹ thuật, để xem lại lần thử của mình và biết nên cải thiện điều gì."
+        },
+        "free": {
+          "question": "Tôi có thể bắt đầu miễn phí không?",
+          "answer": "Có. Bạn có thể tạo tài khoản và bắt đầu luyện tập miễn phí."
+        }
+      }
+    },
+    "closing": {
+      "titleLine1": "Buổi phỏng vấn tới",
+      "titleLine2": "bắt đầu từ đây.",
+      "text": "Luyện tập một chút trước cuộc trò chuyện thật.",
+      "cta": "Bắt đầu miễn phí"
+    }
+  },
+  "metadata": {
+    "description": "Luyện phỏng vấn kỹ thuật theo đúng vị trí ứng tuyển"
+  },
+  "pricing": {
+    "title": "Bảng giá",
+    "description": "Các gói xu phỏng vấn và thông tin gói dịch vụ sẽ có khi bảng giá được xác định.",
+    "shellLabel": "Công khai",
+    "nav": {
+      "home": "Trang chủ",
+      "pricing": "Bảng giá",
+      "login": "Đăng nhập"
+    }
   }
 }

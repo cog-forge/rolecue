@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ContainerTextFlip } from "@/components/ui/container-text-flip";
 import { cn } from "@/lib/utils";
 import { Reveal } from "./reveal";
@@ -10,34 +11,25 @@ import {
 } from "./rolecue-landing-styles";
 
 const moments = [
-  {
-    title: "Bring the job brief",
-    image: "/images/practice-loop/role-context.webp",
-    alt: "A sunlit desk with a laptop and notebook beside an open window.",
-  },
-  {
-    title: "Set up your session",
-    image: "/images/practice-loop/practice-space.webp",
-    alt: "A bright, welcoming practice room with two chairs and a wooden table.",
-  },
-  {
-    title: "Answer out loud",
-    image: "/images/practice-loop/conversation.webp",
-    alt: "Two professionals having a thoughtful conversation in a warm, light-filled office.",
-  },
-  {
-    title: "Review the conversation",
-    image: "/images/practice-loop/reflection.webp",
-    alt: "A person quietly reviewing a notebook beside a laptop in afternoon sunlight.",
-  },
-  {
-    title: "Take it into the interview",
-    image: "/images/practice-loop/next-room.webp",
-    alt: "A person walking toward an open office doorway filled with warm daylight.",
-  },
+  { id: "brief", image: "/images/practice-loop/role-context.webp" },
+  { id: "setup", image: "/images/practice-loop/practice-space.webp" },
+  { id: "answer", image: "/images/practice-loop/conversation.webp" },
+  { id: "review", image: "/images/practice-loop/reflection.webp" },
+  { id: "next", image: "/images/practice-loop/next-room.webp" },
 ] as const;
 
 export function WorkWheelSection() {
+  const t = useTranslations("public.landing.practiceLoop");
+  const items = moments.map((moment) => ({
+    title: t(`moments.${moment.id}.title`),
+    image: moment.image,
+    alt: t(`moments.${moment.id}.alt`),
+  }));
+  const flipWords = [
+    t("flipWords.first"),
+    t("flipWords.second"),
+    t("flipWords.third"),
+  ];
   return (
     <section
       aria-labelledby="work-wheel-title"
@@ -50,21 +42,20 @@ export function WorkWheelSection() {
           <h2
             className={cn(sectionTitle, "leading-[1.15]")}
             id="work-wheel-title"
-            aria-label="A closer look at the RoleCue loop."
+            aria-label={t("ariaLabel")}
           >
             <span className="block">
-              A <ContainerTextFlip /> look
+              {t.rich("titleStart", {
+                flip: () => <ContainerTextFlip words={flipWords} />,
+              })}
             </span>
-            <span className="block"> at the RoleCue loop.</span>
+            <span className="block">{t("titleEnd")}</span>
           </h2>
-          <p className={cn(sectionIntro, "mx-auto")}>
-            Five moments in one rehearsal, from your first job brief to the real
-            interview.
-          </p>
+          <p className={cn(sectionIntro, "mx-auto")}>{t("intro")}</p>
         </Reveal>
       </div>
       <Reveal className="mt-8 sm:mt-12">
-        <WorksWheel items={moments} label="The practice loop" />
+        <WorksWheel items={items} label={t("wheelLabel")} />
       </Reveal>
     </section>
   );

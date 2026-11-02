@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CopyButton } from "@/features/auth/components/copy-button";
 
@@ -15,7 +16,7 @@ describe("copy button", () => {
   it("copies the value, swaps to the check and announces it", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     clipboard(writeText);
-    render(<CopyButton value="JBSWY3DP" label="Copy setup key" />);
+    renderWithIntl(<CopyButton value="JBSWY3DP" label="Copy setup key" />);
     fireEvent.click(screen.getByRole("button", { name: "Copy setup key" }));
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Copied to clipboard.",
@@ -29,7 +30,7 @@ describe("copy button", () => {
 
   it("tells the user to copy manually when the clipboard is blocked", async () => {
     clipboard(vi.fn().mockRejectedValue(new Error("denied")));
-    render(
+    renderWithIntl(
       <CopyButton value="codes" label="Copy codes">
         Copy codes
       </CopyButton>,
