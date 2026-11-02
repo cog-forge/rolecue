@@ -102,3 +102,8 @@ ai:
   question_bank: {}
   follow_up: {}
   evaluation: {}
+
+interview:
+  # fake or azure; azure requires the shared AZURE_SPEECH_KEY and AZURE_SPEECH_REGION.
+  stt_provider: fake
+  stt_timeout: 30s  # one fast-transcription attempt; no automatic retries

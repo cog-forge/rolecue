@@ -356,3 +356,12 @@ func TestInterviewFollowUpConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestAzureSTTProvider(t *testing.T) {
+	if err := (InterviewConfig{STTProvider: "azure"}).Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if err := (InterviewConfig{STTProvider: "unknown"}).Validate(); err == nil {
+		t.Fatal("unknown STT provider accepted")
+	}
+}

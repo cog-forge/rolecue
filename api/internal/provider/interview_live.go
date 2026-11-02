@@ -1,13 +1,18 @@
 package provider
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/runtime"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/stt"
+	azurestt "github.com/cog-forge/rolecue/api/internal/pkg/stt/azure"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tts"
 )
 
@@ -20,10 +25,20 @@ var (
 	_ service.EndNotifier            = (*runtime.Hub)(nil)
 )
 
-// ProvideTranscriber selects the speech-to-text adapter of the live interview. Only the deterministic
-// fake exists until KAN-55; a real adapter adds its case here, selected by INTERVIEW_STT_PROVIDER.
+// ProvideTranscriber selects the live interview speech-to-text adapter. Azure credentials are shared
+// with TTS; an invalid Azure configuration fails startup instead of silently selecting the fake.
 func ProvideTranscriber(cfg *config.Config, log *logger.Logger) (runtime.Transcriber, error) {
 	switch cfg.Interview.STTProvider {
+	case config.STTProviderAzure:
+		timeout := cfg.Interview.STTTimeout
+		if timeout == 0 {
+			timeout = 30 * time.Second
+		}
+		client, err := azurestt.New(azurestt.Config{Key: cfg.TTS.Key, Region: cfg.TTS.Region, Timeout: timeout})
+		if err != nil {
+			return nil, err
+		}
+		return sttAdapter{provider: client}, nil
 	case "", config.STTProviderFake:
 		log.Warn("Live interview speech-to-text uses the development fake: every spoken answer is stored as a fixed sentence")
 		return runtime.NewFakeTranscriber(), nil
@@ -50,4 +65,18 @@ func ProvideInterviewLiveEngine(svc *service.Service, synthesizer tts.Synthesize
 // ProvideInterviewLiveHandler trusts the same browser origins as CORS.
 func ProvideInterviewLiveHandler(svc *service.Service, engine *runtime.Engine, cfg *config.Config) *handler.InterviewLiveHandler {
 	return handler.NewInterviewLiveHandler(svc, engine, cfg.CORS.AllowOrigins)
+}
+
+// sttAdapter keeps feature errors at the composition boundary; pkg/stt never imports a feature.
+type sttAdapter struct{ provider stt.Transcriber }
+
+func (a sttAdapter) Transcribe(ctx context.Context, audio runtime.Audio) (runtime.Transcript, error) {
+	result, err := a.provider.Transcribe(ctx, stt.Audio{Data: audio.Data, MimeType: audio.MimeType})
+	switch {
+	case errors.Is(err, stt.ErrNoSpeech):
+		err = runtime.ErrNoSpeech
+	case errors.Is(err, stt.ErrUnsupportedAudio):
+		err = runtime.ErrUnsupportedAudio
+	}
+	return runtime.Transcript{Text: result.Text, Duration: result.Duration}, err
 }

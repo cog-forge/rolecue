@@ -203,7 +203,7 @@ const MaxQuestionBankSize = 100
 // (interview/domain.PracticeInterviewCoins).
 //
 // The live interview engine (docs/interview-ws-protocol.md §10) adds: STTProvider, the speech-to-text
-// adapter ("fake" until KAN-55 adds a real one; empty means fake); STTTimeout, the bound of one
+// adapter ("fake" or "azure"; empty means fake); STTTimeout, the bound of one
 // transcription (0 uses 30s); DefaultProviderVoiceID, the provider voice of a session without its own
 // voice (default en-US-JennyNeural, team decision 2026-10-30; set it empty for text-only turns); and TTSCacheEntries, the size of the in-memory synthesis cache (0
 // disables it).
@@ -225,8 +225,11 @@ type InterviewConfig struct {
 // MaxInterviewQuestionLimit bounds INTERVIEW_QUESTION_LIMIT to a sane technical range.
 const MaxInterviewQuestionLimit = 20
 
-// STTProviderFake is the deterministic development transcriber, the only one until KAN-55.
+// STTProviderFake is the deterministic development transcriber.
 const STTProviderFake = "fake"
+
+// STTProviderAzure uses Azure Speech fast transcription.
+const STTProviderAzure = "azure"
 
 // Bounds of the live interview settings.
 const (
@@ -244,8 +247,8 @@ func (c InterviewConfig) Validate() error {
 	if c.QuestionLimit < 0 || c.QuestionLimit > MaxInterviewQuestionLimit {
 		return fmt.Errorf("interview.question_limit must be between 0 and %d", MaxInterviewQuestionLimit)
 	}
-	if c.STTProvider != "" && c.STTProvider != STTProviderFake {
-		return fmt.Errorf("interview.stt_provider must be %q", STTProviderFake)
+	if c.STTProvider != "" && c.STTProvider != STTProviderFake && c.STTProvider != STTProviderAzure {
+		return fmt.Errorf("interview.stt_provider must be %q or %q", STTProviderFake, STTProviderAzure)
 	}
 	if c.STTTimeout != 0 && (c.STTTimeout < MinInterviewSTTTimeout || c.STTTimeout > MaxInterviewSTTTimeout) {
 		return fmt.Errorf("interview.stt_timeout must be between %s and %s", MinInterviewSTTTimeout, MaxInterviewSTTTimeout)
