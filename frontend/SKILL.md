@@ -66,7 +66,7 @@ No browser API execution at module import during SSR. Native WebSocket must sit 
 
 Request microphone/camera permissions only after user action. Release tracks, recorder handlers, audio nodes/contexts and object URLs on teardown. Capability availability is not readiness or permission confirmation.
 
-AvatarStage is a client component, unmounted until assets exist. Load it using a client dynamic import with ssr: false. Keep Canvas out of general route bundles. Provide a 2D alternative and error boundary when mounting; dispose resources. No generated GLB files, invented visemes or decorative mouth flapping. Mouth motion must follow server viseme/blend-shape timelines synchronized to audio playback, or in-browser audio analysis (vowel analysis, then amplitude fallback), as decided in the Brain on 2026-10-30.
+AvatarStage is a client component, unmounted until assets exist. Load it using a client dynamic import with ssr: false. Keep Canvas out of general route bundles. Provide a 2D alternative and error boundary when mounting; dispose resources. No generated GLB files, invented visemes or decorative mouth flapping. Mouth motion must follow server viseme/blend-shape timelines synchronized to audio playback, or in-browser audio analysis (vowel analysis, then amplitude fallback), as decided in the Brain on 2026-10-30. Silence inside a playing turn keeps the mouth still, and the mouth is released when the audio pauses or ends. The sources, mapping and fallback order are in `src/components/avatar-viewer/lipsync/` and `docs/avatar-lip-sync.md`.
 
 ## Billing Boundary
 
