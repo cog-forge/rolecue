@@ -76,3 +76,35 @@ export function transition(
   }
   return transitions[state]?.[event] ?? state;
 }
+
+/** Server states of the live protocol (docs/interview-ws-protocol.md §3). */
+export type ServerPhase =
+  | "interviewer_speaking"
+  | "listening"
+  | "processing"
+  | "transitioning"
+  | "completed"
+  | "paused";
+const serverPhaseStates: Record<ServerPhase, InterviewState> = {
+  interviewer_speaking: "INTERVIEWER_SPEAKING",
+  listening: "LISTENING",
+  processing: "PROCESSING_ANSWER",
+  transitioning: "TRANSITIONING",
+  completed: "COMPLETED",
+  paused: "PAUSED",
+};
+/** The server is authoritative: its announced state replaces the local phase, so a reconnect never
+ * guesses where the conversation was. A turn announced outside the live TRANSITIONING step (a fresh
+ * sync, a reconnect) starts in ASSET_LOADING until ASSETS_READY. Terminal states stay terminal.
+ */
+export function reconcile(
+  state: InterviewState,
+  phase: ServerPhase,
+): InterviewState {
+  if (terminalStates.includes(state)) return state;
+  if (phase === "interviewer_speaking")
+    return state === "TRANSITIONING" || state === "INTERVIEWER_SPEAKING"
+      ? "INTERVIEWER_SPEAKING"
+      : "ASSET_LOADING";
+  return serverPhaseStates[phase];
+}

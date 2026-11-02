@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  reconcile,
   transition,
   type InterviewEvent,
   type InterviewState,
@@ -39,4 +40,40 @@ describe("interview lifecycle", () => {
     expect(transition("CONNECTING", "FAIL")).toBe("FATAL_ERROR");
     expect(transition("LISTENING", "TERMINATE")).toBe("TERMINATED_EARLY");
   });
+});
+describe("server reconciliation", () => {
+  it("starts a synced turn in ASSET_LOADING and a live next turn in INTERVIEWER_SPEAKING", () => {
+    expect(reconcile("CONNECTING", "interviewer_speaking")).toBe(
+      "ASSET_LOADING",
+    );
+    expect(transition("ASSET_LOADING", "ASSETS_READY")).toBe(
+      "INTERVIEWER_SPEAKING",
+    );
+    expect(reconcile("TRANSITIONING", "interviewer_speaking")).toBe(
+      "INTERVIEWER_SPEAKING",
+    );
+  });
+  it.each([
+    ["interviewer_speaking", "ASSET_LOADING"],
+    ["listening", "LISTENING"],
+    ["processing", "PROCESSING_ANSWER"],
+    ["transitioning", "TRANSITIONING"],
+    ["completed", "COMPLETED"],
+    ["paused", "PAUSED"],
+  ] as const)(
+    "after a reconnect, server %s becomes %s without guessing",
+    (phase, state) => {
+      expect(reconcile("RECONNECTING", phase)).toBe(state);
+    },
+  );
+  it("lets the server move a failed answer back to listening", () => {
+    expect(reconcile("PROCESSING_ANSWER", "listening")).toBe("LISTENING");
+  });
+  it.each(["COMPLETED", "TERMINATED_EARLY", "FATAL_ERROR"] as const)(
+    "keeps %s terminal",
+    (state) => {
+      expect(reconcile(state, "listening")).toBe(state);
+      expect(reconcile(state, "interviewer_speaking")).toBe(state);
+    },
+  );
 });
