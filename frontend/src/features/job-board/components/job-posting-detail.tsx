@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import {
@@ -60,6 +61,7 @@ export function JobPostingDetail({
   backQuery?: string;
   variant?: Variant;
 }) {
+  const t = useTranslations("candidate.jobBoard.detail");
   const user = useSessionUser();
   const cache = useQueryClient();
   // Go rejects an ID that is not a UUID, so a mistyped link is not sent at all.
@@ -84,12 +86,16 @@ export function JobPostingDetail({
 
   const content = !validId ? (
     <StateMessage
-      heading={<Heading>This link isn&apos;t valid</Heading>}
-      text="Check the address, or find the posting on the Job Board."
+      heading={<Heading>{t("invalidTitle")}</Heading>}
+      text={t("invalidText")}
       action={
         page && (
-          <Button asChild variant="outline" className="mt-4 h-11">
-            <Link href={backHref}>Browse open postings</Link>
+          <Button
+            asChild
+            variant="outline"
+            className="mt-4 h-auto min-h-11 py-2 whitespace-normal"
+          >
+            <Link href={backHref}>{t("browse")}</Link>
           </Button>
         )
       }
@@ -100,21 +106,25 @@ export function JobPostingDetail({
       <Skeleton className="h-5 w-1/2" />
       <Skeleton className="h-11 w-48 rounded-md" />
       <Skeleton className="h-64 rounded-xl" />
-      <span className="sr-only">Loading the job posting…</span>
+      <span className="sr-only">{t("loading")}</span>
     </div>
   ) : denied ? (
     <StateMessage
-      heading={<Heading>You don&apos;t have access to this posting</Heading>}
-      text="Checking your account access… If this stays, sign in again with a candidate account."
+      heading={<Heading>{t("deniedTitle")}</Heading>}
+      text={t("accessChecking")}
     />
   ) : unavailable ? (
     <StateMessage
-      heading={<Heading>This posting is no longer available</Heading>}
-      text="It stopped accepting applications or was removed. Other open postings are waiting on the Job Board."
+      heading={<Heading>{t("unavailableTitle")}</Heading>}
+      text={t("unavailableText")}
       action={
         page && (
-          <Button asChild variant="outline" className="mt-4 h-11">
-            <Link href={backHref}>Browse open postings</Link>
+          <Button
+            asChild
+            variant="outline"
+            className="mt-4 h-auto min-h-11 py-2 whitespace-normal"
+          >
+            <Link href={backHref}>{t("browse")}</Link>
           </Button>
         )
       }
@@ -122,16 +132,16 @@ export function JobPostingDetail({
   ) : query.isError ? (
     <StateMessage
       tone="danger"
-      heading={<Heading>We couldn&apos;t load this job posting</Heading>}
-      text="Please try again in a moment."
+      heading={<Heading>{t("errorTitle")}</Heading>}
+      text={t("errorText")}
       action={
         <Button
-          className="mt-4 h-11 bg-background"
+          className="mt-4 h-auto min-h-11 py-2 whitespace-normal bg-background"
           variant="outline"
           disabled={query.isFetching}
           onClick={() => void query.refetch()}
         >
-          Try again
+          {t("retry")}
         </Button>
       }
     />
@@ -151,7 +161,7 @@ export function JobPostingDetail({
         className="inline-flex min-h-11 items-center gap-2 rounded-md text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <ArrowLeft className="size-4" aria-hidden />
-        Back to Job Board
+        {t("back")}
       </Link>
       {content}
     </section>
@@ -193,23 +203,34 @@ function PostingContent({
   canApply: boolean;
   variant: Variant;
 }) {
+  const t = useTranslations("candidate.jobBoard");
   const fmt = useFormatters();
   const [applying, setApplying] = useState(false);
   const website = safeWebsite(posting.company_website);
-  const salary = salaryText(posting, fmt);
+  const salary = salaryText(posting, fmt, t);
   const Heading = variant === "page" ? "h1" : "h2";
   const Section = variant === "page" ? "h2" : "h3";
   const facts: { label: string; value: string }[] = [
-    { label: "Level", value: levelText[posting.seniority_level] },
+    {
+      label: t("detail.facts.level"),
+      value: levelText(posting.seniority_level, t),
+    },
     ...(posting.employment_type
-      ? [{ label: "Employment type", value: posting.employment_type }]
+      ? [
+          {
+            label: t("detail.facts.employmentType"),
+            value: posting.employment_type,
+          },
+        ]
       : []),
-    ...(salary ? [{ label: "Salary", value: salary }] : []),
+    ...(salary ? [{ label: t("detail.facts.salary"), value: salary }] : []),
     ...(posting.interview_duration
       ? [
           {
-            label: "Interview length",
-            value: `${posting.interview_duration} minutes`,
+            label: t("detail.facts.interviewLength"),
+            value: t("detail.facts.minutes", {
+              count: posting.interview_duration,
+            }),
           },
         ]
       : []),
@@ -239,7 +260,7 @@ function PostingContent({
                 {/* Without a company name, the website's host still says whose posting it is. */}
                 {posting.company_name ?? website.hostname}
                 <ExternalLink className="size-3.5 shrink-0" aria-hidden />
-                <span className="sr-only">(opens in a new tab)</span>
+                <span className="sr-only">{t("detail.newTab")}</span>
               </a>
             ) : (
               posting.company_name && (
@@ -264,7 +285,7 @@ function PostingContent({
                   fmt,
                 )}
               >
-                {publicationText(posting, fmt)}
+                {publicationText(posting, fmt, t)}
               </time>
             </span>
           </p>
@@ -273,7 +294,11 @@ function PostingContent({
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {canApply &&
             (posting.already_applied ? (
-              <Button asChild variant="outline" className="h-11">
+              <Button
+                asChild
+                variant="outline"
+                className="h-auto min-h-11 py-2 whitespace-normal"
+              >
                 <Link
                   href={
                     posting.application_id
@@ -282,12 +307,15 @@ function PostingContent({
                   }
                 >
                   <CircleCheck aria-hidden className="text-emerald-600" />
-                  Applied · View application
+                  {t("detail.applied")}
                 </Link>
               </Button>
             ) : (
-              <Button className="h-11 px-6" onClick={() => setApplying(true)}>
-                Apply with your CV
+              <Button
+                className="h-auto min-h-11 py-2 whitespace-normal px-6"
+                onClick={() => setApplying(true)}
+              >
+                {t("detail.apply")}
               </Button>
             ))}
           {variant === "panel" && (
@@ -295,14 +323,14 @@ function PostingContent({
               href={routes.job(posting.id)}
               className="inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              Open posting page
+              {t("detail.openPage")}
               <ArrowUpRight className="size-4" aria-hidden />
             </Link>
           )}
         </div>
         {canApply && posting.already_applied && (
           <p role="status" className="text-sm text-muted-foreground">
-            You already applied to this posting.
+            {t("detail.alreadyApplied")}
           </p>
         )}
       </header>
@@ -319,11 +347,12 @@ function PostingContent({
       </dl>
 
       <section className="space-y-3">
-        <Section className="text-base font-semibold">Skills</Section>
+        <Section className="text-base font-semibold">
+          {t("detail.skillsHeading")}
+        </Section>
         {posting.requirements.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            This posting doesn&apos;t list specific skills. Read the job
-            description below.
+            {t("detail.noSkills")}
           </p>
         ) : (
           <Skills requirements={posting.requirements} />
@@ -331,12 +360,16 @@ function PostingContent({
       </section>
 
       <section className="space-y-3">
-        <Section className="text-base font-semibold">How hiring works</Section>
+        <Section className="text-base font-semibold">
+          {t("detail.howHiring")}
+        </Section>
         <HiringSteps />
       </section>
 
       <section className="space-y-3">
-        <Section className="text-base font-semibold">Job description</Section>
+        <Section className="text-base font-semibold">
+          {t("detail.description")}
+        </Section>
         <JobDescription text={posting.raw_text} />
       </section>
 
@@ -354,6 +387,8 @@ function PostingContent({
 
 // Required skills come first; past SKILLS_SHOWN the rest wait behind "Show all".
 function Skills({ requirements }: { requirements: BoardRequirement[] }) {
+  const t = useTranslations("candidate.jobBoard");
+  const fmt = useFormatters();
   const [expanded, setExpanded] = useState(false);
   const ordered = [
     ...requirements.filter((r) => r.type === "required"),
@@ -362,11 +397,13 @@ function Skills({ requirements }: { requirements: BoardRequirement[] }) {
   const shown = expanded ? ordered : ordered.slice(0, SKILLS_SHOWN);
   const groups = [
     {
-      title: "Required",
+      id: "required",
+      title: t("detail.required"),
       items: shown.filter((r) => r.type === "required"),
     },
     {
-      title: "Nice to have",
+      id: "preferred",
+      title: t("detail.niceToHave"),
       items: shown.filter((r) => r.type === "preferred"),
     },
   ];
@@ -375,7 +412,7 @@ function Skills({ requirements }: { requirements: BoardRequirement[] }) {
       {groups.map(
         (group) =>
           group.items.length > 0 && (
-            <div key={group.title} className="space-y-2">
+            <div key={group.id} className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">
                 {group.title}
               </p>
@@ -383,7 +420,7 @@ function Skills({ requirements }: { requirements: BoardRequirement[] }) {
                 {group.items.map((item, i) => (
                   <li
                     key={`${item.name}-${i}`}
-                    title={targetLabel(item.target)}
+                    title={targetLabel(item.target, t)}
                     className={cn(
                       "rounded-md border px-2.5 py-1 text-sm [overflow-wrap:anywhere]",
                       item.type === "preferred" &&
@@ -401,11 +438,13 @@ function Skills({ requirements }: { requirements: BoardRequirement[] }) {
         <Button
           type="button"
           variant="ghost"
-          className="h-11 px-2"
+          className="h-auto min-h-11 py-2 whitespace-normal px-2"
           aria-expanded={expanded}
           onClick={() => setExpanded((value) => !value)}
         >
-          {expanded ? "Show fewer skills" : `Show all ${ordered.length} skills`}
+          {expanded
+            ? t("detail.showFewer")
+            : t("detail.showAll", { count: fmt.number(ordered.length) })}
         </Button>
       )}
     </div>
@@ -413,13 +452,12 @@ function Skills({ requirements }: { requirements: BoardRequirement[] }) {
 }
 
 function JobDescription({ text }: { text: string }) {
+  const t = useTranslations("candidate.jobBoard.detail");
   const id = useId();
   const [expanded, setExpanded] = useState(false);
   if (!text.trim())
     return (
-      <p className="text-sm text-muted-foreground">
-        The recruiter hasn&apos;t added a job description.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("noDescription")}</p>
     );
   const long =
     text.length > LONG_JD_CHARACTERS || text.split("\n").length > LONG_JD_LINES;
@@ -441,12 +479,12 @@ function JobDescription({ text }: { text: string }) {
         <Button
           type="button"
           variant="ghost"
-          className="h-11 px-2"
+          className="h-auto min-h-11 py-2 whitespace-normal px-2"
           aria-expanded={expanded}
           aria-controls={id}
           onClick={() => setExpanded((value) => !value)}
         >
-          {expanded ? "Show less" : "Show the full description"}
+          {expanded ? t("showLess") : t("showFull")}
         </Button>
       )}
     </div>

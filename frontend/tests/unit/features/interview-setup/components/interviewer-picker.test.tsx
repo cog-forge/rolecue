@@ -1,5 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { InterviewerPicker } from "@/features/interview-setup/components/interviewer-picker";
 
@@ -77,7 +78,7 @@ function renderPicker(props: Parameters<typeof InterviewerPicker>[0]) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={client}>
       <InterviewerPicker {...props} />
     </QueryClientProvider>,

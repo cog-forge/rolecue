@@ -118,7 +118,7 @@ function failure(status: number) {
   });
 }
 
-function renderOverview() {
+function renderOverview(locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -126,6 +126,7 @@ function renderOverview() {
     <QueryClientProvider client={client}>
       <DashboardOverview />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -135,6 +136,19 @@ beforeEach(() => {
 });
 
 describe("DashboardOverview", () => {
+  it("shows Vietnamese labels while preserving stored titles and scores", async () => {
+    serve();
+    renderOverview("vi");
+    expect(
+      screen.getByRole("heading", { name: "Tổng quan" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("1 JD mục tiêu")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Platform Engineer" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("78/100")).toBeInTheDocument();
+    expect(screen.getByText("1.250")).toBeInTheDocument();
+  });
   it("shows a loading state per card, then each card's data", async () => {
     serve();
     renderOverview();

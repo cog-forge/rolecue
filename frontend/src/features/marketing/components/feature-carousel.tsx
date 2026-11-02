@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { motion, useInView, useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowRight, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,41 +13,28 @@ import { landingFocus } from "./rolecue-landing-styles";
 const FEATURES = [
   {
     id: "role-context",
-    label: "Job description context",
-    description:
-      "Technical skills and topics drawn from your target job description.",
+    key: "roleContext",
     image: "/images/features/role-context.webp",
-    alt: "A candidate reviewing a target role brief at a softly lit blue desk",
   },
   {
     id: "spoken-interviews",
-    label: "Voice-first conversations",
-    description:
-      "A spoken interview with an AI interviewer, in your own words.",
+    key: "spokenInterviews",
     image: "/images/features/spoken-interviews.webp",
-    alt: "A candidate speaking thoughtfully toward a laptop during interview practice",
   },
   {
     id: "follow-up-questions",
-    label: "Adaptive questions",
-    description: "Each question responds to your answer and the role context.",
+    key: "followUpQuestions",
     image: "/images/features/follow-up-questions.webp",
-    alt: "A candidate sketching technical ideas while explaining an approach",
   },
   {
     id: "personal-interviewer",
-    label: "Interviewer options",
-    description:
-      "System or personal 3D avatars, with a voice profile you choose.",
+    key: "personalInterviewer",
     image: "/images/features/personal-interviewer.webp",
-    alt: "An inviting interview workspace with an interviewer portrait on a laptop",
   },
   {
     id: "useful-feedback",
-    label: "Session evaluation",
-    description: "A post-interview report on your technical responses.",
+    key: "usefulFeedback",
     image: "/images/features/useful-feedback.webp",
-    alt: "Hands reviewing feedback and noting an improvement at a pastel blue desk",
   },
 ] as const;
 
@@ -56,6 +44,7 @@ const wrap = (value: number) =>
 const ease = [0.22, 1, 0.36, 1] as const;
 
 export function FeatureCarousel({ intro }: { intro: ReactNode }) {
+  const t = useTranslations("public.landing.featureCarousel");
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -103,7 +92,7 @@ export function FeatureCarousel({ intro }: { intro: ReactNode }) {
   return (
     <div
       ref={root}
-      aria-label="Explore RoleCue features"
+      aria-label={t("ariaLabel")}
       className="grid items-center gap-7 sm:gap-9 lg:grid-cols-[1fr_1fr] lg:gap-x-[clamp(3rem,6vw,6rem)] lg:gap-y-0"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -120,7 +109,7 @@ export function FeatureCarousel({ intro }: { intro: ReactNode }) {
       >
         <div
           role="tablist"
-          aria-label="RoleCue features"
+          aria-label={t("tabListLabel")}
           aria-orientation="vertical"
           onKeyDown={(event) => {
             let next: number;
@@ -169,7 +158,7 @@ export function FeatureCarousel({ intro }: { intro: ReactNode }) {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-base font-semibold sm:text-[1.05rem]">
-                    {feature.label}
+                    {t(`items.${feature.key}.label`)}
                   </span>
                   <motion.span
                     initial={false}
@@ -182,7 +171,7 @@ export function FeatureCarousel({ intro }: { intro: ReactNode }) {
                     aria-hidden={!selected}
                     className="block overflow-hidden text-[0.95rem] leading-relaxed font-normal text-(--rolecue-ink-muted)"
                   >
-                    {feature.description}
+                    {t(`items.${feature.key}.description`)}
                   </motion.span>
                 </span>
               </button>
@@ -193,7 +182,7 @@ export function FeatureCarousel({ intro }: { intro: ReactNode }) {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Previous feature"
+            aria-label={t("previous")}
             onClick={() => select(wrap(active - 1))}
             className={cn(
               "size-11 rounded-full text-(--rolecue-ink) hover:bg-[#dce7f3]",
@@ -205,7 +194,7 @@ export function FeatureCarousel({ intro }: { intro: ReactNode }) {
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Next feature"
+            aria-label={t("next")}
             onClick={() => select(wrap(active + 1))}
             className={cn(
               "size-11 rounded-full text-(--rolecue-ink) hover:bg-[#dce7f3]",
@@ -218,9 +207,7 @@ export function FeatureCarousel({ intro }: { intro: ReactNode }) {
             <Button
               variant="ghost"
               size="icon"
-              aria-label={
-                paused ? "Play feature previews" : "Pause feature previews"
-              }
+              aria-label={paused ? t("play") : t("pause")}
               onClick={() => setPaused((value) => !value)}
               className={cn(
                 "size-11 rounded-full text-(--rolecue-ink-muted) hover:bg-[#dce7f3]",
@@ -263,7 +250,7 @@ export function FeatureCarousel({ intro }: { intro: ReactNode }) {
             >
               <Image
                 src={feature.image}
-                alt={feature.alt}
+                alt={t(`items.${feature.key}.alt`)}
                 fill
                 sizes="(max-width: 639px) 100vw, (max-width: 1023px) 120vw, 840px"
                 className="object-cover"

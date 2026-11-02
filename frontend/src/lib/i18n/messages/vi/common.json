@@ -17,5 +17,184 @@
       "minutes": "Còn {minutes} phút",
       "hoursMinutes": "Còn {hours} giờ {minutes} phút"
     }
+  },
+  "notFound": {
+    "title": "Không tìm thấy trang",
+    "home": "Về trang chủ"
+  },
+  "workspaceError": {
+    "title": "Không thể tải trang này"
+  },
+  "loadingPage": "Đang tải trang",
+  "shell": {
+    "preparing": "Đang chuẩn bị không gian làm việc của bạn…",
+    "sidebarLabel": "Thanh bên không gian làm việc",
+    "openNavigation": "Mở điều hướng không gian làm việc",
+    "navigationTitle": "Điều hướng không gian làm việc",
+    "navigationDescription": "{role, select, candidate {Các trang và thao tác tài khoản dành cho ứng viên.} recruiter {Các trang và thao tác tài khoản dành cho nhà tuyển dụng.} other {Các trang và thao tác tài khoản dành cho quản trị viên.}}",
+    "workspaceOf": "{role, select, candidate {Không gian ứng viên} recruiter {Không gian nhà tuyển dụng} other {Không gian quản trị viên}}",
+    "roleNavigation": "{role, select, candidate {Điều hướng ứng viên} recruiter {Điều hướng nhà tuyển dụng} other {Điều hướng quản trị viên}}",
+    "roles": {
+      "candidate": "Ứng viên",
+      "recruiter": "Nhà tuyển dụng",
+      "admin": "Quản trị viên"
+    },
+    "brandLink": "Không gian làm việc RoleCue",
+    "expandSidebar": "Mở rộng thanh bên",
+    "collapseSidebar": "Thu gọn thanh bên",
+    "searchPages": "Tìm trang",
+    "pageProfile": "Hồ sơ của bạn",
+    "pageSecurity": "Bảo mật tài khoản",
+    "pageDefault": "Không gian làm việc",
+    "tagline": {
+      "candidate": "Một nơi vững vàng để bạn chuẩn bị.",
+      "recruiter": "Không gian tuyển dụng của bạn.",
+      "admin": "Quản trị nền tảng."
+    },
+    "account": {
+      "fallbackName": "Tài khoản của bạn",
+      "open": "Mở menu tài khoản",
+      "profile": "Hồ sơ của bạn",
+      "security": "Bảo mật tài khoản",
+      "appearance": "Giao diện",
+      "colorTheme": "Chủ đề màu",
+      "themeLight": "Sáng",
+      "themeSystem": "Hệ thống",
+      "themeDark": "Tối",
+      "signingOut": "Đang đăng xuất…",
+      "signOut": "Đăng xuất",
+      "signOutFailed": "Đăng xuất chưa hoàn tất. Vui lòng thử lại."
+    },
+    "signedOut": {
+      "title": "Đã đăng xuất",
+      "description": "Bạn đã đăng xuất khỏi RoleCue an toàn.",
+      "failedTitle": "Đăng xuất không thành công",
+      "failedDescription": "Bạn vẫn đang đăng nhập. Vui lòng thử lại."
+    },
+    "nav": {
+      "groups": {
+        "practice": "Luyện tập",
+        "career": "Sự nghiệp",
+        "account": "Tài khoản",
+        "recruitment": "Tuyển dụng",
+        "governance": "Quản trị",
+        "operations": "Vận hành",
+        "finance": "Tài chính"
+      },
+      "items": {
+        "dashboard": "Tổng quan",
+        "roleProfiles": "Hồ sơ vị trí",
+        "interviewHistory": "Lịch sử phỏng vấn",
+        "avatarStudio": "Avatar Studio cá nhân",
+        "jobBoard": "Bảng tin tuyển dụng",
+        "myApplications": "Đơn ứng tuyển của tôi",
+        "transactions": "Giao dịch",
+        "myJobPostings": "Tin tuyển dụng của tôi",
+        "receivedApplications": "Đơn ứng tuyển đã nhận",
+        "accounts": "Tài khoản",
+        "jobPostingModeration": "Kiểm duyệt tin tuyển dụng",
+        "interviewSessions": "Phiên phỏng vấn",
+        "voiceProfiles": "Hồ sơ giọng nói",
+        "paymentTransactions": "Giao dịch thanh toán",
+        "revenueReports": "Báo cáo doanh thu"
+      }
+    },
+    "badges": {
+      "pendingReview": "tin tuyển dụng đang chờ duyệt",
+      "newToday": "tin tuyển dụng mới hôm nay"
+    },
+    "search": {
+      "title": "Tìm một trang",
+      "description": "Chuyển nhanh giữa các trang trong không gian làm việc.",
+      "label": "Tìm trang trong không gian làm việc",
+      "placeholder": "Bạn muốn đến đâu?",
+      "results": "Các trang trong không gian làm việc",
+      "empty": "Không có trang phù hợp.",
+      "hint": "Dùng ↑ ↓ để chọn trang, Enter để mở, Esc để đóng."
+    },
+    "session": {
+      "checkingSession": "Đang kiểm tra phiên đăng nhập…",
+      "checkingAccount": "Đang kiểm tra tài khoản…",
+      "noAccess": "Bạn không có quyền truy cập trang này.",
+      "checkFailed": "Không thể kiểm tra phiên đăng nhập. Vui lòng thử lại.",
+      "retry": "Thử lại",
+      "openingWorkspace": "Đang mở không gian làm việc của bạn…",
+      "signedInTitle": "Đã đăng nhập",
+      "signedInVerify": "Hãy xác minh email để mở trang tổng quan.",
+      "signedInWelcome": "Chào mừng bạn trở lại RoleCue.",
+      "verifiedTitle": "Đã xác minh email",
+      "verifiedDescription": "Tài khoản của bạn đã sẵn sàng. Chào mừng đến với RoleCue."
+    }
+  },
+  "dataTable": {
+    "results": "{start}–{end} trên {total} · Trang {page}/{pages}",
+    "noResults": "0 kết quả",
+    "firstPage": "Trang đầu",
+    "previousPage": "Trang trước",
+    "nextPage": "Trang sau",
+    "lastPage": "Trang cuối",
+    "page": "Trang {number}",
+    "goToPage": "Đi đến trang",
+    "jumpTo": "Đến trang",
+    "go": "Đi"
+  },
+  "profile": {
+    "header": {
+      "eyebrow": "Tài khoản của bạn",
+      "title": "Hồ sơ của bạn",
+      "description": "Đôi nét về bạn. Hãy luôn cập nhật thông tin ở mọi nơi bạn làm việc trên RoleCue."
+    },
+    "access": {
+      "checking": "Đang kiểm tra quyền truy cập tài khoản…",
+      "failed": "Chúng tôi không thể xác nhận quyền truy cập tài khoản của bạn. Vui lòng thử lại.",
+      "retry": "Thử lại"
+    },
+    "loading": "Đang tải hồ sơ của bạn…",
+    "loadFailed": {
+      "title": "Không thể tải hồ sơ của bạn",
+      "description": "Vui lòng thử lại sau ít phút.",
+      "retry": "Thử lại"
+    },
+    "refreshFailed": "Không thể làm mới hồ sơ của bạn. Bản nháp vẫn còn đây.",
+    "refreshRetry": "Thử lại",
+    "saveFailed": "Chúng tôi không thể lưu hồ sơ của bạn. Các thay đổi vẫn còn đây. Vui lòng thử lại.",
+    "summary": {
+      "email": "Địa chỉ email",
+      "emailStatus": "Trạng thái email",
+      "verified": "Đã xác minh",
+      "unverified": "Chưa xác minh",
+      "memberSince": "Thành viên từ",
+      "securityHint": "Quản lý mật khẩu và bảo mật tài khoản trong phần cài đặt.",
+      "security": "Bảo mật tài khoản"
+    },
+    "form": {
+      "label": "Chỉnh sửa hồ sơ của bạn",
+      "personal": "Cá nhân",
+      "personalTitle": "Thông tin cá nhân",
+      "personalDescription": "Luôn cập nhật tên và ảnh của bạn.",
+      "displayName": "Tên hiển thị",
+      "avatarUrl": "URL avatar",
+      "avatarHint": "Dùng liên kết HTTPS tới ảnh của bạn. Để trống nếu muốn dùng avatar được tạo tự động.",
+      "company": "Công ty",
+      "companyTitle": "Thông tin công ty",
+      "companyDescription": "Bạn có thể cập nhật các thông tin này sau khi hoàn tất thiết lập.",
+      "companyName": "Tên công ty",
+      "companyWebsite": "Website công ty",
+      "websiteHint": "Chúng tôi sẽ tự thêm https:// nếu bạn chỉ nhập tên miền.",
+      "saving": "Đang lưu thay đổi của bạn…",
+      "unsaved": "Bạn có thay đổi chưa lưu.",
+      "saved": "Đã lưu hồ sơ của bạn.",
+      "idle": "Các thay đổi sẽ hiển thị trong toàn bộ không gian làm việc của bạn.",
+      "discard": "Hủy thay đổi",
+      "savingButton": "Đang lưu…",
+      "save": "Lưu thay đổi"
+    },
+    "validation": {
+      "name": "Nhập tên hiển thị từ 1 đến 100 ký tự.",
+      "image": "Dùng URL ảnh HTTPS không chứa thông tin đăng nhập, tối đa 2048 ký tự.",
+      "companyLength": "Tên công ty không được vượt quá 200 ký tự.",
+      "website": "Dùng URL website HTTPS không chứa thông tin đăng nhập, tối đa 2048 ký tự."
+    },
+    "loadingLabel": "Đang tải hồ sơ của bạn"
   }
 }

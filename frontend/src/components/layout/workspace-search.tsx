@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Search } from "lucide-react";
 import {
   Dialog,
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { workspaceNavigation } from "@/config/navigation";
 import type { ProductRole } from "@/config/permissions";
 import { cn } from "@/lib/utils";
+import { useNavigationLabels } from "./navigation-labels";
 
 function SearchPages({
   role,
@@ -24,12 +26,15 @@ function SearchPages({
   role: ProductRole;
   onNavigate: () => void;
 }) {
+  const t = useTranslations("common.shell.search");
+  const labels = useNavigationLabels();
   const [query, setQuery] = useState("");
   const [selection, setSelection] = useState(0);
   const router = useRouter();
   const id = useId();
   const items = workspaceNavigation[role]
     .flatMap((group) => group.items)
+    .map((item) => ({ ...item, label: labels.item(item.label) }))
     .filter((item) =>
       item.label.toLowerCase().includes(query.trim().toLowerCase()),
     );
@@ -42,8 +47,8 @@ function SearchPages({
         />
         <Input
           autoFocus
-          aria-label="Search workspace pages"
-          placeholder="Where would you like to go?"
+          aria-label={t("label")}
+          placeholder={t("placeholder")}
           role="combobox"
           aria-expanded
           aria-controls={`${id}-results`}
@@ -83,7 +88,7 @@ function SearchPages({
       <ul
         id={`${id}-results`}
         role="listbox"
-        aria-label="Workspace pages"
+        aria-label={t("results")}
         className="max-h-[min(50dvh,360px)] space-y-1 overflow-y-auto"
       >
         {items.map((item, index) => (
@@ -116,12 +121,10 @@ function SearchPages({
           role="status"
           className="py-8 text-center text-sm text-muted-foreground"
         >
-          No matching pages.
+          {t("empty")}
         </p>
       )}
-      <p className="text-xs text-muted-foreground">
-        Use ↑ ↓ to choose a page, Enter to open, Esc to close.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("hint")}</p>
     </>
   );
 }
@@ -139,6 +142,7 @@ export function WorkspaceSearch({
   onNavigate: () => void;
   returnFocus: () => void;
 }) {
+  const t = useTranslations("common.shell.search");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -150,10 +154,8 @@ export function WorkspaceSearch({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Find a page</DialogTitle>
-          <DialogDescription>
-            Quick navigation within your workspace.
-          </DialogDescription>
+          <DialogTitle>{t("title")}</DialogTitle>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         <SearchPages role={role} onNavigate={onNavigate} />
       </DialogContent>

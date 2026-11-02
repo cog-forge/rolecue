@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { AboutRolecueSection } from "./about-rolecue-section";
@@ -11,6 +12,7 @@ import { HeroCursorGlow } from "./hero-cursor-glow";
 import { landingContainer, landingFocus } from "./rolecue-landing-styles";
 
 export function RoleCueLanding() {
+  const t = useTranslations("public.landing");
   return (
     <div
       data-rolecue-theme="light"
@@ -33,14 +35,14 @@ export function RoleCueLanding() {
           <div className="grid grid-cols-[1fr_auto] items-end gap-x-12 gap-y-8 max-[760px]:grid-cols-1">
             <div>
               <p className="mt-0 mb-5 text-xs font-medium tracking-[0.12em] text-(--rolecue-ink-muted) uppercase">
-                Role-focused practice
+                {t("focus")}
               </p>
               <p className="m-0 text-[clamp(4.25rem,8.5vw,8.25rem)] leading-[0.88] tracking-[-0.065em] font-(--rolecue-weight-display)">
                 Role<span className="text-(--rolecue-brand-blue)">Cue.</span>
               </p>
             </div>
             <nav
-              aria-label="Footer navigation"
+              aria-label={t("footerNavigation")}
               className="flex flex-wrap justify-end gap-x-6 gap-y-2 text-[0.95rem] font-medium text-(--rolecue-ink-muted) max-[760px]:grid max-[760px]:grid-cols-2 max-[760px]:justify-start"
             >
               <a
@@ -50,7 +52,7 @@ export function RoleCueLanding() {
                 )}
                 href="#about"
               >
-                Features
+                {t("features")}
               </a>
               <a
                 className={cn(
@@ -59,7 +61,7 @@ export function RoleCueLanding() {
                 )}
                 href="#practice"
               >
-                How it works
+                {t("how")}
               </a>
               <a
                 className={cn(
@@ -68,7 +70,7 @@ export function RoleCueLanding() {
                 )}
                 href="#questions"
               >
-                Questions
+                {t("questions")}
               </a>
               <Link
                 className={cn(
@@ -77,13 +79,13 @@ export function RoleCueLanding() {
                 )}
                 href={routes.interviews.new.jobDescription}
               >
-                Start
+                {t("start")}
               </Link>
             </nav>
           </div>
           <div className="mt-12 flex items-center justify-between gap-x-6 gap-y-3 border-t border-(--rolecue-border) pt-6 text-sm leading-relaxed text-(--rolecue-ink-muted) max-[760px]:mt-8 max-[760px]:flex-col max-[760px]:items-start">
             <span>© 2026 RoleCue</span>
-            <span>Made for clearer technical conversations</span>
+            <span>{t("madeFor")}</span>
           </div>
         </div>
       </footer>

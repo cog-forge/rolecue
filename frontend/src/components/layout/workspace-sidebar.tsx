@@ -9,6 +9,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { animate, LayoutGroup, motion } from "motion/react";
 import {
   ChevronsUpDown,
@@ -42,11 +43,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RoleCueMark } from "@/components/brand/rolecue-mark";
-import {
-  getActiveNavigation,
-  roleLabels,
-  workspaceHome,
-} from "@/config/navigation";
+import { getActiveNavigation, workspaceHome } from "@/config/navigation";
 import { routes } from "@/config/routes";
 import type { ProductRole } from "@/config/permissions";
 import { useWorkspacePreferences } from "@/providers/workspace-provider";
@@ -55,6 +52,7 @@ import {
   WorkspaceNavigationIcon,
   workspaceNavigationWithMotion,
 } from "./workspace-navigation-icon";
+import { useNavigationLabels } from "./navigation-labels";
 
 export type WorkspaceUser = {
   id: string;
@@ -110,6 +108,8 @@ export function WorkspaceSidebar({
   onSearch: () => void;
   onNavigate: () => void;
 } & WorkspaceAccountActions) {
+  const t = useTranslations("common.shell");
+  const labels = useNavigationLabels();
   const pathname = usePathname();
   const active = getActiveNavigation(user.role, pathname);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -120,8 +120,10 @@ export function WorkspaceSidebar({
   const activeTop = useRef<number | null>(null);
   const accountTrigger = useRef<HTMLButtonElement>(null);
   const labelClass = cn(
-    "min-w-0 truncate whitespace-nowrap transition-opacity duration-200 motion-reduce:transition-none",
-    collapsed && "pointer-events-none absolute left-14 opacity-0",
+    "min-w-0 transition-opacity duration-200 motion-reduce:transition-none",
+    collapsed
+      ? "pointer-events-none absolute left-14 whitespace-nowrap opacity-0"
+      : "wrap-break-word",
   );
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 p-3">
@@ -132,11 +134,11 @@ export function WorkspaceSidebar({
         )}
       >
         {collapsed && onToggle ? (
-          <Hint label="Expand sidebar" enabled>
+          <Hint label={t("expandSidebar")} enabled>
             <Button
               variant="ghost"
               className="group relative size-12 rounded-xl"
-              aria-label="Expand sidebar"
+              aria-label={t("expandSidebar")}
               aria-expanded={false}
               onClick={onToggle}
             >
@@ -152,7 +154,7 @@ export function WorkspaceSidebar({
             <Link
               href={workspaceHome(user.role)}
               onClick={onNavigate}
-              aria-label="RoleCue workspace"
+              aria-label={t("brandLink")}
               className="flex min-w-0 flex-1 items-center gap-2 rounded-xl focus-visible:outline-2 focus-visible:outline-ring"
             >
               <RoleCueMark className="size-10 shrink-0 object-contain" />
@@ -160,8 +162,8 @@ export function WorkspaceSidebar({
                 <span className="block text-lg font-bold tracking-tight">
                   RoleCue
                 </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {roleLabels[user.role]} workspace
+                <span className="block text-xs wrap-break-word text-muted-foreground">
+                  {t("workspaceOf", { role: user.role })}
                 </span>
               </span>
             </Link>
@@ -170,7 +172,7 @@ export function WorkspaceSidebar({
                 variant="ghost"
                 className="size-11 shrink-0 rounded-xl"
                 onClick={onToggle}
-                aria-label="Collapse sidebar"
+                aria-label={t("collapseSidebar")}
                 aria-expanded
               >
                 <PanelLeftClose className="size-5" aria-hidden />
@@ -180,18 +182,18 @@ export function WorkspaceSidebar({
         )}
       </div>
 
-      <Hint label="Search pages" enabled={collapsed}>
+      <Hint label={t("searchPages")} enabled={collapsed}>
         <Button
           variant="secondary"
           onClick={onSearch}
-          aria-label="Search pages"
+          aria-label={t("searchPages")}
           className={cn(
             "relative h-11 shrink-0 justify-start gap-3 overflow-hidden rounded-xl px-3 text-muted-foreground",
             collapsed && "justify-center px-0",
           )}
         >
           <Search className="size-5" aria-hidden />
-          <span className={labelClass}>Search pages</span>
+          <span className={labelClass}>{t("searchPages")}</span>
           {!collapsed && (
             <kbd className="ml-auto rounded border bg-background/70 px-1.5 text-[10px]">
               ⌘ / Ctrl K
@@ -203,7 +205,7 @@ export function WorkspaceSidebar({
       <LayoutGroup id={layoutId}>
         <motion.nav
           layoutScroll
-          aria-label={`${roleLabels[user.role]} navigation`}
+          aria-label={t("roleNavigation", { role: user.role })}
           className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain"
           onMouseLeave={() => setHovered(null)}
         >
@@ -214,7 +216,7 @@ export function WorkspaceSidebar({
                   <Separator />
                 ) : (
                   <span className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-                    {group.label}
+                    {labels.group(group.label)}
                   </span>
                 )}
               </div>
@@ -222,12 +224,13 @@ export function WorkspaceSidebar({
                 {group.items.map((item) => {
                   const selected = active?.href === item.href;
                   const badge = navigationBadges?.[item.href];
+                  const itemLabel = labels.item(item.label);
                   return (
                     <li key={item.href}>
-                      <Hint label={item.label} enabled={collapsed}>
+                      <Hint label={itemLabel} enabled={collapsed}>
                         <Link
                           href={item.href}
-                          aria-label={item.label}
+                          aria-label={itemLabel}
                           aria-describedby={
                             badge && badge.count > 0
                               ? `${layoutId}-${item.href.replaceAll("/", "-")}-count`
@@ -279,7 +282,7 @@ export function WorkspaceSidebar({
                             />
                           </span>
                           <span className={cn("relative", labelClass)}>
-                            {item.label}
+                            {itemLabel}
                           </span>
                           {badge && badge.count > 0 && (
                             <>
@@ -322,12 +325,15 @@ export function WorkspaceSidebar({
       {footer}
       <div className="shrink-0 space-y-1 border-t pt-2">
         <DropdownMenu>
-          <Hint label={user.full_name || "Your account"} enabled={collapsed}>
+          <Hint
+            label={user.full_name || t("account.fallbackName")}
+            enabled={collapsed}
+          >
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 ref={accountTrigger}
-                aria-label="Open account menu"
+                aria-label={t("account.open")}
                 className={cn(
                   "h-14 w-full justify-start gap-2 rounded-xl px-1",
                   collapsed && "justify-center px-0",
@@ -342,10 +348,10 @@ export function WorkspaceSidebar({
                   <>
                     <span className="min-w-0 flex-1 text-left">
                       <span className="block truncate text-sm font-semibold">
-                        {user.full_name || "Your account"}
+                        {user.full_name || t("account.fallbackName")}
                       </span>
                       <span className="block text-xs text-muted-foreground">
-                        {roleLabels[user.role]}
+                        {t(`roles.${user.role}`)}
                       </span>
                     </span>
                     <ChevronsUpDown
@@ -365,7 +371,7 @@ export function WorkspaceSidebar({
           >
             <DropdownMenuLabel className="px-3 py-2">
               <span className="block truncate font-semibold">
-                {user.full_name || "Your account"}
+                {user.full_name || t("account.fallbackName")}
               </span>
               <span className="block truncate text-xs font-normal text-muted-foreground">
                 {user.email}
@@ -382,7 +388,7 @@ export function WorkspaceSidebar({
                   }
                 >
                   <UserRound aria-hidden />
-                  Your Profile
+                  {t("account.profile")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="min-h-11 gap-3 px-3">
@@ -394,25 +400,37 @@ export function WorkspaceSidebar({
                   }
                 >
                   <Shield aria-hidden />
-                  Account Security
+                  {t("account.security")}
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <div className="flex min-h-12 items-center justify-between gap-3 px-3 py-1.5">
               <DropdownMenuLabel className="p-0 text-xs text-muted-foreground">
-                Appearance
+                {t("account.appearance")}
               </DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={preferences.theme}
-                aria-label="Color theme"
+                aria-label={t("account.colorTheme")}
                 className="flex items-center rounded-full border bg-muted/50 p-0.5"
               >
                 {(
                   [
-                    { value: "light", label: "Light", icon: Sun },
-                    { value: "system", label: "System", icon: Monitor },
-                    { value: "dark", label: "Dark", icon: Moon },
+                    {
+                      value: "light",
+                      label: t("account.themeLight"),
+                      icon: Sun,
+                    },
+                    {
+                      value: "system",
+                      label: t("account.themeSystem"),
+                      icon: Monitor,
+                    },
+                    {
+                      value: "dark",
+                      label: t("account.themeDark"),
+                      icon: Moon,
+                    },
                   ] as const
                 ).map(({ value, label, icon: Icon }) => (
                   <DropdownMenuRadioItem
@@ -445,11 +463,11 @@ export function WorkspaceSidebar({
               }}
             >
               <LogOut aria-hidden />
-              {signingOut ? "Signing out…" : "Sign out"}
+              {signingOut ? t("account.signingOut") : t("account.signOut")}
             </DropdownMenuItem>
             {signOutError && (
               <p role="alert" className="px-3 py-2 text-xs text-destructive">
-                Sign out did not complete. Please try again.
+                {t("account.signOutFailed")}
               </p>
             )}
           </DropdownMenuContent>

@@ -1,1 +1,1327 @@
-{}
+{
+  "dashboard": {
+    "heading": "Dashboard",
+    "eyebrow": "Candidate",
+    "description": "Your Target JDs, practice activity, applications and coin balance in one place.",
+    "retry": "Try again",
+    "applications": {
+      "title": "Applications",
+      "loading": "Loading your applications…",
+      "error": "We couldn't load your applications.",
+      "empty": "You haven't applied to any postings yet.",
+      "browse": "Browse the Job Board",
+      "count": "{count, plural, one {{countText} application} other {{countText} applications}}",
+      "next": "Next step: start the interview for <name>{title}</name>.",
+      "view": "View all applications",
+      "status": {
+        "pending": "Awaiting CV review",
+        "interview_eligible": "Interview eligible",
+        "interviewed": "Interview completed",
+        "approved": "Approved",
+        "rejected": "Not selected"
+      }
+    },
+    "practice": {
+      "title": "Practice activity",
+      "loading": "Loading your practice activity…",
+      "error": "We couldn't load your practice activity.",
+      "empty": "No practice sessions yet. Start one to see your feedback here.",
+      "start": "Start a practice interview",
+      "count": "{count, plural, one {{countText} session} other {{countText} sessions}}",
+      "view": "View all interview history",
+      "status": {
+        "in_progress": "In progress",
+        "pending": "Feedback being prepared",
+        "completed": "Feedback ready",
+        "failed": "Feedback unavailable"
+      }
+    },
+    "profiles": {
+      "title": "Target JDs",
+      "loading": "Loading your Target JDs…",
+      "error": "We couldn't load your Target JDs.",
+      "empty": "You haven't added a Target JD yet. Add one to shape your practice interviews.",
+      "add": "Add a Target JD",
+      "count": "{count, plural, one {{countText} Target JD} other {{countText} Target JDs}}",
+      "next": "Next step: {status} for <name>{title}</name>.",
+      "ready": "Your Target JDs are ready for practice.",
+      "manage": "Manage Target JDs",
+      "status": {
+        "draft": "Draft",
+        "analyzing": "Analyzing the job description",
+        "review": "Waiting for your review",
+        "confirmed": "Ready to practice"
+      }
+    },
+    "wallet": {
+      "title": "Coin balance",
+      "loading": "Loading your coin balance…",
+      "error": "We couldn't load your coin balance.",
+      "unit": "coins",
+      "description": "Coins are used for AI interview practice.",
+      "view": "View transactions"
+    }
+  },
+  "history": {
+    "eyebrow": "Practice",
+    "heading": "Interview history",
+    "description": "Your past interviews, newest first. Open one to see its report.",
+    "loading": "Loading your interview history…",
+    "denied": "You don't have access to interview history",
+    "checking": "Checking your account access… If this stays, sign in again with a candidate account.",
+    "error": "We couldn't load your interview history",
+    "tryLater": "Please try again in a moment.",
+    "retry": "Try again",
+    "filter": "Filter interviews by type",
+    "types": {
+      "all": "All interviews",
+      "practice": "Practice",
+      "recruitment": "Recruitment"
+    },
+    "pastEnd": "This page is past the end of your history.",
+    "firstPage": "Go to the first page",
+    "empty": "You have no interviews yet.",
+    "emptyPractice": "You have no practice interviews yet.",
+    "emptyRecruitment": "You have no recruitment interviews yet.",
+    "emptyDescription": "Your practice and recruitment interviews will be listed here.",
+    "dashboard": "Go to the dashboard",
+    "list": "Your interviews",
+    "pagination": "Interview history pagination",
+    "showing": "Showing {first}–{last} of {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "reportType": {
+      "practice": "Practice interview",
+      "recruitment": "Recruitment interview"
+    },
+    "status": {
+      "in_progress": "In progress",
+      "pending": "Evaluating",
+      "completed": "Completed",
+      "failed": "Evaluation failed"
+    },
+    "application": "View application",
+    "noScore": "No score yet"
+  },
+  "setupNavigation": {
+    "stepsLabel": "Interview creation steps",
+    "steps": {
+      "0": "Role Profile",
+      "1": "Requirements",
+      "2": "Setup",
+      "3": "Interviewer",
+      "4": "Preflight"
+    },
+    "unfinished": "Unfinished interview",
+    "progress": "Started <time>{when}</time> · <count>{answered} of {total}</count> questions answered"
+  },
+  "jobBoard": {
+    "board": {
+      "title": "Job Board",
+      "description": "Explore reviewed job postings that are accepting applications.",
+      "loading": "Loading open job postings…",
+      "deniedTitle": "You don't have access to the Job Board",
+      "accessChecking": "Checking your account access… If this stays, sign in again with a candidate account.",
+      "errorTitle": "We couldn't load the Job Board",
+      "errorText": "Your search is still here. Please try again in a moment.",
+      "retry": "Try again",
+      "pastEnd": "This page is past the end of the list.",
+      "firstPage": "Go to the first page",
+      "noMatchTitle": "No open postings match your search.",
+      "noMatchText": "Try fewer words, or check the employment type is spelled the way the posting uses it.",
+      "emptyTitle": "There are no open job postings yet.",
+      "emptyText": "Check back soon: new postings appear after approval and funding.",
+      "clearSearch": "Clear search",
+      "switching": "Loading job postings…",
+      "list": "Open job postings, {first}–{last} of {total}",
+      "pagination": "Pagination",
+      "showing": "Showing {first}–{last} of {total}",
+      "previous": "Previous",
+      "next": "Next",
+      "selected": "Selected job posting",
+      "skills": "Key skills",
+      "moreSkills": "more",
+      "details": "Details"
+    },
+    "filters": {
+      "form": "Search open job postings",
+      "search": {
+        "label": "Job title",
+        "placeholder": "e.g. Backend Engineer"
+      },
+      "location": {
+        "label": "Location",
+        "placeholder": "e.g. Ho Chi Minh City"
+      },
+      "type": {
+        "label": "Employment type",
+        "hint": "Exact match, e.g. Full-time",
+        "placeholder": "e.g. Full-time"
+      },
+      "tooLong": "Keep this to {max} characters or fewer.",
+      "submit": "Search",
+      "clear": "Clear"
+    },
+    "detail": {
+      "invalidTitle": "This link isn't valid",
+      "invalidText": "Check the address, or find the posting on the Job Board.",
+      "browse": "Browse open postings",
+      "loading": "Loading the job posting…",
+      "deniedTitle": "You don't have access to this posting",
+      "accessChecking": "Checking your account access… If this stays, sign in again with a candidate account.",
+      "unavailableTitle": "This posting is no longer available",
+      "unavailableText": "It stopped accepting applications or was removed. Other open postings are waiting on the Job Board.",
+      "errorTitle": "We couldn't load this job posting",
+      "errorText": "Please try again in a moment.",
+      "retry": "Try again",
+      "back": "Back to Job Board",
+      "applied": "Applied · View application",
+      "apply": "Apply with your CV",
+      "openPage": "Open posting page",
+      "alreadyApplied": "You already applied to this posting.",
+      "newTab": "(opens in a new tab)",
+      "facts": {
+        "level": "Level",
+        "employmentType": "Employment type",
+        "salary": "Salary",
+        "interviewLength": "Interview length",
+        "minutes": "{count} minutes"
+      },
+      "skillsHeading": "Skills",
+      "noSkills": "This posting doesn't list specific skills. Read the job description below.",
+      "required": "Required",
+      "niceToHave": "Nice to have",
+      "showAll": "Show all {count} skills",
+      "showFewer": "Show fewer skills",
+      "howHiring": "How hiring works",
+      "description": "Job description",
+      "noDescription": "The recruiter hasn't added a job description.",
+      "showFull": "Show the full description",
+      "showLess": "Show less"
+    },
+    "level": {
+      "intern": "Intern",
+      "junior": "Junior",
+      "mid": "Mid-level",
+      "senior": "Senior",
+      "lead": "Lead"
+    },
+    "target": {
+      "programming_language": "Programming language",
+      "framework": "Framework",
+      "database": "Database",
+      "tool": "Tool",
+      "technology": "Technology",
+      "domain_knowledge": "Domain knowledge",
+      "other": "Other skill",
+      "skill": "Skill"
+    },
+    "posted": {
+      "today": "Posted today",
+      "relative": "Posted {when}",
+      "date": "Posted {date}",
+      "created": "Created {date}"
+    },
+    "salary": {
+      "from": "From {amount}",
+      "upTo": "Up to {amount}"
+    }
+  },
+  "report": {
+    "backToHistory": "Back to interview history",
+    "eyebrow": "Interview report",
+    "type": {
+      "practice": "Practice interview",
+      "recruitment": "Recruitment interview"
+    },
+    "status": {
+      "in_progress": "In progress",
+      "pending": "Evaluating",
+      "completed": "Completed",
+      "failed": "Evaluation failed"
+    },
+    "startedAt": "Started <time>{when}</time>",
+    "completedAt": "Completed <time>{when}</time>",
+    "overallScore": "Overall score",
+    "summary": "Summary",
+    "breakdown": "Breakdown",
+    "questions": "Questions",
+    "answer": "Answer:",
+    "feedback": "Feedback:",
+    "noAnswer": "No answer recorded.",
+    "recruitmentNote": "Detailed feedback for recruitment interviews is not shown here.",
+    "score": "{score} / 100",
+    "scoreText": "{score} out of 100",
+    "noScore": "No score yet",
+    "notice": {
+      "in_progress": {
+        "title": "This interview isn't finished yet",
+        "text": "The report appears here once the interview is completed."
+      },
+      "pending": {
+        "title": "Your interview is being evaluated",
+        "text": "Scores and feedback will appear here when the evaluation is done."
+      },
+      "failed": {
+        "title": "We couldn't evaluate this interview",
+        "text": "No scores were saved for it, so there is nothing to show yet."
+      }
+    },
+    "checkAgain": "Check again",
+    "invalidTitle": "This link isn't valid",
+    "invalidText": "Check the address, or open the report from your interview history.",
+    "loading": "Loading your report…",
+    "deniedTitle": "You don't have access to this report",
+    "accessChecking": "Checking your account access… If this stays, sign in again with a candidate account.",
+    "notFoundTitle": "We couldn't find this report",
+    "notFoundText": "It may have been removed, or it isn't yours.",
+    "openHistory": "Open interview history",
+    "errorTitle": "We couldn't load this report",
+    "errorText": "Please try again in a moment.",
+    "retry": "Try again"
+  },
+  "avatars": {
+    "inventory": {
+      "eyebrow": "Your interviewers, your way",
+      "title": "Personal Avatar Studio",
+      "intro": "Create 3D avatars from your photos, give each one a personality, and keep them in your private inventory.",
+      "buySlots": "Buy slots",
+      "createAvatar": "Create avatar",
+      "checking": "Checking your avatar slots.",
+      "checkFailed": "Your avatar slots couldn't be checked.",
+      "loading": "Loading your avatars…",
+      "accessChecking": "Checking your account access… If this stays, sign in again.",
+      "loadFailed": "We couldn't load your avatars.",
+      "retry": "Try again",
+      "pastEnd": "This page is past the end of your inventory.",
+      "firstPage": "Go to the first page",
+      "slotsList": "Avatar slots, {used} of {capacity} used",
+      "pagination": "Avatar slot pages",
+      "capacity": {
+        "label": "Avatar slots",
+        "checking": "Checking your avatar slots…",
+        "failed": "We couldn't check your avatar slots.",
+        "usedOf": "<used></used> of <total></total> used",
+        "full": "Full",
+        "fullHint": "Delete an avatar you no longer need, or buy more slots to create another.",
+        "free": "{count, plural, one {{countText} free slot for new avatars.} other {{countText} free slots for new avatars.}}",
+        "refresh": "Refresh slots",
+        "buy": "Buy slots"
+      },
+      "delete": {
+        "title": "Delete {name}?",
+        "description": "This frees one slot in your inventory. Your capacity stays the same. This can't be undone.",
+        "keep": "Keep avatar",
+        "confirm": "Delete avatar",
+        "pending": "Deleting…",
+        "deleted": "Avatar deleted",
+        "alreadyDeleted": "This avatar was already deleted",
+        "freed": "One slot is free in your inventory.",
+        "unconfirmed": "We couldn't confirm the deletion. Your list was refreshed; if the avatar is still listed, try again.",
+        "inUse": "This avatar is used by a job posting or an interview, so it can't be deleted.",
+        "denied": "Your session can't delete avatars right now. Sign in again and retry.",
+        "failed": "We couldn't delete this avatar. Try again."
+      }
+    },
+    "card": {
+      "renderUnavailable": "3D isn't available on this device",
+      "previewFailed": "Couldn't render the preview",
+      "open3d": "Open {name} in 3D",
+      "badge3d": "3D",
+      "retry": "Retry",
+      "delete": "Delete {name}",
+      "emptyCreateLabel": "Create an avatar in empty slot {slot} of {capacity}",
+      "create": "Create an avatar",
+      "empty": "Empty slot",
+      "slotOf": "Slot {slot} of {capacity}",
+      "addMore": "Add more slots",
+      "price": "{price} per slot"
+    },
+    "preview": {
+      "defaultTitle": "Avatar preview",
+      "hint": "Drag to turn the avatar, scroll or pinch to zoom.",
+      "missing": "This avatar no longer exists in your inventory.",
+      "openFailed": "We couldn't open this avatar right now.",
+      "retry": "Try again",
+      "viewerLabel": "3D preview of {name}",
+      "viewerFallback": "your avatar",
+      "personality": "Personality",
+      "created": "Created",
+      "loading": "Loading avatar details…",
+      "delete": "Delete avatar"
+    },
+    "buy": {
+      "title": "Buy avatar slots",
+      "description": "Slots add storage space to your avatar inventory. Each slot costs {price} and is paid from your wallet.",
+      "amountLabel": "Number of slots",
+      "fewer": "One slot fewer",
+      "more": "One slot more",
+      "hint": "1 to {max} slots per purchase.",
+      "total": "Total",
+      "balance": "Your balance",
+      "balanceChecking": "Checking…",
+      "balanceUnavailable": "Unavailable",
+      "capacityAfter": "Capacity after",
+      "capacityAfterValue": "{count, plural, one {{countText} slot} other {{countText} slots}}",
+      "needMore": "You need {amount} more. <addCoins>Add coins</addCoins>",
+      "addCoins": "Add coins",
+      "cancel": "Cancel",
+      "pending": "Buying…",
+      "submitEmpty": "Buy slots",
+      "submit": "Buy for {price}",
+      "toastTitle": "{count, plural, one {Added # avatar slot} other {Added # avatar slots}}",
+      "toastDescription": "Your inventory capacity has been updated.",
+      "errors": {
+        "insufficientBalance": "You don't have enough coins for this purchase. Top up your wallet, then try again.",
+        "validation": "Choose between 1 and {max} slots.",
+        "denied": "Your session can't buy slots right now. Sign in again and retry.",
+        "failed": "We couldn't buy slots.",
+        "unconfirmed": "We couldn't confirm the purchase. Your capacity and balance were refreshed; check them before buying again."
+      }
+    },
+    "validation": {
+      "nameRequired": "Name is required.",
+      "nameInvalid": "Name must be at most {max} characters and contain no null characters.",
+      "personalityRequired": "Personality is required.",
+      "personalityInvalid": "Personality must be at most {max} characters and contain no null characters.",
+      "amountRequired": "Enter a number of slots.",
+      "amountInteger": "Enter a whole number of slots.",
+      "amountMin": "Buy at least 1 slot.",
+      "amountMax": "Buy at most {max} slots at once."
+    }
+  },
+  "roleProfiles": {
+    "labels": {
+      "status": {
+        "draft": "Draft",
+        "analyzing": "Analyzing",
+        "review": "Needs review",
+        "confirmed": "Confirmed"
+      },
+      "seniority": {
+        "intern": "Intern",
+        "junior": "Junior",
+        "mid": "Mid",
+        "senior": "Senior",
+        "lead": "Lead"
+      },
+      "category": {
+        "programming_language": "Language",
+        "framework": "Framework",
+        "database": "Database",
+        "tool": "Tool",
+        "technology": "Technology",
+        "other": "Technical skill"
+      },
+      "kind": {
+        "skill": "Technical skill",
+        "technology": "Technology",
+        "domain_knowledge": "Domain knowledge"
+      },
+      "priority": {
+        "unspecified": "Unspecified",
+        "required": "Required",
+        "preferred": "Preferred"
+      },
+      "proficiency": {
+        "Unspecified": "Unspecified",
+        "New": "New",
+        "Familiar": "Familiar",
+        "Proficient": "Proficient",
+        "Expert": "Expert"
+      },
+      "savedTarget": "Saved target",
+      "classified": "{classification} · {priority}"
+    },
+    "validation": {
+      "textLength": "Use {min}–{max} characters.",
+      "entryLength": "Paste 100–20,000 characters of job description text.",
+      "categoryRequired": "Select a skill category.",
+      "categoryOnlySkills": "Only skills have a category.",
+      "requirementsMin": "Keep at least one technical requirement."
+    },
+    "errors": {
+      "canceled": "Canceled. You can retry or open your saved draft.",
+      "notReady": "This job description is not ready for that action. Refresh and try again.",
+      "generic": "We couldn't complete that step. Please try again.",
+      "pdfUnavailable": "PDF reading is unavailable. Paste your JD text to continue.",
+      "extractionFailed": "Analysis failed. Retry your saved draft."
+    },
+    "steps": {
+      "ariaLabel": "Role Profile progress",
+      "input": "Add JD",
+      "review": "Review role",
+      "confirmed": "Confirmed",
+      "complete": ", complete",
+      "current": ", current step",
+      "upcoming": ", upcoming"
+    },
+    "library": {
+      "eyebrow": "Your practice context",
+      "heading": "Role Profiles",
+      "description": "Keep your Role Profiles, review their requirements, and pick up where you left off. Your Role Profiles stay private.",
+      "add": "Add Role Profile",
+      "loading": "Loading Role Profiles",
+      "retry": "Try again",
+      "tableLabel": "Role Profiles",
+      "pagesLabel": "Role Profile pages",
+      "seniorityToReview": "Seniority to review",
+      "deleteLabel": "Delete {title}",
+      "columns": {
+        "role": "Role",
+        "status": "Status",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "empty": {
+        "title": "Your next role starts here.",
+        "description": "Create a Role Profile from a job description, review what matters, and shape the focus of your next practice interview.",
+        "cta": "Bring in a role"
+      },
+      "delete": {
+        "title": "Delete this Role Profile?",
+        "description": "{title} and its saved requirements will be removed. Role Profiles with interview history cannot be deleted.",
+        "keep": "Keep profile",
+        "confirm": "Delete Role Profile",
+        "pending": "Deleting…"
+      }
+    },
+    "entry": {
+      "back": "Role Profiles",
+      "heading": "Bring the role into the room.",
+      "description": "Start with a job description. We'll extract the role context, and you stay in control of the review.",
+      "sourceLabel": "Job description source",
+      "textTab": "Paste text",
+      "pdfTab": "Upload PDF",
+      "textLabel": "Job description text",
+      "placeholder": "Paste the role, responsibilities, requirements, technologies, and domain context here.",
+      "help": "100–20,000 characters after whitespace cleanup.",
+      "counter": "{count} / 20,000",
+      "draftLink": "Open your saved draft",
+      "submit": "Analyze role",
+      "cancel": "Cancel",
+      "private": "Your Role Profile stays private.",
+      "phase": {
+        "upload": {
+          "action": "Uploading PDF…",
+          "status": "Uploading your PDF securely."
+        },
+        "reading": {
+          "action": "Reading PDF…",
+          "status": "Reading your PDF and saving its original."
+        },
+        "analysis": {
+          "action": "Analyzing role…",
+          "status": "Saving your Role Profile and extracting technical requirements."
+        }
+      },
+      "next": {
+        "title": "What happens next",
+        "save": "We save your JD text or original PDF privately.",
+        "extract": "AI extracts requirements and expected proficiency.",
+        "review": "You review and confirm the role context."
+      }
+    },
+    "upload": {
+      "dropHere": "Drop your PDF here",
+      "selected": "{size} KB · PDF selected",
+      "help": "PDF with selectable text, up to 5 MB. Scanned or encrypted PDFs aren’t supported.",
+      "inputLabel": "Job description PDF",
+      "choose": "Choose PDF",
+      "replace": "Replace PDF",
+      "remove": "Remove PDF",
+      "progressLabel": "PDF upload progress",
+      "uploaded": "Uploaded {progress}%",
+      "errors": {
+        "notPdf": "Choose a PDF document.",
+        "empty": "This PDF is empty. Choose another document.",
+        "tooLarge": "Choose a PDF up to 5 MB.",
+        "oneAtATime": "Choose one PDF at a time."
+      }
+    },
+    "detail": {
+      "loading": "Loading Role Profile",
+      "heading": "Role Profile",
+      "retry": "Try again",
+      "backToLibrary": "Back to Role Profiles",
+      "back": "Role Profiles",
+      "refresh": "Refresh status",
+      "title": {
+        "review": "Confirm the role before you practice.",
+        "analysis": "Let’s find the role’s focus.",
+        "confirmed": "Your Role Profile is confirmed."
+      },
+      "description": {
+        "review": "AI extraction is a starting point. Review, refine, and save what matters to you.",
+        "analysis": "Your original job description is saved. Extract its technical requirements to begin your review.",
+        "confirmed": "Your reviewed requirements, seniority and refinement note are saved for the next step."
+      },
+      "refreshFailed": "Unable to refresh. Your current review is still here; try refreshing again.",
+      "analyzing": "Analyzing technical requirements. You can refresh to check the saved status.",
+      "analysisFailed": "Analysis didn’t finish. Your text is safe; try again.",
+      "ready": "Ready to analyze your saved job description.",
+      "analyze": "Analyze role",
+      "retryAnalysis": "Retry analysis",
+      "retryHint": "If an earlier attempt is still running, retry will keep that attempt and won’t start another.",
+      "originalTitle": "Original job description",
+      "originalMissing": "Original text is not available for this legacy Role Profile."
+    },
+    "original": {
+      "label": "Original PDF",
+      "private": "Private document",
+      "open": "Open original PDF",
+      "opening": "Opening PDF…",
+      "popupBlocked": "Allow pop-ups for this site to open the private PDF in a new tab."
+    },
+    "review": {
+      "legend": "Review Role Profile",
+      "intro": "Edit the role and requirements directly below. What you confirm is the role context saved for your practice.",
+      "roleTitle": "Role title",
+      "seniority": "Seniority",
+      "chooseLevel": "Choose a level",
+      "seniorityRequired": "Select a seniority level before confirming.",
+      "requirementsTitle": "Technical requirements",
+      "requirementsHelp": "Set the proficiency this role calls for. Open details to adjust classification or priority. Kind groups an ability, a named technology, or domain knowledge; category describes the type of technical skill, such as a language, framework, database, or tool.",
+      "addRequirement": "Add requirement",
+      "noteLabel": "Make the practice your own.",
+      "noteHelp": "Add a focus or exclusion, such as “Focus on caching and concurrency” or “Exclude C#”. Your note guides interview preparation. Saving or confirming saves this note and your current edits. Confirm saves the review first, then prepares interview content.",
+      "notePlaceholder": "What would you like to focus on?",
+      "noteCounter": "{count} / 2,000",
+      "confirmNote": "Confirmation prepares and saves interview content for this role.",
+      "status": {
+        "confirming": "Preparing interview content…",
+        "saving": "Saving your review…",
+        "unsaved": "You have unsaved changes.",
+        "saved": "Your latest review is saved."
+      },
+      "save": "Save review",
+      "saveBusy": "Saving…",
+      "confirm": "Confirm role",
+      "confirmBusy": "Confirming…"
+    },
+    "requirement": {
+      "legend": "Technical requirement {number}",
+      "nameLabel": "Requirement {number}",
+      "namePlaceholder": "Skill or topic name",
+      "proficiencyLabel": "Proficiency for requirement {number}",
+      "proficiencyPlaceholder": "Choose proficiency",
+      "remove": "Remove requirement {number}",
+      "detailsLabel": "Details for requirement {number}",
+      "details": "Details",
+      "fromJd": "From the JD",
+      "kind": "Kind",
+      "category": "Skill category",
+      "categoryPlaceholder": "Select a category",
+      "priority": "Priority",
+      "savedTarget": "Saved target",
+      "savedTargetHelp": "This role has a target saved in the earlier format. It stays as written until you change it."
+    },
+    "summary": {
+      "requirementsTitle": "Technical requirements",
+      "requirementsHelp": "The requirements and proficiency saved for this role.",
+      "proficiencyLabel": "Proficiency for {name}",
+      "sourceLabel": "Source for requirement {number}",
+      "fromJd": "From the JD",
+      "noteTitle": "Your refinement note",
+      "savedTitle": "Your role review is saved.",
+      "savedStatus": "Your requirements and interview content are saved. Your Role Profile is ready for the next step.",
+      "continue": "Continue to setup"
+    }
+  },
+  "billing": {
+    "coinsAmount": "{amount} coins",
+    "balanceCard": {
+      "label": "Available Coin Balance",
+      "loadError": "Unable to load coin balance",
+      "retry": "Retry",
+      "unit": "COINS",
+      "description": "Use coins for AI interview practices, voice generation, and candidate evaluations.",
+      "refreshAria": "Refresh balance",
+      "refreshing": "Refreshing…",
+      "refresh": "Refresh balance",
+      "ledger": "Authoritative ledger & PayOS secure checkout"
+    },
+    "overview": {
+      "adminTitle": "Wallet & Coins",
+      "adminDescription": "Coin balances and top-ups are reserved for candidate practice and recruiter posting workspaces.",
+      "adminAlertTitle": "Administrator Accounts Do Not Have a Personal Wallet",
+      "adminAlertBody": "Platform payment audits and revenue monitoring are governed under the Administrator Finance portal.",
+      "title": "Transaction history",
+      "description": "Coins you bought, spent and got back.",
+      "balanceGroup": "Coin balance",
+      "balance": "Balance",
+      "addCoins": "Add coins",
+      "historyHeading": "Transaction History"
+    },
+    "transactions": {
+      "title": "Your transactions",
+      "subtitle": "Purchases, spending, and refunds in one place.",
+      "refreshAria": "Refresh transaction history",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing…",
+      "filterScope": "Filters apply to the transactions on this page.",
+      "filterLabel": "Filter transactions on this page",
+      "tabs": {
+        "all": "All Transactions",
+        "topup": "Top-ups (PayOS)",
+        "spend": "Coin Spending",
+        "refund": "Refunds"
+      },
+      "status": {
+        "success": "Success",
+        "pending": "Pending",
+        "cancelled": "Cancelled",
+        "failed": "Failed"
+      },
+      "loadError": "Unable to load transaction history",
+      "loadErrorFallback": "Please try refreshing the page.",
+      "retry": "Retry",
+      "emptyTitle": "No transactions found",
+      "emptyNone": "You haven't made any coin transactions yet. Top up coins above to get started.",
+      "emptyPage": "No transactions on this page. Try another page or refresh.",
+      "emptyFiltered": {
+        "topup": "No topup transactions on this page. Other pages may contain matching transactions.",
+        "spend": "No spend transactions on this page. Other pages may contain matching transactions.",
+        "refund": "No refund transactions on this page. Other pages may contain matching transactions."
+      },
+      "tableLabel": "Coin transactions",
+      "columns": {
+        "transaction": "Transaction",
+        "status": "Status",
+        "coins": "Coins"
+      },
+      "fallbackDeposit": "Coin Deposit",
+      "fallbackRefund": "Coin Refund",
+      "fallbackSpend": "Coin Spending",
+      "order": "Order #{code}",
+      "noCoins": "No coins added",
+      "coinsAria": "{coins} Coins",
+      "coinsAriaWhenPaid": "{coins} Coins when paid",
+      "coinsSr": " Coins",
+      "whenPaid": "when paid",
+      "showing": "Showing {shown} of {total} transactions on this page.",
+      "pagination": "Showing page {page} of {totalPages} ({total} transactions across all types)",
+      "previous": "Previous page",
+      "next": "Next page"
+    },
+    "describe": {
+      "pack": "{name} pack",
+      "practice": "Practice interview",
+      "refundNamed": "Refund for unused slots: {title}",
+      "refund": "Refund for unused interview slots",
+      "slotsNamed": "Interview slots: {title}",
+      "slots": "Interview slots",
+      "avatar": "Avatar storage",
+      "other": "Coin transaction",
+      "slotCount": "{count, plural, one {# slot} other {# slots}}",
+      "avatarSlotCount": "{count, plural, one {# slot} other {# slots}}"
+    },
+    "packages": {
+      "loadError": "Unable to load coin packages",
+      "loadErrorHint": "Please try again in a moment.",
+      "retryLoading": "Retry loading packages",
+      "emptyTitle": "No packages available",
+      "emptyHint": "Please check back later.",
+      "buyAria": "Buy {name} with PayOS",
+      "preparing": "Preparing PayOS…",
+      "continue": "Continue"
+    },
+    "purchase": {
+      "buyCoins": "Buy coins",
+      "tooltip": "Add coins",
+      "tooltipUnavailable": "Balance unavailable · Add coins",
+      "dialogTitle": "Add coins",
+      "dialogDescription": "One-time payment · PayOS"
+    },
+    "paymentBanner": {
+      "verifyingTitle": "Verifying Payment",
+      "pendingTitle": "Payment Pending",
+      "verifyingBody": "Checking your payment with the payment provider. Please wait.",
+      "pendingBody": "Your payment has not been confirmed yet. Coins have not been credited.",
+      "checkAgain": "Check again",
+      "dismiss": "Dismiss payment notification",
+      "successTitle": "Payment Completed Successfully",
+      "successOrder": "Order #{code} was processed. Your coin balance has been credited.",
+      "success": "Your deposit was processed. Your coin balance has been credited.",
+      "cancelledTitle": "Payment Cancelled",
+      "cancelledOrder": "Payment for Order #{code} was cancelled. No coins were credited.",
+      "cancelled": "Payment was cancelled. No coins were credited.",
+      "failedTitle": "Payment Unsuccessful",
+      "unverifiedTitle": "Unable to Verify Payment",
+      "failedOrder": "We could not verify payment for Order #{code}. If you were charged, please contact support with your order code.",
+      "failed": "We could not verify your payment. Return with a valid order code or contact support if you were charged."
+    }
+  },
+  "applications": {
+    "page": {
+      "eyebrow": "Candidate",
+      "title": "My Applications",
+      "description": "Every CV you have sent, with where it stands now, newest first."
+    },
+    "status": {
+      "pending": "Awaiting CV review",
+      "interview_eligible": "Interview eligible",
+      "interviewed": "Interview completed",
+      "approved": "Approved",
+      "rejected": "Not selected"
+    },
+    "actions": {
+      "start": "Start interview",
+      "resume": "Resume interview",
+      "tryAgain": "Try again"
+    },
+    "progress": {
+      "label": "Application progress",
+      "steps": {
+        "applied": "Applied",
+        "review": "CV review",
+        "interview": "Interview",
+        "decision": "Decision"
+      },
+      "state": {
+        "done": "done",
+        "current": "in progress",
+        "ended": "ended here",
+        "upcoming": "not reached"
+      },
+      "stateAnnounce": ": {state}"
+    },
+    "list": {
+      "loading": "Loading your applications…",
+      "deniedTitle": "You don't have access to applications",
+      "deniedBody": "Checking your account access… If this stays, sign in again with a candidate account.",
+      "errorTitle": "We couldn't load your applications",
+      "errorBody": "Please try again in a moment.",
+      "pastEnd": "This page is past the end of your list.",
+      "firstPage": "Go to the first page",
+      "emptyTitle": "You haven't applied to any postings yet.",
+      "emptyBody": "Find an open posting on the Job Board and apply with your CV.",
+      "browse": "Browse the Job Board",
+      "listLabel": "Your applications",
+      "paginationLabel": "Applications pagination",
+      "showing": "Showing {first}–{last} of {total}",
+      "previous": "Previous",
+      "next": "Next",
+      "submitted": "Submitted <time>{date}</time>",
+      "recruiterNote": "Recruiter's note: {reason}",
+      "viewApplication": "View application",
+      "viewAria": "View application for {title}"
+    },
+    "detail": {
+      "back": "Back to my applications",
+      "invalidTitle": "This link isn't valid",
+      "invalidBody": "Check the address, or open the application from your list.",
+      "loading": "Loading your application…",
+      "deniedTitle": "You don't have access to this application",
+      "deniedBody": "Checking your account access… If this stays, sign in again with a candidate account.",
+      "notFoundTitle": "We couldn't find this application",
+      "notFoundBody": "It may have been removed, or it isn't yours.",
+      "errorTitle": "We couldn't load this application",
+      "errorBody": "Please try again in a moment.",
+      "eyebrow": "Application",
+      "facts": {
+        "status": "Status",
+        "submitted": "Submitted",
+        "deadline": "Interview deadline",
+        "result": "Interview result",
+        "timeLeft": "Time left"
+      },
+      "message": {
+        "pending": "Your CV is waiting for review. This page updates when the recruiter decides.",
+        "eligible": "Your CV was approved. Complete your interview before the deadline.",
+        "eligiblePassed": "Deadline passed. The interview window for this application has closed.",
+        "interviewed": "Your interview is complete. The recruiter will review it next.",
+        "approved": "The recruiter approved your application.",
+        "rejected": "This application was not selected for this role."
+      },
+      "reason": "Reason: {reason}",
+      "result": {
+        "score": "{score} / 100",
+        "unavailable": "Not available",
+        "evaluating": "Being evaluated",
+        "inProgress": "In progress"
+      },
+      "resumeNote": "Pick up where you left off. Resuming uses no new interview slot.",
+      "startNote": "Free for you. Complete it before the deadline."
+    },
+    "hiringSteps": {
+      "review": {
+        "title": "The recruiter reviews your CV",
+        "detail": "No interview starts until your CV is approved."
+      },
+      "interview": {
+        "title": "Complete the AI interview within 24 hours",
+        "detail": "If your CV is approved, the interview opens in My Applications. It is free for you."
+      },
+      "decision": {
+        "title": "The recruiter makes the final decision",
+        "detail": "Your application shows the outcome once they decide."
+      },
+      "current": " (current step)"
+    },
+    "apply": {
+      "sentTitle": "Application sent",
+      "sentBody": "Your CV for {title} is with the recruiter. Here is what happens next.",
+      "keepBrowsing": "Keep browsing",
+      "viewMine": "View my application",
+      "title": "Apply for {title}",
+      "description": "The recruiter reviews your CV first; no interview starts from this step.",
+      "descriptionWhere": "{where}. The recruiter reviews your CV first; no interview starts from this step."
+    },
+    "cvForm": {
+      "errors": {
+        "notPdf": "Choose a PDF file.",
+        "empty": "That file is empty. Choose another PDF.",
+        "tooLarge": "That PDF is too large. Choose one up to 5 MB."
+      },
+      "sizeKb": "{size} KB",
+      "sizeMb": "{size} MB",
+      "chooseAnother": "Choose another PDF",
+      "choose": "Choose your CV (PDF)",
+      "hint": "Or drop it here. One PDF with selectable text, up to 5 MB.",
+      "progressLabel": "CV upload progress",
+      "uploading": "Uploading your CV… {progress}%",
+      "saving": "Saving your CV…",
+      "viewMine": "View my applications",
+      "tryAgain": "Try again",
+      "sending": "Sending…",
+      "send": "Send application"
+    },
+    "applyErrors": {
+      "ALREADY_APPLIED": "You already applied to this posting.",
+      "INTAKE_NOT_OPEN": "This posting is no longer accepting applications.",
+      "JOB_POSTING_NOT_FOUND": "This job posting is no longer available.",
+      "FORBIDDEN": "Only candidate accounts can apply to job postings.",
+      "validation": "Choose a PDF file up to 5 MB.",
+      "upload": "We couldn't upload your CV. Try again."
+    }
+  },
+  "avatarStudio": {
+    "header": {
+      "back": "Personal Avatar Studio",
+      "eyebrow": "Your interviewer, your way",
+      "title": "Create an avatar",
+      "intro": "A familiar face for your next interview. Add a personality, create the look in Avaturn, and make it part of your practice.",
+      "slotsChecking": "Checking avatar slots…",
+      "slotsFailed": "Couldn't check your avatar slots.",
+      "slotsUsed": "{used} of {capacity} avatar slots used",
+      "slotsUnavailable": "Avatar slots unavailable.",
+      "slotsAvailable": "{available} available for your next creation",
+      "refresh": "Refresh slots"
+    },
+    "notConfigured": "The Avaturn project is not configured. Please contact support.",
+    "inventoryFull": {
+      "message": "Your avatar inventory is full. Delete an avatar or buy more slots before creating another one.",
+      "manage": "Manage your inventory"
+    },
+    "slotNotConfirmed": "An available avatar slot couldn't be confirmed. Refresh slots and try again.",
+    "retrySave": "Try saving again",
+    "creating": {
+      "title": "Creating {name}",
+      "intro": "Take your photos, customize the look, then choose Next to save.",
+      "close": "Close creator",
+      "reading": "Reading your exported avatar…",
+      "asideLabel": "Your avatar details",
+      "asideTitle": "Your avatar",
+      "name": "Name",
+      "personality": "Personality",
+      "beforeTitle": "Before you finish",
+      "beforeBody": "Use an avatar with facial animation support (T2). RoleCue needs it for an expressive interviewer.",
+      "finalTitle": "The final step",
+      "finalBody": "Choose Next inside Avaturn. We’ll handle the save and confirm when your avatar is in your inventory."
+    },
+    "processing": {
+      "step": "Step 03 / Save",
+      "title": "Processing avatar",
+      "body": "Converting and saving {name}. This can take a few minutes.",
+      "bodyFallback": "your avatar",
+      "keepOpen": "Keep this page open to see the result. Saving may continue if you leave."
+    },
+    "success": {
+      "eyebrow": "Saved to your personal inventory",
+      "title": "{name} has been saved",
+      "body": "Your personal avatar is in your inventory. Preview it in 3D or create another character.",
+      "personality": "Personality",
+      "preview": "Preview in 3D",
+      "back": "Back to inventory",
+      "another": "Create another avatar"
+    },
+    "unknown": {
+      "title": "Check your inventory before trying again",
+      "body": "We couldn't confirm whether your avatar was saved. Saving was sent to RoleCue and may still finish; closing or reloading this page does not cancel it. Your export will not be resent, because sending it again could create a duplicate.",
+      "check": "Check inventory"
+    },
+    "discard": {
+      "title": "Discard this avatar draft?",
+      "description": "Your unsaved export will be discarded. No avatar has been sent to RoleCue yet.",
+      "keep": "Keep editing",
+      "confirm": "Discard draft"
+    },
+    "saveErrors": {
+      "validation": "RoleCue couldn't read this avatar export. Export it again in Avaturn.",
+      "unsupported": "This avatar can't be used as an interviewer. Choose an avatar with facial animation (T2), then export it again.",
+      "tooLarge": "This avatar is larger than the 50 MB upload limit. Export a lighter version.",
+      "inventoryFull": "Your inventory filled up before this avatar was saved. Free or buy a slot in your inventory, then try saving again.",
+      "converterUnavailable": "Avatar conversion is busy right now. Nothing was saved; try again in a minute.",
+      "conversionTimeout": "Converting this avatar took too long. Nothing was saved; try again.",
+      "conversionFailed": "We couldn't convert this avatar. Nothing was saved; try again or export it again.",
+      "persistenceFailed": "We couldn't store this avatar. Nothing was saved; try again in a minute.",
+      "denied": "Your session can't save avatars right now. Sign in again, then create the avatar again.",
+      "generic": "We couldn't save this avatar. Try again."
+    },
+    "exportErrors": {
+      "unreadable": "Avaturn sent an export RoleCue couldn't read. Choose Next in Avaturn again.",
+      "noFacialAnimation": "This avatar has no facial animation (it was created as T1). Create a new avatar in Avaturn, then choose Next again.",
+      "badLink": "Avaturn sent a download link RoleCue can't use. Choose Next in Avaturn again.",
+      "tooLarge": "This avatar exceeds the 50 MB browser upload limit.",
+      "downloadFailed": "We couldn't download the exported avatar. Export it again in Avaturn.",
+      "invalidFile": "Avaturn returned an invalid GLB file. Please export again.",
+      "generic": "We couldn't read the avatar export. Try exporting again."
+    },
+    "journey": {
+      "label": "Avatar creation progress",
+      "details": {
+        "title": "Details",
+        "description": "Name & personality"
+      },
+      "create": {
+        "title": "Create",
+        "description": "Photos & appearance"
+      },
+      "save": {
+        "title": "Save",
+        "description": "Your personal avatar"
+      },
+      "complete": ", complete",
+      "current": ", current step",
+      "upcoming": ", upcoming"
+    },
+    "photoGuide": {
+      "label": "Photo preparation guide",
+      "eyebrow": "A little preparation helps",
+      "title": "A good photo makes it yours.",
+      "lightTitle": "Find soft, even light",
+      "lightDetail": "Face a window. Avoid strong shadows or light behind you.",
+      "faceTitle": "Keep your face clear",
+      "faceDetail": "Use a neutral expression and keep hair away from your face.",
+      "promptsTitle": "Follow the photo prompts",
+      "promptsDetail": "Avaturn guides you through capture or uploading photos.",
+      "footer": "You’ll sign in to Avaturn separately. Your photos are captured or uploaded inside Avaturn."
+    },
+    "details": {
+      "label": "Avatar details",
+      "step": "Step 01 / Details",
+      "title": "Give your interviewer a character.",
+      "intro": "Start with a name and a personality. You’ll create the appearance next.",
+      "nameLabel": "Avatar name",
+      "namePlaceholder": "Give your interviewer a name",
+      "personalityLabel": "Personality",
+      "presetsLabel": "Personality starting points",
+      "presetSupportive": "Supportive",
+      "presetDirect": "Direct",
+      "presetTechnical": "Technical",
+      "personalityPlaceholder": "Describe your interviewer's style and personality",
+      "hint": "Choose a starting point or write your own. You can edit the text above.",
+      "checking": "Checking availability…",
+      "open": "Open Avaturn creator",
+      "footnote": "Nothing is saved until you finish in Avaturn and RoleCue confirms the save."
+    },
+    "creator": {
+      "connecting": "Connecting to Avaturn…",
+      "openFailed": "We couldn't open Avaturn. Try reloading the creator.",
+      "ready": "Create and customize your avatar, then choose Next in Avaturn.",
+      "restore": "Restore layout",
+      "expand": "Expand editor",
+      "reload": "Reload creator",
+      "gettingReady": "Getting your studio ready",
+      "frameTitle": "Avaturn avatar creator",
+      "restartTitle": "Restart the Avaturn creator?",
+      "restartBody": "Reloading may discard your current appearance edits in Avaturn. Your RoleCue name and personality will stay here.",
+      "keepEditing": "Keep editing",
+      "restart": "Restart creator"
+    }
+  },
+  "setup": {
+    "context": "Interview setup",
+    "tryAgain": "Try again",
+    "resume": {
+      "title": "You have an unfinished interview for this role",
+      "note": "Resuming is free and keeps its interviewer and voice.",
+      "action": "Resume interview",
+      "calloutTitle": "Unfinished interview",
+      "noCharge": "No coins are charged to resume."
+    },
+    "index": {
+      "title": "Interviews",
+      "description": "Create an interview or return to a session when the session service is connected.",
+      "create": "Create an interview"
+    },
+    "avatar": {
+      "previewUnavailable": "Preview unavailable"
+    },
+    "roleProfile": {
+      "title": "Choose a Role Profile",
+      "loading": {
+        "description": "Checking your saved Role Profiles…",
+        "status": "Loading your Role Profiles…"
+      },
+      "intro": "Your interview is built from a confirmed Role Profile.",
+      "loadFailed": "We couldn't complete that step. Please try again.",
+      "confirmFirst": {
+        "title": "Confirm this role first.",
+        "description": "Review and confirm your requirements and seniority before setup.",
+        "action": "Return to Role Profile"
+      },
+      "notFound": "We couldn't find that Role Profile. Choose one below.",
+      "empty": {
+        "title": "Choose your Role Profile first.",
+        "description": "Review and confirm a role before setting up your interview.",
+        "openAll": "Open Role Profiles"
+      },
+      "add": "Add a Role Profile",
+      "description": "Your interview asks about the requirements of the confirmed role you pick. Its questions stay hidden until you start.",
+      "listLabel": "Confirmed Role Profiles",
+      "seniority": {
+        "notSet": "Seniority not set",
+        "intern": "Intern",
+        "junior": "Junior",
+        "mid": "Mid",
+        "senior": "Senior",
+        "lead": "Lead"
+      },
+      "created": "Created <time>{date}</time>",
+      "unfinishedBadge": "Unfinished interview",
+      "loadMore": "Show more Role Profiles",
+      "loadingMore": "Loading more…",
+      "continue": "Continue to interviewer",
+      "hint": {
+        "checking": "Checking for an unfinished interview…",
+        "choose": "Choose a Role Profile to continue."
+      }
+    },
+    "interviewer": {
+      "title": "Choose your interviewer",
+      "description": "Pick who interviews you and how they sound. Both are optional: without an avatar you get the 2D interviewer, which works on every device.",
+      "needProfile": {
+        "title": "Choose your Role Profile first.",
+        "description": "Pick the confirmed role you want to practise for, then choose your interviewer.",
+        "action": "Choose a Role Profile"
+      },
+      "alreadySet": {
+        "title": "Your interviewer is already set",
+        "description": "This role has an unfinished interview. It keeps the interviewer and voice it started with."
+      },
+      "legend": "Interviewer",
+      "inventoryNote": "Avatars come from your own inventory. <link>Open Avatar Studio</link>",
+      "twoD": {
+        "title": "2D interviewer",
+        "detail": "An animated voice waveform."
+      },
+      "avatarGone": "The avatar you chose is no longer in your inventory, so the 2D interviewer is selected.",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page {page} of {pageCount}",
+      "loadError": "We couldn't load your avatars. You can still use the 2D interviewer.",
+      "noAvatars": "You don't have an avatar yet. <link>Create one in Avatar Studio</link> to see it here.",
+      "voice": {
+        "label": "Voice",
+        "default": "Default voice",
+        "loading": "Loading voices…",
+        "error": "We couldn't load the voices. The default voice is used.",
+        "none": "No voices are available yet. The default voice is used.",
+        "gone": "The voice you chose is no longer available, so the default voice is selected.",
+        "active": "Only active voices are listed."
+      },
+      "back": "Back to Role Profile",
+      "continue": "Continue to preflight"
+    },
+    "readiness": {
+      "generic": {
+        "title": "Test audio & interview readiness",
+        "description": "Check your microphone before your interview. You can change your input or try again if something needs attention.",
+        "sideTitle": "Ready to practise?",
+        "sideText": "Choose a confirmed Role Profile to start a practice interview.",
+        "action": "Choose a Role Profile"
+      },
+      "practice": {
+        "resumeTitle": "Resume your interview",
+        "startTitle": "Get ready to start",
+        "resumeDescription": "Check your microphone, then pick up where you left off.",
+        "startDescription": "Check your microphone, then start. The interview opens in the room right away.",
+        "confirm": "Confirm this Role Profile before starting.",
+        "notFound": "We couldn't find this Role Profile. Choose another one.",
+        "openProfile": "Open Role Profile",
+        "chooseProfile": "Choose a Role Profile"
+      },
+      "summary": {
+        "title": "Your interview",
+        "roleProfile": "Role Profile",
+        "changeProfile": "Change Role Profile",
+        "edit": "Edit",
+        "keptLabel": "Interviewer and voice",
+        "kept": "Kept from your unfinished interview",
+        "interviewer": "Interviewer",
+        "changeInterviewer": "Change interviewer",
+        "twoD": "2D interviewer",
+        "avatarGone": "The avatar you chose is no longer in your inventory.",
+        "avatarError": "We couldn't load this avatar.",
+        "voice": "Voice",
+        "defaultVoice": "Default voice",
+        "voiceGone": "The voice you chose is no longer available.",
+        "voiceError": "We couldn't load this voice.",
+        "jobPosting": "Job posting",
+        "companyInterviewer": "Interviewer chosen by the company",
+        "companyNote": "The company has set the interviewer and voice for this interview."
+      },
+      "checking": "Checking for an unfinished interview…",
+      "recruitment": {
+        "context": "Recruitment interview",
+        "resumeTitle": "Resume your interview",
+        "startTitle": "Get ready for your interview",
+        "description": "Check your microphone before you start. The company reviews this interview.",
+        "back": "Back to application",
+        "loading": "Loading your application…",
+        "notFound": "We couldn't find this application.",
+        "loadFailed": "We couldn't load this application. Please try again.",
+        "notEligible": "This application can't start an interview now.",
+        "completeIt": "Complete it by <time>{deadline}</time>",
+        "resumeNote": "Resuming uses no new interview slot.",
+        "completeBy": "Complete by",
+        "timeLeft": "Time left",
+        "status": {
+          "pending": "Awaiting CV review",
+          "interview_eligible": "Interview eligible",
+          "interviewed": "Interview completed",
+          "approved": "Approved",
+          "rejected": "Not selected"
+        }
+      }
+    },
+    "startPanel": {
+      "practiceTitle": "Practice interview",
+      "recruitmentTitle": "Recruitment interview",
+      "practiceNote": "{cost} are charged once, when the interview starts. Resuming it later is free.",
+      "recruitmentNote": "Free for you. The company covers this interview.",
+      "price": "Price",
+      "balance": "Your balance",
+      "balanceValue": "{amount} coins",
+      "balanceFailed": "We couldn't load your balance.",
+      "needMore": "You need <amount>{count, plural, one {# more coin} other {# more coins}}</amount> to start.",
+      "addCoins": "Add coins",
+      "label": {
+        "opening": "Opening the interview room…",
+        "resuming": "Resuming…",
+        "starting": "Starting…",
+        "startPaid": "Start interview · {cost}",
+        "start": "Start interview"
+      },
+      "hint": {
+        "notReady": "Turn on your microphone to start.",
+        "muted": "Unmute your microphone to start.",
+        "attention": "Your microphone needs attention. Retry the check to start.",
+        "balance": "Start is unavailable until your balance loads."
+      },
+      "existing": {
+        "title": "Opening your existing interview",
+        "description": "You already had this interview in progress."
+      },
+      "action": {
+        "startNew": "Set up a new interview",
+        "openProfile": "Open Role Profile",
+        "chooseProfile": "Choose a Role Profile",
+        "changeInterviewer": "Change interviewer",
+        "backToApplication": "Back to application",
+        "backToApplications": "Back to applications"
+      }
+    },
+    "startErrors": {
+      "unconfirmed": "We couldn't confirm your interview started. Try again. You won't be charged twice.",
+      "insufficientBalance": "You need {cost, plural, one {# coin} other {# coins}} to start a practice interview.",
+      "insufficientBalanceWithBalance": "You need {cost, plural, one {# coin} other {# coins}} to start a practice interview. Your balance is {balance}.",
+      "roleProfileRequired": "Confirm this Role Profile before starting.",
+      "profileNotFound": "We couldn't find this Role Profile. Choose another one.",
+      "questionBankPractice": "Your interview questions are still being prepared. Try again in a minute.",
+      "questionBankRecruitment": "This interview isn't ready yet. Try again later.",
+      "avatarGone": "This avatar is no longer in your inventory. Choose another.",
+      "voiceGone": "This voice is no longer available. Choose another.",
+      "invalid": "Something in your setup isn't valid. Review your choices and try again.",
+      "applicationNotFound": "We couldn't find this application.",
+      "notEligible": "This application can't start an interview now. The deadline may have passed.",
+      "capacityNotFunded": "The company hasn't opened interview slots for this posting yet. Try again later.",
+      "capacityFull": "All interview slots for this posting are taken.",
+      "completedPractice": "This interview has already finished. You can start a new one.",
+      "completedRecruitment": "This interview has already finished.",
+      "interviewNotFoundPractice": "We couldn't find this interview. You can start a new one.",
+      "interviewNotFoundRecruitment": "We couldn't find this interview.",
+      "denied": "Only candidate accounts can start interviews. Sign in again if this looks wrong."
+    },
+    "preflight": {
+      "status": {
+        "requesting": "Waiting for microphone permission",
+        "ready": "Microphone ready",
+        "muted": "Microphone muted",
+        "interrupted": "Microphone interrupted",
+        "error": "Microphone needs attention",
+        "stopped": "Microphone check stopped",
+        "idle": "Microphone not tested"
+      },
+      "activity": {
+        "speaking": "Sound detected",
+        "silent": "Listening — speak to check your input",
+        "unavailable": "Input level unavailable",
+        "inactive": "Input level inactive"
+      },
+      "title": "Check your microphone",
+      "intro": "Allow access when prompted, then say a few words. This check stays on your device and does not start an interview or use coins.",
+      "inputLabel": "Microphone input",
+      "systemDefault": "System default",
+      "selectedMissing": "Selected microphone (unavailable)",
+      "currentInput": "Current input: {label}",
+      "inputsHint": "Available inputs appear after you allow microphone access.",
+      "inputLevel": "Input level",
+      "meterLabel": "Microphone input level",
+      "quietNote": "Quiet moments are normal. The sound indicator only helps you check your audio.",
+      "interrupted": "Your microphone has temporarily stopped providing audio. Check your device or retry the microphone check.",
+      "cancelled": "Check cancelled. Close or dismiss the browser permission prompt before trying again. Any input it opens will be released.",
+      "refreshInputs": "Refresh inputs",
+      "retryAudio": "Retry audio check",
+      "button": {
+        "checking": "Checking microphone…",
+        "retry": "Retry microphone",
+        "test": "Test microphone",
+        "unmute": "Unmute microphone",
+        "mute": "Mute microphone",
+        "stop": "Stop microphone check",
+        "cancel": "Cancel microphone check"
+      },
+      "releaseNote": "Stop the check or leave this page to release your microphone. No camera access is requested.",
+      "capabilities": {
+        "label": "Other browser capabilities",
+        "check": "Check browser capabilities",
+        "note": "These checks show API availability only. Speaker playback, connection quality and full interview readiness still need separate checks.",
+        "available": "Available",
+        "unavailable": "Unavailable",
+        "name": {
+          "microphone": "microphone",
+          "camera": "camera",
+          "mediaRecorder": "mediaRecorder",
+          "webAudio": "webAudio",
+          "webGL": "webGL",
+          "online": "online"
+        }
+      },
+      "message": {
+        "permissionDenied": "Microphone access is not allowed. Check this site's browser permission, your system privacy settings or site policy, then retry.",
+        "unsupportedBrowser": "This browser could not capture microphone audio. Try a supported browser and check your device settings.",
+        "noDevice": "No microphone was found. Connect a microphone or choose another input, then retry.",
+        "deviceUnavailable": "The microphone could not be opened. Check the connection and close other apps using it, then retry.",
+        "constraints": "The selected microphone is unavailable. Choose another input and retry.",
+        "unknown": "The microphone check could not finish. Check your device and retry.",
+        "secureContext": "Microphone access requires a supported browser on HTTPS or localhost.",
+        "deviceLost": "The microphone disconnected. Reconnect it or choose another input, then retry.",
+        "deviceListFailed": "The microphone list could not be refreshed. Your current input may still work; refresh inputs to try again.",
+        "analysisUnavailable": "Input level and voice activity are unavailable. Retry the audio check to enable them."
+      }
+    }
+  }
+}

@@ -264,3 +264,49 @@ test("save waits for confirmation and honors reduced motion", async ({
     finishSave?.();
   }
 });
+
+test("the studio speaks Vietnamese at 390 px, from the details form to the saved avatar", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  const calls = await setup(page, "candidate");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Tạo avatar" }),
+  ).toBeVisible();
+  const open = page.getByRole("button", { name: "Mở trình tạo Avaturn" });
+  await expect(open).toBeEnabled();
+  await open.click();
+  await expect(page.getByText("Vui lòng nhập tên.")).toBeVisible();
+  await page.getByLabel("Tên avatar").fill(savedAvatar.name);
+  await page
+    .getByLabel("Tính cách", { exact: true })
+    .fill(savedAvatar.personality);
+  await open.click();
+  await expect(
+    page.getByText(
+      "Tạo và tùy chỉnh avatar của bạn, rồi chọn Next trong Avaturn.",
+    ),
+  ).toBeVisible();
+  await expect(page.locator('[aria-current="step"]')).toContainText("Tạo");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page
+    .frameLocator('iframe[title="Trình tạo avatar Avaturn"]')
+    .getByRole("button", { name: "Export fixture" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Đã lưu Alex" }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("link", { name: "Xem trước 3D" }),
+  ).toHaveAttribute("href", `/avatar-studio?avatar=${savedAvatar.id}`);
+  expect(calls.creates).toBe(1);
+});

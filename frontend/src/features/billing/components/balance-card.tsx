@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Wallet as WalletType } from "../schemas/wallet-schema";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import { useTranslations } from "next-intl";
 
 interface BalanceCardProps {
   wallet?: WalletType;
@@ -23,6 +24,7 @@ export function BalanceCard({
   onRefresh,
 }: BalanceCardProps) {
   const fmt = useFormatters();
+  const t = useTranslations("candidate.billing.balanceCard");
   return (
     <Card className="relative overflow-hidden border-border/80 bg-gradient-to-br from-card via-card to-muted/40 shadow-sm transition-all duration-300">
       <CardContent className="p-6 md:p-8">
@@ -32,7 +34,7 @@ export function BalanceCard({
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Wallet className="h-3 w-3" />
               </span>
-              <span>Available Coin Balance</span>
+              <span>{t("label")}</span>
             </div>
 
             {isLoading ? (
@@ -43,7 +45,7 @@ export function BalanceCard({
             ) : error ? (
               <div className="space-y-2 py-1">
                 <p className="text-sm font-medium text-destructive">
-                  Unable to load coin balance
+                  {t("loadError")}
                 </p>
                 <Button
                   type="button"
@@ -56,7 +58,7 @@ export function BalanceCard({
                   <RefreshCw
                     className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
                   />
-                  Retry
+                  {t("retry")}
                 </Button>
               </div>
             ) : (
@@ -69,12 +71,11 @@ export function BalanceCard({
                   </span>
                   <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
                     <Coins className="h-3.5 w-3.5" />
-                    COINS
+                    {t("unit")}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Use coins for AI interview practices, voice generation, and
-                  candidate evaluations.
+                  {t("description")}
                 </p>
               </div>
             )}
@@ -87,18 +88,18 @@ export function BalanceCard({
               size="sm"
               onClick={onRefresh}
               disabled={isLoading || isFetching}
-              aria-label="Refresh balance"
+              aria-label={t("refreshAria")}
               className="gap-2 text-xs text-muted-foreground hover:text-foreground"
             >
               <RefreshCw
                 className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
               />
-              <span>{isFetching ? "Refreshing…" : "Refresh balance"}</span>
+              <span>{isFetching ? t("refreshing") : t("refresh")}</span>
             </Button>
 
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/80">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span>Authoritative ledger & PayOS secure checkout</span>
+              <span>{t("ledger")}</span>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { PaymentStatusBanner } from "@/features/billing/components/payment-status-banner";
 
 const mocks = vi.hoisted(() => ({ params: new URLSearchParams() }));
@@ -13,7 +14,7 @@ beforeEach(() => {
 describe("authoritative payment feedback", () => {
   it("waits for verification despite a success redirect, then shows the backend cancellation", () => {
     const onPaymentReturn = vi.fn();
-    const { rerender } = render(
+    const { rerender } = renderWithIntl(
       <PaymentStatusBanner
         onPaymentReturn={onPaymentReturn}
         verification={idle}
@@ -48,7 +49,7 @@ describe("authoritative payment feedback", () => {
     "displays verified %s independently of redirect status",
     (status) => {
       mocks.params = new URLSearchParams("cancel=true&orderCode=123");
-      render(
+      renderWithIntl(
         <PaymentStatusBanner
           onPaymentReturn={vi.fn()}
           verification={{
@@ -83,7 +84,7 @@ describe("authoritative payment feedback", () => {
         `status=success${code === undefined ? "" : `&orderCode=${code}`}`,
       );
       const verify = vi.fn();
-      render(
+      renderWithIntl(
         <PaymentStatusBanner onPaymentReturn={verify} verification={idle} />,
       );
       expect(screen.getByText("Unable to Verify Payment")).toBeInTheDocument();
@@ -95,7 +96,7 @@ describe("authoritative payment feedback", () => {
     "rejects an error or mismatched response and allows retry (%s)",
     (isError) => {
       const verify = vi.fn();
-      render(
+      renderWithIntl(
         <PaymentStatusBanner
           onPaymentReturn={verify}
           verification={{
@@ -122,7 +123,7 @@ describe("authoritative payment feedback", () => {
   );
 
   it("does not reuse success for a different order", () => {
-    render(
+    renderWithIntl(
       <PaymentStatusBanner
         onPaymentReturn={vi.fn()}
         verification={{

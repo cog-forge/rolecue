@@ -275,3 +275,21 @@ for (const theme of ["light", "dark"] as const) {
     });
   });
 }
+
+test("onboarding follows the selected Vietnamese language", async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.goto("/login");
+  await page.getByRole("button", { name: /Change language/ }).click();
+  await page.getByRole("menuitemradio", { name: "Tiếng Việt" }).click();
+  await page.goto("/dashboard");
+  await expect(
+    page.getByRole("heading", { name: "Chào mừng bạn đến với hành trình mới" }),
+  ).toBeVisible();
+  await page.getByRole("radio", { name: /^ứng viên /i }).press("Space");
+  await page
+    .getByRole("button", { name: "Tiếp tục với vai trò ứng viên" })
+    .click();
+  await expect(page.getByLabel("Tên hiển thị")).toBeVisible();
+});

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -10,7 +12,6 @@ import {
 } from "@/features/candidate/applications/api/applications";
 import type { CandidateApplication } from "@/features/candidate/applications/schemas/candidate-application-schema";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import { applicationStatusLabel } from "../utils/dashboard-text";
 import { CardError, CardLoading, DashboardCard } from "./dashboard-card";
 
 const PREVIEW_COUNT = 3;
@@ -18,6 +19,7 @@ const PREVIEW_COUNT = 3;
 // Reads the first page of the Candidate's Applications (the same list the Applications screen
 // uses). Interview eligibility comes from `can_start_interview`, as the server sends it.
 export function ApplicationsCard() {
+  const t = useTranslations("candidate.dashboard.applications");
   const user = useSessionUser();
   const query = useQuery({
     queryKey: candidateApplicationKeys.list(user.id, 1),
@@ -26,22 +28,20 @@ export function ApplicationsCard() {
   });
 
   return (
-    <DashboardCard title="Applications">
+    <DashboardCard title={t("title")}>
       {query.isPending ? (
-        <CardLoading label="Loading your applications…" />
+        <CardLoading label={t("loading")} />
       ) : query.isError ? (
         <CardError
-          message="We couldn't load your applications."
+          message={t("error")}
           disabled={query.isFetching}
           onRetry={() => void query.refetch()}
         />
       ) : query.data.total === 0 ? (
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            You haven&apos;t applied to any postings yet.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("empty")}</p>
           <Button asChild variant="outline" className="h-11 bg-background">
-            <Link href={routes.jobs}>Browse the Job Board</Link>
+            <Link href={routes.jobs}>{t("browse")}</Link>
           </Button>
         </div>
       ) : (
@@ -62,18 +62,20 @@ function ApplicationsBody({
   items: readonly CandidateApplication[];
 }) {
   const ready = items.filter((application) => application.can_start_interview);
+  const t = useTranslations("candidate.dashboard.applications");
   return (
     <div className="space-y-3">
       <p className="text-2xl font-semibold tabular-nums">
-        {total} {total === 1 ? "application" : "applications"}
+        {t("count", { count: total, countText: String(total) })}
       </p>
       {ready.length > 0 ? (
         <p className="text-sm text-muted-foreground">
-          Next step: start the interview for{" "}
-          <span className="font-medium text-foreground">
-            {ready[0].job_posting_title}
-          </span>
-          .
+          {t.rich("next", {
+            title: ready[0].job_posting_title,
+            name: (chunks) => (
+              <span className="font-medium text-foreground">{chunks}</span>
+            ),
+          })}
         </p>
       ) : null}
       <ul className="divide-y rounded-lg border">
@@ -89,13 +91,13 @@ function ApplicationsBody({
               {application.job_posting_title}
             </Link>
             <span className="shrink-0 text-xs text-muted-foreground">
-              {applicationStatusLabel[application.status]}
+              {t(`status.${application.status}`)}
             </span>
           </li>
         ))}
       </ul>
       <Button asChild variant="link" className="h-11 px-0">
-        <Link href={routes.applications}>View all applications</Link>
+        <Link href={routes.applications}>{t("view")}</Link>
       </Button>
     </div>
   );

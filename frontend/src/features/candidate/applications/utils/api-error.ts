@@ -1,4 +1,5 @@
 import { isAxiosError } from "axios";
+import type { useTranslations } from "next-intl";
 import { apiErrorMessage, type ErrorTranslator } from "@/lib/i18n/api-errors";
 
 // Reads the Go envelope { success:false, error:{ code, message } } without trusting its shape.
@@ -25,21 +26,33 @@ const finalCodes = new Set([
   "FORBIDDEN",
 ]);
 
-const applyMessages: Record<string, string> = {
-  ALREADY_APPLIED: "You already applied to this posting.",
-  INTAKE_NOT_OPEN: "This posting is no longer accepting applications.",
-  JOB_POSTING_NOT_FOUND: "This job posting is no longer available.",
-  FORBIDDEN: "Only candidate accounts can apply to job postings.",
-};
+export type ApplyErrorTranslator = ReturnType<
+  typeof useTranslations<"candidate.applications.applyErrors">
+>;
+
+// Codes with their own wording on this screen (catalog: candidate.applications.applyErrors).
+const applyCodes = [
+  "ALREADY_APPLIED",
+  "INTAKE_NOT_OPEN",
+  "JOB_POSTING_NOT_FOUND",
+  "FORBIDDEN",
+] as const;
+
+function isApplyCode(code: string): code is (typeof applyCodes)[number] {
+  return (applyCodes as readonly string[]).includes(code);
+}
 
 // Fixed copy for known codes; any other code uses the shared translated message for it. The
-// server's own text is never shown.
-export function applyErrorMessage(error: unknown, t: ErrorTranslator) {
+// server's own text is never shown. `t` is the shared error catalog, `applyT` this screen's copy.
+export function applyErrorMessage(
+  error: unknown,
+  t: ErrorTranslator,
+  applyT: ApplyErrorTranslator,
+) {
   const { code } = apiError(error);
-  if (code !== null && Object.hasOwn(applyMessages, code))
-    return applyMessages[code];
-  if (code === "VALIDATION_ERROR") return "Choose a PDF file up to 5 MB.";
-  return apiErrorMessage(t, error, "We couldn't upload your CV. Try again.");
+  if (code !== null && isApplyCode(code)) return applyT(code);
+  if (code === "VALIDATION_ERROR") return applyT("validation");
+  return apiErrorMessage(t, error, applyT("upload"));
 }
 
 export function canRetryApply(error: unknown) {

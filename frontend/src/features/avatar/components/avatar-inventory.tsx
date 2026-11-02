@@ -9,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { gooeyToast } from "goey-toast";
 import { Coins, LoaderCircle, Plus, RotateCcw } from "lucide-react";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
@@ -68,6 +69,7 @@ function PersonalInventory({
   userId: string;
   role: "candidate" | "recruiter";
 }) {
+  const t = useTranslations("candidate.avatars.inventory");
   const cache = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
@@ -109,13 +111,13 @@ function PersonalInventory({
 
   const remove = useMutation({
     mutationFn: (avatar: Avatar) => deleteAvatar(avatar.id),
-    onSuccess: (_, avatar) => finishDelete(avatar, "Avatar deleted"),
+    onSuccess: (_, avatar) => finishDelete(avatar, t("delete.deleted")),
     onError: (error, avatar) => {
       const failure = inventoryFailure(error, "delete");
       if (failure.denied)
         void cache.invalidateQueries({ queryKey: ["auth", "me"] });
       if (failure.confirmed && failure.code === "AVATAR_NOT_FOUND")
-        finishDelete(avatar, "This avatar was already deleted");
+        finishDelete(avatar, t("delete.alreadyDeleted"));
       // A dropped reply may follow a committed delete; refresh so the list shows the truth.
       if (!failure.confirmed)
         void cache.invalidateQueries({ queryKey: avatarKeys.all(userId) });
@@ -136,7 +138,7 @@ function PersonalInventory({
     void cache.invalidateQueries({ queryKey: avatarKeys.all(userId) });
     if (previewId === avatar.id) setParams({ avatar: null });
     gooeyToast.success(title, {
-      description: "One slot is free in your inventory.",
+      description: t("delete.freed"),
     });
   }
 
@@ -146,12 +148,12 @@ function PersonalInventory({
   const deleteMessage = !deleteFailure
     ? null
     : !deleteFailure.confirmed
-      ? "We couldn't confirm the deletion. Your list was refreshed; if the avatar is still listed, try again."
+      ? t("delete.unconfirmed")
       : deleteFailure.code === "AVATAR_IN_USE"
-        ? "This avatar is used by a job posting or an interview, so it can't be deleted."
+        ? t("delete.inUse")
         : deleteFailure.denied
-          ? "Your session can't delete avatars right now. Sign in again and retry."
-          : "We couldn't delete this avatar. Try again.";
+          ? t("delete.denied")
+          : t("delete.failed");
 
   const capacity = summary.data;
   const full = capacity?.is_full ?? false;
@@ -166,41 +168,38 @@ function PersonalInventory({
       <header className="flex flex-wrap items-end justify-between gap-5">
         <div className="space-y-3">
           <p className="text-xs font-semibold tracking-widest text-workspace-accent uppercase">
-            Your interviewers, your way
+            {t("eyebrow")}
           </p>
           <h1
             ref={heading}
             tabIndex={-1}
             className="text-3xl font-semibold tracking-tight text-balance outline-none sm:text-4xl"
           >
-            Personal Avatar Studio
+            {t("title")}
           </h1>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Create 3D avatars from your photos, give each one a personality, and
-            keep them in your private inventory.
+            {t("intro")}
           </p>
         </div>
         {full ? (
           <Button className="h-11" onClick={() => setBuying(true)}>
-            <Coins aria-hidden /> Buy slots
+            <Coins aria-hidden /> {t("buySlots")}
           </Button>
         ) : canCreate ? (
           <Button asChild className="h-11">
             <Link href={routes.avatarStudioNew}>
-              <Plus aria-hidden /> Create avatar
+              <Plus aria-hidden /> {t("createAvatar")}
             </Link>
           </Button>
         ) : (
           <Button className="h-11" disabled aria-describedby="create-reason">
-            <Plus aria-hidden /> Create avatar
+            <Plus aria-hidden /> {t("createAvatar")}
           </Button>
         )}
       </header>
       {!canCreate && !full && (
         <p id="create-reason" className="sr-only">
-          {summary.isPending
-            ? "Checking your avatar slots."
-            : "Your avatar slots couldn't be checked."}
+          {summary.isPending ? t("checking") : t("checkFailed")}
         </p>
       )}
 
@@ -221,7 +220,7 @@ function PersonalInventory({
           {Array.from({ length: 4 }, (_, index) => (
             <Skeleton key={index} className="aspect-[4/5] rounded-2xl" />
           ))}
-          <span className="sr-only">Loading your avatars…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : list.isError || !capacity ? (
         <div
@@ -229,9 +228,7 @@ function PersonalInventory({
           className="space-y-4 rounded-2xl border border-destructive/30 bg-destructive/5 p-6"
         >
           <p className="text-sm">
-            {denied
-              ? "Checking your account access… If this stays, sign in again."
-              : "We couldn't load your avatars."}
+            {denied ? t("accessChecking") : t("loadFailed")}
           </p>
           <Button
             variant="outline"
@@ -241,23 +238,24 @@ function PersonalInventory({
               void summary.refetch();
             }}
           >
-            Try again
+            {t("retry")}
           </Button>
         </div>
       ) : page > slotPages ? (
         <div className="space-y-4 rounded-2xl border p-6">
-          <p className="text-sm">
-            This page is past the end of your inventory.
-          </p>
+          <p className="text-sm">{t("pastEnd")}</p>
           <Button asChild variant="outline" className="h-11">
-            <Link href={routes.avatarStudio}>Go to the first page</Link>
+            <Link href={routes.avatarStudio}>{t("firstPage")}</Link>
           </Button>
         </div>
       ) : (
         <div className="space-y-6">
           <ul
             key={page}
-            aria-label={`Avatar slots, ${capacity.used} of ${capacity.capacity} used`}
+            aria-label={t("slotsList", {
+              used: capacity.used,
+              capacity: capacity.capacity,
+            })}
             className={cn(
               "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4",
               list.isPlaceholderData && "opacity-60",
@@ -311,7 +309,7 @@ function PersonalInventory({
               pageSize={avatarPageSize}
               total={capacity.capacity}
               disabled={list.isFetching}
-              label="Avatar slot pages"
+              label={t("pagination")}
               onPageChange={(next) =>
                 setParams({ page: next > 1 ? String(next) : null })
               }
@@ -355,12 +353,9 @@ function PersonalInventory({
         >
           <DialogHeader>
             <DialogTitle className="[overflow-wrap:anywhere]">
-              Delete {deleting?.name}?
+              {t("delete.title", { name: deleting?.name ?? "" })}
             </DialogTitle>
-            <DialogDescription>
-              This frees one slot in your inventory. Your capacity stays the
-              same. This can&apos;t be undone.
-            </DialogDescription>
+            <DialogDescription>{t("delete.description")}</DialogDescription>
           </DialogHeader>
           {deleteMessage && (
             <p role="alert" className="text-sm text-destructive">
@@ -374,7 +369,7 @@ function PersonalInventory({
               disabled={remove.isPending}
               onClick={() => setDeleting(null)}
             >
-              Keep avatar
+              {t("delete.keep")}
             </Button>
             <Button
               variant="destructive"
@@ -391,7 +386,7 @@ function PersonalInventory({
                   className="size-4 animate-spin motion-reduce:animate-none"
                 />
               )}
-              {remove.isPending ? "Deleting…" : "Delete avatar"}
+              {remove.isPending ? t("delete.pending") : t("delete.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -418,38 +413,44 @@ function CapacityPanel({
   onRefresh: () => void;
   onBuy: () => void;
 }) {
+  const t = useTranslations("candidate.avatars.inventory.capacity");
   return (
     <div className="flex flex-col gap-5 rounded-2xl border bg-card p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
       <div className="min-w-0 flex-1 space-y-3">
-        <p className="text-sm text-muted-foreground">Avatar slots</p>
+        <p className="text-sm text-muted-foreground">{t("label")}</p>
         {loading ? (
           <div role="status" className="space-y-3">
             <Skeleton className="h-8 w-40" />
             <Skeleton className="h-2 w-full max-w-md" />
-            <span className="sr-only">Checking your avatar slots…</span>
+            <span className="sr-only">{t("checking")}</span>
           </div>
         ) : failed || !capacity ? (
           <p role="alert" className="text-sm text-destructive">
-            We couldn&apos;t check your avatar slots.
+            {t("failed")}
           </p>
         ) : (
           <>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <p className="text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">
-                <PopNumber value={capacity.used} /> of{" "}
-                <PopNumber value={capacity.capacity} /> used
+                {t.rich("usedOf", {
+                  used: () => <PopNumber value={capacity.used} />,
+                  total: () => <PopNumber value={capacity.capacity} />,
+                })}
               </p>
               {capacity.is_full && (
                 <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-400/15 dark:text-amber-200">
-                  Full
+                  {t("full")}
                 </span>
               )}
             </div>
             <SlotMeter capacity={capacity} />
             <p className="text-sm text-muted-foreground">
               {capacity.is_full
-                ? "Delete an avatar you no longer need, or buy more slots to create another."
-                : `${capacity.available} free ${capacity.available === 1 ? "slot" : "slots"} for new avatars.`}
+                ? t("fullHint")
+                : t("free", {
+                    count: capacity.available,
+                    countText: String(capacity.available),
+                  })}
             </p>
           </>
         )}
@@ -459,7 +460,7 @@ function CapacityPanel({
           variant="ghost"
           size="icon"
           className="size-11"
-          aria-label="Refresh slots"
+          aria-label={t("refresh")}
           disabled={fetching}
           onClick={onRefresh}
         >
@@ -474,7 +475,7 @@ function CapacityPanel({
         {/* When full, the title row and the grid's last card carry the purchase instead. */}
         {!capacity?.is_full && (
           <Button variant="outline" className="h-11" onClick={onBuy}>
-            <Coins aria-hidden /> Buy slots
+            <Coins aria-hidden /> {t("buy")}
           </Button>
         )}
       </div>

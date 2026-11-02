@@ -4,7 +4,29 @@ import { avaturnExportSchema } from "../schemas/avatar-schema";
 // still validates its configured limit and the complete T2 asset.
 const maxDownloadBytes = 50 * 1024 * 1024;
 
-const tooLarge = "This avatar exceeds the 50 MB browser upload limit.";
+// The screen shows a translation chosen by `code`; `message` stays English for logs and tests.
+export type AvaturnExportErrorCode =
+  | "unreadable"
+  | "noFacialAnimation"
+  | "badLink"
+  | "tooLarge"
+  | "downloadFailed"
+  | "invalidFile";
+
+export class AvaturnExportError extends Error {
+  constructor(
+    readonly code: AvaturnExportErrorCode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+const tooLarge = () =>
+  new AvaturnExportError(
+    "tooLarge",
+    "This avatar exceeds the 50 MB browser upload limit.",
+  );
 
 // Why an export was refused, without the URL or any model data: enough to tell the cases apart.
 function reportRejected(reason: string, payload: unknown) {
@@ -46,20 +68,23 @@ export async function downloadAvaturnExport(
   const result = avaturnExportSchema.safeParse(payload);
   if (!result.success) {
     reportRejected("unrecognized payload", payload);
-    throw new Error(
+    throw new AvaturnExportError(
+      "unreadable",
       "Avaturn sent an export RoleCue couldn't read. Choose Next in Avaturn again.",
     );
   }
   const exported = result.data;
   if (!exported.avatarSupportsFaceAnimations) {
     reportRejected("no facial animation", payload);
-    throw new Error(
+    throw new AvaturnExportError(
+      "noFacialAnimation",
       "This avatar has no facial animation (it was created as T1). Create a new avatar in Avaturn, then choose Next again.",
     );
   }
   if (!validUrl(exported.urlType, exported.url)) {
     reportRejected("unsupported URL", payload);
-    throw new Error(
+    throw new AvaturnExportError(
+      "badLink",
       "Avaturn sent a download link RoleCue can't use. Choose Next in Avaturn again.",
     );
   }
@@ -67,7 +92,7 @@ export async function downloadAvaturnExport(
     exported.urlType === "dataURL" &&
     exported.url.length > (maxDownloadBytes * 4) / 3 + 128
   ) {
-    throw new Error(tooLarge);
+    throw tooLarge();
   }
   // Avaturn assets must never receive RoleCue cookies or authorization headers.
   const response = await fetch(exported.url, {
@@ -76,7 +101,8 @@ export async function downloadAvaturnExport(
     referrerPolicy: "no-referrer",
   });
   if (!response.ok || !response.body)
-    throw new Error(
+    throw new AvaturnExportError(
+      "downloadFailed",
       "We couldn't download the exported avatar. Export it again in Avaturn.",
     );
   const reader = response.body.getReader();
@@ -87,7 +113,7 @@ export async function downloadAvaturnExport(
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > maxDownloadBytes) throw new Error(tooLarge);
+      if (size > maxDownloadBytes) throw tooLarge();
       chunks.push(value.slice().buffer);
     }
   } finally {
@@ -102,7 +128,8 @@ export async function downloadAvaturnExport(
     header.getUint32(4, true) !== 2 ||
     header.getUint32(8, true) !== file.size
   ) {
-    throw new Error(
+    throw new AvaturnExportError(
+      "invalidFile",
       "Avaturn returned an invalid GLB file. Please export again.",
     );
   }

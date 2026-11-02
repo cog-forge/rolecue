@@ -4,6 +4,7 @@ import { PasswordVisibilityIcon } from "@/components/icons/password-visibility-i
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import type { FieldError, UseFormRegisterReturn } from "react-hook-form";
 
 export function PasswordField({
@@ -23,6 +24,7 @@ export function PasswordField({
   disabled?: boolean;
   registration: UseFormRegisterReturn;
 }) {
+  const t = useTranslations("auth.security.passwordField");
   const [visible, setVisible] = useState(false);
   const describedBy = error ? `${id}-error` : help ? `${id}-help` : undefined;
   return (
@@ -46,7 +48,9 @@ export function PasswordField({
           variant="ghost"
           size="icon-sm"
           onClick={() => setVisible((current) => !current)}
-          aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`}
+          aria-label={t(visible ? "hide" : "show", {
+            label: label.toLowerCase(),
+          })}
           aria-controls={id}
           aria-pressed={visible}
           disabled={disabled}

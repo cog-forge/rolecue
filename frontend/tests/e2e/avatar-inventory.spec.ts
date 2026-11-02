@@ -170,3 +170,37 @@ test("the preview falls back to 2D without WebGL, also at 390 px", async ({
   await expect(dialog.getByText(avatarItem(1).personality)).toBeVisible();
   expect(await noHorizontalScroll(page)).toBe(true);
 });
+
+test("the inventory speaks Vietnamese when NEXT_LOCALE is vi and keeps avatar data as stored", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await mockAvatarApi(page, {
+    role: "candidate",
+    capacity: 5,
+    items: [avatarItem(1), avatarItem(2)],
+  });
+  await page.goto("/avatar-studio");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Avatar Studio cá nhân" }),
+  ).toBeVisible();
+  await expect(page.getByText("Đã dùng 2/5")).toBeVisible();
+  await expect(page.getByText("Còn 3 ô trống cho avatar mới.")).toBeVisible();
+  await expect(
+    page
+      .getByRole("list", { name: "Ô avatar, đã dùng 2/5" })
+      .getByRole("listitem"),
+  ).toHaveCount(5);
+  await expect(page.getByText(avatarItem(1).personality)).toBeVisible();
+  await expect(page.getByText("Avatar 1", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Mua ô avatar" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Mua ô avatar" }),
+  ).toBeVisible();
+  expect(await noHorizontalScroll(page)).toBe(true);
+});

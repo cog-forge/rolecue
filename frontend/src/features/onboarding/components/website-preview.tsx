@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { ExternalLink, Globe } from "lucide-react";
 import {
@@ -9,6 +10,7 @@ import {
 } from "@/features/profile/schemas/profile-schema";
 
 export function WebsitePreview({ website }: { website: string }) {
+  const t = useTranslations("auth.onboarding");
   const [failedImage, setFailedImage] = useState<string | null>(null);
   const value = normalizeHttpsProfileUrlInput(website);
   const url = isHttpsProfileUrl(value) ? new URL(value) : null;
@@ -16,12 +18,12 @@ export function WebsitePreview({ website }: { website: string }) {
 
   return (
     <aside
-      aria-label="Company website preview"
+      aria-label={t("websitePreview")}
       className="rounded-2xl border border-[#e8e3e7] bg-white/65 p-4 dark:border-[#3c4962] dark:bg-[#202b40]"
     >
       <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-[#59657d] dark:text-[#aab7cf]">
         <Globe className="size-4" aria-hidden />
-        Website preview
+        {t("preview")}
       </div>
       {url ? (
         <a
@@ -52,7 +54,7 @@ export function WebsitePreview({ website }: { website: string }) {
               {url.hostname}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Open website in a new tab
+              {t("openWebsite")}
             </p>
           </div>
           <ExternalLink
@@ -62,7 +64,7 @@ export function WebsitePreview({ website }: { website: string }) {
         </a>
       ) : (
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Enter your company website to see it here.
+          {t("enterWebsite")}
         </p>
       )}
     </aside>

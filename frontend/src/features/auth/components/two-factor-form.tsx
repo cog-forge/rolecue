@@ -29,6 +29,7 @@ import {
 import { useTranslations } from "next-intl";
 
 export function TwoFactorForm({ returnTo }: { returnTo?: string }) {
+  const t = useTranslations("auth.twoFactor");
   const v = useTranslations("validation");
   const totpVerificationSchema = useMemo(
     () => createTotpVerificationSchema(v),
@@ -87,17 +88,15 @@ export function TwoFactorForm({ returnTo }: { returnTo?: string }) {
       <header className="space-y-3">
         <ShieldCheck className="size-8 text-rolecue-brand" aria-hidden />
         <h1 className="text-3xl font-semibold tracking-tight">
-          Verify your sign-in
+          {t("heading")}
         </h1>
         <p className="text-sm leading-6 text-muted-foreground">
-          {method === "totp"
-            ? "Enter the code from your authenticator app to finish signing in."
-            : "Enter one of your saved backup codes. Each code can be used once."}
+          {method === "totp" ? t("totpDescription") : t("backupDescription")}
         </p>
       </header>
       <form
         ref={formRef}
-        aria-label="Verify two-factor sign-in"
+        aria-label={t("form")}
         className="space-y-5"
         noValidate
         onSubmit={form.handleSubmit(async () => {
@@ -113,7 +112,7 @@ export function TwoFactorForm({ returnTo }: { returnTo?: string }) {
           className={`t-input-wrap space-y-1.5 ${form.formState.errors.code ? "is-error" : ""}`}
         >
           <label htmlFor="challenge-code" className="block text-sm font-medium">
-            {method === "totp" ? "Authenticator code" : "Backup code"}
+            {method === "totp" ? t("totp") : t("backup")}
           </label>
           <Input
             id="challenge-code"
@@ -157,7 +156,7 @@ export function TwoFactorForm({ returnTo }: { returnTo?: string }) {
                 disabled={verification.isPending || ended}
               />
               <label htmlFor="trust-device" className="text-sm">
-                Remember this browser for 30 days
+                {t("remember")}
               </label>
             </div>
           )}
@@ -176,7 +175,7 @@ export function TwoFactorForm({ returnTo }: { returnTo?: string }) {
           {verification.isPending && (
             <LoaderCircle className="animate-spin" aria-hidden />
           )}
-          {verification.isPending ? "Verifying…" : "Verify and sign in"}
+          {verification.isPending ? t("verifying") : t("verify")}
         </Button>
       </form>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
@@ -193,13 +192,13 @@ export function TwoFactorForm({ returnTo }: { returnTo?: string }) {
             verification.reset();
           }}
         >
-          {method === "totp" ? "Use a backup code" : "Use authenticator app"}
+          {method === "totp" ? t("useBackup") : t("useTotp")}
         </Button>
         <Link
           href={reauthenticationHref(returnTo)}
           className="inline-flex min-h-11 items-center text-sm underline underline-offset-4"
         >
-          Back to sign in
+          {t("back")}
         </Link>
       </div>
     </div>

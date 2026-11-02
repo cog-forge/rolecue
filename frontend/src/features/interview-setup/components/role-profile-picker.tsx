@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
@@ -18,12 +19,12 @@ import {
   getRoleProfile,
   listRoleProfiles,
   ROLE_PROFILES_PAGE_SIZE,
-  roleError,
 } from "@/features/role-profile/api/requests";
 import { useUnfinishedPractice } from "../api/setup-catalog";
 import { setupHref } from "../lib/setup-params";
 import { PracticeProgress, ResumeCallout } from "./resume-callout";
 import { SetupHeader } from "./setup-header";
+import { apiErrorMessage } from "@/lib/i18n/api-errors";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Step 3: the confirmed Role Profile the interview is built from. The choice lives in the URL.
@@ -32,6 +33,8 @@ export function RoleProfilePicker({
 }: {
   roleProfileId?: string;
 }) {
+  const t = useTranslations("candidate.setup");
+  const errors = useTranslations("errors");
   const fmt = useFormatters();
   const user = useSessionUser();
   const router = useRouter();
@@ -73,15 +76,15 @@ export function RoleProfilePicker({
     return (
       <section className="space-y-8" aria-busy="true">
         <SetupHeader
-          context="Interview setup"
-          title="Choose a Role Profile"
-          description="Checking your saved Role Profiles…"
+          context={t("context")}
+          title={t("roleProfile.title")}
+          description={t("roleProfile.loading.description")}
         />
         <div role="status" className="space-y-3">
           {[0, 1, 2].map((row) => (
             <Skeleton key={row} className="h-[4.5rem] rounded-xl" />
           ))}
-          <span className="sr-only">Loading your Role Profiles…</span>
+          <span className="sr-only">{t("roleProfile.loading.status")}</span>
         </div>
       </section>
     );
@@ -90,22 +93,28 @@ export function RoleProfilePicker({
     return (
       <section className="space-y-8">
         <SetupHeader
-          context="Interview setup"
-          title="Choose a Role Profile"
-          description="Your interview is built from a confirmed Role Profile."
+          context={t("context")}
+          title={t("roleProfile.title")}
+          description={t("roleProfile.intro")}
         />
         <div
           role="alert"
           className="space-y-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5"
         >
-          <p className="text-sm">{roleError(profiles.error)}</p>
+          <p className="text-sm">
+            {apiErrorMessage(
+              errors,
+              profiles.error,
+              t("roleProfile.loadFailed"),
+            )}
+          </p>
           <Button
             variant="outline"
-            className="h-11 bg-background"
+            className="h-auto min-h-11 whitespace-normal py-2 bg-background"
             disabled={profiles.isFetching}
             onClick={() => void profiles.refetch()}
           >
-            Try again
+            {t("tryAgain")}
           </Button>
         </div>
       </section>
@@ -115,13 +124,13 @@ export function RoleProfilePicker({
     return (
       <section className="space-y-6">
         <SetupHeader
-          context="Interview setup"
-          title="Confirm this role first."
-          description="Review and confirm your requirements and seniority before setup."
+          context={t("context")}
+          title={t("roleProfile.confirmFirst.title")}
+          description={t("roleProfile.confirmFirst.description")}
         />
-        <Button asChild className="h-11">
+        <Button asChild className="h-auto min-h-11 whitespace-normal py-2">
           <Link href={routes.roleProfiles.detail(linked.id)}>
-            Return to Role Profile
+            {t("roleProfile.confirmFirst.action")}
           </Link>
         </Button>
       </section>
@@ -133,26 +142,32 @@ export function RoleProfilePicker({
   const linkProblem =
     roleProfileId && !linked && deepLink.isError
       ? isAxiosError(deepLink.error) && deepLink.error.response?.status === 404
-        ? "We couldn't find that Role Profile. Choose one below."
-        : roleError(deepLink.error)
+        ? t("roleProfile.notFound")
+        : apiErrorMessage(errors, deepLink.error, t("roleProfile.loadFailed"))
       : null;
 
   if (confirmed.length === 0 && !profiles.hasNextPage)
     return (
       <section className="space-y-6">
         <SetupHeader
-          context="Interview setup"
-          title="Choose your Role Profile first."
-          description="Review and confirm a role before setting up your interview."
+          context={t("context")}
+          title={t("roleProfile.empty.title")}
+          description={t("roleProfile.empty.description")}
         />
         <div className="flex flex-wrap gap-3">
-          <Button asChild className="h-11">
+          <Button asChild className="h-auto min-h-11 whitespace-normal py-2">
             <Link href={routes.roleProfiles.new}>
-              <Plus aria-hidden="true" /> Add a Role Profile
+              <Plus aria-hidden="true" /> {t("roleProfile.add")}
             </Link>
           </Button>
-          <Button asChild variant="outline" className="h-11">
-            <Link href={routes.roleProfiles.root}>Open Role Profiles</Link>
+          <Button
+            asChild
+            variant="outline"
+            className="h-auto min-h-11 whitespace-normal py-2"
+          >
+            <Link href={routes.roleProfiles.root}>
+              {t("roleProfile.empty.openAll")}
+            </Link>
           </Button>
         </div>
       </section>
@@ -163,9 +178,9 @@ export function RoleProfilePicker({
   return (
     <section className="space-y-8">
       <SetupHeader
-        context="Interview setup"
-        title="Choose a Role Profile"
-        description="Your interview asks about the requirements of the confirmed role you pick. Its questions stay hidden until you start."
+        context={t("context")}
+        title={t("roleProfile.title")}
+        description={t("roleProfile.description")}
       />
 
       {linkProblem && (
@@ -179,7 +194,7 @@ export function RoleProfilePicker({
 
       <div className="space-y-3">
         <h2 id={headingId} className="text-sm font-medium">
-          Confirmed Role Profiles
+          {t("roleProfile.listLabel")}
         </h2>
         <RadioGroup
           aria-labelledby={headingId}
@@ -208,19 +223,24 @@ export function RoleProfilePicker({
                       {profile.title}
                     </span>
                     <span className="mt-0.5 block text-sm text-muted-foreground">
-                      <span className="capitalize">
-                        {profile.seniorityLevel ?? "Seniority not set"}
+                      <span>
+                        {profile.seniorityLevel
+                          ? t(`roleProfile.seniority.${profile.seniorityLevel}`)
+                          : t("roleProfile.seniority.notSet")}
                       </span>
-                      {" · Created "}
-                      <time dateTime={profile.createdAt}>
-                        {fmt.date(profile.createdAt, "dayMonthYear")}
-                      </time>
+                      {" · "}
+                      {t.rich("roleProfile.created", {
+                        date: fmt.date(profile.createdAt, "dayMonthYear"),
+                        time: (chunks) => (
+                          <time dateTime={profile.createdAt}>{chunks}</time>
+                        ),
+                      })}
                     </span>
                   </span>
                   {hasUnfinished && (
                     <Badge variant="secondary" className="h-6 gap-1.5">
                       <History aria-hidden="true" />
-                      Unfinished interview
+                      {t("roleProfile.unfinishedBadge")}
                     </Badge>
                   )}
                 </span>
@@ -231,58 +251,68 @@ export function RoleProfilePicker({
         {profiles.hasNextPage && (
           <Button
             variant="ghost"
-            className="h-11"
+            className="h-auto min-h-11 whitespace-normal py-2"
             disabled={profiles.isFetchingNextPage}
             onClick={() => void profiles.fetchNextPage()}
           >
             {profiles.isFetchingNextPage
-              ? "Loading more…"
-              : "Show more Role Profiles"}
+              ? t("roleProfile.loadingMore")
+              : t("roleProfile.loadMore")}
           </Button>
         )}
       </div>
 
       {resume ? (
         <ResumeCallout
-          title="You have an unfinished interview for this role"
+          title={t("resume.title")}
           details={<PracticeProgress session={resume} />}
-          note="Resuming is free and keeps its interviewer and voice."
+          note={t("resume.note")}
         >
-          <Button asChild className="h-11 w-full sm:w-auto">
+          <Button
+            asChild
+            className="h-auto min-h-11 whitespace-normal py-2 w-full sm:w-auto"
+          >
             <Link
               href={setupHref(routes.interviews.new.preflight, {
                 roleProfileId: resume.roleProfileId,
               })}
             >
-              Resume interview <ArrowRight aria-hidden="true" />
+              {t("resume.action")} <ArrowRight aria-hidden="true" />
             </Link>
           </Button>
         </ResumeCallout>
       ) : (
         <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <Button asChild variant="ghost" className="h-11">
+          <Button
+            asChild
+            variant="ghost"
+            className="h-auto min-h-11 whitespace-normal py-2"
+          >
             <Link href={routes.roleProfiles.new}>
-              <Plus aria-hidden="true" /> Add a Role Profile
+              <Plus aria-hidden="true" /> {t("roleProfile.add")}
             </Link>
           </Button>
           <div className="flex flex-col gap-2 sm:items-end">
             {selected && !unfinished.isPending ? (
-              <Button asChild className="h-11">
+              <Button
+                asChild
+                className="h-auto min-h-11 whitespace-normal py-2"
+              >
                 <Link
                   href={setupHref(routes.interviews.new.interviewer, {
                     roleProfileId: selected.id,
                   })}
                 >
-                  Continue to interviewer <ArrowRight aria-hidden="true" />
+                  {t("roleProfile.continue")} <ArrowRight aria-hidden="true" />
                 </Link>
               </Button>
             ) : (
               <Button
-                className="h-11"
+                className="h-auto min-h-11 whitespace-normal py-2"
                 disabled
                 aria-describedby={`${headingId}-hint`}
               >
-                Continue to interviewer <ArrowRight aria-hidden="true" />
+                {t("roleProfile.continue")} <ArrowRight aria-hidden="true" />
               </Button>
             )}
             {(!selected || unfinished.isPending) && (
@@ -292,8 +322,8 @@ export function RoleProfilePicker({
                 className="text-xs text-muted-foreground"
               >
                 {selected
-                  ? "Checking for an unfinished interview…"
-                  : "Choose a Role Profile to continue."}
+                  ? t("roleProfile.hint.checking")
+                  : t("roleProfile.hint.choose")}
               </p>
             )}
           </div>

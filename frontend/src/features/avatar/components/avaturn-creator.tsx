@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { AvaturnSDK } from "@avaturn/sdk";
+import { useTranslations } from "next-intl";
 import {
   Camera,
   LoaderCircle,
@@ -30,7 +31,16 @@ export function AvaturnCreator({
   expanded: boolean;
   onToggleExpanded: () => void;
 }) {
+  const t = useTranslations("candidate.avatarStudio.creator");
   const container = useRef<HTMLDivElement>(null);
+  const frameTitle = t("frameTitle");
+  // The SDK effect below must not re-run when the language changes, so it reads the title from a ref.
+  const frameTitleRef = useRef(frameTitle);
+  useEffect(() => {
+    frameTitleRef.current = frameTitle;
+    const iframe = container.current?.querySelector("iframe");
+    if (iframe) iframe.title = frameTitle;
+  }, [frameTitle]);
   const [attempt, setAttempt] = useState(0);
   const [confirmReload, setConfirmReload] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
@@ -84,7 +94,7 @@ export function AvaturnCreator({
     // insertion would not affect the loaded document, so only the accessible name is added.
     const observer = new MutationObserver(() => {
       const iframe = element.querySelector("iframe");
-      if (iframe) iframe.title = "Avaturn avatar creator";
+      if (iframe) iframe.title = frameTitleRef.current;
     });
     observer.observe(element, { childList: true });
     return () => {
@@ -105,12 +115,12 @@ export function AvaturnCreator({
           className="max-w-lg text-xs leading-relaxed text-muted-foreground sm:text-sm"
         >
           {status === "loading"
-            ? "Connecting to Avaturn…"
+            ? t("connecting")
             : status === "error"
-              ? "We couldn't open Avaturn. Try reloading the creator."
-              : "Create and customize your avatar, then choose Next in Avaturn."}
+              ? t("openFailed")
+              : t("ready")}
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             className="min-h-11 px-3"
             type="button"
@@ -119,7 +129,7 @@ export function AvaturnCreator({
             onClick={onToggleExpanded}
           >
             {expanded ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
-            {expanded ? "Restore layout" : "Expand editor"}
+            {expanded ? t("restore") : t("expand")}
           </Button>
           <Button
             type="button"
@@ -129,7 +139,7 @@ export function AvaturnCreator({
               status === "error" ? reload() : setConfirmReload(true)
             }
           >
-            <RotateCcw aria-hidden /> Reload creator
+            <RotateCcw aria-hidden /> {t("reload")}
           </Button>
         </div>
       </div>
@@ -160,9 +170,9 @@ export function AvaturnCreator({
           </span>
           <p
             className="t-shimmer text-sm font-medium"
-            data-text="Getting your studio ready"
+            data-text={t("gettingReady")}
           >
-            Getting your studio ready
+            {t("gettingReady")}
           </p>
           <LoaderCircle
             aria-hidden
@@ -172,21 +182,18 @@ export function AvaturnCreator({
       </div>
       <Dialog open={confirmReload} onOpenChange={setConfirmReload}>
         <DialogContent>
-          <DialogTitle>Restart the Avaturn creator?</DialogTitle>
-          <DialogDescription>
-            Reloading may discard your current appearance edits in Avaturn. Your
-            RoleCue name and personality will stay here.
-          </DialogDescription>
+          <DialogTitle>{t("restartTitle")}</DialogTitle>
+          <DialogDescription>{t("restartBody")}</DialogDescription>
           <DialogFooter>
             <Button
               className="min-h-11"
               variant="outline"
               onClick={() => setConfirmReload(false)}
             >
-              Keep editing
+              {t("keepEditing")}
             </Button>
             <Button className="min-h-11" onClick={reload}>
-              Restart creator
+              {t("restart")}
             </Button>
           </DialogFooter>
         </DialogContent>

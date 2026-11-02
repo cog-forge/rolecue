@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { isAxiosError } from "axios";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { ArrowRight, LoaderCircle, RefreshCw } from "lucide-react";
 import {
   Accordion,
@@ -20,9 +21,9 @@ import {
   analyzeRoleProfile,
   confirmRoleProfile,
   getRoleProfile,
-  roleError,
   saveRoleProfile,
 } from "../api/requests";
+import { useRoleError } from "../lib/use-role-error";
 import { OriginalRoleDocument } from "./original-role-document";
 import { RoleProfileStatus } from "./role-profile-status";
 import { RoleProfileSteps } from "./role-profile-steps";
@@ -34,6 +35,8 @@ type ReviewAction = {
   review: RoleReview;
 };
 export function RoleProfileDetail({ id }: { id: string }) {
+  const t = useTranslations("candidate.roleProfiles.detail");
+  const roleError = useRoleError();
   const user = useSessionUser();
   const cache = useQueryClient();
   const key = roleProfileKeys.detail(user.id, id);
@@ -75,7 +78,7 @@ export function RoleProfileDetail({ id }: { id: string }) {
     return (
       <div
         role="status"
-        aria-label="Loading Role Profile"
+        aria-label={t("loading")}
         className="mx-auto max-w-6xl space-y-6"
         aria-busy="true"
       >
@@ -89,20 +92,20 @@ export function RoleProfileDetail({ id }: { id: string }) {
   if (!profile || denied)
     return (
       <section className="mx-auto max-w-6xl space-y-5">
-        <h1 className="text-3xl font-semibold">Role Profile</h1>
+        <h1 className="text-3xl font-semibold">{t("heading")}</h1>
         <p role="alert">{roleError(query.error)}</p>
         <Button
           variant="outline"
-          className="h-11"
+          className="h-auto min-h-11 py-2 whitespace-normal"
           onClick={() => void query.refetch()}
         >
-          Try again
+          {t("retry")}
         </Button>
         <Link
           href={routes.roleProfiles.root}
           className="block text-sm underline"
         >
-          Back to Role Profiles
+          {t("backToLibrary")}
         </Link>
       </section>
     );
@@ -116,13 +119,13 @@ export function RoleProfileDetail({ id }: { id: string }) {
           href={routes.roleProfiles.root}
           className="inline-flex min-h-11 items-center text-sm text-muted-foreground underline-offset-4 hover:underline"
         >
-          Role Profiles
+          {t("back")}
         </Link>
         <div className="flex flex-wrap items-center gap-3">
           <RoleProfileStatus status={profile.status} />
           <Button
             variant="ghost"
-            className="h-11"
+            className="h-auto min-h-11 py-2 whitespace-normal"
             disabled={query.isFetching || busy}
             onClick={() => {
               review.reset();
@@ -130,22 +133,18 @@ export function RoleProfileDetail({ id }: { id: string }) {
               void query.refetch();
             }}
           >
-            <RefreshCw aria-hidden="true" /> Refresh status
+            <RefreshCw aria-hidden="true" /> {t("refresh")}
           </Button>
         </div>
         <h1 className="max-w-4xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          {reviewing
-            ? "Confirm the role before you practice."
-            : analysis
-              ? "Let’s find the role’s focus."
-              : "Your Role Profile is confirmed."}
+          {t(
+            `title.${reviewing ? "review" : analysis ? "analysis" : "confirmed"}`,
+          )}
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          {reviewing
-            ? "AI extraction is a starting point. Review, refine, and save what matters to you."
-            : analysis
-              ? "Your original job description is saved. Extract its technical requirements to begin your review."
-              : "Your reviewed requirements, seniority and refinement note are saved for the next step."}
+          {t(
+            `description.${reviewing ? "review" : analysis ? "analysis" : "confirmed"}`,
+          )}
         </p>
         <RoleProfileSteps
           current={reviewing ? "review" : analysis ? "input" : "confirmed"}
@@ -153,8 +152,7 @@ export function RoleProfileDetail({ id }: { id: string }) {
       </header>
       {query.error && (
         <p role="alert" className="text-sm text-destructive">
-          Unable to refresh. Your current review is still here; try refreshing
-          again.
+          {t("refreshFailed")}
         </p>
       )}
       {(!reviewing || staleReview) && error && (
@@ -187,14 +185,14 @@ export function RoleProfileDetail({ id }: { id: string }) {
         <div className="space-y-5 rounded-2xl border bg-card p-6 sm:p-8">
           <p role="status" className="text-sm text-muted-foreground">
             {busy || running
-              ? "Analyzing technical requirements. You can refresh to check the saved status."
+              ? t("analyzing")
               : prepare.isError
-                ? "Analysis didn’t finish. Your text is safe; try again."
-                : "Ready to analyze your saved job description."}
+                ? t("analysisFailed")
+                : t("ready")}
           </p>
           <Button
             disabled={busy}
-            className="h-11"
+            className="h-auto min-h-11 py-2 whitespace-normal"
             onClick={() => prepare.mutate()}
           >
             {busy ? (
@@ -205,12 +203,9 @@ export function RoleProfileDetail({ id }: { id: string }) {
             ) : (
               <ArrowRight aria-hidden="true" />
             )}
-            {running ? "Retry analysis" : "Analyze role"}
+            {running ? t("retryAnalysis") : t("analyze")}
           </Button>
-          <p className="text-xs text-muted-foreground">
-            If an earlier attempt is still running, retry will keep that attempt
-            and won’t start another.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("retryHint")}</p>
         </div>
       ) : (
         <RoleReviewSummary profile={profile} />
@@ -222,12 +217,11 @@ export function RoleProfileDetail({ id }: { id: string }) {
       >
         <AccordionItem value="original">
           <AccordionTrigger className="min-h-11 items-center">
-            Original job description
+            {t("originalTitle")}
           </AccordionTrigger>
           <AccordionContent>
             <p className="max-h-96 overflow-auto leading-relaxed whitespace-pre-wrap text-muted-foreground">
-              {profile.rawText ||
-                "Original text is not available for this legacy Role Profile."}
+              {profile.rawText || t("originalMissing")}
             </p>
           </AccordionContent>
         </AccordionItem>

@@ -60,7 +60,15 @@ export function isHttpsProfileUrl(value: string) {
   }
 }
 
-export function createProfileFormSchema(profile: Profile) {
+export function createProfileFormSchema(
+  profile: Profile,
+  messages?: {
+    name: string;
+    image: string;
+    companyLength: string;
+    website: string;
+  },
+) {
   return z
     .object({
       full_name: z.string(),
@@ -73,7 +81,9 @@ export function createProfileFormSchema(profile: Profile) {
         ctx.addIssue({
           code: "custom",
           path: ["full_name"],
-          message: "Enter a display name between 1 and 100 characters.",
+          message:
+            messages?.name ??
+            "Enter a display name between 1 and 100 characters.",
         });
       if (
         values.image !== (profile.image ?? "") &&
@@ -84,6 +94,7 @@ export function createProfileFormSchema(profile: Profile) {
           code: "custom",
           path: ["image"],
           message:
+            messages?.image ??
             "Use an HTTPS image URL without credentials, up to 2048 characters.",
         });
       if (profile.role !== "recruiter") return;
@@ -91,7 +102,9 @@ export function createProfileFormSchema(profile: Profile) {
         ctx.addIssue({
           code: "custom",
           path: ["company_name"],
-          message: "Company name must be 200 characters or fewer.",
+          message:
+            messages?.companyLength ??
+            "Company name must be 200 characters or fewer.",
         });
       if (
         values.company_website !== (profile.company_website ?? "") &&
@@ -102,6 +115,7 @@ export function createProfileFormSchema(profile: Profile) {
           code: "custom",
           path: ["company_website"],
           message:
+            messages?.website ??
             "Use an HTTPS website URL without credentials, up to 2048 characters.",
         });
     });

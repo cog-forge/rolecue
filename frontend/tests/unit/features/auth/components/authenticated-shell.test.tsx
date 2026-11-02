@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthenticatedShell } from "@/features/auth/components/authenticated-shell";
 
@@ -73,7 +74,7 @@ function mount() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <AuthenticatedShell>
         <p>Workspace content</p>

@@ -320,3 +320,29 @@ test("Peek avatars animate and stop when reduced motion is enabled", async ({
   await page.waitForTimeout(300);
   expect(await avatar.innerHTML()).toBe(still);
 });
+
+test("the profile page follows the Vietnamese language and keeps stored values", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await mockProfile(page);
+  await page.goto("/profile");
+  await expect(
+    page.getByRole("heading", { name: "Hồ sơ của bạn", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Tên hiển thị")).toHaveValue("Alex Doe");
+  await expect(
+    page.getByRole("button", { name: "Lưu thay đổi" }),
+  ).toBeDisabled();
+  await page.getByLabel("Tên hiển thị").fill("Alex Nguyen");
+  await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+  await expect(
+    page
+      .getByRole("form", { name: "Chỉnh sửa hồ sơ của bạn" })
+      .getByRole("status"),
+  ).toHaveText(/Đã lưu hồ sơ của bạn/);
+});

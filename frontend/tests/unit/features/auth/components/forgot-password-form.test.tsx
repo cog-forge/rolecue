@@ -17,6 +17,13 @@ vi.mock("goey-toast", () => ({ gooeyToast: { info, error } }));
 describe("ForgotPasswordForm", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("shows the recovery form in Vietnamese", () => {
+    renderWithIntl(<ForgotPasswordForm />, { locale: "vi" });
+    expect(
+      screen.getByRole("heading", { name: "Đặt lại mật khẩu" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Địa chỉ email")).toBeInTheDocument();
+  });
   it.each(["sdk", "network"])(
     "keeps the form available after a %s failure and permits retry",
     async (failure) => {

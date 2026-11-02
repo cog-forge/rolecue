@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { roleLabels, getActiveNavigation } from "@/config/navigation";
+import { getActiveNavigation } from "@/config/navigation";
 import { useWorkspacePreferences } from "@/providers/workspace-provider";
 import {
   WorkspaceSidebar,
@@ -23,6 +23,7 @@ import {
 } from "./workspace-sidebar";
 import { LanguageSwitcher } from "./language-switcher";
 import { WorkspaceSearch } from "./workspace-search";
+import { useNavigationLabels } from "./navigation-labels";
 import { cn } from "@/lib/utils";
 
 export function ApplicationShell({
@@ -38,6 +39,8 @@ export function ApplicationShell({
   navigationBadges?: Readonly<Record<string, { count: number; label: string }>>;
 } & WorkspaceAccountActions) {
   const common = useTranslations("common");
+  const t = useTranslations("common.shell");
+  const labels = useNavigationLabels();
   const preferences = useWorkspacePreferences();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -92,7 +95,7 @@ export function ApplicationShell({
   if (!preferences.ready)
     return (
       <div role="status" className="p-6">
-        <span className="sr-only">Preparing your workspace…</span>
+        <span className="sr-only">{t("preparing")}</span>
         <Skeleton className="h-24 w-full" />
       </div>
     );
@@ -103,13 +106,14 @@ export function ApplicationShell({
         {children}
       </main>
     );
-  const pageLabel =
-    getActiveNavigation(user.role, pathname)?.label ??
-    (pathname === "/profile"
-      ? "Your Profile"
+  const activeItem = getActiveNavigation(user.role, pathname);
+  const pageLabel = activeItem
+    ? labels.item(activeItem.label)
+    : pathname === "/profile"
+      ? t("pageProfile")
       : pathname === "/settings"
-        ? "Account Security"
-        : "Workspace");
+        ? t("pageSecurity")
+        : t("pageDefault");
   return (
     <TooltipProvider delayDuration={150}>
       <a
@@ -124,7 +128,7 @@ export function ApplicationShell({
       >
         {!preferences.mobile && (
           <aside
-            aria-label="Workspace sidebar"
+            aria-label={t("sidebarLabel")}
             className={cn(
               "sticky top-3 m-3 mr-0 h-[calc(100dvh-24px)] shrink-0 rounded-3xl border bg-sidebar text-sidebar-foreground shadow-sm transition-[width] duration-550 ease-[cubic-bezier(.32,.72,0,1)] motion-reduce:transition-none",
               preferences.collapsed ? "w-[72px]" : "w-[264px]",
@@ -151,7 +155,7 @@ export function ApplicationShell({
                     ref={mobileTrigger}
                     variant="ghost"
                     className="size-11"
-                    aria-label="Open workspace navigation"
+                    aria-label={t("openNavigation")}
                   >
                     <Menu className="size-5" aria-hidden />
                   </Button>
@@ -161,10 +165,10 @@ export function ApplicationShell({
                   className="z-90 w-[min(320px,calc(100vw-32px))]! gap-0 p-0 [&>[data-slot=sheet-close]]:size-11"
                 >
                   <SheetTitle className="sr-only">
-                    Workspace navigation
+                    {t("navigationTitle")}
                   </SheetTitle>
                   <SheetDescription className="sr-only">
-                    {roleLabels[user.role]} pages and account actions.
+                    {t("navigationDescription", { role: user.role })}
                   </SheetDescription>
                   <WorkspaceSidebar
                     user={user}
@@ -180,17 +184,15 @@ export function ApplicationShell({
             )}
             <div className="min-w-0">
               <p className="text-[10px] font-semibold tracking-[.14em] text-muted-foreground uppercase">
-                {roleLabels[user.role]} workspace
+                {t("workspaceOf", { role: user.role })}
               </p>
-              <p className="mt-1 truncate text-sm font-semibold">{pageLabel}</p>
+              <p className="mt-1 text-sm font-semibold wrap-break-word">
+                {pageLabel}
+              </p>
             </div>
             <div className="ml-auto flex items-center gap-3">
               <span className="hidden text-xs text-muted-foreground sm:block">
-                {user.role === "candidate"
-                  ? "A steady place to prepare."
-                  : user.role === "recruiter"
-                    ? "Your recruitment workspace."
-                    : "Platform governance."}
+                {t(`tagline.${user.role}`)}
               </span>
               <LanguageSwitcher />
             </div>

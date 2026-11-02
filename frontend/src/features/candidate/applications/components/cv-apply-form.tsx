@@ -26,18 +26,28 @@ import { useTranslations } from "next-intl";
 const isPdf = (file: File) =>
   file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
-function cvFileError(file: File) {
-  if (!isPdf(file)) return "Choose a PDF file.";
-  if (file.size === 0) return "That file is empty. Choose another PDF.";
-  if (file.size > CV_MAX_BYTES)
-    return "That PDF is too large. Choose one up to 5 MB.";
+// Which message to show; it is translated when rendered so a language switch reaches it.
+type CvFileError = "notPdf" | "empty" | "tooLarge";
+
+function cvFileError(file: File): CvFileError | null {
+  if (!isPdf(file)) return "notPdf";
+  if (file.size === 0) return "empty";
+  if (file.size > CV_MAX_BYTES) return "tooLarge";
   return null;
 }
 
-const fileSize = (bytes: number, fmt: Formatters) =>
+type CvFormTranslator = ReturnType<
+  typeof useTranslations<"candidate.applications.cvForm">
+>;
+
+const fileSize = (bytes: number, fmt: Formatters, t: CvFormTranslator) =>
   bytes < 1024 * 1024
-    ? `${fmt.number(bytes / 1024, { maximumFractionDigits: 1 })} KB`
-    : `${fmt.number(bytes / 1024 / 1024, { maximumFractionDigits: 1 })} MB`;
+    ? t("sizeKb", {
+        size: fmt.number(bytes / 1024, { maximumFractionDigits: 1 }),
+      })
+    : t("sizeMb", {
+        size: fmt.number(bytes / 1024 / 1024, { maximumFractionDigits: 1 }),
+      });
 
 // Uploads one CV to the posting, picked or dropped. onApplied receives the new Application; a failed
 // upload keeps the same file so "Try again" resends it. onBusyChange lets a dialog stay open meanwhile.
@@ -52,11 +62,13 @@ export function CvApplyForm({
 }) {
   const fmt = useFormatters();
   const errorsT = useTranslations("errors");
+  const applyT = useTranslations("candidate.applications.applyErrors");
+  const t = useTranslations("candidate.applications.cvForm");
   const user = useSessionUser();
   const cache = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<CvFileError | null>(null);
   const [progress, setProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
 
@@ -80,7 +92,11 @@ export function CvApplyForm({
   const busy = upload.isPending;
   const failed = upload.isError;
   const retryable = failed && canRetryApply(upload.error);
-  const message = failed ? applyErrorMessage(upload.error, errorsT) : fileError;
+  const message = failed
+    ? applyErrorMessage(upload.error, errorsT, applyT)
+    : fileError
+      ? t(`errors.${fileError}`)
+      : null;
 
   const pick = (picked: File | null) => {
     upload.reset();
@@ -130,7 +146,7 @@ export function CvApplyForm({
             <FileText className="size-4 shrink-0" aria-hidden />
             <span>{file.name}</span>
             <span className="font-normal text-muted-foreground">
-              {fileSize(file.size, fmt)}
+              {fileSize(file.size, fmt, t)}
             </span>
           </p>
         ) : (
@@ -144,10 +160,10 @@ export function CvApplyForm({
           aria-describedby="cv-hint"
           onClick={() => input.current?.click()}
         >
-          {file ? "Choose another PDF" : "Choose your CV (PDF)"}
+          {file ? t("chooseAnother") : t("choose")}
         </Button>
         <p id="cv-hint" className="text-xs text-muted-foreground">
-          Or drop it here. One PDF with selectable text, up to 5 MB.
+          {t("hint")}
         </p>
       </div>
 
@@ -155,7 +171,7 @@ export function CvApplyForm({
         <div className="space-y-2">
           <div
             role="progressbar"
-            aria-label="CV upload progress"
+            aria-label={t("progressLabel")}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={progress}
@@ -172,9 +188,7 @@ export function CvApplyForm({
               className="size-4 animate-spin motion-reduce:animate-none"
               aria-hidden
             />
-            {progress < 100
-              ? `Uploading your CV… ${progress}%`
-              : "Saving your CV…"}
+            {progress < 100 ? t("uploading", { progress }) : t("saving")}
           </p>
         </div>
       )}
@@ -187,7 +201,7 @@ export function CvApplyForm({
               href={routes.applications}
               className="inline-flex min-h-11 items-center font-medium text-foreground underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             >
-              View my applications
+              {t("viewMine")}
             </Link>
           )}
         </div>
@@ -203,12 +217,12 @@ export function CvApplyForm({
         {retryable ? (
           <>
             <RotateCcw aria-hidden />
-            Try again
+            {t("tryAgain")}
           </>
         ) : busy ? (
-          "Sending…"
+          t("sending")
         ) : (
-          "Send application"
+          t("send")
         )}
       </Button>
     </div>

@@ -42,6 +42,7 @@ export function WalletPurchase({
   collapsed: boolean;
 }) {
   const fmt = useFormatters();
+  const t = useTranslations("candidate.billing.purchase");
   const [open, setOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const wallet = useQuery({
@@ -65,7 +66,7 @@ export function WalletPurchase({
           <DialogTrigger asChild>
             <Button
               variant="ghost"
-              aria-label="Buy coins"
+              aria-label={t("buyCoins")}
               className={
                 collapsed
                   ? "h-auto min-h-11 w-full flex-col gap-1 rounded-xl px-1 py-2"
@@ -88,7 +89,7 @@ export function WalletPurchase({
           sideOffset={8}
           className="z-110 whitespace-nowrap duration-(--duration-quick) ease-out data-[state=closed]:animate-none motion-reduce:animate-none"
         >
-          {wallet.isError ? "Balance unavailable · Add coins" : "Add coins"}
+          {wallet.isError ? t("tooltipUnavailable") : t("tooltip")}
         </TooltipContent>
       </Tooltip>
     </AddCoinsDialog>
@@ -118,6 +119,7 @@ export function AddCoinsDialog({
   children?: React.ReactNode;
 }) {
   const errorsT = useTranslations("errors");
+  const t = useTranslations("candidate.billing.purchase");
   const cache = useQueryClient();
   const packages = useQuery({
     queryKey: walletKeys.packages(),
@@ -161,9 +163,9 @@ export function AddCoinsDialog({
       >
         <DialogHeader className="shrink-0 px-6 pt-6 pb-5 pr-16">
           <DialogTitle className="text-xl font-semibold tracking-tight">
-            Add coins
+            {t("dialogTitle")}
           </DialogTitle>
-          <DialogDescription>One-time payment · PayOS</DialogDescription>
+          <DialogDescription>{t("dialogDescription")}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pb-6">
           <PackageGrid

@@ -387,3 +387,38 @@ test("navigation icon motion responds to row hover and keyboard focus, and respe
   await expect(link.locator("svg.lucide")).toHaveCount(1);
   await expect(link.locator("svg")).toHaveAttribute("aria-hidden", "true");
 });
+
+test("the candidate sidebar and account menu follow the Vietnamese language", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await session(page, "candidate");
+  await page.goto("/dashboard");
+  const nav = page.getByRole("navigation", { name: "Điều hướng ứng viên" });
+  await expect(
+    nav.getByRole("link", { name: "Tổng quan", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    nav.getByRole("link", { name: "Bảng tin tuyển dụng" }),
+  ).toBeVisible();
+  await expect(
+    nav.getByRole("link", { name: "Hồ sơ vị trí", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Mở menu tài khoản" }).click();
+  await expect(
+    page.getByRole("menuitem", { name: "Hồ sơ của bạn" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { name: "Bảo mật tài khoản" }),
+  ).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Đăng xuất" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Tìm trang" }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Tìm trang trong không gian làm việc" }),
+  ).toBeVisible();
+});

@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -7,12 +9,12 @@ import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { dashboardKeys, listDashboardRoleProfiles } from "../api/dashboard";
 import type { RoleProfileSummary } from "../schemas/dashboard-schema";
-import { roleProfileStatusLabel } from "../utils/dashboard-text";
 import { CardError, CardLoading, DashboardCard } from "./dashboard-card";
 
 const PREVIEW_COUNT = 3;
 
 export function RoleProfilesCard() {
+  const t = useTranslations("candidate.dashboard.profiles");
   const user = useSessionUser();
   const query = useQuery({
     queryKey: dashboardKeys.roleProfiles(user.id),
@@ -21,12 +23,12 @@ export function RoleProfilesCard() {
   });
 
   return (
-    <DashboardCard title="Target JDs">
+    <DashboardCard title={t("title")}>
       {query.isPending ? (
-        <CardLoading label="Loading your Target JDs…" />
+        <CardLoading label={t("loading")} />
       ) : query.isError ? (
         <CardError
-          message="We couldn't load your Target JDs."
+          message={t("error")}
           disabled={query.isFetching}
           onRetry={() => void query.refetch()}
         />
@@ -47,15 +49,13 @@ function RoleProfilesBody({
   total: number;
   items: readonly RoleProfileSummary[];
 }) {
+  const t = useTranslations("candidate.dashboard.profiles");
   if (total === 0)
     return (
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          You haven&apos;t added a Target JD yet. Add one to shape your practice
-          interviews.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("empty")}</p>
         <Button asChild variant="outline" className="h-11 bg-background">
-          <Link href={routes.targetJds}>Add a Target JD</Link>
+          <Link href={routes.targetJds}>{t("add")}</Link>
         </Button>
       </div>
     );
@@ -64,17 +64,20 @@ function RoleProfilesBody({
   return (
     <div className="space-y-3">
       <p className="text-2xl font-semibold tabular-nums">
-        {total} {total === 1 ? "Target JD" : "Target JDs"}
+        {t("count", { count: total, countText: String(total) })}
       </p>
       {pending ? (
         <p className="text-sm text-muted-foreground">
-          Next step: {roleProfileStatusLabel[pending.status]} for{" "}
-          <span className="font-medium text-foreground">{pending.title}</span>.
+          {t.rich("next", {
+            status: t(`status.${pending.status}`),
+            title: pending.title,
+            name: (chunks) => (
+              <span className="font-medium text-foreground">{chunks}</span>
+            ),
+          })}
         </p>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Your Target JDs are ready for practice.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("ready")}</p>
       )}
       <ul className="divide-y rounded-lg border">
         {items.map((profile) => (
@@ -86,13 +89,13 @@ function RoleProfilesBody({
               {profile.title}
             </span>
             <span className="shrink-0 text-xs text-muted-foreground">
-              {roleProfileStatusLabel[profile.status]}
+              {t(`status.${profile.status}`)}
             </span>
           </li>
         ))}
       </ul>
       <Button asChild variant="link" className="h-11 px-0">
-        <Link href={routes.targetJds}>Manage Target JDs</Link>
+        <Link href={routes.targetJds}>{t("manage")}</Link>
       </Button>
     </div>
   );

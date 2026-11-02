@@ -1,6 +1,8 @@
 import type { Formatters } from "@/lib/i18n/formatters";
 import type { CandidateApplicationStatus } from "../schemas/candidate-application-schema";
 
+// English labels kept for callers outside this screen that still read them directly (the interview
+// setup readiness panel). Screens in this area translate through `candidate.applications.status`.
 export const statusLabel: Record<CandidateApplicationStatus, string> = {
   pending: "Awaiting CV review",
   interview_eligible: "Interview eligible",

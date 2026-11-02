@@ -20,6 +20,7 @@ import {
 import { useTranslations } from "next-intl";
 
 export function ResetPasswordForm({ token }: { token?: string }) {
+  const t = useTranslations("auth.resetPassword");
   const v = useTranslations("validation");
   const resetPasswordSchema = useMemo(() => createResetPasswordSchema(v), [v]);
   const [complete, setComplete] = useState(false);
@@ -42,25 +43,20 @@ export function ResetPasswordForm({ token }: { token?: string }) {
         token,
       });
       if (result.error) {
-        setMessage(
-          "This password reset link is invalid or expired. Request a new one.",
-        );
-        gooeyToast.error("Password could not be updated", {
-          description:
-            "This reset link is invalid or expired. Request a new one.",
+        setMessage(t("invalid"));
+        gooeyToast.error(t("failed"), {
+          description: t("invalidToast"),
         });
         return;
       }
       setComplete(true);
-      gooeyToast.success("Password updated", {
-        description: "Sign in with your new password to continue.",
+      gooeyToast.success(t("updated"), {
+        description: t("signInNew"),
       });
     } catch {
-      setMessage(
-        "Unable to update your password. Please try again or request a new reset link.",
-      );
-      gooeyToast.error("Password could not be updated", {
-        description: "Please try again or request a new reset link.",
+      setMessage(t("error"));
+      gooeyToast.error(t("failed"), {
+        description: t("errorToast"),
       });
     }
   };
@@ -71,18 +67,17 @@ export function ResetPasswordForm({ token }: { token?: string }) {
         <header className="mb-6">
           <RoleCueMark className="mx-auto size-28 object-contain" priority />
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#262626]">
-            Reset link unavailable
+            {t("unavailable")}
           </h1>
           <p className="mt-1.5 text-sm leading-6 text-[#595959]">
-            This password reset link is missing or expired. Request a new link
-            to continue.
+            {t("missing")}
           </p>
         </header>
         <Button
           asChild
           className="h-11 w-full rounded-xl bg-[#262626] text-white transition-colors duration-150 hover:bg-[#1f1f1f] sm:h-12"
         >
-          <Link href={routes.forgotPassword}>Request a new reset link</Link>
+          <Link href={routes.forgotPassword}>{t("request")}</Link>
         </Button>
       </div>
     );
@@ -93,11 +88,9 @@ export function ResetPasswordForm({ token }: { token?: string }) {
       <header className="mb-6 text-center">
         <RoleCueMark className="mx-auto size-28 object-contain" priority />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#121814]">
-          Choose a new password
+          {t("heading")}
         </h1>
-        <p className="mt-1.5 text-sm text-[#5c5c5c]">
-          Use at least 8 characters.
-        </p>
+        <p className="mt-1.5 text-sm text-[#5c5c5c]">{t("help")}</p>
       </header>
       {complete ? (
         <div
@@ -105,13 +98,16 @@ export function ResetPasswordForm({ token }: { token?: string }) {
           aria-live="polite"
           className="text-center text-sm leading-6 text-[#595959] motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200"
         >
-          Your password has been updated.{" "}
-          <Link
-            href={routes.login}
-            className="font-semibold text-[#121814] hover:underline"
-          >
-            Sign in
-          </Link>
+          {t.rich("complete", {
+            link: (chunks) => (
+              <Link
+                href={routes.login}
+                className="font-semibold text-[#121814] hover:underline"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </div>
       ) : (
         <form
@@ -127,7 +123,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
               htmlFor="reset-password"
               className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
             >
-              New password
+              {t("password")}
             </label>
             <div className="relative">
               <Input
@@ -149,9 +145,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => setShowPassword((visible) => !visible)}
-                aria-label={
-                  showPassword ? "Hide new password" : "Show new password"
-                }
+                aria-label={showPassword ? t("hide") : t("show")}
                 aria-controls="reset-password"
                 aria-pressed={showPassword}
                 className="absolute top-1/2 right-1 size-11 -translate-y-1/2 active:not-aria-[haspopup]:-translate-y-1/2 text-[#595959] hover:text-[#262626]"
@@ -161,7 +155,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
             </div>
             {!errors.password && (
               <p id="reset-password-help" className="text-xs text-[#595959]">
-                Use at least 8 characters.
+                {t("help")}
               </p>
             )}
             {errors.password && (
@@ -181,7 +175,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
               htmlFor="reset-confirm-password"
               className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
             >
-              Confirm new password
+              {t("confirm")}
             </label>
             <div className="relative">
               <Input
@@ -204,9 +198,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
                 size="icon-sm"
                 onClick={() => setShowConfirmPassword((visible) => !visible)}
                 aria-label={
-                  showConfirmPassword
-                    ? "Hide confirmation password"
-                    : "Show confirmation password"
+                  showConfirmPassword ? t("hideConfirm") : t("showConfirm")
                 }
                 aria-controls="reset-confirm-password"
                 aria-pressed={showConfirmPassword}
@@ -239,7 +231,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
             {isSubmitting && (
               <LoaderCircle className="animate-spin" aria-hidden />
             )}
-            {isSubmitting ? "Updating…" : "Update password"}
+            {isSubmitting ? t("updating") : t("update")}
           </Button>
         </form>
       )}
@@ -249,7 +241,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
             href={routes.forgotPassword}
             className="font-semibold text-[#121814] hover:underline"
           >
-            Request a new reset link
+            {t("request")}
           </Link>
         </p>
       )}

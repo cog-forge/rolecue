@@ -1,6 +1,6 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { CandidateApplicationStatus } from "../schemas/candidate-application-schema";
-import { statusLabel } from "../utils/application-text";
 
 // A calm tone per status; "Not selected" stays neutral rather than alarming.
 const toneClass: Record<CandidateApplicationStatus, string> = {
@@ -29,6 +29,7 @@ export function CandidateApplicationStatusBadge({
   status: CandidateApplicationStatus;
   className?: string;
 }) {
+  const t = useTranslations("candidate.applications.status");
   return (
     <span
       className={cn(
@@ -41,7 +42,7 @@ export function CandidateApplicationStatusBadge({
         aria-hidden
         className={cn("size-1.5 shrink-0 rounded-full", dotClass[status])}
       />
-      {statusLabel[status]}
+      {t(status)}
     </span>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,19 @@ import {
 import { getBrowserCapabilities } from "@/features/interview/audio/browser-capabilities";
 import type { MicrophoneSnapshot } from "@/features/interview/audio/microphone-capture";
 import { useMicrophone } from "@/features/interview/audio/use-microphone";
+import { microphoneMessage } from "../lib/microphone-messages";
+
+// Order of the capability list, as getBrowserCapabilities() returns it.
+const capabilityNames = [
+  "microphone",
+  "camera",
+  "mediaRecorder",
+  "webAudio",
+  "webGL",
+  "online",
+] as const satisfies readonly (keyof ReturnType<
+  typeof getBrowserCapabilities
+>)[];
 
 export type MicrophoneReadiness = MicrophoneSnapshot["readiness"];
 
@@ -23,6 +37,7 @@ export function PreflightCheck({
 }: {
   onReadinessChange?: (readiness: MicrophoneReadiness) => void;
 } = {}) {
+  const t = useTranslations("candidate.setup.preflight");
   const microphone = useMicrophone();
   const state = microphone.snapshot;
   useEffect(() => {
@@ -35,26 +50,26 @@ export function PreflightCheck({
   > | null>(null);
   const status =
     state.status === "requesting"
-      ? "Waiting for microphone permission"
+      ? t("status.requesting")
       : state.readiness === "ready"
-        ? "Microphone ready"
+        ? t("status.ready")
         : state.readiness === "muted"
-          ? "Microphone muted"
+          ? t("status.muted")
           : state.readiness === "interrupted"
-            ? "Microphone interrupted"
+            ? t("status.interrupted")
             : state.readiness === "error"
-              ? "Microphone needs attention"
+              ? t("status.error")
               : state.status === "stopped"
-                ? "Microphone check stopped"
-                : "Microphone not tested";
+                ? t("status.stopped")
+                : t("status.idle");
   const activity =
     state.activity === "speaking"
-      ? "Sound detected"
+      ? t("activity.speaking")
       : state.activity === "silent"
-        ? "Listening — speak to check your input"
+        ? t("activity.silent")
         : state.activity === "unavailable"
-          ? "Input level unavailable"
-          : "Input level inactive";
+          ? t("activity.unavailable")
+          : t("activity.inactive");
   const selectedMissing =
     state.selectedDeviceId !== "default" &&
     !state.devices.some((d) => d.deviceId === state.selectedDeviceId);
@@ -72,18 +87,15 @@ export function PreflightCheck({
           </div>
           <div className="space-y-1">
             <h2 id={`${inputId}-heading`} className="font-semibold">
-              Check your microphone
+              {t("title")}
             </h2>
-            <p className="text-sm text-muted-foreground">
-              Allow access when prompted, then say a few words. This check stays
-              on your device and does not start an interview or use coins.
-            </p>
+            <p className="text-sm text-muted-foreground">{t("intro")}</p>
           </div>
         </div>
 
         <div className="space-y-2">
           <label htmlFor={inputId} className="text-sm font-medium">
-            Microphone input
+            {t("inputLabel")}
           </label>
           <Select
             value={state.selectedDeviceId}
@@ -100,10 +112,10 @@ export function PreflightCheck({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">System default</SelectItem>
+              <SelectItem value="default">{t("systemDefault")}</SelectItem>
               {selectedMissing && (
                 <SelectItem value={state.selectedDeviceId} disabled>
-                  Selected microphone (unavailable)
+                  {t("selectedMissing")}
                 </SelectItem>
               )}
               {state.devices
@@ -117,8 +129,8 @@ export function PreflightCheck({
           </Select>
           <p id={helpId} className="text-xs text-muted-foreground">
             {state.actualDeviceLabel
-              ? `Current input: ${state.actualDeviceLabel}`
-              : "Available inputs appear after you allow microphone access."}
+              ? t("currentInput", { label: state.actualDeviceLabel })
+              : t("inputsHint")}
           </p>
         </div>
 
@@ -127,20 +139,17 @@ export function PreflightCheck({
             {status}
           </p>
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-            <span>Input level</span>
+            <span>{t("inputLevel")}</span>
             <span>{activity}</span>
           </div>
           <meter
-            aria-label="Microphone input level"
+            aria-label={t("meterLabel")}
             min={0}
             max={1}
             value={state.level}
             className="block h-3 w-full"
           />
-          <p className="text-xs text-muted-foreground">
-            Quiet moments are normal. The sound indicator only helps you check
-            your audio.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("quietNote")}</p>
         </div>
 
         {state.error && (
@@ -148,55 +157,51 @@ export function PreflightCheck({
             role="alert"
             className="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
           >
-            {state.error.message}
+            {microphoneMessage(state.error.message, t)}
           </p>
         )}
         {state.readiness === "interrupted" && (
-          <p className="text-sm text-muted-foreground">
-            Your microphone has temporarily stopped providing audio. Check your
-            device or retry the microphone check.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("interrupted")}</p>
         )}
         {state.requestPending && state.status === "stopped" && (
           <p role="status" className="text-sm text-muted-foreground">
-            Check cancelled. Close or dismiss the browser permission prompt
-            before trying again. Any input it opens will be released.
+            {t("cancelled")}
           </p>
         )}
         {state.deviceWarning && (
           <div className="space-y-2">
             <p role="status" className="text-sm text-muted-foreground">
-              {state.deviceWarning}
+              {microphoneMessage(state.deviceWarning, t)}
             </p>
             <Button
-              className="min-h-11"
+              className="h-auto min-h-11 whitespace-normal py-2"
               variant="outline"
               onClick={() => {
                 void microphone.refreshDevices();
               }}
             >
-              Refresh inputs
+              {t("refreshInputs")}
             </Button>
           </div>
         )}
         {state.analysisWarning && (
           <div className="space-y-2">
             <p role="status" className="text-sm text-muted-foreground">
-              {state.analysisWarning}
+              {microphoneMessage(state.analysisWarning, t)}
             </p>
             <Button
-              className="min-h-11"
+              className="h-auto min-h-11 whitespace-normal py-2"
               variant="outline"
               onClick={microphone.retryAnalysis}
             >
-              Retry audio check
+              {t("retryAudio")}
             </Button>
           </div>
         )}
 
         <div className="flex flex-wrap gap-2">
           <Button
-            className="min-h-11"
+            className="h-auto min-h-11 whitespace-normal py-2"
             disabled={
               state.requestPending ||
               (state.stream !== null && state.readiness !== "interrupted")
@@ -208,69 +213,69 @@ export function PreflightCheck({
             }}
           >
             {state.status === "requesting"
-              ? "Checking microphone…"
+              ? t("button.checking")
               : state.error || state.readiness === "interrupted"
-                ? "Retry microphone"
-                : "Test microphone"}
+                ? t("button.retry")
+                : t("button.test")}
           </Button>
           {state.stream && (
             <>
               <Button
-                className="min-h-11"
+                className="h-auto min-h-11 whitespace-normal py-2"
                 variant="outline"
                 aria-pressed={state.muted}
                 onClick={() => microphone.setMuted(!state.muted)}
               >
-                {state.muted ? "Unmute microphone" : "Mute microphone"}
+                {state.muted ? t("button.unmute") : t("button.mute")}
               </Button>
               <Button
-                className="min-h-11"
+                className="h-auto min-h-11 whitespace-normal py-2"
                 variant="outline"
                 onClick={microphone.stop}
               >
-                Stop microphone check
+                {t("button.stop")}
               </Button>
             </>
           )}
           {state.status === "requesting" && (
             <Button
-              className="min-h-11"
+              className="h-auto min-h-11 whitespace-normal py-2"
               variant="outline"
               onClick={microphone.stop}
             >
-              Cancel microphone check
+              {t("button.cancel")}
             </Button>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Stop the check or leave this page to release your microphone. No
-          camera access is requested.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("releaseNote")}</p>
       </section>
 
       <section
-        aria-label="Other browser capabilities"
+        aria-label={t("capabilities.label")}
         className="space-y-3 border-t pt-5"
       >
         <Button
-          className="min-h-11"
+          className="h-auto min-h-11 whitespace-normal py-2"
           variant="outline"
           onClick={() => setCapabilities(getBrowserCapabilities())}
         >
-          Check browser capabilities
+          {t("capabilities.check")}
         </Button>
         <p className="text-sm text-muted-foreground">
-          These checks show API availability only. Speaker playback, connection
-          quality and full interview readiness still need separate checks.
+          {t("capabilities.note")}
         </p>
         <div aria-live="polite">
           {capabilities && (
             <dl className="grid grid-cols-2 gap-3 text-sm">
-              {Object.entries(capabilities).map(([name, available]) => (
+              {capabilityNames.map((name) => (
                 <div key={name}>
-                  <dt className="font-medium">{name}</dt>
+                  <dt className="font-medium">
+                    {t(`capabilities.name.${name}`)}
+                  </dt>
                   <dd className="text-muted-foreground">
-                    {available ? "Available" : "Unavailable"}
+                    {capabilities[name]
+                      ? t("capabilities.available")
+                      : t("capabilities.unavailable")}
                   </dd>
                 </div>
               ))}

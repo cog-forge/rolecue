@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,7 @@ import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // The balance is the backend's authoritative figure; the card only displays it.
 export function WalletCard() {
+  const t = useTranslations("candidate.dashboard.wallet");
   const fmt = useFormatters();
   const user = useSessionUser();
   const query = useQuery({
@@ -20,12 +23,12 @@ export function WalletCard() {
   });
 
   return (
-    <DashboardCard title="Coin balance">
+    <DashboardCard title={t("title")}>
       {query.isPending ? (
-        <CardLoading label="Loading your coin balance…" />
+        <CardLoading label={t("loading")} />
       ) : query.isError ? (
         <CardError
-          message="We couldn't load your coin balance."
+          message={t("error")}
           disabled={query.isFetching}
           onRetry={() => void query.refetch()}
         />
@@ -34,14 +37,12 @@ export function WalletCard() {
           <p className="text-2xl font-semibold tabular-nums">
             {fmt.coinAmount(query.data.balance)}{" "}
             <span className="text-sm font-medium text-muted-foreground">
-              coins
+              {t("unit")}
             </span>
           </p>
-          <p className="text-sm text-muted-foreground">
-            Coins are used for AI interview practice.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("description")}</p>
           <Button asChild variant="outline" className="h-11 bg-background">
-            <Link href={routes.billing}>View transactions</Link>
+            <Link href={routes.billing}>{t("view")}</Link>
           </Button>
         </div>
       )}

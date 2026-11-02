@@ -1,22 +1,22 @@
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import type { UnfinishedPractice } from "../api/setup-catalog";
 
 export function PracticeProgress({ session }: { session: UnfinishedPractice }) {
+  const t = useTranslations("candidate.setupNavigation");
   const fmt = useFormatters();
   return (
     <>
-      Started{" "}
-      <time dateTime={session.startedAt}>
-        {fmt.relative(session.startedAt)}
-      </time>
-      {" · "}
-      <span className="tabular-nums">
-        {session.answeredCount} of {session.questionCount}
-      </span>{" "}
-      questions answered
+      {t.rich("progress", {
+        when: fmt.relative(session.startedAt),
+        answered: String(session.answeredCount),
+        total: String(session.questionCount),
+        time: (chunks) => <time dateTime={session.startedAt}>{chunks}</time>,
+        count: (chunks) => <span className="tabular-nums">{chunks}</span>,
+      })}
     </>
   );
 }
@@ -37,9 +37,10 @@ export function ResumeCallout({
   children?: ReactNode;
   className?: string;
 }) {
+  const t = useTranslations("candidate.setupNavigation");
   return (
     <section
-      aria-label="Unfinished interview"
+      aria-label={t("unfinished")}
       className={cn(
         "space-y-4 rounded-xl bg-rolecue-hero-surface/60 p-4 duration-(--duration-slow) ease-(--ease-smooth-out) animate-in fade-in slide-in-from-bottom-1 motion-reduce:animate-none sm:p-5",
         className,

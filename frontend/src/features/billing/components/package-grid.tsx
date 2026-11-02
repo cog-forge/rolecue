@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { CoinPackage } from "../schemas/wallet-schema";
 import { cn } from "@/lib/utils";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import { useTranslations } from "next-intl";
 
 interface PackageGridProps {
   packages?: CoinPackage[];
@@ -39,6 +40,7 @@ export function PackageGrid({
   checkoutError,
 }: PackageGridProps) {
   const fmt = useFormatters();
+  const t = useTranslations("candidate.billing");
   const activePackages =
     packages?.filter((pkg) => pkg.is_active !== false) ?? [];
   return (
@@ -68,26 +70,26 @@ export function PackageGrid({
           role="alert"
           className="rounded-2xl border border-dashed p-8 text-center"
         >
-          <p className="font-medium">Unable to load coin packages</p>
+          <p className="font-medium">{t("packages.loadError")}</p>
           <p className="mt-2 text-sm text-muted-foreground">
-            Please try again in a moment.
+            {t("packages.loadErrorHint")}
           </p>
           <Button
             variant="outline"
             disabled={isFetching}
             onClick={onRefresh}
-            className="mt-4 h-11"
+            className="mt-4 h-auto min-h-11 whitespace-normal py-2"
           >
             <RefreshCw className="size-4" aria-hidden />
-            Retry loading packages
+            {t("packages.retryLoading")}
           </Button>
         </div>
       ) : activePackages.length === 0 ? (
         <div className="rounded-2xl border border-dashed p-10 text-center">
           <Coins className="mx-auto size-8 text-muted-foreground" aria-hidden />
-          <p className="mt-3 font-medium">No packages available</p>
+          <p className="mt-3 font-medium">{t("packages.emptyTitle")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Please check back later.
+            {t("packages.emptyHint")}
           </p>
         </div>
       ) : (
@@ -113,7 +115,9 @@ export function PackageGrid({
                   <div className="mt-5 flex items-center gap-2">
                     <CoinIcon className="size-5" />
                     <span className="text-lg font-semibold tabular-nums">
-                      {fmt.coinAmount(pkg.coin_amount)} coins
+                      {t("coinsAmount", {
+                        amount: fmt.coinAmount(pkg.coin_amount),
+                      })}
                     </span>
                   </div>
                   <p className="mt-4 text-3xl font-semibold tracking-tight tabular-nums sm:text-[clamp(1.25rem,2.2vw,1.875rem)]">
@@ -126,11 +130,11 @@ export function PackageGrid({
                       disabled={isCheckingOut}
                       onClick={() => onCheckout(pkg)}
                       className="h-11 w-full justify-between rounded-xl"
-                      aria-label={`Buy ${pkg.name} with PayOS`}
+                      aria-label={t("packages.buyAria", { name: pkg.name })}
                     >
                       {isCheckingOut && checkingOutPackageId === pkg.id ? (
                         <>
-                          Preparing PayOS…
+                          {t("packages.preparing")}
                           <Loader2
                             className="size-4 animate-spin motion-reduce:animate-none"
                             aria-hidden
@@ -138,7 +142,7 @@ export function PackageGrid({
                         </>
                       ) : (
                         <>
-                          Continue
+                          {t("packages.continue")}
                           <ArrowUpRight className="size-4" aria-hidden />
                         </>
                       )}

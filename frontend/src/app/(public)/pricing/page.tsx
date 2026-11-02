@@ -1,9 +1,12 @@
+import { getTranslations } from "next-intl/server";
 import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
-export default function Page() {
+
+export default async function Page() {
+  const t = await getTranslations("public.pricing");
   return (
     <RoutePlaceholder
-      title="Pricing"
-      description="Interview credit packages and plan information will be available once pricing is defined."
+      title={t("title")}
+      description={t("description")}
     ></RoutePlaceholder>
   );
 }

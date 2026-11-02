@@ -269,3 +269,40 @@ test("a closed or removed posting explains it is no longer available", async ({
   await page.getByRole("link", { name: "Browse open postings" }).click();
   await expect(page).toHaveURL(/\/jobs$/);
 });
+
+test("in Vietnamese the board and posting speak Vietnamese while posting data stays as stored", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockBoard(page);
+  await page.goto("/jobs");
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Bảng tin tuyển dụng" }),
+  ).toBeVisible();
+  const search = page.getByRole("search", {
+    name: "Tìm tin tuyển dụng đang mở",
+  });
+  await expect(search.getByLabel("Chức danh")).toBeVisible();
+  await expect(search.getByRole("button", { name: "Tìm kiếm" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "React Developer" }),
+  ).toBeVisible();
+
+  await page.getByRole("link", { name: "Go Backend Engineer" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Go Backend Engineer" }),
+  ).toBeVisible();
+  await expect(page.getByText("We build reliable APIs in Go.")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Ứng tuyển bằng CV của bạn" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Quay lại bảng tin tuyển dụng" }),
+  ).toBeVisible();
+});

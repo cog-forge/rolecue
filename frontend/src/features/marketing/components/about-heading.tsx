@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { sectionTitle } from "./rolecue-landing-styles";
@@ -8,6 +9,7 @@ const revealEase = [0.22, 1, 0.36, 1] as const;
 
 /** Aceternity's highlight sweep, adapted to RoleCue's blue and scroll entrance. */
 export function AboutHeading() {
+  const t = useTranslations("public.landing.aboutHeading");
   const reducedMotion = useReducedMotion();
 
   return (
@@ -26,9 +28,9 @@ export function AboutHeading() {
         }}
         transition={{ duration: reducedMotion ? 0 : 0.65, ease: revealEase }}
       >
-        A practice room
+        {t("line1")}
       </motion.span>
-      <span>for the </span>
+      <span>{t("middle")}</span>
       <span className="relative isolate inline-block whitespace-nowrap text-(--rolecue-brand-blue)">
         <motion.span
           aria-hidden="true"
@@ -43,7 +45,7 @@ export function AboutHeading() {
             ease: revealEase,
           }}
         />
-        role ahead.
+        {t("highlight")}
       </span>
     </motion.h2>
   );

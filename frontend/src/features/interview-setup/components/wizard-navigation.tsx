@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Check } from "lucide-react";
@@ -18,13 +19,21 @@ export function WizardNavigation() {
 // The practice wizard. A recruitment interview enters at the preflight from its Application and has
 // no practice steps, so the navigation steps aside.
 function WizardLinks() {
+  const t = useTranslations("candidate.setupNavigation");
+  const labels = [
+    t("steps.0"),
+    t("steps.1"),
+    t("steps.2"),
+    t("steps.3"),
+    t("steps.4"),
+  ];
   const pathname = usePathname();
   const params = readSetupParams(useSearchParams());
   if (params.applicationId) return null;
   const { roleProfileId, avatarId, voiceId } = params;
   const active = interviewSteps.findIndex((step) => step.href === pathname);
   return (
-    <nav aria-label="Interview creation steps">
+    <nav aria-label={t("stepsLabel")}>
       <ol className="flex flex-wrap items-center gap-x-5 gap-y-3 text-xs sm:gap-x-8">
         {interviewSteps.map((step, index) => {
           const current = index === active;
@@ -58,7 +67,7 @@ function WizardLinks() {
                 >
                   {done ? <Check className="size-3.5" /> : index + 1}
                 </span>
-                {step.label}
+                {labels[index]}
               </Link>
             </li>
           );

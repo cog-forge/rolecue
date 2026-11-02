@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
+import { useTranslations } from "next-intl";
 import { KeyRound, LoaderCircle, Mail } from "lucide-react";
 import {
   FacebookIcon,
@@ -58,7 +59,13 @@ export function SignInMethods({
   onChanged: () => Promise<void>;
   onAccessError: (error: unknown) => void;
 }) {
+  const t = useTranslations("auth.security");
   const fmt = useFormatters();
+  // Provider brands stay as they are; the email sign-in name is the only translated one.
+  const nameOf = (provider: string) =>
+    provider === "credential"
+      ? t("methods.emailAndPassword")
+      : providerName(provider);
   const [disconnectId, setDisconnectId] = useState<string | null>(null);
   const disconnect = useMutation({
     gcTime: 0,
@@ -72,7 +79,9 @@ export function SignInMethods({
       )
         throw new Error("Keep a sign-in method connected");
       securityData(await authClient.unlinkAccount({ accountId: account.id }));
-      gooeyToast.success(`${providerName(account.providerId)} disconnected`);
+      gooeyToast.success(
+        t("methods.disconnected", { provider: nameOf(account.providerId) }),
+      );
       await onChanged();
     },
     onSuccess: (): void => {
@@ -111,37 +120,40 @@ export function SignInMethods({
           role="alert"
           className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm"
         >
-          Unable to connect that provider. Use a verified account with the same
-          email address, or try again.
+          {t("methods.linkingFailed")}
         </p>
       )}
       {Boolean(connect.error) && <SecurityRequestError error={connect.error} />}
       <SecurityPanel>
         {!accounts.length && (
           <p className="py-4 text-sm text-muted-foreground">
-            No connected sign-in methods were returned.
+            {t("methods.none")}
           </p>
         )}
         {accounts.map((account) => (
           <SecurityRow
             key={account.id}
             icon={<ProviderIcon provider={account.providerId} />}
-            title={providerName(account.providerId)}
-            status={<Badge variant="positive">Connected</Badge>}
-            description={`Since ${securityDay(account.createdAt, fmt)}`}
+            title={nameOf(account.providerId)}
+            status={<Badge variant="positive">{t("status.connected")}</Badge>}
+            description={t("methods.since", {
+              date: securityDay(account.createdAt, fmt, t),
+            })}
             action={
               account.providerId !== "credential" && (
                 <Button
                   variant="outline"
                   className="min-h-11"
                   disabled={busy || accounts.length < 2}
-                  aria-label={`Disconnect ${providerName(account.providerId)}`}
+                  aria-label={t("methods.disconnectProvider", {
+                    provider: nameOf(account.providerId),
+                  })}
                   onClick={() => {
                     disconnect.reset();
                     setDisconnectId(account.id);
                   }}
                 >
-                  Disconnect
+                  {t("methods.disconnect")}
                 </Button>
               )
             }
@@ -151,8 +163,8 @@ export function SignInMethods({
           <SecurityRow
             key={provider}
             icon={<ProviderIcon provider={provider} />}
-            title={providerName(provider)}
-            description="Not connected"
+            title={nameOf(provider)}
+            description={t("methods.notConnected")}
             action={
               <Button
                 variant="outline"
@@ -167,7 +179,7 @@ export function SignInMethods({
                 {connect.isPending && connect.variables === provider && (
                   <LoaderCircle className="animate-spin" aria-hidden />
                 )}
-                Connect {providerName(provider)}
+                {t("methods.connect", { provider: nameOf(provider) })}
               </Button>
             }
           />
@@ -175,8 +187,8 @@ export function SignInMethods({
       </SecurityPanel>
       <p className="text-xs leading-5 text-muted-foreground">
         {accounts.length === 1
-          ? "Your last sign-in method cannot be disconnected."
-          : "Connect a verified provider account that uses the same email address. Keep at least one sign-in method connected."}
+          ? t("methods.lastMethod")
+          : t("methods.connectHint")}
       </p>
       <Dialog
         open={disconnectId !== null}
@@ -190,15 +202,14 @@ export function SignInMethods({
         <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>
-              Disconnect{" "}
               {disconnected
-                ? providerName(disconnected.providerId)
-                : "provider"}
-              ?
+                ? t("methods.dialogTitle", {
+                    provider: nameOf(disconnected.providerId),
+                  })
+                : t("methods.dialogTitleFallback")}
             </DialogTitle>
             <DialogDescription>
-              You will no longer be able to sign in with this connected account.
-              Your other sign-in methods will remain available.
+              {t("methods.dialogDescription")}
             </DialogDescription>
           </DialogHeader>
           {Boolean(disconnect.error) && (
@@ -214,7 +225,7 @@ export function SignInMethods({
                 disconnect.reset();
               }}
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -226,7 +237,7 @@ export function SignInMethods({
               {disconnect.isPending && (
                 <LoaderCircle className="animate-spin" aria-hidden />
               )}
-              {busy ? "Disconnecting…" : "Confirm disconnect"}
+              {busy ? t("methods.disconnecting") : t("methods.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

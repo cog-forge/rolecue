@@ -16,19 +16,20 @@ export function SecurityRequestError({
   onRetry?: () => void;
 }) {
   const te = useTranslations("errors");
+  const t = useTranslations("auth.security");
   return (
     <div role="alert" className="space-y-3">
       <p className="text-sm">{securityErrorMessage(error, te)}</p>
       {securityErrorCode(error) === "SESSION_NOT_FRESH" ? (
         <Button asChild variant="outline" className="min-h-11">
           <Link href={reauthenticationHref(routes.settings)}>
-            Sign in again
+            {t("request.signInAgain")}
           </Link>
         </Button>
       ) : (
         onRetry && (
           <Button variant="outline" className="min-h-11" onClick={onRetry}>
-            Retry
+            {t("retry")}
           </Button>
         )
       )}

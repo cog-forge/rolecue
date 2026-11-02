@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,23 +19,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { getWallet, walletKeys } from "@/features/billing/api/wallet";
 import { AddCoinsDialog } from "@/features/billing/components/wallet-purchase";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 import { avatarKeys, inventoryFailure, purchaseSlots } from "../api/inventory";
 import {
   maxSlotsPerPurchase,
-  purchaseFormSchema,
+  createPurchaseFormSchema,
   slotPriceCoins,
   type Capacity,
   type PurchaseForm,
 } from "../schemas/avatar-schema";
-
-const failureMessages: Record<string, string> = {
-  INSUFFICIENT_BALANCE:
-    "You don't have enough coins for this purchase. Top up your wallet, then try again.",
-  VALIDATION_ERROR: `Choose between 1 and ${maxSlotsPerPurchase} slots.`,
-};
-
-const coins = (amount: number) =>
-  `${amount} ${amount === 1 ? "coin" : "coins"}`;
 
 export function BuySlotsDialog({
   open,
@@ -49,6 +42,7 @@ export function BuySlotsDialog({
   userId: string;
   role: "candidate" | "recruiter";
 }) {
+  const t = useTranslations("candidate.avatars.buy");
   const cache = useQueryClient();
   const [addingCoins, setAddingCoins] = useState(false);
   const wallet = useQuery({
@@ -68,10 +62,9 @@ export function BuySlotsDialog({
         is_full: result.is_full,
       });
       void cache.invalidateQueries({ queryKey: walletKeys.all(userId) });
-      gooeyToast.success(
-        `Added ${values.amount} avatar ${values.amount === 1 ? "slot" : "slots"}`,
-        { description: "Your inventory capacity has been updated." },
-      );
+      gooeyToast.success(t("toastTitle", { count: values.amount }), {
+        description: t("toastDescription"),
+      });
       close();
     },
     onError: (error) => {
@@ -144,6 +137,10 @@ function PurchaseFields({
   onCancel: () => void;
   onSubmit: (values: PurchaseForm) => void;
 }) {
+  const t = useTranslations("candidate.avatars.buy");
+  const v = useTranslations("candidate.avatars.validation");
+  const fmt = useFormatters();
+  const purchaseSchema = useMemo(() => createPurchaseFormSchema(v), [v]);
   const {
     register,
     control,
@@ -151,7 +148,7 @@ function PurchaseFields({
     handleSubmit,
     formState: { errors },
   } = useForm<PurchaseForm>({
-    resolver: zodResolver(purchaseFormSchema),
+    resolver: zodResolver(purchaseSchema),
     defaultValues: { amount: 1 },
   });
   const amount = useWatch({ control, name: "amount" });
@@ -166,9 +163,13 @@ function PurchaseFields({
     ? null
     : failure.confirmed
       ? failure.denied
-        ? "Your session can't buy slots right now. Sign in again and retry."
-        : (failureMessages[failure.code] ?? "We couldn't buy slots.")
-      : "We couldn't confirm the purchase. Your capacity and balance were refreshed; check them before buying again.";
+        ? t("errors.denied")
+        : failure.code === "INSUFFICIENT_BALANCE"
+          ? t("errors.insufficientBalance")
+          : failure.code === "VALIDATION_ERROR"
+            ? t("errors.validation", { max: maxSlotsPerPurchase })
+            : t("errors.failed")
+      : t("errors.unconfirmed");
   const step = (delta: number) =>
     setValue(
       "amount",
@@ -179,15 +180,14 @@ function PurchaseFields({
   return (
     <form noValidate className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
       <DialogHeader>
-        <DialogTitle>Buy avatar slots</DialogTitle>
+        <DialogTitle>{t("title")}</DialogTitle>
         <DialogDescription>
-          Slots add storage space to your avatar inventory. Each slot costs{" "}
-          {coins(slotPriceCoins)} and is paid from your wallet.
+          {t("description", { price: fmt.coins(slotPriceCoins) })}
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-2">
         <label htmlFor="slot-amount" className="text-sm font-medium">
-          Number of slots
+          {t("amountLabel")}
         </label>
         <div className="flex items-center gap-2">
           <Button
@@ -195,7 +195,7 @@ function PurchaseFields({
             variant="outline"
             size="icon"
             className="size-11"
-            aria-label="One slot fewer"
+            aria-label={t("fewer")}
             disabled={pending || !valid || amount <= 1}
             onClick={() => step(-1)}
           >
@@ -220,7 +220,7 @@ function PurchaseFields({
             variant="outline"
             size="icon"
             className="size-11"
-            aria-label="One slot more"
+            aria-label={t("more")}
             disabled={pending || (valid && amount >= maxSlotsPerPurchase)}
             onClick={() => step(1)}
           >
@@ -237,39 +237,48 @@ function PurchaseFields({
           </p>
         ) : (
           <p id="slot-amount-hint" className="text-xs text-muted-foreground">
-            1 to {maxSlotsPerPurchase} slots per purchase.
+            {t("hint", { max: maxSlotsPerPurchase })}
           </p>
         )}
       </div>
       <dl className="space-y-3 rounded-xl border bg-muted/40 p-4 text-sm">
         <div className="flex justify-between gap-4">
-          <dt className="text-muted-foreground">Total</dt>
+          <dt className="text-muted-foreground">{t("total")}</dt>
           <dd className="flex items-center gap-1.5 font-semibold tabular-nums">
             <Coins aria-hidden className="size-4 text-muted-foreground" />
-            {total === null ? "–" : coins(total)}
+            {total === null ? "–" : fmt.coins(total)}
           </dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt className="text-muted-foreground">Your balance</dt>
+          <dt className="text-muted-foreground">{t("balance")}</dt>
           <dd className="tabular-nums" aria-live="polite">
             {balance === "pending"
-              ? "Checking…"
+              ? t("balanceChecking")
               : balance === "unavailable"
-                ? "Unavailable"
-                : coins(balance)}
+                ? t("balanceUnavailable")
+                : fmt.coins(balance)}
           </dd>
         </div>
         {capacity && valid && (
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Capacity after</dt>
-            <dd className="tabular-nums">{capacity.capacity + amount} slots</dd>
+            <dt className="text-muted-foreground">{t("capacityAfter")}</dt>
+            <dd className="tabular-nums">
+              {t("capacityAfterValue", {
+                count: capacity.capacity + amount,
+                countText: String(capacity.capacity + amount),
+              })}
+            </dd>
           </div>
         )}
       </dl>
       {missing > 0 && !message && (
         <p role="status" className="text-sm">
-          You need {coins(missing)} more.{" "}
-          <AddCoinsButton onClick={onAddCoins} />
+          {t.rich("needMore", {
+            amount: fmt.coins(missing),
+            addCoins: (chunks) => (
+              <AddCoinsButton onClick={onAddCoins}>{chunks}</AddCoinsButton>
+            ),
+          })}
         </p>
       )}
       {message && failure && (
@@ -278,7 +287,9 @@ function PurchaseFields({
             {message}
           </p>
           {failure.confirmed && failure.code === "INSUFFICIENT_BALANCE" && (
-            <AddCoinsButton onClick={onAddCoins} />
+            <AddCoinsButton onClick={onAddCoins}>
+              {t("addCoins")}
+            </AddCoinsButton>
           )}
         </div>
       )}
@@ -290,7 +301,7 @@ function PurchaseFields({
           disabled={pending}
           onClick={onCancel}
         >
-          Cancel
+          {t("cancel")}
         </Button>
         <Button
           type="submit"
@@ -305,17 +316,23 @@ function PurchaseFields({
             />
           )}
           {pending
-            ? "Buying…"
+            ? t("pending")
             : total === null
-              ? "Buy slots"
-              : `Buy for ${coins(total)}`}
+              ? t("submitEmpty")
+              : t("submit", { price: fmt.coins(total) })}
         </Button>
       </DialogFooter>
     </form>
   );
 }
 
-function AddCoinsButton({ onClick }: { onClick: () => void }) {
+function AddCoinsButton({
+  onClick,
+  children,
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <Button
       type="button"
@@ -323,7 +340,7 @@ function AddCoinsButton({ onClick }: { onClick: () => void }) {
       className="h-auto p-0 font-medium underline underline-offset-4"
       onClick={onClick}
     >
-      Add coins
+      {children}
     </Button>
   );
 }

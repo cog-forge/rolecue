@@ -421,6 +421,57 @@ test("recruitment: start from the Application with the company's interviewer, fo
     });
 });
 
+test("vi: the setup steps speak Vietnamese and keep stored names as they are", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await mockApi(page);
+  await page.goto("/interviews/new/setup");
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Chọn hồ sơ vị trí" }),
+  ).toBeVisible();
+  const profiles = page.getByRole("radiogroup", {
+    name: "Các hồ sơ vị trí đã xác nhận",
+  });
+  await expect(profiles.getByRole("radio")).toHaveCount(1);
+  await expect(profiles).toContainText(roleProfile.title);
+
+  await page.goto(
+    `/interviews/new/interviewer?roleProfileId=${profileId}&avatarId=${miaId}`,
+  );
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Chọn người phỏng vấn" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("radio", { name: /người phỏng vấn 2d/i }),
+  ).toBeVisible();
+  await expect(page.getByRole("radio", { name: /mia/i })).toBeVisible();
+
+  await page.goto(
+    `/interviews/new/preflight?roleProfileId=${profileId}&avatarId=${miaId}&voiceId=${avaId}`,
+  );
+  const summary = page.getByRole("region", { name: "Cuộc phỏng vấn của bạn" });
+  await expect(summary).toContainText(roleProfile.title);
+  await expect(summary).toContainText("Ava – English");
+  const start = page.getByRole("button", {
+    name: "Bắt đầu phỏng vấn · 5 xu",
+  });
+  await expect(start).toBeDisabled();
+  await expect(page.getByText("Hãy bật micro để bắt đầu.")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Kiểm tra micro", exact: true })
+    .click();
+  await expect(
+    page.getByText("Micro đã sẵn sàng", { exact: true }),
+  ).toBeVisible();
+  await expect(start).toBeEnabled();
+});
+
 test("setup steps fit a 390 px phone without sideways scrolling", async ({
   page,
 }, testInfo) => {

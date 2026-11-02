@@ -1,16 +1,13 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: "Learn how RoleCue handles account and product information.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("public.privacy");
+  return { title: t("title"), description: t("metadataDescription") };
+}
 
-export default function PrivacyPage() {
-  return (
-    <RoutePlaceholder
-      title="Privacy Policy"
-      description="Privacy policy documentation will be published before production launch."
-    />
-  );
+export default async function PrivacyPage() {
+  const t = await getTranslations("public.privacy");
+  return <RoutePlaceholder title={t("title")} description={t("description")} />;
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, type UseQueryResult } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
+import { useTranslations } from "next-intl";
 import { LoaderCircle, Monitor, Smartphone } from "lucide-react";
 import {
   Accordion,
@@ -44,6 +45,7 @@ export function SecuritySessions({
   onChanged: () => Promise<void>;
   onAccessError: (error: unknown) => void;
 }) {
+  const t = useTranslations("auth.security");
   const fmt = useFormatters();
   const endLocalSession = useEndLocalSession();
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -85,8 +87,8 @@ export function SecuritySessions({
       } else {
         gooeyToast.success(
           selection.kind === "others"
-            ? "Your other sessions have been signed out."
-            : "Session signed out.",
+            ? t("sessions.othersSignedOut")
+            : t("sessions.sessionSignedOut"),
         );
         await onChanged();
       }
@@ -101,7 +103,7 @@ export function SecuritySessions({
     return (
       <SecurityPanel>
         <p role="status" className="sr-only">
-          Loading active sessions…
+          {t("sessions.loading")}
         </p>
         {[0, 1].map((row) => (
           <div key={row} className="flex items-center gap-3 py-4">
@@ -134,8 +136,7 @@ export function SecuritySessions({
       {!sessions.data.length ? (
         <SecurityPanel>
           <p className="py-4 text-sm text-muted-foreground">
-            No active sessions were returned. Refresh account details before
-            taking action.
+            {t("sessions.empty")}
           </p>
         </SecurityPanel>
       ) : (
@@ -143,7 +144,7 @@ export function SecuritySessions({
           <Accordion type="multiple">
             {ordered.map((session) => {
               const current = session.id === currentId;
-              const label = deviceLabel(session.userAgent);
+              const label = deviceLabel(session.userAgent, t);
               return (
                 <AccordionItem
                   key={session.id}
@@ -160,12 +161,18 @@ export function SecuritySessions({
                     }
                     title={label}
                     status={
-                      current && <Badge variant="outline">This session</Badge>
+                      current && (
+                        <Badge variant="outline">
+                          {t("sessions.thisSession")}
+                        </Badge>
+                      )
                     }
                     description={
                       <p className="wrap-anywhere">
-                        {session.ipAddress || "Unknown IP"} · Active{" "}
-                        {securityDate(session.updatedAt, fmt)}
+                        {t("sessions.activeAt", {
+                          ip: session.ipAddress || t("sessions.unknownIp"),
+                          date: securityDate(session.updatedAt, fmt, t),
+                        })}
                       </p>
                     }
                     action={
@@ -175,41 +182,45 @@ export function SecuritySessions({
                         disabled={!currentId || revocation.isPending}
                         aria-label={
                           current
-                            ? "Sign out this session"
-                            : `Sign out ${label}`
+                            ? t("sessions.signOutThis")
+                            : t("sessions.signOutDevice", { device: label })
                         }
                         onClick={() => {
                           revocation.reset();
                           setSelection({ kind: "one", id: session.id });
                         }}
                       >
-                        Sign out
+                        {t("sessions.signOut")}
                       </Button>
                     }
                   >
                     <AccordionTrigger className="mt-1 min-h-11 flex-none items-center gap-1.5 py-0 pl-8 text-xs font-normal text-muted-foreground hover:text-foreground hover:no-underline">
-                      Session details
+                      {t("sessions.details")}
                     </AccordionTrigger>
                     <AccordionContent>
                       <dl className="grid gap-x-6 gap-y-3 pt-1 pb-1 pl-8 text-xs sm:grid-cols-2">
                         <div>
-                          <dt className="text-muted-foreground">Started</dt>
+                          <dt className="text-muted-foreground">
+                            {t("sessions.started")}
+                          </dt>
                           <dd className="mt-0.5">
-                            {securityDate(session.createdAt, fmt)}
+                            {securityDate(session.createdAt, fmt, t)}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-muted-foreground">Expires</dt>
+                          <dt className="text-muted-foreground">
+                            {t("sessions.expires")}
+                          </dt>
                           <dd className="mt-0.5">
-                            {securityDate(session.expiresAt, fmt)}
+                            {securityDate(session.expiresAt, fmt, t)}
                           </dd>
                         </div>
                         <div className="sm:col-span-2">
                           <dt className="text-muted-foreground">
-                            Browser identifier
+                            {t("sessions.browserId")}
                           </dt>
                           <dd className="mt-0.5 wrap-anywhere">
-                            {session.userAgent || "Unavailable"}
+                            {session.userAgent || t("unavailable")}
                           </dd>
                         </div>
                       </dl>
@@ -232,7 +243,7 @@ export function SecuritySessions({
               setSelection({ kind: "others" });
             }}
           >
-            Sign out other sessions
+            {t("sessions.signOutOthers")}
           </Button>
           <Button
             variant="ghost"
@@ -243,7 +254,7 @@ export function SecuritySessions({
               setSelection({ kind: "all" });
             }}
           >
-            Sign out all sessions
+            {t("sessions.signOutAll")}
           </Button>
         </div>
       )}
@@ -259,19 +270,13 @@ export function SecuritySessions({
         <DialogContent showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>
-              Sign out{" "}
-              {selection?.kind === "others"
-                ? "other sessions"
-                : selection?.kind === "all"
-                  ? "all sessions"
-                  : "this session"}
-              ?
+              {t("sessions.dialogTitle", { kind: selection?.kind ?? "one" })}
             </DialogTitle>
             <DialogDescription>
               {selection?.kind === "all" ||
               (selection?.kind === "one" && selection.id === currentId)
-                ? "You will also be signed out of this browser."
-                : "The selected sessions will need to sign in again."}
+                ? t("sessions.dialogOwnBrowser")
+                : t("sessions.dialogOthers")}
             </DialogDescription>
           </DialogHeader>
           {Boolean(revocation.error) && (
@@ -287,7 +292,7 @@ export function SecuritySessions({
                 revocation.reset();
               }}
             >
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               variant="destructive"
@@ -299,7 +304,9 @@ export function SecuritySessions({
               {revocation.isPending && (
                 <LoaderCircle className="animate-spin" aria-hidden />
               )}
-              {revocation.isPending ? "Signing out…" : "Confirm sign out"}
+              {revocation.isPending
+                ? t("sessions.signingOut")
+                : t("sessions.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

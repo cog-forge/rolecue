@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import {
   Accordion,
   AccordionContent,
@@ -15,40 +16,16 @@ import {
 } from "./rolecue-landing-styles";
 
 const questions = [
-  {
-    question: "Who is RoleCue for?",
-    answer:
-      "RoleCue is for people preparing for technical interviews, whether you’re starting out or moving to a new role.",
-    sticker: "💙",
-  },
-  {
-    question: "What do I need to get started?",
-    answer:
-      "Create an account, bring a target job description, and have a microphone ready for the spoken interview.",
-  },
-  {
-    question: "Are the questions based on my job description?",
-    answer:
-      "Yes. RoleCue uses the technical context in your job description to guide the interview. Later questions also respond to your answers.",
-  },
-  {
-    question: "Can I choose my interviewer?",
-    answer:
-      "Yes. For your own practice sessions, choose an available system or personal 3D avatar and a voice profile.",
-  },
-  {
-    question: "What do I get after a session?",
-    answer:
-      "You get an interview report with an evaluation of your technical responses, so you can review your attempt and see what to improve.",
-  },
-  {
-    question: "Can I start for free?",
-    answer: "Yes. You can create an account and start practicing for free.",
-    sticker: "⭐",
-  },
+  { id: "audience", sticker: "💙" },
+  { id: "gettingStarted" },
+  { id: "jobDescription" },
+  { id: "interviewer" },
+  { id: "afterSession" },
+  { id: "free", sticker: "⭐" },
 ] as const;
 
 export function FaqSection() {
+  const t = useTranslations("public.landing.faq");
   return (
     <section
       aria-labelledby="faq-title"
@@ -61,9 +38,9 @@ export function FaqSection() {
       >
         <div className="mx-auto max-w-[56rem]">
           <Reveal className="mb-10 sm:mb-12">
-            <p className={eyebrow}>Before you begin</p>
+            <p className={eyebrow}>{t("eyebrow")}</p>
             <h2 className={cn(sectionTitle, "max-w-[20ch]")} id="faq-title">
-              A few things to know.
+              {t("title")}
             </h2>
           </Reveal>
 
@@ -72,12 +49,12 @@ export function FaqSection() {
               type="multiple"
               defaultValue={["question-1"]}
               className="gap-4 sm:gap-5"
-              aria-label="Questions about RoleCue"
+              aria-label={t("ariaLabel")}
             >
               {questions.map((item, index) => (
                 <AccordionItem
                   className="group/faq border-0! [&>[data-slot=accordion-content][data-state=open]]:animate-accordion-down [&>[data-slot=accordion-content][data-state=closed]]:animate-accordion-up [&>[data-slot=accordion-content]]:[--tw-animation-duration:var(--duration-slow)] [&>[data-slot=accordion-content]]:[--tw-ease:var(--ease-smooth-out)] motion-reduce:[&>[data-slot=accordion-content]]:animate-none!"
-                  key={item.question}
+                  key={item.id}
                   value={`question-${index + 1}`}
                 >
                   <AccordionTrigger
@@ -88,7 +65,7 @@ export function FaqSection() {
                     showIndicator={false}
                   >
                     <span className="relative block min-w-0 rounded-[1.25rem] bg-[#e7edf5] px-5 py-4 text-[clamp(1.05rem,1.65vw,1.45rem)] leading-snug font-medium tracking-[-0.02em] text-(--rolecue-ink) transition-colors duration-(--duration-fast) group-hover:bg-[#dde7f3] group-data-[state=open]:bg-[#d5e2f2] sm:rounded-[1.5rem] sm:px-7 sm:py-5 motion-reduce:transition-none!">
-                      {item.question}
+                      {t(`items.${item.id}.question`)}
                       {"sticker" in item && (
                         <span
                           aria-hidden="true"
@@ -113,7 +90,7 @@ export function FaqSection() {
                   </AccordionTrigger>
                   <AccordionContent className="pt-2 pb-0 pl-5 sm:pt-3 sm:pl-[clamp(3rem,8vw,7rem)]">
                     <p className="ml-auto max-w-[46rem] rounded-[1.4rem] bg-(--rolecue-ink) px-5 py-5 text-[clamp(1rem,1.55vw,1.3rem)] leading-relaxed font-normal tracking-[-0.01em] text-white sm:rounded-[1.75rem] sm:px-7 sm:py-6">
-                      {item.answer}
+                      {t(`items.${item.id}.answer`)}
                     </p>
                   </AccordionContent>
                 </AccordionItem>

@@ -19,9 +19,11 @@ import {
 import { TransactionHistory } from "./transaction-history";
 import { AddCoinsDialog } from "./wallet-purchase";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import { useTranslations } from "next-intl";
 
 export function BillingOverview() {
   const fmt = useFormatters();
+  const t = useTranslations("candidate.billing");
   const user = useSessionUser();
   const queryClient = useQueryClient();
 
@@ -71,11 +73,10 @@ export function BillingOverview() {
       <main className="mx-auto max-w-5xl space-y-6 py-6 px-4 sm:px-6">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Wallet & Coins
+            {t("overview.adminTitle")}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Coin balances and top-ups are reserved for candidate practice and
-            recruiter posting workspaces.
+            {t("overview.adminDescription")}
           </p>
         </div>
 
@@ -86,12 +87,9 @@ export function BillingOverview() {
           <ShieldAlert className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
           <div className="space-y-1">
             <h4 className="font-semibold text-foreground">
-              Administrator Accounts Do Not Have a Personal Wallet
+              {t("overview.adminAlertTitle")}
             </h4>
-            <p>
-              Platform payment audits and revenue monitoring are governed under
-              the Administrator Finance portal.
-            </p>
+            <p>{t("overview.adminAlertBody")}</p>
           </div>
         </div>
       </main>
@@ -104,18 +102,26 @@ export function BillingOverview() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Transaction history
+            {t("overview.title")}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Coins you bought, spent and got back.
+            {t("overview.description")}
           </p>
         </div>
         <div className="flex items-end gap-4">
-          <div role="group" aria-label="Coin balance" className="sm:text-right">
-            <p className="text-xs text-muted-foreground">Balance</p>
+          <div
+            role="group"
+            aria-label={t("overview.balanceGroup")}
+            className="sm:text-right"
+          >
+            <p className="text-xs text-muted-foreground">
+              {t("overview.balance")}
+            </p>
             <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">
               {wallet.data
-                ? `${fmt.coinAmount(wallet.data.balance)} coins`
+                ? t("coinsAmount", {
+                    amount: fmt.coinAmount(wallet.data.balance),
+                  })
                 : "—"}
             </p>
           </div>
@@ -126,7 +132,7 @@ export function BillingOverview() {
             role={user.role}
           >
             <DialogTrigger asChild>
-              <Button type="button">Add coins</Button>
+              <Button type="button">{t("overview.addCoins")}</Button>
             </DialogTrigger>
           </AddCoinsDialog>
         </div>
@@ -143,7 +149,7 @@ export function BillingOverview() {
       {/* Section 3: Unified Transaction History */}
       <section aria-labelledby="transaction-history-heading">
         <h2 id="transaction-history-heading" className="sr-only">
-          Transaction History
+          {t("overview.historyHeading")}
         </h2>
         <TransactionHistory
           currentUserId={user.id}

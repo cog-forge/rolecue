@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { describe, expect, it } from "vitest";
 import { SecuritySummary } from "@/features/auth/components/security-summary";
 
 describe("security summary", () => {
   it("answers what protects the account and links each answer to its section", () => {
-    render(
+    renderWithIntl(
       <SecuritySummary
         emailVerified
         hasPassword
@@ -26,7 +27,7 @@ describe("security summary", () => {
   });
 
   it("prints a dash, not a guess, while counts are unknown", () => {
-    render(<SecuritySummary emailVerified={false} twoFactorEnabled />);
+    renderWithIntl(<SecuritySummary emailVerified={false} twoFactorEnabled />);
     expect(screen.getByRole("link", { name: /Password/ })).toHaveTextContent(
       "Password—",
     );

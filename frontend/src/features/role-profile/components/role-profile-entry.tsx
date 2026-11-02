@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { ArrowRight, Check, FileText, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import {
-  entrySchema,
+  createEntrySchema,
   normalizeRoleText,
   type EntryValues,
   type RoleProfile,
@@ -26,29 +27,16 @@ import {
   createPDFUpload,
   createRoleProfile,
   getRoleProfile,
-  roleError,
   uploadPDF,
 } from "../api/requests";
 import { DocumentUploadPanel } from "./document-upload-panel";
 import { RoleProfileSteps } from "./role-profile-steps";
+import { useRoleError } from "../lib/use-role-error";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
-const phaseLabels = {
-  upload: {
-    action: "Uploading PDF…",
-    status: "Uploading your PDF securely.",
-  },
-  reading: {
-    action: "Reading PDF…",
-    status: "Reading your PDF and saving its original.",
-  },
-  analysis: {
-    action: "Analyzing role…",
-    status: "Saving your Role Profile and extracting technical requirements.",
-  },
-};
-
 export function RoleProfileEntry() {
+  const t = useTranslations("candidate.roleProfiles");
+  const roleError = useRoleError();
   const fmt = useFormatters();
   const user = useSessionUser();
   const router = useRouter();
@@ -69,6 +57,10 @@ export function RoleProfileEntry() {
   useEffect(() => () => abort.current?.abort(), []);
   const textSubmission = useRef<{ text: string; id: string } | null>(null);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const entrySchema = useMemo(
+    () => createEntrySchema((key, values) => t(`validation.${key}`, values)),
+    [t],
+  );
   const form = useForm<EntryValues>({
     resolver: zodResolver(entrySchema),
     defaultValues: { rawText: "" },
@@ -155,7 +147,7 @@ export function RoleProfileEntry() {
     },
   });
   const busy = form.formState.isSubmitting || mutation.isPending;
-  const phaseLabel = phaseLabels[phase ?? "analysis"];
+  const currentPhase = phase ?? "analysis";
   return (
     <section className="mx-auto w-full max-w-6xl space-y-8 sm:space-y-10">
       <header className="space-y-4">
@@ -163,14 +155,13 @@ export function RoleProfileEntry() {
           className="inline-flex min-h-11 items-center text-sm text-muted-foreground underline-offset-4 hover:underline"
           href={routes.roleProfiles.root}
         >
-          Role Profiles
+          {t("entry.back")}
         </Link>
         <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-          Bring the role into the room.
+          {t("entry.heading")}
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-          Start with a job description. We&apos;ll extract the role context, and
-          you stay in control of the review.
+          {t("entry.description")}
         </p>
         <RoleProfileSteps current="input" />
       </header>
@@ -203,21 +194,21 @@ export function RoleProfileEntry() {
             >
               <TabsList
                 className="mb-5 h-12! w-full sm:w-fit"
-                aria-label="Job description source"
+                aria-label={t("entry.sourceLabel")}
               >
                 <TabsTrigger
                   value="text"
                   disabled={busy}
                   className="min-h-11 px-5"
                 >
-                  Paste text
+                  {t("entry.textTab")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="pdf"
                   disabled={busy}
                   className="min-h-11 px-5"
                 >
-                  Upload PDF
+                  {t("entry.pdfTab")}
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="text">
@@ -229,7 +220,7 @@ export function RoleProfileEntry() {
                     className="size-4 text-workspace-accent"
                     aria-hidden="true"
                   />{" "}
-                  Job description text
+                  {t("entry.textLabel")}
                 </label>
                 <Textarea
                   id="role-text"
@@ -237,17 +228,20 @@ export function RoleProfileEntry() {
                   rows={12}
                   aria-invalid={Boolean(form.formState.errors.rawText)}
                   aria-describedby="role-text-help role-text-error"
-                  placeholder="Paste the role, responsibilities, requirements, technologies, and domain context here."
+                  placeholder={t("entry.placeholder")}
                   className="mt-4 min-h-64 resize-y bg-background leading-relaxed"
                 />
                 <div
                   id="role-text-help"
                   className="mt-3 flex flex-wrap justify-between gap-2 text-xs text-muted-foreground"
                 >
-                  <span>100–20,000 characters after whitespace cleanup.</span>
+                  <span>{t("entry.help")}</span>
                   <span>
-                    {fmt.number([...normalizeRoleText(rawText ?? "")].length)} /
-                    20,000
+                    {t("entry.counter", {
+                      count: fmt.number(
+                        [...normalizeRoleText(rawText ?? "")].length,
+                      ),
+                    })}
                   </span>
                 </div>
                 <p
@@ -284,7 +278,7 @@ export function RoleProfileEntry() {
                   href={routes.roleProfiles.detail(draftId)}
                   className="mt-2 inline-block font-medium underline underline-offset-4"
                 >
-                  Open your saved draft
+                  {t("entry.draftLink")}
                 </Link>
               )}
             </div>
@@ -293,7 +287,7 @@ export function RoleProfileEntry() {
             <Button
               type="submit"
               disabled={busy || (mode === "pdf" && !file)}
-              className="h-11"
+              className="h-auto min-h-11 py-2 whitespace-normal"
             >
               {busy ? (
                 <LoaderCircle
@@ -303,16 +297,18 @@ export function RoleProfileEntry() {
               ) : (
                 <ArrowRight className="size-4" aria-hidden="true" />
               )}
-              {busy ? phaseLabel.action : "Analyze role"}
+              {busy
+                ? t(`entry.phase.${currentPhase}.action`)
+                : t("entry.submit")}
             </Button>
             {busy && mode === "pdf" && (
               <Button
                 type="button"
                 variant="outline"
-                className="h-11"
+                className="h-auto min-h-11 py-2 whitespace-normal"
                 onClick={() => abort.current?.abort()}
               >
-                Cancel
+                {t("entry.cancel")}
               </Button>
             )}
             <p
@@ -320,26 +316,24 @@ export function RoleProfileEntry() {
               aria-live="polite"
               className="text-xs text-muted-foreground"
             >
-              {busy ? phaseLabel.status : "Your Role Profile stays private."}
+              {busy
+                ? t(`entry.phase.${currentPhase}.status`)
+                : t("entry.private")}
             </p>
           </div>
         </form>
         <aside className="border-l pl-5 lg:sticky lg:top-6">
           <h2 className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-            What happens next
+            {t("entry.next.title")}
           </h2>
           <ul className="mt-6 space-y-5 text-sm">
-            {[
-              "We save your JD text or original PDF privately.",
-              "AI extracts requirements and expected proficiency.",
-              "You review and confirm the role context.",
-            ].map((item) => (
+            {(["save", "extract", "review"] as const).map((item) => (
               <li key={item} className="flex gap-3">
                 <Check
                   className="mt-0.5 size-4 shrink-0 text-workspace-accent"
                   aria-hidden="true"
                 />
-                <span>{item}</span>
+                <span>{t(`entry.next.${item}`)}</span>
               </li>
             ))}
           </ul>

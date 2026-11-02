@@ -2,6 +2,7 @@
 
 import { Controller, useWatch, type UseFormReturn } from "react-hook-form";
 import { Trash2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Accordion,
   AccordionContent,
@@ -21,9 +22,9 @@ import {
   isCustomTarget,
   isKnownTarget,
   proficiencyLevels,
-  requirementLabel,
   type RoleReview,
 } from "../api/contract";
+import { proficiencyLabel, requirementLabel } from "../lib/labels";
 import { RequirementDetails } from "./requirement-details";
 
 export function RequirementRow({
@@ -37,6 +38,8 @@ export function RequirementRow({
   disabled: boolean;
   onRemove: () => void;
 }) {
+  const t = useTranslations("candidate.roleProfiles.requirement");
+  const labels = useTranslations("candidate.roleProfiles.labels");
   const item = useWatch({
     control: form.control,
     name: `requirements.${index}`,
@@ -47,16 +50,16 @@ export function RequirementRow({
   const customTarget = isCustomTarget(item);
   return (
     <fieldset className="min-w-0 border-b py-3">
-      <legend className="sr-only">Technical requirement {index + 1}</legend>
+      <legend className="sr-only">{t("legend", { number: index + 1 })}</legend>
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 sm:grid-cols-[minmax(0,1fr)_12rem_auto]">
         <div className="min-w-0">
           <label htmlFor={`${prefix}-name`} className="sr-only">
-            Requirement {String(index + 1).padStart(2, "0")}
+            {t("nameLabel", { number: String(index + 1).padStart(2, "0") })}
           </label>
           <Input
             id={`${prefix}-name`}
             {...form.register(`requirements.${index}.name`)}
-            placeholder="Skill or topic name"
+            placeholder={t("namePlaceholder")}
             className="h-11 border-transparent px-2 text-base font-medium shadow-none hover:border-input focus-visible:border-ring"
             aria-invalid={Boolean(errors?.name)}
             aria-describedby={`${prefix}-error`}
@@ -64,7 +67,7 @@ export function RequirementRow({
         </div>
         <div className="col-start-1 row-start-2 sm:col-start-2 sm:row-start-1">
           <label htmlFor={`${prefix}-target`} className="sr-only">
-            Proficiency for requirement {index + 1}
+            {t("proficiencyLabel", { number: index + 1 })}
           </label>
           <Controller
             control={form.control}
@@ -83,17 +86,19 @@ export function RequirementRow({
                   aria-invalid={Boolean(errors?.target)}
                   aria-describedby={`${prefix}-error`}
                 >
-                  <SelectValue placeholder="Choose proficiency" />
+                  <SelectValue placeholder={t("proficiencyPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent position="popper" align="start">
                   {proficiencyLevels.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {value}
+                      {proficiencyLabel(labels, value)}
                     </SelectItem>
                   ))}
                   {item.target && !knownTarget && (
                     <SelectItem value={item.target}>
-                      {customTarget ? "Saved target" : "Unspecified"}
+                      {customTarget
+                        ? labels("savedTarget")
+                        : proficiencyLabel(labels, "Unspecified")}
                     </SelectItem>
                   )}
                 </SelectContent>
@@ -106,7 +111,7 @@ export function RequirementRow({
           variant="ghost"
           size="icon"
           className="col-start-2 row-start-1 size-11 text-muted-foreground hover:text-destructive sm:col-start-3"
-          aria-label={`Remove requirement ${index + 1}`}
+          aria-label={t("remove", { number: index + 1 })}
           disabled={disabled}
           onClick={onRemove}
         >
@@ -120,11 +125,11 @@ export function RequirementRow({
         <AccordionItem value="details">
           <AccordionTrigger
             disabled={disabled}
-            aria-label={`Details for requirement ${index + 1}`}
+            aria-label={t("detailsLabel", { number: index + 1 })}
             className="min-h-11 items-center gap-2 text-xs font-normal text-muted-foreground"
           >
-            <span className="flex-1">{requirementLabel(item)}</span>
-            <span className="font-medium">Details</span>
+            <span className="flex-1">{requirementLabel(labels, item)}</span>
+            <span className="font-medium">{t("details")}</span>
           </AccordionTrigger>
           <AccordionContent className="space-y-4 pt-3">
             <RequirementDetails
@@ -136,7 +141,7 @@ export function RequirementRow({
             {item.evidenceText && (
               <blockquote className="border-l-2 pl-3 leading-relaxed text-muted-foreground">
                 <span className="mb-1 block text-xs font-medium">
-                  From the JD
+                  {t("fromJd")}
                 </span>
                 “{item.evidenceText}”
               </blockquote>

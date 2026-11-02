@@ -68,6 +68,7 @@ export function LoginForm({
   returnTo?: string;
   enabledProviders?: readonly SocialProvider[];
 }) {
+  const t = useTranslations("auth.login");
   const v = useTranslations("validation");
   const loginSchema = useMemo(() => createLoginSchema(v), [v]);
   const te = useTranslations("errors");
@@ -115,12 +116,8 @@ export function LoginForm({
       router.replace(signedInDestination(data?.user?.role, returnTo));
     } catch (error) {
       setLocked(isAccountLockedError(error));
-      toast.error("Sign-in failed", {
-        description: getAuthErrorMessage(
-          error,
-          "Unable to sign in. Please check your connection and try again.",
-          te,
-        ),
+      toast.error(t("failed"), {
+        description: getAuthErrorMessage(error, t("fallback"), te),
       });
       if (isEmailVerificationError(error)) setVerificationEmail(values.email);
     }
@@ -133,16 +130,14 @@ export function LoginForm({
         callbackURL: routes.afterEmailVerification,
       });
       if (error) throw error;
-      setVerificationMessage("Verification email sent.");
-      toast.success("Verification email sent", {
-        description: "Check your inbox and spam folder for the link.",
+      setVerificationMessage(t("sentMessage"));
+      toast.success(t("sent"), {
+        description: t("sentDescription"),
       });
     } catch {
-      setVerificationMessage(
-        "Unable to resend the verification email right now.",
-      );
-      toast.error("Email could not be sent", {
-        description: "Please try again in a moment.",
+      setVerificationMessage(t("resendFailed"));
+      toast.error(t("emailFailed"), {
+        description: t("tryLater"),
       });
     }
   };
@@ -152,10 +147,10 @@ export function LoginForm({
       <header className="mb-7 text-center">
         <RoleCueMark className="mx-auto size-32 object-contain" priority />
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#121814] sm:text-[28px]">
-          Sign in to RoleCue
+          {t("heading")}
         </h1>
         <p className="mx-auto mt-1.5 max-w-[320px] text-sm leading-normal text-[#5c5c5c]">
-          Welcome back. Select an authentication method to continue.
+          {t("welcome")}
         </p>
       </header>
 
@@ -164,7 +159,7 @@ export function LoginForm({
           role="status"
           className="mb-4 rounded-xl border bg-muted/40 p-3 text-sm text-muted-foreground"
         >
-          Sign in again to continue managing your account security.
+          {t("security")}
         </p>
       )}
       {locked ? (
@@ -174,7 +169,7 @@ export function LoginForm({
         >
           <div className="flex items-center gap-2 font-semibold">
             <LockKeyhole className="size-4 text-destructive" aria-hidden />
-            Account locked
+            {t("locked")}
           </div>
           <p className="mt-2 leading-relaxed text-muted-foreground">
             {te("auth.accountLocked")}
@@ -186,30 +181,27 @@ export function LoginForm({
           className="mb-4 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-[#5c5c5c]"
         >
           {oauthError === "account_not_linked"
-            ? "This social account is not linked to RoleCue. Sign in with your original method first."
-            : "Social sign-in could not be completed. Please try again."}
+            ? t("unlinked")
+            : t("socialFailedMessage")}
         </p>
       ) : sessionEnded ? (
         <p
           role="status"
           className="mb-4 rounded-xl border bg-muted/40 p-3 text-sm text-muted-foreground"
         >
-          Your session has ended. Sign in again to continue.
+          {t("sessionEnded")}
         </p>
       ) : null}
       {verificationEmail && (
         <div className="mb-4 rounded-xl border border-[#e5e5e5] bg-white p-3 text-sm text-[#5c5c5c]">
-          <p>
-            Please verify your email before signing in. You can request a new
-            verification link below.
-          </p>
+          <p>{t("verify")}</p>
           <Button
             type="button"
             variant="link"
             onClick={resendVerification}
             className="mt-1 h-auto p-0 text-sm font-semibold text-[#121814]"
           >
-            Resend verification email
+            {t("resend")}
           </Button>
           {verificationMessage && (
             <p role="status" className="mt-1">
@@ -228,7 +220,7 @@ export function LoginForm({
               type="button"
               variant="outline"
               disabled={pending}
-              aria-label={`Continue with ${name}`}
+              aria-label={t("continueWith", { provider: name })}
               onClick={async () => {
                 setLocked(false);
                 setSocialPendingProvider(provider);
@@ -241,10 +233,10 @@ export function LoginForm({
                   if (error) throw error;
                 } catch (error) {
                   setLocked(isAccountLockedError(error));
-                  toast.error("Social sign-in failed", {
+                  toast.error(t("socialFailed"), {
                     description: getAuthErrorMessage(
                       error,
-                      `Unable to continue with ${name}. Please try again.`,
+                      t("socialFallback", { provider: name }),
                       te,
                     ),
                   });
@@ -262,7 +254,7 @@ export function LoginForm({
                 />
               )}
               <span>
-                {socialPendingProvider === provider ? "Connecting…" : name}
+                {socialPendingProvider === provider ? t("connecting") : name}
               </span>
             </Button>
           ))}
@@ -271,7 +263,7 @@ export function LoginForm({
       <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-wide text-[#858585]">
         <Separator className="flex-1 bg-[#e5e5e5]" />
         <span className="select-none text-[11px] font-medium tracking-[0.12em]">
-          or continue with email
+          {t("orEmail")}
         </span>
         <Separator className="flex-1 bg-[#e5e5e5]" />
       </div>
@@ -280,7 +272,7 @@ export function LoginForm({
         ref={formRef}
         onSubmit={handleSubmit(submit)}
         noValidate
-        aria-label="Sign in credentials form"
+        aria-label={t("form")}
         className="space-y-4"
       >
         <div
@@ -290,7 +282,7 @@ export function LoginForm({
             htmlFor="login-email"
             className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
           >
-            Email address
+            {t("email")}
           </label>
           <Input
             id="login-email"
@@ -322,13 +314,13 @@ export function LoginForm({
               htmlFor="login-password"
               className="block text-xs font-semibold uppercase tracking-wider text-[#494949]"
             >
-              Password
+              {t("password")}
             </label>
             <Link
               href={routes.forgotPassword}
               className="rounded text-xs font-medium text-rolecue-brand hover:underline"
             >
-              Forgot password?
+              {t("forgot")}
             </Link>
           </div>
           <div className="relative">
@@ -351,7 +343,7 @@ export function LoginForm({
               variant="ghost"
               size="icon-sm"
               onClick={() => setShowPassword((value) => !value)}
-              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-label={showPassword ? t("hide") : t("show")}
               aria-controls="login-password"
               aria-pressed={showPassword}
               disabled={pending}
@@ -379,35 +371,38 @@ export function LoginForm({
           {isSubmitting && (
             <LoaderCircle className="animate-spin" aria-hidden />
           )}
-          {isSubmitting ? "Signing in…" : "Sign in"}
+          {isSubmitting ? t("signingIn") : t("signIn")}
         </Button>
       </form>
 
       <p className="mt-5 text-center text-xs text-[#5c5c5c] sm:text-sm">
-        No account?{" "}
+        {t("noAccount")}{" "}
         <Link
           href={routes.register}
           className="rounded-sm font-semibold text-[#121814] hover:underline"
         >
-          Register
+          {t("register")}
         </Link>
       </p>
       <p className="mt-3.5 text-center text-[11px] leading-relaxed text-[#737373] sm:text-xs">
-        By continuing, you agree to the{" "}
-        <Link
-          href={routes.terms}
-          className="font-medium text-[#494949] hover:text-[#121814] hover:underline"
-        >
-          Terms of Service
-        </Link>{" "}
-        and acknowledge that you have read the{" "}
-        <Link
-          href={routes.privacy}
-          className="font-medium text-[#494949] hover:text-[#121814] hover:underline"
-        >
-          Privacy Policy
-        </Link>
-        .
+        {t.rich("terms", {
+          terms: (chunks) => (
+            <Link
+              href={routes.terms}
+              className="font-medium text-[#494949] hover:text-[#121814] hover:underline"
+            >
+              {chunks}
+            </Link>
+          ),
+          privacy: (chunks) => (
+            <Link
+              href={routes.privacy}
+              className="font-medium text-[#494949] hover:text-[#121814] hover:underline"
+            >
+              {chunks}
+            </Link>
+          ),
+        })}
       </p>
     </div>
   );

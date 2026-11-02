@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { LoaderCircle, Mail } from "lucide-react";
 import { gooeyToast } from "goey-toast";
@@ -18,6 +19,7 @@ export function VerificationNotice({
   onRetry: () => void;
   checking: boolean;
 }) {
+  const t = useTranslations("auth.verification");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState(false);
@@ -32,13 +34,13 @@ export function VerificationNotice({
       });
       if (result.error) throw new Error("Verification email failed");
       setSent(true);
-      gooeyToast.success("Verification email sent", {
-        description: "Open the link in your inbox to continue.",
+      gooeyToast.success(t("sent"), {
+        description: t("sentDescription"),
       });
     } catch {
       setError(true);
-      gooeyToast.error("Email could not be sent", {
-        description: "Please try again in a moment.",
+      gooeyToast.error(t("emailFailed"), {
+        description: t("tryLater"),
       });
     } finally {
       setSending(false);
@@ -56,22 +58,20 @@ export function VerificationNotice({
           id="verification-title"
           className="mt-4 text-2xl font-semibold tracking-tight"
         >
-          Verify your email to continue
+          {t("heading")}
         </h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          You signed in successfully. Your sign-in provider has not confirmed
-          your email address, so RoleCue needs you to verify it before opening
-          your dashboard.
+          {t("description")}
         </p>
         <p className="mt-3 break-all text-sm font-semibold">{email}</p>
         {sent && (
           <p role="status" className="mt-4 text-sm text-muted-foreground">
-            Check your inbox and spam folder for the verification link.
+            {t("checkInbox")}
           </p>
         )}
         {error && (
           <p role="alert" className="mt-4 text-sm text-destructive">
-            Unable to send the verification email. Please try again.
+            {t("sendError")}
           </p>
         )}
         <Button
@@ -85,11 +85,7 @@ export function VerificationNotice({
           ) : (
             <Mail aria-hidden />
           )}
-          {sending
-            ? "Sending…"
-            : sent
-              ? "Resend verification email"
-              : "Send verification email"}
+          {sending ? t("sending") : sent ? t("resend") : t("send")}
         </Button>
         <Button
           variant="link"
@@ -97,7 +93,7 @@ export function VerificationNotice({
           onClick={onRetry}
           disabled={checking}
         >
-          I have verified my email
+          {t("verified")}
         </Button>
         <div className="mt-4 border-t border-border pt-4">
           <SignOutButton />

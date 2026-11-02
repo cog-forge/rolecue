@@ -331,3 +331,33 @@ test("a report the candidate may not read shows the access-denied state", async 
     page.getByRole("heading", { name: "Overall score" }),
   ).toHaveCount(0);
 });
+
+test("in Vietnamese the report chrome is translated while the AI feedback stays as stored", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await mockReports(page, {
+    [practiceDone]: [{ status: 200, body: report({}) }],
+  });
+  await page.goto(`/reports/${practiceDone}`);
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Phỏng vấn luyện tập" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Điểm tổng thể" }),
+  ).toBeVisible();
+  await expect(page.getByText("82 / 100")).toBeVisible();
+  await expect(
+    page.getByText("Clear answers with one gap in system design."),
+  ).toBeVisible();
+  await expect(page.getByText("Good root-cause analysis.")).toBeVisible();
+  await expect(page.getByText("Chưa ghi nhận câu trả lời.")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Quay lại lịch sử phỏng vấn" }).first(),
+  ).toBeVisible();
+});

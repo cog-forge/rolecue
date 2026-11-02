@@ -59,7 +59,7 @@ function failure(status: number, code = "INTERNAL_ERROR") {
   });
 }
 
-function renderHistory() {
+function renderHistory(locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -67,6 +67,7 @@ function renderHistory() {
     <QueryClientProvider client={client}>
       <InterviewHistory />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -77,6 +78,19 @@ beforeEach(() => {
 });
 
 describe("InterviewHistory", () => {
+  it("shows Vietnamese labels and preserves stored interview content", async () => {
+    mocks.get.mockResolvedValue(envelope([practice(1)]));
+    renderHistory("vi");
+    expect(
+      screen.getByRole("heading", { name: "Lịch sử phỏng vấn" }),
+    ).toBeInTheDocument();
+    const list = await screen.findByRole("list", {
+      name: "Các buổi phỏng vấn của bạn",
+    });
+    expect(list).toHaveTextContent("Practice role 1");
+    expect(list).toHaveTextContent("Đã hoàn thành");
+    expect(list).toHaveTextContent("72 / 100");
+  });
   it("shows a loading state, then each interview with its status and score", async () => {
     mocks.get.mockResolvedValue(
       envelope([

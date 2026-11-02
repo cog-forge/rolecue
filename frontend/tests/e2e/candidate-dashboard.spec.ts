@@ -213,3 +213,18 @@ test("Try again reloads a failed card once the request recovers", async ({
   ).toHaveCount(0);
   expect(hits.wallet).toBeGreaterThanOrEqual(2);
 });
+
+test("the dashboard switches to Vietnamese and keeps stored content", async ({
+  page,
+}) => {
+  await mockDashboard(page);
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: /Change language/ }).click();
+  await page.getByRole("menuitemradio", { name: "Tiếng Việt" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Tổng quan", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Đơn ứng tuyển" }),
+  ).toContainText("Backend Engineer");
+});

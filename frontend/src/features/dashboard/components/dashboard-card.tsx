@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 import { useId, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +53,7 @@ export function CardError({
   disabled: boolean;
   onRetry: () => void;
 }) {
+  const t = useTranslations("candidate.dashboard");
   return (
     <div role="alert" className="space-y-3">
       <p className="text-sm text-muted-foreground">{message}</p>
@@ -62,7 +65,7 @@ export function CardError({
         disabled={disabled}
         onClick={onRetry}
       >
-        Try again
+        {t("retry")}
       </Button>
     </div>
   );

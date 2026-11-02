@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { createOnboardingSchema } from "@/features/onboarding/schemas/onboarding-schema";
 import { meSchema } from "@/features/auth/schemas/session-schema";
 import { OnboardingForm } from "@/features/onboarding/components/onboarding-form";
@@ -54,9 +55,27 @@ describe("onboarding metadata", () => {
       }).success,
     ).toBe(false);
   });
+  it("shows onboarding labels and validation in Vietnamese", async () => {
+    renderWithIntl(
+      <OnboardingForm
+        profile={profile}
+        saving={false}
+        error={null}
+        onSave={vi.fn()}
+      />,
+      { locale: "vi" },
+    );
+    expect(screen.getByLabelText("Tên hiển thị")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mở không gian làm việc" }),
+    );
+    expect(
+      await screen.findByText("Nhập tên hiển thị từ 1 đến 100 ký tự."),
+    ).toBeInTheDocument();
+  });
   it("submits all mandatory candidate metadata without inventing an image", async () => {
     const save = vi.fn().mockResolvedValue(undefined);
-    render(
+    renderWithIntl(
       <OnboardingForm
         profile={profile}
         saving={false}
@@ -75,7 +94,7 @@ describe("onboarding metadata", () => {
   });
   it("keeps an unchanged OAuth image outside the metadata patch", async () => {
     const save = vi.fn().mockResolvedValue(undefined);
-    render(
+    renderWithIntl(
       <OnboardingForm
         profile={{
           ...profile,
@@ -94,7 +113,7 @@ describe("onboarding metadata", () => {
   });
   it("recruiter cannot submit until website is supplied", async () => {
     const save = vi.fn();
-    render(
+    renderWithIntl(
       <OnboardingForm
         profile={{ ...profile, role: "recruiter" }}
         saving={false}

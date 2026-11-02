@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { routes } from "@/config/routes";
 import {
   getPendingCount,
@@ -17,6 +18,7 @@ export function AuthenticatedShell({
 }: {
   children: React.ReactNode;
 }) {
+  const t = useTranslations("common.shell.badges");
   const user = useSessionUser();
   const pendingReviews = useQuery({
     queryKey: moderationKeys.pendingCount(user.id),
@@ -38,14 +40,14 @@ export function AuthenticatedShell({
           ? {
               [routes.admin.jobPostings]: {
                 count: pendingReviews.data,
-                label: "job postings waiting for review",
+                label: t("pendingReview"),
               },
             }
           : user.role === "candidate" && newPostings.isSuccess
             ? {
                 [routes.jobs]: {
                   count: newPostings.data,
-                  label: "job postings new today",
+                  label: t("newToday"),
                 },
               }
             : undefined

@@ -17,7 +17,7 @@ vi.mock("@/lib/auth/client", () => ({
   authClient: { twoFactor: { verifyTotp, verifyBackupCode }, getSession },
 }));
 
-function renderForm(returnTo?: string) {
+function renderForm(returnTo?: string, locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -25,6 +25,7 @@ function renderForm(returnTo?: string) {
     <QueryClientProvider client={client}>
       <TwoFactorForm returnTo={returnTo} />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -37,6 +38,16 @@ describe("second-factor login", () => {
       data: { user: { role: "candidate" } },
       error: null,
     });
+  });
+
+  it("shows the verification challenge in Vietnamese", () => {
+    renderForm(undefined, "vi");
+    expect(
+      screen.getByRole("heading", { name: "Xác minh đăng nhập" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Mã xác thực")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dùng mã dự phòng" }));
+    expect(screen.getByLabelText("Mã dự phòng")).toBeInTheDocument();
   });
 
   it("preserves leading zeroes and defaults to not trusting the browser", async () => {

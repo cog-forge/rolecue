@@ -4,7 +4,7 @@ import "goey-toast/styles.css";
 import "./globals.css";
 import { site } from "@/config/site";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { AppProviders } from "@/providers/app-providers";
 
 const albertSans = localFont({
@@ -33,22 +33,25 @@ const plusJakartaSans = localFont({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: site.name,
-    template: `%s | ${site.name}`,
-  },
-  description: site.description,
-  icons: {
-    icon: [
-      {
-        url: "/rolecue-cue.png",
-        type: "image/png",
-        sizes: "200x200",
-      },
-    ],
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("public.metadata");
+  return {
+    title: {
+      default: site.name,
+      template: `%s | ${site.name}`,
+    },
+    description: t("description"),
+    icons: {
+      icon: [
+        {
+          url: "/rolecue-cue.png",
+          type: "image/png",
+          sizes: "200x200",
+        },
+      ],
+    },
+  };
+}
 export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

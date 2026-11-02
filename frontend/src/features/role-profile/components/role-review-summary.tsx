@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Accordion,
   AccordionContent,
@@ -14,31 +15,37 @@ import { routes } from "@/config/routes";
 import {
   isCustomTarget,
   isKnownTarget,
-  requirementLabel,
   type RoleProfile,
 } from "../api/contract";
+import {
+  proficiencyLabel,
+  requirementLabel,
+  seniorityLabel,
+} from "../lib/labels";
 
 export function RoleReviewSummary({ profile }: { profile: RoleProfile }) {
+  const t = useTranslations("candidate.roleProfiles.summary");
+  const labels = useTranslations("candidate.roleProfiles.labels");
   return (
     <div className="space-y-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-semibold">{profile.title}</h2>
         {profile.seniorityLevel && (
-          <Badge variant="secondary" className="h-7 px-3 text-sm capitalize">
-            {profile.seniorityLevel}
+          <Badge variant="secondary" className="h-7 px-3 text-sm">
+            {seniorityLabel(labels, profile.seniorityLevel)}
           </Badge>
         )}
       </div>
       <section>
         <div className="border-b pb-4">
           <h2 className="text-lg font-semibold">
-            Technical requirements{" "}
+            {t("requirementsTitle")}{" "}
             <span className="ml-2 text-sm font-normal text-muted-foreground">
               {profile.requirements.length}
             </span>
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            The requirements and proficiency saved for this role.
+            {t("requirementsHelp")}
           </p>
         </div>
         <ul>
@@ -55,14 +62,14 @@ export function RoleReviewSummary({ profile }: { profile: RoleProfile }) {
                   </p>
                   <Badge
                     variant="secondary"
-                    aria-label={`Proficiency for ${item.name}`}
+                    aria-label={t("proficiencyLabel", { name: item.name })}
                     className="h-7 px-3 text-sm"
                   >
                     {isKnownTarget(item.target)
-                      ? item.target
+                      ? proficiencyLabel(labels, item.target)
                       : customTarget
-                        ? "Saved target"
-                        : "Unspecified"}
+                        ? labels("savedTarget")
+                        : proficiencyLabel(labels, "Unspecified")}
                   </Badge>
                 </div>
                 {customTarget && (
@@ -71,16 +78,16 @@ export function RoleReviewSummary({ profile }: { profile: RoleProfile }) {
                   </p>
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {requirementLabel(item)}
+                  {requirementLabel(labels, item)}
                 </p>
                 {item.evidenceText && (
                   <Accordion type="single" collapsible className="mt-1">
                     <AccordionItem value="source">
                       <AccordionTrigger
-                        aria-label={`Source for requirement ${index + 1}`}
+                        aria-label={t("sourceLabel", { number: index + 1 })}
                         className="min-h-11 items-center text-xs font-normal text-muted-foreground"
                       >
-                        From the JD
+                        {t("fromJd")}
                       </AccordionTrigger>
                       <AccordionContent>
                         <blockquote className="border-l-2 pl-3 leading-relaxed text-muted-foreground">
@@ -97,7 +104,7 @@ export function RoleReviewSummary({ profile }: { profile: RoleProfile }) {
       </section>
       {profile.refinementNote && (
         <div className="space-y-2 rounded-xl border bg-card p-5 sm:p-6">
-          <h2 className="font-semibold">Your refinement note</h2>
+          <h2 className="font-semibold">{t("noteTitle")}</h2>
           <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
             {profile.refinementNote}
           </p>
@@ -113,18 +120,17 @@ export function RoleReviewSummary({ profile }: { profile: RoleProfile }) {
             <Check className="size-5" />
           </span>
           <div>
-            <h2 className="font-semibold">Your role review is saved.</h2>
+            <h2 className="font-semibold">{t("savedTitle")}</h2>
             <p role="status" className="mt-1 text-sm text-muted-foreground">
-              Your requirements and interview content are saved. Your Role
-              Profile is ready for the next step.
+              {t("savedStatus")}
             </p>
           </div>
         </div>
-        <Button asChild className="h-11">
+        <Button asChild className="h-auto min-h-11 py-2 whitespace-normal">
           <Link
             href={`${routes.interviews.new.setup}?roleProfileId=${encodeURIComponent(profile.id)}`}
           >
-            Continue to setup <ArrowRight aria-hidden="true" />
+            {t("continue")} <ArrowRight aria-hidden="true" />
           </Link>
         </Button>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle, Building2, UserRound } from "lucide-react";
@@ -89,6 +90,17 @@ export function ProfileForm({
   saved: boolean;
   savedProfile?: Profile;
 }) {
+  const t = useTranslations("common.profile");
+  const schema = useMemo(
+    () =>
+      createProfileFormSchema(profile, {
+        name: t("validation.name"),
+        image: t("validation.image"),
+        companyLength: t("validation.companyLength"),
+        website: t("validation.website"),
+      }),
+    [profile, t],
+  );
   const baseline = useRef(profile);
   const lastSaved = useRef<Profile | undefined>(undefined);
   const {
@@ -98,7 +110,7 @@ export function ProfileForm({
     setValue,
     formState: { errors, isDirty, isValid },
   } = useForm<ProfileValues>({
-    resolver: zodResolver(createProfileFormSchema(profile)),
+    resolver: zodResolver(schema),
     defaultValues: profileValues(profile),
     mode: "onChange",
   });
@@ -131,7 +143,7 @@ export function ProfileForm({
   };
   return (
     <form
-      aria-label="Edit your profile"
+      aria-label={t("form.label")}
       noValidate
       onSubmit={submit}
       className="min-w-0 space-y-6"
@@ -141,29 +153,27 @@ export function ProfileForm({
           <div className="mb-1 flex items-center gap-2 text-muted-foreground">
             <UserRound className="size-4" aria-hidden />
             <span className="text-xs font-semibold tracking-wider uppercase">
-              Personal
+              {t("form.personal")}
             </span>
           </div>
           <CardTitle>
-            <h2 className="text-lg font-semibold">Personal information</h2>
+            <h2 className="text-lg font-semibold">{t("form.personalTitle")}</h2>
           </CardTitle>
-          <CardDescription>
-            Keep your name and photo up to date.
-          </CardDescription>
+          <CardDescription>{t("form.personalDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5 px-6">
           <ProfileField
             id="profile-name"
-            label="Display name"
+            label={t("form.displayName")}
             registration={register("full_name")}
             disabled={saving}
             error={errors.full_name?.message}
           />
           <ProfileField
             id="profile-image"
-            label="Avatar URL"
+            label={t("form.avatarUrl")}
             type="url"
-            hint="Use an HTTPS link to your photo. Leave this blank for your generated avatar."
+            hint={t("form.avatarHint")}
             registration={register("image")}
             disabled={saving}
             error={errors.image?.message}
@@ -176,29 +186,29 @@ export function ProfileForm({
             <div className="mb-1 flex items-center gap-2 text-muted-foreground">
               <Building2 className="size-4" aria-hidden />
               <span className="text-xs font-semibold tracking-wider uppercase">
-                Company
+                {t("form.company")}
               </span>
             </div>
             <CardTitle>
-              <h2 className="text-lg font-semibold">Company information</h2>
+              <h2 className="text-lg font-semibold">
+                {t("form.companyTitle")}
+              </h2>
             </CardTitle>
-            <CardDescription>
-              You can update these details after onboarding.
-            </CardDescription>
+            <CardDescription>{t("form.companyDescription")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 px-6">
             <ProfileField
               id="profile-company"
-              label="Company name"
+              label={t("form.companyName")}
               registration={register("company_name")}
               disabled={saving}
               error={errors.company_name?.message}
             />
             <ProfileField
               id="profile-website"
-              label="Company website"
+              label={t("form.companyWebsite")}
               type="url"
-              hint="We’ll add https:// if you enter a domain without it."
+              hint={t("form.websiteHint")}
               registration={{
                 ...companyWebsiteRegistration,
                 onBlur: async (event) => {
@@ -235,12 +245,12 @@ export function ProfileForm({
           className="text-sm text-muted-foreground"
         >
           {saving
-            ? "Saving your changes…"
+            ? t("form.saving")
             : isDirty
-              ? "You have unsaved changes."
+              ? t("form.unsaved")
               : saved
-                ? "Your profile has been saved."
-                : "Your changes will appear across your workspace."}
+                ? t("form.saved")
+                : t("form.idle")}
         </p>
         <div className="flex shrink-0 gap-2">
           <Button
@@ -252,7 +262,7 @@ export function ProfileForm({
               reset(profileValues(profile));
             }}
           >
-            Discard
+            {t("form.discard")}
           </Button>
           <Button
             type="submit"
@@ -266,7 +276,7 @@ export function ProfileForm({
                 aria-hidden
               />
             )}
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? t("form.savingButton") : t("form.save")}
           </Button>
         </div>
       </div>

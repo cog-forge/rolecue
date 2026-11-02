@@ -485,3 +485,53 @@ test("Role Profile screens fit a 375px viewport", async ({ page }) => {
   }
   expect(api.errors).toEqual([]);
 });
+
+test("Role Profile screens speak Vietnamese and keep stored content as written", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  const api = await mockRoleProfileApi(page, roleProfile());
+  await page.goto("/role-profiles");
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Hồ sơ vị trí" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("columnheader", { name: "Trạng thái" }),
+  ).toBeVisible();
+  await expect(page.getByText("Cần xem lại", { exact: true })).toBeVisible();
+  // The title is user data and is not translated.
+  await page.getByRole("link", { name: /Backend Engineer/ }).click();
+
+  await expect(
+    page.getByRole("heading", {
+      name: "Xác nhận vị trí trước khi luyện tập.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Tên vị trí")).toHaveValue("Backend Engineer");
+  await expect(page.getByLabel("Yêu cầu 01", { exact: true })).toHaveValue(
+    "Go",
+  );
+  await expect(
+    page.getByText("Build concurrent services", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Ngôn ngữ · Bắt buộc")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Xác nhận vị trí" }),
+  ).toBeVisible();
+
+  await page.goto("/role-profiles/new");
+  await expect(
+    page.getByRole("heading", { name: "Đưa vị trí vào phòng phỏng vấn." }),
+  ).toBeVisible();
+  await page.getByLabel("Nội dung mô tả công việc").fill("Quá ngắn");
+  await page.getByRole("button", { name: "Phân tích vị trí" }).click();
+  await expect(
+    page.getByText("Hãy dán từ 100 đến 20.000 ký tự văn bản mô tả công việc."),
+  ).toBeVisible();
+  expect(api.calls).toEqual([]);
+  expect(api.errors).toEqual([]);
+});

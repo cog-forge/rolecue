@@ -89,9 +89,11 @@ it("moves through the RoleCue artwork", async () => {
     });
     fireEvent.click(choice);
     await waitFor(() => expect(choice).toHaveAttribute("aria-pressed", "true"));
-    expect(
-      screen.getByRole("listbox", { name: "The practice loop" }),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("listbox", { name: "The practice loop" }),
+      ).toBeVisible(),
+    );
   } finally {
     width.mockRestore();
     height.mockRestore();

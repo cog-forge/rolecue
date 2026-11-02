@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 
 // Copies a secret to the clipboard; the icon swaps to a check while it is confirmed.
@@ -14,6 +15,7 @@ export function CopyButton({
   label: string;
   children?: ReactNode;
 }) {
+  const t = useTranslations("auth.security.copy");
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   useEffect(() => {
     if (state === "idle") return;
@@ -49,9 +51,9 @@ export function CopyButton({
       </Button>
       <span role="status" className="sr-only">
         {state === "copied"
-          ? "Copied to clipboard."
+          ? t("copied")
           : state === "failed"
-            ? "Unable to copy. Select the text and copy it manually."
+            ? t("failed")
             : ""}
       </span>
     </>

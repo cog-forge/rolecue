@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { UserRound } from "lucide-react";
 import { renderAvatarPortrait } from "@/components/avatar-viewer/render-portrait";
@@ -27,6 +28,7 @@ export function AvatarPortrait({
   compact?: boolean;
   className?: string;
 }) {
+  const t = useTranslations("candidate.setup.avatar");
   const frame = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -91,7 +93,9 @@ export function AvatarPortrait({
             strokeWidth={compact ? 1.5 : 1.25}
           />
           {!compact && (
-            <p className="text-xs text-muted-foreground">Preview unavailable</p>
+            <p className="text-xs text-muted-foreground">
+              {t("previewUnavailable")}
+            </p>
           )}
         </div>
       ) : (

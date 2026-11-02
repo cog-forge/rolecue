@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { pdfFileError } from "../api/contract";
@@ -18,12 +19,13 @@ export function DocumentUploadPanel({
   disabled: boolean;
   progress: number | null;
 }) {
+  const t = useTranslations("candidate.roleProfiles.upload");
   const fmt = useFormatters();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const select = (selected: File | undefined) => {
     if (!selected) return;
-    const message = pdfFileError(selected);
+    const message = pdfFileError(selected, (key) => t(`errors.${key}`));
     setError(message);
     if (!message) onChange(selected);
     if (input.current) input.current.value = "";
@@ -37,7 +39,7 @@ export function DocumentUploadPanel({
         event.preventDefault();
         if (!disabled) {
           if (event.dataTransfer.files.length !== 1)
-            setError("Choose one PDF at a time.");
+            setError(t("errors.oneAtATime"));
           else select(event.dataTransfer.files[0]);
         }
       }}
@@ -52,15 +54,20 @@ export function DocumentUploadPanel({
           <Upload className="size-6 text-muted-foreground" aria-hidden="true" />
         )}
         <p className="max-w-full break-words text-sm font-medium">
-          {file ? file.name : "Drop your PDF here"}
+          {file ? file.name : t("dropHere")}
         </p>
         <p
           id="document-help"
           className="max-w-sm text-xs leading-relaxed text-muted-foreground"
         >
           {file
-            ? `${fmt.number(file.size / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB · PDF selected`
-            : "PDF with selectable text, up to 5 MB. Scanned or encrypted PDFs aren’t supported."}
+            ? t("selected", {
+                size: fmt.number(file.size / 1024, {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                }),
+              })
+            : t("help")}
         </p>
         <Input
           ref={input}
@@ -68,7 +75,7 @@ export function DocumentUploadPanel({
           accept=".pdf,application/pdf"
           className="sr-only"
           tabIndex={-1}
-          aria-label="Job description PDF"
+          aria-label={t("inputLabel")}
           disabled={disabled}
           onChange={(event) => select(event.target.files?.[0])}
         />
@@ -77,23 +84,23 @@ export function DocumentUploadPanel({
             type="button"
             variant="outline"
             disabled={disabled}
-            className="h-11"
+            className="h-auto min-h-11 py-2 whitespace-normal"
             onClick={() => input.current?.click()}
           >
-            {file ? "Replace PDF" : "Choose PDF"}
+            {file ? t("replace") : t("choose")}
           </Button>
           {file && (
             <Button
               type="button"
               variant="ghost"
               disabled={disabled}
-              className="h-11 hover:text-destructive"
+              className="h-auto min-h-11 py-2 whitespace-normal hover:text-destructive"
               onClick={() => {
                 setError(null);
                 onChange(null);
               }}
             >
-              <X aria-hidden="true" /> Remove PDF
+              <X aria-hidden="true" /> {t("remove")}
             </Button>
           )}
         </div>
@@ -108,10 +115,10 @@ export function DocumentUploadPanel({
               className="h-2 w-full accent-workspace-accent"
               max={100}
               value={progress}
-              aria-label="PDF upload progress"
+              aria-label={t("progressLabel")}
             />
             <p className="text-xs text-muted-foreground">
-              Uploaded {progress}%
+              {t("uploaded", { progress: String(progress) })}
             </p>
           </div>
         )}

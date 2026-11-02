@@ -267,3 +267,32 @@ test("My Applications lists each application with its company, status, progress 
   ).toBeVisible();
   await expect(page.getByText("Showing 1–2 of 2")).toBeVisible();
 });
+
+test("My Applications speaks Vietnamese when NEXT_LOCALE is vi and keeps posting data as stored", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await mockCandidateApply(page, { applications: [application()] });
+  await page.goto("/applications");
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Đơn ứng tuyển của tôi" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Go Backend Engineer", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Đang chờ xét duyệt CV")).toBeVisible();
+  await expect(page.getByText("Acme · Hanoi").first()).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "Tiến trình đơn ứng tuyển" }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("link", {
+      name: "Xem đơn ứng tuyển cho Go Backend Engineer",
+    }),
+  ).toBeVisible();
+});

@@ -45,6 +45,7 @@ export function AccountCredentials({
   password?: ReactNode;
 }) {
   const te = useTranslations("errors");
+  const t = useTranslations("auth.security");
   const user = useSessionUser();
   const cache = useQueryClient();
   const router = useRouter();
@@ -105,12 +106,9 @@ export function AccountCredentials({
         role="alert"
         className="space-y-4 rounded-xl border border-destructive/20 bg-destructive/5 p-4"
       >
-        <p className="text-sm">
-          We could not confirm the outcome of your security action. Reload to
-          check your account before trying again.
-        </p>
+        <p className="text-sm">{t("credentials.reloadNotice")}</p>
         <Button className="min-h-11" onClick={() => window.location.reload()}>
-          Reload account security
+          {t("credentials.reload")}
         </Button>
       </div>
     );
@@ -128,7 +126,7 @@ export function AccountCredentials({
       {current.isPending ? (
         <Skeleton
           className="h-[12.25rem] rounded-2xl lg:h-24"
-          aria-label="Loading security summary"
+          aria-label={t("summary.loading")}
         />
       ) : current.error ? (
         <SecurityRequestError
@@ -147,13 +145,13 @@ export function AccountCredentials({
         {password}
         <SecuritySection
           id="two-factor-settings"
-          title="Two-factor authentication"
-          description="A code from your phone, asked for after your password."
+          title={t("credentials.twoFactorTitle")}
+          description={t("credentials.twoFactorDescription")}
         >
           {current.isPending ? (
             <SecurityPanel>
               <p role="status" className="py-4 text-sm text-muted-foreground">
-                Loading authenticator status…
+                {t("credentials.loadingAuthenticator")}
               </p>
             </SecurityPanel>
           ) : current.error ? (
@@ -165,7 +163,7 @@ export function AccountCredentials({
             <SecurityPanel>
               <SecurityRow
                 icon={<Smartphone />}
-                title="Authenticator app"
+                title={t("credentials.authenticatorApp")}
                 status={
                   <Badge
                     variant={
@@ -174,13 +172,15 @@ export function AccountCredentials({
                         : "outline"
                     }
                   >
-                    {current.data.user.twoFactorEnabled ? "On" : "Off"}
+                    {current.data.user.twoFactorEnabled
+                      ? t("status.on")
+                      : t("status.off")}
                   </Badge>
                 }
                 description={
                   hasPassword
-                    ? "Asks for a 6-digit code after your password. Google, GitHub and Facebook sign-in follow that provider’s own security."
-                    : "Add a password to your account first. Authenticator codes protect password sign-in."
+                    ? t("credentials.authenticatorWithPassword")
+                    : t("credentials.authenticatorNoPassword")
                 }
                 action={
                   hasPassword && (
@@ -204,13 +204,13 @@ export function AccountCredentials({
         </SecuritySection>
         <SecuritySection
           id="sign-in-methods"
-          title="Sign-in methods"
-          description="Ways to sign in to your RoleCue account."
+          title={t("credentials.methodsTitle")}
+          description={t("credentials.methodsDescription")}
         >
           {accounts.isPending ? (
             <SecurityPanel>
               <p role="status" className="py-4 text-sm text-muted-foreground">
-                Loading sign-in methods…
+                {t("credentials.loadingMethods")}
               </p>
             </SecurityPanel>
           ) : accounts.error ? (
@@ -230,8 +230,8 @@ export function AccountCredentials({
         </SecuritySection>
         <SecuritySection
           id="active-sessions"
-          title="Active sessions"
-          description="Browsers and devices signed in to your account. A browser remembered for two-factor is not a session."
+          title={t("credentials.sessionsTitle")}
+          description={t("credentials.sessionsDescription")}
         >
           <SecuritySessions
             sessions={sessions}
