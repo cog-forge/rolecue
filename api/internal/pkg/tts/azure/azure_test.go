@@ -84,7 +84,7 @@ func TestSynthesizeSuccess(t *testing.T) {
 	}
 	if gotHeaders.Get("Ocp-Apim-Subscription-Key") != testKey ||
 		gotHeaders.Get("Content-Type") != "application/ssml+xml" ||
-		gotHeaders.Get("X-Microsoft-OutputFormat") != "audio-24khz-48kbitrate-mono-mp3" ||
+		gotHeaders.Get("X-Microsoft-OutputFormat") != "audio-48khz-192kbitrate-mono-mp3" ||
 		gotHeaders.Get("User-Agent") == "" {
 		t.Fatalf("headers = %v", gotHeaders)
 	}

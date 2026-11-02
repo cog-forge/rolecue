@@ -26,8 +26,10 @@ import (
 )
 
 const (
-	// outputFormat is a 24 kHz 48 kbps mono MP3: small, and playable by every browser.
-	outputFormat = "audio-24khz-48kbitrate-mono-mp3"
+	// outputFormat is a 48 kHz 192 kbps mono MP3, the highest-quality MP3 the REST endpoint lists (the
+	// only other 48 kHz MP3 is audio-48khz-96kbitrate-mono-mp3). It is 24 KB per second of speech and
+	// every browser plays it. A voice recorded at 24 kHz is upsampled by the service.
+	outputFormat = "audio-48khz-192kbitrate-mono-mp3"
 	mimeType     = "audio/mpeg"
 	// language is the SSML document language. The interview speaks English only.
 	language = "en-US"
@@ -36,7 +38,7 @@ const (
 	defaultBackoff    = 250 * time.Millisecond
 	// maxRetryAfter caps how long a Retry-After header can make a call wait.
 	maxRetryAfter = 2 * time.Second
-	// maxAudioBytes bounds the response body. Ten minutes of this format is about 3.6 MB.
+	// maxAudioBytes bounds the response body. Ten minutes of this format is about 14.4 MB.
 	maxAudioBytes = 16 << 20
 )
 

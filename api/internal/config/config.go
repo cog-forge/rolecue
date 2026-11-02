@@ -159,7 +159,8 @@ type PayOSConfig struct {
 // sync. Key and Region may both be empty: the API still starts, interviews fall back to text and the voice
 // sync reports the provider as not configured. Timeout bounds one provider call, including its retries.
 // A malformed value does not stop the API: the synthesizer is wired as unavailable and the reason is
-// logged. SyncLocales limits the voice sync to those locales ("en" matches en-US, en-GB and so on;
+// logged. SyncLocales limits the voice sync to those locales (the default en-US because the interview
+// speaks English only; an entry also matches the regions under it, so "en" would match en-GB too;
 // empty means all).
 type TTSConfig struct {
 	Key         string        `mapstructure:"key"`
@@ -362,7 +363,7 @@ func setDefaults(v *viper.Viper) {
 
 	// TTS defaults: one provider call gets 10s; the interview speaks English only, so the voice sync keeps English locales.
 	v.SetDefault("tts.timeout", "10s")
-	v.SetDefault("tts.sync_locales", []string{"en"})
+	v.SetDefault("tts.sync_locales", []string{"en-US"})
 
 	// PayOS defaults
 	v.SetDefault("payos.timeout", "30s")

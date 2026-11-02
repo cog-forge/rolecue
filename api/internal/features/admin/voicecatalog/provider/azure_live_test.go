@@ -5,6 +5,7 @@ package provider
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -28,6 +29,9 @@ func TestAzureLive(t *testing.T) {
 	for _, v := range voices {
 		if v.ProviderVoiceID == "" || v.Name == "" || v.Locale == "" {
 			t.Fatalf("incomplete voice: %+v", v)
+		}
+		if strings.Contains(v.ProviderVoiceID, ":") || strings.HasSuffix(v.ProviderVoiceID, "MultilingualNeural") {
+			t.Fatalf("an HD or multilingual voice was kept: %+v", v)
 		}
 		if len(v.Locale) >= 2 && v.Locale[:2] == "en" {
 			english++

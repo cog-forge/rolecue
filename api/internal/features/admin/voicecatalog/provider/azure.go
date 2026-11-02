@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/voicecatalog/domain"
@@ -69,8 +70,36 @@ type azureVoice struct {
 	LocalName   string `json:"LocalName"`
 	Gender      string `json:"Gender"`
 	Locale      string `json:"Locale"`
+	VoiceType   string `json:"VoiceType"`
 }
 
+// standardVoiceType is the VoiceType of the neural voices Azure lists (the REST docs show "Neural").
+const standardVoiceType = "Neural"
+
+// isStandardNeural reports whether v belongs in the catalog: a standard neural voice. The catalog feeds the
+// interviewer avatar, which needs <mstts:viseme>, and Microsoft documents that the HD voices do not support
+// it. Dropped:
+//   - HD voices, named "persona:DragonHD...Neural" (for example en-US-Ava:DragonHDLatestNeural) or
+//     "locale-voice:DragonHDOmniLatestNeural";
+//   - multilingual voices ("...MultilingualNeural", including the Turbo ones): the language-support page lists
+//     them as their own "Multilingual" type, apart from "Standard", and does not state viseme support for them;
+//   - anything whose VoiceType is not "Neural".
+//
+// https://learn.microsoft.com/azure/ai-services/speech-service/high-definition-voices
+// https://learn.microsoft.com/azure/ai-services/speech-service/language-support?tabs=tts
+func isStandardNeural(v azureVoice) bool {
+	if !strings.EqualFold(v.VoiceType, standardVoiceType) {
+		return false
+	}
+	name := strings.ToLower(v.ShortName)
+	return !strings.Contains(name, ":") &&
+		!strings.Contains(name, "dragonhd") &&
+		!strings.HasSuffix(name, "multilingualneural")
+}
+
+// ListVoices returns the standard neural voices of the region (see isStandardNeural). Filtering happens here, so
+// the service validates and writes only voices the catalog may offer; an HD or multilingual voice that an earlier
+// sync stored is simply no longer offered and the sync deactivates it.
 func (a *Azure) ListVoices(ctx context.Context) ([]domain.ProviderVoice, error) {
 	if a.key == "" || a.baseURL == "" {
 		return nil, service.ErrProviderNotConfigured
@@ -104,6 +133,9 @@ func (a *Azure) ListVoices(ctx context.Context) ([]domain.ProviderVoice, error) 
 	}
 	voices := make([]domain.ProviderVoice, 0, len(raw))
 	for _, v := range raw {
+		if !isStandardNeural(v) {
+			continue
+		}
 		name := v.DisplayName
 		if name == "" {
 			name = v.LocalName
