@@ -6,8 +6,10 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"go.uber.org/zap"
 )
 
 // applicationExpiryLockKey names the advisory lock of the expiry pass. Only one pass runs at a time
@@ -57,6 +59,11 @@ func (r *Repository) AutoRejectExpired(ctx context.Context, now time.Time) (int,
 				return internal(err)
 			}
 			rejected += int(count)
+			if count > 0 {
+				logger.FromContext(ctx).Info("applications expiry applied in transaction", logger.Op("application.expiry"),
+					zap.String("posting_id", postingID.String()), zap.Int("count", int(count)),
+					zap.String("reason", domain.ExpiryRejectReason))
+			}
 			if _, err := evaluateTerminalClose(ctx, q, postingID, status); err != nil {
 				return err
 			}

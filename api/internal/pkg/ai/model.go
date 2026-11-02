@@ -40,5 +40,9 @@ func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatMode
 	if err != nil {
 		return nil, fmt.Errorf("create Gemini client: %w", err)
 	}
-	return gemini.NewChatModel(ctx, &gemini.Config{Client: client, Model: cfg.Model})
+	inner, err := gemini.NewChatModel(ctx, &gemini.Config{Client: client, Model: cfg.Model})
+	if err != nil {
+		return nil, err
+	}
+	return &loggedModel{inner: inner, provider: cfg.Provider, model: cfg.Model}, nil
 }

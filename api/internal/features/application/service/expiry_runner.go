@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
+
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"go.uber.org/zap"
 )
 
 // ExpiryInterval is how often the expiry pass runs. The pass is one indexed query when nothing is due,
@@ -35,7 +37,8 @@ func NewExpiryRunner(job ExpiryJob) (*ExpiryRunner, error) {
 // tick tries again.
 func (r *ExpiryRunner) Run(ctx context.Context, interval time.Duration, now func() time.Time) {
 	if interval <= 0 {
-		slog.ErrorContext(ctx, "application expiry interval must be positive", "interval", interval)
+		logger.FromContext(ctx).Error("application expiry interval must be positive", logger.Op("application.expiry"),
+			zap.Duration("interval", interval))
 		return
 	}
 	if now == nil {
@@ -58,12 +61,14 @@ func (r *ExpiryRunner) runOnce(ctx context.Context, now func() time.Time) {
 	if ctx.Err() != nil {
 		return
 	}
+	log := logger.FromContext(ctx)
 	rejected, err := r.job.AutoRejectExpired(ctx, now())
 	if err != nil {
-		slog.ErrorContext(ctx, "application expiry pass failed", "error", err)
+		// The pass is one transaction, so a failure leaves every Application of the pass as it was.
+		log.Error("application expiry pass failed", logger.Op("application.expiry"), logger.Cause(err))
 		return
 	}
 	if rejected > 0 {
-		slog.InfoContext(ctx, "expired applications rejected", "count", rejected)
+		log.Info("expired applications rejected", logger.Op("application.expiry"), zap.Int("count", rejected))
 	}
 }

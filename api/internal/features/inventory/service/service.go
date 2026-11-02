@@ -6,6 +6,7 @@ import (
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -86,12 +87,31 @@ func (s *Service) PurchaseSlot(ctx context.Context, user authdomain.User, amount
 	if amount < 1 || amount > domain.MaxSlotsPerPurchase {
 		return domain.SlotPurchase{}, apperror.New(apperror.CodeValidation, "amount must be between 1 and 10")
 	}
-	return s.repository.PurchaseSlot(ctx, user.ID, amount)
+	purchase, err := s.repository.PurchaseSlot(ctx, user.ID, amount)
+	if err != nil {
+		return domain.SlotPurchase{}, err
+	}
+	logger.FromContext(ctx).Info("inventory slots purchased",
+		logger.Op("inventory.slot_purchase"),
+		logger.String("user_id", user.ID.String()),
+		logger.Int("count", int(amount)),
+		logger.Int("capacity", int(purchase.Capacity.Capacity)),
+		logger.Int("balance", int(purchase.Balance)),
+	)
+	return purchase, nil
 }
 
 func (s *Service) Delete(ctx context.Context, user authdomain.User, id uuid.UUID) error {
 	if err := authorize(user); err != nil {
 		return err
 	}
-	return s.repository.Delete(ctx, user.ID, id)
+	if err := s.repository.Delete(ctx, user.ID, id); err != nil {
+		return err
+	}
+	logger.FromContext(ctx).Info("avatar deleted",
+		logger.Op("inventory.avatar_delete"),
+		logger.String("avatar_id", id.String()),
+		logger.String("user_id", user.ID.String()),
+	)
+	return nil
 }

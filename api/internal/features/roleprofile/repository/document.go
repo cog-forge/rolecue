@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -24,6 +25,9 @@ func (r *RoleProfileRepository) CreatePDFProfile(ctx context.Context, user uuid.
 	err = tx.QueryRow(ctx, `SELECT rp.id FROM role_profiles rp JOIN job_descriptions jd ON jd.id=rp.jd_id
  WHERE rp.candidate_id=$1 AND jd.content_path=$2`, user, objectKey).Scan(&existing)
 	if err == nil {
+		// A retried completion returns the profile the first attempt created.
+		logger.FromContext(ctx).Info("document role profile already exists, returning it", logger.Op("roleprofile.create_document"),
+			logger.String("profile_id", existing.String()))
 		profile, _, err := readProfile(ctx, q, user, existing)
 		if err != nil {
 			return domain.RoleProfile{}, err
@@ -45,5 +49,10 @@ func (r *RoleProfileRepository) CreatePDFProfile(ctx context.Context, user uuid.
 	if err != nil {
 		return domain.RoleProfile{}, err
 	}
-	return profile, rolePersistenceError(tx.Commit(ctx))
+	err = rolePersistenceError(tx.Commit(ctx))
+	if err == nil {
+		logger.FromContext(ctx).Info("role profile created from document", logger.Op("roleprofile.create_document"),
+			logger.String("profile_id", profile.ID.String()), logger.String("to_status", string(profile.Status)))
+	}
+	return profile, err
 }

@@ -109,8 +109,23 @@ func (c *Client) Capabilities() tts.Capabilities { return tts.Capabilities{} }
 // attemptError is one failed attempt, already mapped to a tts error.
 type attemptError struct {
 	err        error
+	reason     string // classified for logs: unreachable, http_4xx, http_5xx, auth_rejected, ...
 	retryable  bool
 	retryAfter time.Duration
+}
+
+// failureReason classifies a failed attempt for logs. Timeouts and cancellations are not attemptErrors.
+func failureReason(err error) string {
+	var ae *attemptError
+	switch {
+	case errors.Is(err, tts.ErrTimeout):
+		return "timeout"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	case errors.As(err, &ae) && ae.reason != "":
+		return ae.reason
+	}
+	return "other"
 }
 
 func (e *attemptError) Error() string { return e.err.Error() }
@@ -153,7 +168,8 @@ func (c *Client) Synthesize(ctx context.Context, req tts.Request) (tts.Result, e
 			logger.Int("attempt", attempt),
 			logger.String("voice", req.ProviderVoiceID),
 			logger.Any("retrying", retry),
-			logger.Error(err),
+			logger.String("reason", failureReason(err)),
+			logger.Cause(err),
 		)
 		if !retry {
 			return tts.Result{}, err
@@ -168,7 +184,7 @@ func (c *Client) Synthesize(ctx context.Context, req tts.Request) (tts.Result, e
 func (c *Client) attempt(ctx context.Context, ssml []byte) ([]byte, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(ssml))
 	if err != nil {
-		return nil, &attemptError{err: fmt.Errorf("%w: build request: %w", tts.ErrUnavailable, err)}
+		return nil, &attemptError{err: fmt.Errorf("%w: build request: %w", tts.ErrUnavailable, err), reason: "build_request"}
 	}
 	httpReq.Header.Set("Ocp-Apim-Subscription-Key", c.key)
 	httpReq.Header.Set("Content-Type", "application/ssml+xml")
@@ -180,7 +196,7 @@ func (c *Client) attempt(ctx context.Context, ssml []byte) ([]byte, error) {
 		if ctx.Err() != nil {
 			return nil, ctxError(ctx.Err())
 		}
-		return nil, &attemptError{err: fmt.Errorf("%w: %w", tts.ErrUnavailable, err), retryable: true}
+		return nil, &attemptError{err: fmt.Errorf("%w: %w", tts.ErrUnavailable, err), reason: "unreachable", retryable: true}
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -194,10 +210,14 @@ func (c *Client) attempt(ctx context.Context, ssml []byte) ([]byte, error) {
 		if ctx.Err() != nil {
 			return nil, ctxError(ctx.Err())
 		}
-		return nil, &attemptError{err: fmt.Errorf("%w: read audio: %w", tts.ErrUnavailable, err), retryable: true}
+		return nil, &attemptError{err: fmt.Errorf("%w: read audio: %w", tts.ErrUnavailable, err), reason: "read_error", retryable: true}
 	}
 	if len(audio) == 0 || len(audio) > maxAudioBytes {
-		return nil, &attemptError{err: fmt.Errorf("%w: provider returned %d audio bytes", tts.ErrUnavailable, len(audio))}
+		reason := "empty_response"
+		if len(audio) > maxAudioBytes {
+			reason = "response_too_large"
+		}
+		return nil, &attemptError{err: fmt.Errorf("%w: provider returned %d audio bytes", tts.ErrUnavailable, len(audio)), reason: reason}
 	}
 	return audio, nil
 }
@@ -207,19 +227,22 @@ func statusError(resp *http.Response) error {
 	code := resp.StatusCode
 	switch {
 	case code == http.StatusUnauthorized || code == http.StatusForbidden:
-		return &attemptError{err: fmt.Errorf("%w: credentials rejected (HTTP %d)", tts.ErrUnavailable, code)}
+		return &attemptError{err: fmt.Errorf("%w: credentials rejected (HTTP %d)", tts.ErrUnavailable, code), reason: "auth_rejected"}
 	case code == http.StatusTooManyRequests:
 		return &attemptError{
 			err:        fmt.Errorf("%w (HTTP 429)", tts.ErrQuota),
+			reason:     "rate_limited",
 			retryable:  true,
 			retryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
 		}
-	case code == http.StatusRequestTimeout || code >= 500:
-		return &attemptError{err: fmt.Errorf("%w: HTTP %d", tts.ErrUnavailable, code), retryable: true}
+	case code == http.StatusRequestTimeout:
+		return &attemptError{err: fmt.Errorf("%w: HTTP %d", tts.ErrUnavailable, code), reason: "timeout", retryable: true}
+	case code >= 500:
+		return &attemptError{err: fmt.Errorf("%w: HTTP %d", tts.ErrUnavailable, code), reason: "http_5xx", retryable: true}
 	case code >= 400:
-		return &attemptError{err: fmt.Errorf("%w (HTTP %d)", tts.ErrRejected, code)}
+		return &attemptError{err: fmt.Errorf("%w (HTTP %d)", tts.ErrRejected, code), reason: "http_4xx"}
 	default:
-		return &attemptError{err: fmt.Errorf("%w: unexpected HTTP %d", tts.ErrUnavailable, code)}
+		return &attemptError{err: fmt.Errorf("%w: unexpected HTTP %d", tts.ErrUnavailable, code), reason: "unexpected_status"}
 	}
 }
 

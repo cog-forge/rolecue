@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/converter"
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type AvatarConverter interface {
@@ -63,7 +64,9 @@ func (s *AvatarConversionService) Create(ctx context.Context, user authdomain.Us
 	if capacity.IsFull {
 		return domain.Avatar{}, apperror.New(apperror.CodeInventoryFull, "avatar inventory is full")
 	}
+	done := logger.Start(ctx, "inventory.avatar_convert", logger.String("user_id", user.ID.String()), zap.Int64("bytes", size))
 	asset, err := s.runner.Convert(ctx, source, metadata.Name)
+	done(err)
 	if err != nil {
 		if errors.Is(err, converter.ErrUnavailable) {
 			return domain.Avatar{}, apperror.Wrap(apperror.CodeAvatarConverterUnavailable, "avatar converter is busy", err)
@@ -84,9 +87,19 @@ func (s *AvatarConversionService) Create(ctx context.Context, user authdomain.Us
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if cleanupErr := s.store.Delete(cleanupCtx, key); cleanupErr != nil {
-			slog.ErrorContext(cleanupCtx, "unable to delete unreferenced avatar object", "key", key, "error", cleanupErr)
+			logger.FromContext(cleanupCtx).Error("unable to delete unreferenced avatar object",
+				logger.Op("inventory.avatar_cleanup"),
+				logger.String("key", key),
+				logger.Cause(cleanupErr),
+			)
 		}
 		return domain.Avatar{}, err
 	}
+	logger.FromContext(ctx).Info("avatar created",
+		logger.Op("inventory.avatar_create"),
+		logger.String("avatar_id", avatar.ID.String()),
+		logger.String("user_id", user.ID.String()),
+		zap.Int64("bytes", size),
+	)
 	return avatar, nil
 }

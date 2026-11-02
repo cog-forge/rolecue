@@ -10,10 +10,12 @@ import (
 	"errors"
 	"math"
 
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.uber.org/zap"
 )
 
 // Currency labels coin movements. It is not VND: coins are internal, not money.
@@ -46,7 +48,14 @@ func Debit(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, descrip
 	if _, err := db.Exec(ctx, `UPDATE public.wallets SET balance = $2 WHERE id = $1`, walletID, balance-amount); err != nil {
 		return persistence(err)
 	}
-	return insertRow(ctx, db, userID.String(), Counterparty, amount, description)
+	if err := insertRow(ctx, db, userID.String(), Counterparty, amount, description); err != nil {
+		return err
+	}
+	// The description is not logged: callers build it from posting titles, and the COIN row already keeps it.
+	logger.FromContext(ctx).Info("wallet debit applied in transaction", logger.Op("wallet.debit"),
+		zap.String("user_id", userID.String()), zap.Int32("amount", amount), zap.Int32("balance_after", balance-amount),
+		zap.String("currency", Currency))
+	return nil
 }
 
 // Credit adds amount coins to the user's wallet and records one COIN row from the system to the
@@ -56,10 +65,15 @@ func Credit(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, descri
 	if err := checkAmount(amount); err != nil {
 		return err
 	}
-	if err := addToWallet(ctx, db, userID, amount); err != nil {
+	balanceAfter, err := addToWallet(ctx, db, userID, amount)
+	if err != nil {
 		return err
 	}
-	return insertRow(ctx, db, Counterparty, userID.String(), amount, description)
+	if err := insertRow(ctx, db, Counterparty, userID.String(), amount, description); err != nil {
+		return err
+	}
+	logCredit(ctx, "wallet.credit", userID, amount, balanceAfter, "")
+	return nil
 }
 
 // CreditForOrder adds amount coins to the user's wallet for an order whose transactions row already
@@ -70,29 +84,45 @@ func CreditForOrder(ctx context.Context, db DBTX, userID uuid.UUID, amount int32
 	if err := checkAmount(amount); err != nil {
 		return err
 	}
-	return addToWallet(ctx, db, userID, amount)
-}
-
-// addToWallet creates the wallet if it is missing, locks it and raises the balance by amount.
-func addToWallet(ctx context.Context, db DBTX, userID uuid.UUID, amount int32) error {
-	if _, err := db.Exec(ctx,
-		`INSERT INTO public.wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING`, userID); err != nil {
-		return persistence(err)
-	}
-	walletID, balance, found, err := lockWallet(ctx, db, userID)
+	balanceAfter, err := addToWallet(ctx, db, userID, amount)
 	if err != nil {
 		return err
 	}
+	logCredit(ctx, "wallet.credit_order", userID, amount, balanceAfter, "paid_order")
+	return nil
+}
+
+// logCredit records a coin credit. The write belongs to the caller's transaction, so the line is
+// final only once that transaction commits.
+func logCredit(ctx context.Context, op string, userID uuid.UUID, amount, balanceAfter int32, reason string) {
+	fields := []zap.Field{logger.Op(op), zap.String("user_id", userID.String()),
+		zap.Int32("amount", amount), zap.Int32("balance_after", balanceAfter), zap.String("currency", Currency)}
+	if reason != "" {
+		fields = append(fields, logger.String("reason", reason))
+	}
+	logger.FromContext(ctx).Info("wallet credit applied in transaction", fields...)
+}
+
+// addToWallet creates the wallet if it is missing, locks it, raises the balance by amount and returns the new balance.
+func addToWallet(ctx context.Context, db DBTX, userID uuid.UUID, amount int32) (int32, error) {
+	if _, err := db.Exec(ctx,
+		`INSERT INTO public.wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING`, userID); err != nil {
+		return 0, persistence(err)
+	}
+	walletID, balance, found, err := lockWallet(ctx, db, userID)
+	if err != nil {
+		return 0, err
+	}
 	if !found {
-		return persistence(pgx.ErrNoRows)
+		return 0, persistence(pgx.ErrNoRows)
 	}
 	if int64(balance)+int64(amount) > math.MaxInt32 {
-		return apperror.New(apperror.CodeInternal, "wallet balance would exceed the maximum")
+		return 0, apperror.New(apperror.CodeInternal, "wallet balance would exceed the maximum")
 	}
 	if _, err := db.Exec(ctx, `UPDATE public.wallets SET balance = $2 WHERE id = $1`, walletID, balance+amount); err != nil {
-		return persistence(err)
+		return 0, persistence(err)
 	}
-	return nil
+	return balance + amount, nil
 }
 
 func insufficientBalance() error {

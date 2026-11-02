@@ -12,8 +12,15 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/payos"
 	"github.com/cog-forge/rolecue/api/internal/features/wallet/repository"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
+)
+
+const (
+	opPayOSWebhook = "wallet.payos_webhook"
+	opDepositSync  = "wallet.deposit_sync"
 )
 
 type WalletRepository interface {
@@ -61,7 +68,11 @@ func (s *Service) GetWallet(ctx context.Context, userID uuid.UUID) (domain.Walle
 	w, err := s.repo.GetWalletByUserID(ctx, userID)
 	if err != nil {
 		if apperror.IsCode(err, apperror.CodeWalletNotFound) {
-			return s.repo.CreateWallet(ctx, nil, userID)
+			created, err := s.repo.CreateWallet(ctx, nil, userID)
+			if err == nil {
+				logger.FromContext(ctx).Info("wallet created", logger.Op("wallet.create"), zap.String("user_id", userID.String()))
+			}
+			return created, err
 		}
 		return domain.Wallet{}, err
 	}
@@ -139,13 +150,19 @@ func (s *Service) CreateDepositCheckout(ctx context.Context, userID uuid.UUID, p
 		CancelURL:   cancelURL,
 	}
 
+	done := logger.Start(ctx, "wallet.payos_create_link", zap.Int64("order_code", orderCode), zap.String("transaction_id", txRecord.ID.String()))
 	linkData, err := s.payos.CreatePaymentLink(ctx, payosReq)
+	done(err)
 	if err != nil {
 		// The error can be ambiguous: PayOS may have created the link before our call timed out. The
 		// order stays pending so a later PAID webhook or sync still credits it; the user retries with a
 		// new order.
 		return domain.DepositCheckoutResponse{}, apperror.Wrap(apperror.CodePayOSError, "failed to create PayOS payment link", err)
 	}
+	logger.FromContext(ctx).Info("deposit checkout created", logger.Op("wallet.checkout"),
+		zap.String("user_id", userID.String()), zap.String("transaction_id", txRecord.ID.String()),
+		zap.Int64("order_code", orderCode), zap.Int32("amount", cp.PriceVND), zap.String("currency", "VND"),
+		zap.Int32("coin_amount", cp.CoinAmount))
 
 	return domain.DepositCheckoutResponse{
 		CheckoutURL:   linkData.CheckoutURL,
@@ -159,32 +176,78 @@ func (s *Service) CreateDepositCheckout(ctx context.Context, userID uuid.UUID, p
 func (s *Service) HandlePayOSWebhook(ctx context.Context, body []byte) error {
 	webhookData, err := s.payos.VerifyWebhookData(body)
 	if err != nil {
+		// Only the reason is logged: the body and the signature stay out of the log.
+		logger.FromContext(ctx).Warn("payos webhook rejected", logger.Op(opPayOSWebhook), zap.String("reason", "signature_or_format_invalid"))
 		return apperror.Wrap(apperror.CodePayOSError, "invalid webhook signature or format", err)
 	}
+	orderCode := webhookData.Data.OrderCode
 
-	payment, err := s.payos.GetPaymentLink(ctx, webhookData.Data.OrderCode)
+	done := logger.Start(ctx, "wallet.payos_get_link", zap.Int64("order_code", orderCode))
+	payment, err := s.payos.GetPaymentLink(ctx, orderCode)
+	done(err)
 	if err != nil {
 		return apperror.Wrap(apperror.CodePayOSError, "failed to get PayOS payment link", err)
 	}
 
-	if payment.OrderCode != webhookData.Data.OrderCode {
+	if payment.OrderCode != orderCode {
+		logger.FromContext(ctx).Warn("payos webhook rejected", logger.Op(opPayOSWebhook),
+			zap.String("reason", "order_code_mismatch"), zap.Int64("order_code", orderCode), zap.Int64("link_order_code", payment.OrderCode))
 		return apperror.New(apperror.CodePayOSError, "payos order code mismatch")
 	}
 
-	return s.repo.ExecTx(ctx, func(q *repository.Queries) error {
-		txRecord, err := s.repo.GetTransactionByPayOSOrderCodeForUpdate(ctx, q, webhookData.Data.OrderCode)
+	var updated domain.Transaction
+	settled := false
+	err = s.repo.ExecTx(ctx, func(q *repository.Queries) error {
+		txRecord, err := s.repo.GetTransactionByPayOSOrderCodeForUpdate(ctx, q, orderCode)
 		if err != nil {
+			if apperror.IsCode(err, apperror.CodeTransactionNotFound) {
+				logger.FromContext(ctx).Warn("payos webhook rejected", logger.Op(opPayOSWebhook),
+					zap.String("reason", "unknown_order"), zap.Int64("order_code", orderCode))
+			}
 			return err
 		}
 
 		if txRecord.Status != domain.StatusPending {
 			// Already processed — idempotent, do nothing.
+			logger.FromContext(ctx).Info("payos webhook replay ignored", logger.Op(opPayOSWebhook),
+				zap.String("reason", "already_processed"), zap.Int64("order_code", orderCode),
+				zap.String("transaction_id", txRecord.ID.String()), zap.String("status", string(txRecord.Status)))
 			return nil
 		}
 
-		_, err = s.processPaymentStatus(ctx, q, txRecord, payment, true)
-		return err
+		res, err := s.processPaymentStatus(ctx, q, txRecord, payment, true)
+		if err != nil {
+			return err
+		}
+		updated, settled = res, true
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if settled {
+		logDepositSettled(ctx, opPayOSWebhook, updated, payment)
+	}
+	return nil
+}
+
+// logDepositSettled records a top-up that left pending. Identifiers, amounts and statuses only.
+func logDepositSettled(ctx context.Context, op string, tx domain.Transaction, payment *payos.PaymentLink) {
+	fields := []zap.Field{logger.Op(op), logger.String("transaction_id", tx.ID.String()),
+		zap.Int64("order_code", payment.OrderCode), zap.String("from_status", string(domain.StatusPending)),
+		zap.String("to_status", string(tx.Status)), zap.Int("amount", payment.AmountPaid), zap.String("currency", "VND"),
+		zap.Int32("coin_amount", tx.Amount)}
+	if tx.To != nil {
+		fields = append(fields, zap.String("user_id", tx.To.String()))
+	}
+	logger.FromContext(ctx).Info("deposit status changed", fields...)
+}
+
+// logPaymentRejected records a paid link whose amounts do not match the order.
+func logPaymentRejected(ctx context.Context, op, reason string, payment *payos.PaymentLink, expectedVND int) {
+	logger.FromContext(ctx).Warn("payos payment rejected", logger.Op(op), zap.String("reason", reason),
+		zap.Int64("order_code", payment.OrderCode), zap.Int("amount", payment.Amount),
+		zap.Int("amount_paid", payment.AmountPaid), zap.Int("expected_amount", expectedVND), zap.String("currency", "VND"))
 }
 
 // SyncDepositStatus checks authoritative PayOS payment status and reconciles the transaction.
@@ -217,6 +280,7 @@ func (s *Service) SyncDepositStatus(ctx context.Context, userID uuid.UUID, order
 	}
 
 	var updatedTx domain.Transaction
+	settled := false
 	err = s.repo.ExecTx(ctx, func(q *repository.Queries) error {
 		lockedTx, err := s.repo.GetTransactionByPayOSOrderCodeForUpdate(ctx, q, orderCode)
 		if err != nil {
@@ -233,10 +297,14 @@ func (s *Service) SyncDepositStatus(ctx context.Context, userID uuid.UUID, order
 			return err
 		}
 		updatedTx = res
+		settled = res.Status != domain.StatusPending
 		return nil
 	})
 	if err != nil {
 		return domain.Transaction{}, err
+	}
+	if settled {
+		logDepositSettled(ctx, opDepositSync, updatedTx, payment)
 	}
 
 	return updatedTx, nil
@@ -249,13 +317,19 @@ func (s *Service) processPaymentStatus(
 	payment *payos.PaymentLink,
 	isWebhook bool,
 ) (domain.Transaction, error) {
+	op := opDepositSync
+	if isWebhook {
+		op = opPayOSWebhook
+	}
 	switch payment.Status {
 	case payos.PaymentLinkStatusPaid:
 		if payment.Amount <= 0 || payment.AmountPaid < payment.Amount {
+			logPaymentRejected(ctx, op, "amount_invalid_or_underpaid", payment, 0)
 			return domain.Transaction{}, apperror.New(apperror.CodePayOSError, "payment amount is invalid or underpaid")
 		}
 		if expectedVND, ok := parseExpectedVND(txRecord.Description); ok {
 			if payment.AmountPaid < expectedVND {
+				logPaymentRejected(ctx, op, "amount_below_expected", payment, expectedVND)
 				return domain.Transaction{}, apperror.New(apperror.CodePayOSError, fmt.Sprintf("amount paid %d VND is less than expected %d VND", payment.AmountPaid, expectedVND))
 			}
 		}
@@ -283,11 +357,15 @@ func (s *Service) processPaymentStatus(
 	case payos.PaymentLinkStatusPending, payos.PaymentLinkStatusProcessing:
 		// Transient in-progress states: for webhook, return error to allow retry; for client sync, return current record.
 		if isWebhook {
+			logger.FromContext(ctx).Info("payos webhook deferred", logger.Op(op), zap.String("reason", "payment_in_progress"),
+				zap.Int64("order_code", payment.OrderCode), zap.Any("status", payment.Status))
 			return domain.Transaction{}, apperror.New(apperror.CodePayOSError, fmt.Sprintf("payment is in progress (status: %s)", payment.Status))
 		}
 		return txRecord, nil
 	default:
 		// Unknown status: do not mark failed destructively.
+		logger.FromContext(ctx).Warn("payos payment status unhandled", logger.Op(op), zap.String("reason", "unknown_status"),
+			zap.Int64("order_code", payment.OrderCode), zap.Any("status", payment.Status))
 		return domain.Transaction{}, apperror.New(apperror.CodePayOSError, fmt.Sprintf("unhandled payment link status: %s", payment.Status))
 	}
 }

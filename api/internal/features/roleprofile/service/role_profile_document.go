@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -10,9 +11,11 @@ import (
 	"unicode"
 
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type DocumentRepository interface {
@@ -40,8 +43,41 @@ type UploadTicket struct {
 	Request  storage.SignedRequest `json:"request"`
 }
 
-func storageUnavailable() error {
-	return apperror.New(apperror.CodeDocumentStorage, "Document storage is unavailable. Please retry.")
+// storageUnavailable keeps the storage failure as the cause so logs show what the store reported.
+func storageUnavailable(cause error) error {
+	return apperror.Wrap(apperror.CodeDocumentStorage, "Document storage is unavailable. Please retry.", cause)
+}
+
+// uploadRule names the first upload rule a request breaks, or "" when the request is valid.
+func uploadRule(name string, input UploadRequest) string {
+	switch {
+	case !boundedText(name, 1, 200):
+		return "filename length"
+	case filepath.Base(name) != name || strings.ContainsAny(name, "\\/"):
+		return "filename path"
+	case strings.IndexFunc(name, unicode.IsControl) >= 0:
+		return "filename control character"
+	case !strings.EqualFold(filepath.Ext(name), ".pdf"):
+		return "filename extension"
+	case input.ContentType != "application/pdf":
+		return "content type"
+	case input.SizeBytes <= 0:
+		return "size"
+	}
+	return ""
+}
+
+// storedObjectRule names the first rule a stored upload breaks, or "" when it is valid.
+func storedObjectRule(object storage.Object) string {
+	switch {
+	case object.Size <= 0:
+		return "stored size is empty"
+	case object.Size > MaxPDFBytes:
+		return "stored size exceeds limit"
+	case !strings.EqualFold(object.ContentType, "application/pdf"):
+		return "stored content type"
+	}
+	return ""
 }
 
 func (a *RoleProfileDocumentApplication) Create(ctx context.Context, role string, input UploadRequest) (UploadTicket, error) {
@@ -52,18 +88,18 @@ func (a *RoleProfileDocumentApplication) Create(ctx context.Context, role string
 		return UploadTicket{}, apperror.New(apperror.CodePDFTooLarge, "Choose a PDF up to 5 MB.")
 	}
 	name := strings.TrimSpace(input.FileName)
-	if !boundedText(name, 1, 200) || filepath.Base(name) != name || strings.ContainsAny(name, "\\/") || strings.IndexFunc(name, unicode.IsControl) >= 0 || !strings.EqualFold(filepath.Ext(name), ".pdf") || input.ContentType != "application/pdf" || input.SizeBytes <= 0 {
-		return UploadTicket{}, apperror.New(apperror.CodeInvalidPDF, "Choose a PDF with a valid filename, up to 5 MB.")
+	if rule := uploadRule(name, input); rule != "" {
+		return UploadTicket{}, apperror.Wrap(apperror.CodeInvalidPDF, "Choose a PDF with a valid filename, up to 5 MB.", fmt.Errorf("upload rule failed: %s", rule))
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	grant, err := a.store.PresignPut(ctx, "application/pdf", input.SizeBytes, 5*time.Minute)
 	if err != nil {
-		return UploadTicket{}, storageUnavailable()
+		return UploadTicket{}, storageUnavailable(err)
 	}
 	id, err := uuid.Parse(grant.Key)
 	if err != nil {
-		return UploadTicket{}, storageUnavailable()
+		return UploadTicket{}, storageUnavailable(err)
 	}
 	return UploadTicket{UploadID: id, Request: grant.Request}, nil
 }
@@ -75,23 +111,27 @@ func (a *RoleProfileDocumentApplication) Complete(ctx context.Context, user uuid
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
 	objectKey := id.String()
+	downloadDone := logger.Start(ctx, "roleprofile.document_download", logger.String("upload_id", objectKey))
 	object, err := a.store.Download(ctx, objectKey)
-	if errors.Is(err, storage.ErrNotFound) {
-		return domain.RoleProfile{}, apperror.New(apperror.CodeInvalidPDF, "The PDF has not finished uploading. Retry the upload.")
-	}
 	if err != nil {
-		return domain.RoleProfile{}, storageUnavailable()
+		downloadDone(err)
+		if errors.Is(err, storage.ErrNotFound) {
+			return domain.RoleProfile{}, apperror.New(apperror.CodeInvalidPDF, "The PDF has not finished uploading. Retry the upload.")
+		}
+		return domain.RoleProfile{}, storageUnavailable(err)
 	}
+	downloadDone(nil, zap.Int64("size_bytes", object.Size))
 	defer func() { _ = object.Body.Close() }()
-	if object.Size <= 0 || object.Size > MaxPDFBytes || !strings.EqualFold(object.ContentType, "application/pdf") {
-		return domain.RoleProfile{}, apperror.New(apperror.CodeInvalidPDF, "Choose a valid PDF up to 5 MB.")
+	if rule := storedObjectRule(object); rule != "" {
+		return domain.RoleProfile{}, apperror.Wrap(apperror.CodeInvalidPDF, "Choose a valid PDF up to 5 MB.", fmt.Errorf("upload rule failed: %s", rule))
 	}
 	data, err := io.ReadAll(io.LimitReader(object.Body, MaxPDFBytes+1))
 	if err != nil {
-		return domain.RoleProfile{}, storageUnavailable()
+		return domain.RoleProfile{}, storageUnavailable(err)
 	}
 	if int64(len(data)) != object.Size {
-		return domain.RoleProfile{}, apperror.New(apperror.CodeInvalidPDF, "The uploaded PDF is incomplete. Retry the upload.")
+		return domain.RoleProfile{}, apperror.Wrap(apperror.CodeInvalidPDF, "The uploaded PDF is incomplete. Retry the upload.",
+			fmt.Errorf("read %d bytes, stored size %d", len(data), object.Size))
 	}
 	raw, err := a.parser.Parse(ctx, data)
 	if err != nil {
@@ -113,7 +153,7 @@ func (a *RoleProfileDocumentApplication) Document(ctx context.Context, user uuid
 	}
 	request, err := a.store.PresignGet(ctx, profile.ContentPath, time.Minute)
 	if err != nil {
-		return storage.SignedRequest{}, storageUnavailable()
+		return storage.SignedRequest{}, storageUnavailable(err)
 	}
 	return request, nil
 }

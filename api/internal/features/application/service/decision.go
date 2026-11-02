@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // DecisionRepository is the persistence contract of the final decision. The Repository implementation
@@ -39,5 +41,9 @@ func (s *Service) Decide(ctx context.Context, recruiterID uuid.UUID, role string
 	if err := repository.DecideApplication(ctx, recruiterID, postingID, applicationID, decision, normalized); err != nil {
 		return domain.Detail{}, err
 	}
+	logger.FromContext(ctx).Info("application decided", logger.Op("application.decide"),
+		zap.String("application_id", applicationID.String()), zap.String("posting_id", postingID.String()),
+		zap.String("user_id", recruiterID.String()), zap.String("from_status", string(domain.StatusInterviewed)),
+		zap.String("to_status", string(decision.Status())), zap.String("decision", string(decision)))
 	return s.GetDetail(ctx, recruiterID, role, postingID, applicationID)
 }

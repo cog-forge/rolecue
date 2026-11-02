@@ -7,9 +7,37 @@ import (
 	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/accounts/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
+
+// logLockDecision records an Admin lock decision. The reason is typed by the Admin, so only its length
+// is logged. The Admin's own ID is not passed to this service, so the audit line names the target only.
+func logLockDecision(ctx context.Context, targetID uuid.UUID, locking bool, result domain.Transition, request domain.LockRequest) {
+	status := "unlocked"
+	if locking {
+		status = "locked"
+	}
+	fields := []zap.Field{
+		logger.Op("admin.set_account_lock"),
+		logger.String("target_user_id", targetID.String()),
+		logger.String("to_status", status),
+		logger.String("notification_status", result.Notification.Status),
+	}
+	if !result.Changed {
+		logger.FromContext(ctx).Info("account lock unchanged", append(fields, logger.String("reason", "already_"+status))...)
+		return
+	}
+	if locking {
+		fields = append(fields, logger.Int("reason_length", utf8.RuneCountInString(request.Reason)))
+		if request.ExpiresIn != nil {
+			fields = append(fields, zap.Int64("expires_in", *request.ExpiresIn))
+		}
+	}
+	logger.FromContext(ctx).Info("account lock changed", fields...)
+}
 
 type Repository interface {
 	List(context.Context, domain.ListFilter) (domain.List, error)
@@ -76,5 +104,9 @@ func (s *Service) SetLock(ctx context.Context, cookie string, id uuid.UUID, lock
 		result.Changed = true
 		return nil
 	})
-	return result, err
+	if err != nil {
+		return result, err
+	}
+	logLockDecision(ctx, id, locking, result, request)
+	return result, nil
 }

@@ -20,6 +20,8 @@ func ProvideLogger(cfg *config.Config) (*logger.Logger, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	// Feature code logs through logger.FromContext; this is its fallback outside a request.
+	logger.SetDefault(log)
 	return log, func() { _ = log.Sync() }, nil
 }
 

@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"errors"
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/cog-forge/rolecue/api/pkg/response"
@@ -10,16 +13,18 @@ import (
 
 // RequireRole rejects users whose role is not listed. It must run after RequireAuth, which loads
 // the role from Postgres; a whole route group (e.g. /admin) is guarded once instead of per handler.
+// The rejection logs the required roles, the actual role and the user ID.
 func RequireRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := CurrentUser(c)
 		if !ok {
-			response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
+			response.Error(c, apperror.Wrap(apperror.CodeInvalidToken, "authentication required", errors.New("no authenticated user in context")))
 			c.Abort()
 			return
 		}
 		if !slices.Contains(roles, user.Role) {
-			response.Error(c, apperror.New(apperror.CodeForbidden, "you do not have access to this resource"))
+			cause := fmt.Errorf("wrong role: required [%s] actual %q user_id=%s", strings.Join(roles, ","), user.Role, user.ID)
+			response.Error(c, apperror.Wrap(apperror.CodeForbidden, "you do not have access to this resource", cause))
 			c.Abort()
 			return
 		}

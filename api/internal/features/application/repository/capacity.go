@@ -7,9 +7,11 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ledger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"go.uber.org/zap"
 )
 
 // GetCapacity reads the interview capacity of a posting the Recruiter owns. It takes the posting
@@ -52,6 +54,8 @@ func (r *Repository) FundCapacity(ctx context.Context, recruiterID, postingID uu
 			if *slot != slots {
 				return domain.ErrCapacityAlreadyFunded
 			}
+			logger.FromContext(ctx).Info("interview capacity funding replayed", logger.Op("application.fund_capacity"),
+				zap.String("reason", "already_funded"), zap.String("posting_id", postingID.String()), zap.Int32("slots", slots))
 		} else {
 			if status != "open" {
 				return domain.ErrIntakeNotOpen
@@ -67,6 +71,9 @@ func (r *Repository) FundCapacity(ctx context.Context, recruiterID, postingID uu
 			if written != 1 {
 				return apperror.New(apperror.CodeInternal, "interview capacity was not written")
 			}
+			logger.FromContext(ctx).Info("interview capacity funding applied in transaction", logger.Op("application.fund_capacity"),
+				zap.String("posting_id", postingID.String()), zap.String("user_id", recruiterID.String()),
+				zap.Int32("slots", slots), zap.Int32("amount", slots*domain.PricePerInterviewSlot), zap.String("currency", ledger.Currency))
 			slot = &slots
 		}
 		state, err = capacityState(ctx, q, postingID, status, slot)
@@ -116,6 +123,9 @@ func refundUnusedCapacity(ctx context.Context, q *Queries, postingID uuid.UUID) 
 	if err := ledger.Credit(ctx, q.db, basis.RecruiterID, coins, description); err != nil {
 		return err
 	}
+	logger.FromContext(ctx).Info("interview capacity refund applied in transaction", logger.Op("application.refund"),
+		zap.String("posting_id", postingID.String()), zap.String("user_id", basis.RecruiterID.String()),
+		zap.Int64("unused_slots", unused), zap.Int32("amount", coins), zap.String("currency", ledger.Currency))
 	return nil
 }
 

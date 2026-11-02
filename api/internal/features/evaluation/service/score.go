@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -93,7 +94,13 @@ func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 	if err != nil {
 		return s.fail(ctx, interviewID, err)
 	}
+	done := logger.Start(ctx, "evaluation.score",
+		logger.String("interview_id", interviewID.String()),
+		logger.Int("question_count", len(input.Turns)),
+		logger.Int("metric_count", len(input.Metrics)),
+	)
 	output, err := s.score(ctx, input)
+	done(err)
 	if err != nil {
 		return s.fail(ctx, interviewID, err)
 	}
@@ -107,6 +114,13 @@ func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 		// in flight forever.
 		return s.fail(ctx, interviewID, err)
 	}
+	logger.FromContext(ctx).Info("interview evaluation completed",
+		logger.Op("evaluation.complete"),
+		logger.String("interview_id", interviewID.String()),
+		logger.Int("score", int(evaluation.OverallScore)),
+		logger.Int("metric_count", len(evaluation.Scores)),
+		logger.Int("feedback_count", len(evaluation.Questions)),
+	)
 	return nil
 }
 

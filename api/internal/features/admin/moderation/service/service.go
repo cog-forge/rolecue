@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/url"
 	"time"
+	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/moderation/domain"
 	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
@@ -114,11 +115,17 @@ func (s *Service) decide(ctx context.Context, adminID, id uuid.UUID, status doma
 	if err == nil {
 		// Log before re-reading: the decision is already committed, and a failed read followed by an
 		// idempotent retry would otherwise leave it with no audit line at all.
-		s.log.WithContext(ctx).Info("job posting moderated",
+		fields := []zap.Field{
+			logger.Op("moderation.decide"),
 			logger.String("admin_id", adminID.String()),
 			logger.String("job_posting_id", id.String()),
 			logger.String("status", string(status)),
-		)
+		}
+		if reason != nil {
+			// The reason is typed by the Admin; only its length is logged.
+			fields = append(fields, logger.Int("reason_length", utf8.RuneCountInString(*reason)))
+		}
+		s.log.WithContext(ctx).Info("job posting moderated", fields...)
 		return s.review(ctx, id)
 	}
 	if !errors.Is(err, domain.ErrNotPending) {
@@ -182,6 +189,7 @@ func (s *Service) withText(ctx context.Context, posting domain.ReviewPosting) (d
 	text, err := s.readText(ctx, posting.ContentPath)
 	if errors.Is(err, storage.ErrNotFound) || errors.Is(err, storage.ErrInvalidInput) {
 		s.log.WithContext(ctx).Warn("job posting JD text not found",
+			logger.Op("moderation.read_text"),
 			logger.String("job_posting_id", posting.ID.String()),
 		)
 		return posting, nil

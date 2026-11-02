@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const recruiterRole = "recruiter"
@@ -79,7 +81,9 @@ func (s *Service) UploadDocument(ctx context.Context, role string, data []byte) 
 	if err != nil {
 		return domain.Document{}, err
 	}
+	done := logger.Start(ctx, "jobposting.document_upload", zap.Int("bytes", len(data)))
 	key, err := s.documents.Upload(ctx, bytes.NewReader(data), pdfContentType)
+	done(err)
 	if err != nil {
 		return domain.Document{}, storageError(err)
 	}
@@ -103,7 +107,14 @@ func (s *Service) Create(ctx context.Context, recruiterID uuid.UUID, role string
 	if err != nil {
 		return domain.JobPosting{}, err
 	}
-	return s.withText(ctx, record)
+	posting, err := s.withText(ctx, record)
+	if err != nil {
+		return domain.JobPosting{}, err
+	}
+	logger.FromContext(ctx).Info("job posting created", logger.Op("jobposting.create"),
+		zap.String("posting_id", posting.ID.String()), zap.String("user_id", recruiterID.String()),
+		zap.String("status", string(posting.Status)), zap.Int("count", len(posting.Requirements)))
+	return posting, nil
 }
 
 func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, filter domain.ListFilter) ([]domain.Summary, int64, error) {
@@ -166,7 +177,15 @@ func (s *Service) Submit(ctx context.Context, recruiterID uuid.UUID, role string
 	if err := s.repository.Submit(ctx, recruiterID, id); err != nil {
 		return domain.JobPosting{}, err
 	}
+	logSubmitted(ctx, "jobposting.submit", "job posting submitted", recruiterID, id, domain.StatusPending)
 	return s.read(ctx, recruiterID, id)
+}
+
+// logSubmitted records a posting that went to the Admin queue. from is the status before the call.
+func logSubmitted(ctx context.Context, op, message string, recruiterID, id uuid.UUID, from domain.Status) {
+	logger.FromContext(ctx).Info(message, logger.Op(op), zap.String("posting_id", id.String()),
+		zap.String("user_id", recruiterID.String()), zap.String("from_status", string(from)),
+		zap.String("to_status", string(domain.StatusPending)))
 }
 
 // Resubmit sends the Recruiter's rejected posting back for Admin review, clearing the old
@@ -178,6 +197,7 @@ func (s *Service) Resubmit(ctx context.Context, recruiterID uuid.UUID, role stri
 	if err := s.repository.Resubmit(ctx, recruiterID, id); err != nil {
 		return domain.JobPosting{}, err
 	}
+	logSubmitted(ctx, "jobposting.resubmit", "job posting resubmitted", recruiterID, id, domain.StatusRejected)
 	return s.read(ctx, recruiterID, id)
 }
 
@@ -248,7 +268,9 @@ func (s *Service) parsePDF(ctx context.Context, data []byte) (string, error) {
 	if int64(len(data)) > MaxPDFBytes {
 		return "", apperror.New(apperror.CodePDFTooLarge, "Choose a PDF up to 5 MB.")
 	}
+	done := logger.Start(ctx, "jobposting.pdf_parse", zap.Int("bytes", len(data)))
 	text, err := s.parser.Parse(ctx, data)
+	done(err)
 	if err != nil {
 		return "", err
 	}

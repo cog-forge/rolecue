@@ -8,6 +8,7 @@ import (
 
 	questionbankdomain "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -102,6 +103,9 @@ func (a *RoleProfileApplication) Confirm(ctx context.Context, user uuid.UUID, ro
 		if !errors.As(err, &appErr) || appErr == nil || appErr.Code != apperror.CodeQuestionBankExists {
 			return domain.RoleProfile{}, err
 		}
+		// A retried confirmation reuses the bank written by the first attempt.
+		logger.FromContext(ctx).Info("practice question bank already exists, reusing it",
+			logger.String("profile_id", id.String()), logger.String("jd_id", profile.JDID.String()), logger.Op("roleprofile.confirm"))
 	}
 	return a.repository.ConfirmProfile(ctx, user, id)
 }
@@ -111,7 +115,11 @@ func (a *RoleProfileApplication) budget() time.Duration {
 func (a *RoleProfileApplication) release(ctx context.Context, profile domain.RoleProfile) {
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	_ = a.repository.ReleaseAnalysis(cleanup, profile.ID)
+	if err := a.repository.ReleaseAnalysis(cleanup, profile.ID); err != nil {
+		// Nothing else logs this, and the profile may stay stuck in analyzing.
+		logger.FromContext(ctx).Warn("role profile analysis release failed",
+			logger.Op("roleprofile.analyze"), logger.String("profile_id", profile.ID.String()), logger.Cause(err))
+	}
 }
 func (a *RoleProfileApplication) Analyze(ctx context.Context, user uuid.UUID, role string, id uuid.UUID) (domain.RoleProfile, error) {
 	if err := requireCandidate(role); err != nil {
@@ -123,25 +131,34 @@ func (a *RoleProfileApplication) Analyze(ctx context.Context, user uuid.UUID, ro
 	if err != nil {
 		return domain.RoleProfile{}, err
 	}
+	profileID := logger.String("profile_id", id.String())
 	if profile.Status == domain.Review {
+		logger.FromContext(ctx).Info("role profile analysis skipped, already in review", logger.Op("roleprofile.analyze"), profileID)
 		return profile, nil
 	}
+	gate := "extract"
+	done := logger.Start(ctx, "roleprofile.analyze", profileID, logger.String("from_status", string(profile.Status)))
 	jd, err := a.extraction.Extract(ctx, profile.RawText)
 	if err == nil {
+		gate = "role_review"
 		review := ReviewFromExtraction(jd)
 		review, err = ValidateRoleReview(review, false)
 		if err == nil {
+			gate = "evidence"
 			err = ValidateEvidence(review, profile.RawText)
 		}
 		if err == nil {
+			gate = "persist"
 			var result domain.RoleProfile
 			result, err = a.repository.CompleteAnalysis(ctx, user, id, review)
 			if err == nil {
+				done(nil, logger.Int("requirements", len(review.Requirements)), logger.String("to_status", string(result.Status)))
 				return result, nil
 			}
 		}
 	}
 	a.release(ctx, profile)
+	done(err, logger.String("gate", gate))
 	var appErr *apperror.AppError
 	if errors.As(err, &appErr) && appErr.Code == apperror.CodeValidation {
 		err = apperror.New(apperror.CodeInvalidExtractionOutput, "Analysis returned unusable requirements. Please retry.")

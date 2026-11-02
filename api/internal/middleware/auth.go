@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
@@ -15,6 +17,8 @@ import (
 const currentUserIDKey = "auth.middleware.currentUserID"
 const currentUserKey = "auth.middleware.currentUser"
 
+// RequireAuth rejects requests without a trusted origin or a valid session. Rejections are logged by
+// response.Error, with the reason in the cause chain (for example "no session cookie" or "session_expired").
 func RequireAuth(service authservice.Authenticator, cors config.CORSConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Cache-Control", "no-store")
@@ -28,7 +32,7 @@ func RequireAuth(service authservice.Authenticator, cors config.CORSConfig) gin.
 				}
 			}
 			if !allowed {
-				response.Error(c, apperror.New(apperror.CodeForbidden, "a trusted Origin is required"))
+				response.Error(c, apperror.Wrap(apperror.CodeForbidden, "a trusted Origin is required", fmt.Errorf("origin not in allowed list for %s", c.Request.Method)))
 				c.Abort()
 				return
 			}
@@ -70,7 +74,11 @@ func RequireOnboarding() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := CurrentUser(c)
 		if !ok || (user.Role != "admin" && !user.OnboardingCompleted) {
-			response.Error(c, apperror.New(apperror.CodeForbidden, "complete onboarding before using your workspace"))
+			cause := fmt.Errorf("onboarding incomplete role=%s onboarding_completed=%t user_id=%s", user.Role, user.OnboardingCompleted, user.ID)
+			if !ok {
+				cause = errors.New("no authenticated user in context")
+			}
+			response.Error(c, apperror.Wrap(apperror.CodeForbidden, "complete onboarding before using your workspace", cause))
 			c.Abort()
 			return
 		}

@@ -6,12 +6,26 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const recruiterRole = "recruiter"
+
+// logRecordingStatus records a recording status change. Only IDs, statuses and sizes are logged.
+func logRecordingStatus(ctx context.Context, interviewID, candidateID uuid.UUID, from, to domain.RecordStatus, extra ...zap.Field) {
+	fields := append([]zap.Field{
+		logger.Op("interview.recording_status"),
+		logger.String("interview_id", interviewID.String()),
+		logger.String("user_id", candidateID.String()),
+		logger.String("from_status", string(from)),
+		logger.String("to_status", string(to)),
+	}, extra...)
+	logger.FromContext(ctx).Info("recording status changed", fields...)
+}
 
 // RecordingRepository is the persistence contract of recruitment recordings and evidence reads. The
 // repository checks ownership in its queries, so another user's interview or Application is not found.
@@ -82,6 +96,7 @@ func (s *RecordingService) GrantUpload(ctx context.Context, candidateID uuid.UUI
 		// is refused rather than issued for a key nothing points to.
 		return domain.RecordingUploadGrant{}, domain.ErrRecordingNotAllowed
 	}
+	logRecordingStatus(ctx, interviewID, candidateID, state.RecordStatus, domain.RecordUploading, zap.Int64("bytes", input.Size))
 	headers := grant.Request.Headers
 	if headers == nil {
 		headers = map[string]string{}
@@ -120,6 +135,7 @@ func (s *RecordingService) CompleteUpload(ctx context.Context, candidateID uuid.
 		if _, err := s.repository.SetRecordingResult(ctx, candidateID, interviewID, key, domain.RecordFailed); err != nil {
 			return domain.RecordingStatus{}, err
 		}
+		logRecordingStatus(ctx, interviewID, candidateID, state.RecordStatus, domain.RecordFailed, logger.String("reason", "object_missing"))
 		return domain.RecordingStatus{}, domain.ErrRecordingNotFound
 	}
 	if err != nil {
@@ -134,6 +150,8 @@ func (s *RecordingService) CompleteUpload(ctx context.Context, candidateID uuid.
 		if _, err := s.repository.SetRecordingResult(ctx, candidateID, interviewID, key, domain.RecordFailed); err != nil {
 			return domain.RecordingStatus{}, err
 		}
+		logRecordingStatus(ctx, interviewID, candidateID, state.RecordStatus, domain.RecordFailed,
+			logger.String("reason", "size_out_of_range"), zap.Int64("bytes", object.Size))
 		return domain.RecordingStatus{}, apperror.New(apperror.CodeValidation, "the uploaded recording is empty or too large")
 	}
 	updated, err := s.repository.SetRecordingResult(ctx, candidateID, interviewID, key, domain.RecordReady)
@@ -143,6 +161,7 @@ func (s *RecordingService) CompleteUpload(ctx context.Context, candidateID uuid.
 	if !updated {
 		return domain.RecordingStatus{}, domain.ErrRecordingNotAllowed
 	}
+	logRecordingStatus(ctx, interviewID, candidateID, state.RecordStatus, domain.RecordReady, zap.Int64("bytes", object.Size))
 	return domain.RecordingStatus{RecordStatus: domain.RecordReady}, nil
 }
 
