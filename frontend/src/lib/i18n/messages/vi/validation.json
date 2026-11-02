@@ -2,7 +2,6 @@
   "required": "Vui lòng không để trống mục này.",
   "email": "Vui lòng nhập địa chỉ email hợp lệ.",
   "minLength": "Vui lòng nhập ít nhất {min} ký tự.",
-  "maxLength": "Vui lòng nhập tối đa {max} ký tự.",
   "emailRequired": "Vui lòng nhập địa chỉ email",
   "emailInvalid": "Vui lòng nhập địa chỉ email hợp lệ",
   "passwordRequired": "Vui lòng nhập mật khẩu",

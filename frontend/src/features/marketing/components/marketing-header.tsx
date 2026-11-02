@@ -119,7 +119,7 @@ export function MarketingHeader() {
               <LanguageSwitcher
                 className={cn(
                   landingFocus,
-                  "px-2 text-base font-medium text-(--rolecue-ink-muted) hover:bg-transparent hover:text-(--rolecue-brand-blue) max-[760px]:px-1 max-[760px]:[&>span]:hidden",
+                  "px-2 hover:bg-black/5 max-[760px]:px-1",
                 )}
               />
               <Button

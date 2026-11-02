@@ -1,1 +1,918 @@
-{}
+{
+  "postings": {
+    "status": {
+      "preparing": "Đang chuẩn bị",
+      "ready": "Sẵn sàng gửi duyệt",
+      "pending": "Đang chờ duyệt",
+      "approved": "Đã duyệt · Cần nạp lượt phỏng vấn",
+      "approved_unknown": "Đã duyệt",
+      "open": "Đang tuyển",
+      "intake_closed": "Đã ngừng nhận đơn",
+      "closed": "Đã đóng",
+      "rejected": "Bị từ chối"
+    },
+    "backToList": "Tin tuyển dụng của tôi",
+    "requirementMeta": "{kind} · {priority}",
+    "toast": {
+      "bankGenerated": "Đã tạo ngân hàng câu hỏi",
+      "bankGeneratedHint": "Hãy xem lại các câu hỏi trước khi gửi duyệt."
+    },
+    "level": {
+      "intern": "Thực tập sinh",
+      "junior": "Junior",
+      "mid": "Middle",
+      "senior": "Senior",
+      "lead": "Trưởng nhóm"
+    },
+    "target": {
+      "programming_language": "Ngôn ngữ lập trình",
+      "framework": "Framework",
+      "database": "Cơ sở dữ liệu",
+      "tool": "Công cụ",
+      "technology": "Công nghệ",
+      "other": "Kỹ năng khác",
+      "technologies": "Công nghệ (chung)",
+      "domain_knowledge": "Kiến thức chuyên ngành"
+    },
+    "priority": {
+      "required": "Bắt buộc",
+      "preferred": "Ưu tiên"
+    },
+    "validation": {
+      "pdfRequired": "Hãy tải lên mô tả công việc dưới dạng PDF.",
+      "titleRequired": "Hãy nhập tiêu đề cho tin tuyển dụng.",
+      "titleMax": "Tiêu đề tối đa {max} ký tự.",
+      "requirementNameRequired": "Hãy đặt tên cho yêu cầu.",
+      "requirementNameMax": "Tên yêu cầu tối đa {max} ký tự.",
+      "requirementsMin": "Hãy thêm ít nhất một yêu cầu. Ngân hàng câu hỏi được tạo từ các yêu cầu này.",
+      "requirementsMax": "Tối đa {max} yêu cầu.",
+      "refinementMax": "Ghi chú tinh chỉnh tối đa {max} ký tự.",
+      "locationMax": "Địa điểm tối đa {max} ký tự.",
+      "employmentTypeMax": "Hình thức làm việc tối đa {max} ký tự.",
+      "salaryMin": "Hãy nhập mức lương tối thiểu là số nguyên từ 0 trở lên.",
+      "salaryMax": "Hãy nhập mức lương tối đa là số nguyên từ 0 trở lên.",
+      "interviewDuration": "Hãy nhập thời lượng phỏng vấn là số phút nguyên từ 1 trở lên.",
+      "avatarRequired": "Hãy chọn mô hình người phỏng vấn mà ứng viên sẽ gặp.",
+      "voiceRequired": "Hãy chọn giọng nói của người phỏng vấn.",
+      "seniorityRequired": "Hãy chọn cấp bậc của vị trí.",
+      "requirementDuplicate": "Yêu cầu này đã có trong danh sách.",
+      "salaryOrder": "Mức lương tối đa phải lớn hơn hoặc bằng mức tối thiểu.",
+      "confirmRequired": "Hãy xác nhận bạn đã xem lại các yêu cầu trước khi gửi."
+    },
+    "guidance": {
+      "action": {
+        "reviewAndSubmit": "Xem lại & gửi duyệt",
+        "reviewRequirements": "Xem lại yêu cầu",
+        "editAndResubmit": "Chỉnh sửa và gửi lại",
+        "fundAndPublish": "Nạp lượt & đăng tuyển",
+        "reviewApplications": "Xem đơn ứng tuyển"
+      },
+      "line": {
+        "waitingForReview": "Đang chờ quản trị viên duyệt",
+        "rejected": "Bị từ chối: xem lý do bên dưới",
+        "approvedUnfunded": "Đã duyệt: hãy nạp lượt phỏng vấn để đăng tuyển",
+        "slotsApproved": "Đã duyệt {approved}/{slots} lượt phỏng vấn",
+        "intakeNeverFunded": "Đã ngừng nhận đơn: chưa từng nạp lượt phỏng vấn",
+        "intakeAllApproved": "Đã ngừng nhận đơn: đã duyệt đủ {slots} lượt",
+        "intakePartlyApproved": "Đã ngừng nhận đơn: đã duyệt {approved}/{slots} lượt",
+        "closedNeverFunded": "Đã đóng, chưa nạp lượt phỏng vấn nào",
+        "closedRefunded": "Đã đóng: {coins} từ các lượt chưa dùng đã được hoàn vào ví của bạn",
+        "closedNoRefund": "Đã đóng: không có lượt chưa dùng để hoàn lại"
+      },
+      "next": {
+        "waitingForReview": "Đang chờ quản trị viên xem xét. Bạn vẫn có thể chỉnh sửa tin tuyển dụng cho đến lúc đó.",
+        "bankReady": "Ngân hàng câu hỏi đã sẵn sàng. Hãy xem lại, rồi gửi tin tuyển dụng để được duyệt.",
+        "confirmRequirements": "Hãy xác nhận các yêu cầu bên dưới để tạo ngân hàng câu hỏi. Tin tuyển dụng chỉ được gửi duyệt khi bạn chủ động gửi.",
+        "rejected": "Hãy chỉnh sửa theo yêu cầu, rồi gửi lại tin tuyển dụng để được duyệt.",
+        "approvedUnfunded": "Tin tuyển dụng đã được duyệt nên không thể chỉnh sửa nữa. Hãy nạp lượt phỏng vấn để mở nhận đơn cho ứng viên.",
+        "approved": "Tin tuyển dụng đã được duyệt nên không thể chỉnh sửa nữa."
+      }
+    },
+    "tabs": {
+      "label": "Các phần của tin tuyển dụng",
+      "overview": "Tổng quan",
+      "applications": "Đơn ứng tuyển",
+      "questions": "Câu hỏi",
+      "evaluation": "Đánh giá",
+      "unavailable": "Khả dụng sau khi quản trị viên duyệt tin và bạn nạp lượt phỏng vấn",
+      "unavailableHint": "(khả dụng sau khi quản trị viên duyệt tin và bạn nạp lượt phỏng vấn)"
+    },
+    "progress": {
+      "label": "Tiến trình tin tuyển dụng",
+      "step": {
+        "requirements": "Yêu cầu",
+        "bank": "Câu hỏi",
+        "evaluation": "Đánh giá",
+        "review": "Quản trị viên duyệt",
+        "funding": "Nạp lượt",
+        "screening": "Sàng lọc"
+      },
+      "state": {
+        "done": "(đã xong)",
+        "current": "(bước hiện tại)",
+        "blocked": "(cần chỉnh sửa)"
+      },
+      "detail": {
+        "requirementsSaved": "Đã xem lại và lưu",
+        "requirementsReview": "Xem lại những gì RoleCue đã trích xuất",
+        "generating": "Đang tạo câu hỏi…",
+        "questionCount": "{count} câu hỏi",
+        "notGenerated": "Chưa tạo",
+        "generatedAfterConfirm": "Được tạo sau khi bạn xác nhận",
+        "approved": "Đã duyệt",
+        "changesRequested": "Cần chỉnh sửa",
+        "waitingForAdmin": "Đang chờ quản trị viên",
+        "readyToSubmit": "Sẵn sàng gửi duyệt",
+        "notSubmitted": "Chưa gửi duyệt",
+        "criteriaConfirmed": "Đã xác nhận tiêu chí",
+        "criteriaOptional": "Tùy chọn: dùng mặc định nếu bạn không tùy chỉnh",
+        "slotsFunded": "Đã nạp lượt",
+        "fundToPublish": "Nạp lượt để đăng tuyển",
+        "neverFunded": "Chưa từng nạp lượt",
+        "afterApproval": "Sau khi quản trị viên duyệt",
+        "afterFunding": "Sau khi nạp lượt",
+        "closed": "Đã đóng",
+        "intakeClosed": "Đã ngừng nhận đơn, đang hoàn tất các buổi phỏng vấn",
+        "takingApplications": "Đang nhận đơn ứng tuyển",
+        "afterApprovalAndFunding": "Sau khi được duyệt và nạp lượt"
+      }
+    },
+    "document": {
+      "preparing": "Đang chuẩn bị tệp PDF…",
+      "error": "Không thể mở tệp PDF.",
+      "open": "Mở tệp PDF",
+      "openHint": "(mô tả công việc, mở trong tab mới)"
+    },
+    "applications": {
+      "title": "Đơn ứng tuyển",
+      "notOpen": "Ứng viên có thể ứng tuyển sau khi quản trị viên duyệt tin này và bạn nạp lượt phỏng vấn để mở nhận đơn.",
+      "loading": "Đang tải đơn ứng tuyển…",
+      "loadFailed": "Không thể tải đơn ứng tuyển. Hãy mở <inbox>hộp thư duyệt hồ sơ</inbox> để xem.",
+      "summary": "<count>{total}</count> đơn ứng tuyển, <count>{waiting}</count> đang chờ xét duyệt",
+      "reviewWaiting": "Xét duyệt {waiting} CV đang chờ",
+      "open": "Mở đơn ứng tuyển"
+    },
+    "preview": {
+      "loading": "Đang tải bản xem trước 3D…",
+      "region": "Xem trước người phỏng vấn đã chọn",
+      "error": "Không thể tải bản xem trước người phỏng vấn này. Lựa chọn của bạn vẫn được giữ trong biểu mẫu.",
+      "retry": "Thử lại bản xem trước",
+      "viewerLabel": "Xem trước 3D của {name}",
+      "viewerLabelFallback": "Xem trước 3D của người phỏng vấn đã chọn",
+      "fallbackName": "Người phỏng vấn đã chọn",
+      "hint": "Kéo để xoay. Cuộn hoặc chụm hai ngón để thu phóng. Mọi ứng viên sẽ được phỏng vấn bởi người phỏng vấn này và giọng nói đã chọn ở trên."
+    },
+    "list": {
+      "title": "Tin tuyển dụng của tôi",
+      "description": "Chuẩn bị tin tuyển dụng, câu hỏi và tiêu chí đánh giá. Sau khi được duyệt, hãy nạp lượt phỏng vấn để đăng tuyển.",
+      "create": "Tạo tin tuyển dụng",
+      "statusLabel": "Trạng thái",
+      "filter": {
+        "needsFunding": "Cần nạp lượt phỏng vấn"
+      },
+      "loading": "Đang tải tin tuyển dụng của bạn…",
+      "switching": "Đang tải tin tuyển dụng…",
+      "denied": {
+        "title": "Bạn không có quyền truy cập tin tuyển dụng",
+        "description": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu thông báo này vẫn còn, hãy đăng nhập lại bằng tài khoản nhà tuyển dụng."
+      },
+      "error": {
+        "title": "Không thể tải tin tuyển dụng của bạn"
+      },
+      "pastEnd": {
+        "title": "Trang này nằm ngoài cuối danh sách."
+      },
+      "empty": {
+        "all": "Bạn chưa tạo tin tuyển dụng nào.",
+        "preparing": "Không có tin tuyển dụng nào đang chuẩn bị.",
+        "approved": "Không có tin đã duyệt nào đang chờ nạp lượt phỏng vấn.",
+        "pending": "Không có tin tuyển dụng nào đang chờ duyệt.",
+        "open": "Không có tin tuyển dụng nào đang nhận đơn.",
+        "intake_closed": "Không có tin tuyển dụng nào đã ngừng nhận đơn.",
+        "closed": "Không có tin tuyển dụng nào đã đóng.",
+        "rejected": "Không có tin tuyển dụng nào bị từ chối.",
+        "noMatch": "Không có tin tuyển dụng nào khớp với “{query}”.",
+        "showAll": "Hiện tất cả tin tuyển dụng",
+        "hint": "Tải lên mô tả công việc, RoleCue sẽ gợi ý các yêu cầu để phỏng vấn."
+      },
+      "caption": "Tin tuyển dụng của bạn, {first}–{last} trên {total}",
+      "columns": {
+        "posting": "Tin tuyển dụng",
+        "status": "Trạng thái",
+        "questions": "Câu hỏi",
+        "created": "Ngày tạo",
+        "actions": "Thao tác"
+      },
+      "row": {
+        "noDetails": "Chưa có địa điểm hoặc hình thức",
+        "summary": "{count} câu hỏi · Tạo ngày {date}",
+        "reason": "Lý do: {reason}",
+        "questions": "Câu hỏi",
+        "questionBankFor": "Ngân hàng câu hỏi của {title}",
+        "fund": "Nạp lượt & đăng tuyển",
+        "edit": "Chỉnh sửa",
+        "view": "Xem",
+        "fundFor": "Nạp lượt & đăng tuyển {title}",
+        "editFor": "Chỉnh sửa {title}",
+        "viewFor": "Xem {title}"
+      },
+      "pagination": {
+        "showing": "Hiển thị {first}–{last} trên {total}"
+      },
+      "search": {
+        "form": "Tìm tin tuyển dụng của bạn",
+        "label": "Tìm theo tiêu đề",
+        "tooLong": "Từ khóa tìm kiếm tối đa {max} ký tự."
+      }
+    },
+    "new": {
+      "title": "Tin tuyển dụng mới",
+      "description": "Tải lên mô tả công việc và xem lại các yêu cầu mà RoleCue gợi ý. Khi bạn xác nhận, ngân hàng câu hỏi sẽ được tạo. Hãy xem lại câu hỏi và tiêu chí đánh giá trước khi gửi duyệt.",
+      "noAccess": "Bạn không có quyền tạo tin tuyển dụng. Đang kiểm tra quyền truy cập tài khoản của bạn…",
+      "saveFailed": "{reason} Bản nháp của bạn vẫn còn đây.",
+      "saveFailedReason": "Không thể lưu tin tuyển dụng.",
+      "generateFailedReason": "Không thể tạo câu hỏi.",
+      "generation": {
+        "failedTitle": "Chưa tạo được câu hỏi",
+        "failedBody": "{reason} Tin tuyển dụng đã được lưu nên khi thử lại, hệ thống chỉ tạo lại câu hỏi.",
+        "pendingTitle": "Đang tạo câu hỏi…",
+        "pendingBody": "Tin tuyển dụng đã được lưu. Việc này có thể mất khoảng một phút và tin chưa được gửi duyệt.",
+        "retry": "Thử tạo lại câu hỏi",
+        "open": "Mở tin tuyển dụng đã lưu"
+      }
+    },
+    "detail": {
+      "loading": "Đang tải tin tuyển dụng…",
+      "fallbackTitle": "Tin tuyển dụng",
+      "error": {
+        "deniedTitle": "Bạn không có quyền truy cập tin tuyển dụng",
+        "notFoundTitle": "Không tìm thấy tin tuyển dụng này",
+        "failedTitle": "Không thể tải tin tuyển dụng này",
+        "deniedBody": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu thông báo này vẫn còn, hãy đăng nhập lại bằng tài khoản nhà tuyển dụng.",
+        "notFoundBody": "Tin có thể đã bị xóa hoặc thuộc về nhà tuyển dụng khác."
+      },
+      "refreshed": "{reason} Chúng tôi đã làm mới dữ liệu cho bạn.",
+      "changedReason": "Tin tuyển dụng này đã thay đổi.",
+      "saved": "Đã lưu thay đổi",
+      "saveDenied": "Bạn không có quyền chỉnh sửa tin tuyển dụng này. Đang kiểm tra quyền truy cập tài khoản của bạn…",
+      "saveFailed": "{reason} Các thay đổi của bạn vẫn còn đây.",
+      "saveFailedReason": "Không thể lưu thay đổi của bạn.",
+      "created": "Tạo ngày <time>{date}</time>",
+      "slots": "Lượt phỏng vấn:",
+      "notFunded": "chưa nạp",
+      "rejected": {
+        "title": "Quản trị viên yêu cầu chỉnh sửa",
+        "body": "Hãy sửa tin tuyển dụng bên dưới và lưu lại, rồi gửi lại từ <bank>ngân hàng câu hỏi</bank>."
+      },
+      "readOnly": {
+        "seniority": "Cấp bậc",
+        "refinementNote": "Ghi chú tinh chỉnh",
+        "location": "Địa điểm",
+        "employmentType": "Hình thức làm việc",
+        "salary": "Mức lương",
+        "interviewLength": "Thời lượng phỏng vấn",
+        "interviewerModel": "Mô hình người phỏng vấn",
+        "interviewerVoice": "Giọng người phỏng vấn",
+        "candidatesAllowed": "Số ứng viên được vào phỏng vấn",
+        "none": "Không có",
+        "minutes": "{count} phút",
+        "details": {
+          "title": "Chi tiết",
+          "description": "Những gì ứng viên thấy trên tin tuyển dụng và cách họ được phỏng vấn."
+        },
+        "requirements": {
+          "title": "Yêu cầu",
+          "description": "Ứng viên được phỏng vấn dựa trên các yêu cầu này."
+        },
+        "jobDescription": {
+          "title": "Mô tả công việc",
+          "description": "Nội dung được đọc từ tệp PDF dùng để tạo tin tuyển dụng."
+        }
+      }
+    },
+    "form": {
+      "createLabel": "Tạo tin tuyển dụng",
+      "editLabel": "Chỉnh sửa tin tuyển dụng",
+      "next": "Tiếp theo, hãy xem lại ngân hàng câu hỏi và tiêu chí đánh giá trước khi gửi duyệt. Sau khi được duyệt, hãy nạp lượt phỏng vấn để đăng tuyển.",
+      "jd": {
+        "title": "Mô tả công việc",
+        "editable": "Tải lên mô tả công việc dưới dạng PDF có thể chọn văn bản, tối đa 5 MB. RoleCue sẽ đọc tệp và gợi ý các yêu cầu.",
+        "locked": "Tệp PDF bị khóa khi tin đang chờ duyệt. Bạn có thể thay tệp sau khi tin bị từ chối."
+      },
+      "pdf": {
+        "notPdf": "Hãy chọn một tệp PDF.",
+        "tooLarge": "Tệp PDF quá lớn. Hãy chọn tệp tối đa 5 MB.",
+        "uploadFailed": "Không thể tải tệp PDF lên. Vui lòng thử lại.",
+        "reading": "Đang đọc tệp PDF…",
+        "replace": "Thay tệp PDF",
+        "upload": "Tải lên PDF mô tả công việc",
+        "hintEdit": "Tệp PDF mới sẽ thay tệp hiện tại khi bạn lưu.",
+        "hintCreate": "Không đọc được tệp PDF dạng ảnh quét không có văn bản chọn được.",
+        "textRead": "Nội dung đọc từ tệp PDF",
+        "characters": "{count} ký tự"
+      },
+      "suggest": {
+        "button": "Gợi ý yêu cầu",
+        "reading": "Đang đọc yêu cầu…",
+        "hint": "Gợi ý lại sẽ thay thế các yêu cầu bên dưới. Chưa có gì được lưu cho đến khi bạn gửi.",
+        "failed": "{reason} Tệp PDF của bạn vẫn đã được tải lên. Hãy thử lại hoặc tự thêm yêu cầu.",
+        "failedReason": "Không thể đọc yêu cầu từ mô tả công việc này."
+      },
+      "suggested": {
+        "title": "Đã gợi ý yêu cầu",
+        "ready": "{count} yêu cầu đã sẵn sàng để bạn xem lại.",
+        "none": "Không tìm thấy yêu cầu nào. Hãy tự thêm bên dưới."
+      },
+      "role": {
+        "title": "Vị trí và yêu cầu",
+        "description": "Ứng viên được phỏng vấn dựa trên các yêu cầu này, và ngân hàng câu hỏi được tạo từ chúng.",
+        "titleLabel": "Tiêu đề (bắt buộc)",
+        "titlePlaceholder": "VD: Kỹ sư Backend cấp cao",
+        "deleteWarning": "Thay tệp PDF mô tả công việc, hoặc đổi cấp bậc, yêu cầu hay ghi chú tinh chỉnh sẽ xóa {count} câu hỏi trong ngân hàng câu hỏi của tin này. Bạn có thể tạo lại sau đó.",
+        "seniorityLabel": "Cấp bậc (bắt buộc)",
+        "seniorityPlaceholder": "Chọn cấp bậc",
+        "requirementsLegend": "Yêu cầu (ít nhất một)",
+        "noRequirements": "Chưa có yêu cầu nào. Hãy dùng Gợi ý yêu cầu ở trên hoặc tự thêm.",
+        "requirementFallback": "yêu cầu {number}",
+        "requirementLabel": "Yêu cầu {number}",
+        "kind": "Loại",
+        "priority": "Mức độ",
+        "remove": "Xóa {name}",
+        "add": "Thêm yêu cầu",
+        "refinementLabel": "Ghi chú tinh chỉnh (không bắt buộc)",
+        "refinementPlaceholder": "VD: Tập trung vào Go concurrency và PostgreSQL; bỏ qua Kubernetes.",
+        "refinementHint": "Hướng dẫn cho việc tạo câu hỏi, chẳng hạn các mảng cần tập trung hoặc bỏ qua.",
+        "confirm": "Tôi đã xem lại các yêu cầu này và chúng mô tả đúng vị trí."
+      },
+      "locked": {
+        "notice": "Cấp bậc, yêu cầu và ghi chú tinh chỉnh bị khóa vì ngân hàng câu hỏi của tin này được tạo từ chúng. Hãy xóa các câu hỏi để thay đổi.",
+        "open": "Mở ngân hàng câu hỏi",
+        "seniority": "Cấp bậc",
+        "refinementNote": "Ghi chú tinh chỉnh"
+      },
+      "details": {
+        "title": "Chi tiết tin tuyển dụng",
+        "description": "Không bắt buộc. Ứng viên thấy các thông tin này trên tin tuyển dụng.",
+        "location": "Địa điểm",
+        "locationPlaceholder": "VD: TP. Hồ Chí Minh hoặc Làm việc từ xa",
+        "employmentType": "Hình thức làm việc",
+        "employmentTypePlaceholder": "VD: Toàn thời gian",
+        "employmentTypeHint": "Ví dụ Toàn thời gian hoặc Hợp đồng.",
+        "salaryMin": "Lương tối thiểu",
+        "salaryMinPlaceholder": "VD: 2000",
+        "salaryMax": "Lương tối đa",
+        "salaryMaxPlaceholder": "VD: 3500",
+        "duration": "Thời lượng phỏng vấn (phút)",
+        "durationPlaceholder": "VD: 30"
+      },
+      "interviewer": {
+        "title": "Người phỏng vấn",
+        "description": "Mọi ứng viên đều được phỏng vấn bởi mô hình và giọng nói này. Cả hai đều bắt buộc.",
+        "modelLabel": "Mô hình người phỏng vấn (bắt buộc)",
+        "modelPlaceholder": "Chọn một mô hình",
+        "modelEmpty": "Bạn chưa có mô hình người phỏng vấn nào. <studio>Tạo một mô hình trong Avatar Studio cá nhân</studio>",
+        "modelHint": "Tạo hoặc quản lý mô hình trong <studio>Avatar Studio cá nhân</studio>.",
+        "voiceLabel": "Giọng người phỏng vấn (bắt buộc)",
+        "voicePlaceholder": "Chọn một giọng nói",
+        "voiceEmpty": "Chưa có giọng nói nào. Quản trị viên sẽ thêm giọng nói vào danh mục."
+      },
+      "picker": {
+        "loading": "Đang tải các lựa chọn…",
+        "error": "Không thể tải các lựa chọn.",
+        "unnamed": "Chưa đặt tên",
+        "unavailable": "{name} (không còn khả dụng)"
+      },
+      "submit": {
+        "generate": "Xác nhận & tạo câu hỏi",
+        "generating": "Đang tạo câu hỏi…",
+        "save": "Lưu thay đổi"
+      },
+      "status": {
+        "generating": "Đang lưu yêu cầu và tạo câu hỏi…",
+        "saving": "Đang lưu thay đổi của bạn…",
+        "unsaved": "Bạn có thay đổi chưa lưu."
+      }
+    }
+  },
+  "applications": {
+    "status": {
+      "pending": "Chờ xét duyệt CV",
+      "interview_eligible": "Đủ điều kiện phỏng vấn",
+      "interviewed": "Đã phỏng vấn",
+      "approved": "Đã duyệt",
+      "rejected": "Đã từ chối"
+    },
+    "errors": {
+      "APPLICATION_NOT_PENDING": "Đơn ứng tuyển này đã được quyết định. Hãy tải lại để xem trạng thái hiện tại.",
+      "INTAKE_NOT_OPEN": "Tin tuyển dụng này không còn nhận đơn ứng tuyển.",
+      "INTERVIEW_CAPACITY_FULL": "Tất cả lượt phỏng vấn của tin tuyển dụng này đã được sử dụng hết.",
+      "INTERVIEW_CAPACITY_NOT_FUNDED": "Tin tuyển dụng này chưa được nạp lượt phỏng vấn.",
+      "APPLICATION_NOT_FOUND": "Không tìm thấy đơn ứng tuyển này.",
+      "JOB_POSTING_NOT_FOUND": "Không tìm thấy tin tuyển dụng này.",
+      "APPLICATION_NOT_INTERVIEWED": "Đơn ứng tuyển này không còn chờ quyết định cuối cùng. Hãy tải lại để xem trạng thái hiện tại.",
+      "FINAL_REVIEW_LOCKED": "Chưa thể đưa ra quyết định cuối cùng.",
+      "INTERVIEW_NOT_COMPLETED": "Bản ghi cuộc phỏng vấn sẽ có sau khi buổi phỏng vấn hoàn tất."
+    },
+    "facts": {
+      "email": "Email",
+      "jobPosting": "Tin tuyển dụng",
+      "status": "Trạng thái",
+      "submitted": "Ngày nộp",
+      "appliedFor": "Ứng tuyển vị trí",
+      "interviewSlots": "Lượt phỏng vấn",
+      "interviewDeadline": "Hạn phỏng vấn",
+      "completeBy": "Hoàn tất phỏng vấn trước",
+      "rejectReason": "Lý do từ chối",
+      "deadlinePassedReason": "Đã quá hạn phỏng vấn"
+    },
+    "received": {
+      "title": "Đơn ứng tuyển đã nhận",
+      "description": "Xem từng CV ngay cạnh danh sách. Sau khi bạn duyệt hoặc từ chối một CV, CV tiếp theo đang chờ xét duyệt sẽ tự mở."
+    },
+    "toolbar": {
+      "statusFilter": "Trạng thái",
+      "allPostings": "Tất cả tin tuyển dụng",
+      "selectedPosting": "Tin tuyển dụng đã chọn",
+      "searchLabel": "Tìm đơn ứng tuyển",
+      "searchInputLabel": "Tìm theo tên hoặc email",
+      "searchPlaceholder": "Tìm theo tên hoặc email",
+      "searchTooLong": "Nội dung tìm kiếm tối đa {max} ký tự."
+    },
+    "list": {
+      "loading": "Đang tải đơn ứng tuyển…",
+      "deniedTitle": "Bạn không có quyền truy cập đơn ứng tuyển",
+      "deniedBody": "Đang kiểm tra quyền truy cập tài khoản… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản nhà tuyển dụng.",
+      "postingNotFoundTitle": "Không tìm thấy tin tuyển dụng này",
+      "postingNotFoundBody": "Tin có thể đã bị gỡ hoặc thuộc về nhà tuyển dụng khác.",
+      "errorTitle": "Không thể tải danh sách đơn ứng tuyển",
+      "pastEnd": "Trang này nằm ngoài danh sách.",
+      "empty": {
+        "all": "Chưa có đơn ứng tuyển nào.",
+        "pending": "Không có đơn ứng tuyển nào đang chờ xét duyệt CV.",
+        "interview_eligible": "Chưa có ứng viên nào được mời phỏng vấn.",
+        "interviewed": "Chưa có ứng viên nào hoàn tất phỏng vấn.",
+        "approved": "Bạn chưa duyệt ứng viên nào.",
+        "rejected": "Chưa có đơn ứng tuyển nào bị từ chối."
+      },
+      "emptySearch": "Không có đơn ứng tuyển nào khớp với “{query}”.",
+      "showAll": "Hiện tất cả đơn ứng tuyển",
+      "emptyHint": "Ứng viên sẽ xuất hiện ở đây khi họ ứng tuyển bằng CV.",
+      "listLabel": "Đơn ứng tuyển, {first}–{last} trên {total}",
+      "paginationLabel": "Phân trang đơn ứng tuyển",
+      "showing": "Hiển thị {first}–{last} trên {total}"
+    },
+    "row": {
+      "reviewAria": "Xét duyệt CV của {name}",
+      "openAria": "Mở đơn ứng tuyển của {name}",
+      "applied": "Nộp <time>{date}</time>",
+      "appliedToPosting": "{posting} · Nộp <time>{date}</time>",
+      "review": "Xét duyệt",
+      "completeBy": "Hoàn tất phỏng vấn trước <time>{date}</time>",
+      "deadlinePassed": "Đã quá hạn <time>{date}</time>",
+      "reason": "Lý do: {reason}"
+    },
+    "detail": {
+      "notFoundTitle": "Không tìm thấy đơn ứng tuyển này",
+      "notFoundBody": "Đơn có thể đã bị gỡ hoặc thuộc về nhà tuyển dụng khác.",
+      "backToReceived": "Về đơn ứng tuyển đã nhận",
+      "deniedTitle": "Bạn không có quyền truy cập đơn ứng tuyển này",
+      "deniedBody": "Đang kiểm tra quyền truy cập tài khoản… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản nhà tuyển dụng.",
+      "errorTitle": "Không thể tải đơn ứng tuyển này",
+      "back": "Về danh sách đơn ứng tuyển",
+      "loading": "Đang tải đơn ứng tuyển…",
+      "appliedFor": "Ứng tuyển vị trí {title}",
+      "candidateHeading": "Ứng viên",
+      "applicationHeading": "Đơn ứng tuyển",
+      "cvHeading": "CV"
+    },
+    "panel": {
+      "previous": "Đơn ứng tuyển trước",
+      "next": "Đơn ứng tuyển sau",
+      "position": "{index} trên {count}",
+      "openOwnPageAria": "Mở đơn ứng tuyển ở trang riêng",
+      "openOwnPageTitle": "Mở ở trang riêng",
+      "slotsNotFunded": "Chưa nạp lượt",
+      "slotsApproved": "Đã duyệt {approvals} trên {slots}",
+      "caughtUpTitle": "Bạn đã xem hết",
+      "caughtUpBody": "Không còn CV nào khác trên trang này đang chờ xét duyệt.",
+      "cleared": "Đã được mời phỏng vấn. Kết quả sẽ hiện ở đây khi ứng viên hoàn tất."
+    },
+    "cv": {
+      "open": "Mở CV",
+      "none": "Chưa có CV nào được lưu.",
+      "previewHint": "Nếu bản xem trước bị trống, hãy mở CV trong tab mới.",
+      "frameTitle": "CV của {name}"
+    },
+    "screening": {
+      "heading": "Xét duyệt CV",
+      "blockedNotFunded": "Tin tuyển dụng này chưa được nạp lượt phỏng vấn nên chưa thể duyệt CV nào.",
+      "blockedFull": "Tất cả lượt phỏng vấn của tin tuyển dụng này đã được sử dụng hết nên không thể duyệt thêm CV.",
+      "closedFirst": "Tin đã ngừng nhận đơn trước đó nên CV này được tự động từ chối.",
+      "approveFailed": "Không thể duyệt CV này.",
+      "rejectFailed": "Không thể từ chối CV này.",
+      "approveFailedRetry": "Không thể duyệt CV này. Hãy thử lại.",
+      "rejectFailedRetry": "Không thể từ chối CV này. Hãy thử lại.",
+      "noChangeTitle": "Chưa có thay đổi nào",
+      "intakeClosedTitle": "Đã ngừng nhận đơn",
+      "intakeClosedBody": "Tin tuyển dụng này không còn nhận quyết định xét duyệt CV.",
+      "unavailableTitle": "Chưa thể duyệt CV",
+      "approve": "Duyệt CV",
+      "reject": "Từ chối CV",
+      "approvedToast": "Đã duyệt CV",
+      "rejectedToast": "Đã từ chối CV",
+      "lastSlotTitle": "Duyệt cho lượt phỏng vấn cuối cùng?",
+      "lastSlotBody": "{name} sẽ nhận lượt phỏng vấn cuối cùng của tin tuyển dụng này. Tin sẽ ngừng nhận đơn và các CV đang chờ còn lại sẽ tự động bị từ chối.",
+      "rejectTitle": "Từ chối CV này?"
+    },
+    "dialog": {
+      "confirmApproval": "Xác nhận duyệt",
+      "approving": "Đang duyệt…"
+    },
+    "reject": {
+      "description": "Đơn ứng tuyển này sẽ được đánh dấu là bị từ chối. Lý do là tùy chọn và được lưu cùng đơn ứng tuyển.",
+      "reasonLabel": "Lý do gửi ứng viên",
+      "optional": "(tùy chọn)",
+      "hint": "Để trống nếu bạn từ chối mà không nêu lý do.",
+      "rejecting": "Đang từ chối…",
+      "reasonTooLong": "Lý do tối đa {max} ký tự."
+    },
+    "final": {
+      "heading": "Quyết định cuối cùng",
+      "lockedTitle": "Chưa thể đưa ra quyết định cuối cùng",
+      "lockedOpensAt": "Quyết định sẽ mở vào {date}, sau khi hạn phỏng vấn của tin tuyển dụng này đã qua.",
+      "lockedNoDate": "Chưa thể đưa ra quyết định cho đơn ứng tuyển này.",
+      "approve": "Duyệt đơn ứng tuyển",
+      "reject": "Từ chối đơn ứng tuyển",
+      "approvedToast": "Đã duyệt đơn ứng tuyển",
+      "rejectedToast": "Đã từ chối đơn ứng tuyển",
+      "approveTitle": "Duyệt đơn ứng tuyển này?",
+      "approveBody": "Đơn ứng tuyển của {name} sẽ được đánh dấu là đã duyệt.",
+      "rejectTitle": "Từ chối đơn ứng tuyển này?",
+      "approveFailed": "Không thể duyệt đơn ứng tuyển này. Hãy thử lại.",
+      "rejectFailed": "Không thể từ chối đơn ứng tuyển này. Hãy thử lại."
+    },
+    "interview": {
+      "heading": "Phỏng vấn",
+      "score": "Điểm",
+      "started": "Bắt đầu",
+      "completed": "Hoàn tất",
+      "notScored": "Chưa có điểm",
+      "scoreValue": "{score}/100",
+      "notCompleted": "Chưa hoàn tất",
+      "showEvaluation": "Xem đánh giá",
+      "hideEvaluation": "Ẩn đánh giá",
+      "notFinished": "Ứng viên chưa hoàn tất buổi phỏng vấn.",
+      "evaluationLoading": "Đang tải đánh giá…",
+      "evaluationFailed": "Không thể tải đánh giá. Hãy thử lại.",
+      "noBreakdownFailed": "Đánh giá không thành công nên không có điểm chi tiết.",
+      "noBreakdownYet": "Điểm chi tiết chưa sẵn sàng.",
+      "checkAgain": "Kiểm tra lại",
+      "status": {
+        "in_progress": "Đang diễn ra",
+        "pending": "Đang chờ đánh giá",
+        "completed": "Đã đánh giá",
+        "failed": "Đánh giá không thành công"
+      }
+    },
+    "evidence": {
+      "recording": "Bản ghi hình",
+      "recordStatus": {
+        "none": "Buổi phỏng vấn này không có bản ghi hình nào được tải lên.",
+        "uploading": "Bản ghi hình vẫn đang được tải lên.",
+        "processing": "Bản ghi hình vẫn đang được xử lý.",
+        "ready": "Đã có bản ghi hình.",
+        "failed": "Không thể lưu bản ghi hình."
+      },
+      "getLink": "Lấy liên kết bản ghi hình",
+      "gettingLink": "Đang lấy liên kết bản ghi hình…",
+      "linkFailed": "Không thể lấy bản ghi hình. Hãy thử lại.",
+      "linkUnavailable": "Hiện chưa có liên kết bản ghi hình.",
+      "openRecording": "Mở bản ghi hình",
+      "linkExpires": "Liên kết hết hạn {date}.",
+      "transcript": "Bản ghi lời thoại",
+      "transcriptLocked": "Bản ghi lời thoại sẽ có sau khi buổi phỏng vấn hoàn tất.",
+      "showTranscript": "Xem bản ghi lời thoại",
+      "hideTranscript": "Ẩn bản ghi lời thoại",
+      "transcriptLoading": "Đang tải bản ghi lời thoại…",
+      "transcriptFailed": "Không thể tải bản ghi lời thoại. Hãy thử lại.",
+      "noQuestions": "Chưa có câu hỏi nào được ghi lại.",
+      "question": "Câu hỏi {position}",
+      "noAnswer": "Chưa có câu trả lời nào được ghi lại."
+    }
+  },
+  "dashboard": {
+    "title": "Tổng quan",
+    "description": "Những việc cần bạn xử lý ngay trên các tin tuyển dụng và đơn ứng tuyển đã nhận.",
+    "denied": {
+      "title": "Bạn không có quyền truy cập trang tổng quan",
+      "description": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản nhà tuyển dụng."
+    },
+    "allClear": {
+      "title": "Bạn đã xử lý xong mọi việc",
+      "description": "Hiện chưa có gì đang chờ bạn. Đơn ứng tuyển mới và các quyết định sẽ xuất hiện tại đây.",
+      "create": "Tạo tin tuyển dụng"
+    },
+    "todosLabel": "Những việc cần bạn chú ý",
+    "todo": {
+      "pending": {
+        "title": "CV đang chờ duyệt",
+        "description": "Ứng viên đã nộp đơn và đang chờ bạn Duyệt hoặc Từ chối.",
+        "action": "Duyệt CV",
+        "loading": "Đang tải số CV đang chờ duyệt…"
+      },
+      "deadlines": {
+        "title": "Hạn phỏng vấn trong 24 giờ tới",
+        "description": "Các ứng viên đã được duyệt cần hoàn thành phỏng vấn sớm.",
+        "action": "Xem ứng viên",
+        "loading": "Đang tải số hạn phỏng vấn trong 24 giờ tới…",
+        "earliest": "Sớm nhất: {date}.",
+        "partial": "Chỉ 100 ứng viên được duyệt đầu tiên được kiểm tra, nên có thể còn nhiều hạn khác."
+      },
+      "rejected": {
+        "title": "Tin tuyển dụng bị từ chối cần sửa",
+        "description": "Quản trị viên đã trả các tin này về. Hãy chỉnh sửa và gửi lại.",
+        "action": "Sửa tin",
+        "loading": "Đang tải số tin bị từ chối cần sửa…"
+      },
+      "unfunded": {
+        "title": "Đã duyệt, chờ nạp lượt phỏng vấn",
+        "description": "Hãy nạp lượt phỏng vấn để đăng các tin này lên bảng tin tuyển dụng.",
+        "action": "Nạp và đăng tin",
+        "loading": "Đang tải số tin đã duyệt đang chờ nạp lượt…"
+      },
+      "drafts": {
+        "title": "Bản nháp cần gửi",
+        "description": "Các tin bạn vẫn đang soạn. Kiểm tra câu hỏi và tiêu chí, rồi gửi duyệt.",
+        "action": "Tiếp tục soạn",
+        "loading": "Đang tải số bản nháp cần gửi…"
+      },
+      "loadFailed": "Không thể tải con số này.",
+      "atLeast": "{count} trở lên"
+    },
+    "glance": {
+      "title": "Tóm tắt các tin tuyển dụng của bạn",
+      "live": "Đang đăng",
+      "intakeClosed": "Đã đóng nhận đơn"
+    }
+  },
+  "capacity": {
+    "title": "Sức chứa phỏng vấn",
+    "loading": "Đang tải sức chứa phỏng vấn…",
+    "slots": {
+      "title": "Lượt phỏng vấn",
+      "funded": "Lượt đã nạp",
+      "approved": "CV đã duyệt",
+      "openForApproval": "Còn có thể duyệt",
+      "started": "Phỏng vấn đã bắt đầu",
+      "approvedUnfunded": "Quản trị viên đã duyệt tin này. Hãy nạp lượt phỏng vấn để mở nhận đơn: ứng viên sẽ không thấy hoặc ứng tuyển tin này cho đến khi bạn nạp.",
+      "notFunded": "Chưa nạp lượt phỏng vấn. Chưa thể duyệt CV nào cho đến khi bạn nạp."
+    },
+    "cvs": {
+      "title": "CV đã nộp",
+      "applyAfterFunding": "Ứng viên có thể ứng tuyển sau khi bạn nạp lượt phỏng vấn.",
+      "note": "CV đã nộp không dùng lượt phỏng vấn. Duyệt một CV chỉ giữ quyền phỏng vấn cho ứng viên; một lượt chỉ bị trừ khi ứng viên bắt đầu phỏng vấn lần đầu."
+    },
+    "submitted": {
+      "notOpen": "Ứng viên có thể ứng tuyển khi tin bắt đầu nhận đơn.",
+      "loading": "Đang tải số CV đã nộp…",
+      "failed": "Không thể tải số CV đã nộp."
+    },
+    "fund": {
+      "title": "Nạp lượt phỏng vấn",
+      "note": "Chỉ nạp một lần cho mỗi tin tuyển dụng; không thể thêm lượt sau này. Nạp xong, tin sẽ được đăng lên bảng tin tuyển dụng.",
+      "walletBalance": "Số dư ví: {amount}",
+      "walletLoading": "Đang tải số dư ví…",
+      "walletUnavailable": "Không thể hiển thị số dư ví.",
+      "viewWallet": "Xem ví và mua xu",
+      "failed": "Không thể nạp lượt phỏng vấn. Hãy thử lại.",
+      "intakeClosed": "Đã đóng nhận đơn nên không thể nạp thêm lượt phỏng vấn.",
+      "awaitingApproval": "Bạn có thể nạp lượt phỏng vấn sau khi quản trị viên duyệt tin tuyển dụng. Nạp lượt sẽ mở nhận đơn cho ứng viên."
+    },
+    "fundForm": {
+      "label": "Nạp lượt phỏng vấn",
+      "slots": "Số lượt phỏng vấn cần nạp",
+      "hint": "Từ {min} đến {max} lượt. Mỗi lượt có giá {price}.",
+      "totalEmpty": "Nhập số lượt để xem tổng chi phí.",
+      "total": "Tổng: {amount} từ ví của bạn.",
+      "submit": "Nạp lượt phỏng vấn",
+      "funding": "Đang nạp…"
+    },
+    "validation": {
+      "wholeNumber": "Hãy nhập một số nguyên cho số lượt.",
+      "min": "Cần nạp ít nhất {min, plural, other {# lượt}}.",
+      "max": "Chỉ nạp tối đa {max, plural, other {# lượt}}."
+    },
+    "intake": {
+      "title": "Nhận đơn",
+      "description": "Đóng nhận đơn để ngừng nhận đơn ứng tuyển mới. Các đơn đang chờ sẽ bị từ chối; ứng viên đã được duyệt vẫn được phỏng vấn.",
+      "close": "Đóng nhận đơn"
+    },
+    "closeDialog": {
+      "title": "Đóng nhận đơn cho tin tuyển dụng này?",
+      "description": "Các đơn ứng tuyển đang chờ sẽ bị từ chối. Ứng viên đã được duyệt phỏng vấn vẫn giữ suất và vẫn có thể phỏng vấn. Sẽ không nhận thêm đơn ứng tuyển mới.",
+      "confirm": "Đóng nhận đơn",
+      "pending": "Đang đóng nhận đơn…"
+    },
+    "closeFailed": "Không thể đóng nhận đơn. Hãy thử lại.",
+    "closedUnfunded": {
+      "title": "Đã đóng khi chưa nạp lượt",
+      "description": "Tin tuyển dụng này đã đóng khi chưa nạp lượt phỏng vấn nên không có gì để hoàn lại vào ví của bạn."
+    },
+    "refunded": {
+      "title": "Đã hoàn lượt phỏng vấn",
+      "none": "Không có xu nào được hoàn vào ví của bạn khi tin tuyển dụng này đóng.",
+      "returned": "{amount} đã được hoàn vào ví của bạn khi tin tuyển dụng này đóng."
+    },
+    "loadError": {
+      "denied": "Bạn không có quyền truy cập sức chứa phỏng vấn",
+      "notFound": "Không tìm thấy tin tuyển dụng này",
+      "failed": "Không thể tải sức chứa phỏng vấn"
+    },
+    "errors": {
+      "INSUFFICIENT_BALANCE": "Ví của bạn không đủ xu cho số lượt này. Chưa có khoản nào bị trừ.",
+      "INTERVIEW_CAPACITY_ALREADY_FUNDED": "Tin tuyển dụng này đã được nạp lượt phỏng vấn. Số lượt hiện tại hiển thị bên dưới.",
+      "INTAKE_NOT_OPEN": "Tin tuyển dụng này không còn nhận đơn nên không thể thay đổi.",
+      "fallback": "Đã xảy ra lỗi. Hãy thử lại."
+    }
+  },
+  "evaluation": {
+    "title": "Tiêu chí đánh giá",
+    "description": "Quyết định mỗi kỹ năng chiếm bao nhiêu trọng số khi chấm điểm buổi phỏng vấn của ứng viên. Phần này tách biệt với ngân hàng câu hỏi.",
+    "loading": "Đang tải tiêu chí đánh giá…",
+    "loadError": {
+      "denied": {
+        "title": "Bạn không có quyền truy cập tiêu chí đánh giá",
+        "description": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản nhà tuyển dụng."
+      },
+      "notFound": {
+        "title": "Không tìm thấy tin tuyển dụng này",
+        "description": "Tin có thể đã bị xóa hoặc thuộc về nhà tuyển dụng khác."
+      },
+      "failed": {
+        "title": "Không thể tải tiêu chí đánh giá"
+      }
+    },
+    "staleNotice": "Tin tuyển dụng này đã thay đổi nên chúng tôi đã làm mới tiêu chí và bỏ các thay đổi chưa lưu của bạn.",
+    "leaveDialog": {
+      "title": "Rời đi mà chưa lưu?",
+      "description": "Các thay đổi về trọng số của bạn chưa được lưu. Nếu rời đi bây giờ, chúng sẽ bị mất.",
+      "stay": "Ở lại trang này",
+      "leave": "Rời đi, không lưu"
+    },
+    "defaults": {
+      "title": "Đang dùng trọng số mặc định",
+      "body": "Bạn chưa lưu trọng số riêng, nên các buổi phỏng vấn được chấm điểm theo {mode, select, split {tổng {total} chia đều cho mọi tiêu chí} other {cách mọi tiêu chí có trọng số như nhau}}. Điều này không chặn việc phê duyệt. Hãy lưu trọng số của bạn để thay đổi."
+    },
+    "weights": {
+      "title": "Trọng số",
+      "total": "Tổng"
+    },
+    "sumOf": "{sum} trên {total}",
+    "drafts": {
+      "notNumber": "Hãy nhập một số.",
+      "negative": "Trọng số không được âm.",
+      "tooHigh": "Trọng số tối đa là {max}.",
+      "needOne": "Hãy đặt trọng số cho ít nhất một tiêu chí.",
+      "sumMismatch": "Tổng các trọng số là {sum}, nhưng phải bằng {total}."
+    },
+    "editDenied": "Bạn không có quyền chỉnh sửa các tiêu chí này. Đang kiểm tra quyền truy cập tài khoản của bạn…",
+    "saveFailed": "Không thể lưu tiêu chí.",
+    "saveError": "{reason} Các thay đổi của bạn vẫn còn ở đây.",
+    "resetFailed": "Không thể đặt lại tiêu chí.",
+    "save": "Lưu tiêu chí",
+    "discard": "Hủy thay đổi",
+    "unsaved": "Có thay đổi chưa lưu",
+    "resetDefault": "Đặt lại trọng số mặc định",
+    "resetDialog": {
+      "title": "Đặt lại về trọng số mặc định?",
+      "description": "Trọng số đã lưu của bạn sẽ bị xóa và các buổi phỏng vấn sẽ lại được chấm điểm theo {mode, select, split {tổng {total} chia đều cho mọi tiêu chí} other {cách mọi tiêu chí có trọng số như nhau}}.{dirty, select, yes { Các thay đổi chưa lưu của bạn cũng sẽ bị bỏ.} other {}}",
+      "cancel": "Giữ trọng số của tôi",
+      "confirm": "Đặt lại trọng số",
+      "pending": "Đang đặt lại…"
+    },
+    "readOnly": {
+      "locked": "Tin tuyển dụng này đã được duyệt nên không thể chỉnh sửa tiêu chí đánh giá nữa.",
+      "noCustom": "Chưa lưu trọng số tùy chỉnh nào, nên mọi tiêu chí có trọng số như nhau."
+    },
+    "toast": {
+      "saved": "Đã lưu tiêu chí đánh giá",
+      "restored": "Đã khôi phục trọng số mặc định"
+    }
+  },
+  "questionBank": {
+    "title": "Ngân hàng câu hỏi",
+    "loading": "Đang tải ngân hàng câu hỏi…",
+    "hiddenFromCandidates": "Ứng viên không bao giờ thấy các câu hỏi này.",
+    "changed": "Ngân hàng câu hỏi này đã thay đổi. Chúng tôi đã làm mới dữ liệu cho bạn.",
+    "denied": {
+      "title": "Bạn không có quyền truy cập ngân hàng câu hỏi này",
+      "body": "Đang kiểm tra quyền truy cập tài khoản của bạn… Chỉ nhà tuyển dụng sở hữu tin tuyển dụng này mới quản lý được câu hỏi của tin."
+    },
+    "error": {
+      "notFoundTitle": "Tin tuyển dụng này không tồn tại",
+      "notFoundBody": "Tin có thể đã bị xóa hoặc thuộc về nhà tuyển dụng khác.",
+      "failedTitle": "Không thể tải ngân hàng câu hỏi"
+    },
+    "state": {
+      "readOnlyApproved": "Tin tuyển dụng này đã được duyệt nên ngân hàng câu hỏi chỉ để xem.",
+      "readOnlyIntakeClosed": "Tin tuyển dụng này đã ngừng nhận đơn nên ngân hàng câu hỏi chỉ để xem.",
+      "readOnlyClosed": "Tin tuyển dụng này đã đóng nên ngân hàng câu hỏi chỉ để xem.",
+      "submitted": "Đã gửi duyệt. Bạn vẫn có thể chỉnh sửa câu hỏi cho đến khi quản trị viên xem xét tin tuyển dụng.",
+      "review": "Hãy xem lại và lưu các câu hỏi, rồi gửi tin tuyển dụng để được duyệt.",
+      "needsQuestion": "Tin tuyển dụng cần có ít nhất một câu hỏi trước khi bạn có thể gửi duyệt."
+    },
+    "evaluation": {
+      "preparing": "Dùng tiêu chí đánh giá mặc định hoặc tùy chỉnh trước khi gửi duyệt.",
+      "locked": "Tiêu chí đánh giá bị khóa sau khi tin được duyệt."
+    },
+    "submit": {
+      "submit": "Gửi duyệt",
+      "resubmit": "Gửi duyệt lại",
+      "pending": "Đang gửi…",
+      "inQueue": "Đang trong hàng chờ duyệt",
+      "toast": "Đã gửi duyệt",
+      "failed": "Không thể gửi tin tuyển dụng. Vui lòng thử lại."
+    },
+    "blocked": {
+      "empty": "Hãy tạo hoặc thêm ít nhất một câu hỏi để gửi duyệt.",
+      "editing": "Hãy lưu hoặc hủy câu hỏi đang chỉnh sửa để gửi duyệt.",
+      "adding": "Hãy thêm hoặc bỏ câu hỏi bạn đang soạn để gửi duyệt.",
+      "saving": "Đang lưu thay đổi của bạn…",
+      "generating": "Đang tạo câu hỏi…"
+    },
+    "list": {
+      "title": "Câu hỏi",
+      "count": "{count} câu hỏi",
+      "editLabel": "Chỉnh sửa câu hỏi {number}",
+      "deleteLabel": "Xóa câu hỏi {number}"
+    },
+    "generate": {
+      "toast": "{count} câu hỏi đã sẵn sàng để bạn xem lại.",
+      "failed": "Không thể tạo câu hỏi. Vui lòng thử lại."
+    },
+    "edit": {
+      "save": "Lưu câu hỏi",
+      "failed": "Không thể lưu câu hỏi. Nội dung chỉnh sửa của bạn vẫn còn đây."
+    },
+    "add": {
+      "label": "Thêm câu hỏi",
+      "submit": "Thêm câu hỏi",
+      "pending": "Đang thêm…",
+      "failed": "Không thể thêm câu hỏi. Bản nháp của bạn vẫn còn đây."
+    },
+    "empty": {
+      "none": "Tin tuyển dụng này không có câu hỏi cốt lõi nào.",
+      "unavailable": "Chưa có câu hỏi nào. Tính năng tạo tự động hiện không khả dụng; vui lòng thử lại sau.",
+      "title": "Chưa có câu hỏi nào",
+      "description": "Tạo {count} câu hỏi từ các yêu cầu bạn đã xác nhận. Bạn có thể chỉnh sửa, thêm và xóa câu hỏi trước khi gửi duyệt.",
+      "generate": "Tạo câu hỏi",
+      "generating": "Đang tạo câu hỏi…",
+      "retry": "Thử tạo lại câu hỏi",
+      "wait": "Việc này có thể mất tối đa một phút. Bạn có thể ở lại trang này."
+    },
+    "editor": {
+      "hint": "Do người phỏng vấn AI đặt ra. Ứng viên không bao giờ thấy ngân hàng câu hỏi."
+    },
+    "validation": {
+      "required": "Hãy viết câu hỏi trước.",
+      "max": "Câu hỏi tối đa {max, number} ký tự."
+    },
+    "delete": {
+      "title": "Xóa câu hỏi này?",
+      "description": "“{content}” sẽ bị xóa khỏi ngân hàng câu hỏi. Câu hỏi đã được dùng trong một buổi phỏng vấn thì không thể xóa.",
+      "confirm": "Xóa câu hỏi",
+      "pending": "Đang xóa…",
+      "toast": "Đã xóa câu hỏi",
+      "withdrawn": "Tin tuyển dụng đã rời hàng chờ duyệt. Hãy thêm câu hỏi và gửi duyệt lại.",
+      "failed": "Không thể xóa câu hỏi. Vui lòng thử lại."
+    },
+    "review": {
+      "title": "Xem lại & gửi duyệt",
+      "description": "Kiểm tra tin tuyển dụng và tiêu chí đánh giá trước khi gửi cho quản trị viên. Việc nạp lượt phỏng vấn diễn ra sau khi được duyệt.",
+      "posting": "Tin tuyển dụng",
+      "seniority": "Cấp bậc",
+      "bank": "Ngân hàng câu hỏi",
+      "questionCount": "{count} câu hỏi",
+      "interviewer": "Người phỏng vấn",
+      "voice": "Giọng nói",
+      "notSelected": "Chưa chọn",
+      "requirements": "Yêu cầu đã xác nhận",
+      "noRequirements": "Không có yêu cầu nào",
+      "unavailable": "Không có thông tin chi tiết của tin tuyển dụng. Hãy đóng hộp thoại này và tải lại tin.",
+      "evaluationLabel": "Tóm tắt đánh giá",
+      "evaluation": "Tiêu chí đánh giá",
+      "loadingCriteria": "Đang tải tiêu chí đánh giá…",
+      "criteriaError": "Không thể tải các tiêu chí.",
+      "retryCriteria": "Thử tải lại tiêu chí",
+      "defaultCriteria": "Tiêu chí mặc định · trọng số bằng nhau",
+      "customCriteria": "Tiêu chí đánh giá tùy chỉnh",
+      "alreadyReviewed": "Tin tuyển dụng này đã được xem xét. Hãy đóng hộp thoại này và tải lại tin để xem trạng thái hiện tại.",
+      "weightPercent": "{value}%",
+      "weightPoints": "{value} trọng số",
+      "editCriteria": "Chỉnh sửa tiêu chí đánh giá",
+      "submitting": "Đang gửi…",
+      "resubmit": "Gửi duyệt lại",
+      "submit": "Gửi duyệt"
+    }
+  }
+}

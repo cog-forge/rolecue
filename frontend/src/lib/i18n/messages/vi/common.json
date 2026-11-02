@@ -1,7 +1,27 @@
 {
   "skipToContent": "Chuyển đến nội dung chính",
+  "close": "Đóng",
+  "actions": {
+    "cancel": "Hủy",
+    "retry": "Thử lại",
+    "tryAgain": "Thử lại",
+    "previous": "Trước",
+    "next": "Sau",
+    "search": "Tìm kiếm",
+    "clearSearch": "Xóa tìm kiếm",
+    "saving": "Đang lưu…",
+    "firstPage": "Về trang đầu"
+  },
+  "labels": {
+    "all": "Tất cả",
+    "notSet": "Chưa đặt",
+    "pagination": "Phân trang",
+    "opensInNewTab": "(mở trong tab mới)"
+  },
+  "messages": {
+    "tryAgainLater": "Vui lòng thử lại sau ít phút."
+  },
   "language": {
-    "label": "Ngôn ngữ",
     "change": "Đổi ngôn ngữ"
   },
   "globalError": {

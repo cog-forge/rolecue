@@ -1,7 +1,27 @@
 {
   "skipToContent": "Skip to content",
+  "close": "Close",
+  "actions": {
+    "cancel": "Cancel",
+    "retry": "Retry",
+    "tryAgain": "Try again",
+    "previous": "Previous",
+    "next": "Next",
+    "search": "Search",
+    "clearSearch": "Clear search",
+    "saving": "Saving…",
+    "firstPage": "Go to the first page"
+  },
+  "labels": {
+    "all": "All",
+    "notSet": "Not set",
+    "pagination": "Pagination",
+    "opensInNewTab": "(opens in a new tab)"
+  },
+  "messages": {
+    "tryAgainLater": "Please try again in a moment."
+  },
   "language": {
-    "label": "Language",
     "change": "Change language"
   },
   "globalError": {

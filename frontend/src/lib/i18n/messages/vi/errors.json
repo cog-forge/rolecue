@@ -68,7 +68,7 @@
     "APPLICATION_NOT_FOUND": "Đơn ứng tuyển này không còn tồn tại.",
     "APPLICATION_NOT_PENDING": "Đơn ứng tuyển này đã được xem xét.",
     "APPLICATION_NOT_ELIGIBLE": "Đơn ứng tuyển này chưa đủ điều kiện phỏng vấn.",
-    "INTAKE_NOT_OPEN": "Tin tuyển dụng này không còn nhận hồ sơ.",
+    "INTAKE_NOT_OPEN": "Tin tuyển dụng này không còn nhận đơn.",
     "INTERVIEW_CAPACITY_NOT_FUNDED": "Tin tuyển dụng này chưa được nạp lượt phỏng vấn.",
     "INTERVIEW_CAPACITY_FULL": "Các lượt phỏng vấn của tin tuyển dụng này đã được dùng hết.",
     "INTERVIEW_CAPACITY_ALREADY_FUNDED": "Tin tuyển dụng này đã được nạp lượt phỏng vấn.",
