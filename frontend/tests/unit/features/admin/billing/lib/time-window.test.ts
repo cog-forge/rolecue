@@ -6,6 +6,9 @@ import {
   timeWindowLabel,
   type TimeWindow,
 } from "@/features/admin/billing/lib/time-window";
+import { timeWindowFor } from "../fixtures/translators";
+
+const t = timeWindowFor("en");
 
 // 27/10/2026 15:00 in Vietnam.
 const now = new Date("2026-10-27T08:00:00Z");
@@ -100,7 +103,7 @@ describe("resolveTimeWindow", () => {
       ),
     ).toEqual({
       ok: false,
-      error: "The start date must be on or before the end date.",
+      error: "reversedRange",
     });
     expect(
       resolveTimeWindow({ preset: "custom", from: "2026-02-30" }, now).ok,
@@ -113,23 +116,40 @@ describe("resolveTimeWindow", () => {
 
 describe("timeWindowLabel", () => {
   it("names presets and formats custom ranges as dd/MM/yyyy", () => {
-    expect(timeWindowLabel(ALL_TIME)).toBe("All time");
-    expect(timeWindowLabel({ preset: "last_7_days" })).toBe("Last 7 days");
-    expect(timeWindowLabel({ preset: "this_month" })).toBe("This month");
+    expect(timeWindowLabel(ALL_TIME, t)).toBe("All time");
+    expect(timeWindowLabel({ preset: "last_7_days" }, t)).toBe("Last 7 days");
+    expect(timeWindowLabel({ preset: "this_month" }, t)).toBe("This month");
     expect(
-      timeWindowLabel({
-        preset: "custom",
-        from: "2026-10-01",
-        to: "2026-10-27",
-      }),
+      timeWindowLabel(
+        {
+          preset: "custom",
+          from: "2026-10-01",
+          to: "2026-10-27",
+        },
+        t,
+      ),
     ).toBe("01/10/2026 – 27/10/2026");
-    expect(timeWindowLabel({ preset: "custom", from: "2026-10-01" })).toBe(
+    expect(timeWindowLabel({ preset: "custom", from: "2026-10-01" }, t)).toBe(
       "From 01/10/2026",
     );
-    expect(timeWindowLabel({ preset: "custom", to: "2026-10-27" })).toBe(
+    expect(timeWindowLabel({ preset: "custom", to: "2026-10-27" }, t)).toBe(
       "Until 27/10/2026",
     );
-    expect(timeWindowLabel({ preset: "custom" })).toBe("All time");
+    expect(timeWindowLabel({ preset: "custom" }, t)).toBe("All time");
+  });
+});
+
+describe("timeWindowLabel in Vietnamese", () => {
+  it("names presets and open-ended ranges in Vietnamese, dates stay dd/MM/yyyy", () => {
+    const vi = timeWindowFor("vi");
+    expect(timeWindowLabel({ preset: "last_7_days" }, vi)).toBe("7 ngày qua");
+    expect(timeWindowLabel({ preset: "custom", from: "2026-10-01" }, vi)).toBe(
+      "Từ 01/10/2026",
+    );
+    expect(timeWindowLabel({ preset: "custom", to: "2026-10-27" }, vi)).toBe(
+      "Đến 27/10/2026",
+    );
+    expect(timeWindowLabel(ALL_TIME, vi)).toBe("Mọi lúc");
   });
 });
 
@@ -190,9 +210,9 @@ describe("revenue presets", () => {
   });
 
   it("labels the new presets", () => {
-    expect(timeWindowLabel({ preset: "last_12_months" })).toBe(
+    expect(timeWindowLabel({ preset: "last_12_months" }, t)).toBe(
       "Last 12 months",
     );
-    expect(timeWindowLabel({ preset: "this_quarter" })).toBe("This quarter");
+    expect(timeWindowLabel({ preset: "this_quarter" }, t)).toBe("This quarter");
   });
 });

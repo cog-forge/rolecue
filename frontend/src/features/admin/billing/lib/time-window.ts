@@ -1,3 +1,4 @@
+import type { useTranslations } from "next-intl";
 import { formatDateOnly } from "./format";
 
 /**
@@ -9,19 +10,27 @@ import { formatDateOnly } from "./format";
  */
 
 export const timeWindowPresets = [
-  { value: "all", label: "All time" },
-  { value: "today", label: "Today" },
-  { value: "last_7_days", label: "Last 7 days" },
-  { value: "last_30_days", label: "Last 30 days" },
-  { value: "this_month", label: "This month" },
-  { value: "last_month", label: "Last month" },
-  { value: "this_quarter", label: "This quarter" },
-  { value: "this_year", label: "This year" },
-  { value: "last_12_months", label: "Last 12 months" },
-  { value: "custom", label: "Custom range" },
+  "all",
+  "today",
+  "last_7_days",
+  "last_30_days",
+  "this_month",
+  "last_month",
+  "this_quarter",
+  "this_year",
+  "last_12_months",
+  "custom",
 ] as const;
 
-export type TimeWindowPreset = (typeof timeWindowPresets)[number]["value"];
+export type TimeWindowTranslator = ReturnType<
+  typeof useTranslations<"admin.billing.timeWindow">
+>;
+
+export type TimeWindowPreset = (typeof timeWindowPresets)[number];
+
+export function isTimeWindowPreset(value: string): value is TimeWindowPreset {
+  return timeWindowPresets.some((preset) => preset === value);
+}
 
 // The audit list reads day-sized windows; the revenue report reads calendar periods that compare
 // cleanly with the same period a year earlier.
@@ -49,9 +58,12 @@ export type TimeWindow = Readonly<{
   to?: string;
 }>;
 
+// A window that cannot be sent; the screen shows the translated message for the code.
+export type TimeWindowError = "invalidDay" | "reversedRange" | "bothEnds";
+
 export type ResolvedTimeWindow =
   | { ok: true; dateFrom?: string; dateTo?: string }
-  | { ok: false; error: string };
+  | { ok: false; error: TimeWindowError };
 
 export const ALL_TIME: TimeWindow = { preset: "all" };
 
@@ -88,7 +100,8 @@ function startOfDay(day: string) {
 }
 
 type WindowDays =
-  { ok: true; from?: string; to?: string } | { ok: false; error: string };
+  | { ok: true; from?: string; to?: string }
+  | { ok: false; error: TimeWindowError };
 
 // The inclusive first and last day of a window.
 function windowDays(window: TimeWindow, now: Date): WindowDays {
@@ -125,13 +138,10 @@ function windowDays(window: TimeWindow, now: Date): WindowDays {
     case "custom": {
       const { from, to } = window;
       if ((from && !isValidDay(from)) || (to && !isValidDay(to))) {
-        return { ok: false, error: "Enter dates as valid calendar days." };
+        return { ok: false, error: "invalidDay" };
       }
       if (from && to && from > to) {
-        return {
-          ok: false,
-          error: "The start date must be on or before the end date.",
-        };
+        return { ok: false, error: "reversedRange" };
       }
       return { ok: true, from: from || undefined, to: to || undefined };
     }
@@ -151,18 +161,16 @@ export function resolveTimeWindow(
   };
 }
 
-export function timeWindowLabel(window: TimeWindow): string {
-  if (window.preset !== "custom") {
-    return (
-      timeWindowPresets.find((p) => p.value === window.preset)?.label ??
-      "All time"
-    );
-  }
+export function timeWindowLabel(
+  window: TimeWindow,
+  t: TimeWindowTranslator,
+): string {
+  if (window.preset !== "custom") return t(`presets.${window.preset}`);
   const { from, to } = window;
   if (from && to) return `${formatDateOnly(from)} – ${formatDateOnly(to)}`;
-  if (from) return `From ${formatDateOnly(from)}`;
-  if (to) return `Until ${formatDateOnly(to)}`;
-  return "All time";
+  if (from) return t("fromDate", { date: formatDateOnly(from) });
+  if (to) return t("untilDate", { date: formatDateOnly(to) });
+  return t("presets.all");
 }
 
 // File name part such as "_2026-10-01_2026-10-27"; empty for all time or an invalid range.

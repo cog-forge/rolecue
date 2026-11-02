@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useLocale, useTranslations } from "next-intl";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,42 +15,68 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { adminBillingKeys, getRevenueReport } from "../api/billing";
-import { compareValues, formatWindowRange } from "../lib/compare";
+import {
+  compareValues,
+  formatWindowRange,
+  type CompareTranslator,
+} from "../lib/compare";
+import type { DatesTranslator } from "../lib/dates";
 import { encodeCSVRow, formatVND } from "../lib/format";
 import { buildTrendRows } from "../lib/revenue-chart";
 import { revenuePresets, timeWindowFileSuffix } from "../lib/time-window";
-import type { RevenueCompare, RevenueReport } from "../schemas/billing-schema";
+import {
+  revenueCompareSchema,
+  type RevenueCompare,
+  type RevenueReport,
+} from "../schemas/billing-schema";
+import type { AppLocale } from "@/lib/i18n/config";
 import { CoinFlow, OutstandingCoins } from "./coin-flow";
 import { RevenueKpis } from "./revenue-kpis";
 import { RevenueMix } from "./revenue-mix";
 import { RevenueTrendChart } from "./revenue-trend-chart";
 import { TimeWindowFilter, useTimeWindow } from "./time-window-filter";
 
-const compareOptions: { value: RevenueCompare; label: string }[] = [
-  { value: "previous_year", label: "Same period last year" },
-  { value: "previous_period", label: "Previous period" },
+const compareOptions: readonly RevenueCompare[] = [
+  "previous_year",
+  "previous_period",
 ];
+
+type RevenueTranslator = ReturnType<
+  typeof useTranslations<"admin.billing.revenue">
+>;
+type CsvTranslator = ReturnType<
+  typeof useTranslations<"admin.billing.revenue.csv">
+>;
 
 // The one sentence the screen answers: how much came in, and how that sits against the baseline.
 function finding(
   report: RevenueReport,
   range: string,
   comparisonRange: string,
+  locale: AppLocale,
+  t: RevenueTranslator,
+  compareT: CompareTranslator,
 ) {
   const now = report.current.revenue_vnd;
   const before = report.comparison.revenue_vnd;
   if (now === 0 && before === 0) {
-    return `No paid top-ups in ${range} or ${comparisonRange}`;
+    return t("finding.none", { range, comparisonRange });
   }
-  const revenue = `${range} · ${formatVND(now)}`;
-  const change = compareValues(now, before, "money");
+  const revenue = t("finding.revenue", { range, amount: formatVND(now) });
+  const change = compareValues(now, before, "money", locale, compareT);
   if (change.state === "new") {
-    return `${revenue}; no paid top-ups in ${comparisonRange}`;
+    return t("finding.newBaseline", { revenue, comparisonRange });
   }
   if (change.state === "same") {
-    return `${revenue}, the same as ${comparisonRange}`;
+    return t("finding.same", { revenue, comparisonRange });
   }
-  return `${revenue}, ${change.direction} ${change.percent} on ${comparisonRange} (${change.absolute})`;
+  return t("finding.change", {
+    revenue,
+    direction: change.direction,
+    percent: change.percent,
+    absolute: change.absolute,
+    comparisonRange,
+  });
 }
 
 function downloadReport(
@@ -57,6 +84,8 @@ function downloadReport(
   range: string,
   comparisonRange: string,
   suffix: string,
+  t: CsvTranslator,
+  datesT: DatesTranslator,
 ) {
   const metric = (label: string, key: keyof RevenueReport["current"]) => [
     label,
@@ -64,33 +93,38 @@ function downloadReport(
     report.comparison[key],
   ];
   const rows: (string | number)[][] = [
-    ["Period (Vietnam time)", range, comparisonRange],
-    ["Metric", "This period", "Comparison"],
-    metric("Revenue (VND)", "revenue_vnd"),
-    metric("Paid top-ups", "successful_topups"),
-    metric("PayOS attempts", "topup_attempts"),
-    metric("Payment success (%)", "payment_success_rate"),
-    metric("Paying users", "paying_users"),
-    metric("New payers", "new_payers"),
-    metric("Average order (VND)", "average_order_vnd"),
-    metric("Coins sold", "coins_sold"),
-    metric("Coins spent", "coins_spent"),
-    metric("Coins refunded", "coins_refunded"),
+    [t("period"), range, comparisonRange],
+    [t("metric"), t("thisPeriod"), t("comparison")],
+    metric(t("revenueVnd"), "revenue_vnd"),
+    metric(t("paidTopups"), "successful_topups"),
+    metric(t("payosAttempts"), "topup_attempts"),
+    metric(t("paymentSuccess"), "payment_success_rate"),
+    metric(t("payingUsers"), "paying_users"),
+    metric(t("newPayers"), "new_payers"),
+    metric(t("averageOrderVnd"), "average_order_vnd"),
+    metric(t("coinsSold"), "coins_sold"),
+    metric(t("coinsSpent"), "coins_spent"),
+    metric(t("coinsRefunded"), "coins_refunded"),
     [],
     [
-      "Bucket",
-      "Revenue (VND)",
-      "Comparison bucket",
-      "Comparison revenue (VND)",
+      t("bucket"),
+      t("revenueVnd"),
+      t("comparisonBucket"),
+      t("comparisonRevenueVnd"),
     ],
-    ...buildTrendRows(report).map((row) => [
+    ...buildTrendRows(report, datesT).map((row) => [
       row.label,
       row.current,
       row.comparisonLabel,
       row.comparison,
     ]),
     [],
-    ["Coin pack", "Revenue (VND)", "Comparison revenue (VND)", "Paid top-ups"],
+    [
+      t("coinPack"),
+      t("revenueVnd"),
+      t("comparisonRevenueVnd"),
+      t("paidTopups"),
+    ],
     ...report.by_package.map((item) => [
       item.key,
       item.revenue_vnd,
@@ -124,6 +158,12 @@ function LoadingReport() {
 }
 
 export function AdminRevenueView() {
+  const locale = useLocale();
+  const t = useTranslations("admin.billing.revenue");
+  const tCommon = useTranslations("common");
+  const csvT = useTranslations("admin.billing.revenue.csv");
+  const compareT = useTranslations("admin.billing.compare");
+  const datesT = useTranslations("admin.billing.dates");
   const timeWindow = useTimeWindow({
     initial: { preset: "this_month" },
     requireBothEnds: true,
@@ -144,12 +184,13 @@ export function AdminRevenueView() {
   });
   const report = reportQuery.data;
   const range = report
-    ? formatWindowRange(report.window.from, report.window.to)
+    ? formatWindowRange(report.window.from, report.window.to, datesT)
     : "";
   const comparisonRange = report
     ? formatWindowRange(
         report.comparison_window.from,
         report.comparison_window.to,
+        datesT,
       )
     : "";
 
@@ -158,19 +199,16 @@ export function AdminRevenueView() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Revenue
+            {t("title")}
           </h1>
           {report ? (
             <p className="text-sm text-muted-foreground">
-              {finding(report, range, comparisonRange)}
+              {finding(report, range, comparisonRange, locale, t, compareT)}
             </p>
           ) : reportQuery.isError ? null : (
             <Skeleton className="h-5 w-80 max-w-full" />
           )}
-          <p className="text-xs text-muted-foreground">
-            Paid PayOS top-ups only; coins moving inside RoleCue are not
-            revenue.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("subtitle")}</p>
         </div>
 
         <div className="grid grid-cols-1 items-start gap-2 sm:flex sm:flex-wrap">
@@ -182,18 +220,22 @@ export function AdminRevenueView() {
           />
           <Select
             value={compare}
-            onValueChange={(value) => setCompare(value as RevenueCompare)}
+            onValueChange={(value) =>
+              setCompare(
+                revenueCompareSchema.catch("previous_year").parse(value),
+              )
+            }
           >
             <SelectTrigger
               className="h-9 w-full text-xs sm:w-[190px]"
-              aria-label="Compare with"
+              aria-label={t("compareLabel")}
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {compareOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                <SelectItem key={option} value={option}>
+                  {t(`compareOptions.${option}`)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -210,11 +252,13 @@ export function AdminRevenueView() {
                 range,
                 comparisonRange,
                 timeWindowFileSuffix(timeWindow.applied.window, new Date()),
+                csvT,
+                datesT,
               )
             }
           >
             <Download className="size-3.5" aria-hidden />
-            Export CSV
+            {t("export")}
           </Button>
         </div>
       </div>
@@ -222,18 +266,16 @@ export function AdminRevenueView() {
       {reportQuery.isError ? (
         <Card className="items-start gap-2 p-6">
           <p className="text-sm font-medium text-foreground">
-            Couldn&apos;t load the revenue report.
+            {t("loadError.title")}
           </p>
-          <p className="text-sm text-muted-foreground">
-            Check the connection and try again.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("loadError.hint")}</p>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => void reportQuery.refetch()}
           >
-            Retry
+            {tCommon("actions.retry")}
           </Button>
         </Card>
       ) : !report ? (

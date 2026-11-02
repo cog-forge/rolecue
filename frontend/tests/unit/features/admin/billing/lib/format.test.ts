@@ -5,11 +5,11 @@ import {
   formatCoinAmount,
   formatDateTime,
   formatDateOnly,
-  plural,
   formatPercentChange,
   sanitizeCSVCell,
   encodeCSVRow,
 } from "@/features/admin/billing/lib/format";
+import { formattersFor } from "@tests/helpers/intl";
 
 describe("Billing Format Utilities", () => {
   describe("formatVND", () => {
@@ -33,16 +33,23 @@ describe("Billing Format Utilities", () => {
 
   describe("formatCoins", () => {
     it("formats coins with labels and locale grouping", () => {
-      expect(formatCoins(1)).toBe("1 coin");
-      expect(formatCoins(2)).toBe("2 coins");
-      expect(formatCoins(100)).toBe("100 coins");
-      expect(formatCoins(1500)).toBe("1,500 coins");
-      expect(formatCoins(1500, "vi")).toBe("1.500 coins");
-      expect(formatCoins(0)).toBe("0 coins");
+      const fmt = formattersFor("en");
+      expect(formatCoins(1, fmt)).toBe("1 coin");
+      expect(formatCoins(2, fmt)).toBe("2 coins");
+      expect(formatCoins(100, fmt)).toBe("100 coins");
+      expect(formatCoins(1500, fmt)).toBe("1,500 coins");
+      expect(formatCoins(0, fmt)).toBe("0 coins");
+      expect(formatCoins(null, fmt)).toBe("0 coins");
     });
 
     it("handles negative coins", () => {
-      expect(formatCoins(-20)).toBe("-20 coins");
+      expect(formatCoins(-20, formattersFor("en"))).toBe("-20 coins");
+    });
+
+    it("uses the unit and grouping of the active language", () => {
+      const fmt = formattersFor("vi");
+      expect(formatCoins(1, fmt)).toBe("1 xu");
+      expect(formatCoins(1500, fmt)).toBe("1.500 xu");
     });
   });
 
@@ -51,15 +58,6 @@ describe("Billing Format Utilities", () => {
       expect(formatCoinAmount(1500)).toBe("1,500");
       expect(formatCoinAmount(1500, "vi")).toBe("1.500");
       expect(formatCoinAmount(20)).toBe("20");
-    });
-  });
-
-  describe("plural", () => {
-    it("handles singular and plural words correctly", () => {
-      expect(plural(1, "deposit")).toBe("1 deposit");
-      expect(plural(2, "deposit")).toBe("2 deposits");
-      expect(plural(0, "deposit")).toBe("0 deposits");
-      expect(plural(119, "deposit")).toBe("119 deposits");
     });
   });
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -18,10 +19,22 @@ const CURRENT = "var(--rolecue-brand-blue)";
 const COMPARISON =
   "color-mix(in oklch, var(--rolecue-ink-subtle) 45%, transparent)";
 
-function compactVND(value: number, fmt: Formatters) {
-  if (value >= 1_000_000)
-    return `${fmt.number(value / 1_000_000, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
-  if (value >= 1_000) return `${Math.round(value / 1_000)}k`;
+type AxisTranslator = ReturnType<
+  typeof useTranslations<"admin.billing.revenue.trend">
+>;
+
+function compactVND(value: number, fmt: Formatters, t: AxisTranslator) {
+  if (value >= 1_000_000) {
+    return t("axisMillions", {
+      value: fmt.number(value / 1_000_000, {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }),
+    });
+  }
+  if (value >= 1_000) {
+    return t("axisThousands", { value: Math.round(value / 1_000) });
+  }
   return String(value);
 }
 
@@ -37,7 +50,10 @@ export function RevenueTrendChart({
   comparisonRange: string;
 }) {
   const fmt = useFormatters();
-  const rows = buildTrendRows(report);
+  const t = useTranslations("admin.billing.revenue.trend");
+  const noTopupsT = useTranslations("admin.billing.revenue");
+  const datesT = useTranslations("admin.billing.dates");
+  const rows = buildTrendRows(report, datesT);
   const config = {
     comparison: { label: comparisonRange, color: COMPARISON },
     current: { label: range, color: CURRENT },
@@ -48,11 +64,11 @@ export function RevenueTrendChart({
   );
 
   return (
-    <section aria-label="Revenue over time" className="lg:col-span-2">
+    <section aria-label={t("label")} className="lg:col-span-2">
       <Card className="h-full">
         <CardHeader className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <CardTitle className="text-base font-semibold">
-            Revenue by {report.granularity}
+            {t("title", { granularity: report.granularity })}
           </CardTitle>
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <li className="flex items-center gap-1.5">
@@ -76,13 +92,17 @@ export function RevenueTrendChart({
         <CardContent>
           {isEmpty && (
             <p className="mb-2 text-sm text-muted-foreground">
-              No paid top-ups in either period.
+              {noTopupsT("noTopups")}
             </p>
           )}
           <ChartContainer
             config={config}
             className="aspect-auto h-60 w-full"
-            aria-label={`Revenue by ${report.granularity}, ${range} against ${comparisonRange}`}
+            aria-label={t("chartLabel", {
+              granularity: report.granularity,
+              range,
+              comparisonRange,
+            })}
           >
             <BarChart data={rows} barGap={2} barCategoryGap="20%">
               <CartesianGrid vertical={false} />
@@ -97,7 +117,7 @@ export function RevenueTrendChart({
                 tickLine={false}
                 axisLine={false}
                 width={40}
-                tickFormatter={(value: number) => compactVND(value, fmt)}
+                tickFormatter={(value: number) => compactVND(value, fmt, t)}
                 allowDecimals={false}
               />
               <ChartTooltip

@@ -1,7 +1,9 @@
+import { useTranslations } from "next-intl";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { formatCoinAmount, formatVND } from "../lib/format";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 import type { BillingSummary } from "../schemas/billing-schema";
 
 // The rows behind the current filters in one divided strip: what came in, and what needs a look.
@@ -12,35 +14,43 @@ export function BillingSummaryStrip({
   summary?: BillingSummary;
   isLoading: boolean;
 }) {
+  const t = useTranslations("admin.billing.transactions.summary");
+  const { locale } = useFormatters();
+  const amount = (value: number) => formatCoinAmount(value, locale);
   const figures = summary
     ? [
         {
-          label: "Revenue",
+          label: t("revenue"),
           value: formatVND(summary.total_revenue),
-          note: `${formatCoinAmount(summary.successful_deposits)} paid top-ups`,
+          note: t("revenueNote", {
+            count: amount(summary.successful_deposits),
+          }),
         },
         {
-          label: "Waiting for payment",
-          value: formatCoinAmount(summary.pending_count),
-          note: "PayOS has not confirmed yet",
+          label: t("waiting"),
+          value: amount(summary.pending_count),
+          note: t("waitingNote"),
         },
         {
-          label: "Failed or cancelled",
-          value: formatCoinAmount(
-            summary.failed_count + summary.cancelled_count,
-          ),
-          note: `${formatCoinAmount(summary.failed_count)} failed · ${formatCoinAmount(summary.cancelled_count)} cancelled`,
+          label: t("failedOrCancelled"),
+          value: amount(summary.failed_count + summary.cancelled_count),
+          note: t("failedOrCancelledNote", {
+            failed: amount(summary.failed_count),
+            cancelled: amount(summary.cancelled_count),
+          }),
         },
         {
-          label: "Coins spent",
-          value: formatCoinAmount(summary.coins_spent),
-          note: `${formatCoinAmount(summary.coins_refunded)} refunded`,
+          label: t("coinsSpent"),
+          value: amount(summary.coins_spent),
+          note: t("coinsSpentNote", {
+            refunded: amount(summary.coins_refunded),
+          }),
         },
       ]
     : [];
 
   return (
-    <section aria-label="Matching transactions">
+    <section aria-label={t("label")}>
       <Card className="gap-0 p-0">
         <dl className="grid grid-cols-2 lg:grid-cols-4">
           {(isLoading || !summary ? Array.from({ length: 4 }) : figures).map(

@@ -7,7 +7,6 @@
  * - Timezone: Vietnam Time (UTC+7 / Asia/Ho_Chi_Minh).
  *   Tables: dd/MM/yyyy HH:mm
  *   Daily reports: dd/MM/yyyy
- * - Correct singular/plural (e.g. "1 deposit", "2 deposits").
  * - Coins and real money are ALWAYS separate fields and never mixed.
  */
 
@@ -17,6 +16,7 @@ import {
   formatNumber,
   formatPercent,
   formatVnd,
+  type Formatters,
 } from "@/lib/i18n/formatters";
 
 // VND and Vietnam time follow Vietnamese conventions in every UI language ("100.000 ₫"); coin
@@ -34,12 +34,13 @@ export function formatCoinAmount(
   return formatNumber(Math.round(coins), locale);
 }
 
+// Coins with their unit in the active language ("1,500 coins" / "1.500 xu").
 export function formatCoins(
   coins: number | null | undefined,
-  locale: AppLocale = defaultLocale,
+  fmt: Pick<Formatters, "coins">,
 ): string {
-  const label = Math.abs(Math.round(coins ?? 0)) === 1 ? "coin" : "coins";
-  return `${formatCoinAmount(coins, locale)} ${label}`;
+  if (coins == null || Number.isNaN(coins)) return fmt.coins(0);
+  return fmt.coins(Math.round(coins));
 }
 
 export function formatDateTime(
@@ -60,19 +61,6 @@ export function formatDateOnly(
   }
   return formatDate(isoOrDate, defaultLocale, "vietnamDay") || "-";
 }
-
-export function plural(
-  count: number,
-  singular: string,
-  pluralForm?: string,
-  locale: AppLocale = defaultLocale,
-): string {
-  const form =
-    Math.abs(count) === 1 ? singular : (pluralForm ?? `${singular}s`);
-  return `${formatNumber(count, locale)} ${form}`;
-}
-
-export const formatPlural = plural;
 
 export function formatPercentChange(
   pct: number | null | undefined,
