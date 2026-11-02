@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { VoiceCatalog } from "@/features/admin/voices/components/voice-catalog";
 import { renderWithIntl } from "@tests/helpers/intl";
+import type { AppLocale } from "@/lib/i18n/config";
 import {
   defaultVoiceFilters,
   type VoiceFilters,
@@ -87,7 +88,10 @@ function failure(status: number, code: string, message: string) {
     config: { headers: new AxiosHeaders() },
   });
 }
-function mount(filters: VoiceFilters = defaultVoiceFilters) {
+function mount(
+  filters: VoiceFilters = defaultVoiceFilters,
+  locale: AppLocale = "en",
+) {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -99,6 +103,7 @@ function mount(filters: VoiceFilters = defaultVoiceFilters) {
     <QueryClientProvider client={client}>
       <VoiceCatalog filters={filters} />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -295,7 +300,7 @@ describe("VoiceCatalog", () => {
       );
       const alert = await screen.findByRole("alert");
       expect(alert).toHaveTextContent(
-        "the voice provider could not be reached. The catalog was not changed.",
+        "The voice provider couldn't be reached or sent an invalid list. The catalog was not changed.",
       );
       expect(mocks.toast).not.toHaveBeenCalled();
 
@@ -303,12 +308,10 @@ describe("VoiceCatalog", () => {
       expect(
         await screen.findByText(/Synced 6 voices from azure/),
       ).toBeInTheDocument();
-      expect(
-        screen.queryByText(/could not be reached/),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/couldn't be reached/)).not.toBeInTheDocument();
     });
 
-    it("uses the API message when the provider is not configured", async () => {
+    it("maps the provider-not-configured code to translated text", async () => {
       mocks.get.mockResolvedValue(page([]));
       mocks.post.mockRejectedValue(
         failure(
@@ -322,7 +325,7 @@ describe("VoiceCatalog", () => {
         await screen.findByRole("button", { name: "Sync from provider" }),
       );
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "the voice provider is not configured. The catalog was not changed.",
+        "The voice provider isn't configured. The catalog was not changed.",
       );
     });
 
@@ -430,7 +433,7 @@ describe("VoiceCatalog", () => {
     );
   });
 
-  it("keeps the dialog open with the server message when removing fails", async () => {
+  it("keeps the dialog open with the screen fallback, not the server text, when removing fails", async () => {
     mocks.get.mockResolvedValue(page([unused]));
     mocks.delete.mockRejectedValue(
       failure(500, "INTERNAL_ERROR", "voice catalog persistence failed"),
@@ -441,9 +444,11 @@ describe("VoiceCatalog", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Remove voice" }),
     );
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "voice catalog persistence failed",
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "We couldn't remove the voice. Please try again.",
     );
+    expect(alert).not.toHaveTextContent("persistence failed");
   });
 
   it("refreshes when the voice was already removed", async () => {
@@ -611,9 +616,11 @@ describe("VoiceCatalog", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Reactivate Cara" }),
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "voice catalog persistence failed",
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "We couldn't reactivate Cara. Please try again.",
     );
+    expect(alert).not.toHaveTextContent("persistence failed");
     fireEvent.click(screen.getByRole("button", { name: "Reactivate Cara" }));
     await waitFor(() =>
       expect(mocks.toast).toHaveBeenCalledWith(
@@ -659,6 +666,97 @@ describe("VoiceCatalog", () => {
       await screen.findByRole("heading", {
         name: /don't have access to voice profiles/,
       }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("VoiceCatalog in Vietnamese", () => {
+  it("translates the screen chrome but keeps provider names and voice data as stored", async () => {
+    mocks.get.mockResolvedValue(page([used, unused, retired]));
+    mount(defaultVoiceFilters, "vi");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Hồ sơ giọng nói" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Đồng bộ từ nhà cung cấp" }),
+    ).toBeInTheDocument();
+    const list = await screen.findByRole("list", { name: "Giọng nói" });
+    const ava = within(list).getByRole("button", { name: /^Ava/ });
+    // Voice names and the provider locale code are not translated; the gender and usage are.
+    expect(ava).toHaveTextContent("Nữ");
+    expect(ava).toHaveTextContent("en-US");
+    expect(ava).toHaveTextContent("Đang hoạt động");
+    expect(ava).toHaveTextContent("2 buổi phỏng vấn và 1 tin tuyển dụng");
+    expect(
+      within(list).getByRole("button", { name: /^Ben/ }),
+    ).toHaveTextContent("Chưa đặt giới tính");
+    expect(screen.getByText("Hiển thị 1–3 trên 3")).toBeInTheDocument();
+    const details = screen.getByRole("complementary", {
+      name: "Chi tiết giọng nói",
+    });
+    expect(within(details).getByText("azure")).toBeInTheDocument();
+    expect(
+      within(details).getByRole("button", { name: "Vô hiệu hóa Ava" }),
+    ).toBeInTheDocument();
+  });
+
+  it("explains a removal in Vietnamese and shows the translated toast", async () => {
+    mocks.get.mockResolvedValue(page([used]));
+    mocks.delete.mockResolvedValue({
+      data: {
+        success: true,
+        data: { outcome: "deactivated", voice: { ...used, is_active: false } },
+      },
+    });
+    mount(defaultVoiceFilters, "vi");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Vô hiệu hóa Ava" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(
+      "Ava đang được dùng trong 2 buổi phỏng vấn và 1 tin tuyển dụng.",
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Vô hiệu hóa giọng nói" }),
+    );
+    await waitFor(() =>
+      expect(mocks.toast).toHaveBeenCalledWith(
+        "Đã vô hiệu hóa giọng nói",
+        expect.objectContaining({
+          description: expect.stringContaining("Ava hiện đã ngừng hoạt động"),
+        }),
+      ),
+    );
+  });
+
+  it("shows a provider failure by code in Vietnamese, never the server text", async () => {
+    mocks.get.mockResolvedValue(page([used]));
+    mocks.post.mockRejectedValue(
+      failure(
+        502,
+        "VOICE_SYNC_FAILED",
+        "the voice provider could not be reached",
+      ),
+    );
+    mount(defaultVoiceFilters, "vi");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Đồng bộ từ nhà cung cấp" }),
+    );
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Không kết nối được nhà cung cấp giọng nói hoặc danh sách trả về không hợp lệ. Danh mục chưa bị thay đổi.",
+    );
+    expect(alert).not.toHaveTextContent("could not be reached");
+  });
+
+  it("words an empty filtered catalog in Vietnamese", async () => {
+    mocks.get.mockResolvedValue(page([]));
+    mount({ ...defaultVoiceFilters, status: "inactive" }, "vi");
+    expect(
+      await screen.findByText("Không có giọng nói nào đã ngừng hoạt động."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Dùng “Đồng bộ từ nhà cung cấp” để thêm giọng nói/),
     ).toBeInTheDocument();
   });
 });

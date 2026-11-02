@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, DownloadCloud, LoaderCircle, Search } from "lucide-react";
 import { gooeyToast } from "goey-toast";
@@ -18,6 +19,8 @@ import {
 } from "@/components/ui/sheet";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
+import { readApiError } from "@/lib/i18n/api-errors";
+import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 import { cn } from "@/lib/utils";
 import {
   activateVoice,
@@ -27,30 +30,28 @@ import {
   voiceKeys,
 } from "../api/voices";
 import type { Voice } from "../schemas/voice-schema";
-import { apiError, isAccessDenied } from "../utils/api-error";
+import { isAccessDenied } from "../utils/api-error";
 import { useDesktopLayout } from "../utils/use-desktop-layout";
 import {
   MAX_VOICE_QUERY,
   VOICE_PAGE_SIZE,
   voiceSearch,
+  voiceStatuses,
   type VoiceFilters,
-  type VoiceStatus,
 } from "../utils/voice-filters";
 import { RemoveVoiceDialog } from "./remove-voice-dialog";
-import { SyncResult, syncSummary } from "./sync-result";
+import { SyncResult } from "./sync-result";
 import { VoiceCard, VoiceCardSkeleton } from "./voice-card";
 import { VoiceDetails } from "./voice-details";
 
-const tabs: { status: VoiceStatus; label: string }[] = [
-  { status: "all", label: "All" },
-  { status: "active", label: "Active" },
-  { status: "inactive", label: "Inactive" },
-];
 const catalogHref = (filters: VoiceFilters) =>
   `${routes.admin.voices}${voiceSearch(filters)}`;
 const gridClass = "grid gap-3 sm:grid-cols-2 xl:grid-cols-3";
 
 export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
+  const t = useTranslations("admin.voices");
+  const tCommon = useTranslations("common");
+  const errorMessage = useApiErrorMessage();
   const user = useSessionUser();
   const cache = useQueryClient();
   const desktop = useDesktopLayout();
@@ -71,25 +72,26 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
       setRemoving(null);
       setNotice(null);
       void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
+      const name = result.voice.name;
       gooeyToast.success(
-        result.outcome === "deleted" ? "Voice removed" : "Voice deactivated",
+        result.outcome === "deleted"
+          ? t("feedback.removedTitle")
+          : t("feedback.deactivatedTitle"),
         {
           description:
             result.outcome === "deleted"
-              ? `${result.voice.name} is no longer in the catalog.`
-              : `${result.voice.name} is now inactive; interviews and postings that use it keep it.`,
+              ? t("feedback.removedDescription", { name })
+              : t("feedback.deactivatedDescription", { name }),
         },
       );
     },
     onError: (error) => {
       // The page body shows the access message; a dialog left open would hide it.
       if (isAccessDenied(error)) setRemoving(null);
-      if (apiError(error).status === 404) {
+      if (readApiError(error).status === 404) {
         // Someone else removed it first: close the dialog and show the current catalog.
         setRemoving(null);
-        setNotice(
-          "That voice was already removed. We refreshed the catalog for you.",
-        );
+        setNotice(t("feedback.alreadyRemoved"));
         void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
       }
     },
@@ -100,22 +102,24 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
     onMutate: () => setNotice(null),
     onSuccess: (voice) => {
       void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
-      gooeyToast.success("Voice reactivated", {
-        description: `${voice.name} is active again and can be chosen.`,
+      gooeyToast.success(t("feedback.reactivatedTitle"), {
+        description: t("feedback.reactivatedDescription", {
+          name: voice.name,
+        }),
       });
     },
     onError: (error, voice) => {
       if (isAccessDenied(error)) return;
-      if (apiError(error).status === 404) {
-        setNotice(
-          `${voice.name} was removed permanently, so it can't be reactivated. We refreshed the catalog for you.`,
-        );
+      if (readApiError(error).status === 404) {
+        setNotice(t("feedback.reactivateGone", { name: voice.name }));
         void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
         return;
       }
       setNotice(
-        apiError(error).message ??
-          `We couldn't reactivate ${voice.name}. Please try again.`,
+        errorMessage(
+          error,
+          t("feedback.reactivateFailed", { name: voice.name }),
+        ),
       );
     },
   });
@@ -124,8 +128,13 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
     retry: false,
     onSuccess: (result) => {
       void cache.invalidateQueries({ queryKey: voiceKeys.lists(user.id) });
-      gooeyToast.success("Voice catalog synced", {
-        description: syncSummary(result),
+      gooeyToast.success(t("sync.toastTitle"), {
+        description: t("sync.summary", {
+          added: result.added,
+          updated: result.updated,
+          deactivated: result.deactivated,
+          unchanged: result.unchanged,
+        }),
       });
     },
   });
@@ -152,9 +161,8 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
     removing &&
     remove.isError &&
     !isAccessDenied(remove.error) &&
-    apiError(remove.error).status !== 404
-      ? (apiError(remove.error).message ??
-        "We couldn't remove the voice. Please try again.")
+    readApiError(remove.error).status !== 404
+      ? errorMessage(remove.error, t("feedback.removeFailed"))
       : null;
   const details = (
     <VoiceDetails
@@ -171,8 +179,8 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
       <PageHeader
-        title="Voice Profiles"
-        description="The text-to-speech voices recruiters and candidates can choose for the AI interviewer. Sync adds new voices and deactivates ones the provider dropped."
+        title={t("title")}
+        description={t("description")}
         actions={
           <Button
             className={pillClass}
@@ -193,14 +201,14 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
                 data-icon="b"
               />
             </span>
-            {sync.isPending ? "Syncing…" : "Sync from provider"}
+            {sync.isPending ? t("sync.pending") : t("sync.action")}
           </Button>
         }
       />
 
       {sync.isPending && (
         <p role="status" className="sr-only">
-          Syncing voices from the provider…
+          {t("sync.progress")}
         </p>
       )}
       {sync.isSuccess && (
@@ -216,13 +224,15 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
             aria-hidden
           />
           <span>
-            {syncErrorMessage(sync.error)} The catalog was not changed.{" "}
+            {t("sync.failedNote", {
+              error: errorMessage(sync.error, t("sync.failed")),
+            })}{" "}
             <button
               type="button"
               className="font-medium underline underline-offset-2 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
               onClick={() => sync.mutate()}
             >
-              Try again
+              {tCommon("actions.tryAgain")}
             </button>
           </span>
         </p>
@@ -231,18 +241,18 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
       <div className="space-y-4">
         <div className="border-b">
           <nav
-            aria-label="Filter by status"
+            aria-label={t("filters.label")}
             className="-mb-px max-w-full overflow-x-auto"
           >
             <ul className="flex gap-5">
-              {tabs.map((tab) => {
-                const active = filters.status === tab.status;
+              {voiceStatuses.map((status) => {
+                const active = filters.status === status;
                 return (
-                  <li key={tab.status}>
+                  <li key={status}>
                     <Link
                       href={catalogHref({
                         ...filters,
-                        status: tab.status,
+                        status,
                         page: 1,
                       })}
                       scroll={false}
@@ -253,7 +263,9 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
                           "border-foreground font-medium text-foreground",
                       )}
                     >
-                      {tab.label}
+                      {status === "all"
+                        ? tCommon("labels.all")
+                        : t(`status.${status}`)}
                     </Link>
                   </li>
                 );
@@ -288,25 +300,20 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
               </li>
             ))}
           </ul>
-          <span className="sr-only">Loading voice profiles…</span>
+          <span className="sr-only">{t("list.loading")}</span>
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">
-            You don&apos;t have access to voice profiles
-          </h2>
+          <h2 className="font-semibold">{t("denied.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Checking your account access… If this stays, sign in again with an
-            administrator account.
+            {t("denied.description")}
           </p>
         </div>
       ) : query.isError ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">
-            We couldn&apos;t load the voice profiles
-          </h2>
+          <h2 className="font-semibold">{t("loadFailed.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Please try again in a moment.
+            {tCommon("messages.tryAgainLater")}
           </p>
           <Button
             className={cn(pillClass, "mt-4")}
@@ -314,18 +321,18 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Try again
+            {tCommon("actions.tryAgain")}
           </Button>
         </div>
       ) : page && page.items.length === 0 && total > 0 ? (
         <div className="rounded-xl border p-8 text-center">
-          <h2 className="font-semibold">There are no voices on this page.</h2>
+          <h2 className="font-semibold">{t("pageGone.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            The list got shorter, or this page number doesn&apos;t exist.
+            {t("pageGone.description")}
           </p>
           <Button asChild variant="outline" className={cn(pillClass, "mt-4")}>
             <Link href={catalogHref({ ...filters, page: 1 })} scroll={false}>
-              Go to the first page
+              {tCommon("actions.firstPage")}
             </Link>
           </Button>
         </div>
@@ -333,14 +340,13 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
         <div className="rounded-xl border p-8 text-center">
           <h2 className="font-semibold">
             {filters.q
-              ? `No voices match “${filters.q}”.`
+              ? t("empty.noMatch", { query: filters.q })
               : filters.status === "all"
-                ? "There are no voices in the catalog yet."
-                : `There are no ${filters.status} voices.`}
+                ? t("empty.none")
+                : t("empty.byStatus", { status: filters.status })}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Use “Sync from provider” to add voices from the text-to-speech
-            provider.
+            {t("empty.hint", { action: t("sync.action") })}
           </p>
         </div>
       ) : page ? (
@@ -360,20 +366,24 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
               ))}
             </VoiceGrid>
             <nav
-              aria-label="Pagination"
+              aria-label={tCommon("labels.pagination")}
               className="flex flex-wrap items-center justify-between gap-3 text-sm"
             >
               <p className="text-muted-foreground tabular-nums">
-                Showing {firstRow}–{lastRow} of {total}
+                {t("list.showing", {
+                  first: firstRow,
+                  last: lastRow,
+                  total,
+                })}
               </p>
               <div className="flex gap-2">
                 <PageLink
-                  label="Previous"
+                  label={tCommon("actions.previous")}
                   href={catalogHref({ ...filters, page: filters.page - 1 })}
                   disabled={filters.page <= 1}
                 />
                 <PageLink
-                  label="Next"
+                  label={tCommon("actions.next")}
                   href={catalogHref({ ...filters, page: filters.page + 1 })}
                   disabled={lastRow >= total}
                 />
@@ -382,7 +392,7 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
           </div>
           {desktop && (
             <aside
-              aria-label="Voice details"
+              aria-label={t("details.title")}
               className="rounded-xl border bg-card p-5 lg:sticky lg:top-6"
             >
               {details}
@@ -401,9 +411,9 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
             className="max-h-[85dvh] overflow-y-auto rounded-t-2xl"
           >
             <SheetHeader className="sr-only">
-              <SheetTitle>Voice details</SheetTitle>
+              <SheetTitle>{t("details.title")}</SheetTitle>
               <SheetDescription>
-                Details and actions for the selected voice.
+                {t("details.sheetDescription")}
               </SheetDescription>
             </SheetHeader>
             <div className="p-5 pt-8">{details}</div>
@@ -422,16 +432,10 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
   );
 }
 
-// The API words 502/503 for an Admin; anything else (network, 500) gets a generic message.
-function syncErrorMessage(error: unknown) {
-  const { status, message } = apiError(error);
-  if ((status === 502 || status === 503) && message) return `${message}.`;
-  return "We couldn't sync the voices from the provider.";
-}
-
 // A new key (filters or page changed) remounts the grid, so the cards rise in again. Cards that
 // arrive later (after a sync) join the grid already shown and don't replay.
 function VoiceGrid({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("admin.voices.list");
   const [shown, setShown] = useState(false);
   useEffect(() => {
     const frame = requestAnimationFrame(() => setShown(true));
@@ -440,7 +444,7 @@ function VoiceGrid({ children }: { children: React.ReactNode }) {
   const items = Array.isArray(children) ? children : [children];
   return (
     <ul
-      aria-label="Voices"
+      aria-label={t("label")}
       className={cn(gridClass, "t-stagger", shown && "is-shown")}
     >
       {items.map((child, index) => (
@@ -481,6 +485,8 @@ function PageLink({
 }
 
 function SearchForm({ filters }: { filters: VoiceFilters }) {
+  const t = useTranslations("admin.voices.search");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const [q, setQ] = useState(filters.q);
   const tooLong = Array.from(q.trim()).length > MAX_VOICE_QUERY;
@@ -495,18 +501,18 @@ function SearchForm({ filters }: { filters: VoiceFilters }) {
     <form
       noValidate
       role="search"
-      aria-label="Search voices"
+      aria-label={t("form")}
       onSubmit={submit}
       className="flex flex-wrap items-center gap-2"
     >
       <div>
         <label htmlFor="voice-search" className="sr-only">
-          Search by name
+          {t("label")}
         </label>
         <Input
           id="voice-search"
           type="search"
-          placeholder="Search by name"
+          placeholder={t("placeholder")}
           value={q}
           onChange={(event) => setQ(event.target.value)}
           className="h-10 w-64 rounded-full"
@@ -521,7 +527,7 @@ function SearchForm({ filters }: { filters: VoiceFilters }) {
         disabled={tooLong}
       >
         <Search className="size-4" aria-hidden />
-        Search
+        {tCommon("actions.search")}
       </Button>
       {filters.q && (
         <Button asChild variant="ghost" className="h-10 rounded-full">
@@ -529,7 +535,7 @@ function SearchForm({ filters }: { filters: VoiceFilters }) {
             href={catalogHref({ ...filters, q: "", page: 1 })}
             scroll={false}
           >
-            Clear search
+            {tCommon("actions.clearSearch")}
           </Link>
         </Button>
       )}
@@ -539,7 +545,7 @@ function SearchForm({ filters }: { filters: VoiceFilters }) {
           role="alert"
           className="w-full text-xs text-destructive"
         >
-          Keep the search to {MAX_VOICE_QUERY} characters or fewer.
+          {t("tooLong", { max: MAX_VOICE_QUERY })}
         </p>
       )}
     </form>

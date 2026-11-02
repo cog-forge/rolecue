@@ -1,12 +1,14 @@
 import { Suspense } from "react";
+import { getTranslations } from "next-intl/server";
 import { AdminOverview } from "@/features/admin/overview/components/admin-overview";
 
-export default function Page() {
+export default async function Page() {
+  const t = await getTranslations("admin.overview");
   return (
     <Suspense
       fallback={
         <p role="status" className="text-sm text-muted-foreground">
-          Loading admin overview…
+          {t("loading")}
         </p>
       }
     >

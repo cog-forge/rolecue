@@ -191,7 +191,7 @@ test("admin syncs voices from the provider and sees the summary", async ({
   await page.getByRole("button", { name: "Sync from provider" }).click();
   const result = page
     .getByRole("status")
-    .filter({ hasText: "Synced 1 voices from azure" });
+    .filter({ hasText: "Synced 1 voice from azure" });
   await expect(result).toBeVisible();
   for (const [label, value] of [
     ["Added", "1"],
@@ -215,7 +215,7 @@ test("admin syncs voices from the provider and sees the summary", async ({
   await expect(card(page, /^Ben/)).toContainText("Active");
 
   await page.getByRole("button", { name: "Dismiss" }).click();
-  await expect(page.getByText(/Synced 1 voices/)).toHaveCount(0);
+  await expect(page.getByText(/Synced 1 voice/)).toHaveCount(0);
 });
 
 test("on a small screen a card opens the details in a sheet", async ({
@@ -240,9 +240,9 @@ test("a failed sync says the catalog was not changed and can be retried", async 
   await page.goto("/admin/voices");
   await page.getByRole("button", { name: "Sync from provider" }).click();
   await expect(
-    page.getByRole("alert").filter({ hasText: "could not be reached" }),
+    page.getByRole("alert").filter({ hasText: "couldn't be reached" }),
   ).toContainText(
-    "the voice provider could not be reached. The catalog was not changed.",
+    "The voice provider couldn't be reached or sent an invalid list. The catalog was not changed.",
   );
   await expect(card(page, /^Ava/)).toContainText("Active");
   await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();

@@ -5,6 +5,7 @@ import { AxiosError, AxiosHeaders } from "axios";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { AdminOverview } from "@/features/admin/overview/components/admin-overview";
 import { routes } from "@/config/routes";
+import type { AppLocale } from "@/lib/i18n/config";
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -115,7 +116,7 @@ const httpError = (status: number) =>
     data: {},
   });
 
-function renderPage() {
+function renderPage(locale: AppLocale = "en") {
   const cache = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -124,6 +125,7 @@ function renderPage() {
     <QueryClientProvider client={cache}>
       <AdminOverview />
     </QueryClientProvider>,
+    { locale },
   );
   return { invalidate, rerender: view.rerender };
 }
@@ -342,5 +344,45 @@ describe("AdminOverview", () => {
     await screen.findByRole("region", { name: "Accounts" });
 
     expect(document.body.textContent ?? "").not.toMatch(/wallet|membership/i);
+  });
+
+  it("renders the dashboard in Vietnamese with localized numbers and the same VND format", async () => {
+    mocks.get.mockImplementation(() => ok(overview));
+    renderPage("vi");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Bảng điều khiển quản trị",
+      }),
+    ).toBeInTheDocument();
+    const accounts = await screen.findByRole("region", { name: "Tài khoản" });
+    expect(within(accounts).getByText("1.234")).toBeInTheDocument();
+    expect(within(accounts).getByText("Đang bị khóa")).toBeInTheDocument();
+    const finance = screen.getByRole("region", { name: "Tài chính" });
+    expect(within(finance).getByText("100.000 ₫")).toBeInTheDocument();
+    expect(within(finance).getByText("32.000")).toBeInTheDocument();
+    expect(within(finance).getByText("66,7%")).toBeInTheDocument();
+    expect(screen.getByText(/30 ngày gần nhất · Cập nhật/)).toBeInTheDocument();
+    const selector = screen.getByRole("navigation", {
+      name: "Khoảng thời gian báo cáo",
+    });
+    expect(
+      within(selector).getByRole("link", { name: "7 ngày gần nhất" }),
+    ).toHaveAttribute("href", `${routes.admin.dashboard}?days=7`);
+    expect(
+      screen.getByRole("link", { name: "Tìm một tài khoản" }),
+    ).toHaveAttribute("href", routes.admin.users);
+  });
+
+  it("shows the error state in Vietnamese", async () => {
+    mocks.get.mockImplementation(() => Promise.reject(httpError(500)));
+    renderPage("vi");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Không thể tải tổng quan");
+    expect(
+      within(alert).getByRole("button", { name: "Thử lại" }),
+    ).toBeInTheDocument();
   });
 });

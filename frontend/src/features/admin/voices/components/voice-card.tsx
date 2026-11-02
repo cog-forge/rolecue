@@ -1,8 +1,9 @@
+import { useTranslations } from "next-intl";
 import { UserAvatar } from "@/components/account/user-avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { Voice } from "../schemas/voice-schema";
-import { usage } from "./remove-voice-dialog";
+import { useGenderLabel, useVoiceUsage } from "../utils/voice-labels";
 import { VoiceStatus } from "./voice-status";
 
 // One voice in the gallery. The whole card is the button that selects it; actions live in the details.
@@ -15,6 +16,9 @@ export function VoiceCard({
   selected: boolean;
   onSelect: (voice: Voice) => void;
 }) {
+  const t = useTranslations("admin.voices.gender");
+  const genderLabel = useGenderLabel();
+  const usage = useVoiceUsage();
   return (
     <button
       type="button"
@@ -34,7 +38,7 @@ export function VoiceCard({
             {voice.name}
           </span>
           <span className="block text-xs text-muted-foreground">
-            {voice.gender ?? "Gender not set"}
+            {voice.gender ? genderLabel(voice.gender) : t("notSet")}
           </span>
         </span>
       </span>

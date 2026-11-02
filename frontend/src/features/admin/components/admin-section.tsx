@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
 export function AdminSection({
   title,
@@ -6,12 +7,10 @@ export function AdminSection({
   title: string;
   description: string;
 }) {
+  const t = useTranslations("admin.shared");
   return (
     <RoutePlaceholder title={title} description={description}>
-      <p className="text-sm text-muted-foreground">
-        This area is being prepared. More tools will appear here as they become
-        available.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("sectionPreparing")}</p>
     </RoutePlaceholder>
   );
 }

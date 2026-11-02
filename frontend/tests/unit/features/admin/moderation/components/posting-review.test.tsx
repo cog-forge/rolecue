@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
+import type { AppLocale } from "@/lib/i18n/config";
 import { PostingReview } from "@/features/admin/moderation/components/posting-review";
 
 const mocks = vi.hoisted(() => ({
@@ -91,7 +92,7 @@ function failure(status: number, code: string, message: string) {
     config: { headers: new AxiosHeaders() },
   });
 }
-function mount() {
+function mount(locale: AppLocale = "en") {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -103,6 +104,7 @@ function mount() {
     <QueryClientProvider client={client}>
       <PostingReview id={id} backQuery="status=all" />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -292,7 +294,7 @@ describe("PostingReview", () => {
     expect(await screen.findByText(/“Salary is missing”/)).toBeInTheDocument();
   });
 
-  it("keeps the reason and shows the server message when rejecting fails", async () => {
+  it("keeps the reason and shows translated text, never the server message, when rejecting fails", async () => {
     mocks.get.mockResolvedValue(envelope(posting()));
     mocks.post.mockRejectedValue(
       failure(500, "INTERNAL_ERROR", "Database is down"),
@@ -306,8 +308,11 @@ describe("PostingReview", () => {
       within(dialog).getByRole("button", { name: "Reject posting" }),
     );
     expect(
-      await within(dialog).findByText("Database is down"),
+      await within(dialog).findByText(
+        "We couldn't save your decision. Please try again.",
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Database is down")).not.toBeInTheDocument();
     expect(reason).toHaveValue("Duplicate posting");
   });
 
@@ -329,7 +334,7 @@ describe("PostingReview", () => {
       within(dialog).getByRole("button", { name: "Approve posting" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /only a pending job posting can be approved or rejected/i,
+      "This posting isn't waiting for review.",
     );
     await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
     expect(
@@ -348,5 +353,114 @@ describe("PostingReview", () => {
     expect(
       screen.queryByRole("button", { name: "Try again" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the review screen in Vietnamese, leaving posting content as stored", async () => {
+    mocks.get.mockResolvedValue(envelope(posting()));
+    mount("vi");
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Go Backend Engineer",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Chờ duyệt")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Yêu cầu đã xác nhận" }),
+    ).toBeInTheDocument();
+    // Requirement names and targets are recruiter content; only the required/preferred label is translated.
+    expect(screen.getByText("Go", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("programming language")).toBeInTheDocument();
+    expect(screen.getByText("Bắt buộc", { exact: false })).toBeInTheDocument();
+    expect(
+      screen.getByText("Focus on production debugging."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cog Forge")).toBeInTheDocument();
+    expect(screen.getByText("30 phút")).toBeInTheDocument();
+    expect(screen.getByText("1.500 – 2.500")).toBeInTheDocument();
+    expect(screen.getByText(/12 thg 10, 2026.*UTC/)).toBeInTheDocument();
+    const decision = screen.getByRole("region", { name: "Quyết định" });
+    expect(within(decision).getByText("câu hỏi cốt lõi")).toBeInTheDocument();
+    expect(
+      within(decision).getByRole("button", { name: "Duyệt" }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("link", { name: /quay lại hàng chờ/i }),
+    ).toHaveAttribute("href", "/admin/job-postings?status=all");
+    expect(screen.getByText("Chưa đặt")).toBeInTheDocument();
+    expect(screen.getAllByText("50%")).toHaveLength(2);
+  });
+
+  it("confirms a rejection in Vietnamese and validates the reason", async () => {
+    mocks.get.mockResolvedValue(envelope(posting()));
+    mocks.post.mockResolvedValue(
+      envelope(
+        posting({ status: "rejected", reject_reason: "Thiếu mức lương" }),
+      ),
+    );
+    mount("vi");
+    fireEvent.click(await screen.findByRole("button", { name: "Từ chối" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Từ chối tin tuyển dụng này?",
+    });
+    expect(dialog).toHaveTextContent(
+      "Go Backend Engineer sẽ không được đăng. Nhà tuyển dụng sẽ xem được lý do của bạn.",
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Từ chối tin" }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Hãy cho nhà tuyển dụng biết vì sao tin tuyển dụng này bị từ chối.",
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText(/lý do gửi nhà tuyển dụng/i),
+      {
+        target: { value: "Thiếu mức lương" },
+      },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Từ chối tin" }),
+    );
+    await waitFor(() =>
+      expect(mocks.post).toHaveBeenCalledWith(
+        `/admin/job-postings/${id}/reject`,
+        { reject_reason: "Thiếu mức lương" },
+      ),
+    );
+    expect(mocks.toast).toHaveBeenCalledWith(
+      "Đã từ chối tin tuyển dụng",
+      expect.objectContaining({
+        description: "Nhà tuyển dụng sẽ xem được lý do của bạn.",
+      }),
+    );
+    expect(await screen.findByText("Đã từ chối")).toBeInTheDocument();
+    expect(await screen.findByText(/“Thiếu mức lương”/)).toBeInTheDocument();
+  });
+
+  it("maps a 409 by code to Vietnamese and never shows the backend message", async () => {
+    mocks.get
+      .mockResolvedValueOnce(envelope(posting()))
+      .mockResolvedValue(envelope(posting({ status: "open" })));
+    mocks.post.mockRejectedValue(
+      failure(409, "JOB_POSTING_NOT_PENDING", "only a pending job posting"),
+    );
+    mount("vi");
+    fireEvent.click(await screen.findByRole("button", { name: "Duyệt" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Duyệt tin" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).not.toHaveTextContent(/only a pending/i);
+    expect(alert.textContent).toMatch(/\S/);
+    expect(await screen.findByText(/đã được quyết định/i)).toBeInTheDocument();
+  });
+
+  it("translates the not-found state in Vietnamese", async () => {
+    mocks.get.mockRejectedValue(
+      failure(404, "JOB_POSTING_NOT_FOUND", "job posting not found"),
+    );
+    mount("vi");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Tin tuyển dụng này không tồn tại",
+    );
   });
 });
