@@ -49,20 +49,42 @@ type Viseme struct {
 	ID       int
 }
 
-// Result is the synthesized speech. Audio is a complete, playable file of MimeType. Visemes is empty unless
-// the synthesizer's Capabilities report Visemes; the client then lip-syncs from the audio signal.
+// BlendShapeCount is the number of values per frame, in Azure's documented (ARKit) order.
+const BlendShapeCount = 55
+
+const BlendShapeFPS = 60
+
+// BlendShapeFrame is one face pose: BlendShapeCount weights in 0-1, at OffsetMs from the start of the audio.
+type BlendShapeFrame struct {
+	OffsetMs int
+	Values   []float32
+}
+
+// WordBoundary is one spoken word, timed from the start of the audio.
+type WordBoundary struct {
+	Text       string
+	OffsetMs   int
+	DurationMs int
+}
+
+// Result is the synthesized speech. Audio is a complete, playable file of MimeType. Visemes, BlendShapes and
+// Words are empty unless the synthesizer's Capabilities report them, and are sorted by OffsetMs.
 // Characters is the number of characters billed to the provider quota for this call.
 type Result struct {
-	Audio      []byte
-	MimeType   string
-	Visemes    []Viseme
-	Characters int
+	Audio       []byte
+	MimeType    string
+	Visemes     []Viseme
+	BlendShapes []BlendShapeFrame
+	Words       []WordBoundary
+	Characters  int
 }
 
 // Capabilities tell a caller what a Synthesizer's Result can contain.
 type Capabilities struct {
 	// Visemes reports whether Result.Visemes carries timing. When false the client lip-syncs from amplitude.
-	Visemes bool
+	Visemes        bool
+	BlendShapes    bool
+	WordBoundaries bool
 }
 
 // Synthesizer turns text into speech.

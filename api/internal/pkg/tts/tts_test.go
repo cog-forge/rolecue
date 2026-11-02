@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -90,6 +91,47 @@ func TestFakeVisemes(t *testing.T) {
 	}
 	if last := res.Visemes[len(res.Visemes)-1]; last.ID != 0 {
 		t.Fatalf("last viseme = %+v, want silence", last)
+	}
+}
+
+func TestFakeBlendShapesAndWords(t *testing.T) {
+	plain := tts.NewFake()
+	if c := plain.Capabilities(); c.BlendShapes || c.WordBoundaries {
+		t.Fatalf("plain fake capabilities = %+v", c)
+	}
+	res, _ := plain.Synthesize(context.Background(), tts.Request{Text: "Hello there", ProviderVoiceID: voice})
+	if res.BlendShapes != nil || res.Words != nil {
+		t.Fatalf("plain fake returned timelines: %d frames, %d words", len(res.BlendShapes), len(res.Words))
+	}
+
+	f := tts.NewFake(tts.WithFakeBlendShapes(), tts.WithFakeWordBoundaries())
+	if c := f.Capabilities(); !c.BlendShapes || !c.WordBoundaries || c.Visemes {
+		t.Fatalf("capabilities = %+v", c)
+	}
+	res, err := f.Synthesize(context.Background(), tts.Request{Text: "Tell me  about it", ProviderVoiceID: voice})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 17 characters at 60 ms each is 1020 ms of audio: 61 frames at 60 FPS.
+	if len(res.BlendShapes) != 61 {
+		t.Fatalf("frames = %d, want 61", len(res.BlendShapes))
+	}
+	for i, fr := range res.BlendShapes {
+		if len(fr.Values) != tts.BlendShapeCount {
+			t.Fatalf("frame %d has %d values", i, len(fr.Values))
+		}
+		if i > 0 && fr.OffsetMs <= res.BlendShapes[i-1].OffsetMs {
+			t.Fatalf("frame offsets not increasing at %d", i)
+		}
+	}
+	want := []tts.WordBoundary{
+		{Text: "Tell", OffsetMs: 0, DurationMs: 255},
+		{Text: "me", OffsetMs: 255, DurationMs: 255},
+		{Text: "about", OffsetMs: 510, DurationMs: 255},
+		{Text: "it", OffsetMs: 765, DurationMs: 255},
+	}
+	if !reflect.DeepEqual(res.Words, want) {
+		t.Fatalf("words = %+v", res.Words)
 	}
 }
 
