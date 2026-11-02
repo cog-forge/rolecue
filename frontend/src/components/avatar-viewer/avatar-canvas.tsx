@@ -7,6 +7,8 @@ import { VRMUtils, type VRM } from "@pixiv/three-vrm";
 import { Box3, Vector3, PerspectiveCamera } from "three";
 import { loadVrm, VrmLoadError, type VrmLoadErrorKind } from "./load-vrm";
 import { interviewFraming } from "./interview-framing";
+import { useReducedMotion } from "motion/react";
+import { AvatarDirector, type AvatarPerformance } from "./avatar-director";
 import { poseIdle } from "./pose";
 import type { ModelAccess } from "./avatar-viewer";
 
@@ -18,6 +20,8 @@ export type CanvasStatus =
 
 // Loaded only through next/dynamic (ssr: false), so three and three-vrm stay out of route bundles.
 export default function AvatarCanvas({
+  performance,
+  onDirectorReady,
   access,
   resetSignal,
   onStatus,
@@ -26,6 +30,8 @@ export default function AvatarCanvas({
   atmosphere = "warm",
   horizontalOffset = 0,
 }: {
+  performance?: AvatarPerformance;
+  onDirectorReady?: (director: AvatarDirector | null) => void;
   access: ModelAccess;
   presentation?: "preview" | "interview";
   cameraView?: "conversation" | "close";
@@ -34,6 +40,7 @@ export default function AvatarCanvas({
   resetSignal: number;
   onStatus: (status: CanvasStatus) => void;
 }) {
+  const reducedMotion = useReducedMotion() ?? true;
   const [vrm, setVrm] = useState<VRM | null>(null);
 
   useEffect(() => {
@@ -63,7 +70,11 @@ export default function AvatarCanvas({
 
   return (
     <Canvas
-      frameloop="demand"
+      frameloop={
+        performance && (!reducedMotion || performance.state === "speaking")
+          ? "always"
+          : "demand"
+      }
       dpr={[1, 2]}
       camera={{ fov: 30, near: 0.05, far: 50, position: [0, 1.3, 4] }}
       gl={{ antialias: true, alpha: true }}
@@ -90,6 +101,9 @@ export default function AvatarCanvas({
       )}
       {vrm && (
         <Scene
+          performance={performance}
+          onDirectorReady={onDirectorReady}
+          reducedMotion={reducedMotion}
           vrm={vrm}
           resetSignal={resetSignal}
           immersive={presentation === "interview"}
@@ -119,12 +133,18 @@ function ContextLifecycle({
 }
 
 function Scene({
+  performance,
+  onDirectorReady,
+  reducedMotion,
   vrm,
   resetSignal,
   immersive,
   close,
   horizontalOffset,
 }: {
+  performance?: AvatarPerformance;
+  onDirectorReady?: (director: AvatarDirector | null) => void;
+  reducedMotion: boolean;
   vrm: VRM;
   resetSignal: number;
   immersive: boolean;
@@ -200,8 +220,27 @@ function Scene({
     invalidate();
   }, [resetSignal, invalidate]);
 
-  // Spring bones and constraints follow the pose; capped so a delayed demand frame doesn't jump.
-  useFrame((_, delta) => vrm.update(Math.min(delta, 1 / 30)));
+  const director = useRef<AvatarDirector | null>(null);
+  const performing = performance !== undefined;
+  useEffect(() => {
+    if (!performing) return;
+    const instance = new AvatarDirector(vrm);
+    director.current = instance;
+    onDirectorReady?.(instance);
+    return () => {
+      director.current = null;
+      onDirectorReady?.(null);
+      instance.dispose();
+    };
+  }, [vrm, performing, onDirectorReady]);
+  useEffect(() => {
+    invalidate();
+  }, [performance, reducedMotion, invalidate]);
+  useFrame((_, delta) => {
+    if (director.current && performance)
+      director.current.update(delta, performance, reducedMotion);
+    else vrm.update(Math.min(delta, 1 / 30));
+  });
 
   return (
     <>
