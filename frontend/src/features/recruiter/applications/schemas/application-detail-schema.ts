@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { useTranslations } from "next-intl";
 import {
   applicationSchema,
   applicationStatusSchema,
@@ -86,12 +87,22 @@ export const screeningEnvelopeSchema = z.object({
 
 // The reject reason is optional and capped at 500 characters, counted after trimming.
 export const MAX_SCREENING_REASON = 500;
-export const screeningRejectSchema = z.object({
-  reject_reason: z
-    .string()
-    .refine(
-      (value) => Array.from(value.trim()).length <= MAX_SCREENING_REASON,
-      `Keep the reason to ${MAX_SCREENING_REASON} characters or fewer.`,
-    ),
-});
-export type ScreeningRejectValues = z.infer<typeof screeningRejectSchema>;
+
+export type RejectTranslator = ReturnType<
+  typeof useTranslations<"recruiter.applications.reject">
+>;
+
+// `t` is the reject dialog's catalog (recruiter.applications.reject).
+export function createScreeningRejectSchema(t: RejectTranslator) {
+  return z.object({
+    reject_reason: z
+      .string()
+      .refine(
+        (value) => Array.from(value.trim()).length <= MAX_SCREENING_REASON,
+        t("reasonTooLong", { max: MAX_SCREENING_REASON }),
+      ),
+  });
+}
+export type ScreeningRejectValues = z.infer<
+  ReturnType<typeof createScreeningRejectSchema>
+>;

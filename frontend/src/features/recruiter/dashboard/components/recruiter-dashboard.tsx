@@ -8,6 +8,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { ChevronRight, CircleCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,6 +54,7 @@ function usePostingCount(status: ListStatus) {
 
 // What needs the Recruiter now: one row per kind of work, with how much there is and where to do it.
 export function RecruiterDashboard() {
+  const t = useTranslations("recruiter.dashboard");
   const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -74,47 +76,58 @@ export function RecruiterDashboard() {
 
   const todos: TodoRowProps[] = [
     {
+      id: "pending",
       query: pending,
-      title: "CVs awaiting review",
-      description: "Candidates applied and wait for your Approve or Reject.",
-      action: "Review CVs",
+      title: t("todo.pending.title"),
+      description: t("todo.pending.description"),
+      action: t("todo.pending.action"),
+      loading: t("todo.pending.loading"),
       href: inboxHref("pending"),
     },
     {
+      id: "deadlines",
       query: deadlines,
-      title: "Interview deadlines in the next 24 hours",
-      description: "Cleared candidates who must finish their interview soon.",
-      action: "View candidates",
+      title: t("todo.deadlines.title"),
+      description: t("todo.deadlines.description"),
+      action: t("todo.deadlines.action"),
+      loading: t("todo.deadlines.loading"),
       href: inboxHref("interview_eligible"),
       explain: (todo) =>
         [
-          todo.detail && `Earliest: ${formatDeadline(todo.detail, fmt)}.`,
-          todo.atLeast &&
-            "Only the first 100 cleared candidates were checked, so more may be due.",
+          todo.detail &&
+            t("todo.deadlines.earliest", {
+              date: formatDeadline(todo.detail, fmt),
+            }),
+          todo.atLeast && t("todo.deadlines.partial"),
         ]
           .filter(Boolean)
           .join(" "),
     },
     {
+      id: "rejected",
       query: rejected,
-      title: "Rejected postings to fix",
-      description: "An administrator sent these back. Edit and resubmit them.",
-      action: "Fix postings",
+      title: t("todo.rejected.title"),
+      description: t("todo.rejected.description"),
+      action: t("todo.rejected.action"),
+      loading: t("todo.rejected.loading"),
       href: postingsHref("rejected"),
     },
     {
+      id: "unfunded",
       query: unfunded,
-      title: "Approved, waiting for funding",
-      description: "Fund interview slots to publish these on the Job Board.",
-      action: "Fund & publish",
+      title: t("todo.unfunded.title"),
+      description: t("todo.unfunded.description"),
+      action: t("todo.unfunded.action"),
+      loading: t("todo.unfunded.loading"),
       href: postingsHref("approved"),
     },
     {
+      id: "drafts",
       query: drafts,
-      title: "Drafts to submit",
-      description:
-        "Postings you are still preparing. Check the questions and criteria, then submit.",
-      action: "Continue drafts",
+      title: t("todo.drafts.title"),
+      description: t("todo.drafts.description"),
+      action: t("todo.drafts.action"),
+      loading: t("todo.drafts.loading"),
       href: postingsHref("preparing"),
     },
   ];
@@ -135,45 +148,34 @@ export function RecruiterDashboard() {
 
   return (
     <section className="mx-auto w-full max-w-5xl space-y-8">
-      <PageHeader
-        title="Dashboard"
-        description="What needs you now across your job postings and received applications."
-      />
+      <PageHeader title={t("title")} description={t("description")} />
 
       {denied ? (
-        <Notice
-          role="alert"
-          tone="locked"
-          title="You don't have access to the dashboard"
-        >
-          <p className="text-muted-foreground">
-            Checking your account access… If this stays, sign in again with a
-            recruiter account.
-          </p>
+        <Notice role="alert" tone="locked" title={t("denied.title")}>
+          <p className="text-muted-foreground">{t("denied.description")}</p>
         </Notice>
       ) : allClear ? (
         <div className="rounded-xl border border-dashed p-10 text-center">
           <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <CircleCheck className="size-6" aria-hidden />
           </span>
-          <h2 className="font-semibold">You&apos;re all caught up</h2>
+          <h2 className="font-semibold">{t("allClear.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Nothing is waiting for you right now. New applications and decisions
-            will show up here.
+            {t("allClear.description")}
           </p>
           <Button asChild variant="outline" className="mt-4 h-11">
             <Link href={routes.recruiter.jobPostingNew}>
-              Create a job posting
+              {t("allClear.create")}
             </Link>
           </Button>
         </div>
       ) : (
         <ul
-          aria-label="Things that need your attention"
+          aria-label={t("todosLabel")}
           className="divide-y rounded-xl border bg-card"
         >
           {todos.map((todo) => (
-            <TodoRow key={todo.title} {...todo} />
+            <TodoRow key={todo.id} {...todo} />
           ))}
         </ul>
       )}
@@ -184,10 +186,13 @@ export function RecruiterDashboard() {
 }
 
 type TodoRowProps = {
+  id: string;
   query: UseQueryResult<Todo>;
   title: string;
   description: string;
   action: string;
+  // Screen-reader text while the count loads.
+  loading: string;
   href: string;
   // Extra words that depend on the loaded numbers, shown under the description.
   explain?: (todo: Todo) => string;
@@ -198,9 +203,12 @@ function TodoRow({
   title,
   description,
   action,
+  loading,
   href,
   explain,
 }: TodoRowProps) {
+  const t = useTranslations("recruiter.dashboard.todo");
+  const tCommon = useTranslations("common");
   const fmt = useFormatters();
   if (query.isPending)
     return (
@@ -208,7 +216,7 @@ function TodoRow({
         <div role="status" className="flex items-center gap-4 px-4 py-4">
           <Skeleton className="h-8 w-12 rounded-md" />
           <Skeleton className="h-10 flex-1 rounded-md" />
-          <span className="sr-only">Loading {title.toLowerCase()}…</span>
+          <span className="sr-only">{loading}</span>
         </div>
       </li>
     );
@@ -218,7 +226,7 @@ function TodoRow({
         <div className="space-y-1">
           <p className="font-medium">{title}</p>
           <p role="alert" className="text-sm text-destructive">
-            We couldn&apos;t load this count.
+            {t("loadFailed")}
           </p>
         </div>
         <Button
@@ -227,7 +235,7 @@ function TodoRow({
           disabled={query.isFetching}
           onClick={() => void query.refetch()}
         >
-          Try again
+          {tCommon("actions.tryAgain")}
         </Button>
       </li>
     );
@@ -240,7 +248,11 @@ function TodoRow({
       <div className="flex min-w-0 items-start gap-4">
         <p
           className="min-w-12 text-2xl leading-8 font-semibold text-rolecue-brand tabular-nums dark:text-sky-300"
-          aria-label={`${fmt.number(todo.count)}${todo.atLeast ? " or more" : ""}`}
+          aria-label={
+            todo.atLeast
+              ? t("atLeast", { count: fmt.number(todo.count) })
+              : fmt.number(todo.count)
+          }
         >
           {fmt.number(todo.count)}
           {todo.atLeast && "+"}
@@ -274,12 +286,13 @@ function Glance({
   live: UseQueryResult<Todo>;
   closed: UseQueryResult<Todo>;
 }) {
+  const t = useTranslations("recruiter.dashboard.glance");
   const fmt = useFormatters();
   if (!live.isSuccess || !closed.isSuccess) return null;
   const items = [
-    { label: "Live", count: live.data.count, href: postingsHref("open") },
+    { label: t("live"), count: live.data.count, href: postingsHref("open") },
     {
-      label: "Intake closed",
+      label: t("intakeClosed"),
       count: closed.data.count,
       href: postingsHref("intake_closed"),
     },
@@ -288,7 +301,7 @@ function Glance({
   return (
     <section aria-labelledby="glance-heading" className="space-y-3">
       <h2 id="glance-heading" className="text-sm font-semibold">
-        Your postings at a glance
+        {t("title")}
       </h2>
       <ul className="grid gap-3 sm:grid-cols-2">
         {items.map((item) => (

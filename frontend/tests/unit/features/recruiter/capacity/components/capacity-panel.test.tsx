@@ -95,7 +95,7 @@ function serve(state: Capacity | Error, submitted = 0) {
   });
 }
 
-function mount() {
+function mount(locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -106,6 +106,7 @@ function mount() {
     <QueryClientProvider client={client}>
       <CapacityPanel postingId={postingId} />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -434,5 +435,85 @@ describe("CapacityPanel errors", () => {
         mocks.get.mock.calls.filter(([path]) => path === capacityPath),
       ).toHaveLength(2),
     );
+  });
+});
+
+describe("CapacityPanel in Vietnamese", () => {
+  it("translates the funded state and formats the figures", async () => {
+    serve({ ...funded, interview_slot: 1500, cv_approvals: 1200 }, 1234);
+    mount("vi");
+
+    expect(
+      await screen.findByRole("heading", { name: "Sức chứa phỏng vấn" }),
+    ).toBeVisible();
+    expect(screen.getByText("Lượt đã nạp")).toBeVisible();
+    expect(screen.getByText("1.500")).toBeVisible();
+    expect(screen.getByText("1.200")).toBeVisible();
+    expect(await screen.findByText("1.234")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Đóng nhận đơn" })).toBeVisible();
+  });
+
+  it("translates the funding form, the coin preview and the error by code", async () => {
+    serve({ ...unfunded, price_per_slot: 2 });
+    mocks.post.mockRejectedValue(
+      failure(402, "INSUFFICIENT_BALANCE", "wallet is short"),
+    );
+    mount("vi");
+
+    const input = await screen.findByLabelText("Số lượt phỏng vấn cần nạp");
+    expect(
+      screen.getByText("Từ 1 đến 10.000 lượt. Mỗi lượt có giá 2 xu."),
+    ).toBeVisible();
+    expect(screen.getByText("Nhập số lượt để xem tổng chi phí.")).toBeVisible();
+    fireEvent.change(input, { target: { value: "500" } });
+    expect(screen.getByText("Tổng: 1.000 xu từ ví của bạn.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Nạp lượt phỏng vấn" }));
+    expect(
+      await screen.findByText(
+        "Ví của bạn không đủ xu cho số lượt này. Chưa có khoản nào bị trừ.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText("wallet is short")).toBeNull();
+  });
+
+  it("translates the validation message and the close dialog", async () => {
+    serve({ ...unfunded, price_per_slot: 1 });
+    mount("vi");
+    const input = await screen.findByLabelText("Số lượt phỏng vấn cần nạp");
+    fireEvent.change(input, { target: { value: "10001" } });
+    fireEvent.click(screen.getByRole("button", { name: "Nạp lượt phỏng vấn" }));
+    expect(
+      await screen.findByText("Chỉ nạp tối đa 10.000 lượt."),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Đóng nhận đơn" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Đóng nhận đơn cho tin tuyển dụng này?",
+    });
+    expect(within(dialog).getByRole("button", { name: "Hủy" })).toBeVisible();
+  });
+
+  it("states a refund in Vietnamese coins", async () => {
+    serve({
+      ...funded,
+      posting_status: "closed",
+      available_to_approve: 0,
+      refundable: 3,
+      refunded: 3,
+    });
+    mount("vi");
+    expect(
+      await screen.findByText(
+        "3 xu đã được hoàn vào ví của bạn khi tin tuyển dụng này đóng.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("translates the load error", async () => {
+    serve(failure(404, "JOB_POSTING_NOT_FOUND", "nope"));
+    mount("vi");
+    expect(
+      await screen.findByText("Không tìm thấy tin tuyển dụng này"),
+    ).toBeVisible();
   });
 });

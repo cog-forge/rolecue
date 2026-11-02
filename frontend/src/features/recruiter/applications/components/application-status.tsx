@@ -1,13 +1,7 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { ApplicationStatus as Status } from "../schemas/application-schema";
 
-const statusText: Record<Status, string> = {
-  pending: "Awaiting CV review",
-  interview_eligible: "Interview eligible",
-  interviewed: "Interviewed",
-  approved: "Approved",
-  rejected: "Rejected",
-};
 const toneClass: Record<Status, string> = {
   pending:
     "bg-rolecue-brand/8 text-rolecue-brand ring-rolecue-brand/20 dark:text-sky-300",
@@ -26,10 +20,6 @@ const dotClass: Record<Status, string> = {
   rejected: "bg-destructive",
 };
 
-export function applicationStatusLabel(status: Status) {
-  return statusText[status];
-}
-
 // Status is always text plus a dot, never colour alone (team design rule).
 export function ApplicationStatus({
   status,
@@ -38,6 +28,7 @@ export function ApplicationStatus({
   status: Status;
   className?: string;
 }) {
+  const t = useTranslations("recruiter.applications.status");
   return (
     <span
       className={cn(
@@ -50,7 +41,7 @@ export function ApplicationStatus({
         aria-hidden
         className={cn("size-1.5 shrink-0 rounded-full", dotClass[status])}
       />
-      {statusText[status]}
+      {t(status)}
     </span>
   );
 }

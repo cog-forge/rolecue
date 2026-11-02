@@ -2,6 +2,7 @@
 
 import { useEffect, useId } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,8 @@ export function ReviewPanel({
   onDecided: (decision: "approved" | "rejected") => void;
   caughtUp: boolean;
 }) {
+  const t = useTranslations("recruiter.applications");
+  const tCommon = useTranslations("common");
   const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -72,7 +75,7 @@ export function ReviewPanel({
         variant="ghost"
         size="icon"
         className={iconButton}
-        aria-label="Previous application"
+        aria-label={t("panel.previous")}
         disabled={!onPrevious}
         onClick={onPrevious}
       >
@@ -80,14 +83,17 @@ export function ReviewPanel({
       </Button>
       {position && (
         <span className="min-w-12 text-center text-xs text-muted-foreground tabular-nums">
-          {position.index + 1} of {position.count}
+          {t("panel.position", {
+            index: position.index + 1,
+            count: position.count,
+          })}
         </span>
       )}
       <Button
         variant="ghost"
         size="icon"
         className={iconButton}
-        aria-label="Next application"
+        aria-label={t("panel.next")}
         disabled={!onNext}
         onClick={onNext}
       >
@@ -96,8 +102,8 @@ export function ReviewPanel({
       <Button asChild variant="ghost" size="icon" className={iconButton}>
         <Link
           href={routes.recruiter.application(postingId, applicationId)}
-          aria-label="Open the application on its own page"
-          title="Open on its own page"
+          aria-label={t("panel.openOwnPageAria")}
+          title={t("panel.openOwnPageTitle")}
         >
           <ExternalLink aria-hidden />
         </Link>
@@ -114,10 +120,10 @@ export function ReviewPanel({
           tone={notFound || denied ? "locked" : "danger"}
           title={
             notFound
-              ? "We couldn't find this application"
+              ? t("detail.notFoundTitle")
               : denied
-                ? "You don't have access to this application"
-                : "We couldn't load this application"
+                ? t("detail.deniedTitle")
+                : t("detail.errorTitle")
           }
         >
           {!notFound && !denied && (
@@ -127,7 +133,7 @@ export function ReviewPanel({
               disabled={query.isFetching}
               onClick={() => void query.refetch()}
             >
-              Try again
+              {tCommon("actions.tryAgain")}
             </Button>
           )}
         </Notice>
@@ -146,7 +152,7 @@ export function ReviewPanel({
         </div>
         <Skeleton className="h-16 rounded-lg" />
         <Skeleton className="h-96 rounded-lg" />
-        <span className="sr-only">Loading the application…</span>
+        <span className="sr-only">{t("detail.loading")}</span>
       </section>
     );
 
@@ -155,7 +161,8 @@ export function ReviewPanel({
   const missed = isDeadlineMissed(application);
   const shownStatus = missed ? "rejected" : application.status;
   const reasonText =
-    application.reject_reason ?? (missed ? "Interview deadline passed" : null);
+    application.reject_reason ??
+    (missed ? t("facts.deadlinePassedReason") : null);
   const waitingForInterview =
     application.status === "interview_eligible" &&
     application.interview_eligible;
@@ -183,13 +190,15 @@ export function ReviewPanel({
 
       <dl className="grid gap-x-6 gap-y-3 rounded-lg bg-muted/40 p-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
         <div>
-          <dt className="text-xs text-muted-foreground">Status</dt>
+          <dt className="text-xs text-muted-foreground">{t("facts.status")}</dt>
           <dd className="mt-1">
             <ApplicationStatus status={shownStatus} />
           </dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">Applied for</dt>
+          <dt className="text-xs text-muted-foreground">
+            {t("facts.appliedFor")}
+          </dt>
           <dd className="mt-1 font-medium [overflow-wrap:anywhere]">
             <Link
               href={routes.recruiter.jobPosting(postingId)}
@@ -200,7 +209,9 @@ export function ReviewPanel({
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">Submitted</dt>
+          <dt className="text-xs text-muted-foreground">
+            {t("facts.submitted")}
+          </dt>
           <dd className="mt-1 font-medium tabular-nums">
             <time
               dateTime={application.submitted_at}
@@ -211,19 +222,24 @@ export function ReviewPanel({
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">Interview slots</dt>
+          <dt className="text-xs text-muted-foreground">
+            {t("facts.interviewSlots")}
+          </dt>
           <dd className="mt-1 font-medium tabular-nums">
             {posting.interview_slot === null
-              ? "Not funded"
-              : `${posting.cv_approvals} of ${posting.interview_slot} approved`}
+              ? t("panel.slotsNotFunded")
+              : t("panel.slotsApproved", {
+                  approvals: posting.cv_approvals,
+                  slots: posting.interview_slot,
+                })}
           </dd>
         </div>
         {application.interview_deadline && (
           <div className="sm:col-span-2">
             <dt className="text-xs text-muted-foreground">
               {waitingForInterview
-                ? "Complete interview by"
-                : "Interview deadline"}
+                ? t("facts.completeBy")
+                : t("facts.interviewDeadline")}
             </dt>
             <dd className="mt-1 font-medium tabular-nums">
               <time
@@ -237,7 +253,9 @@ export function ReviewPanel({
         )}
         {reasonText && (
           <div className="sm:col-span-2">
-            <dt className="text-xs text-muted-foreground">Reject reason</dt>
+            <dt className="text-xs text-muted-foreground">
+              {t("facts.rejectReason")}
+            </dt>
             <dd className="mt-1 font-medium [overflow-wrap:anywhere]">
               {reasonText}
             </dd>
@@ -246,10 +264,8 @@ export function ReviewPanel({
       </dl>
 
       {caughtUp && (
-        <Notice tone="info" title="You're all caught up">
-          <p className="text-muted-foreground">
-            No other CVs on this page are waiting for review.
-          </p>
+        <Notice tone="info" title={t("panel.caughtUpTitle")}>
+          <p className="text-muted-foreground">{t("panel.caughtUpBody")}</p>
         </Notice>
       )}
 
@@ -262,10 +278,7 @@ export function ReviewPanel({
       />
 
       {waitingForInterview && (
-        <p className="text-sm text-muted-foreground">
-          Cleared to interview. The result appears here once the candidate
-          completes it.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("panel.cleared")}</p>
       )}
 
       {application.interview && (
@@ -284,8 +297,11 @@ export function ReviewPanel({
         />
       )}
 
-      <section aria-label="CV" className="space-y-3 border-t pt-5">
-        <h3 className="text-sm font-semibold">CV</h3>
+      <section
+        aria-label={t("detail.cvHeading")}
+        className="space-y-3 border-t pt-5"
+      >
+        <h3 className="text-sm font-semibold">{t("detail.cvHeading")}</h3>
         <CvPreview
           key={applicationId}
           postingId={postingId}

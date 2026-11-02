@@ -92,7 +92,7 @@ function failure(status: number, code: string, message: string) {
     config: { headers: new AxiosHeaders() },
   });
 }
-function mount() {
+function mount(locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -104,6 +104,7 @@ function mount() {
     <QueryClientProvider client={client}>
       <QuestionBank postingId={postingId} />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -205,7 +206,7 @@ describe("QuestionBank", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the server message when generation fails", async () => {
+  it("explains a failed generation from its error code", async () => {
     mocks.get.mockResolvedValue(
       envelope(bank({ questions: [], editable: false })),
     );
@@ -221,8 +222,9 @@ describe("QuestionBank", () => {
       await screen.findByRole("button", { name: "Generate questions" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "confirm the job description requirements",
+      "Confirm the requirements first.",
     );
+    expect(screen.queryByText(/before generating questions/)).toBeNull();
     expect(
       screen.getByRole("button", { name: "Retry generating questions" }),
     ).toBeEnabled();
@@ -307,13 +309,18 @@ describe("QuestionBank", () => {
         content: "Explain buffered channels.",
       }),
     );
-    expect(await screen.findByText("something went wrong")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "We couldn't save the question. Your edit is still here.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("something went wrong")).toBeNull();
     expect(
       screen.getByRole("textbox", { name: "Edit question 1" }),
     ).toHaveValue("Explain buffered channels.");
   });
 
-  it("shows the backend conflict when a used question can't be deleted", async () => {
+  it("explains why a used question can't be deleted", async () => {
     mocks.get.mockResolvedValue(envelope(bank()));
     mocks.delete.mockRejectedValue(
       failure(
@@ -331,7 +338,7 @@ describe("QuestionBank", () => {
       within(dialog).getByRole("button", { name: "Delete question" }),
     );
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "already used in an interview",
+      "This question is in use and can't be removed.",
     );
     expect(screen.getByText("How do you index a table?")).toBeInTheDocument();
   });
@@ -379,7 +386,7 @@ describe("QuestionBank", () => {
     );
     expect(
       await screen.findByText(
-        /can only be changed while the job posting is pending/,
+        "The question bank can't be changed at this stage.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -655,5 +662,58 @@ describe("submission follows question review", () => {
     expect(mocks.toast).toHaveBeenCalledWith("Question deleted", {
       description: expect.stringMatching(/left the review queue/),
     });
+  });
+
+  it("renders the bank, its dialogs and errors in Vietnamese", async () => {
+    mocks.get.mockResolvedValue(envelope(bank()));
+    mocks.delete.mockRejectedValue(
+      failure(409, "CORE_QUESTION_IN_USE", "this question was already used"),
+    );
+    mount("vi");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Ngân hàng câu hỏi",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Ứng viên không bao giờ thấy các câu hỏi này."),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Sẵn sàng gửi duyệt")).toHaveLength(2);
+    expect(screen.getAllByText("2 câu hỏi")).toHaveLength(2);
+    // The questions themselves are content and stay as stored.
+    expect(screen.getByText("How do you index a table?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("form", { name: "Thêm câu hỏi" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Xóa câu hỏi 2" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByRole("heading", { name: "Xóa câu hỏi này?" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Xóa câu hỏi" }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Câu hỏi này đang được sử dụng nên không thể xóa.",
+    );
+  });
+
+  it("explains a read-only bank in Vietnamese", async () => {
+    mocks.get.mockResolvedValue(
+      envelope(bank({ posting_status: "intake_closed", editable: false })),
+    );
+    mount("vi");
+
+    expect(
+      await screen.findByText(
+        "Tin tuyển dụng này đã ngừng nhận đơn nên ngân hàng câu hỏi chỉ để xem.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Tiêu chí đánh giá bị khóa sau khi tin được duyệt."),
+    ).toBeInTheDocument();
   });
 });

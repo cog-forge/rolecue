@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { LoaderCircle } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import {
 import { applicationKeys, decideApplication } from "../api/applications";
 import type { ApplicationDetail } from "../schemas/application-detail-schema";
 import { formatDeadline } from "../utils/application-dates";
-import { applicationErrorMessage } from "../utils/application-errors";
+import { useApplicationErrorMessage } from "../utils/application-errors";
 import { RejectDialog } from "./reject-dialog";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
@@ -52,6 +53,9 @@ export function FinalDecision({
   applicationId: string;
   application: ApplicationDetail;
 }) {
+  const t = useTranslations("recruiter.applications");
+  const tCommon = useTranslations("common");
+  const errorMessage = useApplicationErrorMessage();
   const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -110,7 +114,7 @@ export function FinalDecision({
     onSuccess: () => {
       refresh();
       setApproveOpen(false);
-      gooeyToast.success("Application approved");
+      gooeyToast.success(t("final.approvedToast"));
     },
     onError: (failure) => {
       setApproveOpen(false);
@@ -125,32 +129,31 @@ export function FinalDecision({
     onSuccess: () => {
       refresh();
       setRejectOpen(false);
-      gooeyToast.success("Application rejected");
+      gooeyToast.success(t("final.rejectedToast"));
     },
     onError: onFailure,
   });
 
   const approveError = approve.isError
-    ? applicationErrorMessage(
-        approve.error,
-        "We couldn't approve this application. Try again.",
-      )
+    ? errorMessage(approve.error, t("final.approveFailed"))
     : null;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>Final decision</h2>
+          <h2>{t("final.heading")}</h2>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {!decidable && (
-          <Notice tone="locked" title="Final decision is not open yet">
+          <Notice tone="locked" title={t("final.lockedTitle")}>
             <p id={lockedId} className="text-muted-foreground">
               {opensAt
-                ? `Decisions open ${formatDeadline(opensAt, fmt)}, once the interview deadlines for this posting have passed.`
-                : "Decisions are not open for this application yet."}
+                ? t("final.lockedOpensAt", {
+                    date: formatDeadline(opensAt, fmt),
+                  })
+                : t("final.lockedNoDate")}
             </p>
           </Notice>
         )}
@@ -164,7 +167,7 @@ export function FinalDecision({
               setApproveOpen(true);
             }}
           >
-            Approve application
+            {t("final.approve")}
           </Button>
           <Button
             variant="outline"
@@ -176,7 +179,7 @@ export function FinalDecision({
               setRejectOpen(true);
             }}
           >
-            Reject application
+            {t("final.reject")}
           </Button>
         </div>
         {approveError && (
@@ -194,10 +197,9 @@ export function FinalDecision({
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Approve this application?</DialogTitle>
+            <DialogTitle>{t("final.approveTitle")}</DialogTitle>
             <DialogDescription>
-              {application.candidate.name}&apos;s application will be marked
-              approved.
+              {t("final.approveBody", { name: application.candidate.name })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -208,7 +210,7 @@ export function FinalDecision({
               disabled={approve.isPending}
               onClick={() => setApproveOpen(false)}
             >
-              Cancel
+              {tCommon("actions.cancel")}
             </Button>
             <Button
               type="button"
@@ -223,7 +225,9 @@ export function FinalDecision({
                   aria-hidden
                 />
               )}
-              {approve.isPending ? "Approving…" : "Confirm approval"}
+              {approve.isPending
+                ? t("dialog.approving")
+                : t("dialog.confirmApproval")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -234,16 +238,13 @@ export function FinalDecision({
         pending={reject.isPending}
         error={
           reject.isError
-            ? applicationErrorMessage(
-                reject.error,
-                "We couldn't reject this application. Try again.",
-              )
+            ? errorMessage(reject.error, t("final.rejectFailed"))
             : null
         }
-        title="Reject this application?"
-        description="This application will be marked rejected. The reason is optional and is stored with the application."
-        submitLabel="Reject application"
-        formLabel="Reject application"
+        title={t("final.rejectTitle")}
+        description={t("reject.description")}
+        submitLabel={t("final.reject")}
+        formLabel={t("final.reject")}
         onCancel={() => setRejectOpen(false)}
         onSubmit={(reason) => reject.mutate(reason)}
       />

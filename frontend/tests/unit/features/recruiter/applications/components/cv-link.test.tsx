@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CvLink } from "@/features/recruiter/applications/components/cv-link";
 
@@ -23,12 +24,16 @@ const postingId = "33333333-3333-4333-8333-333333333333";
 const applicationId = "44444444-4444-4444-8444-000000000001";
 const cvUrl = "https://files.example.com/cv/linh.pdf?signature=test";
 
-function mount(cv: { url: string; expires_at: string } | null) {
+function mount(
+  cv: { url: string; expires_at: string } | null,
+  locale: "en" | "vi" = "en",
+) {
   const client = new QueryClient();
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       <CvLink postingId={postingId} applicationId={applicationId} cv={cv} />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -52,12 +57,25 @@ describe("CvLink", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
+  it("renders the link and the empty state in Vietnamese", () => {
+    mount({ url: cvUrl, expires_at: "2099-01-01T00:00:00Z" }, "vi");
+    expect(screen.getByRole("link", { name: /mở cv/i })).toHaveAttribute(
+      "href",
+      cvUrl,
+    );
+  });
+
+  it("says no CV is stored in Vietnamese", () => {
+    mount(null, "vi");
+    expect(screen.getByText("Chưa có CV nào được lưu.")).toBeInTheDocument();
+  });
+
   it("reloads the detail a minute before the link expires", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-24T10:00:00Z"));
     const client = new QueryClient();
     const invalidate = vi.spyOn(client, "invalidateQueries");
-    render(
+    renderWithIntl(
       <QueryClientProvider client={client}>
         <CvLink
           postingId={postingId}

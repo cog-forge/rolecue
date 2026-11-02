@@ -1,6 +1,5 @@
+import type { useTranslations } from "next-intl";
 import { z } from "zod";
-import { defaultLocale } from "@/lib/i18n/config";
-import { formatNumber } from "@/lib/i18n/formatters";
 
 // Mirrors the Go KAN-79 contract (snake_case, like every new feature).
 export const postingStatusSchema = z.enum([
@@ -42,14 +41,19 @@ export const questionEnvelopeSchema = envelope(coreQuestionSchema);
 export const questionLength = (value: string) =>
   Array.from(value.trim()).length;
 
-export const questionFormSchema = (max: number) =>
+// Translator for the question form's messages; build the schema with
+// `useMemo(() => createQuestionFormSchema(max, v), [max, v])`.
+export type QuestionValidation = ReturnType<
+  typeof useTranslations<"recruiter.questionBank.validation">
+>;
+
+export const createQuestionFormSchema = (max: number, t: QuestionValidation) =>
   z.object({
     content: z
       .string()
-      .refine((value) => questionLength(value) > 0, "Write the question first.")
-      .refine(
-        (value) => questionLength(value) <= max,
-        `Keep the question to ${formatNumber(max, defaultLocale)} characters or fewer.`,
-      ),
+      .refine((value) => questionLength(value) > 0, t("required"))
+      .refine((value) => questionLength(value) <= max, t("max", { max })),
   });
-export type QuestionValues = z.infer<ReturnType<typeof questionFormSchema>>;
+export type QuestionValues = z.infer<
+  ReturnType<typeof createQuestionFormSchema>
+>;

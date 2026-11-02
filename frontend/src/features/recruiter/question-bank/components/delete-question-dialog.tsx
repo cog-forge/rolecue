@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +26,8 @@ export function DeleteQuestionDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("recruiter.questionBank.delete");
+  const tCommon = useTranslations("common");
   return (
     <Dialog
       open={question !== null}
@@ -34,10 +37,9 @@ export function DeleteQuestionDialog({
     >
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Delete this question?</DialogTitle>
+          <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription className="[overflow-wrap:anywhere]">
-            “{question?.content}” will be removed from the bank. A question that
-            an interview already used can&apos;t be deleted.
+            {t("description", { content: question?.content ?? "" })}
           </DialogDescription>
         </DialogHeader>
         {error && (
@@ -53,7 +55,7 @@ export function DeleteQuestionDialog({
             disabled={pending}
             onClick={onCancel}
           >
-            Cancel
+            {tCommon("actions.cancel")}
           </Button>
           <Button
             type="button"
@@ -69,7 +71,7 @@ export function DeleteQuestionDialog({
                 aria-hidden
               />
             )}
-            {pending ? "Deleting…" : "Delete question"}
+            {pending ? t("pending") : t("confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

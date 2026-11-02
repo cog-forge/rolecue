@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { createTranslator } from "next-intl";
+import { messagesFor } from "@tests/helpers/intl";
+import type { AppLocale } from "@/lib/i18n/config";
 import {
   bankEnvelopeSchema,
-  questionFormSchema,
+  createQuestionFormSchema,
   questionLength,
 } from "@/features/recruiter/question-bank/schemas/question-bank-schema";
 
@@ -18,6 +21,13 @@ const bank = {
   review_submitted: false,
   generation_size: 10,
 };
+
+const validationFor = (locale: AppLocale = "en") =>
+  createTranslator({
+    locale,
+    messages: messagesFor(locale),
+    namespace: "recruiter.questionBank.validation",
+  });
 
 describe("question bank schema", () => {
   it("accepts the Go list contract", () => {
@@ -46,7 +56,7 @@ describe("question bank schema", () => {
   });
 
   it("uses the server limit", () => {
-    const schema = questionFormSchema(5);
+    const schema = createQuestionFormSchema(5, validationFor());
     expect(schema.safeParse({ content: "   " }).success).toBe(false);
     expect(schema.safeParse({ content: " 12345 " }).success).toBe(true);
     const tooLong = schema.safeParse({ content: "123456" });
@@ -54,5 +64,21 @@ describe("question bank schema", () => {
     expect(tooLong.error?.issues[0]?.message).toBe(
       "Keep the question to 5 characters or fewer.",
     );
+  });
+
+  it("words the limit in Vietnamese and groups digits like the language", () => {
+    const schema = createQuestionFormSchema(1000, validationFor("vi"));
+    const tooLong = schema.safeParse({ content: "a".repeat(1001) });
+    expect(tooLong.error?.issues[0]?.message).toBe(
+      "Câu hỏi tối đa 1.000 ký tự.",
+    );
+    expect(schema.safeParse({ content: " " }).error?.issues[0]?.message).toBe(
+      "Hãy viết câu hỏi trước.",
+    );
+    const english = createQuestionFormSchema(1000, validationFor());
+    expect(
+      english.safeParse({ content: "a".repeat(1001) }).error?.issues[0]
+        ?.message,
+    ).toBe("Keep the question to 1,000 characters or fewer.");
   });
 });

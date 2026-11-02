@@ -271,8 +271,8 @@ test("empty bank blocks submission and generation can be retried on mobile", asy
   await expect(
     page
       .getByRole("alert")
-      .filter({ hasText: "Generation failed. Please retry." }),
-  ).toContainText("Generation failed. Please retry.");
+      .filter({ hasText: "We couldn't generate questions. Try again." }),
+  ).toContainText("We couldn't generate questions. Try again.");
   await page
     .getByRole("button", { name: "Retry generating questions" })
     .click();

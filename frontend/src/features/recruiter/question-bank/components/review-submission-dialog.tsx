@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,9 @@ export function ReviewSubmissionDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("recruiter.questionBank.review");
+  const tp = useTranslations("recruiter.postings");
+  const tCommon = useTranslations("common");
   const fmt = useFormatters();
   const user = useSessionUser();
   const weights = useQuery({
@@ -47,6 +51,8 @@ export function ReviewSubmissionDialog({
     refetchOnMount: "always",
     retry: false,
   });
+  const weightValue = (percentage: number) =>
+    fmt.number(percentage, { maximumFractionDigits: 2 });
   return (
     <Dialog
       open
@@ -56,75 +62,71 @@ export function ReviewSubmissionDialog({
     >
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Review &amp; submit</DialogTitle>
-          <DialogDescription>
-            Check the posting and evaluation criteria before sending them to an
-            administrator. Funding comes after approval.
-          </DialogDescription>
+          <DialogTitle>{t("title")}</DialogTitle>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         {posting ? (
           <dl className="grid grid-cols-1 gap-4 rounded-xl border p-4 text-sm sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <dt className="text-muted-foreground">Job posting</dt>
+              <dt className="text-muted-foreground">{t("posting")}</dt>
               <dd className="mt-1 font-medium">{posting.title}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Seniority</dt>
-              <dd className="mt-1 capitalize">{posting.seniority_level}</dd>
+              <dt className="text-muted-foreground">{t("seniority")}</dt>
+              <dd className="mt-1">{tp(`level.${posting.seniority_level}`)}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Question bank</dt>
-              <dd className="mt-1">{questionCount} questions</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">Interviewer</dt>
+              <dt className="text-muted-foreground">{t("bank")}</dt>
               <dd className="mt-1">
-                {posting.required_avatar?.name ?? "Not selected"}
+                {t("questionCount", { count: questionCount })}
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">Voice</dt>
+              <dt className="text-muted-foreground">{t("interviewer")}</dt>
               <dd className="mt-1">
-                {posting.required_voice?.name ?? "Not selected"}
+                {posting.required_avatar?.name ?? t("notSelected")}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{t("voice")}</dt>
+              <dd className="mt-1">
+                {posting.required_voice?.name ?? t("notSelected")}
               </dd>
             </div>
             <div className="sm:col-span-2">
-              <dt className="text-muted-foreground">Confirmed requirements</dt>
+              <dt className="text-muted-foreground">{t("requirements")}</dt>
               <dd className="mt-1">
                 {posting.requirements.map((item) => item.name).join(", ") ||
-                  "No requirements available"}
+                  t("noRequirements")}
               </dd>
             </div>
           </dl>
         ) : (
-          <p role="alert">
-            Posting details are unavailable. Close this review and reload the
-            posting.
-          </p>
+          <p role="alert">{t("unavailable")}</p>
         )}
-        <section className="space-y-3 text-sm" aria-label="Evaluation summary">
-          <h3 className="font-medium">Evaluation criteria</h3>
+        <section
+          className="space-y-3 text-sm"
+          aria-label={t("evaluationLabel")}
+        >
+          <h3 className="font-medium">{t("evaluation")}</h3>
           {weights.isPending ? (
-            <p role="status">Loading evaluation criteria…</p>
+            <p role="status">{t("loadingCriteria")}</p>
           ) : weights.isError ? (
             <div role="alert">
-              <p>We couldn&apos;t load the criteria.</p>
+              <p>{t("criteriaError")}</p>
               <Button variant="outline" onClick={() => void weights.refetch()}>
-                Retry criteria
+                {t("retryCriteria")}
               </Button>
             </div>
           ) : (
             <>
               <p className="text-muted-foreground">
                 {weights.data.using_defaults
-                  ? "Default criteria · equal weights"
-                  : "Custom evaluation criteria"}
+                  ? t("defaultCriteria")
+                  : t("customCriteria")}
               </p>
               {!weights.data.editable && (
-                <p role="alert">
-                  This posting has already been reviewed. Close this dialog and
-                  reload the posting to see its current state.
-                </p>
+                <p role="alert">{t("alreadyReviewed")}</p>
               )}
               <dl className="divide-y">
                 {weights.data.weights.map((weight) => (
@@ -134,10 +136,13 @@ export function ReviewSubmissionDialog({
                   >
                     <dt>{weight.name}</dt>
                     <dd className="tabular-nums">
-                      {fmt.number(weight.percentage, {
-                        maximumFractionDigits: 2,
-                      })}
-                      {weights.data.total > 0 ? "%" : " weight"}
+                      {weights.data.total > 0
+                        ? t("weightPercent", {
+                            value: weightValue(weight.percentage),
+                          })
+                        : t("weightPoints", {
+                            value: weightValue(weight.percentage),
+                          })}
                     </dd>
                   </div>
                 ))}
@@ -152,7 +157,7 @@ export function ReviewSubmissionDialog({
                 if (pending) event.preventDefault();
               }}
             >
-              Edit evaluation criteria
+              {t("editCriteria")}
             </Link>
           </Button>
         </section>
@@ -163,7 +168,7 @@ export function ReviewSubmissionDialog({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={onCancel} disabled={pending}>
-            Cancel
+            {tCommon("actions.cancel")}
           </Button>
           <Button
             disabled={
@@ -175,11 +180,7 @@ export function ReviewSubmissionDialog({
             }
             onClick={onConfirm}
           >
-            {pending
-              ? "Submitting…"
-              : rejected
-                ? "Resubmit for approval"
-                : "Submit for approval"}
+            {pending ? t("submitting") : rejected ? t("resubmit") : t("submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

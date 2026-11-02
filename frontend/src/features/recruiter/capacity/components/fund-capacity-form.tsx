@@ -1,13 +1,14 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useForm, useWatch } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  fundCapacitySchema,
+  createFundCapacitySchema,
   MAX_SLOTS,
   MIN_SLOTS,
   type FundCapacityInput,
@@ -28,6 +29,12 @@ export function FundCapacityForm({
   onSubmit: (slots: number) => void;
 }) {
   const fmt = useFormatters();
+  const t = useTranslations("recruiter.capacity.fundForm");
+  const validationT = useTranslations("recruiter.capacity.validation");
+  const schema = useMemo(
+    () => createFundCapacitySchema(validationT),
+    [validationT],
+  );
   const inputId = useId();
   const hintId = useId();
   const errorId = useId();
@@ -37,7 +44,7 @@ export function FundCapacityForm({
     control,
     formState: { errors },
   } = useForm<FundCapacityInput, unknown, FundCapacityValues>({
-    resolver: zodResolver(fundCapacitySchema),
+    resolver: zodResolver(schema),
     defaultValues: { slots: "" },
     mode: "onTouched",
   });
@@ -53,7 +60,7 @@ export function FundCapacityForm({
   return (
     <form
       noValidate
-      aria-label="Fund interview slots"
+      aria-label={t("label")}
       className="space-y-4"
       onSubmit={(event) => {
         event.preventDefault();
@@ -62,7 +69,7 @@ export function FundCapacityForm({
     >
       <div className="space-y-3">
         <label htmlFor={inputId} className="block text-sm font-medium">
-          Interview slots to fund
+          {t("slots")}
         </label>
         <Input
           id={inputId}
@@ -80,8 +87,11 @@ export function FundCapacityForm({
           {...register("slots")}
         />
         <p id={hintId} className="text-xs text-muted-foreground">
-          {MIN_SLOTS} to {fmt.number(MAX_SLOTS)} slots. Each slot costs{" "}
-          {fmt.coins(pricePerSlot)}.
+          {t("hint", {
+            min: fmt.number(MIN_SLOTS),
+            max: fmt.number(MAX_SLOTS),
+            price: fmt.coins(pricePerSlot),
+          })}
         </p>
         {slotError && (
           <p id={errorId} role="alert" className="text-xs text-destructive">
@@ -91,8 +101,8 @@ export function FundCapacityForm({
       </div>
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {total === null
-          ? "Enter a slot count to see the total."
-          : `Total: ${fmt.coins(total)} from your wallet.`}
+          ? t("totalEmpty")
+          : t("total", { amount: fmt.coins(total) })}
       </p>
       {error && (
         <p role="alert" className="text-sm text-destructive">
@@ -111,7 +121,7 @@ export function FundCapacityForm({
             aria-hidden
           />
         )}
-        {pending ? "Funding…" : "Fund interview slots"}
+        {pending ? t("funding") : t("submit")}
       </Button>
     </form>
   );
