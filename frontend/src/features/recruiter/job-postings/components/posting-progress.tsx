@@ -1,10 +1,14 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { PostingStatus } from "../schemas/job-posting-schema";
-import type { Formatters } from "@/lib/i18n/formatters";
-import { useFormatters } from "@/lib/i18n/use-formatters";
 
 type StepState = "done" | "current" | "upcoming" | "blocked";
-type Step = { label: string; detail: string; state: StepState };
+type StepId =
+  "requirements" | "bank" | "evaluation" | "review" | "funding" | "screening";
+type Step = { id: StepId; detail: string; state: StepState };
+type ProgressTranslator = ReturnType<
+  typeof useTranslations<"recruiter.postings.progress">
+>;
 
 // The part of a posting the path needs; null while a new posting has not been saved yet.
 export type ProgressPosting = {
@@ -17,7 +21,7 @@ export type ProgressPosting = {
 function steps(
   posting: ProgressPosting,
   generating: boolean,
-  fmt: Formatters,
+  t: ProgressTranslator,
 ): Step[] {
   const count = posting?.core_question_count ?? 0;
   const live =
@@ -29,51 +33,55 @@ function steps(
   const hasBank = count > 0;
 
   const requirements: Step = posting
-    ? { label: "Requirements", detail: "Reviewed and saved", state: "done" }
+    ? {
+        id: "requirements",
+        detail: t("detail.requirementsSaved"),
+        state: "done",
+      }
     : {
-        label: "Requirements",
-        detail: "Review what RoleCue extracted",
+        id: "requirements",
+        detail: t("detail.requirementsReview"),
         state: "current",
       };
   const bank: Step = generating
-    ? {
-        label: "Questions",
-        detail: "Generating questions…",
-        state: "current",
-      }
+    ? { id: "bank", detail: t("detail.generating"), state: "current" }
     : hasBank
       ? {
-          label: "Questions",
-          detail: `${fmt.number(count)} ${count === 1 ? "question" : "questions"}`,
+          id: "bank",
+          detail: t("detail.questionCount", { count }),
           state: "done",
         }
       : {
-          label: "Questions",
-          detail: posting ? "Not generated yet" : "Generated after you confirm",
+          id: "bank",
+          detail: posting
+            ? t("detail.notGenerated")
+            : t("detail.generatedAfterConfirm"),
           state: posting ? "current" : "upcoming",
         };
   const review: Step = live
-    ? { label: "Admin review", detail: "Approved", state: "done" }
+    ? { id: "review", detail: t("detail.approved"), state: "done" }
     : rejected
-      ? { label: "Admin review", detail: "Changes requested", state: "blocked" }
+      ? { id: "review", detail: t("detail.changesRequested"), state: "blocked" }
       : inReview
         ? {
-            label: "Admin review",
-            detail: "Waiting for an administrator",
+            id: "review",
+            detail: t("detail.waitingForAdmin"),
             state: "current",
           }
         : {
-            label: "Admin review",
-            detail: hasBank ? "Ready to submit" : "Not submitted",
+            id: "review",
+            detail: hasBank
+              ? t("detail.readyToSubmit")
+              : t("detail.notSubmitted"),
             state: "upcoming",
           };
   const funded = posting?.interview_slot != null;
   const evaluation: Step = {
-    label: "Evaluation",
+    id: "evaluation",
     detail:
       live || inReview
-        ? "Criteria confirmed"
-        : "Optional: defaults apply unless you customize",
+        ? t("detail.criteriaConfirmed")
+        : t("detail.criteriaOptional"),
     state:
       live || inReview
         ? "done"
@@ -82,14 +90,14 @@ function steps(
           : "upcoming",
   };
   const funding: Step = {
-    label: "Fund slots",
+    id: "funding",
     detail: funded
-      ? "Slots funded"
+      ? t("detail.slotsFunded")
       : posting?.status === "open"
-        ? "Fund slots to publish"
+        ? t("detail.fundToPublish")
         : live
-          ? "Never funded"
-          : "After admin approval",
+          ? t("detail.neverFunded")
+          : t("detail.afterApproval"),
     state: funded
       ? "done"
       : posting?.status === "open"
@@ -99,26 +107,30 @@ function steps(
   // Screening is the recruiter's work once candidates can apply: it runs while the posting takes
   // CVs and while approved candidates still interview, and it ends with the posting.
   const screening: Step = !posting
-    ? { label: "Screening", detail: "After funding", state: "upcoming" }
+    ? { id: "screening", detail: t("detail.afterFunding"), state: "upcoming" }
     : posting.status === "closed"
-      ? { label: "Screening", detail: "Closed", state: "done" }
+      ? { id: "screening", detail: t("detail.closed"), state: "done" }
       : posting.status === "intake_closed"
         ? {
-            label: "Screening",
-            detail: "Intake closed, finishing interviews",
+            id: "screening",
+            detail: t("detail.intakeClosed"),
             state: "current",
           }
         : posting.status === "open"
           ? funded
             ? {
-                label: "Screening",
-                detail: "Taking applications",
+                id: "screening",
+                detail: t("detail.takingApplications"),
                 state: "current",
               }
-            : { label: "Screening", detail: "After funding", state: "upcoming" }
+            : {
+                id: "screening",
+                detail: t("detail.afterFunding"),
+                state: "upcoming",
+              }
           : {
-              label: "Screening",
-              detail: "After approval and funding",
+              id: "screening",
+              detail: t("detail.afterApprovalAndFunding"),
               state: "upcoming",
             };
   return [requirements, bank, evaluation, review, funding, screening];
@@ -142,18 +154,18 @@ export function PostingProgress({
   generating?: boolean;
   className?: string;
 }) {
-  const fmt = useFormatters();
+  const t = useTranslations("recruiter.postings.progress");
   return (
     <ol
-      aria-label="Posting progress"
+      aria-label={t("label")}
       className={cn(
         "grid grid-cols-2 gap-x-4 gap-y-5 md:grid-cols-3 xl:grid-cols-6",
         className,
       )}
     >
-      {steps(posting, generating, fmt).map((step) => (
+      {steps(posting, generating, t).map((step) => (
         <li
-          key={step.label}
+          key={step.id}
           aria-current={step.state === "current" ? "step" : undefined}
           className="min-w-0 space-y-2"
         >
@@ -170,15 +182,9 @@ export function PostingProgress({
               step.state === "upcoming" && "text-muted-foreground",
             )}
           >
-            {step.label}
+            {t(`step.${step.id}`)}
             <span className="sr-only">
-              {step.state === "done"
-                ? " (done)"
-                : step.state === "current"
-                  ? " (current step)"
-                  : step.state === "blocked"
-                    ? " (needs changes)"
-                    : ""}
+              {step.state === "upcoming" ? "" : ` ${t(`state.${step.state}`)}`}
             </span>
           </span>
           <span
@@ -189,7 +195,7 @@ export function PostingProgress({
                 : "text-muted-foreground",
             )}
           >
-            {generating && step.label === "Questions" ? (
+            {generating && step.id === "bank" ? (
               <span className="t-shimmer" data-text={step.detail}>
                 {step.detail}
               </span>

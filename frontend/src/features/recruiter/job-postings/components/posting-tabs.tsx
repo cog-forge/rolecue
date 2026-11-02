@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import type { PostingStatus } from "../schemas/job-posting-schema";
@@ -21,32 +22,33 @@ export function PostingTabs({
   active: PostingTab;
   status: PostingStatus;
 }) {
+  const t = useTranslations("recruiter.postings.tabs");
   const tabs: { id: PostingTab; label: string; href: string }[] = [
     {
       id: "overview",
-      label: "Overview",
+      label: t("overview"),
       href: routes.recruiter.jobPosting(postingId),
     },
     {
       id: "applications",
-      label: "Applications",
+      label: t("applications"),
       href: postingInboxHref(postingId),
     },
     {
       id: "questions",
-      label: "Questions",
+      label: t("questions"),
       href: routes.recruiter.jobPostingQuestions(postingId),
     },
     {
       id: "evaluation",
-      label: "Evaluation",
+      label: t("evaluation"),
       href: routes.recruiter.jobPostingEvaluation(postingId),
     },
   ];
   return (
     <div className="border-b">
       <nav
-        aria-label="Posting sections"
+        aria-label={t("label")}
         className="-mb-px max-w-full overflow-x-auto"
       >
         <ul className="flex gap-6">
@@ -59,18 +61,14 @@ export function PostingTabs({
                   <a
                     role="link"
                     aria-disabled="true"
-                    title="Available once an administrator approves the posting and you fund interview slots"
+                    title={t("unavailable")}
                     className={cn(
                       tabClass,
                       "cursor-not-allowed text-muted-foreground/60",
                     )}
                   >
                     {tab.label}
-                    <span className="sr-only">
-                      {" "}
-                      (available once an administrator approves the posting and
-                      you fund interview slots)
-                    </span>
+                    <span className="sr-only"> {t("unavailableHint")}</span>
                   </a>
                 </li>
               );

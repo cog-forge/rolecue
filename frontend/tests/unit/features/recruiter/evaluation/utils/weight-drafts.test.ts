@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { formattersFor, messagesFor } from "@tests/helpers/intl";
+import { createTranslator } from "next-intl";
 import type {
   Metric,
   PostingWeights,
@@ -23,6 +25,15 @@ const clarity: Metric = {
   name: "Clarity",
 };
 const metrics = [accuracy, depth, clarity];
+
+const draftsFor = (locale: "en" | "vi") =>
+  createTranslator({
+    locale,
+    messages: messagesFor(locale),
+    namespace: "recruiter.evaluation.drafts",
+  });
+const fmt = formattersFor("en");
+const t = draftsFor("en");
 
 const saved = (over: Partial<PostingWeights>): PostingWeights => ({
   configured: true,
@@ -64,7 +75,7 @@ describe("weightDrafts", () => {
     );
     expect(Number(drafts[accuracy.id])).toBeCloseTo(100 / 3, 10);
     // Saving the defaults unchanged must still add up to the total.
-    expect(evaluateDrafts(metrics, drafts, 100).valid).toBe(true);
+    expect(evaluateDrafts(metrics, drafts, 100, t, fmt).valid).toBe(true);
   });
 });
 
@@ -74,6 +85,8 @@ describe("evaluateDrafts", () => {
       metrics,
       { [accuracy.id]: "60", [depth.id]: "40", [clarity.id]: "0" },
       100,
+      t,
+      fmt,
     );
     expect(result.valid).toBe(true);
     expect(result.sum).toBe(100);
@@ -90,6 +103,8 @@ describe("evaluateDrafts", () => {
       metrics,
       { [accuracy.id]: " 100 ", [depth.id]: "", [clarity.id]: "  " },
       100,
+      t,
+      fmt,
     );
     expect(result.valid).toBe(true);
     expect(result.body?.weights).toEqual([
@@ -103,6 +118,8 @@ describe("evaluateDrafts", () => {
         metrics,
         { [accuracy.id]: "33.5", [depth.id]: "33.5", [clarity.id]: "33" },
         100,
+        t,
+        fmt,
       ).valid,
     ).toBe(true);
   });
@@ -112,6 +129,8 @@ describe("evaluateDrafts", () => {
       metrics,
       { [accuracy.id]: "60", [depth.id]: "30", [clarity.id]: "" },
       100,
+      t,
+      fmt,
     );
     expect(result.valid).toBe(false);
     expect(result.body).toBeNull();
@@ -124,7 +143,7 @@ describe("evaluateDrafts", () => {
 
   it("needs at least one weighted metric", () => {
     for (const drafts of [{}, { [accuracy.id]: "0", [depth.id]: "" }]) {
-      const result = evaluateDrafts(metrics, drafts, 100);
+      const result = evaluateDrafts(metrics, drafts, 100, t, fmt);
       expect(result.valid).toBe(false);
       expect(result.formError).toBe("Give at least one metric a weight.");
     }
@@ -135,6 +154,8 @@ describe("evaluateDrafts", () => {
       metrics,
       { [accuracy.id]: "-5", [depth.id]: "abc", [clarity.id]: "101" },
       100,
+      t,
+      fmt,
     );
     expect(result.valid).toBe(false);
     expect(result.fieldErrors).toEqual({
@@ -149,9 +170,8 @@ describe("evaluateDrafts", () => {
   it("rejects values that are not finite numbers", () => {
     for (const bad of ["Infinity", "NaN", "1e999"]) {
       expect(
-        evaluateDrafts(metrics, { [accuracy.id]: bad }, 100).fieldErrors[
-          accuracy.id
-        ],
+        evaluateDrafts(metrics, { [accuracy.id]: bad }, 100, t, fmt)
+          .fieldErrors[accuracy.id],
       ).toBe("Enter a number.");
     }
   });
@@ -161,10 +181,12 @@ describe("evaluateDrafts", () => {
       metrics,
       { [accuracy.id]: "3", [depth.id]: "7" },
       0,
+      t,
+      fmt,
     );
     expect(free.valid).toBe(true);
     expect(
-      evaluateDrafts(metrics, { [accuracy.id]: "1001" }, 0).fieldErrors[
+      evaluateDrafts(metrics, { [accuracy.id]: "1001" }, 0, t, fmt).fieldErrors[
         accuracy.id
       ],
     ).toBe("A weight can be at most 1000.");
@@ -173,10 +195,10 @@ describe("evaluateDrafts", () => {
 
 describe("formatSum", () => {
   it("shows enough digits that a sum never reads as equal to the total it misses", () => {
-    expect(formatSum(99.996, 100)).toBe("99.996");
-    expect(formatSum(100.004, 100)).toBe("100.004");
-    expect(formatSum(80, 100)).toBe("80");
-    expect(formatSum(100, 100)).toBe("100");
+    expect(formatSum(99.996, 100, fmt)).toBe("99.996");
+    expect(formatSum(100.004, 100, fmt)).toBe("100.004");
+    expect(formatSum(80, 100, fmt)).toBe("80");
+    expect(formatSum(100, 100, fmt)).toBe("100");
   });
 
   it("explains a near miss with different numbers", () => {
@@ -184,6 +206,8 @@ describe("formatSum", () => {
       metrics,
       { [accuracy.id]: "33.332", [depth.id]: "33.332", [clarity.id]: "33.332" },
       100,
+      t,
+      fmt,
     );
     expect(result.formError).toBe(
       "The weights add up to 99.996, but they must add up to 100.",
@@ -193,8 +217,46 @@ describe("formatSum", () => {
 
 describe("formatPercent", () => {
   it("trims to two decimals", () => {
-    expect(formatPercent(100)).toBe("100");
-    expect(formatPercent(100 / 3)).toBe("33.33");
-    expect(formatPercent(12.5)).toBe("12.5");
+    expect(formatPercent(100, fmt)).toBe("100");
+    expect(formatPercent(100 / 3, fmt)).toBe("33.33");
+    expect(formatPercent(12.5, fmt)).toBe("12.5");
+  });
+});
+
+describe("evaluateDrafts in Vietnamese", () => {
+  const vi = draftsFor("vi");
+  const fmtVi = formattersFor("vi");
+
+  it("words the field and form errors in Vietnamese with the local decimal comma", () => {
+    const fields = evaluateDrafts(
+      metrics,
+      { [accuracy.id]: "-5", [depth.id]: "abc", [clarity.id]: "101" },
+      100,
+      vi,
+      fmtVi,
+    );
+    expect(fields.fieldErrors).toEqual({
+      [accuracy.id]: "Trọng số không được âm.",
+      [depth.id]: "Hãy nhập một số.",
+      [clarity.id]: "Trọng số tối đa là 100.",
+    });
+    const sum = evaluateDrafts(
+      metrics,
+      { [accuracy.id]: "33.332", [depth.id]: "33.332", [clarity.id]: "33.332" },
+      100,
+      vi,
+      fmtVi,
+    );
+    expect(sum.formError).toBe(
+      "Tổng các trọng số là 99,996, nhưng phải bằng 100.",
+    );
+    expect(evaluateDrafts(metrics, {}, 100, vi, fmtVi).formError).toBe(
+      "Hãy đặt trọng số cho ít nhất một tiêu chí.",
+    );
+  });
+
+  it("formats percentages with the Vietnamese separator", () => {
+    expect(formatPercent(100 / 3, fmtVi)).toBe("33,33");
+    expect(formatSum(99.996, 100, fmtVi)).toBe("99,996");
   });
 });

@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
 import { routes } from "@/config/routes";
@@ -13,10 +14,14 @@ import { createPosting, jobPostingKeys } from "../api/job-postings";
 import { createBody, emptyPostingValues } from "../schemas/job-posting-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
 import { PageHeader, pillClass } from "@/components/layout/page-header";
+import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 import { PostingProgress } from "./posting-progress";
 import { PostingForm } from "./posting-form";
 
 export function NewJobPosting() {
+  const t = useTranslations("recruiter.postings.new");
+  const tp = useTranslations("recruiter.postings");
+  const errorMessage = useApiErrorMessage();
   const user = useSessionUser();
   const cache = useQueryClient();
   const router = useRouter();
@@ -30,8 +35,8 @@ export function NewJobPosting() {
         queryKey: jobPostingKeys.detail(user.id, posting.id),
       });
       void cache.invalidateQueries({ queryKey: jobPostingKeys.lists(user.id) });
-      gooeyToast.success("Question bank generated", {
-        description: "Review your questions before submitting for approval.",
+      gooeyToast.success(tp("toast.bankGenerated"), {
+        description: tp("toast.bankGeneratedHint"),
       });
       router.replace(routes.recruiter.jobPostingQuestions(posting.id));
     },
@@ -63,16 +68,18 @@ export function NewJobPosting() {
 
   const submitError = create.isError
     ? isAccessDenied(create.error)
-      ? "You don't have access to create job postings. Checking your account access…"
-      : `${apiError(create.error).message ?? "We couldn't save the posting."} Your draft is still here.`
+      ? t("noAccess")
+      : t("saveFailed", {
+          reason: errorMessage(create.error, t("saveFailedReason")),
+        })
     : null;
 
   return (
     <section className="mx-auto w-full max-w-5xl space-y-8">
       <PageHeader
-        back={{ href: routes.recruiter.jobPostings, label: "My Job Postings" }}
-        title="New job posting"
-        description="Upload the job description and review the requirements RoleCue suggests. Confirming them generates the question bank. Review the questions and evaluation criteria before submitting for approval."
+        back={{ href: routes.recruiter.jobPostings, label: tp("backToList") }}
+        title={t("title")}
+        description={t("description")}
       />
       <PostingProgress
         posting={
@@ -92,8 +99,7 @@ export function NewJobPosting() {
           pending={generate.isPending}
           error={
             generate.isError
-              ? (apiError(generate.error).message ??
-                "We couldn't generate questions.")
+              ? errorMessage(generate.error, t("generateFailedReason"))
               : null
           }
           onRetry={() => {
@@ -135,41 +141,34 @@ function GenerationState({
   error: string | null;
   onRetry: () => void;
 }) {
+  const t = useTranslations("recruiter.postings.new.generation");
   return (
     <div className="space-y-5 rounded-xl border p-6">
       {error ? (
         <div role="alert" className="space-y-1">
-          <h2 className="text-base font-semibold">
-            Questions weren&apos;t generated
-          </h2>
+          <h2 className="text-base font-semibold">{t("failedTitle")}</h2>
           <p className="text-sm text-muted-foreground">
-            {error} Your posting is saved, so retrying only generates the
-            questions.
+            {t("failedBody", { reason: error })}
           </p>
         </div>
       ) : (
         <div role="status" className="space-y-1">
           <h2 className="text-base font-semibold">
-            <span className="t-shimmer" data-text="Generating questions…">
-              Generating questions…
+            <span className="t-shimmer" data-text={t("pendingTitle")}>
+              {t("pendingTitle")}
             </span>
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Your posting is saved. This can take a minute, and it is not
-            submitted for approval yet.
-          </p>
+          <p className="text-sm text-muted-foreground">{t("pendingBody")}</p>
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
         {error && (
           <Button className={pillClass} disabled={pending} onClick={onRetry}>
-            Retry generating questions
+            {t("retry")}
           </Button>
         )}
         <Button asChild variant="outline" className={pillClass}>
-          <Link href={routes.recruiter.jobPosting(postingId)}>
-            Open the saved posting
-          </Link>
+          <Link href={routes.recruiter.jobPosting(postingId)}>{t("open")}</Link>
         </Button>
       </div>
     </div>

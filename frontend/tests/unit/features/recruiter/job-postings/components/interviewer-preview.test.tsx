@@ -1,12 +1,7 @@
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ModelAccess } from "@/components/avatar-viewer/avatar-viewer";
 import { InterviewerPreview } from "@/features/recruiter/job-postings/components/interviewer-preview";
@@ -72,7 +67,7 @@ const avatar = (
   },
 });
 
-function mount(selectedId = linhId) {
+function mount(selectedId = linhId, locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -81,7 +76,7 @@ function mount(selectedId = linhId) {
       <InterviewerPreview userId={userId} avatarId={avatarId} />
     </QueryClientProvider>
   );
-  const result = render(view(selectedId));
+  const result = renderWithIntl(view(selectedId), { locale });
   return {
     rerender: (avatarId = selectedId) => result.rerender(view(avatarId)),
   };
@@ -214,5 +209,22 @@ describe("InterviewerPreview", () => {
 
     expect(mocks.mounts).toBe(mountsBeforeRefresh);
     expect(mocks.unmounts).toBe(unmountsBeforeRefresh);
+  });
+
+  it("labels the preview and its failure in Vietnamese", async () => {
+    mocks.get.mockRejectedValueOnce(new Error("offline"));
+    mount(linhId, "vi");
+
+    expect(
+      await screen.findByRole("region", {
+        name: "Xem trước người phỏng vấn đã chọn",
+      }),
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Lựa chọn của bạn vẫn được giữ trong biểu mẫu.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Thử lại bản xem trước" }),
+    ).toBeInTheDocument();
   });
 });

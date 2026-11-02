@@ -2,12 +2,14 @@
 
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -46,38 +48,19 @@ import {
 import {
   levels,
   PDF_MAX_BYTES,
-  postingFormSchema,
+  createPostingFormSchema,
   requirementTargets,
   runeLength,
   TEXT_MIN,
   type JobPosting,
-  type Level,
   type PostingValues,
-  type RequirementTarget,
 } from "../schemas/job-posting-schema";
-import { apiError, isAccessDenied } from "../utils/api-error";
+import { isAccessDenied } from "../utils/api-error";
 import { InterviewerPreview } from "./interviewer-preview";
 import { JdDocumentLink } from "./jd-document-link";
 import { Notice } from "./notice";
-import { useFormatters } from "@/lib/i18n/use-formatters";
+import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 
-const levelText: Record<Level, string> = {
-  intern: "Intern",
-  junior: "Junior",
-  mid: "Mid-level",
-  senior: "Senior",
-  lead: "Lead",
-};
-const targetText: Record<RequirementTarget, string> = {
-  programming_language: "Programming language",
-  framework: "Framework",
-  database: "Database",
-  tool: "Tool",
-  technology: "Technology",
-  other: "Other skill",
-  technologies: "Technology (general)",
-  domain_knowledge: "Domain knowledge",
-};
 // The JD is a PDF; the API stores it and reads its text.
 const PDF_FILE_TYPES = "application/pdf,.pdf";
 const isPdf = (file: File) =>
@@ -105,11 +88,16 @@ export function PostingForm({
   submitError: string | null;
   onSubmit: (values: PostingValues, requirementsChanged: boolean) => void;
 }) {
-  const fmt = useFormatters();
+  const t = useTranslations("recruiter.postings.form");
+  const tp = useTranslations("recruiter.postings");
+  const v = useTranslations("recruiter.postings.validation");
+  const tCommon = useTranslations("common");
+  const errorMessage = useApiErrorMessage();
   const user = useSessionUser();
   const cache = useQueryClient();
+  const schema = useMemo(() => createPostingFormSchema(v), [v]);
   const form = useForm<PostingValues>({
-    resolver: zodResolver(postingFormSchema),
+    resolver: zodResolver(schema),
     defaultValues,
     mode: "onTouched",
   });
@@ -164,11 +152,11 @@ export function PostingForm({
         shouldValidate: true,
       });
       setValue("confirmed", false, { shouldDirty: true });
-      gooeyToast.success("Requirements suggested", {
+      gooeyToast.success(t("suggested.title"), {
         description:
           suggestion.requirements.length > 0
-            ? `${suggestion.requirements.length} requirements are ready to review.`
-            : "We didn't find any requirements. Add them yourself below.",
+            ? t("suggested.ready", { count: suggestion.requirements.length })
+            : t("suggested.none"),
       });
     },
   });
@@ -236,58 +224,49 @@ export function PostingForm({
     if (!file) return;
     upload.reset();
     if (!isPdf(file)) {
-      setFileError("Choose a PDF file.");
+      setFileError(t("pdf.notPdf"));
       return;
     }
     if (file.size > PDF_MAX_BYTES) {
-      setFileError("That PDF is too large. Choose one up to 5 MB.");
+      setFileError(t("pdf.tooLarge"));
       return;
     }
     setFileError(null);
     upload.mutate(file);
   };
 
-  const uploadMessage = (() => {
-    if (!upload.isError) return null;
-    const { message } = apiError(upload.error);
-    return message ?? "We couldn't upload that PDF. Try again.";
-  })();
+  const uploadMessage = upload.isError
+    ? errorMessage(upload.error, t("pdf.uploadFailed"))
+    : null;
 
   const submit = handleSubmit((values) => {
     if (submitting) return;
     if (requirementsChanged && !values.confirmed) {
       setError("confirmed", {
         type: "manual",
-        message:
-          "Confirm that you reviewed the requirements before submitting.",
+        message: v("confirmRequired"),
       });
       return;
     }
     onSubmit(values, requirementsChanged);
   });
 
-  const extractMessage = (() => {
-    if (!extract.isError) return null;
-    const { message } = apiError(extract.error);
-    return `${message ?? "We couldn't read requirements from this job description."} Your PDF is still uploaded. Try again, or add the requirements yourself.`;
-  })();
+  const extractMessage = extract.isError
+    ? t("suggest.failed", {
+        reason: errorMessage(extract.error, t("suggest.failedReason")),
+      })
+    : null;
 
   return (
     <form
-      aria-label={mode === "create" ? "Create job posting" : "Edit job posting"}
+      aria-label={mode === "create" ? t("createLabel") : t("editLabel")}
       noValidate
       onSubmit={(event) => void submit(event)}
     >
       <FormSection
-        title="Job description"
+        title={t("jd.title")}
         contentClassName="space-y-3"
-        description={
-          <>
-            {locks.textEditable
-              ? "Upload the job description as a PDF with selectable text, up to 5 MB. RoleCue reads it and suggests the requirements."
-              : "The PDF is locked while the posting is pending. It can be replaced after a rejection."}
-          </>
-        }
+        description={locks.textEditable ? t("jd.editable") : t("jd.locked")}
       >
         {posting?.has_document && !dirtyFields.document_id && (
           <JdDocumentLink postingId={posting.id} />
@@ -328,10 +307,10 @@ export function PostingForm({
                     <FileUp aria-hidden />
                   )}
                   {upload.isPending
-                    ? "Reading the PDF…"
+                    ? t("pdf.reading")
                     : rawText
-                      ? "Replace the PDF"
-                      : "Upload the job description PDF"}
+                      ? t("pdf.replace")
+                      : t("pdf.upload")}
                 </Button>
                 {fileName && !upload.isPending && (
                   <span className="text-sm font-medium [overflow-wrap:anywhere]">
@@ -343,9 +322,7 @@ export function PostingForm({
                 id="posting-pdf-hint"
                 className="text-xs text-muted-foreground"
               >
-                {mode === "edit"
-                  ? "A new PDF replaces the current one when you save."
-                  : "Scanned PDFs without selectable text can't be read."}
+                {mode === "edit" ? t("pdf.hintEdit") : t("pdf.hintCreate")}
               </p>
               <FieldErrorText id="posting-pdf" error={errors.raw_text} />
               {(fileError ?? uploadMessage) && (
@@ -356,16 +333,16 @@ export function PostingForm({
             </div>
             {rawText && (
               <div className="space-y-1">
-                <p className="text-sm font-medium">Text read from the PDF</p>
+                <p className="text-sm font-medium">{t("pdf.textRead")}</p>
                 <div
                   tabIndex={0}
-                  aria-label="Text read from the PDF"
+                  aria-label={t("pdf.textRead")}
                   className="max-h-72 overflow-y-auto rounded-lg border bg-muted/50 p-4 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]"
                 >
                   {rawText}
                 </div>
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {fmt.number(textLength)} characters
+                  {t("pdf.characters", { count: textLength })}
                 </p>
               </div>
             )}
@@ -389,17 +366,14 @@ export function PostingForm({
                 ) : (
                   <ScanText aria-hidden />
                 )}
-                {extract.isPending
-                  ? "Reading requirements…"
-                  : "Suggest requirements"}
+                {extract.isPending ? t("suggest.reading") : t("suggest.button")}
               </Button>
             </div>
             <p
               id="posting-extract-hint"
               className="text-xs text-muted-foreground"
             >
-              Suggesting again replaces the requirements below. Nothing is saved
-              until you submit.
+              {t("suggest.hint")}
             </p>
             {extractMessage && (
               <p role="alert" className="text-sm text-destructive">
@@ -416,19 +390,14 @@ export function PostingForm({
 
       <FormSection
         id="posting-requirements"
-        title="Role and requirements"
+        title={t("role.title")}
         contentClassName="space-y-5"
-        description={
-          <>
-            Candidates are interviewed on these requirements, and the question
-            bank is built from them.
-          </>
-        }
+        description={t("role.description")}
       >
         <TextField
           id="posting-title"
-          label="Title (required)"
-          placeholder="e.g. Senior Backend Engineer"
+          label={t("role.titleLabel")}
+          placeholder={t("role.titlePlaceholder")}
           error={errors.title}
           disabled={busy}
           registration={register("title")}
@@ -439,12 +408,7 @@ export function PostingForm({
           <>
             {mode === "edit" && questionCount > 0 && (
               <Notice tone="warning">
-                <p>
-                  Replacing the job description PDF or changing the seniority,
-                  requirements or refinement note deletes the {questionCount}{" "}
-                  questions in this posting&apos;s question bank. You can
-                  generate them again afterwards.
-                </p>
+                <p>{t("role.deleteWarning", { count: questionCount })}</p>
               </Notice>
             )}
             <div className="space-y-2">
@@ -452,7 +416,7 @@ export function PostingForm({
                 htmlFor="posting-seniority"
                 className="text-sm font-medium"
               >
-                Seniority (required)
+                {t("role.seniorityLabel")}
               </label>
               <Controller
                 control={control}
@@ -474,12 +438,14 @@ export function PostingForm({
                       )}
                       onBlur={field.onBlur}
                     >
-                      <SelectValue placeholder="Choose seniority" />
+                      <SelectValue
+                        placeholder={t("role.seniorityPlaceholder")}
+                      />
                     </SelectTrigger>
                     <SelectContent position="popper" align="start">
                       {levels.map((level) => (
                         <SelectItem key={level} value={level}>
-                          {levelText[level]}
+                          {tp(`level.${level}`)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -497,12 +463,11 @@ export function PostingForm({
               aria-describedby="posting-requirements-error"
             >
               <legend className="text-sm font-medium">
-                Requirements (at least one)
+                {t("role.requirementsLegend")}
               </legend>
               {rows.fields.length === 0 ? (
                 <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                  No requirements yet. Use Suggest requirements above, or add
-                  them yourself.
+                  {t("role.noRequirements")}
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -510,7 +475,7 @@ export function PostingForm({
                     const nameError = errors.requirements?.[index]?.name;
                     const label =
                       requirementValues[index]?.name.trim() ||
-                      `requirement ${index + 1}`;
+                      t("role.requirementFallback", { number: index + 1 });
                     return (
                       <li
                         key={row.id}
@@ -521,7 +486,7 @@ export function PostingForm({
                             htmlFor={`requirement-${index}-name`}
                             className="text-xs font-medium"
                           >
-                            Requirement {index + 1}
+                            {t("role.requirementLabel", { number: index + 1 })}
                           </label>
                           <Input
                             id={`requirement-${index}-name`}
@@ -542,24 +507,30 @@ export function PostingForm({
                         </div>
                         <RowSelect
                           id={`requirement-${index}-target`}
-                          label="Kind"
+                          label={t("role.kind")}
                           control={control}
                           name={`requirements.${index}.target`}
                           disabled={busy}
                           options={requirementTargets.map((target) => ({
                             value: target,
-                            label: targetText[target],
+                            label: tp(`target.${target}`),
                           }))}
                         />
                         <RowSelect
                           id={`requirement-${index}-type`}
-                          label="Priority"
+                          label={t("role.priority")}
                           control={control}
                           name={`requirements.${index}.type`}
                           disabled={busy}
                           options={[
-                            { value: "required", label: "Required" },
-                            { value: "preferred", label: "Preferred" },
+                            {
+                              value: "required",
+                              label: tp("priority.required"),
+                            },
+                            {
+                              value: "preferred",
+                              label: tp("priority.preferred"),
+                            },
                           ]}
                         />
                         <Button
@@ -567,7 +538,7 @@ export function PostingForm({
                           variant="ghost"
                           className="size-11 self-end"
                           disabled={busy}
-                          aria-label={`Remove ${label}`}
+                          aria-label={t("role.remove", { name: label })}
                           onClick={() => rows.remove(index)}
                         >
                           <Trash2 aria-hidden />
@@ -591,7 +562,7 @@ export function PostingForm({
                 }
               >
                 <Plus aria-hidden />
-                Add requirement
+                {t("role.add")}
               </Button>
               {errors.requirements?.root?.message ||
               errors.requirements?.message ? (
@@ -608,9 +579,9 @@ export function PostingForm({
 
             <TextField
               id="posting-refinement"
-              label="Refinement note (optional)"
-              placeholder="e.g. Focus on Go concurrency and PostgreSQL; skip Kubernetes."
-              hint="Guidance for question generation, such as areas to focus on or skip."
+              label={t("role.refinementLabel")}
+              placeholder={t("role.refinementPlaceholder")}
+              hint={t("role.refinementHint")}
               registration={register("refinement_note")}
               disabled={busy}
               error={errors.refinement_note}
@@ -644,7 +615,7 @@ export function PostingForm({
                     )}
                   />
                   <label htmlFor="posting-confirmed" className="text-sm">
-                    I reviewed these requirements and they describe the role.
+                    {t("role.confirm")}
                   </label>
                 </div>
                 <FieldErrorText
@@ -658,31 +629,31 @@ export function PostingForm({
       </FormSection>
 
       <FormSection
-        title="Posting details"
+        title={t("details.title")}
         contentClassName="grid gap-4 sm:grid-cols-2"
-        description={<>Optional. Candidates see these on the posting.</>}
+        description={t("details.description")}
       >
         <TextField
           id="posting-location"
-          label="Location"
-          placeholder="e.g. Ho Chi Minh City or Remote"
+          label={t("details.location")}
+          placeholder={t("details.locationPlaceholder")}
           error={errors.location}
           disabled={busy}
           registration={register("location")}
         />
         <TextField
           id="posting-employment-type"
-          label="Employment type"
-          placeholder="e.g. Full-time"
-          hint="For example Full-time or Contract."
+          label={t("details.employmentType")}
+          placeholder={t("details.employmentTypePlaceholder")}
+          hint={t("details.employmentTypeHint")}
           error={errors.employment_type}
           disabled={busy}
           registration={register("employment_type")}
         />
         <TextField
           id="posting-salary-min"
-          label="Minimum salary"
-          placeholder="e.g. 2000"
+          label={t("details.salaryMin")}
+          placeholder={t("details.salaryMinPlaceholder")}
           inputMode="numeric"
           error={errors.salary_min}
           disabled={busy}
@@ -690,8 +661,8 @@ export function PostingForm({
         />
         <TextField
           id="posting-salary-max"
-          label="Maximum salary"
-          placeholder="e.g. 3500"
+          label={t("details.salaryMax")}
+          placeholder={t("details.salaryMaxPlaceholder")}
           inputMode="numeric"
           error={errors.salary_max}
           disabled={busy}
@@ -699,8 +670,8 @@ export function PostingForm({
         />
         <TextField
           id="posting-duration"
-          label="Interview length (minutes)"
-          placeholder="e.g. 30"
+          label={t("details.duration")}
+          placeholder={t("details.durationPlaceholder")}
           inputMode="numeric"
           error={errors.interview_duration}
           disabled={busy}
@@ -709,19 +680,14 @@ export function PostingForm({
       </FormSection>
 
       <FormSection
-        title="Interviewer"
+        title={t("interviewer.title")}
         contentClassName="grid gap-4 sm:grid-cols-2"
-        description={
-          <>
-            Every applicant is interviewed by this model and voice. Both are
-            required.
-          </>
-        }
+        description={t("interviewer.description")}
       >
         <PickerField
           id="posting-avatar"
-          label="Interviewer model (required)"
-          placeholder="Choose a model"
+          label={t("interviewer.modelLabel")}
+          placeholder={t("interviewer.modelPlaceholder")}
           control={control}
           name="required_avatar_id"
           error={errors.required_avatar_id}
@@ -734,23 +700,13 @@ export function PostingForm({
             label: avatar.name,
           }))}
           current={posting?.required_avatar ?? null}
-          emptyText={
-            <>
-              You don&apos;t have an interviewer model yet.{" "}
-              <StudioLink>Create one in Personal Avatar Studio</StudioLink>
-            </>
-          }
-          hint={
-            <>
-              Create or manage models in{" "}
-              <StudioLink>Personal Avatar Studio</StudioLink>.
-            </>
-          }
+          emptyText={t.rich("interviewer.modelEmpty", { studio: studioLink })}
+          hint={t.rich("interviewer.modelHint", { studio: studioLink })}
         />
         <PickerField
           id="posting-voice"
-          label="Interviewer voice (required)"
-          placeholder="Choose a voice"
+          label={t("interviewer.voiceLabel")}
+          placeholder={t("interviewer.voicePlaceholder")}
           control={control}
           name="required_voice_id"
           error={errors.required_voice_id}
@@ -763,7 +719,7 @@ export function PostingForm({
             label: voice.name,
           }))}
           current={posting?.required_voice ?? null}
-          emptyText="No voices are available yet. An administrator adds them to the catalog."
+          emptyText={t("interviewer.voiceEmpty")}
         />
         {avatarId && (
           <div className="sm:col-span-2">
@@ -776,11 +732,7 @@ export function PostingForm({
         )}
       </FormSection>
 
-      <p className="text-sm text-muted-foreground">
-        Next, review your question bank and evaluation criteria before
-        submitting. After approval, fund interview slots to publish this
-        posting.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("next")}</p>
 
       {submitError && (
         <Notice role="alert" tone="danger">
@@ -806,14 +758,16 @@ export function PostingForm({
           )}
           {requirementsChanged
             ? submitting
-              ? "Generating questions…"
-              : "Confirm & generate questions"
+              ? t("submit.generating")
+              : t("submit.generate")
             : submitting
-              ? "Saving…"
-              : "Save changes"}
+              ? tCommon("actions.saving")
+              : t("submit.save")}
         </Button>
         <Button asChild variant="ghost" className="h-10 rounded-full px-4">
-          <Link href={routes.recruiter.jobPostings}>Cancel</Link>
+          <Link href={routes.recruiter.jobPostings}>
+            {tCommon("actions.cancel")}
+          </Link>
         </Button>
         <p
           role="status"
@@ -822,10 +776,10 @@ export function PostingForm({
         >
           {submitting
             ? requirementsChanged
-              ? "Saving requirements and generating questions…"
-              : "Saving your changes…"
+              ? t("status.generating")
+              : t("status.saving")
             : mode === "edit" && isDirty
-              ? "You have unsaved changes."
+              ? t("status.unsaved")
               : ""}
         </p>
       </div>
@@ -979,9 +933,11 @@ function PickerField({
   onRetry: () => void;
   options: { value: string; label: string }[];
   current: { id: string; name: string | null } | null;
-  emptyText: React.ReactNode;
-  hint?: React.ReactNode;
+  emptyText: ReactNode;
+  hint?: ReactNode;
 }) {
+  const t = useTranslations("recruiter.postings.form.picker");
+  const tCommon = useTranslations("common");
   // A saved choice that is no longer listed (e.g. a voice deactivated since) still shows, and the
   // backend accepts it unchanged.
   const all =
@@ -990,7 +946,7 @@ function PickerField({
           ...options,
           {
             value: current.id,
-            label: `${current.name ?? "Unnamed"} (no longer available)`,
+            label: t("unavailable", { name: current.name ?? t("unnamed") }),
           },
         ]
       : options;
@@ -1002,20 +958,18 @@ function PickerField({
       {loading ? (
         <div role="status">
           <Skeleton className="h-11 rounded-md" />
-          <span className="sr-only">Loading choices…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : failed ? (
         <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-destructive">
-            We couldn&apos;t load the choices.
-          </span>
+          <span className="text-destructive">{t("error")}</span>
           <Button
             type="button"
             variant="outline"
             className="h-10 rounded-full px-4"
             onClick={onRetry}
           >
-            Try again
+            {tCommon("actions.tryAgain")}
           </Button>
         </div>
       ) : all.length === 0 ? (
@@ -1064,7 +1018,8 @@ function PickerField({
 }
 
 // Opens in a new tab so the posting draft stays as it is.
-function StudioLink({ children }: { children: React.ReactNode }) {
+function StudioLink({ children }: { children: ReactNode }) {
+  const tCommon = useTranslations("common");
   return (
     <Link
       href={routes.avatarStudio}
@@ -1073,35 +1028,39 @@ function StudioLink({ children }: { children: React.ReactNode }) {
       className="font-medium text-foreground underline underline-offset-4"
     >
       {children}
-      <span className="sr-only"> (opens in a new tab)</span>
+      <span className="sr-only"> {tCommon("labels.opensInNewTab")}</span>
     </Link>
   );
 }
 
+const studioLink = (chunks: ReactNode) => <StudioLink>{chunks}</StudioLink>;
+
 // Shows the saved seniority and requirements: they are what the question bank was built from.
 function LockedRequirements({ posting }: { posting?: JobPosting }) {
+  const t = useTranslations("recruiter.postings.form.locked");
+  const tp = useTranslations("recruiter.postings");
   if (!posting) return null;
   return (
     <div className="space-y-3">
       <Notice tone="locked">
         <p>
-          Seniority, requirements and refinement note are locked because this
-          posting&apos;s question bank was generated from them. Delete its
-          questions to change them.{" "}
+          {t("notice")}{" "}
           <Link
             href={routes.recruiter.jobPostingQuestions(posting.id)}
             className="font-medium underline underline-offset-4"
           >
-            Open the question bank
+            {t("open")}
           </Link>
         </p>
       </Notice>
       <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[9rem_minmax(0,1fr)]">
-        <dt className="text-muted-foreground">Seniority</dt>
-        <dd className="font-medium">{levelText[posting.seniority_level]}</dd>
+        <dt className="text-muted-foreground">{t("seniority")}</dt>
+        <dd className="font-medium">
+          {tp(`level.${posting.seniority_level}`)}
+        </dd>
         {posting.refinement_note && (
           <>
-            <dt className="text-muted-foreground">Refinement note</dt>
+            <dt className="text-muted-foreground">{t("refinementNote")}</dt>
             <dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">
               {posting.refinement_note}
             </dd>
@@ -1118,8 +1077,10 @@ function LockedRequirements({ posting }: { posting?: JobPosting }) {
               {row.name}
             </span>
             <span className="text-muted-foreground">
-              {targetText[row.target]} ·{" "}
-              {row.type === "required" ? "Required" : "Preferred"}
+              {tp("requirementMeta", {
+                kind: tp(`target.${row.target}`),
+                priority: tp(`priority.${row.type}`),
+              })}
             </span>
           </li>
         ))}
@@ -1128,7 +1089,7 @@ function LockedRequirements({ posting }: { posting?: JobPosting }) {
   );
 }
 
-export { FormSection, levelText, targetText };
+export { FormSection };
 
 // One part of the posting: what it is for on the left, its fields on the right. On a phone the
 // description sits above the fields.

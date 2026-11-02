@@ -71,7 +71,7 @@ function failure(status: number) {
     config: { headers: new AxiosHeaders() },
   });
 }
-function mount(filters = defaultListFilters) {
+function mount(filters = defaultListFilters, locale: "en" | "vi" = "en") {
   mocks.search = new URLSearchParams(listSearch(filters));
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
@@ -81,6 +81,7 @@ function mount(filters = defaultListFilters) {
     <QueryClientProvider client={client}>
       <JobPostingList />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -255,5 +256,56 @@ describe("JobPostingList", () => {
     expect(
       screen.getByRole("link", { name: "Go to the first page" }),
     ).toHaveAttribute("href", "/recruiter/job-postings");
+  });
+
+  it("lists postings in Vietnamese, with dates formatted for the language", async () => {
+    mocks.get.mockResolvedValue(
+      page([summary(0), summary(1, "rejected", "Thiếu mức lương")]),
+    );
+    mount(defaultListFilters, "vi");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Tin tuyển dụng của tôi",
+      }),
+    ).toBeInTheDocument();
+    const table = await screen.findByRole("table");
+    expect(
+      within(table).getByRole("columnheader", { name: "Tin tuyển dụng" }),
+    ).toBeInTheDocument();
+    expect(within(table).getByText("Đang chờ duyệt")).toBeInTheDocument();
+    expect(within(table).getByText("Bị từ chối")).toBeInTheDocument();
+    // The Admin's reason is content and stays as typed.
+    expect(
+      within(table).getByText("Lý do: Thiếu mức lương"),
+    ).toBeInTheDocument();
+    expect(within(table).getAllByText("12 thg 10, 2026")).not.toHaveLength(0);
+    expect(
+      within(table).getByRole("link", { name: "Chỉnh sửa Posting 1" }),
+    ).toBeInTheDocument();
+    expect(
+      within(table).getByRole("link", { name: "Chỉnh sửa Posting 2" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Phân trang" }),
+    ).toHaveTextContent("Hiển thị 1–2 trên 2");
+    expect(
+      screen.getByRole("search", { name: "Tìm tin tuyển dụng của bạn" }),
+    ).toBeInTheDocument();
+  });
+
+  it("words the empty states and the fund link in Vietnamese", async () => {
+    mocks.get.mockResolvedValue(page([]));
+    mount({ status: "approved", search: "", page: 1 }, "vi");
+
+    expect(
+      await screen.findByText(
+        "Không có tin đã duyệt nào đang chờ nạp lượt phỏng vấn.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Hiện tất cả tin tuyển dụng" }),
+    ).toBeInTheDocument();
   });
 });

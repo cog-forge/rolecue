@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
 import { gooeyToast } from "goey-toast";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ import {
   apiError,
   isAccessDenied,
 } from "@/features/recruiter/job-postings/utils/api-error";
+import { apiErrorMessage } from "@/lib/i18n/api-errors";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 import { cn } from "@/lib/utils";
 import {
   evaluationKeys,
@@ -45,6 +48,9 @@ const staleCodes = new Set([
 ]);
 
 export function EvaluationCriteria({ postingId }: { postingId: string }) {
+  const t = useTranslations("recruiter.evaluation");
+  const tCommon = useTranslations("common");
+  const navT = useTranslations("common.shell.nav.items");
   const user = useSessionUser();
   const cache = useQueryClient();
   // Remounts the form on the server's values after a save or a refresh.
@@ -75,23 +81,27 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
     if (denied) void cache.invalidateQueries({ queryKey: ["auth", "me"] });
   }, [cache, denied]);
 
-  const back = { href: routes.recruiter.jobPostings, label: "My Job Postings" };
+  const back = {
+    href: routes.recruiter.jobPostings,
+    label: navT("myJobPostings"),
+  };
 
   if (weights.isPending || metrics.isPending)
     return (
       <section className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeader back={back} title="Evaluation criteria" />
+        <PageHeader back={back} title={t("title")} />
         <div role="status" className="space-y-3">
           <Skeleton className="h-64 rounded-xl" />
-          <span className="sr-only">Loading the evaluation criteria…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       </section>
     );
   if (weights.isError || metrics.isError || !weights.data || !metrics.data) {
     const notFound = [400, 404].includes(apiError(weights.error).status);
+    const failure = denied ? "denied" : notFound ? "notFound" : "failed";
     return (
       <section className="mx-auto w-full max-w-3xl space-y-6">
-        <PageHeader back={back} title="Evaluation criteria" />
+        <PageHeader back={back} title={t("title")} />
         <div
           role="alert"
           className={cn(
@@ -100,18 +110,12 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
           )}
         >
           <h2 className="text-base font-semibold">
-            {denied
-              ? "You don't have access to evaluation criteria"
-              : notFound
-                ? "We couldn't find this job posting"
-                : "We couldn't load the evaluation criteria"}
+            {t(`loadError.${failure}.title`)}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {denied
-              ? "Checking your account access… If this stays, sign in again with a recruiter account."
-              : notFound
-                ? "It may have been removed, or it belongs to another recruiter."
-                : "Please try again in a moment."}
+            {failure === "failed"
+              ? tCommon("messages.tryAgainLater")
+              : t(`loadError.${failure}.description`)}
           </p>
           {!denied && !notFound && (
             <Button
@@ -123,7 +127,7 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
                 void metrics.refetch();
               }}
             >
-              Try again
+              {tCommon("actions.tryAgain")}
             </Button>
           )}
         </div>
@@ -142,8 +146,8 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
     <section className="mx-auto w-full max-w-5xl space-y-6">
       <PageHeader
         back={back}
-        title="Evaluation criteria"
-        description="Decide how much each skill counts when a candidate’s interview is scored. This is separate from the question bank."
+        title={t("title")}
+        description={t("description")}
       />
       <PostingTabs
         postingId={postingId}
@@ -174,9 +178,7 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
               refresh();
             }}
             onStale={() => {
-              setNotice(
-                "This posting changed, so we refreshed the criteria and your unsaved changes were discarded.",
-              );
+              setNotice(t("staleNotice"));
               refresh();
             }}
           />
@@ -185,10 +187,10 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
         )}
         <ConfirmDialog
           open={guard.leaving}
-          title="Leave without saving?"
-          description="Your changes to the weights haven’t been saved. If you leave now, they will be lost."
-          cancelLabel="Stay on this page"
-          confirmLabel="Leave without saving"
+          title={t("leaveDialog.title")}
+          description={t("leaveDialog.description")}
+          cancelLabel={t("leaveDialog.stay")}
+          confirmLabel={t("leaveDialog.leave")}
           onCancel={guard.stay}
           onConfirm={guard.leave}
         />
@@ -214,12 +216,17 @@ function WeightsForm({
   onStale: () => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
+  const t = useTranslations("recruiter.evaluation");
+  const tCommon = useTranslations("common");
+  const draftsT = useTranslations("recruiter.evaluation.drafts");
+  const errorsT = useTranslations("errors");
+  const fmt = useFormatters();
   const cache = useQueryClient();
   const form = useForm<{ drafts: WeightDrafts }>({
     defaultValues: { drafts: weightDrafts(metrics, saved) },
   });
   const drafts = useWatch({ control: form.control, name: "drafts" });
-  const evaluation = evaluateDrafts(metrics, drafts, saved.total);
+  const evaluation = evaluateDrafts(metrics, drafts, saved.total, draftsT, fmt);
   const dirty = form.formState.isDirty;
 
   const save = useMutation({
@@ -228,7 +235,7 @@ function WeightsForm({
     retry: false,
     onSuccess: (next) => {
       onSaved(next);
-      gooeyToast.success("Evaluation criteria saved");
+      gooeyToast.success(t("toast.saved"));
     },
     onError: (failure) => {
       if (isAccessDenied(failure))
@@ -246,7 +253,7 @@ function WeightsForm({
     onSuccess: (next) => {
       setConfirmReset(false);
       onReset(next);
-      gooeyToast.success("Default weights restored");
+      gooeyToast.success(t("toast.restored"));
     },
     onError: (failure) => {
       if (isAccessDenied(failure))
@@ -267,27 +274,36 @@ function WeightsForm({
     return () => onDirtyChange(false);
   }, [dirty, onDirtyChange]);
 
+  // The server's own text is never shown: the message is chosen by the error code.
   const serverError =
     save.isError && !staleCodes.has(apiError(save.error).code ?? "")
       ? isAccessDenied(save.error)
-        ? "You don't have access to edit these criteria. Checking your account access…"
-        : `${apiError(save.error).message ?? "We couldn't save the criteria."} Your changes are still here.`
+        ? t("editDenied")
+        : t("saveError", {
+            reason: apiErrorMessage(errorsT, save.error, t("saveFailed")),
+          })
       : null;
   const resetError =
     reset.isError && !staleCodes.has(apiError(reset.error).code ?? "")
       ? isAccessDenied(reset.error)
-        ? "You don't have access to edit these criteria. Checking your account access…"
-        : (apiError(reset.error).message ?? "We couldn't reset the criteria.")
+        ? t("editDenied")
+        : apiErrorMessage(errorsT, reset.error, t("resetFailed"))
       : null;
   const sumLabel =
     saved.total > 0
-      ? `${formatSum(evaluation.sum, saved.total)} of ${formatPercent(saved.total)}`
-      : formatPercent(evaluation.sum);
+      ? t("sumOf", {
+          sum: formatSum(evaluation.sum, saved.total, fmt),
+          total: formatPercent(saved.total, fmt),
+        })
+      : formatPercent(evaluation.sum, fmt);
+  // How the equal-split defaults are described: split a total, or every metric counting the same.
+  const splitMode = saved.total > 0 ? "split" : "same";
+  const splitTotal = formatPercent(saved.total, fmt);
 
   return (
     <form
       noValidate
-      aria-label="Evaluation criteria"
+      aria-label={t("title")}
       className="space-y-6"
       onSubmit={form.handleSubmit(() => {
         if (save.isPending || !evaluation.body || !dirty) return;
@@ -295,21 +311,14 @@ function WeightsForm({
       })}
     >
       {saved.using_defaults && (
-        <Notice tone="info" title="Using the default weights">
-          <p>
-            You haven&rsquo;t saved your own weights, so interviews are scored
-            with{" "}
-            {saved.total > 0
-              ? `the total of ${formatPercent(saved.total)} split equally across every metric`
-              : "every metric counting the same"}
-            . This doesn&rsquo;t block approval. Save your own to change it.
-          </p>
+        <Notice tone="info" title={t("defaults.title")}>
+          <p>{t("defaults.body", { mode: splitMode, total: splitTotal })}</p>
         </Notice>
       )}
       <Card>
         <CardHeader>
           <CardTitle>
-            <h2>Weights</h2>
+            <h2>{t("weights.title")}</h2>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -367,7 +376,7 @@ function WeightsForm({
               evaluation.valid ? "text-muted-foreground" : "text-foreground",
             )}
           >
-            <span className="font-medium">Total</span>
+            <span className="font-medium">{t("weights.total")}</span>
             <span className="tabular-nums">{sumLabel}</span>
           </p>
           {evaluation.formError && dirty && (
@@ -397,7 +406,7 @@ function WeightsForm({
               aria-hidden
             />
           )}
-          {save.isPending ? "Saving…" : "Save criteria"}
+          {save.isPending ? tCommon("actions.saving") : t("save")}
         </Button>
         <Button
           type="button"
@@ -406,14 +415,18 @@ function WeightsForm({
           disabled={!dirty || busy}
           onClick={() => form.reset()}
         >
-          Discard changes
+          {t("discard")}
         </Button>
         <p
           role="status"
           aria-live="polite"
           className="text-xs text-muted-foreground"
         >
-          {save.isPending ? "Saving…" : dirty ? "Unsaved changes" : ""}
+          {save.isPending
+            ? tCommon("actions.saving")
+            : dirty
+              ? t("unsaved")
+              : ""}
         </p>
         {saved.configured && (
           <Button
@@ -426,26 +439,21 @@ function WeightsForm({
               setConfirmReset(true);
             }}
           >
-            Reset to default weights
+            {t("resetDefault")}
           </Button>
         )}
       </div>
       <ConfirmDialog
         open={confirmReset}
-        title="Reset to the default weights?"
-        description={
-          <>
-            Your saved weights will be deleted and interviews will be scored
-            with{" "}
-            {saved.total > 0
-              ? `the total of ${formatPercent(saved.total)} split equally across every metric`
-              : "every metric counting the same"}{" "}
-            again.{dirty && " Your unsaved changes will be discarded too."}
-          </>
-        }
-        cancelLabel="Keep my weights"
-        confirmLabel="Reset weights"
-        pendingLabel="Resetting…"
+        title={t("resetDialog.title")}
+        description={t("resetDialog.description", {
+          mode: splitMode,
+          total: splitTotal,
+          dirty: dirty ? "yes" : "no",
+        })}
+        cancelLabel={t("resetDialog.cancel")}
+        confirmLabel={t("resetDialog.confirm")}
+        pendingLabel={t("resetDialog.pending")}
         pending={reset.isPending}
         error={resetError}
         onCancel={() => setConfirmReset(false)}
@@ -456,25 +464,24 @@ function WeightsForm({
 }
 
 function ReadOnlyWeights({ saved }: { saved: PostingWeights }) {
+  const t = useTranslations("recruiter.evaluation");
+  const fmt = useFormatters();
   const sum = saved.weights.reduce((acc, weight) => acc + weight.percentage, 0);
   return (
     <div className="space-y-6">
       <Notice tone="locked">
-        <p>
-          This posting was approved, so its evaluation criteria can no longer be
-          edited.
-        </p>
+        <p>{t("readOnly.locked")}</p>
       </Notice>
       <Card>
         <CardHeader>
           <CardTitle>
-            <h2>Weights</h2>
+            <h2>{t("weights.title")}</h2>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {saved.using_defaults && (
             <p className="text-sm text-muted-foreground">
-              No custom weights were saved, so every metric counts the same.
+              {t("readOnly.noCustom")}
             </p>
           )}
           <ul className="divide-y rounded-xl border bg-muted/20 text-sm">
@@ -487,14 +494,14 @@ function ReadOnlyWeights({ saved }: { saved: PostingWeights }) {
                   {weight.name}
                 </span>
                 <span className="tabular-nums">
-                  {formatPercent(weight.percentage)}%
+                  {formatPercent(weight.percentage, fmt)}%
                 </span>
               </li>
             ))}
           </ul>
           <p className="flex justify-between text-sm">
-            <span className="font-medium">Total</span>
-            <span className="tabular-nums">{formatPercent(sum)}%</span>
+            <span className="font-medium">{t("weights.total")}</span>
+            <span className="tabular-nums">{formatPercent(sum, fmt)}%</span>
           </p>
         </CardContent>
       </Card>

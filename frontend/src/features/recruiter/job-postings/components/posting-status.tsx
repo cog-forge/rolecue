@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { PostingStatus as Status } from "../schemas/job-posting-schema";
 
@@ -14,17 +15,6 @@ type Stage =
   | "closed"
   | "rejected";
 
-const stageText: Record<Stage, string> = {
-  preparing: "Preparing",
-  ready: "Ready to submit",
-  pending: "Pending review",
-  approved: "Approved · Funding required",
-  approved_unknown: "Approved",
-  open: "Live",
-  intake_closed: "Intake closed",
-  closed: "Closed",
-  rejected: "Rejected",
-};
 // One pale tint with dark text of the same hue per stage; blue marks the stage that waits on
 // the Recruiter, amber the one that waits on an administrator.
 const toneClass: Record<Stage, string> = {
@@ -66,10 +56,6 @@ function stageOf(
   return ready ? "ready" : "preparing";
 }
 
-export function postingStatusLabel(status: Status) {
-  return stageText[status];
-}
-
 // Status is always text plus a dot, never colour alone (team design rule).
 export function PostingStatus({
   status,
@@ -84,6 +70,7 @@ export function PostingStatus({
   reviewSubmitted: boolean;
   interviewSlot?: number | null;
 }) {
+  const t = useTranslations("recruiter.postings.status");
   const stage = stageOf(
     status,
     questionBankReady,
@@ -93,7 +80,7 @@ export function PostingStatus({
   return (
     <span
       className={cn(
-        "inline-flex h-6 flex-none items-center gap-1.5 rounded-full px-2.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset",
+        "inline-flex min-h-6 max-w-full flex-none items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs leading-snug font-medium ring-1 ring-inset",
         toneClass[stage],
         className,
       )}
@@ -102,7 +89,7 @@ export function PostingStatus({
         aria-hidden
         className={cn("size-1.5 shrink-0 rounded-full", dotClass[stage])}
       />
-      {stageText[stage]}
+      {t(stage)}
     </span>
   );
 }
