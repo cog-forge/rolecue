@@ -17,7 +17,8 @@ func ProvideInterviewRepository(pool *pgxpool.Pool) *repository.Repository {
 // and hands completed sessions to the evaluation engine.
 func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, scoring *evaluationservice.Scoring) (*service.Service, error) {
 	svc, err := service.New(repo, service.Settings{
-		QuestionLimit: int32(cfg.Interview.QuestionLimit),
+		QuestionLimit:          int32(cfg.Interview.QuestionLimit),
+		DefaultProviderVoiceID: cfg.Interview.DefaultProviderVoiceID,
 	})
 	if err != nil {
 		return nil, err
@@ -36,6 +37,7 @@ func ProvideInterviewHandlers(
 	history *handler.InterviewHistoryHandler,
 	report *handler.InterviewReportHandler,
 	recording *handler.InterviewRecordingHandler,
+	live *handler.InterviewLiveHandler,
 ) *handler.InterviewHandlers {
-	return handler.NewInterviewHandlers(sessions, history, report, recording)
+	return handler.NewInterviewHandlers(sessions, history, report, recording, live)
 }

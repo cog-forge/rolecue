@@ -196,12 +196,53 @@ const MaxQuestionBankSize = 100
 // InterviewConfig holds the interview session settings. QuestionLimit is the most core questions one
 // session asks (0 uses the default of 8). The practice price is a fixed team decision, not configuration
 // (interview/domain.PracticeInterviewCoins).
+//
+// The live interview engine (docs/interview-ws-protocol.md §10) adds: STTProvider, the speech-to-text
+// adapter ("fake" until KAN-55 adds a real one; empty means fake); STTTimeout, the bound of one
+// transcription (0 uses 30s); DefaultProviderVoiceID, the provider voice of a session without its own
+// voice (default en-US-JennyNeural, team decision 2026-10-30; set it empty for text-only turns); and TTSCacheEntries, the size of the in-memory synthesis cache (0
+// disables it).
 type InterviewConfig struct {
-	QuestionLimit int `mapstructure:"question_limit"`
+	QuestionLimit          int           `mapstructure:"question_limit"`
+	STTProvider            string        `mapstructure:"stt_provider"`
+	STTTimeout             time.Duration `mapstructure:"stt_timeout"`
+	DefaultProviderVoiceID string        `mapstructure:"default_provider_voice_id"`
+	TTSCacheEntries        int           `mapstructure:"tts_cache_entries"`
 }
 
 // MaxInterviewQuestionLimit bounds INTERVIEW_QUESTION_LIMIT to a sane technical range.
 const MaxInterviewQuestionLimit = 20
+
+// STTProviderFake is the deterministic development transcriber, the only one until KAN-55.
+const STTProviderFake = "fake"
+
+// Bounds of the live interview settings.
+const (
+	MinInterviewSTTTimeout      = time.Second
+	MaxInterviewSTTTimeout      = 2 * time.Minute
+	MaxInterviewTTSCacheEntries = 4096
+	maxProviderVoiceIDLength    = 128
+)
+
+// Validate checks the live interview settings.
+func (c InterviewConfig) Validate() error {
+	if c.QuestionLimit < 0 || c.QuestionLimit > MaxInterviewQuestionLimit {
+		return fmt.Errorf("interview.question_limit must be between 0 and %d", MaxInterviewQuestionLimit)
+	}
+	if c.STTProvider != "" && c.STTProvider != STTProviderFake {
+		return fmt.Errorf("interview.stt_provider must be %q", STTProviderFake)
+	}
+	if c.STTTimeout != 0 && (c.STTTimeout < MinInterviewSTTTimeout || c.STTTimeout > MaxInterviewSTTTimeout) {
+		return fmt.Errorf("interview.stt_timeout must be between %s and %s", MinInterviewSTTTimeout, MaxInterviewSTTTimeout)
+	}
+	if v := c.DefaultProviderVoiceID; len(v) > maxProviderVoiceIDLength || strings.ContainsAny(v, " \t\r\n") {
+		return errors.New("interview.default_provider_voice_id must be one provider voice name")
+	}
+	if c.TTSCacheEntries < 0 || c.TTSCacheEntries > MaxInterviewTTSCacheEntries {
+		return fmt.Errorf("interview.tts_cache_entries must be between 0 and %d", MaxInterviewTTSCacheEntries)
+	}
+	return nil
+}
 
 // EvaluationConfig holds the posting evaluation-weight settings. WeightTotal is the sum a posting's
 // weights must reach (100 = percentages); 0 turns the sum check off. It lives in configuration
@@ -244,55 +285,59 @@ func Load(configPath string) (*Config, error) {
 
 	// Explicitly bind environment variables
 	for key, env := range map[string]string{
-		"storage.endpoint":                   "S3_ENDPOINT",
-		"storage.region":                     "S3_REGION",
-		"storage.bucket":                     "S3_BUCKET",
-		"storage.access_key_id":              "S3_ACCESS_KEY_ID",
-		"storage.secret_access_key":          "S3_SECRET_ACCESS_KEY",
-		"storage.session_token":              "S3_SESSION_TOKEN",
-		"database.url":                       "DATABASE_URL",
-		"database.name":                      "DB_DATABASE",
-		"database.user":                      "DB_USERNAME",
-		"database.password":                  "DB_PASSWORD",
-		"database.port":                      "DB_PORT",
-		"auth.public_url":                    "AUTH_BASE_URL",
-		"auth.admin_secret":                  "ADMIN_AUTH_INTERNAL_SECRET",
-		"auth.timeout":                       "AUTH_SESSION_TIMEOUT",
-		"auth.cookie_prefix":                 "BETTER_AUTH_COOKIE_PREFIX",
-		"auth.cookie_domain":                 "BETTER_AUTH_COOKIE_DOMAIN",
-		"auth.secure_cookies":                "AUTH_SECURE_COOKIES",
-		"llm.provider":                       "LLM_PROVIDER",
-		"llm.api_key":                        "LLM_API_KEY",
-		"llm.model":                          "LLM_MODEL",
-		"llm.timeout":                        "LLM_TIMEOUT",
-		"llm.max_retries":                    "LLM_MAX_RETRIES",
-		"tts.key":                            "AZURE_SPEECH_KEY",
-		"tts.region":                         "AZURE_SPEECH_REGION",
-		"tts.timeout":                        "TTS_TIMEOUT",
-		"tts.sync_locales":                   "TTS_SYNC_LOCALES",
-		"email.provider":                     "EMAIL_PROVIDER",
-		"email.from":                         "EMAIL_FROM",
-		"email.api_key":                      "RESEND_API_KEY",
-		"email.timeout":                      "EMAIL_TIMEOUT",
-		"email.workers":                      "EMAIL_WORKERS",
-		"email.queue_size":                   "EMAIL_QUEUE_SIZE",
-		"email.max_attempts":                 "EMAIL_MAX_ATTEMPTS",
-		"email.backoff":                      "EMAIL_BACKOFF",
-		"payos.client_id":                    "PAYOS_CLIENT_ID",
-		"payos.api_key":                      "PAYOS_API_KEY",
-		"payos.checksum_key":                 "PAYOS_CHECKSUM_KEY",
-		"payos.timeout":                      "PAYOS_TIMEOUT",
-		"payos.max_retries":                  "PAYOS_MAX_RETRIES",
-		"question_bank.size":                 "QUESTION_BANK_SIZE",
-		"evaluation.weight_total":            "EVALUATION_WEIGHT_TOTAL",
-		"interview.question_limit":           "INTERVIEW_QUESTION_LIMIT",
-		"avatar_conversion.enabled":          "AVATAR_CONVERSION_ENABLED",
-		"avatar_conversion.blender_binary":   "AVATAR_BLENDER_BINARY",
-		"avatar_conversion.timeout":          "AVATAR_CONVERSION_TIMEOUT",
-		"avatar_conversion.max_input_bytes":  "AVATAR_MAX_INPUT_BYTES",
-		"avatar_conversion.max_output_bytes": "AVATAR_MAX_OUTPUT_BYTES",
-		"avatar_conversion.commercial_usage": "AVATAR_VRM_COMMERCIAL_USAGE",
-		"avatar_conversion.license_url":      "AVATAR_VRM_LICENSE_URL",
+		"storage.endpoint":                    "S3_ENDPOINT",
+		"storage.region":                      "S3_REGION",
+		"storage.bucket":                      "S3_BUCKET",
+		"storage.access_key_id":               "S3_ACCESS_KEY_ID",
+		"storage.secret_access_key":           "S3_SECRET_ACCESS_KEY",
+		"storage.session_token":               "S3_SESSION_TOKEN",
+		"database.url":                        "DATABASE_URL",
+		"database.name":                       "DB_DATABASE",
+		"database.user":                       "DB_USERNAME",
+		"database.password":                   "DB_PASSWORD",
+		"database.port":                       "DB_PORT",
+		"auth.public_url":                     "AUTH_BASE_URL",
+		"auth.admin_secret":                   "ADMIN_AUTH_INTERNAL_SECRET",
+		"auth.timeout":                        "AUTH_SESSION_TIMEOUT",
+		"auth.cookie_prefix":                  "BETTER_AUTH_COOKIE_PREFIX",
+		"auth.cookie_domain":                  "BETTER_AUTH_COOKIE_DOMAIN",
+		"auth.secure_cookies":                 "AUTH_SECURE_COOKIES",
+		"llm.provider":                        "LLM_PROVIDER",
+		"llm.api_key":                         "LLM_API_KEY",
+		"llm.model":                           "LLM_MODEL",
+		"llm.timeout":                         "LLM_TIMEOUT",
+		"llm.max_retries":                     "LLM_MAX_RETRIES",
+		"tts.key":                             "AZURE_SPEECH_KEY",
+		"tts.region":                          "AZURE_SPEECH_REGION",
+		"tts.timeout":                         "TTS_TIMEOUT",
+		"tts.sync_locales":                    "TTS_SYNC_LOCALES",
+		"email.provider":                      "EMAIL_PROVIDER",
+		"email.from":                          "EMAIL_FROM",
+		"email.api_key":                       "RESEND_API_KEY",
+		"email.timeout":                       "EMAIL_TIMEOUT",
+		"email.workers":                       "EMAIL_WORKERS",
+		"email.queue_size":                    "EMAIL_QUEUE_SIZE",
+		"email.max_attempts":                  "EMAIL_MAX_ATTEMPTS",
+		"email.backoff":                       "EMAIL_BACKOFF",
+		"payos.client_id":                     "PAYOS_CLIENT_ID",
+		"payos.api_key":                       "PAYOS_API_KEY",
+		"payos.checksum_key":                  "PAYOS_CHECKSUM_KEY",
+		"payos.timeout":                       "PAYOS_TIMEOUT",
+		"payos.max_retries":                   "PAYOS_MAX_RETRIES",
+		"question_bank.size":                  "QUESTION_BANK_SIZE",
+		"evaluation.weight_total":             "EVALUATION_WEIGHT_TOTAL",
+		"interview.question_limit":            "INTERVIEW_QUESTION_LIMIT",
+		"interview.stt_provider":              "INTERVIEW_STT_PROVIDER",
+		"interview.stt_timeout":               "INTERVIEW_STT_TIMEOUT",
+		"interview.default_provider_voice_id": "INTERVIEW_DEFAULT_PROVIDER_VOICE_ID",
+		"interview.tts_cache_entries":         "INTERVIEW_TTS_CACHE_ENTRIES",
+		"avatar_conversion.enabled":           "AVATAR_CONVERSION_ENABLED",
+		"avatar_conversion.blender_binary":    "AVATAR_BLENDER_BINARY",
+		"avatar_conversion.timeout":           "AVATAR_CONVERSION_TIMEOUT",
+		"avatar_conversion.max_input_bytes":   "AVATAR_MAX_INPUT_BYTES",
+		"avatar_conversion.max_output_bytes":  "AVATAR_MAX_OUTPUT_BYTES",
+		"avatar_conversion.commercial_usage":  "AVATAR_VRM_COMMERCIAL_USAGE",
+		"avatar_conversion.license_url":       "AVATAR_VRM_LICENSE_URL",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -403,6 +448,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("question_bank.size", 50)
 	v.SetDefault("evaluation.weight_total", 100)
 	v.SetDefault("interview.question_limit", 8)
+	v.SetDefault("interview.stt_provider", STTProviderFake)
+	v.SetDefault("interview.stt_timeout", "30s")
+	v.SetDefault("interview.default_provider_voice_id", "en-US-JennyNeural")
+	v.SetDefault("interview.tts_cache_entries", 128)
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
 	v.SetDefault("avatar_conversion.timeout", "120s")
@@ -472,8 +521,8 @@ func (c *Config) Validate() error {
 			return errors.New("email workers (1-32), queue_size (1-10000) and max_attempts (1-10) must be in range, timeout and backoff not negative")
 		}
 	}
-	if c.Interview.QuestionLimit < 0 || c.Interview.QuestionLimit > MaxInterviewQuestionLimit {
-		return fmt.Errorf("interview.question_limit must be between 0 and %d", MaxInterviewQuestionLimit)
+	if err := c.Interview.Validate(); err != nil {
+		return err
 	}
 	if math.IsNaN(c.Evaluation.WeightTotal) || c.Evaluation.WeightTotal < 0 || c.Evaluation.WeightTotal > MaxEvaluationWeightTotal {
 		return fmt.Errorf("evaluation.weight_total must be between 0 and %d", MaxEvaluationWeightTotal)

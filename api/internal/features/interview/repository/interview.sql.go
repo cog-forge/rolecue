@@ -147,6 +147,31 @@ func (q *Queries) FindUnfinishedPractice(ctx context.Context, roleProfileID *uui
 	return id, err
 }
 
+const freezeInterviewVoice = `-- name: FreezeInterviewVoice :one
+UPDATE public.interviews i
+SET provider_voice_id = COALESCE(
+        i.provider_voice_id,
+        (SELECT v.provider_voice_id FROM public.voices v WHERE v.id = i.voice_id),
+        NULLIF($1::text, ''))
+WHERE i.id = $2
+RETURNING i.provider_voice_id
+`
+
+type FreezeInterviewVoiceParams struct {
+	DefaultProviderVoiceID string
+	ID                     uuid.UUID
+}
+
+// Freezes the provider voice of a session on its first live delivery: the session voice's provider id,
+// or the configured default when the session has none. Once set it never changes, so a later catalog
+// change does not rewrite how the session was spoken. It stays NULL when neither exists.
+func (q *Queries) FreezeInterviewVoice(ctx context.Context, arg FreezeInterviewVoiceParams) (*string, error) {
+	row := q.db.QueryRow(ctx, freezeInterviewVoice, arg.DefaultProviderVoiceID, arg.ID)
+	var provider_voice_id *string
+	err := row.Scan(&provider_voice_id)
+	return provider_voice_id, err
+}
+
 const getApplicationForInterview = `-- name: GetApplicationForInterview :one
 SELECT status::text AS status,
        COALESCE(interview_deadline > statement_timestamp(), false)::boolean AS within_deadline
@@ -197,7 +222,7 @@ func (q *Queries) GetApplicationPosting(ctx context.Context, arg GetApplicationP
 }
 
 const getInterviewQuestion = `-- name: GetInterviewQuestion :one
-SELECT iq.position, cq.content
+SELECT iq.position, COALESCE(iq.spoken_text, cq.content)::text AS content, iq.asked_at
 FROM public.interview_questions iq
 JOIN public.core_questions cq ON cq.id = iq.core_question_id
 WHERE iq.interview_id = $1 AND iq.position = $2
@@ -211,13 +236,15 @@ type GetInterviewQuestionParams struct {
 type GetInterviewQuestionRow struct {
 	Position int32
 	Content  string
+	AskedAt  pgtype.Timestamptz
 }
 
-// The question at one position of a session, with the bank text as it is now.
+// The question at one position of a session: the text the interviewer spoke once it was delivered live,
+// otherwise the bank text as it is now. asked_at is NULL until the live delivery.
 func (q *Queries) GetInterviewQuestion(ctx context.Context, arg GetInterviewQuestionParams) (GetInterviewQuestionRow, error) {
 	row := q.db.QueryRow(ctx, getInterviewQuestion, arg.InterviewID, arg.Position)
 	var i GetInterviewQuestionRow
-	err := row.Scan(&i.Position, &i.Content)
+	err := row.Scan(&i.Position, &i.Content, &i.AskedAt)
 	return i, err
 }
 
@@ -340,8 +367,8 @@ func (q *Queries) InsertInterviewQuestion(ctx context.Context, arg InsertIntervi
 }
 
 const insertInterviewTurn = `-- name: InsertInterviewTurn :exec
-INSERT INTO public.conversation_turns (interview_id, position, question, answer)
-VALUES ($1, $2, $3, $4)
+INSERT INTO public.conversation_turns (interview_id, position, question, answer, kind, asked_at, answered_at)
+VALUES ($1, $2, $3, $4, 'core', $5, statement_timestamp())
 `
 
 type InsertInterviewTurnParams struct {
@@ -349,14 +376,18 @@ type InsertInterviewTurnParams struct {
 	Position    int32
 	Question    string
 	Answer      *string
+	AskedAt     pgtype.Timestamptz
 }
 
+// A core turn. asked_at is the live delivery time of its question (NULL for an answer to a question that
+// was never delivered live); answered_at is the statement time.
 func (q *Queries) InsertInterviewTurn(ctx context.Context, arg InsertInterviewTurnParams) error {
 	_, err := q.db.Exec(ctx, insertInterviewTurn,
 		arg.InterviewID,
 		arg.Position,
 		arg.Question,
 		arg.Answer,
+		arg.AskedAt,
 	)
 	return err
 }
@@ -521,6 +552,34 @@ WHERE id = $1 AND evaluation_status <> 'completed'
 func (q *Queries) MarkEvaluationFailed(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markEvaluationFailed, id)
 	return err
+}
+
+const markInterviewQuestionAsked = `-- name: MarkInterviewQuestionAsked :one
+UPDATE public.interview_questions iq
+SET spoken_text = COALESCE(iq.spoken_text, cq.content),
+    asked_at = COALESCE(iq.asked_at, statement_timestamp())
+FROM public.core_questions cq
+WHERE cq.id = iq.core_question_id AND iq.interview_id = $1 AND iq.position = $2
+RETURNING iq.spoken_text::text AS spoken_text, iq.asked_at
+`
+
+type MarkInterviewQuestionAskedParams struct {
+	InterviewID uuid.UUID
+	Position    int32
+}
+
+type MarkInterviewQuestionAskedRow struct {
+	SpokenText string
+	AskedAt    pgtype.Timestamptz
+}
+
+// Freezes the question text and the time of its first live delivery. A repeat delivery (a reconnect)
+// keeps the first text and time, so the stored turn always holds what was actually asked.
+func (q *Queries) MarkInterviewQuestionAsked(ctx context.Context, arg MarkInterviewQuestionAskedParams) (MarkInterviewQuestionAskedRow, error) {
+	row := q.db.QueryRow(ctx, markInterviewQuestionAsked, arg.InterviewID, arg.Position)
+	var i MarkInterviewQuestionAskedRow
+	err := row.Scan(&i.SpokenText, &i.AskedAt)
+	return i, err
 }
 
 const setInterviewCompleted = `-- name: SetInterviewCompleted :exec

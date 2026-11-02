@@ -58,12 +58,35 @@ SELECT id FROM public.interviews WHERE start_key = @start_key;
 INSERT INTO public.interview_questions (interview_id, position, core_question_id)
 VALUES (@interview_id, @position, @core_question_id);
 
--- The question at one position of a session, with the bank text as it is now.
+-- The question at one position of a session: the text the interviewer spoke once it was delivered live,
+-- otherwise the bank text as it is now. asked_at is NULL until the live delivery.
 -- name: GetInterviewQuestion :one
-SELECT iq.position, cq.content
+SELECT iq.position, COALESCE(iq.spoken_text, cq.content)::text AS content, iq.asked_at
 FROM public.interview_questions iq
 JOIN public.core_questions cq ON cq.id = iq.core_question_id
 WHERE iq.interview_id = @interview_id AND iq.position = @position;
+
+-- Freezes the question text and the time of its first live delivery. A repeat delivery (a reconnect)
+-- keeps the first text and time, so the stored turn always holds what was actually asked.
+-- name: MarkInterviewQuestionAsked :one
+UPDATE public.interview_questions iq
+SET spoken_text = COALESCE(iq.spoken_text, cq.content),
+    asked_at = COALESCE(iq.asked_at, statement_timestamp())
+FROM public.core_questions cq
+WHERE cq.id = iq.core_question_id AND iq.interview_id = @interview_id AND iq.position = @position
+RETURNING iq.spoken_text::text AS spoken_text, iq.asked_at;
+
+-- Freezes the provider voice of a session on its first live delivery: the session voice's provider id,
+-- or the configured default when the session has none. Once set it never changes, so a later catalog
+-- change does not rewrite how the session was spoken. It stays NULL when neither exists.
+-- name: FreezeInterviewVoice :one
+UPDATE public.interviews i
+SET provider_voice_id = COALESCE(
+        i.provider_voice_id,
+        (SELECT v.provider_voice_id FROM public.voices v WHERE v.id = i.voice_id),
+        NULLIF(@default_provider_voice_id::text, ''))
+WHERE i.id = @id
+RETURNING i.provider_voice_id;
 
 -- name: CountInterviewQuestions :one
 SELECT count(*)::bigint AS questions
@@ -129,9 +152,11 @@ FROM public.conversation_turns
 WHERE interview_id = @interview_id
 ORDER BY position;
 
+-- A core turn. asked_at is the live delivery time of its question (NULL for an answer to a question that
+-- was never delivered live); answered_at is the statement time.
 -- name: InsertInterviewTurn :exec
-INSERT INTO public.conversation_turns (interview_id, position, question, answer)
-VALUES (@interview_id, @position, @question, @answer);
+INSERT INTO public.conversation_turns (interview_id, position, question, answer, kind, asked_at, answered_at)
+VALUES (@interview_id, @position, @question, @answer, 'core', sqlc.narg(asked_at), statement_timestamp());
 
 -- The guard keeps the first completion's time; a repeat changes nothing.
 -- name: SetInterviewCompleted :exec
