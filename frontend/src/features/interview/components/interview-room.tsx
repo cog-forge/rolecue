@@ -28,7 +28,13 @@ import {
   useInterviewerPlaybackController,
   useInterviewerPlaybackStatus,
 } from "../playback/interviewer-playback";
+import {
+  useInterviewRecording,
+  type RecordingMode,
+} from "../recording/use-interview-recording";
+import type { SessionRecorderSnapshot } from "../recording/session-recorder";
 import { useInterviewSession } from "../session/use-interview-session";
+import type { CameraSnapshot } from "../video/camera-capture";
 import { useCamera } from "../video/use-camera";
 import { InterviewerAvatar } from "./interviewer-avatar";
 import { RoomTranscript } from "./room-transcript";
@@ -37,6 +43,12 @@ import { RoomStatus } from "./room-status";
 import { RoomDock } from "./room-controls";
 import { roomGlass } from "./room-control-button";
 import { RoomSelfView } from "./room-self-view";
+import {
+  RecordingGate,
+  RecordingIndicator,
+  RecordingNotice,
+  RecordingUploadPanel,
+} from "./room-recording";
 import { roomBackgrounds, type RoomBackgroundId } from "./room-backgrounds";
 import type { CameraView } from "./room-audio-settings";
 
@@ -66,6 +78,24 @@ export function InterviewRoom({
       />
     </InterviewerPlaybackProvider>
   );
+}
+
+/** The recording's camera, shown in the self-view of a recruitment room. */
+function recordingSelfView(recorder: SessionRecorderSnapshot): CameraSnapshot {
+  return {
+    status:
+      recorder.status === "recording"
+        ? "active"
+        : recorder.status === "requesting"
+          ? "requesting"
+          : recorder.status === "error"
+            ? "error"
+            : "off",
+    stream: recorder.stream,
+    requestPending: recorder.status === "requesting",
+    error: recorder.error,
+    code: null,
+  };
 }
 
 function performanceState(
@@ -113,7 +143,25 @@ function LiveRoom({
   const [sceneReady, setSceneReady] = useState(false);
   const camera = useCamera();
   const microphone = useMicrophone();
-  const { view, session } = useInterviewSession(interviewId, validId);
+  // Recruitment only: the recording starts before the interview, which waits for it. Practice
+  // never records and never calls the recording API.
+  const recordingMode: RecordingMode =
+    details.data?.type !== "recruitment"
+      ? "off"
+      : details.data.completed_at === null
+        ? "live"
+        : "finished";
+  const recording = useInterviewRecording({
+    interviewId,
+    ownerId: userId,
+    mode: recordingMode,
+    micMuted: microphone.snapshot.muted,
+  });
+  const sessionEnabled =
+    validId &&
+    details.data !== undefined &&
+    (recordingMode !== "live" || recording.recorder.started);
+  const { view, session } = useInterviewSession(interviewId, sessionEnabled);
   const playbackController = useInterviewerPlaybackController();
   const playback = useInterviewerPlayback();
   const playbackStatus = useInterviewerPlaybackStatus();
@@ -135,14 +183,26 @@ function LiveRoom({
   );
   const performance = suppliedPerformance ?? livePerformance;
   const completed = view.phase === "COMPLETED";
+  const { finish: finishRecording, pause: pauseRecording } = recording;
+  const recordingOn = recording.enabled;
+  const interrupted = view.end !== null && view.end.reason !== "completed";
   useEffect(() => {
-    if (!completed) return;
+    if (recordingOn && completed) void finishRecording();
+  }, [recordingOn, completed, finishRecording]);
+  useEffect(() => {
+    if (recordingOn && interrupted) pauseRecording();
+  }, [recordingOn, interrupted, pauseRecording]);
+  // A recruitment report opens once its recording is uploaded; until then the room shows the upload.
+  const leaveForReport =
+    completed && (!recordingOn || recording.upload.status === "ready");
+  useEffect(() => {
+    if (!leaveForReport) return;
     const timer = window.setTimeout(
       () => router.replace(routes.reports.detail(interviewId)),
       REPORT_REDIRECT_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [completed, interviewId, router]);
+  }, [leaveForReport, interviewId, router]);
   const sessionType = view.sessionType ?? details.data?.type ?? null;
   const showCaption =
     view.turn !== null &&
@@ -202,6 +262,11 @@ function LiveRoom({
                   {t("followUp.label")}
                 </span>
               )}
+            {recordingOn && recordingMode === "live" && !completed && (
+              <RecordingIndicator
+                recording={recording.recorder.status === "recording"}
+              />
+            )}
             {scripted && (
               <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/65">
                 {t("preview")}
@@ -267,13 +332,41 @@ function LiveRoom({
           className={`absolute right-3 bottom-[104px] left-3 z-30 flex justify-center md:right-6 md:bottom-32 md:left-6 ${transcriptOpen ? "md:pl-[384px] lg:pr-[280px] xl:pl-[414px] 2xl:pl-[444px]" : "lg:pr-[280px]"}`}
         >
           <div className="flex w-full max-w-[520px] flex-col gap-3">
+            {recordingMode === "live" && !recording.recorder.started && (
+              <RecordingGate
+                recorder={recording.recorder}
+                onRetry={recording.retryCamera}
+              />
+            )}
+            {recordingMode === "live" &&
+              recording.recorder.started &&
+              !completed &&
+              !interrupted && (
+                <RecordingNotice
+                  recorder={recording.recorder}
+                  onResume={recording.retryCamera}
+                />
+              )}
             {validId && (
               <RoomStatus
                 view={view}
                 interviewId={interviewId}
                 playback={playbackStatus}
                 onPlay={() => playbackController.resume()}
-                onRetry={() => session.retry()}
+                onRetry={() => {
+                  if (recordingMode === "live") recording.retryCamera();
+                  session.retry();
+                }}
+                completion={
+                  recordingOn ? (
+                    <RecordingUploadPanel
+                      upload={recording.upload}
+                      interviewId={interviewId}
+                      onRetry={recording.retryUpload}
+                      onGiveUp={recording.giveUp}
+                    />
+                  ) : undefined
+                }
               />
             )}
             {showCaption && view.turn && (
@@ -296,7 +389,11 @@ function LiveRoom({
           </div>
         </div>
         <RoomSelfView
-          camera={camera.snapshot}
+          camera={
+            recordingOn
+              ? recordingSelfView(recording.recorder)
+              : camera.snapshot
+          }
           hideOnMobile={transcriptOpen && expanded}
         />
         <RoomDock
@@ -310,6 +407,20 @@ function LiveRoom({
           onCameraViewChange={setCameraView}
           sceneReady={available && sceneReady}
           onReset={() => setReset((value) => value + 1)}
+          recordingCamera={
+            recordingOn
+              ? {
+                  status: recording.recorder.status,
+                  live:
+                    recordingMode === "live" &&
+                    !completed &&
+                    !interrupted &&
+                    recording.recorder.started &&
+                    !recording.recorder.limitReached,
+                  onResume: recording.retryCamera,
+                }
+              : undefined
+          }
         />
       </section>
     </TooltipProvider>

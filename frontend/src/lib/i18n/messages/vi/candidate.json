@@ -399,6 +399,81 @@
         "on": "Micro bật",
         "off": "Micro tắt"
       }
+    },
+    "recording": {
+      "indicator": "Đang ghi hình",
+      "indicatorStopped": "Không ghi hình",
+      "disclosure": {
+        "title": "Buổi phỏng vấn này được ghi hình",
+        "what": "Camera và micrô của bạn được ghi lại trong suốt buổi phỏng vấn.",
+        "who": "Chỉ nhà tuyển dụng của tin tuyển dụng này được xem bản ghi.",
+        "why": "Bản ghi được dùng làm bằng chứng phỏng vấn cho đơn ứng tuyển của bạn.",
+        "retention": "Bản ghi được xóa 90 ngày sau khi có quyết định tuyển dụng."
+      },
+      "gate": {
+        "title": "Bật camera để bắt đầu",
+        "text": "Buổi phỏng vấn bắt đầu ngay khi bản ghi sẵn sàng.",
+        "requesting": "Đang chờ quyền truy cập camera và micrô…",
+        "retry": "Thử lại"
+      },
+      "error": {
+        "permission-denied": "Quyền truy cập camera hoặc micrô đang bị chặn. Hãy cho phép cả hai cho trang này trong cài đặt trình duyệt, rồi thử lại.",
+        "no-device": "Không tìm thấy camera hoặc micrô. Hãy kết nối thiết bị, rồi thử lại.",
+        "device-unavailable": "Camera hoặc micrô đang được ứng dụng khác sử dụng. Hãy đóng ứng dụng đó, rồi thử lại.",
+        "device-lost": "Camera hoặc micrô đã bị ngắt kết nối. Hãy kết nối lại, rồi thử lại.",
+        "unsupported": "Trình duyệt này không ghi hình được buổi phỏng vấn. Hãy dùng phiên bản mới của Chrome, Edge, Firefox hoặc Safari.",
+        "insecure": "Ghi hình cần kết nối bảo mật. Hãy mở RoleCue qua HTTPS.",
+        "failed": "Không thể bắt đầu ghi hình. Hãy thử lại."
+      },
+      "interrupted": {
+        "title": "Đã dừng ghi hình",
+        "note": "Phần đã ghi được giữ lại. Buổi phỏng vấn vẫn tiếp tục.",
+        "resume": "Bật lại camera"
+      },
+      "limit": "Bản ghi đã đạt giới hạn dung lượng. Phần đã ghi được giữ lại.",
+      "upload": {
+        "title": "Bản ghi buổi phỏng vấn",
+        "checking": "Đang kiểm tra bản ghi…",
+        "preparing": "Đang chuẩn bị bản ghi…",
+        "uploading": "Đang tải bản ghi lên… {percent}",
+        "retrying": "Việc tải lên bị gián đoạn. Đang thử lại…",
+        "processing": "Bản ghi của bạn đang được xử lý.",
+        "ready": "Đã tải bản ghi lên.",
+        "failed": "Chưa tải được bản ghi lên.",
+        "failedNote": "Hãy kiểm tra kết nối rồi thử lại. Bản ghi được giữ trong trình duyệt này cho đến khi tải lên xong.",
+        "rejected": "Không thể tải bản ghi này lên. Nhà tuyển dụng sẽ thấy bản ghi bị lỗi.",
+        "abandoned": "Bản ghi chưa được tải lên và đã bị xóa khỏi trình duyệt này. Nhà tuyển dụng sẽ thấy bản ghi bị lỗi.",
+        "missing": "Trình duyệt này không có bản ghi. Nếu bạn phỏng vấn trên thiết bị khác, hãy mở trang này trên thiết bị đó để tải lên.",
+        "partial": "Chỉ giữ được một phần bản ghi sau khi trang được tải lại.",
+        "keepOpen": "Hãy giữ trang này mở cho đến khi tải lên xong.",
+        "progressLabel": "Tiến độ tải lên",
+        "retry": "Thử tải lên lại",
+        "giveUp": "Dừng thử",
+        "confirmTitle": "Dừng tải bản ghi lên?",
+        "confirmText": "Bản ghi sẽ bị xóa khỏi trình duyệt này, và nhà tuyển dụng sẽ thấy bản ghi bị lỗi.",
+        "confirm": "Xóa bản ghi",
+        "keep": "Tiếp tục thử",
+        "viewReport": "Xem báo cáo",
+        "openingReport": "Đang mở báo cáo…"
+      },
+      "preflight": {
+        "title": "Camera và ghi hình",
+        "intro": "Phỏng vấn tuyển dụng được ghi hình. Hãy bật camera để kiểm tra trước khi bắt đầu.",
+        "test": "Kiểm tra camera",
+        "checking": "Đang chờ quyền truy cập camera…",
+        "retry": "Thử lại",
+        "stop": "Tắt camera",
+        "ready": "Camera đã sẵn sàng.",
+        "idle": "Camera đang tắt.",
+        "previewLabel": "Xem trước camera",
+        "startHint": "Bật camera để bắt đầu. Buổi phỏng vấn này được ghi hình.",
+        "releaseNote": "Dừng kiểm tra hoặc rời trang này để giải phóng micrô và camera."
+      },
+      "camera": {
+        "recording": "Camera đang bật để ghi hình",
+        "resume": "Bật lại camera",
+        "waiting": "Đang chờ camera"
+      }
     }
   },
   "avatars": {

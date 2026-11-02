@@ -32,10 +32,13 @@ export type MicrophoneReadiness = MicrophoneSnapshot["readiness"];
 
 // onReadinessChange tells the start panel whether the microphone is live right now; Start needs it
 // to be "ready" at the moment it is pressed.
+// releaseNote replaces the closing note when the page also checks the camera (recruitment).
 export function PreflightCheck({
   onReadinessChange,
+  releaseNote,
 }: {
   onReadinessChange?: (readiness: MicrophoneReadiness) => void;
+  releaseNote?: string;
 } = {}) {
   const t = useTranslations("candidate.setup.preflight");
   const microphone = useMicrophone();
@@ -247,7 +250,9 @@ export function PreflightCheck({
             </Button>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">{t("releaseNote")}</p>
+        <p className="text-xs text-muted-foreground">
+          {releaseNote ?? t("releaseNote")}
+        </p>
       </section>
 
       <section

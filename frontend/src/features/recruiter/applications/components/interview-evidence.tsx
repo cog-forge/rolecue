@@ -18,8 +18,10 @@ import { useApplicationErrorMessage } from "../utils/application-errors";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Recording and transcript are evidence: nothing is fetched until the Recruiter asks, and no media
-// starts on its own. Retention, consent and Admin access to recordings are open product gates; this
-// component does not decide them.
+// starts on its own. Retention (decided 2026-11-03): a recording is kept for 90 days after the
+// Application's final decision, then deleted; the deletion job waits for the System Handler job
+// runner (KAN-174). The Candidate sees that rule in the recording disclosure. Admin access to
+// recordings is still an open product gate; this component does not decide it.
 
 export function InterviewEvidence({
   postingId,

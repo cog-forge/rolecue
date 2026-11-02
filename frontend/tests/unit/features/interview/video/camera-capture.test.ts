@@ -73,6 +73,7 @@ it("handles permission denial and device loss without keeping tracks alive", asy
   const capture = createCameraCapture();
   await capture.start();
   expect(capture.getSnapshot().error).toMatch(/permission/i);
+  expect(capture.getSnapshot().code).toBe("permission-denied");
   const stream = new MediaStream();
   getUserMedia.mockResolvedValue(stream);
   await capture.start();
@@ -80,8 +81,22 @@ it("handles permission denial and device loss without keeping tracks alive", asy
   expect(capture.getSnapshot()).toMatchObject({
     status: "error",
     stream: null,
+    code: "device-lost",
   });
   expect(stream.getTracks()[0].readyState).toBe("ended");
+  capture.dispose();
+});
+it("names a missing camera so the recruitment preflight can explain it", async () => {
+  getUserMedia.mockRejectedValueOnce(new DOMException("None", "NotFoundError"));
+  const capture = createCameraCapture();
+  await capture.start();
+  expect(capture.getSnapshot()).toMatchObject({
+    status: "error",
+    code: "no-device",
+  });
+  getUserMedia.mockResolvedValue(new MediaStream());
+  await capture.start();
+  expect(capture.getSnapshot()).toMatchObject({ status: "active", code: null });
   capture.dispose();
 });
 

@@ -52,12 +52,15 @@ const deniedCodes = new Set(["FORBIDDEN", "INVALID_TOKEN", "USER_INACTIVE"]);
 export function StartPanel({
   plan,
   readiness,
+  cameraReady,
   links,
   returnPath,
   children,
 }: {
   plan: StartPlan;
   readiness: MicrophoneReadiness;
+  /** Recruitment only: the interview is recorded, so Start also needs a live camera. */
+  cameraReady?: boolean;
   /** Where the error actions lead: the Role Profile (practice) or the Application (recruitment). */
   links: { roleProfileId?: string; applicationId?: string };
   /** The preflight URL, so PayOS brings the Candidate back here after buying coins. */
@@ -68,6 +71,9 @@ export function StartPanel({
   const t = useTranslations("candidate.setup.startPanel");
   const tSetup = useTranslations("candidate.setup");
   const errorsT = useTranslations("candidate.setup.startErrors");
+  const recordingT = useTranslations(
+    "candidate.interviewRoom.recording.preflight",
+  );
   const fmt = useFormatters();
   const user = useSessionUser();
   const router = useRouter();
@@ -153,7 +159,8 @@ export function StartPanel({
     paid && (wallet.isPending || wallet.isError || short > 0);
   const busy = start.isPending || start.isSuccess;
   const micReady = readiness === "ready";
-  const disabled = busy || !micReady || walletBlocks;
+  const cameraMissing = cameraReady === false;
+  const disabled = busy || !micReady || cameraMissing || walletBlocks;
   const problem = start.isError
     ? describeStartFailure(
         startFailure(start.error),
@@ -179,9 +186,11 @@ export function StartPanel({
           : t("label.start");
   const hint = !micReady
     ? t(`hint.${micHintKeys[readiness]}`)
-    : paid && wallet.isError
-      ? t("hint.balance")
-      : null;
+    : cameraMissing
+      ? recordingT("startHint")
+      : paid && wallet.isError
+        ? t("hint.balance")
+        : null;
 
   const action = (
     <div className="space-y-3">

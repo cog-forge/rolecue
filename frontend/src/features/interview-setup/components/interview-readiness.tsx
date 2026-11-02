@@ -39,6 +39,7 @@ import {
 } from "../api/setup-catalog";
 import { setupHref, type SetupParams } from "../lib/setup-params";
 import { CompanyInterviewer } from "@/features/candidate/applications/components/company-interviewer";
+import { RecordingPreflight } from "@/features/interview/components/recording-preflight";
 import { CandidateApplicationStatusBadge } from "@/features/candidate/applications/components/application-status";
 import { useNow } from "@/features/candidate/applications/utils/use-now";
 import { AvatarPortrait } from "./avatar-portrait";
@@ -59,13 +60,27 @@ export function InterviewReadiness(params: SetupParams) {
     (value: MicrophoneReadiness) => setReadiness(value),
     [],
   );
+  // A recruitment interview is recorded, so its Start also waits for the camera (KAN-87).
+  const [cameraReady, setCameraReady] = useState(false);
+  const tRecording = useTranslations(
+    "candidate.interviewRoom.recording.preflight",
+  );
   const microphone = <PreflightCheck onReadinessChange={onReadiness} />;
   if (params.applicationId)
     return (
       <RecruitmentReadiness
         applicationId={params.applicationId}
         readiness={readiness}
-        microphone={microphone}
+        cameraReady={cameraReady}
+        microphone={
+          <>
+            <PreflightCheck
+              onReadinessChange={onReadiness}
+              releaseNote={tRecording("releaseNote")}
+            />
+            <RecordingPreflight onReadyChange={setCameraReady} />
+          </>
+        }
       />
     );
   if (params.roleProfileId)
@@ -420,10 +435,12 @@ function PracticeReadiness({
 function RecruitmentReadiness({
   applicationId,
   readiness,
+  cameraReady,
   microphone,
 }: {
   applicationId: string;
   readiness: MicrophoneReadiness;
+  cameraReady: boolean;
   microphone: ReactNode;
 }) {
   const t = useTranslations("candidate.setup");
@@ -573,6 +590,7 @@ function RecruitmentReadiness({
     ) : (
       <StartPanel
         readiness={readiness}
+        cameraReady={cameraReady}
         links={{ applicationId }}
         returnPath={setupHref(routes.interviews.new.preflight, {
           applicationId,

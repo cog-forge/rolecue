@@ -417,6 +417,25 @@ test("recruitment: start from the Application with the company's interviewer, fo
   await expect(panel.getByText(/coins/)).toHaveCount(0);
   await testMicrophone(page);
   const start = page.getByRole("button", { name: "Start interview" });
+  // The interview is recorded: Start waits for the camera, next to the disclosure.
+  await expect(start).toBeDisabled();
+  await expect(
+    page.getByText("Turn on your camera to start. This interview is recorded."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "This interview is recorded" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("It is deleted 90 days after the hiring decision."),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "Stop the checks or leave this page to release your microphone and camera.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Test camera" }).click();
+  await expect(page.getByText("Your camera is ready.")).toBeVisible();
+  await expect(page.getByLabel("Camera preview")).toBeVisible();
   await start.click();
   await expect(panel.getByRole("alert")).toContainText(
     "All interview slots for this posting are taken.",
