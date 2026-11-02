@@ -26,6 +26,17 @@ export const candidateApplicationSchema = z.object({
   reject_reason: z.string().nullable(),
   interview_deadline: z.iso.datetime({ offset: true }).nullable(),
   can_start_interview: z.boolean(),
+  blocker: z
+    .enum([
+      "deadline_expired",
+      "awaiting_cv_review",
+      "awaiting_final_decision",
+      "application_decided",
+      "posting_unavailable",
+      "not_eligible",
+    ])
+    .nullable()
+    .optional(),
   created_at: z.iso.datetime({ offset: true }),
   // The Candidate's own interview of this Application: status and score only, never transcript or
   // recording (KAN-114).

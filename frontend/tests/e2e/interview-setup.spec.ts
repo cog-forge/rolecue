@@ -189,6 +189,17 @@ async function mockApi(page: Page, options: Options = {}) {
       });
     if (path === `/interviews/${sessionId}` && method === "GET")
       return reply(route, session());
+    if (path === `/applications/${applicationId}/interviewer`)
+      return reply(route, {
+        name: "Acme interviewer",
+        voice_name: "Ava – English",
+        model_access: {
+          url: "http://localhost:8080/models/company.vrm",
+          method: "GET",
+          headers: {},
+          expires_at: new Date(Date.now() + 300_000).toISOString(),
+        },
+      });
     if (path === `/applications/${applicationId}`)
       return reply(route, {
         id: applicationId,
@@ -394,11 +405,13 @@ test("recruitment: start from the Application with the company's interviewer, fo
   await expect(
     page.getByRole("navigation", { name: "Interview creation steps" }),
   ).toHaveCount(0);
-  await expect(
-    page.getByText("Interviewer chosen by the company"),
-  ).toBeVisible();
+  await expect(page.getByText("Acme interviewer")).toBeVisible();
   await expect(
     page.getByText("Free for you. The company covers this interview."),
+  ).toBeVisible();
+  await expect(page.getByText("Voice: Ava – English")).toBeVisible();
+  await expect(
+    page.getByText(/A 2D interviewer remains available/),
   ).toBeVisible();
   const panel = page.getByRole("region", { name: "Recruitment interview" });
   await expect(panel.getByText(/coins/)).toHaveCount(0);
@@ -503,4 +516,34 @@ test("setup steps fit a 390 px phone without sideways scrolling", async ({
       fullPage: true,
     });
   }
+});
+
+test("recruitment: expired application shows the deadline and blocker without interview access", async ({
+  page,
+}) => {
+  const { starts } = await mockApi(page, {
+    application: {
+      status: "rejected",
+      can_start_interview: false,
+      blocker: "deadline_expired",
+      interview_deadline: new Date(Date.now() - 60_000).toISOString(),
+    },
+  });
+  const interviewerReads: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.endsWith("/interviewer"))
+      interviewerReads.push(request.url());
+  });
+  await page.goto(`/interviews/new/preflight?applicationId=${applicationId}`);
+  await expect(
+    page.getByText(
+      "The interview deadline has passed. This application is rejected.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("Time left", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Start interview", exact: true }),
+  ).toHaveCount(0);
+  expect(interviewerReads).toEqual([]);
+  expect(starts).toEqual([]);
 });

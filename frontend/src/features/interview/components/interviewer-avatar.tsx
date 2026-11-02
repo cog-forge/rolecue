@@ -1,5 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import {
+  companyInterviewerKey,
+  getCompanyInterviewer,
+} from "@/features/candidate/applications/api/company-interviewer";
 import { memo, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AvatarViewer } from "@/components/avatar-viewer/avatar-viewer";
@@ -33,6 +38,17 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
   backgroundSrc: string;
   horizontalOffset: number;
 }) {
+  const t = useTranslations("candidate.applications.interviewer");
+  const company = useQuery({
+    queryKey: companyInterviewerKey(userId, session.id, true),
+    queryFn: ({ signal }) => getCompanyInterviewer(session.id, signal, true),
+    enabled: session.type === "recruitment",
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
+  });
   const avatarId = session.type === "practice" ? session.avatar_id : null;
   const detail = useQuery({
     queryKey: avatarKeys.detail(userId, avatarId ?? ""),
@@ -44,7 +60,10 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
     refetchOnWindowFocus: false,
     retry: false,
   });
-  const grant = detail.data?.model_access;
+  const grant =
+    session.type === "recruitment"
+      ? company.data?.model_access
+      : detail.data?.model_access;
   const access = useMemo(
     () =>
       grant
@@ -59,7 +78,9 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
   );
   const fallbackReason =
     session.type === "recruitment"
-      ? "The company interviewer is shown in 2D for this interview."
+      ? company.isError
+        ? t("roomFallback")
+        : undefined
       : !avatarId
         ? "No interviewer avatar was selected for this room."
         : detail.isError
@@ -72,12 +93,15 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
       onDirectorReady={onDirectorReady}
       access={fallbackReason ? null : access}
       label={
-        detail.data?.name
-          ? `Interviewer: ${detail.data.name}`
-          : "Your interviewer"
+        session.type === "recruitment"
+          ? (company.data?.name ?? t("roomLabel"))
+          : detail.data?.name
+            ? `Interviewer: ${detail.data.name}`
+            : "Your interviewer"
       }
       onAccessExpired={() => {
-        void detail.refetch();
+        if (session.type === "recruitment") void company.refetch();
+        else void detail.refetch();
       }}
       fallbackReason={fallbackReason}
       backgroundSrc={backgroundSrc}

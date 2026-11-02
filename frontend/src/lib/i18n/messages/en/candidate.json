@@ -1011,6 +1011,22 @@
       "FORBIDDEN": "Only candidate accounts can apply to job postings.",
       "validation": "Choose a PDF file up to 5 MB.",
       "upload": "We couldn't upload your CV. Try again."
+    },
+    "interviewer": {
+      "title": "Company interviewer",
+      "voice": "Voice: {name}",
+      "locked": "The company has locked this interviewer and voice.",
+      "fallback": "Company interviewer preview is unavailable. A 2D interviewer remains available.",
+      "roomFallback": "We couldn’t load the company interviewer.",
+      "roomLabel": "Your company interviewer",
+      "blockers": {
+        "deadline_expired": "The interview deadline has passed. This application is rejected.",
+        "awaiting_cv_review": "Wait for the company to review your CV.",
+        "awaiting_final_decision": "Your interview is complete. Wait for the company’s final decision.",
+        "application_decided": "This application has a final outcome. See its status and rejection reason, if provided.",
+        "posting_unavailable": "This posting is no longer available for an interview.",
+        "not_eligible": "This application is not currently eligible for an interview."
+      }
     }
   },
   "avatarStudio": {

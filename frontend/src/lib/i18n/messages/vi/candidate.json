@@ -1011,6 +1011,22 @@
       "FORBIDDEN": "Chỉ tài khoản ứng viên mới có thể ứng tuyển tin tuyển dụng.",
       "validation": "Hãy chọn tệp PDF tối đa 5 MB.",
       "upload": "Không thể tải CV của bạn lên. Hãy thử lại."
+    },
+    "interviewer": {
+      "title": "Người phỏng vấn của công ty",
+      "voice": "Giọng nói: {name}",
+      "locked": "Công ty đã cố định người phỏng vấn và giọng nói này.",
+      "fallback": "Không thể xem trước người phỏng vấn của công ty. Vẫn có người phỏng vấn 2D.",
+      "roomFallback": "Không thể tải người phỏng vấn của công ty.",
+      "roomLabel": "Người phỏng vấn của công ty",
+      "blockers": {
+        "deadline_expired": "Đã hết hạn phỏng vấn. Hồ sơ này bị từ chối.",
+        "awaiting_cv_review": "Vui lòng chờ công ty xét duyệt CV.",
+        "awaiting_final_decision": "Bạn đã hoàn thành phỏng vấn. Vui lòng chờ quyết định cuối cùng của công ty.",
+        "application_decided": "Hồ sơ đã có kết quả cuối cùng. Xem trạng thái và lý do từ chối nếu có.",
+        "posting_unavailable": "Tin tuyển dụng này không còn cho phép phỏng vấn.",
+        "not_eligible": "Hồ sơ hiện chưa đủ điều kiện phỏng vấn."
+      }
     }
   },
   "avatarStudio": {
