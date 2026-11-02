@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
+import type { AppLocale } from "@/lib/i18n/config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminInterviewSessions } from "@/features/admin/interviews/components/admin-interview-sessions";
 
@@ -76,7 +77,7 @@ function apiError(status: number, code: string) {
   });
 }
 
-function renderScreen() {
+function renderScreen(locale: AppLocale = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -84,6 +85,7 @@ function renderScreen() {
     <QueryClientProvider client={client}>
       <AdminInterviewSessions />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -265,6 +267,56 @@ describe("AdminInterviewSessions", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Retry access check" }),
+    ).toBeVisible();
+  });
+
+  it("renders the list screen in Vietnamese, leaving names and titles as stored", async () => {
+    renderScreen("vi");
+
+    const table = await screen.findByRole("table", {
+      name: "Phiên phỏng vấn",
+    });
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Phiên phỏng vấn" }),
+    ).toBeVisible();
+    const recruitment = within(table).getByRole("row", {
+      name: /Alex Candidate/,
+    });
+    expect(within(recruitment).getByText("Tuyển dụng")).toBeVisible();
+    expect(within(recruitment).getByText("Backend Engineer")).toBeVisible();
+    expect(within(recruitment).getByText("Có sẵn")).toBeVisible();
+    expect(
+      within(recruitment).getByRole("link", {
+        name: `Xem chi tiết phiên phỏng vấn ${interviewId}`,
+      }),
+    ).toBeVisible();
+    const practice = within(table).getByRole("row", {
+      name: /sam@example.com/,
+    });
+    expect(
+      within(practice).getByText("Luyện tập (không có tin)"),
+    ).toBeVisible();
+    expect(within(practice).getByText("Chưa có tên")).toBeVisible();
+    expect(screen.getByText("2 phiên phỏng vấn")).toBeVisible();
+    expect(
+      screen.getByRole("form", { name: "Lọc phiên phỏng vấn" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Mã ứng viên")).toBeVisible();
+  });
+
+  it("explains a malformed ID in Vietnamese", async () => {
+    renderScreen("vi");
+    await screen.findByRole("table", { name: "Phiên phỏng vấn" });
+
+    fireEvent.change(screen.getByLabelText("Mã ứng viên"), {
+      target: { value: "not-a-uuid" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Áp dụng bộ lọc" }));
+
+    expect(
+      await screen.findByText(
+        "Hãy nhập đầy đủ mã, ví dụ 3f2c…-…, hoặc để trống ô này.",
+      ),
     ).toBeVisible();
   });
 });

@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { Card } from "@/components/ui/card";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import type { Overview } from "../schemas/overview-schema";
@@ -6,15 +7,17 @@ type Tile = { label: string; value: string };
 
 // One section card: its title, the definition text, and label + number tiles. Zero is shown as 0.
 function OverviewSection({
+  section,
   title,
   definition,
   tiles,
 }: {
+  section: string;
   title: string;
   definition: string;
   tiles: Tile[];
 }) {
-  const id = `overview-${title.toLowerCase().replace(/\s+/g, "-")}`;
+  const id = `overview-${section}`;
   return (
     <section aria-labelledby={id} aria-describedby={`${id}-def`}>
       <Card className="h-full">
@@ -44,85 +47,124 @@ function OverviewSection({
 // The sections for loaded numbers. Definitions say what each count covers.
 export function OverviewBody({ overview }: { overview: Overview }) {
   const fmt = useFormatters();
+  const t = useTranslations("admin.overview.sections");
   const n = (value: number) => fmt.number(value);
   const o = overview;
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <OverviewSection
-        title="Accounts"
-        definition="Candidates and recruiters only. Locked is the number locked right now; new accounts count the window."
+        section="accounts"
+        title={t("accounts.title")}
+        definition={t("accounts.definition")}
         tiles={[
-          { label: "Candidates", value: n(o.accounts.candidates) },
-          { label: "Recruiters", value: n(o.accounts.recruiters) },
-          { label: "Locked now", value: n(o.accounts.locked) },
-          { label: "New in window", value: n(o.accounts.new_in_window) },
-        ]}
-      />
-      <OverviewSection
-        title="Job postings"
-        definition="All-time counts by status."
-        tiles={[
-          { label: "Pending review", value: n(o.job_postings.pending) },
-          { label: "Open", value: n(o.job_postings.open) },
-          { label: "Intake closed", value: n(o.job_postings.intake_closed) },
-          { label: "Closed", value: n(o.job_postings.closed) },
-          { label: "Rejected", value: n(o.job_postings.rejected) },
-        ]}
-      />
-      <OverviewSection
-        title="Applications"
-        definition="Counts by status are all-time. Submitted counts the window."
-        tiles={[
-          { label: "Awaiting CV review", value: n(o.applications.pending) },
+          { label: t("accounts.candidates"), value: n(o.accounts.candidates) },
+          { label: t("accounts.recruiters"), value: n(o.accounts.recruiters) },
+          { label: t("accounts.locked"), value: n(o.accounts.locked) },
           {
-            label: "Interview eligible",
+            label: t("accounts.newInWindow"),
+            value: n(o.accounts.new_in_window),
+          },
+        ]}
+      />
+      <OverviewSection
+        section="job-postings"
+        title={t("jobPostings.title")}
+        definition={t("jobPostings.definition")}
+        tiles={[
+          { label: t("jobPostings.pending"), value: n(o.job_postings.pending) },
+          { label: t("jobPostings.open"), value: n(o.job_postings.open) },
+          {
+            label: t("jobPostings.intakeClosed"),
+            value: n(o.job_postings.intake_closed),
+          },
+          { label: t("jobPostings.closed"), value: n(o.job_postings.closed) },
+          {
+            label: t("jobPostings.rejected"),
+            value: n(o.job_postings.rejected),
+          },
+        ]}
+      />
+      <OverviewSection
+        section="applications"
+        title={t("applications.title")}
+        definition={t("applications.definition")}
+        tiles={[
+          {
+            label: t("applications.pending"),
+            value: n(o.applications.pending),
+          },
+          {
+            label: t("applications.interviewEligible"),
             value: n(o.applications.interview_eligible),
           },
-          { label: "Interviewed", value: n(o.applications.interviewed) },
-          { label: "Approved", value: n(o.applications.approved) },
-          { label: "Rejected", value: n(o.applications.rejected) },
           {
-            label: "Submitted in window",
+            label: t("applications.interviewed"),
+            value: n(o.applications.interviewed),
+          },
+          {
+            label: t("applications.approved"),
+            value: n(o.applications.approved),
+          },
+          {
+            label: t("applications.rejected"),
+            value: n(o.applications.rejected),
+          },
+          {
+            label: t("applications.submittedInWindow"),
             value: n(o.applications.submitted_in_window),
           },
         ]}
       />
       <OverviewSection
-        title="Interviews"
-        definition="Started and completed count the window. Evaluation failed is all-time."
+        section="interviews"
+        title={t("interviews.title")}
+        definition={t("interviews.definition")}
         tiles={[
           {
-            label: "Practice started",
+            label: t("interviews.practiceStarted"),
             value: n(o.interviews.practice_started_in_window),
           },
           {
-            label: "Recruitment started",
+            label: t("interviews.recruitmentStarted"),
             value: n(o.interviews.recruitment_started_in_window),
           },
-          { label: "Completed", value: n(o.interviews.completed_in_window) },
           {
-            label: "Evaluation failed",
+            label: t("interviews.completed"),
+            value: n(o.interviews.completed_in_window),
+          },
+          {
+            label: t("interviews.evaluationFailed"),
             value: n(o.interviews.evaluation_failed),
           },
         ]}
       />
       <div className="md:col-span-2">
         <OverviewSection
-          title="Finance"
-          definition="Revenue is successful PayOS top-ups in the window. Coin totals are for the window. Coin debits and refunds are not revenue."
+          section="finance"
+          title={t("finance.title")}
+          definition={t("finance.definition")}
           tiles={[
-            { label: "Revenue", value: fmt.vnd(o.finance.revenue_vnd) },
             {
-              label: "Successful top-ups",
+              label: t("finance.revenue"),
+              value: fmt.vnd(o.finance.revenue_vnd),
+            },
+            {
+              label: t("finance.successfulDeposits"),
               value: n(o.finance.successful_deposits),
             },
-            { label: "Coins sold", value: n(o.finance.coins_sold) },
-            { label: "Coins spent", value: n(o.finance.coins_spent) },
-            { label: "Coins refunded", value: n(o.finance.coins_refunded) },
-            { label: "Unique payers", value: n(o.finance.unique_payers) },
+            { label: t("finance.coinsSold"), value: n(o.finance.coins_sold) },
+            { label: t("finance.coinsSpent"), value: n(o.finance.coins_spent) },
             {
-              label: "Payment success rate",
+              label: t("finance.coinsRefunded"),
+              value: n(o.finance.coins_refunded),
+            },
+            {
+              label: t("finance.uniquePayers"),
+              value: n(o.finance.unique_payers),
+            },
+            {
+              label: t("finance.successRate"),
               value: fmt.percent(o.finance.success_rate),
             },
           ]}

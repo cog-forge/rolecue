@@ -3,13 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
   fireEvent,
-  render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { EvaluationCriteria } from "@/features/recruiter/evaluation/components/evaluation-criteria";
 
 const mocks = vi.hoisted(() => ({
@@ -94,7 +94,7 @@ function serve(
       : Promise.resolve(result);
   });
 }
-function mount(extra?: ReactNode) {
+function mount(extra?: ReactNode, locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -102,11 +102,12 @@ function mount(extra?: ReactNode) {
     },
   });
   client.setQueryData(["auth", "me"], mocks.user);
-  render(
+  renderWithIntl(
     <QueryClientProvider client={client}>
       {extra}
       <EvaluationCriteria postingId={postingId} />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -253,7 +254,7 @@ describe("EvaluationCriteria", () => {
     expect(mocks.put).not.toHaveBeenCalled();
   });
 
-  it("keeps the draft and shows the server's message when saving fails", async () => {
+  it("keeps the draft and shows the message for the error code when saving fails", async () => {
     serve(envelope(custom()));
     mocks.put.mockRejectedValue(
       failure(
@@ -269,11 +270,13 @@ describe("EvaluationCriteria", () => {
     const save = screen.getByRole("button", { name: "Save criteria" });
     await waitFor(() => expect(save).toBeEnabled());
     fireEvent.click(save);
+    // The backend's own text ("the weights must add up to 100") is never shown.
     expect(
       await screen.findByText(
-        "the weights must add up to 100 Your changes are still here.",
+        "The weights don't add up to the required total. Your changes are still here.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/must add up to 100/)).toBeNull();
     expect(field("Technical accuracy").value).toBe("50");
     expect(field("Clarity").value).toBe("20");
     expect(mocks.toast).not.toHaveBeenCalled();
@@ -494,7 +497,7 @@ describe("EvaluationCriteria", () => {
     fireEvent.click(save);
     expect(
       await screen.findByText(
-        "a weight must be at most 100 Your changes are still here.",
+        "An evaluation weight isn't valid. Your changes are still here.",
       ),
     ).toHaveAttribute("role", "alert");
     expect(field("Technical accuracy")).not.toHaveAttribute(
@@ -592,7 +595,7 @@ describe("EvaluationCriteria", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("keeps the reset dialog open with the server's message when a reset fails", async () => {
+  it("keeps the reset dialog open with the screen's message when a reset fails", async () => {
     serve(envelope(custom()));
     mocks.delete.mockRejectedValue(failure(500, "INTERNAL_ERROR", "boom"));
     mount();
@@ -606,7 +609,10 @@ describe("EvaluationCriteria", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Reset weights" }),
     );
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("boom");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "We couldn't reset the criteria.",
+    );
+    expect(within(dialog).queryByText("boom")).toBeNull();
     expect(field("Technical accuracy").value).toBe("70");
   });
 
@@ -656,5 +662,92 @@ describe("EvaluationCriteria", () => {
       await screen.findByText("You don't have access to evaluation criteria"),
     ).toBeInTheDocument();
     expect(client.getQueryState(["auth", "me"])?.isInvalidated).toBe(true);
+  });
+
+  describe("in Vietnamese", () => {
+    it("translates the chrome while the metric names stay as the API sent them", async () => {
+      serve(envelope(weights()));
+      mount(undefined, "vi");
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Đang tải tiêu chí đánh giá…",
+      );
+      // Metric names are content from the API and are not translated.
+      expect(await screen.findByLabelText("Technical accuracy")).toBeVisible();
+      expect(
+        screen.getByRole("heading", { name: "Tiêu chí đánh giá" }),
+      ).toBeVisible();
+      expect(screen.getByText("Đang dùng trọng số mặc định")).toBeVisible();
+      expect(
+        screen.getByText(/tổng 100 chia đều cho mọi tiêu chí/),
+      ).toBeVisible();
+      expect(screen.getByRole("link", { name: /Tin tuyển dụng của tôi/ }));
+      expect(screen.getByRole("heading", { name: "Trọng số" })).toBeVisible();
+      expect(screen.getByText("Tổng")).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "Lưu tiêu chí" }),
+      ).toBeDisabled();
+    });
+
+    it("shows the field error and the sum in Vietnamese", async () => {
+      serve(envelope(custom()));
+      mount(undefined, "vi");
+      await screen.findByLabelText("Clarity");
+      type("Clarity", "-4");
+      expect(
+        await screen.findByText("Trọng số không được âm."),
+      ).toHaveAttribute("role", "alert");
+      type("Clarity", "5");
+      type("Technical accuracy", "33.5");
+      expect(await screen.findByText("68,5 trên 100")).toBeVisible();
+      expect(
+        screen.getByText("Tổng các trọng số là 68,5, nhưng phải bằng 100."),
+      ).toHaveAttribute("role", "alert");
+      expect(await screen.findByText("Có thay đổi chưa lưu")).toBeVisible();
+    });
+
+    it("maps a save failure by its code and keeps the draft", async () => {
+      serve(envelope(custom()));
+      mocks.put.mockRejectedValue(
+        failure(400, "EVALUATION_WEIGHT_TOTAL_MISMATCH", "must add up to 100"),
+      );
+      mount(undefined, "vi");
+      await screen.findByLabelText("Clarity");
+      type("Technical accuracy", "50");
+      type("Clarity", "20");
+      const save = screen.getByRole("button", { name: "Lưu tiêu chí" });
+      await waitFor(() => expect(save).toBeEnabled());
+      fireEvent.click(save);
+      expect(
+        await screen.findByText(/Các thay đổi của bạn vẫn còn ở đây\./),
+      ).toBeVisible();
+      expect(screen.queryByText(/must add up to 100/)).toBeNull();
+    });
+
+    it("words the reset confirmation, including the unsaved-changes note", async () => {
+      serve(envelope(custom()));
+      mount(undefined, "vi");
+      await screen.findByLabelText("Clarity");
+      type("Clarity", "5");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Đặt lại trọng số mặc định" }),
+      );
+      const dialog = await screen.findByRole("dialog", {
+        name: "Đặt lại về trọng số mặc định?",
+      });
+      expect(dialog).toHaveTextContent(
+        "Các thay đổi chưa lưu của bạn cũng sẽ bị bỏ.",
+      );
+      expect(
+        within(dialog).getByRole("button", { name: "Giữ trọng số của tôi" }),
+      ).toBeVisible();
+    });
+
+    it("shows the localized not-found state", async () => {
+      serve(failure(404));
+      mount(undefined, "vi");
+      expect(
+        await screen.findByText("Không tìm thấy tin tuyển dụng này"),
+      ).toBeInTheDocument();
+    });
   });
 });

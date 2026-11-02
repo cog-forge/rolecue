@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { useTranslations } from "next-intl";
 import { Controller, useWatch, type UseFormReturn } from "react-hook-form";
 import { CalendarClock, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,32 +16,32 @@ export function AccountLockFields({
   form: UseFormReturn<LockFormValues>;
   disabled: boolean;
 }) {
+  const t = useTranslations("admin.accounts.fields");
   const id = useId();
   const [indefinite, duration] = useWatch({
     control: form.control,
     name: ["indefinite", "duration"],
   });
   const errors = form.formState.errors;
+  const preset = lockDurations.find((option) => option.value === duration);
   return (
     <div className="space-y-5">
       <div className="space-y-2">
         <label htmlFor={`${id}-reason`} className="text-sm font-medium">
-          Reason sent to user
+          {t("reasonLabel")}
         </label>
         <Textarea
           id={`${id}-reason`}
           disabled={disabled}
           rows={3}
           maxLength={500}
-          placeholder="For example: Repeated spam messages."
+          placeholder={t("reasonPlaceholder")}
           aria-invalid={!!errors.reason}
           aria-describedby={`${id}-reason-hint${errors.reason ? ` ${id}-reason-error` : ""}`}
           {...form.register("reason")}
         />
         <p id={`${id}-reason-hint`} className="text-xs text-muted-foreground">
-          Required. Up to 500 characters. This reason will be included in the
-          email to the user. Do not include internal notes or sensitive
-          information.
+          {t("reasonHint")}
         </p>
         {errors.reason && (
           <p
@@ -57,9 +58,9 @@ export function AccountLockFields({
         disabled={disabled || indefinite}
         aria-describedby={`${id}-duration-hint${!indefinite && errors.duration ? ` ${id}-duration-error` : ""}`}
       >
-        <legend className="text-sm font-medium">Duration</legend>
+        <legend className="text-sm font-medium">{t("durationLegend")}</legend>
         <p id={`${id}-duration-hint`} className="text-xs text-muted-foreground">
-          Choose a common duration or set an exact unlock time.
+          {t("durationHint")}
         </p>
         <Controller
           control={form.control}
@@ -78,7 +79,7 @@ export function AccountLockFields({
                   onClick={() => field.onChange(option.value)}
                   className="h-11 justify-between aria-pressed:border-workspace-accent aria-pressed:bg-workspace-accent/10 aria-pressed:text-workspace-accent"
                 >
-                  {option.label}
+                  {t(`durations.${option.labelKey}`)}
                   {!indefinite && field.value === option.value && (
                     <Check className="size-4" aria-hidden />
                   )}
@@ -94,7 +95,7 @@ export function AccountLockFields({
                 className="col-span-2 h-11 justify-start aria-pressed:border-workspace-accent aria-pressed:bg-workspace-accent/10 aria-pressed:text-workspace-accent"
               >
                 <CalendarClock className="size-4" aria-hidden />
-                Custom date/time
+                {t("custom")}
                 {!indefinite && field.value === "custom" && (
                   <Check className="ml-auto size-4" aria-hidden />
                 )}
@@ -115,7 +116,7 @@ export function AccountLockFields({
       {duration === "custom" && (
         <div className="space-y-2">
           <label htmlFor={`${id}-expiry`} className="text-sm font-medium">
-            Lock until
+            {t("expiryLabel")}
           </label>
           <Input
             id={`${id}-expiry`}
@@ -127,7 +128,7 @@ export function AccountLockFields({
             {...form.register("expiresAt")}
           />
           <p id={`${id}-expiry-hint`} className="text-xs text-muted-foreground">
-            Choose a future time in {userTimeZone()}.
+            {t("expiryHint", { timeZone: userTimeZone() })}
           </p>
           {!indefinite && errors.expiresAt && (
             <p
@@ -158,7 +159,7 @@ export function AccountLockFields({
                 onCheckedChange={(value) => field.onChange(value === true)}
                 aria-describedby={`${id}-indefinite-hint`}
               />
-              Lock indefinitely
+              {t("indefinite")}
             </label>
           )}
         />
@@ -166,18 +167,19 @@ export function AccountLockFields({
           id={`${id}-indefinite-hint`}
           className="text-xs text-muted-foreground"
         >
-          Overrides the duration above. Only an administrator can unlock the
-          account.
+          {t("indefiniteHint")}
         </p>
       </div>
       <p role="status" className="rounded-lg bg-muted/50 p-3 text-sm">
         {indefinite
-          ? "This account will stay locked until an administrator unlocks it."
+          ? t("summaryIndefinite")
           : duration === "custom"
-            ? "This account will stay locked until the date and time you choose above."
-            : duration
-              ? `This account will be locked for ${lockDurations.find((option) => option.value === duration)?.label.toLowerCase()}, starting when you confirm.`
-              : "Select a duration or check Lock indefinitely before confirming."}
+            ? t("summaryCustom")
+            : preset
+              ? t("summaryPreset", {
+                  duration: t(`durations.${preset.labelKey}`),
+                })
+              : t("summaryNone")}
       </p>
     </div>
   );

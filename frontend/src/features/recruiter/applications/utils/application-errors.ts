@@ -1,31 +1,54 @@
+"use client";
+
+import { useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { apiError } from "@/features/recruiter/job-postings/utils/api-error";
+import { apiErrorMessage, type ErrorTranslator } from "@/lib/i18n/api-errors";
 
-// Server error codes for the screening actions and detail reads, in plain Recruiter language.
-const messages: Record<string, string> = {
-  APPLICATION_NOT_PENDING:
-    "This application has already been decided. Refresh to see its current status.",
-  INTAKE_NOT_OPEN: "This posting is no longer accepting applications.",
-  INTERVIEW_CAPACITY_FULL:
-    "All interview slots for this posting are already taken.",
-  INTERVIEW_CAPACITY_NOT_FUNDED:
-    "Interview capacity is not funded for this posting.",
-  APPLICATION_NOT_FOUND: "This application could not be found.",
-  JOB_POSTING_NOT_FOUND: "This job posting could not be found.",
-  APPLICATION_NOT_INTERVIEWED:
-    "This application is not waiting for a final decision. Refresh to see its current status.",
-  FINAL_REVIEW_LOCKED: "Final decisions are not open yet.",
-  INTERVIEW_NOT_COMPLETED:
-    "The transcript is available once the interview is completed.",
-};
+export type ApplicationErrorTranslator = ReturnType<
+  typeof useTranslations<"recruiter.applications.errors">
+>;
 
-const defaultFallback = "Something went wrong. Try again.";
+// Codes with their own wording on these screens (catalog: recruiter.applications.errors).
+const applicationCodes = [
+  "APPLICATION_NOT_PENDING",
+  "INTAKE_NOT_OPEN",
+  "INTERVIEW_CAPACITY_FULL",
+  "INTERVIEW_CAPACITY_NOT_FUNDED",
+  "APPLICATION_NOT_FOUND",
+  "JOB_POSTING_NOT_FOUND",
+  "APPLICATION_NOT_INTERVIEWED",
+  "FINAL_REVIEW_LOCKED",
+  "INTERVIEW_NOT_COMPLETED",
+] as const;
 
-// Known codes map to fixed copy; any other code shows the server's own message.
+function isApplicationCode(
+  code: string,
+): code is (typeof applicationCodes)[number] {
+  return (applicationCodes as readonly string[]).includes(code);
+}
+
+// Fixed copy for the screening actions and detail reads, in plain Recruiter language; any other
+// code uses the shared translated message for it, then the caller's fallback. The server's own
+// text is never shown. `t` is the shared error catalog, `applicationT` this screen's copy.
 export function applicationErrorMessage(
   error: unknown,
-  fallback: string = defaultFallback,
+  t: ErrorTranslator,
+  applicationT: ApplicationErrorTranslator,
+  fallback?: string,
 ) {
-  const { code, message } = apiError(error);
-  if (code !== null && Object.hasOwn(messages, code)) return messages[code];
-  return message ?? fallback;
+  const { code } = apiError(error);
+  if (code !== null && isApplicationCode(code)) return applicationT(code);
+  return apiErrorMessage(t, error, fallback);
+}
+
+// `message(error, fallback)` for a failed screening, decision or evidence call, in the active language.
+export function useApplicationErrorMessage() {
+  const t = useTranslations("errors");
+  const applicationT = useTranslations("recruiter.applications.errors");
+  return useCallback(
+    (error: unknown, fallback?: string) =>
+      applicationErrorMessage(error, t, applicationT, fallback),
+    [t, applicationT],
+  );
 }

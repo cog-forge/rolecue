@@ -7,9 +7,11 @@ import {
   type ComponentProps,
   type FormEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   keepPreviousData,
   useQuery,
@@ -40,7 +42,10 @@ import {
   listPostingApplications,
   listPostingOptions,
 } from "../api/applications";
-import type { Application } from "../schemas/application-schema";
+import {
+  applicationStatuses,
+  type Application,
+} from "../schemas/application-schema";
 import {
   APPLICATION_PAGE_SIZE,
   SEARCH_MAX,
@@ -55,22 +60,10 @@ import { ApplicationStatus } from "./application-status";
 import { formatDeadline, formatSubmitted } from "../utils/application-dates";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
-const statusOptions: { status: ApplicationStatusFilter; label: string }[] = [
-  { status: "all", label: "All" },
-  { status: "pending", label: "Awaiting CV review" },
-  { status: "interview_eligible", label: "Interview eligible" },
-  { status: "interviewed", label: "Interviewed" },
-  { status: "approved", label: "Approved" },
-  { status: "rejected", label: "Rejected" },
+const statusFilters: readonly ApplicationStatusFilter[] = [
+  "all",
+  ...applicationStatuses,
 ];
-const emptyText: Record<ApplicationStatusFilter, string> = {
-  all: "No applications yet.",
-  pending: "No applications are waiting for CV review.",
-  interview_eligible: "No candidates are cleared to interview.",
-  interviewed: "No candidates have finished an interview yet.",
-  approved: "You haven't approved anyone yet.",
-  rejected: "No applications were rejected.",
-};
 const ALL_POSTINGS = "all";
 // Wide screens review beside the list; narrower ones open the Application's own page.
 const SPLIT_VIEW = "(min-width: 1024px)";
@@ -121,6 +114,17 @@ function FilterLink({
       }}
     />
   );
+}
+
+// The submitted date's <time> element, for the "Applied …" copy.
+function submittedTime(iso: string) {
+  return function SubmittedTime(chunks: ReactNode) {
+    return (
+      <time dateTime={iso} title={iso}>
+        {chunks}
+      </time>
+    );
+  };
 }
 
 function modified(event: MouseEvent) {
@@ -190,35 +194,34 @@ export function ApplicationList({ postingId }: { postingId: string }) {
 }
 
 export function ApplicationToolbar({ postingId }: { postingId?: string }) {
+  const t = useTranslations("recruiter.applications");
+  const tCommon = useTranslations("common");
   const { filters, href } = useApplicationPage(postingId);
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
       <div className="flex items-center gap-2">
         <label htmlFor="application-status" className="text-sm font-medium">
-          Status
+          {t("toolbar.statusFilter")}
         </label>
         <Select
           value={filters.status}
-          onValueChange={(status) =>
-            pushUrl(
-              href({
-                ...filters,
-                status: status as ApplicationStatusFilter,
-                page: 1,
-              }),
-            )
-          }
+          onValueChange={(value) => {
+            const status = statusFilters.find((option) => option === value);
+            if (status) pushUrl(href({ ...filters, status, page: 1 }));
+          }}
         >
           <SelectTrigger
             id="application-status"
-            className="w-44 rounded-full bg-background shadow-none data-[size=default]:h-9"
+            className="max-w-full min-w-44 rounded-full bg-background shadow-none data-[size=default]:h-9"
           >
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper" align="start">
-            {statusOptions.map((option) => (
-              <SelectItem key={option.status} value={option.status}>
-                {option.label}
+            {statusFilters.map((status) => (
+              <SelectItem key={status} value={status}>
+                {status === "all"
+                  ? tCommon("labels.all")
+                  : t(`status.${status}`)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -238,6 +241,7 @@ function PostingFilter({
   filters: ApplicationFilters;
   href: (filters: ApplicationFilters) => string;
 }) {
+  const t = useTranslations("recruiter.applications");
   const user = useSessionUser();
   const options = useQuery({
     queryKey: applicationKeys.postingOptions(user.id),
@@ -254,7 +258,7 @@ function PostingFilter({
   return (
     <div className="flex items-center gap-2">
       <label htmlFor="application-posting" className="text-sm font-medium">
-        Job posting
+        {t("facts.jobPosting")}
       </label>
       <Select
         value={value}
@@ -275,8 +279,14 @@ function PostingFilter({
           <SelectValue />
         </SelectTrigger>
         <SelectContent position="popper" align="start">
-          <SelectItem value={ALL_POSTINGS}>All job postings</SelectItem>
-          {!known && <SelectItem value={value}>Selected posting</SelectItem>}
+          <SelectItem value={ALL_POSTINGS}>
+            {t("toolbar.allPostings")}
+          </SelectItem>
+          {!known && (
+            <SelectItem value={value}>
+              {t("toolbar.selectedPosting")}
+            </SelectItem>
+          )}
           {postings.map((posting) => (
             <SelectItem key={posting.id} value={posting.id}>
               {posting.title}
@@ -302,6 +312,8 @@ export function ApplicationResults({
   onSelect?: (application: Application) => void;
   onOpen?: (application: Application) => void;
 }) {
+  const t = useTranslations("recruiter.applications");
+  const tCommon = useTranslations("common");
   const cache = useQueryClient();
   const { filters, query, href } = useApplicationPage(postingId);
   const switching = query.isPlaceholderData;
@@ -328,49 +340,34 @@ export function ApplicationResults({
         {Array.from({ length: 5 }, (_, i) => (
           <Skeleton key={i} className="h-20 rounded-lg" />
         ))}
-        <span className="sr-only">Loading applications…</span>
+        <span className="sr-only">{t("list.loading")}</span>
       </div>
     );
   if (denied)
     return (
-      <Notice
-        role="alert"
-        tone="locked"
-        title="You don't have access to applications"
-      >
-        <p className="text-muted-foreground">
-          Checking your account access… If this stays, sign in again with a
-          recruiter account.
-        </p>
+      <Notice role="alert" tone="locked" title={t("list.deniedTitle")}>
+        <p className="text-muted-foreground">{t("list.deniedBody")}</p>
       </Notice>
     );
   if (notFound)
     return (
-      <Notice
-        role="alert"
-        tone="locked"
-        title="We couldn't find this job posting"
-      >
-        <p className="text-muted-foreground">
-          It may have been removed, or it belongs to another recruiter.
-        </p>
+      <Notice role="alert" tone="locked" title={t("list.postingNotFoundTitle")}>
+        <p className="text-muted-foreground">{t("list.postingNotFoundBody")}</p>
       </Notice>
     );
   if (query.isError)
     return (
-      <Notice
-        role="alert"
-        tone="danger"
-        title="We couldn't load the applications"
-      >
-        <p className="text-muted-foreground">Please try again in a moment.</p>
+      <Notice role="alert" tone="danger" title={t("list.errorTitle")}>
+        <p className="text-muted-foreground">
+          {tCommon("messages.tryAgainLater")}
+        </p>
         <Button
           className="mt-2 h-11 bg-background"
           variant="outline"
           disabled={query.isFetching}
           onClick={() => void query.refetch()}
         >
-          Try again
+          {tCommon("actions.tryAgain")}
         </Button>
       </Notice>
     );
@@ -378,12 +375,10 @@ export function ApplicationResults({
   if (page.items.length === 0 && total > 0)
     return (
       <div className="rounded-xl border p-8 text-center">
-        <h3 className="font-semibold">
-          This page is past the end of the list.
-        </h3>
+        <h3 className="font-semibold">{t("list.pastEnd")}</h3>
         <Button asChild variant="outline" className="mt-4 h-11">
           <FilterLink href={href({ ...filters, page: 1 })}>
-            Go to the first page
+            {tCommon("actions.firstPage")}
           </FilterLink>
         </Button>
       </div>
@@ -396,16 +391,16 @@ export function ApplicationResults({
         </span>
         <h3 className="font-semibold">
           {filters.search
-            ? `No applications match “${filters.search}”.`
-            : emptyText[filters.status]}
+            ? t("list.emptySearch", { query: filters.search })
+            : t(`list.empty.${filters.status}`)}
         </h3>
         {filtered ? (
           <Button asChild variant="outline" className="mt-4 h-11">
-            <FilterLink href={href(reset)}>Show all applications</FilterLink>
+            <FilterLink href={href(reset)}>{t("list.showAll")}</FilterLink>
           </Button>
         ) : (
           <p className="mt-2 text-sm text-muted-foreground">
-            Candidates appear here once they apply with a CV.
+            {t("list.emptyHint")}
           </p>
         )}
       </div>
@@ -414,10 +409,14 @@ export function ApplicationResults({
   return (
     <div className="space-y-3">
       <p role="status" className="sr-only">
-        {switching ? "Loading applications…" : ""}
+        {switching ? t("list.loading") : ""}
       </p>
       <ul
-        aria-label={`Applications, ${firstRow}–${lastRow} of ${total}`}
+        aria-label={t("list.listLabel", {
+          first: firstRow,
+          last: lastRow,
+          total,
+        })}
         aria-busy={switching}
         className={cn(
           "divide-y rounded-xl border bg-card transition-opacity duration-200 motion-reduce:transition-none",
@@ -444,20 +443,20 @@ export function ApplicationResults({
         ))}
       </ul>
       <nav
-        aria-label="Applications pagination"
+        aria-label={t("list.paginationLabel")}
         className="flex flex-wrap items-center justify-between gap-3 text-sm"
       >
         <p className="text-muted-foreground tabular-nums">
-          Showing {firstRow}–{lastRow} of {total}
+          {t("list.showing", { first: firstRow, last: lastRow, total })}
         </p>
         <div className="flex gap-2">
           <PageLink
-            label="Previous"
+            label={tCommon("actions.previous")}
             href={href({ ...filters, page: filters.page - 1 })}
             disabled={filters.page <= 1}
           />
           <PageLink
-            label="Next"
+            label={tCommon("actions.next")}
             href={href({ ...filters, page: filters.page + 1 })}
             disabled={lastRow >= total}
           />
@@ -495,6 +494,7 @@ function ApplicationRow({
   selected: boolean;
   onActivate?: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
+  const t = useTranslations("recruiter.applications");
   const fmt = useFormatters();
   const { candidate } = application;
   const pending = application.status === "pending";
@@ -507,7 +507,9 @@ function ApplicationRow({
         )}
         scroll={false}
         aria-current={selected ? "true" : undefined}
-        aria-label={`${pending ? "Review CV of" : "Open application of"} ${candidate.name}`}
+        aria-label={t(pending ? "row.reviewAria" : "row.openAria", {
+          name: candidate.name,
+        })}
         onClick={onActivate}
         className={cn(
           "flex items-start gap-3 px-4 py-3.5 outline-none transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
@@ -527,18 +529,20 @@ function ApplicationRow({
           </span>
           <span className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span className="min-w-0 truncate">
-              {showPosting && `${application.job_posting_title} · `}
-              Applied{" "}
-              <time
-                dateTime={application.submitted_at}
-                title={application.submitted_at}
-              >
-                {formatSubmitted(application.submitted_at, fmt)}
-              </time>
+              {showPosting
+                ? t.rich("row.appliedToPosting", {
+                    posting: application.job_posting_title,
+                    date: formatSubmitted(application.submitted_at, fmt),
+                    time: submittedTime(application.submitted_at),
+                  })
+                : t.rich("row.applied", {
+                    date: formatSubmitted(application.submitted_at, fmt),
+                    time: submittedTime(application.submitted_at),
+                  })}
             </span>
             {pending ? (
               <span className="inline-flex shrink-0 items-center gap-0.5 font-medium text-foreground">
-                Review
+                {t("row.review")}
                 <ChevronRight className="size-3.5" aria-hidden />
               </span>
             ) : (
@@ -554,6 +558,7 @@ function ApplicationRow({
 
 // What the status alone does not say: the interview deadline, or why the CV was rejected.
 function StatusDetail({ application }: { application: Application }) {
+  const t = useTranslations("recruiter.applications");
   const fmt = useFormatters();
   const {
     status,
@@ -564,19 +569,26 @@ function StatusDetail({ application }: { application: Application }) {
     return (
       <span className="block text-xs text-muted-foreground">
         {/* Decision 4: the interview must be completed, not just started, before the deadline. */}
-        {application.interview_eligible
-          ? "Complete interview by "
-          : "Deadline passed "}
-        <time dateTime={deadline} title={deadline}>
-          {formatDeadline(deadline, fmt)}
-        </time>
+        {t.rich(
+          application.interview_eligible
+            ? "row.completeBy"
+            : "row.deadlinePassed",
+          {
+            date: formatDeadline(deadline, fmt),
+            time: (chunks) => (
+              <time dateTime={deadline} title={deadline}>
+                {chunks}
+              </time>
+            ),
+          },
+        )}
       </span>
     );
   }
   if (status === "rejected" && reason) {
     return (
       <span className="block text-xs text-destructive/90 [overflow-wrap:anywhere]">
-        Reason: {reason}
+        {t("row.reason", { reason })}
       </span>
     );
   }
@@ -612,6 +624,8 @@ function SearchForm({
   filters: ApplicationFilters;
   href: (filters: ApplicationFilters) => string;
 }) {
+  const t = useTranslations("recruiter.applications.toolbar");
+  const tCommon = useTranslations("common");
   const [value, setValue] = useState(filters.search);
   const tooLong = Array.from(value.trim()).length > SEARCH_MAX;
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -623,12 +637,12 @@ function SearchForm({
     <form
       role="search"
       noValidate
-      aria-label="Search applications"
+      aria-label={t("searchLabel")}
       onSubmit={submit}
       className="flex flex-wrap items-center gap-2"
     >
       <label htmlFor="application-search" className="sr-only">
-        Search by name or email
+        {t("searchInputLabel")}
       </label>
       <div className="relative">
         <Search
@@ -638,7 +652,7 @@ function SearchForm({
         <Input
           id="application-search"
           type="search"
-          placeholder="Search name or email"
+          placeholder={t("searchPlaceholder")}
           value={value}
           onChange={(event) => setValue(event.target.value)}
           className="h-9 w-60 max-w-full rounded-full pl-9"
@@ -652,13 +666,13 @@ function SearchForm({
         className="h-9 rounded-full px-4"
         disabled={tooLong}
       >
-        Search
+        {tCommon("actions.search")}
       </Button>
       {filters.search && (
         <Button asChild variant="ghost" className="h-9 rounded-full px-3">
           <FilterLink href={href({ ...filters, search: "", page: 1 })}>
             <X aria-hidden />
-            Clear search
+            {tCommon("actions.clearSearch")}
           </FilterLink>
         </Button>
       )}
@@ -668,7 +682,7 @@ function SearchForm({
           role="alert"
           className="w-full text-xs text-destructive"
         >
-          Keep the search to {SEARCH_MAX} characters or fewer.
+          {t("searchTooLong", { max: SEARCH_MAX })}
         </p>
       )}
     </form>

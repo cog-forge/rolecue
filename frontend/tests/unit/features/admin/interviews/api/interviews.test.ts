@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { interviewFilterSchema } from "@/features/admin/interviews/schemas/interview-filters";
+import { createTranslator } from "next-intl";
+import { messagesFor } from "@tests/helpers/intl";
+import type { AppLocale } from "@/lib/i18n/config";
+import { createInterviewFilterSchema } from "@/features/admin/interviews/schemas/interview-filters";
 import {
   listAdminInterviews,
   getAdminInterview,
@@ -90,7 +93,27 @@ describe("admin interviews API", () => {
   });
 });
 
+const filterSchema = (locale: AppLocale = "en") =>
+  createInterviewFilterSchema(
+    createTranslator({
+      locale,
+      messages: messagesFor(locale),
+      namespace: "admin.interviews.validation",
+    }),
+  );
+const interviewFilterSchema = filterSchema();
+
 describe("interview filter schema", () => {
+  it("explains a partial ID in the active language", () => {
+    const partial = { type: "all", candidateId: "2222", jobPostingId: "" };
+    expect(
+      filterSchema("en").safeParse(partial).error?.issues[0]?.message,
+    ).toBe("Enter a complete ID, such as 3f2c…-…, or leave the field empty.");
+    expect(
+      filterSchema("vi").safeParse(partial).error?.issues[0]?.message,
+    ).toBe("Hãy nhập đầy đủ mã, ví dụ 3f2c…-…, hoặc để trống ô này.");
+  });
+
   it("accepts empty optional IDs and full UUIDs", () => {
     expect(
       interviewFilterSchema.safeParse({

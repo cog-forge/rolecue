@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ExternalLink, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -29,6 +30,7 @@ export function JdViewer({
   documentUrl: string | null;
   rawText: string | null;
 }) {
+  const t = useTranslations("admin.moderation.jd");
   const file = documentUrl
     ? { url: new URL(documentUrl), isPdf: true }
     : rawText === null
@@ -39,14 +41,14 @@ export function JdViewer({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="jd-heading" className="flex items-center gap-2 font-semibold">
           <FileText className="size-4 text-muted-foreground" aria-hidden />
-          Job description
+          {t("heading")}
         </h2>
         {file && (
           <Button asChild variant="outline" size="sm" className="h-9">
             <a href={file.url.href} target="_blank" rel="noopener noreferrer">
               <ExternalLink aria-hidden />
-              Open in new tab
-              <span className="sr-only"> (job description file)</span>
+              {t("openInNewTab")}
+              <span className="sr-only"> {t("openInNewTabSr")}</span>
             </a>
           </Button>
         )}
@@ -55,14 +57,14 @@ export function JdViewer({
         <>
           <iframe
             src={file.url.href}
-            title="Job description PDF"
+            title={t("pdfTitle")}
             referrerPolicy="no-referrer"
             className="h-[70vh] w-full rounded-lg border bg-muted/30"
           />
           {documentUrl && rawText !== null && (
             <details className="rounded-lg border p-3 text-sm">
               <summary className="cursor-pointer font-medium">
-                Text read from the PDF
+                {t("textFromPdf")}
               </summary>
               <div className="mt-3 max-h-96 overflow-y-auto leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
                 {rawText}
@@ -73,21 +75,16 @@ export function JdViewer({
       ) : rawText !== null ? (
         <div
           tabIndex={0}
-          aria-label="Job description text"
+          aria-label={t("textLabel")}
           className="max-h-[70vh] overflow-y-auto rounded-lg border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]"
         >
           {rawText}
         </div>
       ) : file ? (
-        <p className="text-sm text-muted-foreground">
-          This job description isn&apos;t a PDF, so it can&apos;t be shown here.
-          Open it in a new tab to read it.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("notPdf")}</p>
       ) : (
         <p role="alert" className="text-sm text-muted-foreground">
-          The job description for this posting can&apos;t be found, so it
-          can&apos;t be shown. Reject the posting and ask the recruiter to
-          submit it again.
+          {t("missing")}
         </p>
       )}
     </section>

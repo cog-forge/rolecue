@@ -1,6 +1,5 @@
+import type { useTranslations } from "next-intl";
 import { z } from "zod";
-import { defaultLocale } from "@/lib/i18n/config";
-import { formatNumber } from "@/lib/i18n/formatters";
 
 // Mirrors api/internal/features/admin/moderation/domain (snake_case JSON).
 export const postingStatuses = [
@@ -103,30 +102,31 @@ export const reviewPostingEnvelopeSchema = z.object({
 });
 export type ReviewPosting = z.infer<typeof reviewPostingEnvelopeSchema>["data"];
 
+// Translator for the reject-form messages (`admin.moderation.validation`).
+export type RejectValidation = ReturnType<
+  typeof useTranslations<"admin.moderation.validation">
+>;
+
 // Same rules as the Go service: trimmed, 1-1000 Unicode code points, no NUL.
 export const MAX_REJECT_REASON = 1000;
 const codePoints = (value: string) => Array.from(value).length;
-export const rejectFormSchema = z.object({
-  reject_reason: z.string().superRefine((value, ctx) => {
-    const reason = value.trim();
-    if (!reason)
-      ctx.addIssue({
-        code: "custom",
-        message: "Tell the recruiter why this posting is rejected.",
-      });
-    else if (codePoints(reason) > MAX_REJECT_REASON)
-      ctx.addIssue({
-        code: "custom",
-        message: `Keep the reason to ${formatNumber(MAX_REJECT_REASON, defaultLocale)} characters or fewer.`,
-      });
-    else if (reason.includes("\u0000"))
-      ctx.addIssue({
-        code: "custom",
-        message: "Remove the unsupported characters from the reason.",
-      });
-  }),
-});
-export type RejectValues = z.infer<typeof rejectFormSchema>;
+export function createRejectFormSchema(t: RejectValidation) {
+  return z.object({
+    reject_reason: z.string().superRefine((value, ctx) => {
+      const reason = value.trim();
+      if (!reason)
+        ctx.addIssue({ code: "custom", message: t("reasonRequired") });
+      else if (codePoints(reason) > MAX_REJECT_REASON)
+        ctx.addIssue({
+          code: "custom",
+          message: t("reasonTooLong", { max: MAX_REJECT_REASON }),
+        });
+      else if (reason.includes("\u0000"))
+        ctx.addIssue({ code: "custom", message: t("reasonInvalid") });
+    }),
+  });
+}
+export type RejectValues = z.infer<ReturnType<typeof createRejectFormSchema>>;
 export function rejectReasonLength(value: string) {
   return codePoints(value.trim());
 }

@@ -1,3 +1,5 @@
+import type { useTranslations } from "next-intl";
+import type { Formatters } from "@/lib/i18n/formatters";
 import type {
   Metric,
   PostingWeights,
@@ -25,16 +27,22 @@ export function weightDrafts(
   );
 }
 
-export function formatPercent(value: number) {
-  return String(Math.round(value * 100) / 100);
+// The translator of `recruiter.evaluation.drafts`, passed in so this file stays plain TypeScript.
+export type DraftTranslator = ReturnType<
+  typeof useTranslations<"recruiter.evaluation.drafts">
+>;
+
+// Two decimals at most, in the active language, without thousands separators ("1000", not "1,000").
+export function formatPercent(value: number, fmt: Formatters) {
+  return fmt.number(value, { maximumFractionDigits: 2, useGrouping: false });
 }
 
 // Shows the sum next to the total it must reach. Two-decimal rounding would turn a sum of 99.996
 // into "100" beside a total of 100, so it shows more digits when the rounded values would match.
-export function formatSum(sum: number, total: number) {
-  return formatPercent(sum) === formatPercent(total) && sum !== total
-    ? String(Number(sum.toFixed(6)))
-    : formatPercent(sum);
+export function formatSum(sum: number, total: number, fmt: Formatters) {
+  return formatPercent(sum, fmt) === formatPercent(total, fmt) && sum !== total
+    ? fmt.number(sum, { maximumFractionDigits: 6, useGrouping: false })
+    : formatPercent(sum, fmt);
 }
 
 export type DraftEvaluation = {
@@ -54,6 +62,8 @@ export function evaluateDrafts(
   metrics: readonly Metric[],
   drafts: WeightDrafts,
   total: number,
+  t: DraftTranslator,
+  fmt: Formatters,
 ): DraftEvaluation {
   const limit = total > 0 ? total : NO_RULE_LIMIT;
   const fieldErrors: Record<string, string> = {};
@@ -64,12 +74,11 @@ export function evaluateDrafts(
     if (raw === "") continue;
     const value = Number(raw);
     if (!Number.isFinite(value)) {
-      fieldErrors[metric.id] = "Enter a number.";
+      fieldErrors[metric.id] = t("notNumber");
     } else if (value < 0) {
-      fieldErrors[metric.id] = "A weight can't be negative.";
+      fieldErrors[metric.id] = t("negative");
     } else if (value > limit) {
-      fieldErrors[metric.id] =
-        `A weight can be at most ${formatPercent(limit)}.`;
+      fieldErrors[metric.id] = t("tooHigh", { max: formatPercent(limit, fmt) });
     } else {
       sum += value;
       if (value > 0) weights.push({ metric_id: metric.id, percentage: value });
@@ -78,9 +87,12 @@ export function evaluateDrafts(
   let formError: string | null = null;
   if (Object.keys(fieldErrors).length === 0) {
     if (weights.length === 0) {
-      formError = "Give at least one metric a weight.";
+      formError = t("needOne");
     } else if (total > 0 && Math.abs(sum - total) > TOLERANCE) {
-      formError = `The weights add up to ${formatSum(sum, total)}, but they must add up to ${formatPercent(total)}.`;
+      formError = t("sumMismatch", {
+        sum: formatSum(sum, total, fmt),
+        total: formatPercent(total, fmt),
+      });
     }
   }
   const valid = Object.keys(fieldErrors).length === 0 && formError === null;

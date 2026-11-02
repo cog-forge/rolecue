@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { LoaderCircle } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ import type {
   ApplicationDetail,
   Screening,
 } from "../schemas/application-detail-schema";
-import { applicationErrorMessage } from "../utils/application-errors";
+import { useApplicationErrorMessage } from "../utils/application-errors";
 import { RejectDialog } from "./reject-dialog";
 
 // Codes that mean the detail on screen is out of date: the Application was decided, or the
@@ -40,12 +41,10 @@ const staleCodes = new Set([
   "INTERVIEW_CAPACITY_FULL",
 ]);
 
-// Explains why Approve is off while intake is open. The server still decides; Reject stays on.
-function approvalBlockReason(posting: ApplicationDetail["job_posting"]) {
-  if (posting.interview_slot === null)
-    return "Interview capacity is not funded for this posting, so no CV can be approved yet.";
-  if (posting.cv_approvals >= posting.interview_slot)
-    return "All interview slots for this posting are taken, so no more CVs can be approved.";
+// Why Approve is off while intake is open. The server still decides; Reject stays on.
+function approvalBlock(posting: ApplicationDetail["job_posting"]) {
+  if (posting.interview_slot === null) return "blockedNotFunded";
+  if (posting.cv_approvals >= posting.interview_slot) return "blockedFull";
   return null;
 }
 
@@ -94,6 +93,9 @@ export function ScreeningActions({
   layout?: "card" | "inline";
   onDecided?: (decision: "approved" | "rejected") => void;
 }) {
+  const t = useTranslations("recruiter.applications");
+  const tCommon = useTranslations("common");
+  const errorMessage = useApplicationErrorMessage();
   const user = useSessionUser();
   const cache = useQueryClient();
   const [approveOpen, setApproveOpen] = useState(false);
@@ -128,7 +130,7 @@ export function ScreeningActions({
       );
       refresh();
       setApproveOpen(false);
-      gooeyToast.success("CV approved");
+      gooeyToast.success(t("screening.approvedToast"));
       onDecided?.("approved");
     },
     onError: (failure) => {
@@ -147,7 +149,7 @@ export function ScreeningActions({
       );
       refresh();
       setRejectOpen(false);
-      gooeyToast.success("CV rejected");
+      gooeyToast.success(t("screening.rejectedToast"));
       onDecided?.("rejected");
     },
     onError: onFailure,
@@ -163,14 +165,14 @@ export function ScreeningActions({
       apiError(approve.error).code === "APPLICATION_NOT_PENDING" &&
       application.job_posting.status !== "open";
     const failure = closedFirst
-      ? "Intake closed first, so this CV was rejected automatically."
+      ? t("screening.closedFirst")
       : approve.isError
-        ? applicationErrorMessage(approve.error, "We couldn't approve this CV.")
+        ? errorMessage(approve.error, t("screening.approveFailed"))
         : reject.isError
-          ? applicationErrorMessage(reject.error, "We couldn't reject this CV.")
+          ? errorMessage(reject.error, t("screening.rejectFailed"))
           : null;
     return failure ? (
-      <Notice role="alert" tone="warning" title="No change was made">
+      <Notice role="alert" tone="warning" title={t("screening.noChangeTitle")}>
         <p className="text-muted-foreground">{failure}</p>
       </Notice>
     ) : null;
@@ -179,30 +181,27 @@ export function ScreeningActions({
   const intakeOpen = posting.status === "open";
   const intakeClosed =
     posting.status === "intake_closed" || posting.status === "closed";
-  const blocked = intakeOpen ? approvalBlockReason(posting) : null;
+  const blocked = intakeOpen ? approvalBlock(posting) : null;
   const approveError = approve.isError
-    ? applicationErrorMessage(
-        approve.error,
-        "We couldn't approve this CV. Try again.",
-      )
+    ? errorMessage(approve.error, t("screening.approveFailedRetry"))
     : null;
 
   const controls = (
     <>
       {!intakeOpen ? (
         intakeClosed ? (
-          <Notice tone="locked" title="Intake is closed">
+          <Notice tone="locked" title={t("screening.intakeClosedTitle")}>
             <p className="text-muted-foreground">
-              This posting is no longer taking screening decisions.
+              {t("screening.intakeClosedBody")}
             </p>
           </Notice>
         ) : null
       ) : (
         <>
           {blocked && (
-            <Notice tone="warning" title="Approval is unavailable">
+            <Notice tone="warning" title={t("screening.unavailableTitle")}>
               <p id={blockedId} className="text-muted-foreground">
-                {blocked}
+                {t(`screening.${blocked}`)}
               </p>
             </Notice>
           )}
@@ -224,7 +223,7 @@ export function ScreeningActions({
                   aria-hidden
                 />
               )}
-              Approve CV
+              {t("screening.approve")}
             </Button>
             <Button
               variant="outline"
@@ -235,7 +234,7 @@ export function ScreeningActions({
                 setRejectOpen(true);
               }}
             >
-              Reject CV
+              {t("screening.reject")}
             </Button>
           </div>
           {approveError && (
@@ -254,11 +253,11 @@ export function ScreeningActions({
       >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Approve the last interview slot?</DialogTitle>
+            <DialogTitle>{t("screening.lastSlotTitle")}</DialogTitle>
             <DialogDescription>
-              {application.candidate.name} takes this posting&apos;s last
-              interview slot. Intake then closes and the other pending CVs are
-              rejected automatically.
+              {t("screening.lastSlotBody", {
+                name: application.candidate.name,
+              })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -269,7 +268,7 @@ export function ScreeningActions({
               disabled={approve.isPending}
               onClick={() => setApproveOpen(false)}
             >
-              Cancel
+              {tCommon("actions.cancel")}
             </Button>
             <Button
               type="button"
@@ -284,7 +283,9 @@ export function ScreeningActions({
                   aria-hidden
                 />
               )}
-              {approve.isPending ? "Approving…" : "Confirm approval"}
+              {approve.isPending
+                ? t("dialog.approving")
+                : t("dialog.confirmApproval")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -295,16 +296,13 @@ export function ScreeningActions({
         pending={reject.isPending}
         error={
           reject.isError
-            ? applicationErrorMessage(
-                reject.error,
-                "We couldn't reject this CV. Try again.",
-              )
+            ? errorMessage(reject.error, t("screening.rejectFailedRetry"))
             : null
         }
-        title="Reject this CV?"
-        description="This application will be marked rejected. The reason is optional and is stored with the application."
-        submitLabel="Reject CV"
-        formLabel="Reject CV"
+        title={t("screening.rejectTitle")}
+        description={t("reject.description")}
+        submitLabel={t("screening.reject")}
+        formLabel={t("screening.reject")}
         onCancel={() => setRejectOpen(false)}
         onSubmit={(reason) => reject.mutate(reason)}
       />
@@ -312,7 +310,7 @@ export function ScreeningActions({
   );
   if (layout === "inline")
     return (
-      <section aria-label="Screening" className="space-y-3">
+      <section aria-label={t("screening.heading")} className="space-y-3">
         {controls}
       </section>
     );
@@ -320,7 +318,7 @@ export function ScreeningActions({
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>Screening</h2>
+          <h2>{t("screening.heading")}</h2>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">{controls}</CardContent>

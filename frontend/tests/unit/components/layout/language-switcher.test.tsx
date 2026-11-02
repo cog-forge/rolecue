@@ -20,11 +20,14 @@ describe("LanguageSwitcher", () => {
   beforeEach(clearLocaleCookie);
   afterEach(clearLocaleCookie);
 
-  it("shows the active language by its own name and offers both languages by their own names", async () => {
+  it("shows only the flag of the active language on the button and each language by flag and name in the menu", async () => {
     renderWithIntl(<LanguageSwitcher />);
-    expect(
-      screen.getByRole("button", { name: "Change language: English" }),
-    ).toHaveTextContent("English");
+    const button = screen.getByRole("button", {
+      name: "Change language: English",
+    });
+    expect(button.textContent).toBe("");
+    expect(button.querySelector("[data-flag='gb']")).not.toBeNull();
+    expect(button.querySelector("[data-flag='vn']")).toBeNull();
 
     openMenu(/change language/i);
     const options = await screen.findAllByRole("menuitemradio");
@@ -32,6 +35,8 @@ describe("LanguageSwitcher", () => {
       "English",
       "Tiếng Việt",
     ]);
+    expect(options[0].querySelector("[data-flag='gb']")).not.toBeNull();
+    expect(options[1].querySelector("[data-flag='vn']")).not.toBeNull();
     expect(
       screen.getByRole("menuitemradio", { name: "English" }),
     ).toBeChecked();
@@ -66,11 +71,27 @@ describe("LanguageSwitcher", () => {
     ).toBeInTheDocument();
   });
 
-  it("can render icon-only while keeping its accessible name", () => {
-    renderWithIntl(<LanguageSwitcher showName={false} />);
+  it("shows the Vietnam flag while Vietnamese is active", () => {
+    renderWithIntl(<LanguageSwitcher />, { locale: "vi" });
     const button = screen.getByRole("button", {
-      name: "Change language: English",
+      name: "Đổi ngôn ngữ: Tiếng Việt",
     });
-    expect(button).not.toHaveTextContent("English");
+    expect(button.querySelector("[data-flag='vn']")).not.toBeNull();
+    expect(button.textContent).toBe("");
+  });
+
+  it("keeps the flags out of the accessibility tree", async () => {
+    renderWithIntl(<LanguageSwitcher />);
+    openMenu(/change language/i);
+    await screen.findAllByRole("menuitemradio");
+    for (const svg of document.querySelectorAll("[data-flag] svg"))
+      expect(svg).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("keeps a 44px touch target", () => {
+    renderWithIntl(<LanguageSwitcher />);
+    expect(
+      screen.getByRole("button", { name: /change language/i }),
+    ).toHaveClass("h-11", "min-w-11");
   });
 });

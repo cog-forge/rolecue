@@ -159,7 +159,7 @@ function serve(
       : Promise.resolve(envelope(posting));
   });
 }
-function mount() {
+function mount(locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -171,6 +171,7 @@ function mount() {
     <QueryClientProvider client={client}>
       <JobPostingDetail postingId={postingId} />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -462,7 +463,7 @@ describe("JobPostingDetail", () => {
     );
     expect(
       await screen.findByText(
-        "only a pending or rejected job posting can be edited We refreshed it for you.",
+        "This posting can't be edited right now. We refreshed it for you.",
       ),
     ).toBeInTheDocument();
     await waitFor(() =>
@@ -784,5 +785,88 @@ describe("JobPostingDetail", () => {
     expect(
       screen.queryByRole("button", { name: "Try again" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("never shows the server's message, only text chosen by its error code", async () => {
+    serve(base);
+    mocks.patch.mockRejectedValue(
+      failure(500, "INTERNAL_ERROR", "pq: connection refused"),
+    );
+    mount();
+    fireEvent.change(await screen.findByLabelText("Location"), {
+      target: { value: "Hue" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Save changes|Confirm & generate questions/,
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "We couldn't save your changes. Your changes are still here.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/pq: connection refused/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the posting in Vietnamese", async () => {
+    serve({ ...base, status: "open", interview_slot: null });
+    mount("vi");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Backend Engineer",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Đã duyệt · Cần nạp lượt phỏng vấn"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Tạo ngày/)).toBeInTheDocument();
+    expect(screen.getByText("chưa nạp")).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Các phần của tin tuyển dụng" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Tiến trình tin tuyển dụng" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Tin tuyển dụng của tôi" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Tin tuyển dụng đã được duyệt nên không thể chỉnh sửa/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Senior")).toBeInTheDocument();
+    // Applications: three in all, one waiting; the counts are rich text inside one sentence.
+    expect(await screen.findByText(/đang chờ xét duyệt/)).toHaveTextContent(
+      "3 đơn ứng tuyển, 1 đang chờ xét duyệt",
+    );
+    expect(
+      screen.getByRole("link", { name: "Xét duyệt 1 CV đang chờ" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the editable form in Vietnamese with translated field errors", async () => {
+    serve(base);
+    mount("vi");
+
+    const title = await screen.findByLabelText("Tiêu đề (bắt buộc)");
+    fireEvent.change(title, { target: { value: "x" } });
+    fireEvent.change(title, { target: { value: "" } });
+    fireEvent.blur(title);
+
+    expect(
+      await screen.findByText("Hãy nhập tiêu đề cho tin tuyển dụng."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Địa điểm")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Lưu thay đổi" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("form", { name: "Chỉnh sửa tin tuyển dụng" }),
+    ).toBeInTheDocument();
   });
 });

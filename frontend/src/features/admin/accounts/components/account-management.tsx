@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { UsersRound, RefreshCw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
@@ -13,6 +14,9 @@ import { AccountLockDialog } from "./account-lock-dialog";
 import { AccountDetailsSheet } from "./account-details-sheet";
 
 export function AccountManagement() {
+  const t = useTranslations("admin.accounts");
+  const groups = useTranslations("common.shell.nav.groups");
+  const tCommon = useTranslations("common");
   const {
     list,
     params,
@@ -42,35 +46,31 @@ export function AccountManagement() {
     else heading.current?.focus();
   };
   return (
-    <section className="min-w-0 space-y-7" aria-label="Account management">
+    <section className="min-w-0 space-y-7" aria-label={t("label")}>
       <header className="space-y-2">
         <p className="text-xs font-semibold tracking-[0.14em] text-workspace-accent uppercase">
-          Governance
+          {groups("governance")}
         </p>
         <h1
           ref={heading}
           tabIndex={-1}
           className="text-3xl font-semibold tracking-tight outline-none sm:text-4xl"
         >
-          Accounts
+          {t("title")}
         </h1>
         <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Manage access to RoleCue. Review accounts and lock or unlock Candidate
-          and Recruiter access.
+          {t("description")}
         </p>
       </header>
       {accessDenied ? (
         <div className="space-y-3 rounded-xl border p-5">
-          <p role="alert">
-            We couldn&apos;t confirm your administrator access. Account data is
-            hidden until access is verified.
-          </p>
+          <p role="alert">{t("accessDenied")}</p>
           <Button
             variant="outline"
             className="h-11"
             onClick={() => void recoverAccess()}
           >
-            Retry access check
+            {t("retryAccess")}
           </Button>
         </div>
       ) : (
@@ -89,8 +89,10 @@ export function AccountManagement() {
               className="text-sm text-muted-foreground"
             >
               {searchPending || list.isFetching
-                ? "Loading accounts…"
-                : `${total} ${filtered ? "matching " : ""}${total === 1 ? "account" : "accounts"}`}
+                ? t("status.loading")
+                : filtered
+                  ? t("status.matchingCount", { count: total })
+                  : t("status.count", { count: total })}
             </p>
             <Button
               variant="ghost"
@@ -99,7 +101,7 @@ export function AccountManagement() {
               onClick={() => void refresh()}
             >
               <RefreshCw className="size-4" aria-hidden />
-              Refresh
+              {t("status.refresh")}
             </Button>
           </div>
           {notice && (
@@ -115,7 +117,7 @@ export function AccountManagement() {
                   disabled={list.isFetching}
                   onClick={() => void refresh()}
                 >
-                  Retry refresh
+                  {t("status.retryRefresh")}
                 </Button>
               )}
             </div>
@@ -125,23 +127,21 @@ export function AccountManagement() {
               role="alert"
               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5"
             >
-              <p className="text-sm">
-                Unable to load accounts. Please try again.
-              </p>
+              <p className="text-sm">{t("status.loadFailed")}</p>
               <Button
                 className="h-11"
                 variant="outline"
                 disabled={list.isFetching}
                 onClick={() => void refresh()}
               >
-                Retry
+                {tCommon("actions.retry")}
               </Button>
             </div>
           )}
           {list.isPending ? (
             <div
               role="status"
-              aria-label="Loading accounts"
+              aria-label={t("status.loadingLabel")}
               className="space-y-3 rounded-xl border p-5"
             >
               <Skeleton className="h-10" />
@@ -174,12 +174,10 @@ export function AccountManagement() {
                   aria-hidden
                 />
                 <h2 className="mt-4 text-base font-medium">
-                  {filtered ? "No matching accounts" : "No accounts yet"}
+                  {filtered ? t("empty.filteredTitle") : t("empty.title")}
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  {filtered
-                    ? "Try another search or clear your filter."
-                    : "Registered accounts will appear here."}
+                  {filtered ? t("empty.filteredHint") : t("empty.hint")}
                 </p>
                 {filtered && (
                   <Button
@@ -187,7 +185,7 @@ export function AccountManagement() {
                     className="mt-5 h-11"
                     onClick={clearFilters}
                   >
-                    Clear search and filter
+                    {t("empty.clear")}
                   </Button>
                 )}
               </div>
@@ -198,7 +196,7 @@ export function AccountManagement() {
             pageSize={ACCOUNTS_PAGE_SIZE}
             total={total}
             disabled={actionsBlocked}
-            label="Accounts pagination"
+            label={t("status.pagination")}
             onPageChange={changePage}
           />
         </>

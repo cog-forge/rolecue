@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { PageHeader } from "@/components/layout/page-header";
 import { cn } from "@/lib/utils";
 import type { Application } from "../schemas/application-schema";
@@ -22,6 +23,7 @@ import { ReviewPanel } from "./review-panel";
 // beside the list. Without a selection the first CV awaiting review opens, and a screening
 // decision moves straight to the next one, so repeated screening needs no page changes.
 export function ReceivedApplications() {
+  const t = useTranslations("recruiter.applications.received");
   const params = useSearchParams();
   const split = useSplitView();
   const { filters, query } = useApplicationPage();
@@ -61,14 +63,11 @@ export function ReceivedApplications() {
 
   return (
     <section className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeader
-        title="Received Applications"
-        description="Review each CV beside the list. After you approve or reject one, the next CV waiting for review opens."
-      />
+      <PageHeader title={t("title")} description={t("description")} />
       <ApplicationToolbar />
       <div
         className={cn(
-          "grid items-start gap-6",
+          "grid grid-cols-[minmax(0,1fr)] items-start gap-6",
           panelOpen && "lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]",
         )}
       >

@@ -14,9 +14,11 @@ const posting = (over: Partial<NonNullable<ProgressPosting>> = {}) => ({
   ...over,
 });
 
-function steps(value: ProgressPosting) {
-  renderWithIntl(<PostingProgress posting={value} />);
-  const list = screen.getByRole("list", { name: "Posting progress" });
+function steps(value: ProgressPosting, locale: "en" | "vi" = "en") {
+  renderWithIntl(<PostingProgress posting={value} />, { locale });
+  const list = screen.getByRole("list", {
+    name: locale === "vi" ? "Tiến trình tin tuyển dụng" : "Posting progress",
+  });
   return within(list)
     .getAllByRole("listitem")
     .map((item) => ({
@@ -90,5 +92,17 @@ describe("PostingProgress", () => {
     const all = steps(posting({ status: "rejected" }));
     expect(all[3].text).toContain("Changes requested");
     expect(all[5].text).toContain("After approval and funding");
+  });
+
+  it("tells the path in Vietnamese, with counts and screen-reader state", () => {
+    const all = steps(
+      posting({ status: "open", interview_slot: 5, core_question_count: 1 }),
+      "vi",
+    );
+    expect(all[0].text).toBe("Yêu cầu (đã xong)Đã xem lại và lưu");
+    expect(all[1].text).toBe("Câu hỏi (đã xong)1 câu hỏi");
+    expect(all[4].text).toContain("Đã nạp lượt");
+    expect(all[5]).toMatchObject({ current: true });
+    expect(all[5].text).toContain("(bước hiện tại)Đang nhận đơn ứng tuyển");
   });
 });

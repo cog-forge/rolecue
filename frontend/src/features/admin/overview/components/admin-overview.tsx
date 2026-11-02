@@ -7,6 +7,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +26,8 @@ export function AdminOverview() {
   const user = useSessionUser();
   const cache = useQueryClient();
   const fmt = useFormatters();
+  const t = useTranslations("admin.overview");
+  const tCommon = useTranslations("common");
   const days = parseOverviewDays(useSearchParams().get("days"));
   const query = useQuery({
     queryKey: overviewKeys.overview(user.id, days),
@@ -44,13 +47,15 @@ export function AdminOverview() {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
       <PageHeader
-        title="Admin dashboard"
-        description="Platform operations overview."
+        title={t("title")}
+        description={t("description")}
         meta={
           overview ? (
             <span>
-              Last {overview.window.days} days · Updated{" "}
-              {fmt.date(overview.generated_at, "localDateTime")}
+              {t("updated", {
+                days: overview.window.days,
+                updated: fmt.date(overview.generated_at, "localDateTime"),
+              })}
             </span>
           ) : undefined
         }
@@ -63,23 +68,20 @@ export function AdminOverview() {
           {Array.from({ length: 5 }, (_, i) => (
             <Skeleton key={i} className="h-40 rounded-xl" />
           ))}
-          <span className="sr-only">Loading admin overview…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">
-            You don&apos;t have access to the admin overview
-          </h2>
+          <h2 className="font-semibold">{t("denied.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Checking your account access… If this stays, sign in again with an
-            administrator account.
+            {t("denied.description")}
           </p>
         </div>
       ) : query.isError || !overview ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">We couldn&apos;t load the overview</h2>
+          <h2 className="font-semibold">{t("error.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Please try again in a moment.
+            {tCommon("messages.tryAgainLater")}
           </p>
           <Button
             className="mt-4 h-11"
@@ -87,7 +89,7 @@ export function AdminOverview() {
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Try again
+            {tCommon("actions.tryAgain")}
           </Button>
         </div>
       ) : (
@@ -100,14 +102,14 @@ export function AdminOverview() {
           )}
         >
           <p role="status" className="sr-only">
-            {query.isPlaceholderData ? `Loading the last ${days} days…` : ""}
+            {query.isPlaceholderData ? t("loadingWindow", { days }) : ""}
           </p>
           <OverviewBody overview={overview} />
         </div>
       )}
 
-      <nav aria-label="Admin tools" className="rounded-xl border p-5">
-        <h2 className="font-semibold">Go to</h2>
+      <nav aria-label={t("tools.label")} className="rounded-xl border p-5">
+        <h2 className="font-semibold">{t("tools.title")}</h2>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {quickLinks.map((link) => (
             <li key={link.href}>
@@ -115,7 +117,7 @@ export function AdminOverview() {
                 href={link.href}
                 className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
               >
-                {link.label}
+                {t(`tools.${link.key}`)}
               </Link>
             </li>
           ))}
@@ -126,10 +128,10 @@ export function AdminOverview() {
 }
 
 const quickLinks = [
-  { href: routes.admin.jobPostings, label: "Review pending postings" },
-  { href: routes.admin.interviews, label: "Browse recent interviews" },
-  { href: routes.admin.voices, label: "Manage the voice catalog" },
-  { href: routes.admin.billing, label: "Check payments" },
-  { href: routes.admin.revenue, label: "See revenue figures" },
-  { href: routes.admin.users, label: "Find an account" },
-];
+  { href: routes.admin.jobPostings, key: "jobPostings" },
+  { href: routes.admin.interviews, key: "interviews" },
+  { href: routes.admin.voices, key: "voices" },
+  { href: routes.admin.billing, key: "billing" },
+  { href: routes.admin.revenue, key: "revenue" },
+  { href: routes.admin.users, key: "users" },
+] as const;

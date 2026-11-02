@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -12,10 +13,12 @@ import {
 import {
   ALL_TIME,
   billingPresets,
+  isTimeWindowPreset,
   resolveTimeWindow,
   timeWindowPresets,
   type ResolvedTimeWindow,
   type TimeWindow,
+  type TimeWindowError,
   type TimeWindowPreset,
 } from "../lib/time-window";
 
@@ -37,7 +40,7 @@ function resolve(
 ): ResolvedTimeWindow {
   const result = resolveTimeWindow(window, new Date());
   if (result.ok && requireBothEnds && (!result.dateFrom || !result.dateTo)) {
-    return { ok: false, error: "Choose both a start and an end date." };
+    return { ok: false, error: "bothEnds" };
   }
   return result;
 }
@@ -82,7 +85,7 @@ export function useTimeWindow({
 type TimeWindowFilterProps = {
   value: TimeWindow;
   onChange: (window: TimeWindow) => void;
-  error?: string;
+  error?: TimeWindowError;
   presets?: readonly TimeWindowPreset[];
 };
 
@@ -92,6 +95,7 @@ export function TimeWindowFilter({
   error,
   presets = billingPresets,
 }: TimeWindowFilterProps) {
+  const t = useTranslations("admin.billing.timeWindow");
   const id = useId();
   const fromId = `${id}-from`;
   const toId = `${id}-to`;
@@ -102,26 +106,27 @@ export function TimeWindowFilter({
     <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
       <Select
         value={value.preset}
-        onValueChange={(preset) =>
+        onValueChange={(preset) => {
+          if (!isTimeWindowPreset(preset)) return;
           onChange(
             preset === "custom"
               ? { preset: "custom", from: value.from, to: value.to }
-              : { preset: preset as TimeWindowPreset },
-          )
-        }
+              : { preset },
+          );
+        }}
       >
         <SelectTrigger
           className="h-9 w-full text-xs sm:w-[160px]"
-          aria-label="Time window"
+          aria-label={t("label")}
         >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {timeWindowPresets
-            .filter((preset) => presets.includes(preset.value))
+            .filter((preset) => presets.includes(preset))
             .map((preset) => (
-              <SelectItem key={preset.value} value={preset.value}>
-                {preset.label}
+              <SelectItem key={preset} value={preset}>
+                {t(`presets.${preset}`)}
               </SelectItem>
             ))}
         </SelectContent>
@@ -134,7 +139,7 @@ export function TimeWindowFilter({
               htmlFor={fromId}
               className="text-xs font-medium text-muted-foreground"
             >
-              From
+              {t("from")}
             </label>
             <Input
               id={fromId}
@@ -154,7 +159,7 @@ export function TimeWindowFilter({
               htmlFor={toId}
               className="text-xs font-medium text-muted-foreground"
             >
-              To
+              {t("to")}
             </label>
             <Input
               id={toId}
@@ -174,7 +179,7 @@ export function TimeWindowFilter({
 
       {isCustom && (
         <p className="w-full text-xs text-muted-foreground">
-          Dates in Vietnam time (UTC+07:00); both ends are included.
+          {t("vietnamTimeNote")}
         </p>
       )}
       {error && (
@@ -183,7 +188,7 @@ export function TimeWindowFilter({
           role="alert"
           className="w-full text-xs text-destructive"
         >
-          {error}
+          {t(`errors.${error}`)}
         </p>
       )}
     </div>

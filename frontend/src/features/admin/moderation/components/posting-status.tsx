@@ -1,13 +1,9 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { PostingStatus as Status } from "../schemas/moderation-schema";
 
-const statusText: Record<Status, string> = {
-  pending: "Pending review",
-  open: "Approved",
-  intake_closed: "Intake closed",
-  closed: "Closed",
-  rejected: "Rejected",
-};
 const dotClass: Record<Status, string> = {
   pending: "bg-workspace-accent",
   open: "bg-foreground",
@@ -16,11 +12,8 @@ const dotClass: Record<Status, string> = {
   rejected: "bg-destructive",
 };
 
-export function postingStatusLabel(status: Status) {
-  return statusText[status];
-}
-
-// Status is always text plus a dot, never colour alone (team design rule).
+// Status is always text plus a dot, never colour alone (team design rule). The value stays the
+// API's; only the label is translated.
 export function PostingStatus({
   status,
   className,
@@ -28,6 +21,7 @@ export function PostingStatus({
   status: Status;
   className?: string;
 }) {
+  const t = useTranslations("admin.moderation.status");
   return (
     <span
       className={cn(
@@ -39,7 +33,7 @@ export function PostingStatus({
         aria-hidden
         className={cn("size-2 shrink-0 rounded-full", dotClass[status])}
       />
-      {statusText[status]}
+      {t(status)}
     </span>
   );
 }

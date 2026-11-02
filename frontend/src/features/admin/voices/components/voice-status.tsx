@@ -1,8 +1,10 @@
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 // Status is always text plus a dot, never colour alone (team design rule). Active is a soft
 // pastel green so it doesn't compete with the content; inactive stays neutral.
 export function VoiceStatus({ active }: { active: boolean }) {
+  const t = useTranslations("admin.voices.status");
   return (
     <span
       className={cn(
@@ -19,7 +21,7 @@ export function VoiceStatus({ active }: { active: boolean }) {
           active ? "bg-emerald-400" : "bg-muted-foreground/60",
         )}
       />
-      {active ? "Active" : "Inactive"}
+      {active ? t("active") : t("inactive")}
     </span>
   );
 }

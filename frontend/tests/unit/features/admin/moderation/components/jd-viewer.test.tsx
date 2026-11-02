@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
 import {
   JdViewer,
   jdFile,
@@ -22,7 +23,7 @@ describe("jdFile", () => {
 describe("JdViewer", () => {
   it("embeds the JD PDF of a posting created in the app, with its text on request", () => {
     const url = "https://storage.example.com/role-cue/abc?X-Amz-Signature=sig";
-    render(
+    renderWithIntl(
       <JdViewer
         contentPath="0b6c3a52-6a3d-4b7e-9d55-8c1f2a3b4c5d"
         documentUrl={url}
@@ -43,7 +44,7 @@ describe("JdViewer", () => {
 
   it("shows the stored JD text of a posting created before PDF upload", () => {
     const text = "Senior Go engineer.\n\nBuilds our payment APIs.";
-    render(
+    renderWithIntl(
       <JdViewer
         contentPath="job-descriptions/abc.txt"
         documentUrl={null}
@@ -58,7 +59,7 @@ describe("JdViewer", () => {
   });
 
   it("renders JD text as plain text, never as markup", () => {
-    render(
+    renderWithIntl(
       <JdViewer
         contentPath="job-descriptions/abc.txt"
         documentUrl={null}
@@ -71,7 +72,7 @@ describe("JdViewer", () => {
   });
 
   it("embeds the PDF and always offers a new-tab link", () => {
-    render(
+    renderWithIntl(
       <JdViewer
         contentPath="https://files.example.com/jd/go.pdf"
         documentUrl={null}
@@ -88,7 +89,7 @@ describe("JdViewer", () => {
   });
 
   it("does not try to show a non-PDF file inline", () => {
-    render(
+    renderWithIntl(
       <JdViewer
         contentPath="https://files.example.com/jd/go.docx"
         documentUrl={null}
@@ -103,7 +104,7 @@ describe("JdViewer", () => {
   });
 
   it("explains a missing JD instead of showing a broken view", () => {
-    render(
+    renderWithIntl(
       <JdViewer
         contentPath="job-descriptions/gone.txt"
         documentUrl={null}
@@ -115,7 +116,7 @@ describe("JdViewer", () => {
   });
 
   it("never links an unsafe address", () => {
-    render(
+    renderWithIntl(
       <JdViewer
         contentPath="javascript:alert(1)"
         documentUrl={null}
@@ -124,5 +125,37 @@ describe("JdViewer", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent(/can't be found/i);
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("shows the chrome in Vietnamese but the JD text as stored", () => {
+    renderWithIntl(
+      <JdViewer
+        contentPath="job-descriptions/abc.txt"
+        documentUrl={null}
+        rawText="Senior Go engineer."
+      />,
+      { locale: "vi" },
+    );
+    expect(
+      screen.getByRole("heading", { name: "Mô tả công việc" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Nội dung mô tả công việc")).toHaveTextContent(
+      "Senior Go engineer.",
+    );
+  });
+
+  it("names the PDF frame and the new-tab link in Vietnamese", () => {
+    renderWithIntl(
+      <JdViewer
+        contentPath="https://files.example.com/jd/go.pdf"
+        documentUrl={null}
+        rawText={null}
+      />,
+      { locale: "vi" },
+    );
+    expect(screen.getByTitle("Tệp PDF mô tả công việc")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /mở trong tab mới/i }),
+    ).toHaveAttribute("target", "_blank");
   });
 });

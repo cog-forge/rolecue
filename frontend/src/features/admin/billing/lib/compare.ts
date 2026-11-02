@@ -1,11 +1,17 @@
-import { defaultLocale, type AppLocale } from "@/lib/i18n/config";
+import type { useTranslations } from "next-intl";
+import type { AppLocale } from "@/lib/i18n/config";
 import { formatNumber } from "@/lib/i18n/formatters";
+import { monthName, vietnamParts, type DatesTranslator } from "./dates";
 import { formatCoinAmount, formatVND } from "./format";
 
 // Period comparison for the revenue report. Every metric here is better when it rises. A rate moves
 // in percentage points; a prior zero is "new", never an infinite rise.
 
 export type ComparisonKind = "money" | "count" | "rate";
+
+export type CompareTranslator = ReturnType<
+  typeof useTranslations<"admin.billing.compare">
+>;
 
 export type Comparison =
   | { state: "new"; tone: "neutral" }
@@ -14,6 +20,7 @@ export type Comparison =
       state: "change";
       tone: "positive" | "negative";
       direction: "up" | "down";
+      kind: ComparisonKind;
       percent: string;
       absolute: string;
     };
@@ -22,20 +29,27 @@ const MINUS = "−";
 
 const oneDecimal = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
 
-function signed(value: number, kind: ComparisonKind, locale: AppLocale) {
+function signed(
+  value: number,
+  kind: ComparisonKind,
+  locale: AppLocale,
+  t: CompareTranslator,
+) {
   const sign = value > 0 ? "+" : MINUS;
   const size = Math.abs(value);
   if (kind === "money") return `${sign}${formatVND(size)}`;
-  if (kind === "rate")
-    return `${sign}${formatNumber(size, locale, oneDecimal)} pts`;
-  return `${sign}${formatCoinAmount(size)}`;
+  if (kind === "rate") {
+    return `${sign}${t("points", { value: formatNumber(size, locale, oneDecimal) })}`;
+  }
+  return `${sign}${formatCoinAmount(size, locale)}`;
 }
 
 export function compareValues(
   current: number,
   previous: number,
   kind: ComparisonKind,
-  locale: AppLocale = defaultLocale,
+  locale: AppLocale,
+  t: CompareTranslator,
 ): Comparison {
   const diff =
     kind === "rate"
@@ -49,51 +63,55 @@ export function compareValues(
     state: "change",
     tone: up ? "positive" : "negative",
     direction: up ? "up" : "down",
+    kind,
     percent:
       kind === "rate"
-        ? `${formatNumber(Math.abs(diff), locale, oneDecimal)} pts`
+        ? t("points", {
+            value: formatNumber(Math.abs(diff), locale, oneDecimal),
+          })
         : `${Math.round((Math.abs(diff) / previous) * 100)}%`,
-    absolute: signed(diff, kind, locale),
-  };
-}
-
-const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000;
-const months = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-function vietnamParts(instant: number) {
-  const date = new Date(instant + VIETNAM_OFFSET_MS);
-  return {
-    day: date.getUTCDate(),
-    month: months[date.getUTCMonth()],
-    year: date.getUTCFullYear(),
+    absolute: signed(diff, kind, locale, t),
   };
 }
 
 // "1–27 Oct 2026" for the window [from, to); the end is exclusive, so the last day is the day before.
-export function formatWindowRange(fromISO: string, toISO: string): string {
+export function formatWindowRange(
+  fromISO: string,
+  toISO: string,
+  t: DatesTranslator,
+): string {
   const from = vietnamParts(Date.parse(fromISO));
   const last = vietnamParts(Date.parse(toISO) - 1);
   if (from.year !== last.year) {
-    return `${from.day} ${from.month} ${from.year} – ${last.day} ${last.month} ${last.year}`;
+    return t("rangeCrossYear", {
+      fromDay: from.day,
+      fromMonth: monthName(from.month, t),
+      fromYear: from.year,
+      toDay: last.day,
+      toMonth: monthName(last.month, t),
+      toYear: last.year,
+    });
   }
   if (from.month !== last.month) {
-    return `${from.day} ${from.month} – ${last.day} ${last.month} ${last.year}`;
+    return t("rangeSameYear", {
+      fromDay: from.day,
+      fromMonth: monthName(from.month, t),
+      toDay: last.day,
+      toMonth: monthName(last.month, t),
+      year: last.year,
+    });
   }
   if (from.day !== last.day) {
-    return `${from.day}–${last.day} ${last.month} ${last.year}`;
+    return t("rangeSameMonth", {
+      fromDay: from.day,
+      toDay: last.day,
+      month: monthName(last.month, t),
+      year: last.year,
+    });
   }
-  return `${last.day} ${last.month} ${last.year}`;
+  return t("rangeSameDay", {
+    day: last.day,
+    month: monthName(last.month, t),
+    year: last.year,
+  });
 }

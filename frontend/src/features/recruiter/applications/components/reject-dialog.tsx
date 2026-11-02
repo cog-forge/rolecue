@@ -1,6 +1,7 @@
 "use client";
 
-import { useId } from "react";
+import { useMemo, useId } from "react";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
@@ -16,7 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import {
   MAX_SCREENING_REASON,
-  screeningRejectSchema,
+  createScreeningRejectSchema,
   type ScreeningRejectValues,
 } from "../schemas/application-detail-schema";
 import { useFormatters } from "@/lib/i18n/use-formatters";
@@ -86,6 +87,9 @@ function RejectForm({
   onSubmit: (reason: string | undefined) => void;
 }) {
   const fmt = useFormatters();
+  const t = useTranslations("recruiter.applications.reject");
+  const tCommon = useTranslations("common");
+  const schema = useMemo(() => createScreeningRejectSchema(t), [t]);
   const reasonId = useId();
   const hintId = useId();
   const errorId = useId();
@@ -95,7 +99,7 @@ function RejectForm({
     control,
     formState: { errors },
   } = useForm<ScreeningRejectValues>({
-    resolver: zodResolver(screeningRejectSchema),
+    resolver: zodResolver(schema),
     defaultValues: { reject_reason: "" },
     mode: "onTouched",
   });
@@ -117,8 +121,8 @@ function RejectForm({
     >
       <div className="space-y-2">
         <label htmlFor={reasonId} className="text-sm font-medium">
-          Reason for the candidate{" "}
-          <span className="text-muted-foreground">(optional)</span>
+          {t("reasonLabel")}{" "}
+          <span className="text-muted-foreground">{t("optional")}</span>
         </label>
         <Textarea
           id={reasonId}
@@ -134,7 +138,7 @@ function RejectForm({
           id={hintId}
           className="flex justify-between gap-3 text-xs text-muted-foreground"
         >
-          <span>Leave it empty to reject without a reason.</span>
+          <span>{t("hint")}</span>
           <span className="tabular-nums">
             {Array.from((reason ?? "").trim()).length}/
             {fmt.number(MAX_SCREENING_REASON)}
@@ -159,7 +163,7 @@ function RejectForm({
           disabled={pending}
           onClick={onCancel}
         >
-          Cancel
+          {tCommon("actions.cancel")}
         </Button>
         <Button
           type="submit"
@@ -174,7 +178,7 @@ function RejectForm({
               aria-hidden
             />
           )}
-          {pending ? "Rejecting…" : submitLabel}
+          {pending ? t("rejecting") : submitLabel}
         </Button>
       </DialogFooter>
     </form>

@@ -24,6 +24,9 @@ import { useAccountClock } from "./use-account-clock";
 import { isAccountLocked } from "../schemas/account-state";
 import { useTranslations } from "next-intl";
 
+// Notices are kept as keys so they follow the language switcher while they are on screen.
+type NoticeKey = "notificationFailed" | "refreshFailed" | "unconfirmed";
+
 const initialQuery: AccountQuery = {
   offset: 0,
   searchValue: "",
@@ -33,6 +36,7 @@ const initialQuery: AccountQuery = {
 // Owns remote state, transition reconciliation and access recovery for the Accounts screen.
 export function useAccountManagement() {
   const errorsT = useTranslations("errors");
+  const t = useTranslations("admin.accounts");
   const viewer = useSessionUser();
   const cache = useQueryClient();
   const [params, setParams] = useState(initialQuery);
@@ -50,7 +54,7 @@ export function useAccountManagement() {
   const [selected, setSelected] = useState<AdminAccount | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
   const [needsRefresh, setNeedsRefresh] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notices, setNotices] = useState<NoticeKey[]>([]);
   const [accessBlocked, setAccessBlocked] = useState(false);
   const submitting = useRef(false);
   const list = useQuery({
@@ -96,7 +100,7 @@ export function useAccountManagement() {
     mutationFn: updateAccountLock,
     retry: false,
     onMutate: async () => {
-      setNotice(null);
+      setNotices([]);
       await cache.cancelQueries({ queryKey: accountsKeys.viewer(viewer.id) });
     },
     onSuccess: async (result, action) => {
@@ -117,29 +121,23 @@ export function useAccountManagement() {
       setSelected(null);
       gooeyToast.success(
         !changed
-          ? "Account already has this access state"
+          ? t("feedback.unchangedTitle")
           : action.kind === "lock"
-            ? "Account locked"
-            : "Account unlocked",
+            ? t("feedback.lockedTitle")
+            : t("feedback.unlockedTitle"),
         {
           description: !changed
-            ? "No additional change or notification email was needed."
+            ? t("feedback.unchangedDescription")
             : action.kind === "lock"
-              ? "The user's active sessions have been revoked."
-              : "The user can sign in again. Previous sessions remain invalid.",
+              ? t("feedback.lockedDescription")
+              : t("feedback.unlockedDescription"),
         },
       );
       const refreshed = await reconcile();
-      const notices: string[] = [];
-      if (notification?.status === "failed")
-        notices.push(
-          "The account was updated, but the notification email could not be sent. The access change is still in effect.",
-        );
-      if (!refreshed)
-        notices.push(
-          "We couldn't refresh the list. Refresh before making another change.",
-        );
-      if (notices.length) setNotice(notices.join(" "));
+      const next: NoticeKey[] = [];
+      if (notification?.status === "failed") next.push("notificationFailed");
+      if (!refreshed) next.push("refreshFailed");
+      setNotices(next);
     },
     onError: async (error) => {
       if (isAdminAccessError(error)) return;
@@ -149,9 +147,7 @@ export function useAccountManagement() {
         error.response.status >= 500
       ) {
         setNeedsRefresh(true);
-        setNotice(
-          "We couldn't confirm the change. Review the refreshed account state before trying again.",
-        );
+        setNotices(["unconfirmed"]);
         await cache.invalidateQueries({
           queryKey: accountsKeys.viewer(viewer.id),
           refetchType: "none",
@@ -219,18 +215,20 @@ export function useAccountManagement() {
     filtered,
     searchPending,
     actionsBlocked,
-    notice,
+    notice: notices.length
+      ? notices.map((key) => t(`feedback.notice.${key}`)).join(" ")
+      : null,
     needsRefresh,
     accessDenied: denied || accessBlocked,
     refresh: reconcile,
     recoverAccess,
     changeSearch: (value: string) => {
       setSearch(value);
-      setNotice(null);
+      setNotices([]);
     },
     changeQuery: (query: AccountQuery) => {
       setParams(query);
-      setNotice(null);
+      setNotices([]);
     },
     changePage: (page: number) =>
       setParams({ ...params, offset: (page - 1) * ACCOUNTS_PAGE_SIZE }),
@@ -248,7 +246,11 @@ export function useAccountManagement() {
       pending: mutation.isPending,
       blocked: needsRefresh || !!list.error || list.isFetching,
       error: mutation.error
-        ? getAccountActionError(mutation.error, errorsT)
+        ? getAccountActionError(
+            mutation.error,
+            errorsT,
+            t("feedback.actionFailed"),
+          )
         : null,
       open: (user: AdminAccount) => {
         mutation.reset();

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { Download, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,10 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { TimeWindow } from "../lib/time-window";
-import type {
-  TransactionStatusFilter,
-  TransactionTypeFilter,
+import type { TimeWindow, TimeWindowError } from "../lib/time-window";
+import {
+  transactionStatusFilterSchema,
+  type TransactionStatusFilter,
+  type TransactionTypeFilter,
 } from "../schemas/billing-schema";
 import { TimeWindowFilter } from "./time-window-filter";
 
@@ -33,18 +35,14 @@ type TransactionToolbarProps = {
   onAmountMaxChange: (val: string) => void;
   timeWindow: TimeWindow;
   onTimeWindowChange: (window: TimeWindow) => void;
-  timeWindowError?: string;
+  timeWindowError?: TimeWindowError;
   onReset: () => void;
   onExportCSV: () => void;
   isExporting?: boolean;
 };
 
-const TABS: { id: TransactionTypeFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "topup", label: "PayOS top-ups" },
-  { id: "spend", label: "Coin spending" },
-  { id: "refund", label: "Refunds" },
-];
+const TABS: TransactionTypeFilter[] = ["all", "topup", "spend", "refund"];
+const STATUSES = ["success", "pending", "failed", "cancelled"] as const;
 
 export function TransactionToolbar({
   tab,
@@ -67,6 +65,8 @@ export function TransactionToolbar({
   onExportCSV,
   isExporting = false,
 }: TransactionToolbarProps) {
+  const t = useTranslations("admin.billing.transactions.toolbar");
+  const tCommon = useTranslations("common");
   return (
     <div className="space-y-4 rounded-xl border border-border/80 bg-card p-4 shadow-xs">
       {/* Top Row: Tabs & Export */}
@@ -74,27 +74,27 @@ export function TransactionToolbar({
         <div
           className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-muted/60 p-1"
           role="tablist"
-          aria-label="Transaction categories"
+          aria-label={t("categories")}
         >
-          {TABS.map((t) => (
+          {TABS.map((id) => (
             <button
-              key={t.id}
+              key={id}
               type="button"
               role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => onTabChange(t.id)}
+              aria-selected={tab === id}
+              onClick={() => onTabChange(id)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                tab === t.id
+                tab === id
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t.label}
+              {id === "all" ? tCommon("labels.all") : t(`tabs.${id}`)}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -103,7 +103,7 @@ export function TransactionToolbar({
             className="h-8 gap-1.5 text-xs"
           >
             <RotateCcw className="size-3.5" />
-            Reset Filters
+            {t("reset")}
           </Button>
           <Button
             type="button"
@@ -114,7 +114,7 @@ export function TransactionToolbar({
             className="h-8 gap-1.5 text-xs"
           >
             <Download className="size-3.5" />
-            {isExporting ? "Exporting..." : "Export CSV"}
+            {isExporting ? t("exporting") : t("export")}
           </Button>
         </div>
       </div>
@@ -132,8 +132,8 @@ export function TransactionToolbar({
             type="search"
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search name, email, order or ID"
-            aria-label="Search transactions"
+            placeholder={t("searchPlaceholder")}
+            aria-label={t("searchLabel")}
             className="h-9 pl-9 text-xs"
           />
         </div>
@@ -141,21 +141,24 @@ export function TransactionToolbar({
         <Select
           value={status}
           onValueChange={(val) =>
-            onStatusChange((val ?? "all") as TransactionStatusFilter)
+            onStatusChange(
+              transactionStatusFilterSchema.catch("all").parse(val),
+            )
           }
         >
           <SelectTrigger
             className="h-9 w-full text-xs sm:w-[150px]"
-            aria-label="Filter by status"
+            aria-label={t("statusLabel")}
           >
-            <SelectValue placeholder="All Statuses" />
+            <SelectValue placeholder={t("statuses.all")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="success">Success</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="all">{t("statuses.all")}</SelectItem>
+            {STATUSES.map((value) => (
+              <SelectItem key={value} value={value}>
+                {t(`statuses.${value}`)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -165,12 +168,12 @@ export function TransactionToolbar({
         >
           <SelectTrigger
             className="h-9 w-full text-xs sm:w-[190px]"
-            aria-label="Filter by package or feature"
+            aria-label={t("packageLabel")}
           >
-            <SelectValue placeholder="All packs and features" />
+            <SelectValue placeholder={t("allPackages")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All packs and features</SelectItem>
+            <SelectItem value="all">{t("allPackages")}</SelectItem>
             {packageOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
@@ -185,9 +188,9 @@ export function TransactionToolbar({
             min={0}
             value={amountMin}
             onChange={(e) => onAmountMinChange(e.target.value)}
-            placeholder="Min amount"
-            aria-label="Minimum amount"
-            className="h-9 w-full text-xs sm:w-[7.5rem]"
+            placeholder={t("minAmountPlaceholder")}
+            aria-label={t("minAmountLabel")}
+            className="h-9 w-full text-xs sm:w-[9rem]"
           />
           <span className="text-xs text-muted-foreground">–</span>
           <Input
@@ -195,9 +198,9 @@ export function TransactionToolbar({
             min={0}
             value={amountMax}
             onChange={(e) => onAmountMaxChange(e.target.value)}
-            placeholder="Max amount"
-            aria-label="Maximum amount"
-            className="h-9 w-full text-xs sm:w-[7.5rem]"
+            placeholder={t("maxAmountPlaceholder")}
+            aria-label={t("maxAmountLabel")}
+            className="h-9 w-full text-xs sm:w-[9rem]"
           />
         </div>
       </div>

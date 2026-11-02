@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  questionFormSchema,
+  createQuestionFormSchema,
   questionLength,
   type QuestionValues,
 } from "../schemas/question-bank-schema";
@@ -40,7 +41,14 @@ export function QuestionEditor({
   onCancel?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const t = useTranslations("recruiter.questionBank.editor");
+  const v = useTranslations("recruiter.questionBank.validation");
+  const tCommon = useTranslations("common");
   const fmt = useFormatters();
+  const schema = useMemo(
+    () => createQuestionFormSchema(maxLength, v),
+    [maxLength, v],
+  );
   const {
     register,
     handleSubmit,
@@ -48,7 +56,7 @@ export function QuestionEditor({
     reset,
     formState: { errors, isDirty, isValid },
   } = useForm<QuestionValues>({
-    resolver: zodResolver(questionFormSchema(maxLength)),
+    resolver: zodResolver(schema),
     defaultValues: { content: initial },
     mode: "onChange",
   });
@@ -87,7 +95,7 @@ export function QuestionEditor({
         id={hintId}
         className="flex justify-between gap-3 text-xs text-muted-foreground"
       >
-        <span>Asked by the AI interviewer. Candidates never see the bank.</span>
+        <span>{t("hint")}</span>
         <span className="tabular-nums">
           {fmt.number(questionLength(content ?? ""))}/{fmt.number(maxLength)}
         </span>
@@ -125,7 +133,7 @@ export function QuestionEditor({
             disabled={pending}
             onClick={onCancel}
           >
-            Cancel
+            {tCommon("actions.cancel")}
           </Button>
         )}
       </div>

@@ -2,6 +2,7 @@
 
 import { ReviewSubmissionDialog } from "./review-submission-dialog";
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListPlus, LoaderCircle, Pencil, Trash2 } from "lucide-react";
 import { gooeyToast } from "goey-toast";
@@ -29,22 +30,11 @@ import {
   questionBankKeys,
   updateQuestion,
 } from "../api/question-bank";
-import type {
-  Bank,
-  CoreQuestion,
-  PostingStatus as Status,
-} from "../schemas/question-bank-schema";
+import type { Bank, CoreQuestion } from "../schemas/question-bank-schema";
 import { apiError, isAccessDenied } from "../utils/api-error";
 import { DeleteQuestionDialog } from "./delete-question-dialog";
 import { QuestionEditor } from "./question-editor";
-
-const statusText: Record<Status, string> = {
-  pending: "Pending review",
-  open: "Approved",
-  intake_closed: "Intake closed",
-  closed: "Closed",
-  rejected: "Rejected",
-};
+import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 
 // Codes after which the cached bank is stale: the posting left "pending", the bank was filled
 // elsewhere, or the posting/question is gone. Refetching shows the server's truth.
@@ -61,7 +51,15 @@ const staleCodes = new Set([
   "JOB_POSTING_NOT_EDITABLE",
 ]);
 
+type BankTranslator = ReturnType<
+  typeof useTranslations<"recruiter.questionBank">
+>;
+
 export function QuestionBank({ postingId }: { postingId: string }) {
+  const t = useTranslations("recruiter.questionBank");
+  const tp = useTranslations("recruiter.postings");
+  const tCommon = useTranslations("common");
+  const errorMessage = useApiErrorMessage();
   const user = useSessionUser();
   const cache = useQueryClient();
   const key = questionBankKeys.detail(user.id, postingId);
@@ -86,11 +84,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
   const patch = (update: (bank: Bank) => Bank) =>
     cache.setQueryData<Bank>(key, (bank) => (bank ? update(bank) : bank));
   const onStale = (error: unknown) => {
-    const { code, message } = apiError(error);
+    const { code } = apiError(error);
     if (!code || !staleCodes.has(code)) return false;
-    setNotice(
-      message ?? "This question bank changed. We refreshed it for you.",
-    );
+    setNotice(errorMessage(error, t("changed")));
     setEditingId(null);
     setDeleting(null);
     void cache.invalidateQueries({ queryKey: key });
@@ -117,7 +113,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       }));
       refreshPosting();
       setReviewOpen(false);
-      gooeyToast.success("Submitted for approval");
+      gooeyToast.success(t("submit.toast"));
     },
     onError: onStale,
   });
@@ -129,8 +125,8 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       patch((bank) => ({ ...bank, questions, editable: true }));
       refreshPosting();
       setNotice(null);
-      gooeyToast.success("Question bank generated", {
-        description: `${questions.length} questions are ready to review.`,
+      gooeyToast.success(tp("toast.bankGenerated"), {
+        description: t("generate.toast", { count: questions.length }),
       });
     },
     onError: onStale,
@@ -176,13 +172,8 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       setDeleting(null);
       refreshPosting();
       gooeyToast.success(
-        "Question deleted",
-        withdrawn
-          ? {
-              description:
-                "The posting left the review queue. Add questions and submit it again.",
-            }
-          : undefined,
+        t("delete.toast"),
+        withdrawn ? { description: t("delete.withdrawn") } : undefined,
       );
     },
     onError: onStale,
@@ -201,14 +192,11 @@ export function QuestionBank({ postingId }: { postingId: string }) {
     fallback: string,
   ) => {
     if (!state.isError || isAccessDenied(state.error)) return null;
-    const { code, message } = apiError(state.error);
+    const { code } = apiError(state.error);
     if (code && staleCodes.has(code)) return null;
-    return message ?? fallback;
+    return errorMessage(state.error, fallback);
   };
-  const submitError = formError(
-    sendForReview,
-    "We couldn't submit the posting. Please try again.",
-  );
+  const submitError = formError(sendForReview, t("submit.failed"));
   const submit = async (run: () => Promise<unknown>) => {
     try {
       await run();
@@ -218,63 +206,63 @@ export function QuestionBank({ postingId }: { postingId: string }) {
     }
   };
 
-  const back = { href: routes.recruiter.jobPostings, label: "My Job Postings" };
+  const back = {
+    href: routes.recruiter.jobPostings,
+    label: tp("backToList"),
+  };
 
   // Why Submit is off, in the order the Recruiter can fix things: nothing to send, then work in
   // progress that would be lost, then saves still running.
   const submitBlock = !query.data
     ? null
     : query.data.questions.length === 0
-      ? "Generate or add at least one question to submit."
+      ? t("blocked.empty")
       : editingId !== null
-        ? "Save or cancel the question you are editing to submit."
+        ? t("blocked.editing")
         : addDirty
-          ? "Add or discard the question you started to submit."
+          ? t("blocked.adding")
           : add.isPending || update.isPending || remove.isPending
-            ? "Saving your changes…"
+            ? t("blocked.saving")
             : generate.isPending
-              ? "Generating questions…"
+              ? t("blocked.generating")
               : null;
 
   return (
     <section className="mx-auto w-full max-w-5xl space-y-8">
       {query.isPending ? (
         <>
-          <PageHeader back={back} title="Question bank" />
+          <PageHeader back={back} title={t("title")} />
           <div role="status" className="space-y-3">
             <Skeleton className="h-12 rounded-md" />
             {Array.from({ length: 4 }, (_, i) => (
               <Skeleton key={i} className="h-16 rounded-lg" />
             ))}
-            <span className="sr-only">Loading the question bank…</span>
+            <span className="sr-only">{t("loading")}</span>
           </div>
         </>
       ) : denied ? (
         <>
-          <PageHeader back={back} title="Question bank" />
+          <PageHeader back={back} title={t("title")} />
           <div role="alert" className="rounded-xl border p-6">
-            <h2 className="text-base font-semibold">
-              You don&apos;t have access to this question bank
-            </h2>
+            <h2 className="text-base font-semibold">{t("denied.title")}</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Checking your account access… Only the recruiter who owns this job
-              posting can manage its questions.
+              {t("denied.body")}
             </p>
           </div>
         </>
       ) : query.isError ? (
         <>
-          <PageHeader back={back} title="Question bank" />
+          <PageHeader back={back} title={t("title")} />
           <div role="alert" className="rounded-xl border p-6">
             <h2 className="text-base font-semibold">
               {apiError(query.error).status === 404
-                ? "This job posting doesn't exist"
-                : "We couldn't load the question bank"}
+                ? t("error.notFoundTitle")
+                : t("error.failedTitle")}
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {apiError(query.error).status === 404
-                ? "It may have been removed, or it belongs to another recruiter."
-                : "Please try again in a moment."}
+                ? t("error.notFoundBody")
+                : tCommon("messages.tryAgainLater")}
             </p>
             {apiError(query.error).status !== 404 && (
               <Button
@@ -283,7 +271,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                 disabled={query.isFetching}
                 onClick={() => void query.refetch()}
               >
-                Try again
+                {tCommon("actions.tryAgain")}
               </Button>
             )}
           </div>
@@ -292,7 +280,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
         <>
           <PageHeader
             back={back}
-            title="Question bank"
+            title={t("title")}
             meta={
               <>
                 <PostingStatus
@@ -301,10 +289,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                   reviewSubmitted={query.data.review_submitted}
                   interviewSlot={posting.data?.interview_slot}
                 />
-                <span>Candidates never see these questions.</span>
+                <span>{t("hiddenFromCandidates")}</span>
               </>
             }
-            description={bankState(query.data)}
+            description={bankState(query.data, t)}
             actions={
               preparing(query.data) && !query.data.review_submitted ? (
                 <div className="flex flex-col gap-1.5 sm:items-end">
@@ -324,10 +312,10 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                       />
                     )}
                     {sendForReview.isPending
-                      ? "Submitting…"
+                      ? t("submit.pending")
                       : query.data.posting_status === "rejected"
-                        ? "Resubmit for approval"
-                        : "Submit for approval"}
+                        ? t("submit.resubmit")
+                        : t("submit.submit")}
                   </Button>
                   {submitBlock && (
                     <p
@@ -366,7 +354,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                       />
                     </svg>
                   </span>
-                  In the review queue
+                  {t("submit.inQueue")}
                 </span>
               ) : null
             }
@@ -395,8 +383,8 @@ export function QuestionBank({ postingId }: { postingId: string }) {
           />
           <p className="text-sm text-muted-foreground">
             {preparing(query.data)
-              ? "Use the default evaluation criteria or customize them before submitting."
-              : "Evaluation criteria are locked after approval."}
+              ? t("evaluation.preparing")
+              : t("evaluation.locked")}
           </p>
           {reviewOpen && (
             <ReviewSubmissionDialog
@@ -420,21 +408,17 @@ export function QuestionBank({ postingId }: { postingId: string }) {
           <section aria-labelledby="questions-heading" className="space-y-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 id="questions-heading" className="text-base font-semibold">
-                Questions
+                {t("list.title")}
               </h2>
               <span className="text-sm text-muted-foreground tabular-nums">
-                {query.data.questions.length}{" "}
-                {query.data.questions.length === 1 ? "question" : "questions"}
+                {t("list.count", { count: query.data.questions.length })}
               </span>
             </div>
             {query.data.questions.length === 0 ? (
               <EmptyBank
                 bank={query.data}
                 generating={generate.isPending}
-                error={formError(
-                  generate,
-                  "We couldn't generate questions. Please try again.",
-                )}
+                error={formError(generate, t("generate.failed"))}
                 onGenerate={() => generate.mutate()}
               />
             ) : (
@@ -450,16 +434,13 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                     {editingId === question.id ? (
                       <QuestionEditor
                         id={`edit-${question.id}`}
-                        label={`Edit question ${index + 1}`}
+                        label={t("list.editLabel", { number: index + 1 })}
                         initial={question.content}
                         maxLength={query.data.max_question_length}
                         pending={update.isPending}
-                        error={formError(
-                          update,
-                          "We couldn't save the question. Your edit is still here.",
-                        )}
-                        submitLabel="Save question"
-                        pendingLabel="Saving…"
+                        error={formError(update, t("edit.failed"))}
+                        submitLabel={t("edit.save")}
+                        pendingLabel={tCommon("actions.saving")}
                         onCancel={() => {
                           update.reset();
                           setEditingId(null);
@@ -484,7 +465,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                               variant="ghost"
                               size="icon"
                               className="size-10 rounded-full text-muted-foreground hover:text-foreground"
-                              aria-label={`Edit question ${index + 1}`}
+                              aria-label={t("list.editLabel", {
+                                number: index + 1,
+                              })}
                               disabled={editingId !== null}
                               onClick={() => {
                                 update.reset();
@@ -497,7 +480,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                               variant="ghost"
                               size="icon"
                               className="size-10 rounded-full text-muted-foreground hover:text-destructive"
-                              aria-label={`Delete question ${index + 1}`}
+                              aria-label={t("list.deleteLabel", {
+                                number: index + 1,
+                              })}
                               onClick={() => {
                                 remove.reset();
                                 setDeleting(question);
@@ -519,15 +504,12 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                 <QuestionEditor
                   onDirtyChange={setAddDirty}
                   id="new-question"
-                  label="Add a question"
+                  label={t("add.label")}
                   maxLength={query.data.max_question_length}
                   pending={add.isPending}
-                  error={formError(
-                    add,
-                    "We couldn't add the question. Your draft is still here.",
-                  )}
-                  submitLabel="Add question"
-                  pendingLabel="Adding…"
+                  error={formError(add, t("add.failed"))}
+                  submitLabel={t("add.submit")}
+                  pendingLabel={t("add.pending")}
                   onSubmit={(content) => submit(() => add.mutateAsync(content))}
                 />
               </div>
@@ -537,10 +519,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
           <DeleteQuestionDialog
             question={deleting}
             pending={remove.isPending}
-            error={formError(
-              remove,
-              "We couldn't delete the question. Please try again.",
-            )}
+            error={formError(remove, t("delete.failed"))}
             onCancel={() => setDeleting(null)}
             onConfirm={() => deleting && remove.mutate(deleting.id)}
           />
@@ -551,14 +530,22 @@ export function QuestionBank({ postingId }: { postingId: string }) {
 }
 
 // The sentence under the title: what the bank's state lets the Recruiter do next.
-function bankState(bank: Bank) {
-  if (!preparing(bank))
-    return `This posting is ${statusText[bank.posting_status].toLowerCase()}, so the question bank is read-only.`;
-  if (bank.review_submitted)
-    return "Submitted for approval. You can still edit the questions until an administrator reviews the posting.";
+function bankState(bank: Bank, t: BankTranslator) {
+  switch (bank.posting_status) {
+    case "open":
+      return t("state.readOnlyApproved");
+    case "intake_closed":
+      return t("state.readOnlyIntakeClosed");
+    case "closed":
+      return t("state.readOnlyClosed");
+    case "pending":
+    case "rejected":
+      break;
+  }
+  if (bank.review_submitted) return t("state.submitted");
   return bank.questions.length > 0
-    ? "Review and save your questions, then submit the posting for approval."
-    : "The posting needs at least one question before you can submit it for approval.";
+    ? t("state.review")
+    : t("state.needsQuestion");
 }
 
 // Questions change, and the posting is submitted, while it is prepared: pending or rejected.
@@ -579,26 +566,25 @@ function EmptyBank({
   error: string | null;
   onGenerate: () => void;
 }) {
+  const t = useTranslations("recruiter.questionBank.empty");
   if (!preparing(bank))
     return (
       <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-        This posting has no core questions.
+        {t("none")}
       </p>
     );
   if (bank.generation_size === 0)
     return (
       <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-        No questions yet. Automatic generation isn&apos;t available right now;
-        please try again later.
+        {t("unavailable")}
       </p>
     );
   return (
     <div className="space-y-4 rounded-xl border border-dashed px-6 py-10 text-center">
       <div className="space-y-1">
-        <h3 className="font-semibold">No questions yet</h3>
+        <h3 className="font-semibold">{t("title")}</h3>
         <p className="mx-auto max-w-[52ch] text-sm text-muted-foreground">
-          Generate {bank.generation_size} questions from the requirements you
-          confirmed. You can edit, add and remove questions before submitting.
+          {t("description", { count: bank.generation_size })}
         </p>
       </div>
       <Button
@@ -615,19 +601,12 @@ function EmptyBank({
         ) : (
           <ListPlus className="size-4" aria-hidden />
         )}
-        {generating
-          ? "Generating questions…"
-          : error
-            ? "Retry generating questions"
-            : "Generate questions"}
+        {generating ? t("generating") : error ? t("retry") : t("generate")}
       </Button>
       <p role="status" aria-live="polite" className="text-[13px]">
         {generating ? (
-          <span
-            className="t-shimmer"
-            data-text="This can take up to a minute. You can stay on this page."
-          >
-            This can take up to a minute. You can stay on this page.
+          <span className="t-shimmer" data-text={t("wait")}>
+            {t("wait")}
           </span>
         ) : (
           ""

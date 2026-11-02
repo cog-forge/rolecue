@@ -1,3 +1,4 @@
+import type { useTranslations } from "next-intl";
 import { z } from "zod";
 
 // Mirrors the Go KAN-80 Job Posting contract (snake_case).
@@ -146,13 +147,14 @@ const INT32_MAX = 2_147_483_647;
 export const runeLength = (value: string) => Array.from(value).length;
 const trimmedLength = (value: string) => runeLength(value.trim());
 
-const optionalDetail = (label: string) =>
-  z
-    .string()
-    .refine(
-      (value) => trimmedLength(value) <= DETAIL_MAX,
-      `Keep the ${label} to ${DETAIL_MAX} characters or fewer.`,
-    );
+// Translator for the posting form's messages; the schema is built from it, so a field error is
+// already in the active language: `useMemo(() => createPostingFormSchema(v), [v])`.
+export type PostingValidation = ReturnType<
+  typeof useTranslations<"recruiter.postings.validation">
+>;
+
+const optionalDetail = (message: string) =>
+  z.string().refine((value) => trimmedLength(value) <= DETAIL_MAX, message);
 
 // Whole numbers typed as text; blank means "not set".
 const optionalWhole = (message: string, min: number) =>
@@ -164,108 +166,88 @@ const optionalWhole = (message: string, min: number) =>
     return number >= min && number <= INT32_MAX;
   }, message);
 
-export const postingFormSchema = z
-  .object({
-    // document_id is a newly uploaded PDF ("" keeps the posting's current one); raw_text and
-    // file_name come from that upload and are shown, never typed. The server reads the PDF again.
-    document_id: z.string(),
-    file_name: z.string(),
-    raw_text: z
-      .string()
-      .refine(
-        (value) => trimmedLength(value) > 0,
-        "Upload the job description as a PDF.",
+export const createPostingFormSchema = (t: PostingValidation) =>
+  z
+    .object({
+      // document_id is a newly uploaded PDF ("" keeps the posting's current one); raw_text and
+      // file_name come from that upload and are shown, never typed. The server reads the PDF again.
+      document_id: z.string(),
+      file_name: z.string(),
+      raw_text: z
+        .string()
+        .refine((value) => trimmedLength(value) > 0, t("pdfRequired")),
+      title: z
+        .string()
+        .refine((value) => trimmedLength(value) > 0, t("titleRequired"))
+        .refine(
+          (value) => trimmedLength(value) <= TITLE_MAX,
+          t("titleMax", { max: TITLE_MAX }),
+        ),
+      seniority_level: z.union([levelSchema, z.literal("")]),
+      requirements: z
+        .array(
+          z.object({
+            name: z
+              .string()
+              .refine(
+                (value) => trimmedLength(value) > 0,
+                t("requirementNameRequired"),
+              )
+              .refine(
+                (value) => trimmedLength(value) <= NAME_MAX,
+                t("requirementNameMax", { max: NAME_MAX }),
+              ),
+            target: z.enum(requirementTargets),
+            type: z.enum(requirementTypes),
+          }),
+        )
+        .min(1, t("requirementsMin"))
+        .max(REQUIREMENTS_MAX, t("requirementsMax", { max: REQUIREMENTS_MAX })),
+      refinement_note: z
+        .string()
+        .refine(
+          (value) => trimmedLength(value) <= REFINEMENT_NOTE_MAX,
+          t("refinementMax", { max: REFINEMENT_NOTE_MAX }),
+        ),
+      confirmed: z.boolean(),
+      location: optionalDetail(t("locationMax", { max: DETAIL_MAX })),
+      employment_type: optionalDetail(
+        t("employmentTypeMax", { max: DETAIL_MAX }),
       ),
-    title: z
-      .string()
-      .refine(
-        (value) => trimmedLength(value) > 0,
-        "Enter a title for the posting.",
-      )
-      .refine(
-        (value) => trimmedLength(value) <= TITLE_MAX,
-        `Keep the title to ${TITLE_MAX} characters or fewer.`,
-      ),
-    seniority_level: z.union([levelSchema, z.literal("")]),
-    requirements: z
-      .array(
-        z.object({
-          name: z
-            .string()
-            .refine(
-              (value) => trimmedLength(value) > 0,
-              "Name the requirement.",
-            )
-            .refine(
-              (value) => trimmedLength(value) <= NAME_MAX,
-              `Keep the name to ${NAME_MAX} characters or fewer.`,
-            ),
-          target: z.enum(requirementTargets),
-          type: z.enum(requirementTypes),
-        }),
-      )
-      .min(
-        1,
-        "Add at least one requirement. The question bank is built from them.",
-      )
-      .max(
-        REQUIREMENTS_MAX,
-        `Keep to ${REQUIREMENTS_MAX} requirements or fewer.`,
-      ),
-    refinement_note: z
-      .string()
-      .refine(
-        (value) => trimmedLength(value) <= REFINEMENT_NOTE_MAX,
-        `Keep the refinement note to ${REFINEMENT_NOTE_MAX} characters or fewer.`,
-      ),
-    confirmed: z.boolean(),
-    location: optionalDetail("location"),
-    employment_type: optionalDetail("employment type"),
-    salary_min: optionalWhole(
-      "Enter the minimum salary as a whole number, 0 or more.",
-      0,
-    ),
-    salary_max: optionalWhole(
-      "Enter the maximum salary as a whole number, 0 or more.",
-      0,
-    ),
-    interview_duration: optionalWhole(
-      "Enter the interview length as a whole number of minutes, 1 or more.",
-      1,
-    ),
-    required_avatar_id: z
-      .string()
-      .min(1, "Choose the interviewer model candidates will meet."),
-    required_voice_id: z.string().min(1, "Choose the interviewer voice."),
-  })
-  .superRefine((values, ctx) => {
-    if (values.seniority_level === "")
-      ctx.addIssue({
-        code: "custom",
-        path: ["seniority_level"],
-        message: "Choose the seniority of the role.",
-      });
-    const seen = new Set<string>();
-    values.requirements.forEach((row, index) => {
-      const key = `${row.name.trim().toLowerCase()}\u0000${row.target}`;
-      if (row.name.trim() && seen.has(key))
+      salary_min: optionalWhole(t("salaryMin"), 0),
+      salary_max: optionalWhole(t("salaryMax"), 0),
+      interview_duration: optionalWhole(t("interviewDuration"), 1),
+      required_avatar_id: z.string().min(1, t("avatarRequired")),
+      required_voice_id: z.string().min(1, t("voiceRequired")),
+    })
+    .superRefine((values, ctx) => {
+      if (values.seniority_level === "")
         ctx.addIssue({
           code: "custom",
-          path: ["requirements", index, "name"],
-          message: "This requirement is already in the list.",
+          path: ["seniority_level"],
+          message: t("seniorityRequired"),
         });
-      seen.add(key);
-    });
-    const min = values.salary_min.trim();
-    const max = values.salary_max.trim();
-    if (/^\d+$/.test(min) && /^\d+$/.test(max) && Number(min) > Number(max))
-      ctx.addIssue({
-        code: "custom",
-        path: ["salary_max"],
-        message: "The maximum salary must be at least the minimum.",
+      const seen = new Set<string>();
+      values.requirements.forEach((row, index) => {
+        const key = `${row.name.trim().toLowerCase()}\u0000${row.target}`;
+        if (row.name.trim() && seen.has(key))
+          ctx.addIssue({
+            code: "custom",
+            path: ["requirements", index, "name"],
+            message: t("requirementDuplicate"),
+          });
+        seen.add(key);
       });
-  });
-export type PostingValues = z.infer<typeof postingFormSchema>;
+      const min = values.salary_min.trim();
+      const max = values.salary_max.trim();
+      if (/^\d+$/.test(min) && /^\d+$/.test(max) && Number(min) > Number(max))
+        ctx.addIssue({
+          code: "custom",
+          path: ["salary_max"],
+          message: t("salaryOrder"),
+        });
+    });
+export type PostingValues = z.infer<ReturnType<typeof createPostingFormSchema>>;
 
 export const emptyPostingValues: PostingValues = {
   document_id: "",

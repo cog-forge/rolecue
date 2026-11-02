@@ -44,6 +44,7 @@ const staleFundingCodes = new Set([
 // slots: a submission never uses a slot, only an approval does.
 export function CapacityPanel({ postingId }: { postingId: string }) {
   const fmt = useFormatters();
+  const t = useTranslations("recruiter.capacity");
   const errorsT = useTranslations("errors");
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -134,7 +135,7 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
         <CardContent role="status" className="space-y-3 pt-6">
           <Skeleton className="h-6 w-1/3 rounded-md" />
           <Skeleton className="h-24 rounded-xl" />
-          <span className="sr-only">Loading interview capacity…</span>
+          <span className="sr-only">{t("loading")}</span>
         </CardContent>
       </Card>
     );
@@ -155,45 +156,43 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
     <Card id="interview-capacity">
       <CardHeader>
         <CardTitle>
-          <h2>Interview capacity</h2>
+          <h2>{t("title")}</h2>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6 text-sm">
         <section className="space-y-3" aria-labelledby="capacity-slots-heading">
           <h3 id="capacity-slots-heading" className="font-semibold">
-            Interview slots
+            {t("slots.title")}
           </h3>
           {posting.funded && posting.interview_slot !== null ? (
             <dl className="grid gap-4 sm:grid-cols-2">
               <CapacityFigure
-                label="Funded slots"
+                label={t("slots.funded")}
                 value={posting.interview_slot}
               />
               <CapacityFigure
-                label="CVs approved"
+                label={t("slots.approved")}
                 value={posting.cv_approvals}
               />
               <CapacityFigure
-                label="Still open for approval"
+                label={t("slots.openForApproval")}
                 value={posting.available_to_approve}
               />
               <CapacityFigure
-                label="Interviews started"
+                label={t("slots.started")}
                 value={posting.consumed}
               />
             </dl>
           ) : (
             <p className="text-muted-foreground">
-              {open
-                ? "Approved by an administrator. Fund interview slots to open intake: candidates can't see or apply to this posting until you do."
-                : "Interview slots are not funded yet. No CV can be approved until they are."}
+              {open ? t("slots.approvedUnfunded") : t("slots.notFunded")}
             </p>
           )}
         </section>
 
         <section className="space-y-2" aria-labelledby="capacity-cvs-heading">
           <h3 id="capacity-cvs-heading" className="font-semibold">
-            CVs submitted
+            {t("cvs.title")}
           </h3>
           <SubmittedCount
             takesApplications={takesApplications}
@@ -201,14 +200,10 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
           />
           {open && !posting.funded && (
             <p className="text-muted-foreground">
-              Candidates can apply once you fund interview slots.
+              {t("cvs.applyAfterFunding")}
             </p>
           )}
-          <p className="text-xs text-muted-foreground">
-            Submitted CVs do not use interview slots. Approving a CV reserves
-            eligibility; a slot is consumed when the candidate first starts the
-            interview.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("cvs.note")}</p>
         </section>
 
         {!posting.funded && open && (
@@ -217,25 +212,24 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
             aria-labelledby="capacity-fund-heading"
           >
             <h3 id="capacity-fund-heading" className="font-semibold">
-              Fund interview slots
+              {t("fund.title")}
             </h3>
-            <p className="text-muted-foreground">
-              Fund once per posting; additional slots cannot be added later.
-              Funding publishes the posting on the Job Board.
-            </p>
+            <p className="text-muted-foreground">{t("fund.note")}</p>
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 p-3">
               <p>
                 {wallet.isSuccess
-                  ? `Wallet balance: ${fmt.coins(wallet.data.balance)}`
+                  ? t("fund.walletBalance", {
+                      amount: fmt.coins(wallet.data.balance),
+                    })
                   : wallet.isPending
-                    ? "Loading wallet balance…"
-                    : "Wallet balance unavailable."}
+                    ? t("fund.walletLoading")
+                    : t("fund.walletUnavailable")}
               </p>
               <Link
                 href={routes.recruiter.billing}
                 className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4"
               >
-                View wallet & buy coins
+                {t("fund.viewWallet")}
               </Link>
             </div>
             <FundCapacityForm
@@ -246,7 +240,8 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
                   ? capacityErrorMessage(
                       fund.error,
                       errorsT,
-                      "We couldn't fund the interview slots. Try again.",
+                      t,
+                      t("fund.failed"),
                     )
                   : null
               }
@@ -257,8 +252,8 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
         {!posting.funded && !open && !closed && (
           <p className="text-muted-foreground">
             {posting.posting_status === "intake_closed"
-              ? "Intake is closed, so interview slots can no longer be funded."
-              : "Interview slots can be funded once an administrator approves the posting. Funding them opens intake to candidates."}
+              ? t("fund.intakeClosed")
+              : t("fund.awaitingApproval")}
           </p>
         )}
 
@@ -268,12 +263,9 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
             aria-labelledby="capacity-close-heading"
           >
             <h3 id="capacity-close-heading" className="font-semibold">
-              Intake
+              {t("intake.title")}
             </h3>
-            <p className="text-muted-foreground">
-              Close intake to stop new applications. Pending applications are
-              rejected; approved candidates still interview.
-            </p>
+            <p className="text-muted-foreground">{t("intake.description")}</p>
             <Button
               type="button"
               variant="outline"
@@ -283,16 +275,15 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
                 setCloseOpen(true);
               }}
             >
-              Close intake
+              {t("intake.close")}
             </Button>
           </section>
         )}
 
         {closed && posting.interview_slot === null && (
-          <Notice tone="locked" title="Closed without funded slots">
+          <Notice tone="locked" title={t("closedUnfunded.title")}>
             <p className="text-muted-foreground">
-              This posting closed without funded interview slots, so there was
-              nothing to return to your wallet.
+              {t("closedUnfunded.description")}
             </p>
           </Notice>
         )}
@@ -300,11 +291,13 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
         {closed &&
           posting.interview_slot !== null &&
           posting.refunded !== null && (
-            <Notice tone="locked" title="Interview slots refunded">
+            <Notice tone="locked" title={t("refunded.title")}>
               <p className="text-muted-foreground">
                 {posting.refunded === 0
-                  ? "No coins were returned to your wallet when this posting closed."
-                  : `${fmt.coins(posting.refunded)} were returned to your wallet when this posting closed.`}
+                  ? t("refunded.none")
+                  : t("refunded.returned", {
+                      amount: fmt.coins(posting.refunded),
+                    })}
               </p>
             </Notice>
           )}
@@ -314,11 +307,7 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
           pending={close.isPending}
           error={
             close.isError
-              ? capacityErrorMessage(
-                  close.error,
-                  errorsT,
-                  "We couldn't close intake. Try again.",
-                )
+              ? capacityErrorMessage(close.error, errorsT, t, t("closeFailed"))
               : null
           }
           onCancel={() => setCloseOpen(false)}
@@ -330,10 +319,13 @@ export function CapacityPanel({ postingId }: { postingId: string }) {
 }
 
 function CapacityFigure({ label, value }: { label: string; value: number }) {
+  const fmt = useFormatters();
   return (
     <div>
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
+      <dd className="text-lg font-semibold tabular-nums">
+        {fmt.number(value)}
+      </dd>
     </div>
   );
 }
@@ -349,29 +341,23 @@ function SubmittedCount({
     data?: { pagination: { total: number } };
   };
 }) {
+  const t = useTranslations("recruiter.capacity.submitted");
+  const fmt = useFormatters();
   if (!takesApplications)
-    return (
-      <p className="text-muted-foreground">
-        Candidates can apply once intake opens.
-      </p>
-    );
+    return <p className="text-muted-foreground">{t("notOpen")}</p>;
 
   if (query.isPending)
     return (
       <>
         <Skeleton className="h-6 w-16 rounded-md" />
-        <span className="sr-only">Loading the number of submitted CVs…</span>
+        <span className="sr-only">{t("loading")}</span>
       </>
     );
   if (query.isError || !query.data)
-    return (
-      <p className="text-muted-foreground">
-        We couldn&apos;t load the number of submitted CVs.
-      </p>
-    );
+    return <p className="text-muted-foreground">{t("failed")}</p>;
   return (
     <p className="text-lg font-semibold tabular-nums">
-      {query.data.pagination.total}
+      {fmt.number(query.data.pagination.total)}
     </p>
   );
 }
@@ -385,6 +371,8 @@ function CapacityLoadError({
   retrying: boolean;
   onRetry: () => void;
 }) {
+  const t = useTranslations("recruiter.capacity.loadError");
+  const tCommon = useTranslations("common");
   const { status, code } = apiError(error);
   const notFound =
     [400, 404].includes(status) || code === "JOB_POSTING_NOT_FOUND";
@@ -399,11 +387,7 @@ function CapacityLoadError({
         )}
       >
         <h2 className="text-base font-semibold">
-          {denied
-            ? "You don't have access to interview capacity"
-            : notFound
-              ? "We couldn't find this job posting"
-              : "We couldn't load interview capacity"}
+          {denied ? t("denied") : notFound ? t("notFound") : t("failed")}
         </h2>
         {!denied && !notFound && (
           <Button
@@ -412,7 +396,7 @@ function CapacityLoadError({
             disabled={retrying}
             onClick={onRetry}
           >
-            Try again
+            {tCommon("actions.tryAgain")}
           </Button>
         )}
       </CardContent>

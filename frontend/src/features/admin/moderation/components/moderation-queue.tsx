@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, X } from "lucide-react";
@@ -24,24 +25,18 @@ import { PageHeader } from "@/components/layout/page-header";
 import { PostingStatus } from "./posting-status";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
-const tabs: { status: QueueStatus; label: string }[] = [
-  { status: "pending", label: "Pending" },
-  { status: "open", label: "Approved" },
-  { status: "rejected", label: "Rejected" },
-  { status: "all", label: "All" },
-];
-const emptyText: Record<QueueStatus, string> = {
-  pending: "No postings are waiting for review.",
-  open: "No approved postings match these filters.",
-  rejected: "No rejected postings match these filters.",
-  intake_closed: "No postings with closed intake match these filters.",
-  closed: "No closed postings match these filters.",
-  all: "No postings match these filters.",
-};
+const tabs = [
+  "pending",
+  "open",
+  "rejected",
+  "all",
+] as const satisfies readonly QueueStatus[];
 const queueHref = (filters: QueueFilters) =>
   `${routes.admin.jobPostings}${queueSearch(filters)}`;
 
 export function ModerationQueue({ filters }: { filters: QueueFilters }) {
+  const t = useTranslations("admin.moderation.queue");
+  const tCommon = useTranslations("common");
   const user = useSessionUser();
   const cache = useQueryClient();
   const query = useQuery({
@@ -64,26 +59,23 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
-      <PageHeader
-        title="Job posting moderation"
-        description="Review submitted postings and their interview configuration. Approval lets the recruiter fund slots and publish the posting."
-      />
+      <PageHeader title={t("title")} description={t("description")} />
 
       <div className="space-y-4">
         <div className="border-b">
           <nav
-            aria-label="Filter by status"
+            aria-label={t("statusFilter")}
             className="-mb-px max-w-full overflow-x-auto"
           >
             <ul className="flex gap-5">
               {tabs.map((tab) => {
-                const active = filters.status === tab.status;
+                const active = filters.status === tab;
                 return (
-                  <li key={tab.status}>
+                  <li key={tab}>
                     <Link
                       href={queueHref({
                         ...filters,
-                        status: tab.status,
+                        status: tab,
                         page: 1,
                       })}
                       scroll={false}
@@ -94,7 +86,7 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
                           "border-foreground font-medium text-foreground",
                       )}
                     >
-                      {tab.label}
+                      {tab === "all" ? tCommon("labels.all") : t(`tabs.${tab}`)}
                     </Link>
                   </li>
                 );
@@ -109,14 +101,14 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
 
       {filters.recruiterId && (
         <p className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Showing one recruiter.</span>
+          <span className="text-muted-foreground">{t("oneRecruiter")}</span>
           <Link
             href={queueHref({ ...filters, recruiterId: null, page: 1 })}
             scroll={false}
             className="inline-flex min-h-11 items-center gap-1 rounded-md px-2 font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <X className="size-4" aria-hidden />
-            Show all recruiters
+            {t("showAllRecruiters")}
           </Link>
         </p>
       )}
@@ -126,25 +118,20 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
           {Array.from({ length: 5 }, (_, i) => (
             <Skeleton key={i} className="h-14 rounded-md" />
           ))}
-          <span className="sr-only">Loading job postings…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">
-            You don&apos;t have access to moderation
-          </h2>
+          <h2 className="font-semibold">{t("denied.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Checking your account access… If this stays, sign in again with an
-            administrator account.
+            {t("denied.description")}
           </p>
         </div>
       ) : query.isError ? (
         <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">
-            We couldn&apos;t load the job postings
-          </h2>
+          <h2 className="font-semibold">{t("loadFailed.title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Please try again in a moment.
+            {tCommon("messages.tryAgainLater")}
           </p>
           <Button
             className="mt-4 h-11"
@@ -152,39 +139,41 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Try again
+            {tCommon("actions.tryAgain")}
           </Button>
         </div>
       ) : page && page.items.length === 0 ? (
         <div className="rounded-xl border p-8 text-center">
-          <h2 className="font-semibold">{emptyText[filters.status]}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            New submissions appear here as recruiters send them.
-          </p>
+          <h2 className="font-semibold">{t(`empty.${filters.status}`)}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t("emptyHint")}</p>
         </div>
       ) : page ? (
         <>
-          <div className="overflow-x-auto rounded-xl border">
+          <div className="relative overflow-x-auto rounded-xl border">
             <table className="w-full min-w-[760px] text-left text-sm">
               <caption className="sr-only">
-                Job postings, {firstRow}–{lastRow} of {total}
+                {t("table.caption", {
+                  first: firstRow,
+                  last: lastRow,
+                  total,
+                })}
               </caption>
               <thead>
                 <tr className="border-b text-xs text-muted-foreground">
                   <th scope="col" className="py-3 pr-4 pl-4 font-medium">
-                    Job posting
+                    {t("table.posting")}
                   </th>
                   <th scope="col" className="py-3 pr-4 pl-4 font-medium">
-                    Recruiter
+                    {t("table.recruiter")}
                   </th>
                   <th scope="col" className="py-3 pr-4 pl-4 font-medium">
-                    Created
+                    {t("table.created")}
                   </th>
                   <th scope="col" className="py-3 pr-4 pl-4 font-medium">
-                    Status
+                    {t("table.status")}
                   </th>
                   <th scope="col" className="py-3 text-right font-medium">
-                    <span className="sr-only">Action</span>
+                    <span className="sr-only">{t("table.action")}</span>
                   </th>
                 </tr>
               </thead>
@@ -201,20 +190,24 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
             </table>
           </div>
           <nav
-            aria-label="Pagination"
+            aria-label={tCommon("labels.pagination")}
             className="flex flex-wrap items-center justify-between gap-3 text-sm"
           >
             <p className="text-muted-foreground tabular-nums">
-              Showing {firstRow}–{lastRow} of {total}
+              {t("pagination.summary", {
+                first: firstRow,
+                last: lastRow,
+                total,
+              })}
             </p>
             <div className="flex gap-2">
               <PageLink
-                label="Previous"
+                label={tCommon("actions.previous")}
                 href={queueHref({ ...filters, page: filters.page - 1 })}
                 disabled={filters.page <= 1}
               />
               <PageLink
-                label="Next"
+                label={tCommon("actions.next")}
                 href={queueHref({ ...filters, page: filters.page + 1 })}
                 disabled={lastRow >= total}
               />
@@ -235,6 +228,7 @@ function QueueRow({
   filters: QueueFilters;
   backQuery: string;
 }) {
+  const t = useTranslations("admin.moderation.queue");
   const fmt = useFormatters();
   const created = new Date(posting.created_at);
   const reviewHref = `${routes.admin.jobPosting(posting.id)}${
@@ -254,7 +248,7 @@ function QueueRow({
           })}
           scroll={false}
           className="rounded-sm underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-          title={`Show only postings by ${posting.recruiter.name}`}
+          title={t("filterByRecruiter", { name: posting.recruiter.name })}
         >
           {posting.recruiter.name}
         </Link>
@@ -277,8 +271,11 @@ function QueueRow({
           size="sm"
           className="h-10 rounded-full"
         >
-          <Link href={reviewHref} aria-label={`Review ${posting.title}`}>
-            Review
+          <Link
+            href={reviewHref}
+            aria-label={t("reviewLabel", { title: posting.title })}
+          >
+            {t("review")}
             <ChevronRight aria-hidden />
           </Link>
         </Button>
@@ -312,6 +309,7 @@ function PageLink({
 }
 
 function DateFilter({ filters }: { filters: QueueFilters }) {
+  const t = useTranslations("admin.moderation.dateFilter");
   const router = useRouter();
   const [from, setFrom] = useState(filters.from ?? "");
   const [to, setTo] = useState(filters.to ?? "");
@@ -327,13 +325,13 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
   return (
     <form
       noValidate
-      aria-label="Filter by created date"
+      aria-label={t("label")}
       onSubmit={submit}
       className="flex flex-wrap items-end gap-2"
     >
       <div className="space-y-1">
         <label htmlFor="queue-from" className="text-xs font-medium">
-          Created from
+          {t("from")}
         </label>
         <Input
           id="queue-from"
@@ -348,7 +346,7 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
       </div>
       <div className="space-y-1">
         <label htmlFor="queue-to" className="text-xs font-medium">
-          to
+          {t("to")}
         </label>
         <Input
           id="queue-to"
@@ -367,7 +365,7 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
         className="h-10 rounded-full"
         disabled={invalid}
       >
-        Apply
+        {t("apply")}
       </Button>
       {(filters.from || filters.to) && (
         <Button asChild variant="ghost" className="h-10 rounded-full">
@@ -375,7 +373,7 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
             href={queueHref({ ...filters, from: null, to: null, page: 1 })}
             scroll={false}
           >
-            Clear dates
+            {t("clear")}
           </Link>
         </Button>
       )}
@@ -385,7 +383,7 @@ function DateFilter({ filters }: { filters: QueueFilters }) {
           role="alert"
           className="w-full text-xs text-destructive"
         >
-          The start date must be on or before the end date.
+          {t("invalid")}
         </p>
       )}
     </form>

@@ -2,6 +2,7 @@
 
 import type { MouseEvent } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { overviewDays, type OverviewDays } from "../schemas/overview-schema";
@@ -19,8 +20,9 @@ function modified(event: MouseEvent) {
 
 // Real links (open in new tab still works); a plain click swaps the window without a reload.
 export function WindowSelector({ days }: { days: OverviewDays }) {
+  const t = useTranslations("admin.overview.window");
   return (
-    <nav aria-label="Reporting window">
+    <nav aria-label={t("label")}>
       <ul className="flex flex-wrap gap-2">
         {overviewDays.map((option) => {
           const active = option === days;
@@ -43,7 +45,7 @@ export function WindowSelector({ days }: { days: OverviewDays }) {
                     : "text-muted-foreground",
                 )}
               >
-                Last {option} days
+                {t("option", { days: option })}
               </Link>
             </li>
           );

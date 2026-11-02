@@ -1,4 +1,5 @@
 import type { RevenueReport } from "../schemas/billing-schema";
+import { monthName, vietnamParts, type DatesTranslator } from "./dates";
 
 // One chart row per bucket: this period's revenue beside the same bucket of the comparison window.
 export type TrendRow = {
@@ -10,42 +11,37 @@ export type TrendRow = {
   comparison: number;
 };
 
-const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000;
-const months = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
-
-function bucketLabel(iso: string, granularity: RevenueReport["granularity"]) {
-  const date = new Date(Date.parse(iso) + VIETNAM_OFFSET_MS);
-  const month = months[date.getUTCMonth()];
-  const year = date.getUTCFullYear();
+function bucketLabel(
+  iso: string,
+  granularity: RevenueReport["granularity"],
+  t: DatesTranslator,
+) {
+  const { day, month, year } = vietnamParts(Date.parse(iso));
+  const name = monthName(month, t);
   if (granularity === "month") {
-    return { tick: month, label: `${month} ${year}` };
+    return { tick: name, label: t("monthYear", { month: name, year }) };
   }
-  const day = date.getUTCDate();
-  return { tick: String(day), label: `${day} ${month} ${year}` };
+  return {
+    tick: String(day),
+    label: t("dayMonthYear", { day, month: name, year }),
+  };
 }
 
-export function buildTrendRows(report: RevenueReport): TrendRow[] {
+export function buildTrendRows(
+  report: RevenueReport,
+  t: DatesTranslator,
+): TrendRow[] {
   return report.series.map((point) => {
-    const current = bucketLabel(point.start, report.granularity);
+    const current = bucketLabel(point.start, report.granularity, t);
     return {
       key: point.start,
       tick: current.tick,
       label: current.label,
-      comparisonLabel: bucketLabel(point.comparison_start, report.granularity)
-        .label,
+      comparisonLabel: bucketLabel(
+        point.comparison_start,
+        report.granularity,
+        t,
+      ).label,
       current: point.revenue_vnd,
       comparison: point.comparison_revenue_vnd,
     };

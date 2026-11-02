@@ -1,6 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Voice } from "../schemas/voice-schema";
+import { useVoiceUsage } from "../utils/voice-labels";
 
 // The outcome is explained before confirming: a voice in use is only deactivated, so past
 // interviews and postings keep it; an unused voice is removed for good.
@@ -27,7 +30,14 @@ export function RemoveVoiceDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("admin.voices.removeDialog");
+  const tCommon = useTranslations("common");
+  const usage = useVoiceUsage();
   const inUse = voice?.in_use ?? false;
+  const emphasis = (chunks: ReactNode) => (
+    <span className="font-medium text-foreground">{chunks}</span>
+  );
+  const name = voice?.name ?? "";
   return (
     <Dialog
       open={voice !== null}
@@ -38,27 +48,12 @@ export function RemoveVoiceDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {inUse ? "Deactivate this voice?" : "Remove this voice?"}
+            {inUse ? t("deactivateTitle") : t("removeTitle")}
           </DialogTitle>
           <DialogDescription className="[overflow-wrap:anywhere]">
-            {inUse ? (
-              <>
-                <span className="font-medium text-foreground">
-                  {voice?.name}
-                </span>{" "}
-                is used by {usage(voice)}. It will be marked inactive instead of
-                removed, so those interviews and postings keep it. You can
-                reactivate it later.
-              </>
-            ) : (
-              <>
-                <span className="font-medium text-foreground">
-                  {voice?.name}
-                </span>{" "}
-                isn&apos;t used anywhere, so it will be removed from the catalog
-                permanently.
-              </>
-            )}
+            {inUse
+              ? t.rich("inUse", { voice: emphasis, name, usage: usage(voice) })
+              : t.rich("unused", { voice: emphasis, name })}
           </DialogDescription>
         </DialogHeader>
         {error && (
@@ -74,7 +69,7 @@ export function RemoveVoiceDialog({
             disabled={pending}
             onClick={onCancel}
           >
-            Cancel
+            {tCommon("actions.cancel")}
           </Button>
           <Button
             type="button"
@@ -92,28 +87,14 @@ export function RemoveVoiceDialog({
             )}
             {pending
               ? inUse
-                ? "Deactivating…"
-                : "Removing…"
+                ? t("deactivating")
+                : t("removing")
               : inUse
-                ? "Deactivate voice"
-                : "Remove voice"}
+                ? t("deactivateConfirm")
+                : t("removeConfirm")}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-}
-
-export function usage(voice: Voice | null) {
-  if (!voice) return "";
-  const parts: string[] = [];
-  if (voice.interview_count > 0)
-    parts.push(
-      `${voice.interview_count} ${voice.interview_count === 1 ? "interview" : "interviews"}`,
-    );
-  if (voice.job_posting_count > 0)
-    parts.push(
-      `${voice.job_posting_count} ${voice.job_posting_count === 1 ? "job posting" : "job postings"}`,
-    );
-  return parts.join(" and ");
 }

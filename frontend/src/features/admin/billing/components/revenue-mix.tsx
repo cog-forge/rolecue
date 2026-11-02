@@ -1,14 +1,15 @@
+import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { compareValues } from "../lib/compare";
 import { formatVND } from "../lib/format";
 import type { RevenueMixItem } from "../schemas/billing-schema";
 import { ComparisonDelta } from "./comparison-delta";
 
-const roleNames: Record<string, string> = {
-  recruiter: "Recruiters",
-  candidate: "Candidates",
-  unknown: "Unknown payer",
-};
+const roleKeys = ["recruiter", "candidate", "unknown"] as const;
+type RoleKey = (typeof roleKeys)[number];
+
+function isRoleKey(role: string): role is RoleKey {
+  return roleKeys.some((key) => key === role);
+}
 
 function MixList({
   title,
@@ -21,13 +22,12 @@ function MixList({
   total: number;
   nameOf: (key: string) => string;
 }) {
+  const t = useTranslations("admin.billing.revenue");
   return (
     <div className="space-y-2">
       <h3 className="text-xs text-muted-foreground">{title}</h3>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No paid top-ups in either period.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("noTopups")}</p>
       ) : (
         <ul className="space-y-3">
           {items.map((item) => {
@@ -52,11 +52,9 @@ function MixList({
                   <ComparisonDelta
                     className="shrink-0 text-xs"
                     showAbsolute={false}
-                    comparison={compareValues(
-                      item.revenue_vnd,
-                      item.comparison_revenue_vnd,
-                      "money",
-                    )}
+                    current={item.revenue_vnd}
+                    previous={item.comparison_revenue_vnd}
+                    kind="money"
                   />
                 </div>
               </li>
@@ -77,23 +75,24 @@ export function RevenueMix({
   byPackage: RevenueMixItem[];
   total: number;
 }) {
+  const t = useTranslations("admin.billing.revenue.mix");
   return (
-    <section aria-label="Where revenue came from">
+    <section aria-label={t("title")}>
       <Card className="h-full">
         <CardHeader>
           <CardTitle className="text-base font-semibold">
-            Where revenue came from
+            {t("title")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <MixList
-            title="By who paid"
+            title={t("byRole")}
             items={byRole}
             total={total}
-            nameOf={(key) => roleNames[key] ?? key}
+            nameOf={(key) => (isRoleKey(key) ? t(`roles.${key}`) : key)}
           />
           <MixList
-            title="By coin pack"
+            title={t("byPackage")}
             items={byPackage}
             total={total}
             nameOf={(key) => key}

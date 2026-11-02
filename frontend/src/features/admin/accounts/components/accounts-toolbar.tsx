@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -22,15 +23,17 @@ export function AccountsToolbar({
   disabled: boolean;
   onChange: (query: AccountQuery) => void;
 }) {
+  const t = useTranslations("admin.accounts.toolbar");
+  const roles = useTranslations("common.shell.roles");
   return (
     <div
       role="search"
-      aria-label="Find accounts"
+      aria-label={t("label")}
       className="grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_13rem]"
     >
       <div className="flex flex-col gap-2">
         <label htmlFor="account-search" className="text-xs font-medium">
-          Search accounts
+          {t("searchLabel")}
         </label>
         <div className="relative">
           <Search
@@ -41,7 +44,7 @@ export function AccountsToolbar({
             id="account-search"
             type="search"
             className="h-11 bg-background pl-9 shadow-none"
-            placeholder="Search by name or email…"
+            placeholder={t("searchPlaceholder")}
             maxLength={500}
             disabled={disabled}
             value={search}
@@ -51,7 +54,7 @@ export function AccountsToolbar({
       </div>
       <div className="flex flex-col gap-2">
         <label htmlFor="account-filter" className="text-xs font-medium">
-          Filter accounts
+          {t("filterLabel")}
         </label>
         <Select
           value={query.filter}
@@ -75,11 +78,11 @@ export function AccountsToolbar({
             <SelectValue />
           </SelectTrigger>
           <SelectContent position="popper" align="start">
-            <SelectItem value="all">All accounts</SelectItem>
-            <SelectItem value="locked">Locked accounts</SelectItem>
-            <SelectItem value="candidate">Candidate</SelectItem>
-            <SelectItem value="recruiter">Recruiter</SelectItem>
-            <SelectItem value="admin">Administrator</SelectItem>
+            <SelectItem value="all">{t("filterAll")}</SelectItem>
+            <SelectItem value="locked">{t("filterLocked")}</SelectItem>
+            <SelectItem value="candidate">{roles("candidate")}</SelectItem>
+            <SelectItem value="recruiter">{roles("recruiter")}</SelectItem>
+            <SelectItem value="admin">{roles("admin")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -88,7 +91,7 @@ export function AccountsToolbar({
           id="locked-filter-hint"
           className="text-xs text-muted-foreground sm:col-span-2"
         >
-          Shows accounts with a restriction that is currently active.
+          {t("lockedHint")}
         </p>
       )}
     </div>

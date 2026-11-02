@@ -1,1 +1,918 @@
-{}
+{
+  "postings": {
+    "status": {
+      "preparing": "Preparing",
+      "ready": "Ready to submit",
+      "pending": "Pending review",
+      "approved": "Approved · Funding required",
+      "approved_unknown": "Approved",
+      "open": "Live",
+      "intake_closed": "Intake closed",
+      "closed": "Closed",
+      "rejected": "Rejected"
+    },
+    "backToList": "My Job Postings",
+    "requirementMeta": "{kind} · {priority}",
+    "toast": {
+      "bankGenerated": "Question bank generated",
+      "bankGeneratedHint": "Review your questions before submitting for approval."
+    },
+    "level": {
+      "intern": "Intern",
+      "junior": "Junior",
+      "mid": "Mid-level",
+      "senior": "Senior",
+      "lead": "Lead"
+    },
+    "target": {
+      "programming_language": "Programming language",
+      "framework": "Framework",
+      "database": "Database",
+      "tool": "Tool",
+      "technology": "Technology",
+      "other": "Other skill",
+      "technologies": "Technology (general)",
+      "domain_knowledge": "Domain knowledge"
+    },
+    "priority": {
+      "required": "Required",
+      "preferred": "Preferred"
+    },
+    "validation": {
+      "pdfRequired": "Upload the job description as a PDF.",
+      "titleRequired": "Enter a title for the posting.",
+      "titleMax": "Keep the title to {max} characters or fewer.",
+      "requirementNameRequired": "Name the requirement.",
+      "requirementNameMax": "Keep the name to {max} characters or fewer.",
+      "requirementsMin": "Add at least one requirement. The question bank is built from them.",
+      "requirementsMax": "Keep to {max} requirements or fewer.",
+      "refinementMax": "Keep the refinement note to {max} characters or fewer.",
+      "locationMax": "Keep the location to {max} characters or fewer.",
+      "employmentTypeMax": "Keep the employment type to {max} characters or fewer.",
+      "salaryMin": "Enter the minimum salary as a whole number, 0 or more.",
+      "salaryMax": "Enter the maximum salary as a whole number, 0 or more.",
+      "interviewDuration": "Enter the interview length as a whole number of minutes, 1 or more.",
+      "avatarRequired": "Choose the interviewer model candidates will meet.",
+      "voiceRequired": "Choose the interviewer voice.",
+      "seniorityRequired": "Choose the seniority of the role.",
+      "requirementDuplicate": "This requirement is already in the list.",
+      "salaryOrder": "The maximum salary must be at least the minimum.",
+      "confirmRequired": "Confirm that you reviewed the requirements before submitting."
+    },
+    "guidance": {
+      "action": {
+        "reviewAndSubmit": "Review & submit",
+        "reviewRequirements": "Review requirements",
+        "editAndResubmit": "Edit and resubmit",
+        "fundAndPublish": "Fund & publish",
+        "reviewApplications": "Review applications"
+      },
+      "line": {
+        "waitingForReview": "Waiting for admin review",
+        "rejected": "Rejected: see the reason below",
+        "approvedUnfunded": "Approved: fund interview slots to publish",
+        "slotsApproved": "{approved} of {slots} interview slots approved",
+        "intakeNeverFunded": "Intake closed: slots were never funded",
+        "intakeAllApproved": "Intake closed: all {slots} slots approved",
+        "intakePartlyApproved": "Intake closed: {approved} of {slots} slots approved",
+        "closedNeverFunded": "Closed without funded slots",
+        "closedRefunded": "Closed: {coins} from unused slots returned to your wallet",
+        "closedNoRefund": "Closed: no unused slots to return"
+      },
+      "next": {
+        "waitingForReview": "Waiting for an administrator to review it. You can still edit the posting until then.",
+        "bankReady": "The question bank is ready. Review it, then submit the posting for approval.",
+        "confirmRequirements": "Confirm the requirements below to generate the question bank. Nothing is sent for approval until you submit.",
+        "rejected": "Make the requested changes, then resubmit the posting for approval.",
+        "approvedUnfunded": "Approved, so the posting can no longer be edited. Fund interview slots to open intake to candidates.",
+        "approved": "Approved, so the posting can no longer be edited."
+      }
+    },
+    "tabs": {
+      "label": "Posting sections",
+      "overview": "Overview",
+      "applications": "Applications",
+      "questions": "Questions",
+      "evaluation": "Evaluation",
+      "unavailable": "Available once an administrator approves the posting and you fund interview slots",
+      "unavailableHint": "(available once an administrator approves the posting and you fund interview slots)"
+    },
+    "progress": {
+      "label": "Posting progress",
+      "step": {
+        "requirements": "Requirements",
+        "bank": "Questions",
+        "evaluation": "Evaluation",
+        "review": "Admin review",
+        "funding": "Fund slots",
+        "screening": "Screening"
+      },
+      "state": {
+        "done": "(done)",
+        "current": "(current step)",
+        "blocked": "(needs changes)"
+      },
+      "detail": {
+        "requirementsSaved": "Reviewed and saved",
+        "requirementsReview": "Review what RoleCue extracted",
+        "generating": "Generating questions…",
+        "questionCount": "{count, plural, one {# question} other {# questions}}",
+        "notGenerated": "Not generated yet",
+        "generatedAfterConfirm": "Generated after you confirm",
+        "approved": "Approved",
+        "changesRequested": "Changes requested",
+        "waitingForAdmin": "Waiting for an administrator",
+        "readyToSubmit": "Ready to submit",
+        "notSubmitted": "Not submitted",
+        "criteriaConfirmed": "Criteria confirmed",
+        "criteriaOptional": "Optional: defaults apply unless you customize",
+        "slotsFunded": "Slots funded",
+        "fundToPublish": "Fund slots to publish",
+        "neverFunded": "Never funded",
+        "afterApproval": "After admin approval",
+        "afterFunding": "After funding",
+        "closed": "Closed",
+        "intakeClosed": "Intake closed, finishing interviews",
+        "takingApplications": "Taking applications",
+        "afterApprovalAndFunding": "After approval and funding"
+      }
+    },
+    "document": {
+      "preparing": "Preparing the PDF…",
+      "error": "We couldn't open the PDF.",
+      "open": "Open the PDF",
+      "openHint": "(job description, opens in a new tab)"
+    },
+    "applications": {
+      "title": "Applications",
+      "notOpen": "Candidates can apply after an administrator approves this posting and you fund interview slots, which opens intake.",
+      "loading": "Loading applications…",
+      "loadFailed": "We couldn't load the applications. Open the <inbox>review inbox</inbox> to see them.",
+      "summary": "<count>{total}</count> {total, plural, one {application} other {applications}}, <count>{waiting}</count> awaiting review",
+      "reviewWaiting": "Review {waiting} awaiting {waiting, plural, one {CV} other {CVs}}",
+      "open": "Open applications"
+    },
+    "preview": {
+      "loading": "Loading 3D preview…",
+      "region": "Selected interviewer preview",
+      "error": "We couldn't load this interviewer preview. Your selection is still saved in the form.",
+      "retry": "Retry preview",
+      "viewerLabel": "3D preview of {name}",
+      "viewerLabelFallback": "3D preview of selected interviewer",
+      "fallbackName": "Selected interviewer",
+      "hint": "Drag to rotate. Scroll or pinch to zoom. Every candidate will use this interviewer and the voice selected above."
+    },
+    "list": {
+      "title": "My Job Postings",
+      "description": "Prepare your posting, questions and evaluation criteria. After approval, fund interview slots to publish it.",
+      "create": "Create job posting",
+      "statusLabel": "Status",
+      "filter": {
+        "needsFunding": "Needs funding"
+      },
+      "loading": "Loading your job postings…",
+      "switching": "Loading job postings…",
+      "denied": {
+        "title": "You don't have access to job postings",
+        "description": "Checking your account access… If this stays, sign in again with a recruiter account."
+      },
+      "error": {
+        "title": "We couldn't load your job postings"
+      },
+      "pastEnd": {
+        "title": "This page is past the end of the list."
+      },
+      "empty": {
+        "all": "You haven't created a job posting yet.",
+        "preparing": "No postings are being prepared.",
+        "approved": "No approved postings are waiting for funding.",
+        "pending": "No postings are waiting for review.",
+        "open": "No postings are open for applications.",
+        "intake_closed": "No postings have closed intake.",
+        "closed": "No postings are closed.",
+        "rejected": "No postings were rejected.",
+        "noMatch": "No postings match “{query}”.",
+        "showAll": "Show all postings",
+        "hint": "Upload a job description and RoleCue suggests the requirements to interview for."
+      },
+      "caption": "Your job postings, {first}–{last} of {total}",
+      "columns": {
+        "posting": "Job posting",
+        "status": "Status",
+        "questions": "Questions",
+        "created": "Created",
+        "actions": "Actions"
+      },
+      "row": {
+        "noDetails": "No location or type",
+        "summary": "{count, plural, one {# question} other {# questions}} · Created {date}",
+        "reason": "Reason: {reason}",
+        "questions": "Questions",
+        "questionBankFor": "Question bank for {title}",
+        "fund": "Fund & publish",
+        "edit": "Edit",
+        "view": "View",
+        "fundFor": "Fund & publish {title}",
+        "editFor": "Edit {title}",
+        "viewFor": "View {title}"
+      },
+      "pagination": {
+        "showing": "Showing {first}–{last} of {total}"
+      },
+      "search": {
+        "form": "Search your job postings",
+        "label": "Search by title",
+        "tooLong": "Keep the search to {max} characters or fewer."
+      }
+    },
+    "new": {
+      "title": "New job posting",
+      "description": "Upload the job description and review the requirements RoleCue suggests. Confirming them generates the question bank. Review the questions and evaluation criteria before submitting for approval.",
+      "noAccess": "You don't have access to create job postings. Checking your account access…",
+      "saveFailed": "{reason} Your draft is still here.",
+      "saveFailedReason": "We couldn't save the posting.",
+      "generateFailedReason": "We couldn't generate questions.",
+      "generation": {
+        "failedTitle": "Questions weren't generated",
+        "failedBody": "{reason} Your posting is saved, so retrying only generates the questions.",
+        "pendingTitle": "Generating questions…",
+        "pendingBody": "Your posting is saved. This can take a minute, and it is not submitted for approval yet.",
+        "retry": "Retry generating questions",
+        "open": "Open the saved posting"
+      }
+    },
+    "detail": {
+      "loading": "Loading the job posting…",
+      "fallbackTitle": "Job posting",
+      "error": {
+        "deniedTitle": "You don't have access to job postings",
+        "notFoundTitle": "We couldn't find this job posting",
+        "failedTitle": "We couldn't load this job posting",
+        "deniedBody": "Checking your account access… If this stays, sign in again with a recruiter account.",
+        "notFoundBody": "It may have been removed, or it belongs to another recruiter."
+      },
+      "refreshed": "{reason} We refreshed it for you.",
+      "changedReason": "This posting changed.",
+      "saved": "Changes saved",
+      "saveDenied": "You don't have access to edit this posting. Checking your account access…",
+      "saveFailed": "{reason} Your changes are still here.",
+      "saveFailedReason": "We couldn't save your changes.",
+      "created": "Created <time>{date}</time>",
+      "slots": "Interview slots:",
+      "notFunded": "not funded yet",
+      "rejected": {
+        "title": "An administrator asked for changes",
+        "body": "Correct the posting below and save, then resubmit it from its <bank>question bank</bank>."
+      },
+      "readOnly": {
+        "seniority": "Seniority",
+        "refinementNote": "Refinement note",
+        "location": "Location",
+        "employmentType": "Employment type",
+        "salary": "Salary",
+        "interviewLength": "Interview length",
+        "interviewerModel": "Interviewer model",
+        "interviewerVoice": "Interviewer voice",
+        "candidatesAllowed": "Candidates allowed into interview",
+        "none": "None",
+        "minutes": "{count, plural, one {# minute} other {# minutes}}",
+        "details": {
+          "title": "Details",
+          "description": "What candidates see on the posting and how they are interviewed."
+        },
+        "requirements": {
+          "title": "Requirements",
+          "description": "Candidates are interviewed on these requirements."
+        },
+        "jobDescription": {
+          "title": "Job description",
+          "description": "The text read from the PDF the posting was created with."
+        }
+      }
+    },
+    "form": {
+      "createLabel": "Create job posting",
+      "editLabel": "Edit job posting",
+      "next": "Next, review your question bank and evaluation criteria before submitting. After approval, fund interview slots to publish this posting.",
+      "jd": {
+        "title": "Job description",
+        "editable": "Upload the job description as a PDF with selectable text, up to 5 MB. RoleCue reads it and suggests the requirements.",
+        "locked": "The PDF is locked while the posting is pending. It can be replaced after a rejection."
+      },
+      "pdf": {
+        "notPdf": "Choose a PDF file.",
+        "tooLarge": "That PDF is too large. Choose one up to 5 MB.",
+        "uploadFailed": "We couldn't upload that PDF. Try again.",
+        "reading": "Reading the PDF…",
+        "replace": "Replace the PDF",
+        "upload": "Upload the job description PDF",
+        "hintEdit": "A new PDF replaces the current one when you save.",
+        "hintCreate": "Scanned PDFs without selectable text can't be read.",
+        "textRead": "Text read from the PDF",
+        "characters": "{count, plural, one {# character} other {# characters}}"
+      },
+      "suggest": {
+        "button": "Suggest requirements",
+        "reading": "Reading requirements…",
+        "hint": "Suggesting again replaces the requirements below. Nothing is saved until you submit.",
+        "failed": "{reason} Your PDF is still uploaded. Try again, or add the requirements yourself.",
+        "failedReason": "We couldn't read requirements from this job description."
+      },
+      "suggested": {
+        "title": "Requirements suggested",
+        "ready": "{count, plural, one {# requirement is} other {# requirements are}} ready to review.",
+        "none": "We didn't find any requirements. Add them yourself below."
+      },
+      "role": {
+        "title": "Role and requirements",
+        "description": "Candidates are interviewed on these requirements, and the question bank is built from them.",
+        "titleLabel": "Title (required)",
+        "titlePlaceholder": "e.g. Senior Backend Engineer",
+        "deleteWarning": "Replacing the job description PDF or changing the seniority, requirements or refinement note deletes the {count, plural, one {# question} other {# questions}} in this posting's question bank. You can generate them again afterwards.",
+        "seniorityLabel": "Seniority (required)",
+        "seniorityPlaceholder": "Choose seniority",
+        "requirementsLegend": "Requirements (at least one)",
+        "noRequirements": "No requirements yet. Use Suggest requirements above, or add them yourself.",
+        "requirementFallback": "requirement {number}",
+        "requirementLabel": "Requirement {number}",
+        "kind": "Kind",
+        "priority": "Priority",
+        "remove": "Remove {name}",
+        "add": "Add requirement",
+        "refinementLabel": "Refinement note (optional)",
+        "refinementPlaceholder": "e.g. Focus on Go concurrency and PostgreSQL; skip Kubernetes.",
+        "refinementHint": "Guidance for question generation, such as areas to focus on or skip.",
+        "confirm": "I reviewed these requirements and they describe the role."
+      },
+      "locked": {
+        "notice": "Seniority, requirements and refinement note are locked because this posting's question bank was generated from them. Delete its questions to change them.",
+        "open": "Open the question bank",
+        "seniority": "Seniority",
+        "refinementNote": "Refinement note"
+      },
+      "details": {
+        "title": "Posting details",
+        "description": "Optional. Candidates see these on the posting.",
+        "location": "Location",
+        "locationPlaceholder": "e.g. Ho Chi Minh City or Remote",
+        "employmentType": "Employment type",
+        "employmentTypePlaceholder": "e.g. Full-time",
+        "employmentTypeHint": "For example Full-time or Contract.",
+        "salaryMin": "Minimum salary",
+        "salaryMinPlaceholder": "e.g. 2000",
+        "salaryMax": "Maximum salary",
+        "salaryMaxPlaceholder": "e.g. 3500",
+        "duration": "Interview length (minutes)",
+        "durationPlaceholder": "e.g. 30"
+      },
+      "interviewer": {
+        "title": "Interviewer",
+        "description": "Every applicant is interviewed by this model and voice. Both are required.",
+        "modelLabel": "Interviewer model (required)",
+        "modelPlaceholder": "Choose a model",
+        "modelEmpty": "You don't have an interviewer model yet. <studio>Create one in Personal Avatar Studio</studio>",
+        "modelHint": "Create or manage models in <studio>Personal Avatar Studio</studio>.",
+        "voiceLabel": "Interviewer voice (required)",
+        "voicePlaceholder": "Choose a voice",
+        "voiceEmpty": "No voices are available yet. An administrator adds them to the catalog."
+      },
+      "picker": {
+        "loading": "Loading choices…",
+        "error": "We couldn't load the choices.",
+        "unnamed": "Unnamed",
+        "unavailable": "{name} (no longer available)"
+      },
+      "submit": {
+        "generate": "Confirm & generate questions",
+        "generating": "Generating questions…",
+        "save": "Save changes"
+      },
+      "status": {
+        "generating": "Saving requirements and generating questions…",
+        "saving": "Saving your changes…",
+        "unsaved": "You have unsaved changes."
+      }
+    }
+  },
+  "applications": {
+    "status": {
+      "pending": "Awaiting CV review",
+      "interview_eligible": "Interview eligible",
+      "interviewed": "Interviewed",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "errors": {
+      "APPLICATION_NOT_PENDING": "This application has already been decided. Refresh to see its current status.",
+      "INTAKE_NOT_OPEN": "This posting is no longer accepting applications.",
+      "INTERVIEW_CAPACITY_FULL": "All interview slots for this posting are already taken.",
+      "INTERVIEW_CAPACITY_NOT_FUNDED": "Interview capacity is not funded for this posting.",
+      "APPLICATION_NOT_FOUND": "This application could not be found.",
+      "JOB_POSTING_NOT_FOUND": "This job posting could not be found.",
+      "APPLICATION_NOT_INTERVIEWED": "This application is not waiting for a final decision. Refresh to see its current status.",
+      "FINAL_REVIEW_LOCKED": "Final decisions are not open yet.",
+      "INTERVIEW_NOT_COMPLETED": "The transcript is available once the interview is completed."
+    },
+    "facts": {
+      "email": "Email",
+      "jobPosting": "Job posting",
+      "status": "Status",
+      "submitted": "Submitted",
+      "appliedFor": "Applied for",
+      "interviewSlots": "Interview slots",
+      "interviewDeadline": "Interview deadline",
+      "completeBy": "Complete interview by",
+      "rejectReason": "Reject reason",
+      "deadlinePassedReason": "Interview deadline passed"
+    },
+    "received": {
+      "title": "Received Applications",
+      "description": "Review each CV beside the list. After you approve or reject one, the next CV waiting for review opens."
+    },
+    "toolbar": {
+      "statusFilter": "Status",
+      "allPostings": "All job postings",
+      "selectedPosting": "Selected posting",
+      "searchLabel": "Search applications",
+      "searchInputLabel": "Search by name or email",
+      "searchPlaceholder": "Search name or email",
+      "searchTooLong": "Keep the search to {max} characters or fewer."
+    },
+    "list": {
+      "loading": "Loading applications…",
+      "deniedTitle": "You don't have access to applications",
+      "deniedBody": "Checking your account access… If this stays, sign in again with a recruiter account.",
+      "postingNotFoundTitle": "We couldn't find this job posting",
+      "postingNotFoundBody": "It may have been removed, or it belongs to another recruiter.",
+      "errorTitle": "We couldn't load the applications",
+      "pastEnd": "This page is past the end of the list.",
+      "empty": {
+        "all": "No applications yet.",
+        "pending": "No applications are waiting for CV review.",
+        "interview_eligible": "No candidates are cleared to interview.",
+        "interviewed": "No candidates have finished an interview yet.",
+        "approved": "You haven't approved anyone yet.",
+        "rejected": "No applications were rejected."
+      },
+      "emptySearch": "No applications match “{query}”.",
+      "showAll": "Show all applications",
+      "emptyHint": "Candidates appear here once they apply with a CV.",
+      "listLabel": "Applications, {first}–{last} of {total}",
+      "paginationLabel": "Applications pagination",
+      "showing": "Showing {first}–{last} of {total}"
+    },
+    "row": {
+      "reviewAria": "Review CV of {name}",
+      "openAria": "Open application of {name}",
+      "applied": "Applied <time>{date}</time>",
+      "appliedToPosting": "{posting} · Applied <time>{date}</time>",
+      "review": "Review",
+      "completeBy": "Complete interview by <time>{date}</time>",
+      "deadlinePassed": "Deadline passed <time>{date}</time>",
+      "reason": "Reason: {reason}"
+    },
+    "detail": {
+      "notFoundTitle": "We couldn't find this application",
+      "notFoundBody": "It may have been removed, or it belongs to another recruiter.",
+      "backToReceived": "Back to received applications",
+      "deniedTitle": "You don't have access to this application",
+      "deniedBody": "Checking your account access… If this stays, sign in again with a recruiter account.",
+      "errorTitle": "We couldn't load this application",
+      "back": "Back to applications",
+      "loading": "Loading the application…",
+      "appliedFor": "Applied for {title}",
+      "candidateHeading": "Candidate",
+      "applicationHeading": "Application",
+      "cvHeading": "CV"
+    },
+    "panel": {
+      "previous": "Previous application",
+      "next": "Next application",
+      "position": "{index} of {count}",
+      "openOwnPageAria": "Open the application on its own page",
+      "openOwnPageTitle": "Open on its own page",
+      "slotsNotFunded": "Not funded",
+      "slotsApproved": "{approvals} of {slots} approved",
+      "caughtUpTitle": "You're all caught up",
+      "caughtUpBody": "No other CVs on this page are waiting for review.",
+      "cleared": "Cleared to interview. The result appears here once the candidate completes it."
+    },
+    "cv": {
+      "open": "Open the CV",
+      "none": "No CV stored.",
+      "previewHint": "If the preview stays blank, open the CV in a new tab.",
+      "frameTitle": "CV of {name}"
+    },
+    "screening": {
+      "heading": "Screening",
+      "blockedNotFunded": "Interview capacity is not funded for this posting, so no CV can be approved yet.",
+      "blockedFull": "All interview slots for this posting are taken, so no more CVs can be approved.",
+      "closedFirst": "Intake closed first, so this CV was rejected automatically.",
+      "approveFailed": "We couldn't approve this CV.",
+      "rejectFailed": "We couldn't reject this CV.",
+      "approveFailedRetry": "We couldn't approve this CV. Try again.",
+      "rejectFailedRetry": "We couldn't reject this CV. Try again.",
+      "noChangeTitle": "No change was made",
+      "intakeClosedTitle": "Intake is closed",
+      "intakeClosedBody": "This posting is no longer taking screening decisions.",
+      "unavailableTitle": "Approval is unavailable",
+      "approve": "Approve CV",
+      "reject": "Reject CV",
+      "approvedToast": "CV approved",
+      "rejectedToast": "CV rejected",
+      "lastSlotTitle": "Approve the last interview slot?",
+      "lastSlotBody": "{name} takes this posting's last interview slot. Intake then closes and the other pending CVs are rejected automatically.",
+      "rejectTitle": "Reject this CV?"
+    },
+    "dialog": {
+      "confirmApproval": "Confirm approval",
+      "approving": "Approving…"
+    },
+    "reject": {
+      "description": "This application will be marked rejected. The reason is optional and is stored with the application.",
+      "reasonLabel": "Reason for the candidate",
+      "optional": "(optional)",
+      "hint": "Leave it empty to reject without a reason.",
+      "rejecting": "Rejecting…",
+      "reasonTooLong": "Keep the reason to {max} characters or fewer."
+    },
+    "final": {
+      "heading": "Final decision",
+      "lockedTitle": "Final decision is not open yet",
+      "lockedOpensAt": "Decisions open {date}, once the interview deadlines for this posting have passed.",
+      "lockedNoDate": "Decisions are not open for this application yet.",
+      "approve": "Approve application",
+      "reject": "Reject application",
+      "approvedToast": "Application approved",
+      "rejectedToast": "Application rejected",
+      "approveTitle": "Approve this application?",
+      "approveBody": "{name}'s application will be marked approved.",
+      "rejectTitle": "Reject this application?",
+      "approveFailed": "We couldn't approve this application. Try again.",
+      "rejectFailed": "We couldn't reject this application. Try again."
+    },
+    "interview": {
+      "heading": "Interview",
+      "score": "Score",
+      "started": "Started",
+      "completed": "Completed",
+      "notScored": "Not scored yet",
+      "scoreValue": "{score}/100",
+      "notCompleted": "Not completed yet",
+      "showEvaluation": "Show evaluation",
+      "hideEvaluation": "Hide evaluation",
+      "notFinished": "The Candidate has not finished the interview yet.",
+      "evaluationLoading": "Loading the evaluation…",
+      "evaluationFailed": "We couldn't load the evaluation. Try again.",
+      "noBreakdownFailed": "The evaluation failed, so there is no breakdown.",
+      "noBreakdownYet": "The breakdown is not ready yet.",
+      "checkAgain": "Check again",
+      "status": {
+        "in_progress": "In progress",
+        "pending": "Awaiting evaluation",
+        "completed": "Evaluated",
+        "failed": "Evaluation failed"
+      }
+    },
+    "evidence": {
+      "recording": "Recording",
+      "recordStatus": {
+        "none": "No recording was uploaded for this interview.",
+        "uploading": "The recording is still being uploaded.",
+        "processing": "The recording is still being processed.",
+        "ready": "A recording is available.",
+        "failed": "The recording could not be stored."
+      },
+      "getLink": "Get the recording link",
+      "gettingLink": "Getting the recording link…",
+      "linkFailed": "We couldn't get the recording. Try again.",
+      "linkUnavailable": "The recording link is not available right now.",
+      "openRecording": "Open the recording",
+      "linkExpires": "The link expires {date}.",
+      "transcript": "Transcript",
+      "transcriptLocked": "The transcript is available once the interview is completed.",
+      "showTranscript": "Show transcript",
+      "hideTranscript": "Hide transcript",
+      "transcriptLoading": "Loading the transcript…",
+      "transcriptFailed": "We couldn't load the transcript. Try again.",
+      "noQuestions": "No questions were recorded.",
+      "question": "Question {position}",
+      "noAnswer": "No answer was recorded."
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "description": "What needs you now across your job postings and received applications.",
+    "denied": {
+      "title": "You don't have access to the dashboard",
+      "description": "Checking your account access… If this stays, sign in again with a recruiter account."
+    },
+    "allClear": {
+      "title": "You're all caught up",
+      "description": "Nothing is waiting for you right now. New applications and decisions will show up here.",
+      "create": "Create a job posting"
+    },
+    "todosLabel": "Things that need your attention",
+    "todo": {
+      "pending": {
+        "title": "CVs awaiting review",
+        "description": "Candidates applied and wait for your Approve or Reject.",
+        "action": "Review CVs",
+        "loading": "Loading CVs awaiting review…"
+      },
+      "deadlines": {
+        "title": "Interview deadlines in the next 24 hours",
+        "description": "Cleared candidates who must finish their interview soon.",
+        "action": "View candidates",
+        "loading": "Loading interview deadlines in the next 24 hours…",
+        "earliest": "Earliest: {date}.",
+        "partial": "Only the first 100 cleared candidates were checked, so more may be due."
+      },
+      "rejected": {
+        "title": "Rejected postings to fix",
+        "description": "An administrator sent these back. Edit and resubmit them.",
+        "action": "Fix postings",
+        "loading": "Loading rejected postings to fix…"
+      },
+      "unfunded": {
+        "title": "Approved, waiting for funding",
+        "description": "Fund interview slots to publish these on the Job Board.",
+        "action": "Fund & publish",
+        "loading": "Loading approved postings waiting for funding…"
+      },
+      "drafts": {
+        "title": "Drafts to submit",
+        "description": "Postings you are still preparing. Check the questions and criteria, then submit.",
+        "action": "Continue drafts",
+        "loading": "Loading drafts to submit…"
+      },
+      "loadFailed": "We couldn't load this count.",
+      "atLeast": "{count} or more"
+    },
+    "glance": {
+      "title": "Your postings at a glance",
+      "live": "Live",
+      "intakeClosed": "Intake closed"
+    }
+  },
+  "capacity": {
+    "title": "Interview capacity",
+    "loading": "Loading interview capacity…",
+    "slots": {
+      "title": "Interview slots",
+      "funded": "Funded slots",
+      "approved": "CVs approved",
+      "openForApproval": "Still open for approval",
+      "started": "Interviews started",
+      "approvedUnfunded": "Approved by an administrator. Fund interview slots to open intake: candidates can't see or apply to this posting until you do.",
+      "notFunded": "Interview slots are not funded yet. No CV can be approved until they are."
+    },
+    "cvs": {
+      "title": "CVs submitted",
+      "applyAfterFunding": "Candidates can apply once you fund interview slots.",
+      "note": "Submitted CVs do not use interview slots. Approving a CV reserves eligibility; a slot is consumed when the candidate first starts the interview."
+    },
+    "submitted": {
+      "notOpen": "Candidates can apply once intake opens.",
+      "loading": "Loading the number of submitted CVs…",
+      "failed": "We couldn't load the number of submitted CVs."
+    },
+    "fund": {
+      "title": "Fund interview slots",
+      "note": "Fund once per posting; additional slots cannot be added later. Funding publishes the posting on the Job Board.",
+      "walletBalance": "Wallet balance: {amount}",
+      "walletLoading": "Loading wallet balance…",
+      "walletUnavailable": "Wallet balance unavailable.",
+      "viewWallet": "View wallet & buy coins",
+      "failed": "We couldn't fund the interview slots. Try again.",
+      "intakeClosed": "Intake is closed, so interview slots can no longer be funded.",
+      "awaitingApproval": "Interview slots can be funded once an administrator approves the posting. Funding them opens intake to candidates."
+    },
+    "fundForm": {
+      "label": "Fund interview slots",
+      "slots": "Interview slots to fund",
+      "hint": "{min} to {max} slots. Each slot costs {price}.",
+      "totalEmpty": "Enter a slot count to see the total.",
+      "total": "Total: {amount} from your wallet.",
+      "submit": "Fund interview slots",
+      "funding": "Funding…"
+    },
+    "validation": {
+      "wholeNumber": "Enter a whole number of slots.",
+      "min": "Fund at least {min, plural, one {# slot} other {# slots}}.",
+      "max": "Fund at most {max, plural, one {# slot} other {# slots}}."
+    },
+    "intake": {
+      "title": "Intake",
+      "description": "Close intake to stop new applications. Pending applications are rejected; approved candidates still interview.",
+      "close": "Close intake"
+    },
+    "closeDialog": {
+      "title": "Close intake for this posting?",
+      "description": "Applications still pending will be rejected. Candidates already approved for an interview keep their place and can still interview. No new applications will be accepted.",
+      "confirm": "Close intake",
+      "pending": "Closing intake…"
+    },
+    "closeFailed": "We couldn't close intake. Try again.",
+    "closedUnfunded": {
+      "title": "Closed without funded slots",
+      "description": "This posting closed without funded interview slots, so there was nothing to return to your wallet."
+    },
+    "refunded": {
+      "title": "Interview slots refunded",
+      "none": "No coins were returned to your wallet when this posting closed.",
+      "returned": "{amount} were returned to your wallet when this posting closed."
+    },
+    "loadError": {
+      "denied": "You don't have access to interview capacity",
+      "notFound": "We couldn't find this job posting",
+      "failed": "We couldn't load interview capacity"
+    },
+    "errors": {
+      "INSUFFICIENT_BALANCE": "Your wallet does not have enough coins for this many slots. Nothing was charged.",
+      "INTERVIEW_CAPACITY_ALREADY_FUNDED": "Interview slots are already funded for this posting. The current count is shown below.",
+      "INTAKE_NOT_OPEN": "Intake is no longer open for this posting, so this cannot be changed.",
+      "fallback": "Something went wrong. Try again."
+    }
+  },
+  "evaluation": {
+    "title": "Evaluation criteria",
+    "description": "Decide how much each skill counts when a candidate’s interview is scored. This is separate from the question bank.",
+    "loading": "Loading the evaluation criteria…",
+    "loadError": {
+      "denied": {
+        "title": "You don't have access to evaluation criteria",
+        "description": "Checking your account access… If this stays, sign in again with a recruiter account."
+      },
+      "notFound": {
+        "title": "We couldn't find this job posting",
+        "description": "It may have been removed, or it belongs to another recruiter."
+      },
+      "failed": {
+        "title": "We couldn't load the evaluation criteria"
+      }
+    },
+    "staleNotice": "This posting changed, so we refreshed the criteria and your unsaved changes were discarded.",
+    "leaveDialog": {
+      "title": "Leave without saving?",
+      "description": "Your changes to the weights haven’t been saved. If you leave now, they will be lost.",
+      "stay": "Stay on this page",
+      "leave": "Leave without saving"
+    },
+    "defaults": {
+      "title": "Using the default weights",
+      "body": "You haven’t saved your own weights, so interviews are scored with {mode, select, split {the total of {total} split equally across every metric} other {every metric counting the same}}. This doesn’t block approval. Save your own to change it."
+    },
+    "weights": {
+      "title": "Weights",
+      "total": "Total"
+    },
+    "sumOf": "{sum} of {total}",
+    "drafts": {
+      "notNumber": "Enter a number.",
+      "negative": "A weight can't be negative.",
+      "tooHigh": "A weight can be at most {max}.",
+      "needOne": "Give at least one metric a weight.",
+      "sumMismatch": "The weights add up to {sum}, but they must add up to {total}."
+    },
+    "editDenied": "You don't have access to edit these criteria. Checking your account access…",
+    "saveFailed": "We couldn't save the criteria.",
+    "saveError": "{reason} Your changes are still here.",
+    "resetFailed": "We couldn't reset the criteria.",
+    "save": "Save criteria",
+    "discard": "Discard changes",
+    "unsaved": "Unsaved changes",
+    "resetDefault": "Reset to default weights",
+    "resetDialog": {
+      "title": "Reset to the default weights?",
+      "description": "Your saved weights will be deleted and interviews will be scored with {mode, select, split {the total of {total} split equally across every metric} other {every metric counting the same}} again.{dirty, select, yes { Your unsaved changes will be discarded too.} other {}}",
+      "cancel": "Keep my weights",
+      "confirm": "Reset weights",
+      "pending": "Resetting…"
+    },
+    "readOnly": {
+      "locked": "This posting was approved, so its evaluation criteria can no longer be edited.",
+      "noCustom": "No custom weights were saved, so every metric counts the same."
+    },
+    "toast": {
+      "saved": "Evaluation criteria saved",
+      "restored": "Default weights restored"
+    }
+  },
+  "questionBank": {
+    "title": "Question bank",
+    "loading": "Loading the question bank…",
+    "hiddenFromCandidates": "Candidates never see these questions.",
+    "changed": "This question bank changed. We refreshed it for you.",
+    "denied": {
+      "title": "You don't have access to this question bank",
+      "body": "Checking your account access… Only the recruiter who owns this job posting can manage its questions."
+    },
+    "error": {
+      "notFoundTitle": "This job posting doesn't exist",
+      "notFoundBody": "It may have been removed, or it belongs to another recruiter.",
+      "failedTitle": "We couldn't load the question bank"
+    },
+    "state": {
+      "readOnlyApproved": "This posting is approved, so the question bank is read-only.",
+      "readOnlyIntakeClosed": "This posting is intake closed, so the question bank is read-only.",
+      "readOnlyClosed": "This posting is closed, so the question bank is read-only.",
+      "submitted": "Submitted for approval. You can still edit the questions until an administrator reviews the posting.",
+      "review": "Review and save your questions, then submit the posting for approval.",
+      "needsQuestion": "The posting needs at least one question before you can submit it for approval."
+    },
+    "evaluation": {
+      "preparing": "Use the default evaluation criteria or customize them before submitting.",
+      "locked": "Evaluation criteria are locked after approval."
+    },
+    "submit": {
+      "submit": "Submit for approval",
+      "resubmit": "Resubmit for approval",
+      "pending": "Submitting…",
+      "inQueue": "In the review queue",
+      "toast": "Submitted for approval",
+      "failed": "We couldn't submit the posting. Please try again."
+    },
+    "blocked": {
+      "empty": "Generate or add at least one question to submit.",
+      "editing": "Save or cancel the question you are editing to submit.",
+      "adding": "Add or discard the question you started to submit.",
+      "saving": "Saving your changes…",
+      "generating": "Generating questions…"
+    },
+    "list": {
+      "title": "Questions",
+      "count": "{count, plural, one {# question} other {# questions}}",
+      "editLabel": "Edit question {number}",
+      "deleteLabel": "Delete question {number}"
+    },
+    "generate": {
+      "toast": "{count, plural, one {# question is} other {# questions are}} ready to review.",
+      "failed": "We couldn't generate questions. Please try again."
+    },
+    "edit": {
+      "save": "Save question",
+      "failed": "We couldn't save the question. Your edit is still here."
+    },
+    "add": {
+      "label": "Add a question",
+      "submit": "Add question",
+      "pending": "Adding…",
+      "failed": "We couldn't add the question. Your draft is still here."
+    },
+    "empty": {
+      "none": "This posting has no core questions.",
+      "unavailable": "No questions yet. Automatic generation isn't available right now; please try again later.",
+      "title": "No questions yet",
+      "description": "Generate {count, plural, one {# question} other {# questions}} from the requirements you confirmed. You can edit, add and remove questions before submitting.",
+      "generate": "Generate questions",
+      "generating": "Generating questions…",
+      "retry": "Retry generating questions",
+      "wait": "This can take up to a minute. You can stay on this page."
+    },
+    "editor": {
+      "hint": "Asked by the AI interviewer. Candidates never see the bank."
+    },
+    "validation": {
+      "required": "Write the question first.",
+      "max": "Keep the question to {max, number} characters or fewer."
+    },
+    "delete": {
+      "title": "Delete this question?",
+      "description": "“{content}” will be removed from the bank. A question that an interview already used can't be deleted.",
+      "confirm": "Delete question",
+      "pending": "Deleting…",
+      "toast": "Question deleted",
+      "withdrawn": "The posting left the review queue. Add questions and submit it again.",
+      "failed": "We couldn't delete the question. Please try again."
+    },
+    "review": {
+      "title": "Review & submit",
+      "description": "Check the posting and evaluation criteria before sending them to an administrator. Funding comes after approval.",
+      "posting": "Job posting",
+      "seniority": "Seniority",
+      "bank": "Question bank",
+      "questionCount": "{count, plural, one {# question} other {# questions}}",
+      "interviewer": "Interviewer",
+      "voice": "Voice",
+      "notSelected": "Not selected",
+      "requirements": "Confirmed requirements",
+      "noRequirements": "No requirements available",
+      "unavailable": "Posting details are unavailable. Close this review and reload the posting.",
+      "evaluationLabel": "Evaluation summary",
+      "evaluation": "Evaluation criteria",
+      "loadingCriteria": "Loading evaluation criteria…",
+      "criteriaError": "We couldn't load the criteria.",
+      "retryCriteria": "Retry criteria",
+      "defaultCriteria": "Default criteria · equal weights",
+      "customCriteria": "Custom evaluation criteria",
+      "alreadyReviewed": "This posting has already been reviewed. Close this dialog and reload the posting to see its current state.",
+      "weightPercent": "{value}%",
+      "weightPoints": "{value} weight",
+      "editCriteria": "Edit evaluation criteria",
+      "submitting": "Submitting…",
+      "resubmit": "Resubmit for approval",
+      "submit": "Submit for approval"
+    }
+  }
+}

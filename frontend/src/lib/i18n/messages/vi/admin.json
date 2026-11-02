@@ -1,1 +1,803 @@
-{}
+{
+  "moderation": {
+    "status": {
+      "pending": "Chờ duyệt",
+      "open": "Đã duyệt",
+      "intake_closed": "Đã ngừng nhận đơn",
+      "closed": "Đã đóng",
+      "rejected": "Đã từ chối"
+    },
+    "queue": {
+      "title": "Kiểm duyệt tin tuyển dụng",
+      "description": "Xem xét các tin tuyển dụng đã gửi và cấu hình phỏng vấn của chúng. Khi được duyệt, nhà tuyển dụng có thể nạp lượt phỏng vấn và đăng tin.",
+      "statusFilter": "Lọc theo trạng thái",
+      "tabs": {
+        "pending": "Chờ duyệt",
+        "open": "Đã duyệt",
+        "rejected": "Đã từ chối"
+      },
+      "empty": {
+        "pending": "Không có tin tuyển dụng nào đang chờ duyệt.",
+        "open": "Không có tin tuyển dụng đã duyệt nào khớp với bộ lọc.",
+        "rejected": "Không có tin tuyển dụng bị từ chối nào khớp với bộ lọc.",
+        "intake_closed": "Không có tin tuyển dụng đã ngừng nhận đơn nào khớp với bộ lọc.",
+        "closed": "Không có tin tuyển dụng đã đóng nào khớp với bộ lọc.",
+        "all": "Không có tin tuyển dụng nào khớp với bộ lọc."
+      },
+      "emptyHint": "Các tin mới sẽ xuất hiện tại đây khi nhà tuyển dụng gửi lên.",
+      "oneRecruiter": "Đang hiển thị một nhà tuyển dụng.",
+      "showAllRecruiters": "Hiện tất cả nhà tuyển dụng",
+      "loading": "Đang tải tin tuyển dụng…",
+      "denied": {
+        "title": "Bạn không có quyền truy cập trang kiểm duyệt",
+        "description": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản quản trị viên."
+      },
+      "loadFailed": {
+        "title": "Không thể tải danh sách tin tuyển dụng"
+      },
+      "table": {
+        "caption": "Tin tuyển dụng, {first}–{last} trên {total}",
+        "posting": "Tin tuyển dụng",
+        "recruiter": "Nhà tuyển dụng",
+        "created": "Ngày tạo",
+        "status": "Trạng thái",
+        "action": "Thao tác"
+      },
+      "filterByRecruiter": "Chỉ hiện các tin của {name}",
+      "review": "Xem xét",
+      "reviewLabel": "Xem xét {title}",
+      "pagination": {
+        "summary": "Đang hiển thị {first}–{last} trên {total}"
+      }
+    },
+    "dateFilter": {
+      "label": "Lọc theo ngày tạo",
+      "from": "Tạo từ ngày",
+      "to": "đến",
+      "apply": "Áp dụng",
+      "clear": "Xóa ngày",
+      "invalid": "Ngày bắt đầu phải trước hoặc trùng với ngày kết thúc."
+    },
+    "review": {
+      "back": "Quay lại hàng chờ kiểm duyệt",
+      "loading": "Đang tải tin tuyển dụng…",
+      "denied": {
+        "title": "Bạn không có quyền truy cập tin tuyển dụng này",
+        "description": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản quản trị viên."
+      },
+      "notFound": {
+        "title": "Tin tuyển dụng này không tồn tại",
+        "description": "Tin có thể đã bị gỡ. Hãy quay lại hàng chờ để chọn tin khác."
+      },
+      "loadFailed": {
+        "title": "Không thể tải tin tuyển dụng này"
+      },
+      "preparing": "Nhà tuyển dụng vẫn đang chuẩn bị",
+      "conflict": "Hiện chưa thể quyết định tin tuyển dụng này. Chúng tôi đã làm mới tin giúp bạn.",
+      "saveFailed": "Không thể lưu quyết định của bạn. Vui lòng thử lại.",
+      "toast": {
+        "approvedTitle": "Đã duyệt tin tuyển dụng",
+        "approvedDescription": "Ứng viên sẽ thấy tin này sau khi nhà tuyển dụng nạp lượt phỏng vấn.",
+        "rejectedTitle": "Đã từ chối tin tuyển dụng",
+        "rejectedDescription": "Nhà tuyển dụng sẽ xem được lý do của bạn."
+      },
+      "decision": {
+        "heading": "Quyết định",
+        "questionBank": "Ngân hàng câu hỏi",
+        "coreQuestions": "{count, plural, other {câu hỏi cốt lõi}}",
+        "decided": "Tin tuyển dụng này đã được quyết định.",
+        "reasonGiven": "Lý do đã gửi cho nhà tuyển dụng:",
+        "notSubmitted": "Nhà tuyển dụng vẫn đang chuẩn bị tin này và chưa gửi đi để kiểm duyệt.",
+        "noQuestions": "Nhà tuyển dụng cần thêm câu hỏi cốt lõi trước khi tin này có thể được duyệt.",
+        "approve": "Duyệt",
+        "reject": "Từ chối"
+      },
+      "details": {
+        "title": "Chi tiết tin tuyển dụng",
+        "recruiter": "Nhà tuyển dụng",
+        "created": "Ngày tạo",
+        "createdAt": "{date} UTC",
+        "company": "Công ty",
+        "seniority": "Cấp bậc",
+        "location": "Địa điểm",
+        "employmentType": "Hình thức làm việc",
+        "salary": "Mức lương",
+        "salaryRange": "{min} – {max}",
+        "salaryFrom": "Từ {amount}",
+        "salaryUpTo": "Tối đa {amount}",
+        "interviewSlots": "Lượt phỏng vấn",
+        "interviewDuration": "Thời lượng phỏng vấn",
+        "minutes": "{minutes, plural, other {# phút}}",
+        "avatar": "Người phỏng vấn 3D",
+        "voice": "Hồ sơ giọng nói"
+      },
+      "dossier": {
+        "requirementsTitle": "Yêu cầu đã xác nhận",
+        "requirementsDescription": "Nhà tuyển dụng đã xác nhận các yêu cầu này để tạo câu hỏi.",
+        "requirementsEmpty": "Tin tuyển dụng này chưa có yêu cầu có cấu trúc. Hãy xem mô tả công việc gốc bên dưới.",
+        "requirementType": {
+          "required": "Bắt buộc",
+          "preferred": "Ưu tiên"
+        },
+        "guidance": "Hướng dẫn tạo câu hỏi",
+        "evaluationTitle": "Tiêu chí đánh giá",
+        "evaluationDefaults": "Tiêu chí mặc định · trọng số bằng nhau. Các thiết lập này chỉ để xem trong quá trình kiểm duyệt.",
+        "evaluationCustom": "Tiêu chí đánh giá tùy chỉnh. Các thiết lập này chỉ để xem trong quá trình kiểm duyệt.",
+        "evaluationUnavailable": "Chưa có thông tin đánh giá.",
+        "weightPercent": "{value}%",
+        "weightPlain": "Trọng số {value}"
+      }
+    },
+    "dialog": {
+      "approveTitle": "Duyệt tin tuyển dụng này?",
+      "rejectTitle": "Từ chối tin tuyển dụng này?",
+      "approveDescription": "<emphasis>{title}</emphasis> sẽ được duyệt. Ứng viên có thể tìm thấy tin sau khi nhà tuyển dụng nạp lượt phỏng vấn.",
+      "rejectDescription": "<emphasis>{title}</emphasis> sẽ không được đăng. Nhà tuyển dụng sẽ xem được lý do của bạn.",
+      "approveForm": "Duyệt tin tuyển dụng",
+      "rejectForm": "Từ chối tin tuyển dụng",
+      "reasonLabel": "Lý do gửi nhà tuyển dụng",
+      "required": "(bắt buộc)",
+      "reasonHint": "Hãy nêu cụ thể để nhà tuyển dụng biết cần chỉnh sửa gì.",
+      "approving": "Đang duyệt…",
+      "rejecting": "Đang từ chối…",
+      "approve": "Duyệt tin",
+      "reject": "Từ chối tin"
+    },
+    "jd": {
+      "heading": "Mô tả công việc",
+      "openInNewTab": "Mở trong tab mới",
+      "openInNewTabSr": "(tệp mô tả công việc)",
+      "pdfTitle": "Tệp PDF mô tả công việc",
+      "textFromPdf": "Văn bản đọc từ tệp PDF",
+      "textLabel": "Nội dung mô tả công việc",
+      "notPdf": "Mô tả công việc này không phải tệp PDF nên không thể hiển thị tại đây. Hãy mở trong tab mới để đọc.",
+      "missing": "Không tìm thấy mô tả công việc của tin này nên không thể hiển thị. Hãy từ chối tin và yêu cầu nhà tuyển dụng gửi lại."
+    },
+    "validation": {
+      "reasonRequired": "Hãy cho nhà tuyển dụng biết vì sao tin tuyển dụng này bị từ chối.",
+      "reasonTooLong": "Lý do tối đa {max, number} ký tự.",
+      "reasonInvalid": "Hãy xóa các ký tự không được hỗ trợ khỏi lý do."
+    }
+  },
+  "interviews": {
+    "eyebrow": "Vận hành",
+    "type": {
+      "practice": "Luyện tập",
+      "recruitment": "Tuyển dụng"
+    },
+    "values": {
+      "notScored": "Chưa có điểm",
+      "available": "Có sẵn",
+      "notAvailable": "Chưa có",
+      "recorded": "Đã ghi âm",
+      "notRecorded": "Chưa ghi âm"
+    },
+    "accessDenied": {
+      "message": "Chúng tôi chưa thể xác nhận quyền quản trị viên của bạn. Dữ liệu phỏng vấn sẽ được ẩn cho đến khi quyền truy cập được xác minh.",
+      "retry": "Kiểm tra lại quyền truy cập"
+    },
+    "sessions": {
+      "label": "Phiên phỏng vấn",
+      "title": "Phiên phỏng vấn",
+      "description": "Tìm các phiên phỏng vấn và xem thông tin vận hành của chúng. Nội dung phiên không được hiển thị tại đây.",
+      "loading": "Đang tải phiên phỏng vấn…",
+      "count": "{filtered, select, true {{total} phiên phỏng vấn phù hợp} other {{total} phiên phỏng vấn}}",
+      "refresh": "Làm mới",
+      "loadFailed": "Không thể tải các phiên phỏng vấn. Vui lòng thử lại.",
+      "loadingLabel": "Đang tải phiên phỏng vấn",
+      "emptyFilteredTitle": "Không có phiên phỏng vấn phù hợp",
+      "emptyFilteredHint": "Hãy thử bộ lọc khác hoặc xóa bộ lọc.",
+      "emptyTitle": "Chưa có phiên phỏng vấn nào",
+      "emptyHint": "Các phiên phỏng vấn sẽ xuất hiện tại đây khi ứng viên bắt đầu phỏng vấn.",
+      "paginationLabel": "Phân trang phiên phỏng vấn"
+    },
+    "filters": {
+      "label": "Lọc phiên phỏng vấn",
+      "type": "Loại phỏng vấn",
+      "allTypes": "Tất cả loại",
+      "candidateId": "Mã ứng viên",
+      "candidatePlaceholder": "Nhập đầy đủ mã ứng viên",
+      "jobPostingId": "Mã tin tuyển dụng",
+      "jobPostingPlaceholder": "Nhập đầy đủ mã tin tuyển dụng",
+      "apply": "Áp dụng bộ lọc",
+      "clear": "Xóa"
+    },
+    "table": {
+      "label": "Phiên phỏng vấn",
+      "interview": "Phỏng vấn",
+      "owner": "Chủ sở hữu",
+      "posting": "Tin tuyển dụng",
+      "score": "Điểm",
+      "report": "Báo cáo",
+      "recording": "Bản ghi",
+      "details": "Chi tiết",
+      "noName": "Chưa có tên",
+      "practiceNoPosting": "Luyện tập (không có tin)",
+      "view": "Xem",
+      "viewLabel": "Xem chi tiết phiên phỏng vấn {id}"
+    },
+    "detail": {
+      "label": "Chi tiết phiên phỏng vấn",
+      "back": "Quay lại danh sách phiên phỏng vấn",
+      "title": "Phiên phỏng vấn",
+      "description": "Chỉ hiển thị thông tin vận hành. Bản ghi, bản ghi lời thoại và câu trả lời không có trong màn hình này.",
+      "notFoundTitle": "Không tìm thấy phiên phỏng vấn",
+      "notFoundDescription": "Phiên phỏng vấn này không tồn tại hoặc đã bị xóa.",
+      "loadFailed": "Không thể tải phiên phỏng vấn này. Vui lòng thử lại.",
+      "loadingLabel": "Đang tải phiên phỏng vấn",
+      "fields": {
+        "id": "Mã phỏng vấn",
+        "type": "Loại",
+        "owner": "Chủ sở hữu",
+        "ownerEmail": "Email chủ sở hữu",
+        "roleProfile": "Hồ sơ vị trí",
+        "jobPosting": "Tin tuyển dụng",
+        "applicationId": "Mã đơn ứng tuyển",
+        "avatar": "Avatar",
+        "voice": "Giọng nói",
+        "questions": "Số câu hỏi",
+        "turns": "Số lượt trao đổi",
+        "score": "Điểm",
+        "report": "Báo cáo",
+        "recording": "Bản ghi"
+      },
+      "notProvided": "Chưa cung cấp",
+      "noRoleProfile": "Không có (phỏng vấn tuyển dụng)",
+      "noJobPosting": "Không có (phỏng vấn luyện tập)",
+      "noApplication": "Không có (phỏng vấn luyện tập)",
+      "none": "Không có"
+    },
+    "validation": {
+      "invalidId": "Hãy nhập đầy đủ mã, ví dụ 3f2c…-…, hoặc để trống ô này."
+    }
+  },
+  "shared": {
+    "sectionPreparing": "Khu vực này đang được chuẩn bị. Các công cụ khác sẽ xuất hiện tại đây khi sẵn sàng."
+  },
+  "overview": {
+    "title": "Bảng điều khiển quản trị",
+    "description": "Tổng quan vận hành nền tảng.",
+    "updated": "{days} ngày gần nhất · Cập nhật {updated}",
+    "loading": "Đang tải tổng quan quản trị…",
+    "loadingWindow": "Đang tải dữ liệu {days} ngày gần nhất…",
+    "denied": {
+      "title": "Bạn không có quyền xem tổng quan quản trị",
+      "description": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu thông báo này vẫn còn, hãy đăng nhập lại bằng tài khoản quản trị viên."
+    },
+    "error": {
+      "title": "Không thể tải tổng quan"
+    },
+    "window": {
+      "label": "Khoảng thời gian báo cáo",
+      "option": "{days} ngày gần nhất"
+    },
+    "tools": {
+      "label": "Công cụ quản trị",
+      "title": "Đi đến",
+      "jobPostings": "Duyệt các tin tuyển dụng đang chờ",
+      "interviews": "Xem các buổi phỏng vấn gần đây",
+      "voices": "Quản lý danh mục giọng nói",
+      "billing": "Kiểm tra thanh toán",
+      "revenue": "Xem số liệu doanh thu",
+      "users": "Tìm một tài khoản"
+    },
+    "sections": {
+      "accounts": {
+        "title": "Tài khoản",
+        "definition": "Chỉ gồm ứng viên và nhà tuyển dụng. Đã khóa là số tài khoản đang bị khóa ngay lúc này; tài khoản mới được tính trong khoảng thời gian đã chọn.",
+        "candidates": "Ứng viên",
+        "recruiters": "Nhà tuyển dụng",
+        "locked": "Đang bị khóa",
+        "newInWindow": "Mới trong kỳ"
+      },
+      "jobPostings": {
+        "title": "Tin tuyển dụng",
+        "definition": "Số lượng theo trạng thái, tính từ trước đến nay.",
+        "pending": "Chờ duyệt",
+        "open": "Đang tuyển",
+        "intakeClosed": "Đã ngừng nhận đơn",
+        "closed": "Đã đóng",
+        "rejected": "Bị từ chối"
+      },
+      "applications": {
+        "title": "Đơn ứng tuyển",
+        "definition": "Số lượng theo trạng thái tính từ trước đến nay. Số đơn đã nộp được tính trong khoảng thời gian đã chọn.",
+        "pending": "Chờ xét duyệt CV",
+        "interviewEligible": "Đủ điều kiện phỏng vấn",
+        "interviewed": "Đã phỏng vấn",
+        "approved": "Đã duyệt",
+        "rejected": "Bị từ chối",
+        "submittedInWindow": "Đã nộp trong kỳ"
+      },
+      "interviews": {
+        "title": "Phỏng vấn",
+        "definition": "Số buổi đã bắt đầu và đã hoàn thành được tính trong khoảng thời gian đã chọn. Số buổi đánh giá thất bại tính từ trước đến nay.",
+        "practiceStarted": "Luyện tập đã bắt đầu",
+        "recruitmentStarted": "Phỏng vấn tuyển dụng đã bắt đầu",
+        "completed": "Đã hoàn thành",
+        "evaluationFailed": "Đánh giá thất bại"
+      },
+      "finance": {
+        "title": "Tài chính",
+        "definition": "Doanh thu là các lần nạp tiền PayOS thành công trong khoảng thời gian đã chọn. Tổng số xu cũng tính trong khoảng thời gian này. Xu đã tiêu và xu hoàn lại không phải doanh thu.",
+        "revenue": "Doanh thu",
+        "successfulDeposits": "Lần nạp thành công",
+        "coinsSold": "Xu đã bán",
+        "coinsSpent": "Xu đã tiêu",
+        "coinsRefunded": "Xu đã hoàn",
+        "uniquePayers": "Người thanh toán",
+        "successRate": "Tỷ lệ thanh toán thành công"
+      }
+    }
+  },
+  "accounts": {
+    "label": "Quản lý tài khoản",
+    "title": "Tài khoản",
+    "description": "Quản lý quyền truy cập RoleCue. Xem các tài khoản, khóa hoặc mở khóa quyền truy cập của ứng viên và nhà tuyển dụng.",
+    "accessDenied": "Chúng tôi không xác nhận được quyền quản trị viên của bạn. Dữ liệu tài khoản sẽ bị ẩn cho đến khi quyền truy cập được xác minh.",
+    "retryAccess": "Kiểm tra lại quyền truy cập",
+    "toolbar": {
+      "label": "Tìm và lọc tài khoản",
+      "searchLabel": "Tìm tài khoản",
+      "searchPlaceholder": "Tìm theo tên hoặc email…",
+      "filterLabel": "Lọc tài khoản",
+      "filterAll": "Tất cả tài khoản",
+      "filterLocked": "Tài khoản bị khóa",
+      "lockedHint": "Hiển thị các tài khoản đang bị hạn chế truy cập."
+    },
+    "status": {
+      "loading": "Đang tải tài khoản…",
+      "loadingLabel": "Đang tải tài khoản",
+      "count": "{count, plural, other {# tài khoản}}",
+      "matchingCount": "{count, plural, other {# tài khoản phù hợp}}",
+      "refresh": "Làm mới",
+      "retryRefresh": "Thử làm mới lại",
+      "loadFailed": "Không thể tải danh sách tài khoản. Vui lòng thử lại.",
+      "pagination": "Phân trang tài khoản"
+    },
+    "empty": {
+      "filteredTitle": "Không có tài khoản phù hợp",
+      "filteredHint": "Hãy thử tìm kiếm khác hoặc xóa bộ lọc.",
+      "clear": "Xóa tìm kiếm và bộ lọc",
+      "title": "Chưa có tài khoản nào",
+      "hint": "Các tài khoản đã đăng ký sẽ xuất hiện tại đây."
+    },
+    "table": {
+      "label": "Tài khoản trên nền tảng",
+      "account": "Tài khoản",
+      "role": "Vai trò",
+      "lockState": "Trạng thái khóa",
+      "created": "Ngày tạo",
+      "actions": "Thao tác"
+    },
+    "badges": {
+      "unknownRole": "Không xác định",
+      "locked": "Đã khóa",
+      "active": "Đang hoạt động"
+    },
+    "lockState": {
+      "noReason": "Chưa ghi lý do",
+      "until": "Đến {date}",
+      "indefinitely": "Vô thời hạn"
+    },
+    "actions": {
+      "menu": "Thao tác cho {name}",
+      "view": "Xem chi tiết",
+      "lock": "Khóa tài khoản",
+      "unlock": "Mở khóa tài khoản",
+      "readOnly": "Chỉ xem"
+    },
+    "details": {
+      "title": "Chi tiết tài khoản",
+      "description": "Thông tin tài khoản hiện tại và trạng thái truy cập.",
+      "loading": "Đang tải chi tiết tài khoản…",
+      "loadFailed": "Không thể tải chi tiết tài khoản. Vui lòng thử lại.",
+      "retry": "Tải lại chi tiết",
+      "accountId": "Mã tài khoản",
+      "emailVerification": "Xác minh email",
+      "verified": "Đã xác minh",
+      "notVerified": "Chưa xác minh",
+      "created": "Ngày tạo",
+      "lastUpdated": "Cập nhật lần cuối",
+      "lockDuration": "Thời hạn khóa",
+      "noCurrentLock": "Hiện không bị khóa",
+      "notAvailable": "Không có",
+      "expired": "Lệnh khóa trước đó đã hết hạn vào {date}. Tài khoản này đang hoạt động; các phiên đăng nhập đã bị thu hồi trước đó vẫn không còn hiệu lực.",
+      "previousReason": "Lý do khóa trước đó",
+      "recordedReason": "Lý do khóa đã ghi nhận",
+      "adminReadOnly": "Tài khoản quản trị viên chỉ có thể xem, không thể khóa hoặc mở khóa tại đây."
+    },
+    "dialog": {
+      "lockDescription": "Ngăn người dùng này đăng nhập và thu hồi mọi phiên đang hoạt động của họ. Một email thông báo sẽ được gửi sau khi thay đổi.",
+      "unlockDescription": "Cho phép người dùng này đăng nhập lại. Các phiên đã bị thu hồi trước đó vẫn không còn hiệu lực. Một email thông báo sẽ được gửi sau khi thay đổi.",
+      "lockForm": "Xác nhận khóa tài khoản",
+      "unlockForm": "Xác nhận mở khóa tài khoản",
+      "updating": "Đang cập nhật…",
+      "confirmLock": "Xác nhận khóa",
+      "confirmUnlock": "Xác nhận mở khóa"
+    },
+    "fields": {
+      "reasonLabel": "Lý do gửi cho người dùng",
+      "reasonPlaceholder": "Ví dụ: Gửi tin nhắn rác nhiều lần.",
+      "reasonHint": "Bắt buộc. Tối đa 500 ký tự. Lý do này sẽ được đưa vào email gửi cho người dùng. Không đưa ghi chú nội bộ hoặc thông tin nhạy cảm vào đây.",
+      "durationLegend": "Thời hạn",
+      "durationHint": "Chọn một thời hạn phổ biến hoặc đặt chính xác thời điểm mở khóa.",
+      "durations": {
+        "hour1": "1 giờ",
+        "hours24": "24 giờ",
+        "days7": "7 ngày",
+        "days30": "30 ngày"
+      },
+      "custom": "Chọn ngày/giờ",
+      "expiryLabel": "Khóa đến",
+      "expiryHint": "Chọn một thời điểm trong tương lai theo múi giờ {timeZone}.",
+      "indefinite": "Khóa vô thời hạn",
+      "indefiniteHint": "Thay thế cho thời hạn ở trên. Chỉ quản trị viên mới có thể mở khóa tài khoản.",
+      "summaryIndefinite": "Tài khoản này sẽ bị khóa cho đến khi quản trị viên mở khóa.",
+      "summaryCustom": "Tài khoản này sẽ bị khóa đến ngày và giờ bạn chọn ở trên.",
+      "summaryPreset": "Tài khoản này sẽ bị khóa trong {duration}, tính từ lúc bạn xác nhận.",
+      "summaryNone": "Hãy chọn thời hạn hoặc chọn Khóa vô thời hạn trước khi xác nhận."
+    },
+    "validation": {
+      "reasonRequired": "Nhập lý do khóa tài khoản này.",
+      "reasonMax": "Dùng tối đa 500 ký tự.",
+      "durationRequired": "Hãy chọn thời hạn khóa.",
+      "expiryInvalid": "Hãy chọn ngày và giờ hợp lệ trong tương lai."
+    },
+    "feedback": {
+      "actionFailed": "Không xác nhận được thay đổi. Vui lòng làm mới trước khi thử lại.",
+      "unchangedTitle": "Tài khoản đã ở trạng thái truy cập này",
+      "unchangedDescription": "Không cần thay đổi thêm hay gửi email thông báo.",
+      "lockedTitle": "Đã khóa tài khoản",
+      "lockedDescription": "Các phiên đang hoạt động của người dùng đã bị thu hồi.",
+      "unlockedTitle": "Đã mở khóa tài khoản",
+      "unlockedDescription": "Người dùng có thể đăng nhập lại. Các phiên trước đó vẫn không còn hiệu lực.",
+      "notice": {
+        "notificationFailed": "Tài khoản đã được cập nhật nhưng không gửi được email thông báo. Thay đổi quyền truy cập vẫn có hiệu lực.",
+        "refreshFailed": "Không thể làm mới danh sách. Hãy làm mới trước khi thực hiện thay đổi khác.",
+        "unconfirmed": "Không xác nhận được thay đổi. Hãy xem lại trạng thái tài khoản vừa làm mới trước khi thử lại."
+      }
+    }
+  },
+  "voices": {
+    "title": "Hồ sơ giọng nói",
+    "description": "Các giọng đọc (chuyển văn bản thành giọng nói) mà nhà tuyển dụng và ứng viên có thể chọn cho người phỏng vấn AI. Đồng bộ sẽ thêm giọng mới và ngừng kích hoạt những giọng mà nhà cung cấp đã gỡ.",
+    "status": {
+      "active": "Đang hoạt động",
+      "inactive": "Ngừng hoạt động"
+    },
+    "filters": {
+      "label": "Lọc theo trạng thái"
+    },
+    "sync": {
+      "action": "Đồng bộ từ nhà cung cấp",
+      "pending": "Đang đồng bộ…",
+      "progress": "Đang đồng bộ giọng nói từ nhà cung cấp…",
+      "failed": "Không thể đồng bộ giọng nói từ nhà cung cấp.",
+      "failedNote": "{error} Danh mục chưa bị thay đổi.",
+      "toastTitle": "Đã đồng bộ danh mục giọng nói",
+      "summary": "Thêm mới {added}, cập nhật {updated}, ngừng kích hoạt {deactivated}, giữ nguyên {unchanged}.",
+      "result": "{count, plural, other {Đã đồng bộ # giọng nói từ {provider}}}",
+      "dismiss": "Đóng",
+      "added": "Thêm mới",
+      "updated": "Cập nhật",
+      "deactivated": "Ngừng kích hoạt",
+      "unchanged": "Giữ nguyên"
+    },
+    "search": {
+      "form": "Tìm giọng nói",
+      "label": "Tìm theo tên",
+      "placeholder": "Tìm theo tên",
+      "tooLong": "Từ khóa tìm kiếm tối đa {max} ký tự."
+    },
+    "list": {
+      "label": "Giọng nói",
+      "loading": "Đang tải hồ sơ giọng nói…",
+      "showing": "Hiển thị {first}–{last} trên {total}"
+    },
+    "denied": {
+      "title": "Bạn không có quyền xem hồ sơ giọng nói",
+      "description": "Đang kiểm tra quyền truy cập tài khoản của bạn… Nếu thông báo này vẫn còn, hãy đăng nhập lại bằng tài khoản quản trị viên."
+    },
+    "loadFailed": {
+      "title": "Không thể tải hồ sơ giọng nói"
+    },
+    "pageGone": {
+      "title": "Không có giọng nói nào ở trang này.",
+      "description": "Danh sách đã ngắn đi hoặc số trang này không tồn tại."
+    },
+    "empty": {
+      "noMatch": "Không có giọng nói nào khớp với “{query}”.",
+      "none": "Danh mục chưa có giọng nói nào.",
+      "byStatus": "{status, select, active {Không có giọng nói nào đang hoạt động.} inactive {Không có giọng nói nào đã ngừng hoạt động.} other {Không có giọng nói nào.}}",
+      "hint": "Dùng “{action}” để thêm giọng nói từ nhà cung cấp dịch vụ chuyển văn bản thành giọng nói."
+    },
+    "usage": {
+      "interviews": "{count, plural, other {# buổi phỏng vấn}}",
+      "jobPostings": "{count, plural, other {# tin tuyển dụng}}"
+    },
+    "gender": {
+      "female": "Nữ",
+      "male": "Nam",
+      "notSet": "Chưa đặt giới tính"
+    },
+    "details": {
+      "title": "Chi tiết giọng nói",
+      "sheetDescription": "Chi tiết và thao tác cho giọng nói đã chọn.",
+      "emptyTitle": "Chọn một giọng nói",
+      "emptyHint": "Chi tiết và các thao tác sẽ xuất hiện tại đây.",
+      "gender": "Giới tính",
+      "locale": "Ngôn ngữ",
+      "provider": "Nhà cung cấp",
+      "providerVoiceId": "ID giọng nói của nhà cung cấp",
+      "inUse": "Đang sử dụng",
+      "notUsed": "Chưa được dùng",
+      "hintInUse": "Các buổi phỏng vấn và tin tuyển dụng đang dùng giọng nói này vẫn giữ nó, nên chỉ có thể vô hiệu hóa.",
+      "hintUnused": "Chưa có nơi nào dùng giọng nói này, nên khi xóa nó sẽ bị gỡ khỏi danh mục.",
+      "reactivate": "Kích hoạt lại",
+      "reactivating": "Đang kích hoạt lại…",
+      "reactivateLabel": "Kích hoạt lại {name}",
+      "deactivate": "Vô hiệu hóa",
+      "remove": "Xóa",
+      "deactivateLabel": "Vô hiệu hóa {name}",
+      "removeLabel": "Xóa {name}"
+    },
+    "removeDialog": {
+      "deactivateTitle": "Vô hiệu hóa giọng nói này?",
+      "removeTitle": "Xóa giọng nói này?",
+      "inUse": "<voice>{name}</voice> đang được dùng trong {usage}. Giọng nói sẽ được đánh dấu ngừng hoạt động thay vì bị xóa, nên các buổi phỏng vấn và tin tuyển dụng đó vẫn giữ nó. Bạn có thể kích hoạt lại sau.",
+      "unused": "<voice>{name}</voice> chưa được dùng ở đâu, nên sẽ bị xóa vĩnh viễn khỏi danh mục.",
+      "deactivating": "Đang vô hiệu hóa…",
+      "removing": "Đang xóa…",
+      "deactivateConfirm": "Vô hiệu hóa giọng nói",
+      "removeConfirm": "Xóa giọng nói"
+    },
+    "feedback": {
+      "removedTitle": "Đã xóa giọng nói",
+      "removedDescription": "{name} không còn trong danh mục.",
+      "deactivatedTitle": "Đã vô hiệu hóa giọng nói",
+      "deactivatedDescription": "{name} hiện đã ngừng hoạt động; các buổi phỏng vấn và tin tuyển dụng đang dùng giọng này vẫn giữ nó.",
+      "reactivatedTitle": "Đã kích hoạt lại giọng nói",
+      "reactivatedDescription": "{name} đã hoạt động trở lại và có thể được chọn.",
+      "alreadyRemoved": "Giọng nói này đã bị xóa trước đó. Chúng tôi đã làm mới danh mục cho bạn.",
+      "reactivateGone": "{name} đã bị xóa vĩnh viễn nên không thể kích hoạt lại. Chúng tôi đã làm mới danh mục cho bạn.",
+      "reactivateFailed": "Không thể kích hoạt lại {name}. Vui lòng thử lại.",
+      "removeFailed": "Không thể xóa giọng nói. Vui lòng thử lại."
+    }
+  },
+  "billing": {
+    "dates": {
+      "month": "{month, select, 1 {thg 1} 2 {thg 2} 3 {thg 3} 4 {thg 4} 5 {thg 5} 6 {thg 6} 7 {thg 7} 8 {thg 8} 9 {thg 9} 10 {thg 10} 11 {thg 11} other {thg 12}}",
+      "dayMonthYear": "{day} {month}, {year}",
+      "monthYear": "{month}, {year}",
+      "rangeSameDay": "{day} {month}, {year}",
+      "rangeSameMonth": "{fromDay}–{toDay} {month}, {year}",
+      "rangeSameYear": "{fromDay} {fromMonth} – {toDay} {toMonth}, {year}",
+      "rangeCrossYear": "{fromDay} {fromMonth}, {fromYear} – {toDay} {toMonth}, {toYear}"
+    },
+    "compare": {
+      "new": "Mới",
+      "noChange": "Không đổi",
+      "points": "{value} điểm %"
+    },
+    "timeWindow": {
+      "label": "Khoảng thời gian",
+      "presets": {
+        "all": "Mọi lúc",
+        "today": "Hôm nay",
+        "last_7_days": "7 ngày qua",
+        "last_30_days": "30 ngày qua",
+        "this_month": "Tháng này",
+        "last_month": "Tháng trước",
+        "this_quarter": "Quý này",
+        "this_year": "Năm nay",
+        "last_12_months": "12 tháng qua",
+        "custom": "Khoảng tùy chọn"
+      },
+      "from": "Từ ngày",
+      "to": "Đến ngày",
+      "vietnamTimeNote": "Ngày theo giờ Việt Nam (UTC+07:00); bao gồm cả hai đầu.",
+      "fromDate": "Từ {date}",
+      "untilDate": "Đến {date}",
+      "errors": {
+        "invalidDay": "Hãy nhập ngày hợp lệ trong lịch.",
+        "reversedRange": "Ngày bắt đầu phải trước hoặc trùng với ngày kết thúc.",
+        "bothEnds": "Hãy chọn cả ngày bắt đầu và ngày kết thúc."
+      }
+    },
+    "transactions": {
+      "title": "Giao dịch thanh toán",
+      "subtitle": "Mọi khoản thanh toán PayOS và biến động xu, mới nhất trước. Tiền tính bằng VND; xu được tính riêng.",
+      "loadError": {
+        "title": "Không thể tải giao dịch",
+        "hint": "Vui lòng kiểm tra lại các bộ lọc (như khoảng số tiền) rồi thử lại."
+      },
+      "exportToast": {
+        "truncatedTitle": "Đã rút gọn tệp xuất còn {limit, number} dòng",
+        "truncatedBody": "Chỉ xuất {limit, number} trong tổng số {total, number} giao dịch phù hợp đầu tiên. Hãy thu hẹp bộ lọc để xuất phần còn lại.",
+        "failedTitle": "Không thể xuất CSV",
+        "failedBody": "Chúng tôi không thể tạo tệp CSV. Vui lòng kiểm tra các bộ lọc rồi thử lại."
+      },
+      "packageOptions": {
+        "practiceInterview": "Phỏng vấn luyện tập",
+        "interviewSlots": "Lượt phỏng vấn",
+        "avatarStorage": "Dung lượng lưu trữ avatar"
+      },
+      "summary": {
+        "label": "Giao dịch phù hợp",
+        "revenue": "Doanh thu",
+        "revenueNote": "{count} lượt nạp xu đã thanh toán",
+        "waiting": "Chờ thanh toán",
+        "waitingNote": "PayOS chưa xác nhận",
+        "failedOrCancelled": "Thất bại hoặc đã hủy",
+        "failedOrCancelledNote": "{failed} thất bại · {cancelled} đã hủy",
+        "coinsSpent": "Xu đã chi tiêu",
+        "coinsSpentNote": "{refunded} đã hoàn"
+      },
+      "toolbar": {
+        "categories": "Loại giao dịch",
+        "tabs": {
+          "topup": "Nạp xu qua PayOS",
+          "spend": "Chi tiêu xu",
+          "refund": "Hoàn xu"
+        },
+        "reset": "Đặt lại bộ lọc",
+        "export": "Xuất CSV",
+        "exporting": "Đang xuất...",
+        "searchPlaceholder": "Tìm tên, email, đơn hàng hoặc mã",
+        "searchLabel": "Tìm giao dịch",
+        "statusLabel": "Lọc theo trạng thái",
+        "statuses": {
+          "all": "Mọi trạng thái",
+          "success": "Thành công",
+          "pending": "Đang chờ",
+          "failed": "Thất bại",
+          "cancelled": "Đã hủy"
+        },
+        "packageLabel": "Lọc theo gói hoặc tính năng",
+        "allPackages": "Mọi gói và tính năng",
+        "minAmountPlaceholder": "Số tiền tối thiểu",
+        "minAmountLabel": "Số tiền tối thiểu",
+        "maxAmountPlaceholder": "Số tiền tối đa",
+        "maxAmountLabel": "Số tiền tối đa"
+      },
+      "table": {
+        "columns": {
+          "date": "Ngày",
+          "user": "Người dùng",
+          "transaction": "Giao dịch",
+          "amount": "Số tiền",
+          "status": "Trạng thái"
+        },
+        "empty": "Không có giao dịch nào khớp với bộ lọc hiện tại.",
+        "unnamedUser": "Người dùng chưa đặt tên",
+        "unknownUser": "Người dùng không xác định",
+        "system": "Hệ thống",
+        "viewDetails": "Xem chi tiết {title} lúc {date}",
+        "order": "Đơn hàng #{code}",
+        "noCoinsAdded": "Chưa cộng xu",
+        "types": {
+          "topup": "Nạp xu qua PayOS",
+          "spend": "Chi tiêu xu",
+          "refund": "Hoàn xu"
+        },
+        "status": {
+          "success": "Đã thanh toán",
+          "pending": "Đang chờ",
+          "failed": "Thất bại",
+          "cancelled": "Đã hủy",
+          "settled": "Đã ghi nhận"
+        },
+        "results": "{start}–{end} trong {total, plural, other {# giao dịch}}",
+        "resultsNone": "0 trong {total, plural, other {# giao dịch}}",
+        "rows": "Số dòng",
+        "rowsPerPage": "Số dòng mỗi trang",
+        "page": "Trang {page}/{totalPages}"
+      },
+      "detail": {
+        "title": "Chi tiết giao dịch",
+        "description": "Chỉ xem. Quản trị viên không thể thay đổi giao dịch hoặc số dư ví.",
+        "createdAt": "Tạo lúc",
+        "paid": "Đã thanh toán",
+        "coins": "Xu",
+        "user": "Người dùng",
+        "id": "Mã giao dịch",
+        "copyId": "Sao chép mã giao dịch",
+        "payosOrder": "Đơn hàng PayOS",
+        "from": "Từ",
+        "to": "Đến",
+        "ledgerText": "Nội dung trong sổ giao dịch"
+      }
+    },
+    "revenue": {
+      "title": "Doanh thu",
+      "subtitle": "Chỉ tính các lượt nạp xu đã thanh toán qua PayOS; xu luân chuyển bên trong RoleCue không phải doanh thu.",
+      "compareLabel": "So sánh với",
+      "compareOptions": {
+        "previous_year": "Cùng kỳ năm trước",
+        "previous_period": "Kỳ trước"
+      },
+      "export": "Xuất CSV",
+      "loadError": {
+        "title": "Không thể tải báo cáo doanh thu.",
+        "hint": "Hãy kiểm tra kết nối rồi thử lại."
+      },
+      "noTopups": "Không có lượt nạp xu nào được thanh toán trong cả hai kỳ.",
+      "finding": {
+        "none": "Không có lượt nạp xu nào được thanh toán trong {range} hoặc {comparisonRange}",
+        "newBaseline": "{revenue}; không có lượt nạp xu nào được thanh toán trong {comparisonRange}",
+        "same": "{revenue}, bằng với {comparisonRange}",
+        "change": "{revenue}, {direction, select, up {tăng} other {giảm}} {percent} so với {comparisonRange} ({absolute})",
+        "revenue": "{range} · {amount}"
+      },
+      "kpis": {
+        "label": "Chỉ số chính",
+        "revenue": "Doanh thu",
+        "revenueNote": "{count} lượt nạp xu đã thanh toán",
+        "payingUsers": "Người dùng đã thanh toán",
+        "payingUsersNote": "{newPayers} mới · {returning} quay lại",
+        "averageOrder": "Giá trị đơn trung bình",
+        "paymentSuccess": "Tỷ lệ thanh toán thành công",
+        "paymentSuccessNote": "{settled} trên {attempts} lượt thanh toán PayOS đã có kết quả",
+        "versus": "so với {range}"
+      },
+      "trend": {
+        "label": "Doanh thu theo thời gian",
+        "title": "{granularity, select, month {Doanh thu theo tháng} other {Doanh thu theo ngày}}",
+        "chartLabel": "{granularity, select, month {Doanh thu theo tháng} other {Doanh thu theo ngày}}, {range} so với {comparisonRange}",
+        "axisMillions": "{value}tr",
+        "axisThousands": "{value}k"
+      },
+      "mix": {
+        "title": "Doanh thu đến từ đâu",
+        "byRole": "Theo người thanh toán",
+        "byPackage": "Theo gói xu",
+        "roles": {
+          "recruiter": "Nhà tuyển dụng",
+          "candidate": "Ứng viên",
+          "unknown": "Người thanh toán không xác định"
+        }
+      },
+      "coinFlow": {
+        "title": "Xu",
+        "sold": "Đã bán",
+        "spent": "Đã chi tiêu",
+        "refunded": "Đã hoàn",
+        "spentOn": "Chi tiêu cho",
+        "noneSpent": "Không có xu nào được chi tiêu trong cả hai kỳ.",
+        "before": "{coins} kỳ trước",
+        "features": {
+          "practice_interview": "Phỏng vấn luyện tập",
+          "interview_slots": "Lượt phỏng vấn",
+          "avatar_storage": "Dung lượng lưu trữ avatar",
+          "other": "Khác"
+        }
+      },
+      "outstanding": {
+        "title": "Xu người dùng còn giữ",
+        "value": "≈ {amount} theo giá trung bình đã trả cho mỗi xu",
+        "note": "Đã trả trước và chưa dùng nên chưa phải doanh thu: RoleCue vẫn nợ khoản này dưới dạng phỏng vấn, lượt phỏng vấn và dung lượng lưu trữ. Đây là số dư hiện tại, không phải của kỳ báo cáo."
+      },
+      "csv": {
+        "period": "Kỳ báo cáo (giờ Việt Nam)",
+        "metric": "Chỉ số",
+        "thisPeriod": "Kỳ này",
+        "comparison": "Kỳ so sánh",
+        "revenueVnd": "Doanh thu (VND)",
+        "paidTopups": "Lượt nạp xu đã thanh toán",
+        "payosAttempts": "Lượt thanh toán PayOS",
+        "paymentSuccess": "Tỷ lệ thanh toán thành công (%)",
+        "payingUsers": "Người dùng đã thanh toán",
+        "newPayers": "Người thanh toán mới",
+        "averageOrderVnd": "Giá trị đơn trung bình (VND)",
+        "coinsSold": "Xu đã bán",
+        "coinsSpent": "Xu đã chi tiêu",
+        "coinsRefunded": "Xu đã hoàn",
+        "bucket": "Mốc thời gian",
+        "comparisonBucket": "Mốc thời gian so sánh",
+        "comparisonRevenueVnd": "Doanh thu kỳ so sánh (VND)",
+        "coinPack": "Gói xu"
+      }
+    }
+  }
+}

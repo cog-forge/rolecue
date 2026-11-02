@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,21 +25,17 @@ import {
 } from "../schemas/job-posting-schema";
 import { generateBank } from "@/features/recruiter/question-bank/api/question-bank";
 import { apiError, isAccessDenied } from "../utils/api-error";
-import { primaryAction, statusLine } from "../utils/posting-guidance";
+import { nextStep, primaryAction, statusLine } from "../utils/posting-guidance";
 import { PostingApplications } from "./posting-applications";
 import { JdDocumentLink } from "./jd-document-link";
-import {
-  FormSection,
-  levelText,
-  PostingForm,
-  targetText,
-} from "./posting-form";
+import { FormSection, PostingForm } from "./posting-form";
 import { Notice } from "./notice";
 import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingProgress } from "./posting-progress";
 import { PostingStatus } from "./posting-status";
 import { PostingTabs } from "./posting-tabs";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 
 // Codes after which the cached posting is stale: its status or question bank changed elsewhere.
 // Refetching shows the server's truth and the matching locks.
@@ -50,6 +47,11 @@ const staleCodes = new Set([
 ]);
 
 export function JobPostingDetail({ postingId }: { postingId: string }) {
+  const t = useTranslations("recruiter.postings.detail");
+  const tCommon = useTranslations("common");
+  const tp = useTranslations("recruiter.postings");
+  const tg = useTranslations("recruiter.postings.guidance");
+  const errorMessage = useApiErrorMessage();
   const fmt = useFormatters();
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -88,9 +90,11 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
   const onStale = (error: unknown) => {
     if (isAccessDenied(error))
       void cache.invalidateQueries({ queryKey: ["auth", "me"] });
-    const { code, message } = apiError(error);
+    const { code } = apiError(error);
     if (!code || !staleCodes.has(code)) return;
-    setNotice(`${message ?? "This posting changed."} We refreshed it for you.`);
+    setNotice(
+      t("refreshed", { reason: errorMessage(error, t("changedReason")) }),
+    );
     // Remount the form on the fresh posting: the edited values were made against stale locks and
     // would be sent (and refused) again on every save.
     void cache
@@ -123,20 +127,23 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
       setNotice(null);
       if (!generated) {
         applySaved(saved);
-        gooeyToast.success("Changes saved");
+        gooeyToast.success(t("saved"));
         return;
       }
       void cache.invalidateQueries({ queryKey: key });
       void cache.invalidateQueries({ queryKey: jobPostingKeys.lists(user.id) });
-      gooeyToast.success("Question bank generated", {
-        description: "Review your questions before submitting for approval.",
+      gooeyToast.success(tp("toast.bankGenerated"), {
+        description: tp("toast.bankGeneratedHint"),
       });
       router.push(routes.recruiter.jobPostingQuestions(postingId));
     },
     onError: onStale,
   });
 
-  const back = { href: routes.recruiter.jobPostings, label: "My Job Postings" };
+  const back = {
+    href: routes.recruiter.jobPostings,
+    label: tp("backToList"),
+  };
 
   if (query.isPending)
     return (
@@ -148,7 +155,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
         <div role="status" className="space-y-3">
           <Skeleton className="h-12 rounded-md" />
           <Skeleton className="h-64 rounded-xl" />
-          <span className="sr-only">Loading the job posting…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       </section>
     );
@@ -157,7 +164,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
     const notFound = [400, 404].includes(apiError(query.error).status);
     return (
       <section className="mx-auto w-full max-w-5xl space-y-8">
-        <PageHeader back={back} title="Job posting" />
+        <PageHeader back={back} title={t("fallbackTitle")} />
         <div
           role="alert"
           className={cn(
@@ -167,17 +174,17 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
         >
           <h2 className="text-base font-semibold">
             {denied
-              ? "You don't have access to job postings"
+              ? t("error.deniedTitle")
               : notFound
-                ? "We couldn't find this job posting"
-                : "We couldn't load this job posting"}
+                ? t("error.notFoundTitle")
+                : t("error.failedTitle")}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             {denied
-              ? "Checking your account access… If this stays, sign in again with a recruiter account."
+              ? t("error.deniedBody")
               : notFound
-                ? "It may have been removed, or it belongs to another recruiter."
-                : "Please try again in a moment."}
+                ? t("error.notFoundBody")
+                : tCommon("messages.tryAgainLater")}
           </p>
           {!denied && !notFound && (
             <Button
@@ -186,7 +193,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
               disabled={query.isFetching}
               onClick={() => void query.refetch()}
             >
-              Try again
+              {tCommon("actions.tryAgain")}
             </Button>
           )}
         </div>
@@ -197,14 +204,16 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
   const posting = query.data;
   const locks = postingLocks(posting);
   const hasBank = posting.core_question_count > 0;
-  const action = primaryAction(posting);
-  const line = statusLine(posting, fmt, capacity.data);
+  const action = primaryAction(posting, tg);
+  const line = statusLine(posting, fmt, tg, capacity.data);
   const generating = save.isPending && save.variables?.generate === true;
   const saveError =
     save.isError && !staleCodes.has(apiError(save.error).code ?? "")
       ? isAccessDenied(save.error)
-        ? "You don't have access to edit this posting. Checking your account access…"
-        : `${apiError(save.error).message ?? "We couldn't save your changes."} Your changes are still here.`
+        ? t("saveDenied")
+        : t("saveFailed", {
+            reason: errorMessage(save.error, t("saveFailedReason")),
+          })
       : null;
 
   return (
@@ -221,15 +230,22 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
               interviewSlot={posting.interview_slot}
             />
             <span>
-              Created{" "}
-              <time dateTime={posting.created_at} title={posting.created_at}>
-                {fmt.date(posting.created_at, "calendarDay")}
-              </time>
+              {t.rich("created", {
+                date: fmt.date(posting.created_at, "calendarDay"),
+                time: (chunks) => (
+                  <time
+                    dateTime={posting.created_at}
+                    title={posting.created_at}
+                  >
+                    {chunks}
+                  </time>
+                ),
+              })}
             </span>
             <span>
-              Interview slots:{" "}
+              {t("slots")}{" "}
               <span className="font-medium text-foreground tabular-nums">
-                {posting.interview_slot ?? "not funded yet"}
+                {posting.interview_slot ?? t("notFunded")}
               </span>
             </span>
             {line && (
@@ -237,7 +253,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
             )}
           </>
         }
-        description={nextStep(posting)}
+        description={nextStep(posting, tg)}
         actions={
           action && (
             <Button asChild className={pillClass}>
@@ -260,11 +276,14 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
       )}
 
       {posting.status === "rejected" && (
-        <Notice tone="danger" title="An administrator asked for changes">
+        <Notice tone="danger" title={t("rejected.title")}>
           {posting.reject_reason && <p>“{posting.reject_reason}”</p>}
           <p className="text-muted-foreground">
-            Correct the posting below and save, then resubmit it from its{" "}
-            <BankLink postingId={posting.id} />.
+            {t.rich("rejected.body", {
+              bank: (chunks) => (
+                <BankLink postingId={posting.id}>{chunks}</BankLink>
+              ),
+            })}
           </p>
         </Notice>
       )}
@@ -307,53 +326,68 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
   );
 }
 
-function BankLink({ postingId }: { postingId: string }) {
+function BankLink({
+  postingId,
+  children,
+}: {
+  postingId: string;
+  children: ReactNode;
+}) {
   return (
     <Link
       href={routes.recruiter.jobPostingQuestions(postingId)}
       className="font-medium underline underline-offset-4"
     >
-      question bank
+      {children}
     </Link>
   );
 }
 
 function ReadOnlyPosting({ posting }: { posting: JobPosting }) {
+  const t = useTranslations("recruiter.postings.detail.readOnly");
+  const tp = useTranslations("recruiter.postings");
+  const tCommon = useTranslations("common");
   const details: [string, string][] = [
-    ["Seniority", levelText[posting.seniority_level]],
-    ["Refinement note", posting.refinement_note || "None"],
-    ["Location", posting.location ?? "Not set"],
-    ["Employment type", posting.employment_type ?? "Not set"],
+    [t("seniority"), tp(`level.${posting.seniority_level}`)],
+    [t("refinementNote"), posting.refinement_note || t("none")],
+    [t("location"), posting.location ?? tCommon("labels.notSet")],
+    [t("employmentType"), posting.employment_type ?? tCommon("labels.notSet")],
     [
-      "Salary",
+      t("salary"),
       posting.salary_min === null && posting.salary_max === null
-        ? "Not set"
+        ? tCommon("labels.notSet")
         : `${posting.salary_min ?? "…"} – ${posting.salary_max ?? "…"}`,
     ],
     [
-      "Interview length",
+      t("interviewLength"),
       posting.interview_duration === null
-        ? "Not set"
-        : `${posting.interview_duration} minutes`,
+        ? tCommon("labels.notSet")
+        : t("minutes", { count: posting.interview_duration }),
     ],
-    ["Interviewer model", posting.required_avatar?.name ?? "Not set"],
-    ["Interviewer voice", posting.required_voice?.name ?? "Not set"],
     [
-      "Candidates allowed into interview",
+      t("interviewerModel"),
+      posting.required_avatar?.name ?? tCommon("labels.notSet"),
+    ],
+    [
+      t("interviewerVoice"),
+      posting.required_voice?.name ?? tCommon("labels.notSet"),
+    ],
+    [
+      t("candidatesAllowed"),
       posting.interview_slot === null
-        ? "Not set"
+        ? tCommon("labels.notSet")
         : String(posting.interview_slot),
     ],
   ];
   return (
     <div>
       <FormSection
-        title="Details"
-        description="What candidates see on the posting and how they are interviewed."
+        title={t("details.title")}
+        description={t("details.description")}
       >
         <dl className="grid gap-x-8 gap-y-4 text-sm sm:grid-cols-2">
           {details.map(([label, value]) => (
-            <div key={label} className="space-y-0.5">
+            <div key={label} className="min-w-0 space-y-0.5">
               <dt className="text-muted-foreground">{label}</dt>
               <dd className="font-medium [overflow-wrap:anywhere]">{value}</dd>
             </div>
@@ -361,8 +395,8 @@ function ReadOnlyPosting({ posting }: { posting: JobPosting }) {
         </dl>
       </FormSection>
       <FormSection
-        title="Requirements"
-        description="Candidates are interviewed on these requirements."
+        title={t("requirements.title")}
+        description={t("requirements.description")}
       >
         <ul className="divide-y rounded-lg border text-sm">
           {posting.requirements.map((row) => (
@@ -374,16 +408,18 @@ function ReadOnlyPosting({ posting }: { posting: JobPosting }) {
                 {row.name}
               </span>
               <span className="text-muted-foreground">
-                {targetText[row.target]} ·{" "}
-                {row.type === "required" ? "Required" : "Preferred"}
+                {tp("requirementMeta", {
+                  kind: tp(`target.${row.target}`),
+                  priority: tp(`priority.${row.type}`),
+                })}
               </span>
             </li>
           ))}
         </ul>
       </FormSection>
       <FormSection
-        title="Job description"
-        description="The text read from the PDF the posting was created with."
+        title={t("jobDescription.title")}
+        description={t("jobDescription.description")}
         contentClassName="space-y-3"
       >
         {posting.has_document && <JdDocumentLink postingId={posting.id} />}
@@ -393,22 +429,4 @@ function ReadOnlyPosting({ posting }: { posting: JobPosting }) {
       </FormSection>
     </div>
   );
-}
-
-// The one sentence under the title: what happens next for this posting.
-function nextStep(posting: JobPosting) {
-  switch (posting.status) {
-    case "pending":
-      if (posting.review_submitted)
-        return "Waiting for an administrator to review it. You can still edit the posting until then.";
-      return posting.core_question_count > 0
-        ? "The question bank is ready. Review it, then submit the posting for approval."
-        : "Confirm the requirements below to generate the question bank. Nothing is sent for approval until you submit.";
-    case "rejected":
-      return "Make the requested changes, then resubmit the posting for approval.";
-    default:
-      return posting.status === "open" && posting.interview_slot === null
-        ? "Approved, so the posting can no longer be edited. Fund interview slots to open intake to candidates."
-        : "Approved, so the posting can no longer be edited.";
-  }
 }

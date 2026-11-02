@@ -8,6 +8,7 @@ import {
   type MouseEvent,
 } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import {
   keepPreviousData,
@@ -44,26 +45,17 @@ import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingStatus } from "./posting-status";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
-const statusOptions: { status: ListStatus; label: string }[] = [
-  { status: "all", label: "All" },
-  { status: "preparing", label: "Preparing" },
-  { status: "pending", label: "Pending review" },
-  { status: "approved", label: "Needs funding" },
-  { status: "open", label: "Live" },
-  { status: "intake_closed", label: "Intake closed" },
-  { status: "closed", label: "Closed" },
-  { status: "rejected", label: "Rejected" },
+// Filter values; their labels come from the catalog (`list.filter.*` and `status.*`).
+const statusOptions: ListStatus[] = [
+  "all",
+  "preparing",
+  "pending",
+  "approved",
+  "open",
+  "intake_closed",
+  "closed",
+  "rejected",
 ];
-const emptyText: Record<ListStatus, string> = {
-  all: "You haven't created a job posting yet.",
-  preparing: "No postings are being prepared.",
-  approved: "No approved postings are waiting for funding.",
-  pending: "No postings are waiting for review.",
-  open: "No postings are open for applications.",
-  intake_closed: "No postings have closed intake.",
-  closed: "No postings are closed.",
-  rejected: "No postings were rejected.",
-};
 const listHref = (filters: ListFilters) =>
   `${routes.recruiter.jobPostings}${listSearch(filters)}`;
 
@@ -114,6 +106,9 @@ function useListFilters() {
 }
 
 export function JobPostingList() {
+  const t = useTranslations("recruiter.postings.list");
+  const ts = useTranslations("recruiter.postings.status");
+  const tCommon = useTranslations("common");
   const user = useSessionUser();
   const cache = useQueryClient();
   const filters = useListFilters();
@@ -141,13 +136,13 @@ export function JobPostingList() {
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6">
       <PageHeader
-        title="My Job Postings"
-        description="Prepare your posting, questions and evaluation criteria. After approval, fund interview slots to publish it."
+        title={t("title")}
+        description={t("description")}
         actions={
           <Button asChild className={pillClass}>
             <Link href={routes.recruiter.jobPostingNew}>
               <Plus aria-hidden />
-              Create job posting
+              {t("create")}
             </Link>
           </Button>
         }
@@ -156,7 +151,7 @@ export function JobPostingList() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
           <label htmlFor="posting-status" className="text-sm font-medium">
-            Status
+            {t("statusLabel")}
           </label>
           <Select
             value={filters.status}
@@ -166,14 +161,18 @@ export function JobPostingList() {
           >
             <SelectTrigger
               id="posting-status"
-              className="w-48 rounded-full bg-background shadow-none data-[size=default]:h-9"
+              className="w-56 max-w-full rounded-full bg-background shadow-none data-[size=default]:h-9"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper" align="start">
-              {statusOptions.map((option) => (
-                <SelectItem key={option.status} value={option.status}>
-                  {option.label}
+              {statusOptions.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status === "all"
+                    ? tCommon("labels.all")
+                    : status === "approved"
+                      ? t("filter.needsFunding")
+                      : ts(status)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -187,43 +186,32 @@ export function JobPostingList() {
           {Array.from({ length: 5 }, (_, i) => (
             <Skeleton key={i} className="h-16 rounded-lg" />
           ))}
-          <span className="sr-only">Loading your job postings…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
-        <Notice
-          role="alert"
-          tone="locked"
-          title="You don't have access to job postings"
-        >
-          <p className="text-muted-foreground">
-            Checking your account access… If this stays, sign in again with a
-            recruiter account.
-          </p>
+        <Notice role="alert" tone="locked" title={t("denied.title")}>
+          <p className="text-muted-foreground">{t("denied.description")}</p>
         </Notice>
       ) : query.isError ? (
-        <Notice
-          role="alert"
-          tone="danger"
-          title="We couldn't load your job postings"
-        >
-          <p className="text-muted-foreground">Please try again in a moment.</p>
+        <Notice role="alert" tone="danger" title={t("error.title")}>
+          <p className="text-muted-foreground">
+            {tCommon("messages.tryAgainLater")}
+          </p>
           <Button
             className={cn("mt-2", pillClass)}
             variant="outline"
             disabled={query.isFetching}
             onClick={() => void query.refetch()}
           >
-            Try again
+            {tCommon("actions.tryAgain")}
           </Button>
         </Notice>
       ) : page && page.items.length === 0 && total > 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center">
-          <h2 className="font-semibold">
-            This page is past the end of the list.
-          </h2>
+          <h2 className="font-semibold">{t("pastEnd.title")}</h2>
           <Button asChild variant="outline" className={cn("mt-4", pillClass)}>
             <FilterLink filters={{ ...filters, page: 1 }}>
-              Go to the first page
+              {tCommon("actions.firstPage")}
             </FilterLink>
           </Button>
         </div>
@@ -231,25 +219,22 @@ export function JobPostingList() {
         <div className="rounded-xl border border-dashed p-10 text-center">
           <h2 className="font-semibold">
             {filters.search
-              ? `No postings match “${filters.search}”.`
-              : emptyText[filters.status]}
+              ? t("empty.noMatch", { query: filters.search })
+              : t(`empty.${filters.status}`)}
           </h2>
           {filtered ? (
             <Button asChild variant="outline" className={cn("mt-4", pillClass)}>
               <FilterLink filters={{ status: "all", search: "", page: 1 }}>
-                Show all postings
+                {t("empty.showAll")}
               </FilterLink>
             </Button>
           ) : (
             <>
               <p className="mt-2 text-sm text-muted-foreground">
-                Upload a job description and RoleCue suggests the requirements
-                to interview for.
+                {t("empty.hint")}
               </p>
               <Button asChild className={cn("mt-4", pillClass)}>
-                <Link href={routes.recruiter.jobPostingNew}>
-                  Create job posting
-                </Link>
+                <Link href={routes.recruiter.jobPostingNew}>{t("create")}</Link>
               </Button>
             </>
           )}
@@ -257,7 +242,7 @@ export function JobPostingList() {
       ) : page ? (
         <>
           <p role="status" className="sr-only">
-            {switching ? "Loading job postings…" : ""}
+            {switching ? t("switching") : ""}
           </p>
           <div
             aria-busy={switching}
@@ -274,27 +259,27 @@ export function JobPostingList() {
                 <col className="w-56" />
                 <col className="w-24" />
                 <col className="w-32" />
-                <col className="w-48" />
+                <col className="w-56" />
               </colgroup>
               <caption className="sr-only">
-                Your job postings, {firstRow}–{lastRow} of {total}
+                {t("caption", { first: firstRow, last: lastRow, total })}
               </caption>
               <thead className="hidden xl:table-header-group">
                 <tr className="border-b text-xs text-muted-foreground">
                   <th scope="col" className="h-10 pr-4 pl-5 font-normal">
-                    Job posting
+                    {t("columns.posting")}
                   </th>
                   <th scope="col" className="h-10 pr-4 font-normal">
-                    Status
+                    {t("columns.status")}
                   </th>
                   <th scope="col" className="h-10 pr-4 text-left font-normal">
-                    Questions
+                    {t("columns.questions")}
                   </th>
                   <th scope="col" className="h-10 pr-4 text-left font-normal">
-                    Created
+                    {t("columns.created")}
                   </th>
                   <th scope="col" className="h-10 pr-5 text-right font-normal">
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t("columns.actions")}</span>
                   </th>
                 </tr>
               </thead>
@@ -306,20 +291,24 @@ export function JobPostingList() {
             </table>
           </div>
           <nav
-            aria-label="Pagination"
+            aria-label={tCommon("labels.pagination")}
             className="flex flex-wrap items-center justify-between gap-3 text-sm"
           >
             <p className="text-muted-foreground tabular-nums">
-              Showing {firstRow}–{lastRow} of {total}
+              {t("pagination.showing", {
+                first: firstRow,
+                last: lastRow,
+                total,
+              })}
             </p>
             <div className="flex gap-2">
               <PageLink
-                label="Previous"
+                label={tCommon("actions.previous")}
                 filters={{ ...filters, page: filters.page - 1 }}
                 disabled={filters.page <= 1}
               />
               <PageLink
-                label="Next"
+                label={tCommon("actions.next")}
                 filters={{ ...filters, page: filters.page + 1 }}
                 disabled={lastRow >= total}
               />
@@ -332,12 +321,15 @@ export function JobPostingList() {
 }
 
 function PostingRow({ posting }: { posting: PostingSummary }) {
+  const t = useTranslations("recruiter.postings.list.row");
   const fmt = useFormatters();
   const details = [posting.location, posting.employment_type]
     .filter(Boolean)
     .join(" · ");
   const editable =
     posting.status === "pending" || posting.status === "rejected";
+  const needsFunding =
+    posting.status === "open" && posting.interview_slot === null;
   const count = posting.core_question_count;
   return (
     <tr className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 px-4 py-4 align-top xl:align-middle xl:table-row xl:p-0">
@@ -349,16 +341,18 @@ function PostingRow({ posting }: { posting: PostingSummary }) {
           {posting.title}
         </Link>
         <span className="block text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
-          {details || "No location or type"}
+          {details || t("noDetails")}
           <span className="xl:hidden">
             {" · "}
-            {count} {count === 1 ? "question" : "questions"} · Created{" "}
-            {fmt.date(posting.created_at, "calendarDay")}
+            {t("summary", {
+              count,
+              date: fmt.date(posting.created_at, "calendarDay"),
+            })}
           </span>
         </span>
         {posting.status === "rejected" && posting.reject_reason && (
           <span className="mt-1 block text-[13px] text-destructive [overflow-wrap:anywhere]">
-            Reason: {posting.reject_reason}
+            {t("reason", { reason: posting.reject_reason })}
           </span>
         )}
       </td>
@@ -379,27 +373,29 @@ function PostingRow({ posting }: { posting: PostingSummary }) {
         </time>
       </td>
       <td className="col-span-2 xl:py-2.5 xl:pr-5">
-        <div className="flex gap-2 xl:justify-end">
-          {!(posting.status === "open" && posting.interview_slot === null) && (
+        <div className="flex flex-wrap gap-2 xl:justify-end">
+          {!needsFunding && (
             <Button asChild variant="ghost" className="h-9 rounded-full px-3">
               <Link
                 href={routes.recruiter.jobPostingQuestions(posting.id)}
-                aria-label={`Question bank for ${posting.title}`}
+                aria-label={t("questionBankFor", { title: posting.title })}
               >
-                Questions
+                {t("questions")}
               </Link>
             </Button>
           )}
           <Button asChild variant="outline" className="h-9 rounded-full px-3">
             <Link
-              href={`${routes.recruiter.jobPosting(posting.id)}${posting.status === "open" && posting.interview_slot === null ? "#interview-capacity" : ""}`}
-              aria-label={`${posting.status === "open" && posting.interview_slot === null ? "Fund & publish" : editable ? "Edit" : "View"} ${posting.title}`}
+              href={`${routes.recruiter.jobPosting(posting.id)}${needsFunding ? "#interview-capacity" : ""}`}
+              aria-label={
+                needsFunding
+                  ? t("fundFor", { title: posting.title })
+                  : editable
+                    ? t("editFor", { title: posting.title })
+                    : t("viewFor", { title: posting.title })
+              }
             >
-              {posting.status === "open" && posting.interview_slot === null
-                ? "Fund & publish"
-                : editable
-                  ? "Edit"
-                  : "View"}
+              {needsFunding ? t("fund") : editable ? t("edit") : t("view")}
               <ChevronRight aria-hidden />
             </Link>
           </Button>
@@ -432,6 +428,8 @@ function PageLink({
 }
 
 function SearchForm({ filters }: { filters: ListFilters }) {
+  const t = useTranslations("recruiter.postings.list.search");
+  const tCommon = useTranslations("common");
   const [value, setValue] = useState(filters.search);
   const tooLong = Array.from(value.trim()).length > SEARCH_MAX;
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -443,12 +441,12 @@ function SearchForm({ filters }: { filters: ListFilters }) {
     <form
       role="search"
       noValidate
-      aria-label="Search your job postings"
+      aria-label={t("form")}
       onSubmit={submit}
       className="flex flex-wrap items-center gap-2"
     >
       <label htmlFor="posting-search" className="sr-only">
-        Search by title
+        {t("label")}
       </label>
       <div className="relative">
         <Search
@@ -458,7 +456,7 @@ function SearchForm({ filters }: { filters: ListFilters }) {
         <Input
           id="posting-search"
           type="search"
-          placeholder="Search by title"
+          placeholder={t("label")}
           value={value}
           onChange={(event) => setValue(event.target.value)}
           className="h-9 w-60 max-w-full rounded-full pl-9"
@@ -472,13 +470,13 @@ function SearchForm({ filters }: { filters: ListFilters }) {
         className="h-9 rounded-full px-4"
         disabled={tooLong}
       >
-        Search
+        {tCommon("actions.search")}
       </Button>
       {filters.search && (
         <Button asChild variant="ghost" className="h-9 rounded-full px-3">
           <FilterLink filters={{ ...filters, search: "", page: 1 }}>
             <X aria-hidden />
-            Clear search
+            {tCommon("actions.clearSearch")}
           </FilterLink>
         </Button>
       )}
@@ -488,7 +486,7 @@ function SearchForm({ filters }: { filters: ListFilters }) {
           role="alert"
           className="w-full text-xs text-destructive"
         >
-          Keep the search to {SEARCH_MAX} characters or fewer.
+          {t("tooLong", { max: SEARCH_MAX })}
         </p>
       )}
     </form>

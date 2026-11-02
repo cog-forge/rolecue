@@ -1,28 +1,42 @@
+"use client";
+
+import { useLocale, useTranslations } from "next-intl";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Comparison } from "../lib/compare";
+import { compareValues, type ComparisonKind } from "../lib/compare";
 
 // The change against the comparison window: colour says good or bad and the arrow and sign carry it
 // without colour. Rates show their point change only, since a percentage of a percentage misleads.
 export function ComparisonDelta({
-  comparison,
+  current,
+  previous,
+  kind,
   showAbsolute = true,
   className,
 }: {
-  comparison: Comparison;
+  current: number;
+  previous: number;
+  kind: ComparisonKind;
   showAbsolute?: boolean;
   className?: string;
 }) {
+  const locale = useLocale();
+  const t = useTranslations("admin.billing.compare");
+  const comparison = compareValues(current, previous, kind, locale, t);
   if (comparison.state === "new") {
-    return <span className={cn("text-muted-foreground", className)}>New</span>;
+    return (
+      <span className={cn("text-muted-foreground", className)}>{t("new")}</span>
+    );
   }
   if (comparison.state === "same") {
     return (
-      <span className={cn("text-muted-foreground", className)}>No change</span>
+      <span className={cn("text-muted-foreground", className)}>
+        {t("noChange")}
+      </span>
     );
   }
   const Icon = comparison.direction === "up" ? ArrowUpRight : ArrowDownRight;
-  const isRate = comparison.percent.endsWith("pts");
+  const isRate = comparison.kind === "rate";
   return (
     <span
       className={cn("inline-flex items-center gap-1 tabular-nums", className)}

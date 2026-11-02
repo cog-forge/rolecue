@@ -4,6 +4,7 @@ import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
 import { ModerationQueue } from "@/features/admin/moderation/components/moderation-queue";
+import type { AppLocale } from "@/lib/i18n/config";
 import { defaultQueueFilters } from "@/features/admin/moderation/utils/queue-filters";
 
 const mocks = vi.hoisted(() => ({
@@ -57,7 +58,7 @@ function failure(status: number) {
     config: { headers: new AxiosHeaders() },
   });
 }
-function mount(filters = defaultQueueFilters) {
+function mount(filters = defaultQueueFilters, locale: AppLocale = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -66,6 +67,7 @@ function mount(filters = defaultQueueFilters) {
     <QueryClientProvider client={client}>
       <ModerationQueue filters={filters} />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -174,6 +176,59 @@ describe("ModerationQueue", () => {
     expect(mocks.push).toHaveBeenCalledWith(
       "/admin/job-postings?from=2026-10-10&to=2026-10-20",
       { scroll: false },
+    );
+  });
+
+  it("renders the queue in Vietnamese with localized status and dates", async () => {
+    mocks.get.mockResolvedValue(page(2, 2));
+    mount(defaultQueueFilters, "vi");
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Kiểm duyệt tin tuyển dụng",
+      }),
+    ).toBeInTheDocument();
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Posting 1")).toBeInTheDocument();
+    expect(within(table).getAllByText("Chờ duyệt")).toHaveLength(2);
+    expect(within(table).getAllByText("12 thg 10, 2026")).toHaveLength(2);
+    expect(
+      within(table).getByRole("columnheader", { name: "Nhà tuyển dụng" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Lọc theo trạng thái" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Đang hiển thị 1–2 trên 2")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Xem xét Posting 1" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("form", { name: "Lọc theo ngày tạo" }),
+    ).toBeInTheDocument();
+  });
+
+  it("labels every status in the empty state per tab in Vietnamese", async () => {
+    mocks.get.mockResolvedValue(page(0));
+    mount({ ...defaultQueueFilters, status: "rejected" }, "vi");
+    expect(
+      await screen.findByText(
+        "Không có tin tuyển dụng bị từ chối nào khớp với bộ lọc.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("explains the date range error in Vietnamese", async () => {
+    mocks.get.mockResolvedValue(page(1));
+    mount(defaultQueueFilters, "vi");
+    await screen.findByRole("table");
+    fireEvent.change(screen.getByLabelText("Tạo từ ngày"), {
+      target: { value: "2026-10-10" },
+    });
+    fireEvent.change(screen.getByLabelText("đến"), {
+      target: { value: "2026-10-01" },
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /ngày bắt đầu phải trước hoặc trùng/i,
     );
   });
 });

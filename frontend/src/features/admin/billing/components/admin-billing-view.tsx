@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { AlertCircle } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,10 @@ import type {
   TransactionStatusFilter,
   TransactionTypeFilter,
 } from "../schemas/billing-schema";
-import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function AdminBillingView() {
-  const fmt = useFormatters();
+  const t = useTranslations("admin.billing.transactions");
+  const tCommon = useTranslations("common");
   const [tab, setTab] = useState<TransactionTypeFilter>("all");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<TransactionStatusFilter>("all");
@@ -98,11 +99,17 @@ export function AdminBillingView() {
       ...(summaryQuery.data?.package_breakdown ?? [])
         .filter((pkg) => pkg.package_name)
         .map((pkg) => ({ value: pkg.package_name, label: pkg.package_name })),
-      { value: "Practice interview", label: "Practice interviews" },
-      { value: "Interview capacity", label: "Interview slots" },
-      { value: "Avatar inventory", label: "Avatar storage" },
+      {
+        value: "Practice interview",
+        label: t("packageOptions.practiceInterview"),
+      },
+      {
+        value: "Interview capacity",
+        label: t("packageOptions.interviewSlots"),
+      },
+      { value: "Avatar inventory", label: t("packageOptions.avatarStorage") },
     ],
-    [summaryQuery.data?.package_breakdown],
+    [summaryQuery.data?.package_breakdown, t],
   );
 
   const handleSortChange = (col: string) => {
@@ -144,14 +151,16 @@ export function AdminBillingView() {
       URL.revokeObjectURL(url);
 
       if (truncated) {
-        gooeyToast.warning("Export truncated to 5,000 rows", {
-          description: `Only the first 5,000 of ${fmt.number(totalCount)} matching transactions were exported. Narrow your filters to export the rest.`,
+        gooeyToast.warning(t("exportToast.truncatedTitle", { limit: 5000 }), {
+          description: t("exportToast.truncatedBody", {
+            limit: 5000,
+            total: totalCount,
+          }),
         });
       }
     } catch {
-      gooeyToast.error("Unable to export CSV", {
-        description:
-          "We could not generate the CSV export. Please check your filters and try again.",
+      gooeyToast.error(t("exportToast.failedTitle"), {
+        description: t("exportToast.failedBody"),
       });
     } finally {
       setIsExporting(false);
@@ -165,12 +174,9 @@ export function AdminBillingView() {
       {/* Header */}
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Payment Transactions
+          {t("title")}
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Every PayOS payment and coin movement, newest first. Money is in VND;
-          coins are counted separately.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
 
       {/* Summary Cards */}
@@ -234,11 +240,10 @@ export function AdminBillingView() {
           <AlertCircle className="size-8 text-destructive" />
           <div className="space-y-1">
             <h2 className="text-sm font-semibold text-foreground">
-              Unable to load transactions
+              {t("loadError.title")}
             </h2>
             <p className="text-xs text-muted-foreground">
-              Please verify your filter parameters (such as amount bounds) and
-              try again.
+              {t("loadError.hint")}
             </p>
           </div>
           <Button
@@ -250,7 +255,7 @@ export function AdminBillingView() {
               void transactionsQuery.refetch();
             }}
           >
-            Retry
+            {tCommon("actions.retry")}
           </Button>
         </div>
       ) : (

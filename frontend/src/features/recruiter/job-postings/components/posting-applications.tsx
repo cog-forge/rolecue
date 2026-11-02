@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +26,7 @@ const awaitingFilters: ApplicationFilters = {
 // A short summary of the posting's applications. Screening happens in the review inbox, so this
 // only says how many there are and how many wait, and links there.
 export function PostingApplications({ posting }: { posting: JobPosting }) {
+  const t = useTranslations("recruiter.postings.applications");
   const user = useSessionUser();
   const enabled = takesApplications(posting.status);
   // Same key as the capacity panel's count, so the two share one request.
@@ -55,36 +57,38 @@ export function PostingApplications({ posting }: { posting: JobPosting }) {
       className="space-y-3 border-t pt-8"
     >
       <h2 id="applications-heading" className="text-base font-semibold">
-        Applications
+        {t("title")}
       </h2>
       {!enabled ? (
-        <p className="text-sm text-muted-foreground">
-          Candidates can apply after an administrator approves this posting and
-          you fund interview slots, which opens intake.
-        </p>
+        <p className="text-sm text-muted-foreground">{t("notOpen")}</p>
       ) : all.isPending || awaiting.isPending ? (
         <div role="status">
           <Skeleton className="h-10 w-72 rounded-md" />
-          <span className="sr-only">Loading applications…</span>
+          <span className="sr-only">{t("loading")}</span>
         </div>
       ) : total === undefined || waiting === undefined ? (
         <p role="alert" className="text-sm text-muted-foreground">
-          We couldn&apos;t load the applications. Open the{" "}
-          <Link
-            href={postingInboxHref(posting.id)}
-            className="font-medium underline underline-offset-4"
-          >
-            review inbox
-          </Link>{" "}
-          to see them.
+          {t.rich("loadFailed", {
+            inbox: (chunks) => (
+              <Link
+                href={postingInboxHref(posting.id)}
+                className="font-medium underline underline-offset-4"
+              >
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm">
-            <span className="font-medium tabular-nums">{total}</span>{" "}
-            {total === 1 ? "application" : "applications"},{" "}
-            <span className="font-medium tabular-nums">{waiting}</span> awaiting
-            review
+            {t.rich("summary", {
+              total,
+              waiting,
+              count: (chunks) => (
+                <span className="font-medium tabular-nums">{chunks}</span>
+              ),
+            })}
           </p>
           <Button
             asChild
@@ -97,9 +101,7 @@ export function PostingApplications({ posting }: { posting: JobPosting }) {
                 waiting > 0 ? "pending" : "all",
               )}
             >
-              {waiting > 0
-                ? `Review ${waiting} awaiting ${waiting === 1 ? "CV" : "CVs"}`
-                : "Open applications"}
+              {waiting > 0 ? t("reviewWaiting", { waiting }) : t("open")}
             </Link>
           </Button>
         </div>

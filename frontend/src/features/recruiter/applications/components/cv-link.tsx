@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -47,12 +48,14 @@ function useCvRefresh({ postingId, applicationId, cv }: CvProps) {
 }
 
 function OpenCv({ url }: { url: string }) {
+  const t = useTranslations("recruiter.applications.cv");
+  const tCommon = useTranslations("common");
   return (
     <Button asChild variant="outline" className="h-11">
       <a href={url} target="_blank" rel="noopener noreferrer">
         <ExternalLink aria-hidden />
-        Open the CV
-        <span className="sr-only"> (opens in a new tab)</span>
+        {t("open")}
+        <span className="sr-only"> {tCommon("labels.opensInNewTab")}</span>
       </a>
     </Button>
   );
@@ -60,9 +63,10 @@ function OpenCv({ url }: { url: string }) {
 
 // Opens the Application's CV in a new tab.
 export function CvLink(props: CvProps) {
+  const t = useTranslations("recruiter.applications.cv");
   useCvRefresh(props);
   if (!props.cv)
-    return <p className="text-sm text-muted-foreground">No CV stored.</p>;
+    return <p className="text-sm text-muted-foreground">{t("none")}</p>;
   return <OpenCv url={props.cv.url} />;
 }
 
@@ -74,21 +78,20 @@ export function CvPreview({
   candidateName,
   ...props
 }: CvProps & { candidateName: string }) {
+  const t = useTranslations("recruiter.applications.cv");
   useCvRefresh(props);
   const [frameUrl] = useState(props.cv?.url ?? null);
   if (!props.cv)
-    return <p className="text-sm text-muted-foreground">No CV stored.</p>;
+    return <p className="text-sm text-muted-foreground">{t("none")}</p>;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          If the preview stays blank, open the CV in a new tab.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("previewHint")}</p>
         <OpenCv url={props.cv.url} />
       </div>
       <iframe
         src={frameUrl ?? props.cv.url}
-        title={`CV of ${candidateName}`}
+        title={t("frameTitle", { name: candidateName })}
         referrerPolicy="no-referrer"
         className="h-[72dvh] min-h-[28rem] w-full rounded-lg border bg-muted/30"
       />

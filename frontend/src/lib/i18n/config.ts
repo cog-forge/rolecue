@@ -1,3 +1,5 @@
+import type { FlagCode } from "@/components/ui/flags";
+
 // Single source of truth for the locales the UI supports. Adding a locale starts here.
 export const locales = ["en", "vi"] as const;
 export type AppLocale = (typeof locales)[number];
@@ -12,6 +14,12 @@ export const localeCookieMaxAge = 60 * 60 * 24 * 365;
 export const localeNames: Record<AppLocale, string> = {
   en: "English",
   vi: "Tiếng Việt",
+};
+
+// The flag drawn next to each language. A flag stands for a country, so the name always stays beside it.
+export const localeFlags: Record<AppLocale, FlagCode> = {
+  en: "gb",
+  vi: "vn",
 };
 
 export function isLocale(value: unknown): value is AppLocale {

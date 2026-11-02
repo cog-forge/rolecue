@@ -1,1 +1,803 @@
-{}
+{
+  "moderation": {
+    "status": {
+      "pending": "Pending review",
+      "open": "Approved",
+      "intake_closed": "Intake closed",
+      "closed": "Closed",
+      "rejected": "Rejected"
+    },
+    "queue": {
+      "title": "Job posting moderation",
+      "description": "Review submitted postings and their interview configuration. Approval lets the recruiter fund slots and publish the posting.",
+      "statusFilter": "Filter by status",
+      "tabs": {
+        "pending": "Pending",
+        "open": "Approved",
+        "rejected": "Rejected"
+      },
+      "empty": {
+        "pending": "No postings are waiting for review.",
+        "open": "No approved postings match these filters.",
+        "rejected": "No rejected postings match these filters.",
+        "intake_closed": "No postings with closed intake match these filters.",
+        "closed": "No closed postings match these filters.",
+        "all": "No postings match these filters."
+      },
+      "emptyHint": "New submissions appear here as recruiters send them.",
+      "oneRecruiter": "Showing one recruiter.",
+      "showAllRecruiters": "Show all recruiters",
+      "loading": "Loading job postings…",
+      "denied": {
+        "title": "You don't have access to moderation",
+        "description": "Checking your account access… If this stays, sign in again with an administrator account."
+      },
+      "loadFailed": {
+        "title": "We couldn't load the job postings"
+      },
+      "table": {
+        "caption": "Job postings, {first}–{last} of {total}",
+        "posting": "Job posting",
+        "recruiter": "Recruiter",
+        "created": "Created",
+        "status": "Status",
+        "action": "Action"
+      },
+      "filterByRecruiter": "Show only postings by {name}",
+      "review": "Review",
+      "reviewLabel": "Review {title}",
+      "pagination": {
+        "summary": "Showing {first}–{last} of {total}"
+      }
+    },
+    "dateFilter": {
+      "label": "Filter by created date",
+      "from": "Created from",
+      "to": "to",
+      "apply": "Apply",
+      "clear": "Clear dates",
+      "invalid": "The start date must be on or before the end date."
+    },
+    "review": {
+      "back": "Back to moderation queue",
+      "loading": "Loading the job posting…",
+      "denied": {
+        "title": "You don't have access to this posting",
+        "description": "Checking your account access… If this stays, sign in again with an administrator account."
+      },
+      "notFound": {
+        "title": "This job posting doesn't exist",
+        "description": "It may have been removed. Go back to the queue to pick another one."
+      },
+      "loadFailed": {
+        "title": "We couldn't load this job posting"
+      },
+      "preparing": "Still being prepared by the recruiter",
+      "conflict": "This posting can't be decided right now. We refreshed it for you.",
+      "saveFailed": "We couldn't save your decision. Please try again.",
+      "toast": {
+        "approvedTitle": "Posting approved",
+        "approvedDescription": "Candidates can see it once the recruiter funds interview slots.",
+        "rejectedTitle": "Posting rejected",
+        "rejectedDescription": "The recruiter can see your reason."
+      },
+      "decision": {
+        "heading": "Decision",
+        "questionBank": "Question bank",
+        "coreQuestions": "{count, plural, one {core question} other {core questions}}",
+        "decided": "This posting has already been decided.",
+        "reasonGiven": "Reason given to the recruiter:",
+        "notSubmitted": "The recruiter is still preparing this posting and has not submitted it for review.",
+        "noQuestions": "The recruiter must add core questions before this posting can be approved.",
+        "approve": "Approve",
+        "reject": "Reject"
+      },
+      "details": {
+        "title": "Posting details",
+        "recruiter": "Recruiter",
+        "created": "Created",
+        "createdAt": "{date} UTC",
+        "company": "Company",
+        "seniority": "Seniority",
+        "location": "Location",
+        "employmentType": "Employment type",
+        "salary": "Salary",
+        "salaryRange": "{min} – {max}",
+        "salaryFrom": "From {amount}",
+        "salaryUpTo": "Up to {amount}",
+        "interviewSlots": "Interview slots",
+        "interviewDuration": "Interview duration",
+        "minutes": "{minutes, plural, one {# minute} other {# minutes}}",
+        "avatar": "3D interviewer",
+        "voice": "Voice profile"
+      },
+      "dossier": {
+        "requirementsTitle": "Confirmed requirements",
+        "requirementsDescription": "The recruiter confirmed these requirements for question generation.",
+        "requirementsEmpty": "No structured requirements are available for this posting. Review the original job description below.",
+        "requirementType": {
+          "required": "Required",
+          "preferred": "Preferred"
+        },
+        "guidance": "Question-generation guidance",
+        "evaluationTitle": "Evaluation criteria",
+        "evaluationDefaults": "Default criteria · equal weights. These settings are read-only during moderation.",
+        "evaluationCustom": "Custom evaluation criteria. These settings are read-only during moderation.",
+        "evaluationUnavailable": "Evaluation details are unavailable.",
+        "weightPercent": "{value}%",
+        "weightPlain": "{value} weight"
+      }
+    },
+    "dialog": {
+      "approveTitle": "Approve this posting?",
+      "rejectTitle": "Reject this posting?",
+      "approveDescription": "<emphasis>{title}</emphasis> will be approved. Candidates can find it once the recruiter funds interview slots.",
+      "rejectDescription": "<emphasis>{title}</emphasis> won't be published. The recruiter will see your reason.",
+      "approveForm": "Approve posting",
+      "rejectForm": "Reject posting",
+      "reasonLabel": "Reason for the recruiter",
+      "required": "(required)",
+      "reasonHint": "Be specific so the recruiter knows what to fix.",
+      "approving": "Approving…",
+      "rejecting": "Rejecting…",
+      "approve": "Approve posting",
+      "reject": "Reject posting"
+    },
+    "jd": {
+      "heading": "Job description",
+      "openInNewTab": "Open in new tab",
+      "openInNewTabSr": "(job description file)",
+      "pdfTitle": "Job description PDF",
+      "textFromPdf": "Text read from the PDF",
+      "textLabel": "Job description text",
+      "notPdf": "This job description isn't a PDF, so it can't be shown here. Open it in a new tab to read it.",
+      "missing": "The job description for this posting can't be found, so it can't be shown. Reject the posting and ask the recruiter to submit it again."
+    },
+    "validation": {
+      "reasonRequired": "Tell the recruiter why this posting is rejected.",
+      "reasonTooLong": "Keep the reason to {max, number} characters or fewer.",
+      "reasonInvalid": "Remove the unsupported characters from the reason."
+    }
+  },
+  "interviews": {
+    "eyebrow": "Operations",
+    "type": {
+      "practice": "Practice",
+      "recruitment": "Recruitment"
+    },
+    "values": {
+      "notScored": "Not scored",
+      "available": "Available",
+      "notAvailable": "Not available",
+      "recorded": "Recorded",
+      "notRecorded": "Not recorded"
+    },
+    "accessDenied": {
+      "message": "We couldn't confirm your administrator access. Interview data is hidden until access is verified.",
+      "retry": "Retry access check"
+    },
+    "sessions": {
+      "label": "Interview sessions",
+      "title": "Interview sessions",
+      "description": "Find interview sessions and review their operational details. Session content is not shown here.",
+      "loading": "Loading interview sessions…",
+      "count": "{filtered, select, true {{total, plural, one {{total} matching interview session} other {{total} matching interview sessions}}} other {{total, plural, one {{total} interview session} other {{total} interview sessions}}}}",
+      "refresh": "Refresh",
+      "loadFailed": "Unable to load interview sessions. Please try again.",
+      "loadingLabel": "Loading interview sessions",
+      "emptyFilteredTitle": "No matching interview sessions",
+      "emptyFilteredHint": "Try other filters or clear them.",
+      "emptyTitle": "No interview sessions yet",
+      "emptyHint": "Interview sessions will appear here once candidates start them.",
+      "paginationLabel": "Interview sessions pagination"
+    },
+    "filters": {
+      "label": "Filter interview sessions",
+      "type": "Interview type",
+      "allTypes": "All types",
+      "candidateId": "Candidate ID",
+      "candidatePlaceholder": "Full candidate ID",
+      "jobPostingId": "Job Posting ID",
+      "jobPostingPlaceholder": "Full Job Posting ID",
+      "apply": "Apply filters",
+      "clear": "Clear"
+    },
+    "table": {
+      "label": "Interview sessions",
+      "interview": "Interview",
+      "owner": "Owner",
+      "posting": "Job Posting",
+      "score": "Score",
+      "report": "Report",
+      "recording": "Recording",
+      "details": "Details",
+      "noName": "No name provided",
+      "practiceNoPosting": "Practice (no posting)",
+      "view": "View",
+      "viewLabel": "View details for interview {id}"
+    },
+    "detail": {
+      "label": "Interview session detail",
+      "back": "Back to interview sessions",
+      "title": "Interview session",
+      "description": "Operational details only. Recordings, transcripts and answers are not available in this view.",
+      "notFoundTitle": "Interview not found",
+      "notFoundDescription": "This interview session does not exist or was removed.",
+      "loadFailed": "Unable to load this interview session. Please try again.",
+      "loadingLabel": "Loading interview session",
+      "fields": {
+        "id": "Interview ID",
+        "type": "Type",
+        "owner": "Owner",
+        "ownerEmail": "Owner email",
+        "roleProfile": "Role Profile",
+        "jobPosting": "Job Posting",
+        "applicationId": "Application ID",
+        "avatar": "Avatar",
+        "voice": "Voice",
+        "questions": "Questions",
+        "turns": "Turns",
+        "score": "Score",
+        "report": "Report",
+        "recording": "Recording"
+      },
+      "notProvided": "Not provided",
+      "noRoleProfile": "None (recruitment)",
+      "noJobPosting": "None (practice interview)",
+      "noApplication": "None (practice interview)",
+      "none": "None"
+    },
+    "validation": {
+      "invalidId": "Enter a complete ID, such as 3f2c…-…, or leave the field empty."
+    }
+  },
+  "shared": {
+    "sectionPreparing": "This area is being prepared. More tools will appear here as they become available."
+  },
+  "overview": {
+    "title": "Admin dashboard",
+    "description": "Platform operations overview.",
+    "updated": "Last {days} days · Updated {updated}",
+    "loading": "Loading admin overview…",
+    "loadingWindow": "Loading the last {days} days…",
+    "denied": {
+      "title": "You don't have access to the admin overview",
+      "description": "Checking your account access… If this stays, sign in again with an administrator account."
+    },
+    "error": {
+      "title": "We couldn't load the overview"
+    },
+    "window": {
+      "label": "Reporting window",
+      "option": "Last {days} days"
+    },
+    "tools": {
+      "label": "Admin tools",
+      "title": "Go to",
+      "jobPostings": "Review pending postings",
+      "interviews": "Browse recent interviews",
+      "voices": "Manage the voice catalog",
+      "billing": "Check payments",
+      "revenue": "See revenue figures",
+      "users": "Find an account"
+    },
+    "sections": {
+      "accounts": {
+        "title": "Accounts",
+        "definition": "Candidates and recruiters only. Locked is the number locked right now; new accounts count the window.",
+        "candidates": "Candidates",
+        "recruiters": "Recruiters",
+        "locked": "Locked now",
+        "newInWindow": "New in window"
+      },
+      "jobPostings": {
+        "title": "Job postings",
+        "definition": "All-time counts by status.",
+        "pending": "Pending review",
+        "open": "Open",
+        "intakeClosed": "Intake closed",
+        "closed": "Closed",
+        "rejected": "Rejected"
+      },
+      "applications": {
+        "title": "Applications",
+        "definition": "Counts by status are all-time. Submitted counts the window.",
+        "pending": "Awaiting CV review",
+        "interviewEligible": "Interview eligible",
+        "interviewed": "Interviewed",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "submittedInWindow": "Submitted in window"
+      },
+      "interviews": {
+        "title": "Interviews",
+        "definition": "Started and completed count the window. Evaluation failed is all-time.",
+        "practiceStarted": "Practice started",
+        "recruitmentStarted": "Recruitment started",
+        "completed": "Completed",
+        "evaluationFailed": "Evaluation failed"
+      },
+      "finance": {
+        "title": "Finance",
+        "definition": "Revenue is successful PayOS top-ups in the window. Coin totals are for the window. Coin debits and refunds are not revenue.",
+        "revenue": "Revenue",
+        "successfulDeposits": "Successful top-ups",
+        "coinsSold": "Coins sold",
+        "coinsSpent": "Coins spent",
+        "coinsRefunded": "Coins refunded",
+        "uniquePayers": "Unique payers",
+        "successRate": "Payment success rate"
+      }
+    }
+  },
+  "accounts": {
+    "label": "Account management",
+    "title": "Accounts",
+    "description": "Manage access to RoleCue. Review accounts and lock or unlock Candidate and Recruiter access.",
+    "accessDenied": "We couldn't confirm your administrator access. Account data is hidden until access is verified.",
+    "retryAccess": "Retry access check",
+    "toolbar": {
+      "label": "Find accounts",
+      "searchLabel": "Search accounts",
+      "searchPlaceholder": "Search by name or email…",
+      "filterLabel": "Filter accounts",
+      "filterAll": "All accounts",
+      "filterLocked": "Locked accounts",
+      "lockedHint": "Shows accounts with a restriction that is currently active."
+    },
+    "status": {
+      "loading": "Loading accounts…",
+      "loadingLabel": "Loading accounts",
+      "count": "{count, plural, one {# account} other {# accounts}}",
+      "matchingCount": "{count, plural, one {# matching account} other {# matching accounts}}",
+      "refresh": "Refresh",
+      "retryRefresh": "Retry refresh",
+      "loadFailed": "Unable to load accounts. Please try again.",
+      "pagination": "Accounts pagination"
+    },
+    "empty": {
+      "filteredTitle": "No matching accounts",
+      "filteredHint": "Try another search or clear your filter.",
+      "clear": "Clear search and filter",
+      "title": "No accounts yet",
+      "hint": "Registered accounts will appear here."
+    },
+    "table": {
+      "label": "Platform accounts",
+      "account": "Account",
+      "role": "Role",
+      "lockState": "Lock state",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "badges": {
+      "unknownRole": "Unknown",
+      "locked": "Locked",
+      "active": "Active"
+    },
+    "lockState": {
+      "noReason": "No reason recorded",
+      "until": "Until {date}",
+      "indefinitely": "Indefinitely"
+    },
+    "actions": {
+      "menu": "Actions for {name}",
+      "view": "View details",
+      "lock": "Lock account",
+      "unlock": "Unlock account",
+      "readOnly": "Read only"
+    },
+    "details": {
+      "title": "Account details",
+      "description": "Current account information and access status.",
+      "loading": "Loading account details…",
+      "loadFailed": "Unable to load account details. Please try again.",
+      "retry": "Retry details",
+      "accountId": "Account ID",
+      "emailVerification": "Email verification",
+      "verified": "Verified",
+      "notVerified": "Not verified",
+      "created": "Created",
+      "lastUpdated": "Last updated",
+      "lockDuration": "Lock duration",
+      "noCurrentLock": "No current lock",
+      "notAvailable": "Not available",
+      "expired": "Previous lock expired on {date}. This account is active; previously revoked sessions remain invalid.",
+      "previousReason": "Previous lock reason",
+      "recordedReason": "Recorded lock reason",
+      "adminReadOnly": "Administrator accounts are read only and cannot be locked or unlocked here."
+    },
+    "dialog": {
+      "lockDescription": "Prevent this user from signing in and revoke all of their active sessions. A notification email will be sent after the change.",
+      "unlockDescription": "Allow this user to sign in again. Previously revoked sessions will stay invalid. A notification email will be sent after the change.",
+      "lockForm": "Lock account confirmation",
+      "unlockForm": "Unlock account confirmation",
+      "updating": "Updating…",
+      "confirmLock": "Confirm lock",
+      "confirmUnlock": "Confirm unlock"
+    },
+    "fields": {
+      "reasonLabel": "Reason sent to user",
+      "reasonPlaceholder": "For example: Repeated spam messages.",
+      "reasonHint": "Required. Up to 500 characters. This reason will be included in the email to the user. Do not include internal notes or sensitive information.",
+      "durationLegend": "Duration",
+      "durationHint": "Choose a common duration or set an exact unlock time.",
+      "durations": {
+        "hour1": "1 hour",
+        "hours24": "24 hours",
+        "days7": "7 days",
+        "days30": "30 days"
+      },
+      "custom": "Custom date/time",
+      "expiryLabel": "Lock until",
+      "expiryHint": "Choose a future time in {timeZone}.",
+      "indefinite": "Lock indefinitely",
+      "indefiniteHint": "Overrides the duration above. Only an administrator can unlock the account.",
+      "summaryIndefinite": "This account will stay locked until an administrator unlocks it.",
+      "summaryCustom": "This account will stay locked until the date and time you choose above.",
+      "summaryPreset": "This account will be locked for {duration}, starting when you confirm.",
+      "summaryNone": "Select a duration or check Lock indefinitely before confirming."
+    },
+    "validation": {
+      "reasonRequired": "Enter a reason for locking this account.",
+      "reasonMax": "Use 500 characters or fewer.",
+      "durationRequired": "Choose a lock duration.",
+      "expiryInvalid": "Choose a valid date and time in the future."
+    },
+    "feedback": {
+      "actionFailed": "We couldn't confirm the change. Please refresh before trying again.",
+      "unchangedTitle": "Account already has this access state",
+      "unchangedDescription": "No additional change or notification email was needed.",
+      "lockedTitle": "Account locked",
+      "lockedDescription": "The user's active sessions have been revoked.",
+      "unlockedTitle": "Account unlocked",
+      "unlockedDescription": "The user can sign in again. Previous sessions remain invalid.",
+      "notice": {
+        "notificationFailed": "The account was updated, but the notification email could not be sent. The access change is still in effect.",
+        "refreshFailed": "We couldn't refresh the list. Refresh before making another change.",
+        "unconfirmed": "We couldn't confirm the change. Review the refreshed account state before trying again."
+      }
+    }
+  },
+  "voices": {
+    "title": "Voice Profiles",
+    "description": "The text-to-speech voices recruiters and candidates can choose for the AI interviewer. Sync adds new voices and deactivates ones the provider dropped.",
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "filters": {
+      "label": "Filter by status"
+    },
+    "sync": {
+      "action": "Sync from provider",
+      "pending": "Syncing…",
+      "progress": "Syncing voices from the provider…",
+      "failed": "We couldn't sync the voices from the provider.",
+      "failedNote": "{error} The catalog was not changed.",
+      "toastTitle": "Voice catalog synced",
+      "summary": "{added} added, {updated} updated, {deactivated} deactivated, {unchanged} unchanged.",
+      "result": "{count, plural, one {Synced # voice from {provider}} other {Synced # voices from {provider}}}",
+      "dismiss": "Dismiss",
+      "added": "Added",
+      "updated": "Updated",
+      "deactivated": "Deactivated",
+      "unchanged": "Unchanged"
+    },
+    "search": {
+      "form": "Search voices",
+      "label": "Search by name",
+      "placeholder": "Search by name",
+      "tooLong": "Keep the search to {max} characters or fewer."
+    },
+    "list": {
+      "label": "Voices",
+      "loading": "Loading voice profiles…",
+      "showing": "Showing {first}–{last} of {total}"
+    },
+    "denied": {
+      "title": "You don't have access to voice profiles",
+      "description": "Checking your account access… If this stays, sign in again with an administrator account."
+    },
+    "loadFailed": {
+      "title": "We couldn't load the voice profiles"
+    },
+    "pageGone": {
+      "title": "There are no voices on this page.",
+      "description": "The list got shorter, or this page number doesn't exist."
+    },
+    "empty": {
+      "noMatch": "No voices match “{query}”.",
+      "none": "There are no voices in the catalog yet.",
+      "byStatus": "{status, select, active {There are no active voices.} inactive {There are no inactive voices.} other {There are no voices.}}",
+      "hint": "Use “{action}” to add voices from the text-to-speech provider."
+    },
+    "usage": {
+      "interviews": "{count, plural, one {# interview} other {# interviews}}",
+      "jobPostings": "{count, plural, one {# job posting} other {# job postings}}"
+    },
+    "gender": {
+      "female": "Female",
+      "male": "Male",
+      "notSet": "Gender not set"
+    },
+    "details": {
+      "title": "Voice details",
+      "sheetDescription": "Details and actions for the selected voice.",
+      "emptyTitle": "Select a voice",
+      "emptyHint": "Its details and actions appear here.",
+      "gender": "Gender",
+      "locale": "Locale",
+      "provider": "Provider",
+      "providerVoiceId": "Provider voice ID",
+      "inUse": "In use",
+      "notUsed": "Not used",
+      "hintInUse": "Interviews and postings that use this voice keep it, so it can only be deactivated.",
+      "hintUnused": "Nothing uses this voice, so removing it deletes it from the catalog.",
+      "reactivate": "Reactivate",
+      "reactivating": "Reactivating…",
+      "reactivateLabel": "Reactivate {name}",
+      "deactivate": "Deactivate",
+      "remove": "Remove",
+      "deactivateLabel": "Deactivate {name}",
+      "removeLabel": "Remove {name}"
+    },
+    "removeDialog": {
+      "deactivateTitle": "Deactivate this voice?",
+      "removeTitle": "Remove this voice?",
+      "inUse": "<voice>{name}</voice> is used by {usage}. It will be marked inactive instead of removed, so those interviews and postings keep it. You can reactivate it later.",
+      "unused": "<voice>{name}</voice> isn't used anywhere, so it will be removed from the catalog permanently.",
+      "deactivating": "Deactivating…",
+      "removing": "Removing…",
+      "deactivateConfirm": "Deactivate voice",
+      "removeConfirm": "Remove voice"
+    },
+    "feedback": {
+      "removedTitle": "Voice removed",
+      "removedDescription": "{name} is no longer in the catalog.",
+      "deactivatedTitle": "Voice deactivated",
+      "deactivatedDescription": "{name} is now inactive; interviews and postings that use it keep it.",
+      "reactivatedTitle": "Voice reactivated",
+      "reactivatedDescription": "{name} is active again and can be chosen.",
+      "alreadyRemoved": "That voice was already removed. We refreshed the catalog for you.",
+      "reactivateGone": "{name} was removed permanently, so it can't be reactivated. We refreshed the catalog for you.",
+      "reactivateFailed": "We couldn't reactivate {name}. Please try again.",
+      "removeFailed": "We couldn't remove the voice. Please try again."
+    }
+  },
+  "billing": {
+    "dates": {
+      "month": "{month, select, 1 {Jan} 2 {Feb} 3 {Mar} 4 {Apr} 5 {May} 6 {Jun} 7 {Jul} 8 {Aug} 9 {Sep} 10 {Oct} 11 {Nov} other {Dec}}",
+      "dayMonthYear": "{day} {month} {year}",
+      "monthYear": "{month} {year}",
+      "rangeSameDay": "{day} {month} {year}",
+      "rangeSameMonth": "{fromDay}–{toDay} {month} {year}",
+      "rangeSameYear": "{fromDay} {fromMonth} – {toDay} {toMonth} {year}",
+      "rangeCrossYear": "{fromDay} {fromMonth} {fromYear} – {toDay} {toMonth} {toYear}"
+    },
+    "compare": {
+      "new": "New",
+      "noChange": "No change",
+      "points": "{value} pts"
+    },
+    "timeWindow": {
+      "label": "Time window",
+      "presets": {
+        "all": "All time",
+        "today": "Today",
+        "last_7_days": "Last 7 days",
+        "last_30_days": "Last 30 days",
+        "this_month": "This month",
+        "last_month": "Last month",
+        "this_quarter": "This quarter",
+        "this_year": "This year",
+        "last_12_months": "Last 12 months",
+        "custom": "Custom range"
+      },
+      "from": "From",
+      "to": "To",
+      "vietnamTimeNote": "Dates in Vietnam time (UTC+07:00); both ends are included.",
+      "fromDate": "From {date}",
+      "untilDate": "Until {date}",
+      "errors": {
+        "invalidDay": "Enter dates as valid calendar days.",
+        "reversedRange": "The start date must be on or before the end date.",
+        "bothEnds": "Choose both a start and an end date."
+      }
+    },
+    "transactions": {
+      "title": "Payment Transactions",
+      "subtitle": "Every PayOS payment and coin movement, newest first. Money is in VND; coins are counted separately.",
+      "loadError": {
+        "title": "Unable to load transactions",
+        "hint": "Please verify your filter parameters (such as amount bounds) and try again."
+      },
+      "exportToast": {
+        "truncatedTitle": "Export truncated to {limit, number} rows",
+        "truncatedBody": "Only the first {limit, number} of {total, number} matching transactions were exported. Narrow your filters to export the rest.",
+        "failedTitle": "Unable to export CSV",
+        "failedBody": "We could not generate the CSV export. Please check your filters and try again."
+      },
+      "packageOptions": {
+        "practiceInterview": "Practice interviews",
+        "interviewSlots": "Interview slots",
+        "avatarStorage": "Avatar storage"
+      },
+      "summary": {
+        "label": "Matching transactions",
+        "revenue": "Revenue",
+        "revenueNote": "{count} paid top-ups",
+        "waiting": "Waiting for payment",
+        "waitingNote": "PayOS has not confirmed yet",
+        "failedOrCancelled": "Failed or cancelled",
+        "failedOrCancelledNote": "{failed} failed · {cancelled} cancelled",
+        "coinsSpent": "Coins spent",
+        "coinsSpentNote": "{refunded} refunded"
+      },
+      "toolbar": {
+        "categories": "Transaction categories",
+        "tabs": {
+          "topup": "PayOS top-ups",
+          "spend": "Coin spending",
+          "refund": "Refunds"
+        },
+        "reset": "Reset Filters",
+        "export": "Export CSV",
+        "exporting": "Exporting...",
+        "searchPlaceholder": "Search name, email, order or ID",
+        "searchLabel": "Search transactions",
+        "statusLabel": "Filter by status",
+        "statuses": {
+          "all": "All Statuses",
+          "success": "Success",
+          "pending": "Pending",
+          "failed": "Failed",
+          "cancelled": "Cancelled"
+        },
+        "packageLabel": "Filter by package or feature",
+        "allPackages": "All packs and features",
+        "minAmountPlaceholder": "Min amount",
+        "minAmountLabel": "Minimum amount",
+        "maxAmountPlaceholder": "Max amount",
+        "maxAmountLabel": "Maximum amount"
+      },
+      "table": {
+        "columns": {
+          "date": "Date",
+          "user": "User",
+          "transaction": "Transaction",
+          "amount": "Amount",
+          "status": "Status"
+        },
+        "empty": "No transactions match the current filters.",
+        "unnamedUser": "Unnamed user",
+        "unknownUser": "Unknown user",
+        "system": "System",
+        "viewDetails": "View details of {title} on {date}",
+        "order": "Order #{code}",
+        "noCoinsAdded": "No coins added",
+        "types": {
+          "topup": "PayOS top-up",
+          "spend": "Coin spend",
+          "refund": "Coin refund"
+        },
+        "status": {
+          "success": "Paid",
+          "pending": "Waiting",
+          "failed": "Failed",
+          "cancelled": "Cancelled",
+          "settled": "Settled"
+        },
+        "results": "{start}–{end} of {total, plural, one {# transaction} other {# transactions}}",
+        "resultsNone": "0 of {total, plural, one {# transaction} other {# transactions}}",
+        "rows": "Rows",
+        "rowsPerPage": "Rows per page",
+        "page": "Page {page} of {totalPages}"
+      },
+      "detail": {
+        "title": "Transaction Details",
+        "description": "Read only. Admins cannot change transactions or wallet balances.",
+        "createdAt": "Created at",
+        "paid": "Paid",
+        "coins": "Coins",
+        "user": "User",
+        "id": "Transaction ID",
+        "copyId": "Copy transaction ID",
+        "payosOrder": "PayOS order",
+        "from": "From",
+        "to": "To",
+        "ledgerText": "Ledger text"
+      }
+    },
+    "revenue": {
+      "title": "Revenue",
+      "subtitle": "Paid PayOS top-ups only; coins moving inside RoleCue are not revenue.",
+      "compareLabel": "Compare with",
+      "compareOptions": {
+        "previous_year": "Same period last year",
+        "previous_period": "Previous period"
+      },
+      "export": "Export CSV",
+      "loadError": {
+        "title": "Couldn't load the revenue report.",
+        "hint": "Check the connection and try again."
+      },
+      "noTopups": "No paid top-ups in either period.",
+      "finding": {
+        "none": "No paid top-ups in {range} or {comparisonRange}",
+        "newBaseline": "{revenue}; no paid top-ups in {comparisonRange}",
+        "same": "{revenue}, the same as {comparisonRange}",
+        "change": "{revenue}, {direction, select, up {up} other {down}} {percent} on {comparisonRange} ({absolute})",
+        "revenue": "{range} · {amount}"
+      },
+      "kpis": {
+        "label": "Headline figures",
+        "revenue": "Revenue",
+        "revenueNote": "{count} paid top-ups",
+        "payingUsers": "Paying users",
+        "payingUsersNote": "{newPayers} new · {returning} returning",
+        "averageOrder": "Average order",
+        "paymentSuccess": "Payment success",
+        "paymentSuccessNote": "{settled} of {attempts} settled PayOS payments",
+        "versus": "vs {range}"
+      },
+      "trend": {
+        "label": "Revenue over time",
+        "title": "{granularity, select, month {Revenue by month} other {Revenue by day}}",
+        "chartLabel": "{granularity, select, month {Revenue by month} other {Revenue by day}}, {range} against {comparisonRange}",
+        "axisMillions": "{value}M",
+        "axisThousands": "{value}k"
+      },
+      "mix": {
+        "title": "Where revenue came from",
+        "byRole": "By who paid",
+        "byPackage": "By coin pack",
+        "roles": {
+          "recruiter": "Recruiters",
+          "candidate": "Candidates",
+          "unknown": "Unknown payer"
+        }
+      },
+      "coinFlow": {
+        "title": "Coins",
+        "sold": "Sold",
+        "spent": "Spent",
+        "refunded": "Refunded",
+        "spentOn": "Spent on",
+        "noneSpent": "No coins were spent in either period.",
+        "before": "{coins} before",
+        "features": {
+          "practice_interview": "Practice interviews",
+          "interview_slots": "Interview slots",
+          "avatar_storage": "Avatar storage",
+          "other": "Other"
+        }
+      },
+      "outstanding": {
+        "title": "Coins users still hold",
+        "value": "≈ {amount} at the average price paid per coin",
+        "note": "Prepaid and not yet used, so not revenue: RoleCue still owes this in interviews, slots and storage. Balance right now, not for the period."
+      },
+      "csv": {
+        "period": "Period (Vietnam time)",
+        "metric": "Metric",
+        "thisPeriod": "This period",
+        "comparison": "Comparison",
+        "revenueVnd": "Revenue (VND)",
+        "paidTopups": "Paid top-ups",
+        "payosAttempts": "PayOS attempts",
+        "paymentSuccess": "Payment success (%)",
+        "payingUsers": "Paying users",
+        "newPayers": "New payers",
+        "averageOrderVnd": "Average order (VND)",
+        "coinsSold": "Coins sold",
+        "coinsSpent": "Coins spent",
+        "coinsRefunded": "Coins refunded",
+        "bucket": "Bucket",
+        "comparisonBucket": "Comparison bucket",
+        "comparisonRevenueVnd": "Comparison revenue (VND)",
+        "coinPack": "Coin pack"
+      }
+    }
+  }
+}

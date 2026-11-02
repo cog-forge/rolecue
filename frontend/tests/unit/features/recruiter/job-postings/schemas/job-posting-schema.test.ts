@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { createTranslator } from "next-intl";
+import { messagesFor } from "@tests/helpers/intl";
+import type { AppLocale } from "@/lib/i18n/config";
 import {
   createBody,
   documentEnvelopeSchema,
   documentLinkEnvelopeSchema,
   emptyPostingValues,
   postingEnvelopeSchema,
-  postingFormSchema,
+  createPostingFormSchema,
   postingLocks,
   postingPatch,
   postingValues,
@@ -59,12 +62,21 @@ const valid: PostingValues = {
   required_voice_id: voiceId,
 };
 
-const issues = (values: PostingValues) => {
-  const result = postingFormSchema.safeParse(values);
-  return result.success
-    ? []
-    : result.error.issues.map((issue) => issue.path.join("."));
+const validationFor = (locale: AppLocale = "en") =>
+  createTranslator({
+    locale,
+    messages: messagesFor(locale),
+    namespace: "recruiter.postings.validation",
+  });
+
+const schemaIssues = (values: PostingValues, locale: AppLocale = "en") => {
+  const result = createPostingFormSchema(validationFor(locale)).safeParse(
+    values,
+  );
+  return result.success ? [] : result.error.issues;
 };
+const issues = (values: PostingValues) =>
+  schemaIssues(values).map((issue) => issue.path.join("."));
 
 describe("job posting wire schemas", () => {
   it("parses a posting and rejects contract drift", () => {
@@ -124,9 +136,31 @@ describe("job posting wire schemas", () => {
   });
 });
 
-describe("postingFormSchema", () => {
+describe("createPostingFormSchema", () => {
   it("accepts a complete form", () => {
     expect(issues(valid)).toEqual([]);
+  });
+
+  it("explains each problem in the active language", () => {
+    const messageAt = (locale: AppLocale, path: string) =>
+      schemaIssues(
+        { ...valid, title: " ", salary_min: "2000", salary_max: "1000" },
+        locale,
+      ).find((issue) => issue.path.join(".") === path)?.message;
+
+    expect(messageAt("en", "title")).toBe("Enter a title for the posting.");
+    expect(messageAt("vi", "title")).toBe(
+      "Hãy nhập tiêu đề cho tin tuyển dụng.",
+    );
+    expect(messageAt("en", "salary_max")).toBe(
+      "The maximum salary must be at least the minimum.",
+    );
+    expect(messageAt("vi", "salary_max")).toBe(
+      "Mức lương tối đa phải lớn hơn hoặc bằng mức tối thiểu.",
+    );
+    expect(
+      schemaIssues({ ...valid, title: "x".repeat(201) }, "vi")[0]?.message,
+    ).toBe("Tiêu đề tối đa 200 ký tự.");
   });
 
   // The server checks the PDF text length when it reads the PDF; the form only needs an upload.

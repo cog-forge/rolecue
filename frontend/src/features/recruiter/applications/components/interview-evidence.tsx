@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSessionUser } from "@/features/auth/components/session-gate";
@@ -10,24 +11,14 @@ import {
   getApplicationRecording,
   getApplicationTranscript,
 } from "../api/applications";
-import type {
-  ApplicationInterview,
-  RecordStatus,
-} from "../schemas/application-detail-schema";
+import type { ApplicationInterview } from "../schemas/application-detail-schema";
 import { formatDeadline } from "../utils/application-dates";
-import { applicationErrorMessage } from "../utils/application-errors";
+import { useApplicationErrorMessage } from "../utils/application-errors";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // Recording and transcript are evidence: nothing is fetched until the Recruiter asks, and no media
 // starts on its own. Retention, consent and Admin access to recordings are open product gates; this
 // component does not decide them.
-const recordText: Record<RecordStatus, string> = {
-  none: "No recording was uploaded for this interview.",
-  uploading: "The recording is still being uploaded.",
-  processing: "The recording is still being processed.",
-  ready: "A recording is available.",
-  failed: "The recording could not be stored.",
-};
 
 export function InterviewEvidence({
   postingId,
@@ -38,14 +29,15 @@ export function InterviewEvidence({
   applicationId: string;
   interview: ApplicationInterview;
 }) {
+  const t = useTranslations("recruiter.applications.evidence");
   return (
     <div className="space-y-6 border-t pt-6">
       <section aria-labelledby="interview-recording" className="space-y-3">
         <h3 id="interview-recording" className="text-sm font-semibold">
-          Recording
+          {t("recording")}
         </h3>
         <p className="text-sm text-muted-foreground">
-          {recordText[interview.record_status]}
+          {t(`recordStatus.${interview.record_status}`)}
         </p>
         {interview.record_status === "ready" && (
           <RecordingLink postingId={postingId} applicationId={applicationId} />
@@ -54,11 +46,11 @@ export function InterviewEvidence({
 
       <section aria-labelledby="interview-transcript" className="space-y-3">
         <h3 id="interview-transcript" className="text-sm font-semibold">
-          Transcript
+          {t("transcript")}
         </h3>
         {interview.completed_at === null ? (
           <p className="text-sm text-muted-foreground">
-            The transcript is available once the interview is completed.
+            {t("transcriptLocked")}
           </p>
         ) : (
           <TranscriptToggle
@@ -79,6 +71,7 @@ function RecordingLink({
   postingId: string;
   applicationId: string;
 }) {
+  const t = useTranslations("recruiter.applications.evidence");
   const [requested, setRequested] = useState(false);
   if (!requested)
     return (
@@ -87,7 +80,7 @@ function RecordingLink({
         className="h-11 bg-background"
         onClick={() => setRequested(true)}
       >
-        Get the recording link
+        {t("getLink")}
       </Button>
     );
   return (
@@ -102,6 +95,9 @@ function RecordingLoader({
   postingId: string;
   applicationId: string;
 }) {
+  const t = useTranslations("recruiter.applications.evidence");
+  const tCommon = useTranslations("common");
+  const errorMessage = useApplicationErrorMessage();
   const fmt = useFormatters();
   const user = useSessionUser();
   const query = useQuery({
@@ -115,37 +111,34 @@ function RecordingLoader({
   if (query.isPending)
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        Getting the recording link…
+        {t("gettingLink")}
       </p>
     );
   if (query.isError)
     return (
       <p role="alert" className="text-sm text-destructive">
-        {applicationErrorMessage(
-          query.error,
-          "We couldn't get the recording. Try again.",
-        )}
+        {errorMessage(query.error, t("linkFailed"))}
       </p>
     );
   const recording = query.data;
   if (!recording.url)
     return (
-      <p className="text-sm text-muted-foreground">
-        The recording link is not available right now.
-      </p>
+      <p className="text-sm text-muted-foreground">{t("linkUnavailable")}</p>
     );
   return (
     <div className="space-y-2">
       <Button asChild variant="outline" className="h-11 bg-background">
         <a href={recording.url} target="_blank" rel="noopener noreferrer">
           <ExternalLink aria-hidden />
-          Open the recording
-          <span className="sr-only"> (opens in a new tab)</span>
+          {t("openRecording")}
+          <span className="sr-only"> {tCommon("labels.opensInNewTab")}</span>
         </a>
       </Button>
       {recording.expires_at && (
         <p className="text-xs text-muted-foreground">
-          The link expires {formatDeadline(recording.expires_at, fmt)}.
+          {t("linkExpires", {
+            date: formatDeadline(recording.expires_at, fmt),
+          })}
         </p>
       )}
     </div>
@@ -159,6 +152,7 @@ function TranscriptToggle({
   postingId: string;
   applicationId: string;
 }) {
+  const t = useTranslations("recruiter.applications.evidence");
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-3">
@@ -168,7 +162,7 @@ function TranscriptToggle({
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
-        {open ? "Hide transcript" : "Show transcript"}
+        {open ? t("hideTranscript") : t("showTranscript")}
       </Button>
       {open && (
         <TranscriptBody postingId={postingId} applicationId={applicationId} />
@@ -185,6 +179,8 @@ function TranscriptBody({
   postingId: string;
   applicationId: string;
 }) {
+  const t = useTranslations("recruiter.applications.evidence");
+  const errorMessage = useApplicationErrorMessage();
   const user = useSessionUser();
   const query = useQuery({
     queryKey: applicationKeys.transcript(user.id, postingId, applicationId),
@@ -197,37 +193,30 @@ function TranscriptBody({
   if (query.isPending)
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        Loading the transcript…
+        {t("transcriptLoading")}
       </p>
     );
   if (query.isError)
     return (
       <p role="alert" className="text-sm text-destructive">
-        {applicationErrorMessage(
-          query.error,
-          "We couldn't load the transcript. Try again.",
-        )}
+        {errorMessage(query.error, t("transcriptFailed"))}
       </p>
     );
   const turns = query.data.turns;
   if (turns.length === 0)
-    return (
-      <p className="text-sm text-muted-foreground">
-        No questions were recorded.
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">{t("noQuestions")}</p>;
   return (
     <ol className="space-y-4 text-sm">
       {turns.map((turn) => (
         <li key={turn.position} className="space-y-1 border-l-2 pl-4">
           <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-            Question {turn.position}
+            {t("question", { position: turn.position })}
           </p>
           <p className="font-medium [overflow-wrap:anywhere]">
             {turn.question}
           </p>
           <p className="text-muted-foreground [overflow-wrap:anywhere]">
-            {turn.answer ?? "No answer was recorded."}
+            {turn.answer ?? t("noAnswer")}
           </p>
         </li>
       ))}

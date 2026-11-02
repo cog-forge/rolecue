@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ const LINK_REFRESH_MS = 4 * 60 * 1000;
 // Opens the posting's JD PDF in a new tab. The link is fetched ahead of the click, so the browser
 // treats the new tab as a direct result of it.
 export function JdDocumentLink({ postingId }: { postingId: string }) {
+  const t = useTranslations("recruiter.postings.document");
+  const tCommon = useTranslations("common");
   const user = useSessionUser();
   const link = useQuery({
     queryKey: jobPostingKeys.document(user.id, postingId),
@@ -33,20 +36,20 @@ export function JdDocumentLink({ postingId }: { postingId: string }) {
           className="size-4 animate-spin motion-reduce:animate-none"
           aria-hidden
         />
-        Preparing the PDF…
+        {t("preparing")}
       </Button>
     );
   if (link.isError)
     return (
       <div role="alert" className="flex flex-wrap items-center gap-2 text-sm">
-        <span className="text-destructive">We couldn&apos;t open the PDF.</span>
+        <span className="text-destructive">{t("error")}</span>
         <Button
           type="button"
           variant="outline"
           className="h-10 rounded-full px-4"
           onClick={() => void link.refetch()}
         >
-          Try again
+          {tCommon("actions.tryAgain")}
         </Button>
       </div>
     );
@@ -54,8 +57,8 @@ export function JdDocumentLink({ postingId }: { postingId: string }) {
     <Button asChild variant="outline" className="h-10 rounded-full px-4">
       <a href={link.data.url} target="_blank" rel="noopener noreferrer">
         <ExternalLink aria-hidden />
-        Open the PDF
-        <span className="sr-only"> (job description, opens in a new tab)</span>
+        {t("open")}
+        <span className="sr-only"> {t("openHint")}</span>
       </a>
     </Button>
   );

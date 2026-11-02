@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSessionUser } from "@/features/auth/components/session-gate";
@@ -14,13 +15,6 @@ import { formatDeadline } from "../utils/application-dates";
 import { InterviewEvidence } from "./interview-evidence";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
-const interviewStatusText: Record<InterviewStatus, string> = {
-  in_progress: "In progress",
-  pending: "Awaiting evaluation",
-  completed: "Evaluated",
-  failed: "Evaluation failed",
-};
-
 // The Candidate's interview result. The score and status come with the detail; the evaluation
 // breakdown is read from the report only when the Recruiter asks for it.
 export function InterviewResult({
@@ -32,6 +26,7 @@ export function InterviewResult({
   applicationId: string;
   interview: ApplicationInterview;
 }) {
+  const t = useTranslations("recruiter.applications");
   const fmt = useFormatters();
   const [open, setOpen] = useState(false);
   const finished = interview.status !== "in_progress";
@@ -40,27 +35,27 @@ export function InterviewResult({
     <Card>
       <CardHeader>
         <CardTitle>
-          <h2>Interview</h2>
+          <h2>{t("interview.heading")}</h2>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <dl className="grid gap-4 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-muted-foreground">Status</dt>
+            <dt className="text-muted-foreground">{t("facts.status")}</dt>
             <dd className="mt-1 font-medium">
-              {interviewStatusText[interview.status]}
+              {t(`interview.status.${interview.status}`)}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Score</dt>
+            <dt className="text-muted-foreground">{t("interview.score")}</dt>
             <dd className="mt-1 font-medium tabular-nums">
               {interview.score === null
-                ? "Not scored yet"
-                : `${interview.score}/100`}
+                ? t("interview.notScored")
+                : t("interview.scoreValue", { score: interview.score })}
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Started</dt>
+            <dt className="text-muted-foreground">{t("interview.started")}</dt>
             <dd className="font-medium tabular-nums">
               <time
                 dateTime={interview.started_at}
@@ -71,7 +66,9 @@ export function InterviewResult({
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">Completed</dt>
+            <dt className="text-muted-foreground">
+              {t("interview.completed")}
+            </dt>
             <dd className="font-medium tabular-nums">
               {interview.completed_at ? (
                 <time
@@ -81,7 +78,7 @@ export function InterviewResult({
                   {formatDeadline(interview.completed_at, fmt)}
                 </time>
               ) : (
-                "Not completed yet"
+                t("interview.notCompleted")
               )}
             </dd>
           </div>
@@ -95,7 +92,9 @@ export function InterviewResult({
               aria-expanded={open}
               onClick={() => setOpen((value) => !value)}
             >
-              {open ? "Hide evaluation" : "Show evaluation"}
+              {open
+                ? t("interview.hideEvaluation")
+                : t("interview.showEvaluation")}
             </Button>
             {open && (
               <EvaluationBreakdown
@@ -106,7 +105,7 @@ export function InterviewResult({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            The Candidate has not finished the interview yet.
+            {t("interview.notFinished")}
           </p>
         )}
 
@@ -128,6 +127,8 @@ function EvaluationBreakdown({
   interviewId: string;
   status: InterviewStatus;
 }) {
+  const t = useTranslations("recruiter.applications.interview");
+  const tCommon = useTranslations("common");
   const user = useSessionUser();
   const query = useQuery({
     queryKey: applicationKeys.report(user.id, interviewId),
@@ -139,14 +140,14 @@ function EvaluationBreakdown({
   if (query.isPending)
     return (
       <p role="status" className="text-sm text-muted-foreground">
-        Loading the evaluation…
+        {t("evaluationLoading")}
       </p>
     );
   if (query.isError)
     return (
       <div className="space-y-2">
         <p role="alert" className="text-sm text-destructive">
-          We couldn&apos;t load the evaluation. Try again.
+          {t("evaluationFailed")}
         </p>
         <Button
           variant="outline"
@@ -154,7 +155,7 @@ function EvaluationBreakdown({
           disabled={query.isFetching}
           onClick={() => void query.refetch()}
         >
-          Try again
+          {tCommon("actions.tryAgain")}
         </Button>
       </div>
     );
@@ -182,9 +183,7 @@ function EvaluationBreakdown({
       ) : (
         <div className="space-y-2">
           <p className="text-muted-foreground">
-            {status === "failed"
-              ? "The evaluation failed, so there is no breakdown."
-              : "The breakdown is not ready yet."}
+            {status === "failed" ? t("noBreakdownFailed") : t("noBreakdownYet")}
           </p>
           {status !== "failed" && (
             <Button
@@ -193,7 +192,7 @@ function EvaluationBreakdown({
               disabled={query.isFetching}
               onClick={() => void query.refetch()}
             >
-              Check again
+              {t("checkAgain")}
             </Button>
           )}
         </div>

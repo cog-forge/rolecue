@@ -1,3 +1,4 @@
+import type { useTranslations } from "next-intl";
 import type { Formatters } from "@/lib/i18n/formatters";
 import { routes } from "@/config/routes";
 import type { CapacityState } from "@/features/recruiter/capacity/schemas/capacity-schema";
@@ -25,33 +26,46 @@ export function takesApplications(status: JobPosting["status"]) {
   return status !== "pending" && status !== "rejected";
 }
 
+export type GuidanceTranslator = ReturnType<
+  typeof useTranslations<"recruiter.postings.guidance">
+>;
+
 type Action = { label: string; href: string };
 
 // The one thing the Recruiter most likely does next, as a link into the screen that does it. It
 // only points; the rules stay with the screens and the server.
-export function primaryAction(posting: JobPosting): Action | null {
+export function primaryAction(
+  posting: JobPosting,
+  t: GuidanceTranslator,
+): Action | null {
   const hasBank = posting.core_question_count > 0;
   switch (posting.status) {
     case "pending":
       if (posting.review_submitted) return null;
       return hasBank
         ? {
-            label: "Review & submit",
+            label: t("action.reviewAndSubmit"),
             href: routes.recruiter.jobPostingQuestions(posting.id),
           }
-        : { label: "Review requirements", href: "#posting-requirements" };
+        : {
+            label: t("action.reviewRequirements"),
+            href: "#posting-requirements",
+          };
     case "rejected":
       return hasBank
         ? {
-            label: "Edit and resubmit",
+            label: t("action.editAndResubmit"),
             href: routes.recruiter.jobPostingQuestions(posting.id),
           }
-        : { label: "Review requirements", href: "#posting-requirements" };
+        : {
+            label: t("action.reviewRequirements"),
+            href: "#posting-requirements",
+          };
     case "open":
       return posting.interview_slot === null
-        ? { label: "Fund & publish", href: "#interview-capacity" }
+        ? { label: t("action.fundAndPublish"), href: "#interview-capacity" }
         : {
-            label: "Review applications",
+            label: t("action.reviewApplications"),
             href: postingInboxHref(posting.id),
           };
     default:
@@ -64,33 +78,54 @@ export function primaryAction(posting: JobPosting): Action | null {
 export function statusLine(
   posting: JobPosting,
   fmt: Formatters,
+  t: GuidanceTranslator,
   capacity?: CapacityState,
 ) {
   switch (posting.status) {
     case "pending":
-      return posting.review_submitted ? "Waiting for admin review" : null;
+      return posting.review_submitted ? t("line.waitingForReview") : null;
     case "rejected":
-      return "Rejected: see the reason below";
+      return t("line.rejected");
     case "open":
-      if (posting.interview_slot === null)
-        return "Approved: fund interview slots to publish";
+      if (posting.interview_slot === null) return t("line.approvedUnfunded");
       return capacity?.interview_slot != null
-        ? `${capacity.cv_approvals} of ${capacity.interview_slot} interview slots approved`
+        ? t("line.slotsApproved", {
+            approved: capacity.cv_approvals,
+            slots: capacity.interview_slot,
+          })
         : null;
     case "intake_closed":
       if (!capacity) return null;
-      if (capacity.interview_slot === null)
-        return "Intake closed: slots were never funded";
+      if (capacity.interview_slot === null) return t("line.intakeNeverFunded");
       return capacity.cv_approvals >= capacity.interview_slot
-        ? `Intake closed: all ${capacity.interview_slot} slots approved`
-        : `Intake closed: ${capacity.cv_approvals} of ${capacity.interview_slot} slots approved`;
+        ? t("line.intakeAllApproved", { slots: capacity.interview_slot })
+        : t("line.intakePartlyApproved", {
+            approved: capacity.cv_approvals,
+            slots: capacity.interview_slot,
+          });
     case "closed":
       if (!capacity) return null;
-      if (capacity.interview_slot === null)
-        return "Closed without funded slots";
+      if (capacity.interview_slot === null) return t("line.closedNeverFunded");
       if (capacity.refunded === null) return null;
       return capacity.refunded > 0
-        ? `Closed: ${fmt.coins(capacity.refunded)} from unused slots returned to your wallet`
-        : "Closed: no unused slots to return";
+        ? t("line.closedRefunded", { coins: fmt.coins(capacity.refunded) })
+        : t("line.closedNoRefund");
+  }
+}
+
+// The one sentence under the title: what happens next for this posting.
+export function nextStep(posting: JobPosting, t: GuidanceTranslator) {
+  switch (posting.status) {
+    case "pending":
+      if (posting.review_submitted) return t("next.waitingForReview");
+      return posting.core_question_count > 0
+        ? t("next.bankReady")
+        : t("next.confirmRequirements");
+    case "rejected":
+      return t("next.rejected");
+    default:
+      return posting.status === "open" && posting.interview_slot === null
+        ? t("next.approvedUnfunded")
+        : t("next.approved");
   }
 }

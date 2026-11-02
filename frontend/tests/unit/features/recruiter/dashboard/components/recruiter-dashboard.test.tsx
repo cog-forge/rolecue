@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { cleanup, screen, within } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
@@ -96,7 +96,7 @@ function serve(
   );
 }
 
-function mount() {
+function mount(locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -105,11 +105,17 @@ function mount() {
     <QueryClientProvider client={client}>
       <RecruiterDashboard />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
-const rows = async () =>
-  within(await screen.findByRole("list", { name: /need your attention/ }));
+const rows = async (locale: "en" | "vi" = "en") =>
+  within(
+    await screen.findByRole("list", {
+      name:
+        locale === "vi" ? "Những việc cần bạn chú ý" : /need your attention/,
+    }),
+  );
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -320,5 +326,80 @@ describe("RecruiterDashboard", () => {
       await screen.findByText("You don't have access to the dashboard"),
     ).toBeInTheDocument();
     expect(client.getQueryState(["auth", "me"])?.isInvalidated).toBe(true);
+  });
+});
+
+describe("RecruiterDashboard in Vietnamese", () => {
+  it("translates the to-do rows, the actions and the at-a-glance summary", async () => {
+    serve({ pending: 4, drafts: 2, live: 1200, closed: 2 });
+    mount("vi");
+    const list = await rows("vi");
+    expect(await list.findByText("CV đang chờ duyệt")).toBeInTheDocument();
+    expect(list.getByRole("link", { name: "Duyệt CV" })).toHaveAttribute(
+      "href",
+      "/recruiter/applications?status=pending",
+    );
+    expect(list.getByText("Bản nháp cần gửi")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Tóm tắt các tin tuyển dụng của bạn",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /^Đang đăng\s*1\.200$/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /^Đã đóng nhận đơn\s*2$/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("words the earliest deadline and the lower-bound count in Vietnamese", async () => {
+    serve({
+      eligible: Array.from({ length: 100 }, (_, i) => [i % 2 ? 3 : 40, true]),
+      eligibleTotal: 250,
+    });
+    mount("vi");
+    const list = await rows("vi");
+    const row = (
+      await list.findByText("Hạn phỏng vấn trong 24 giờ tới")
+    ).closest("li") as HTMLElement;
+    expect(row).toHaveTextContent(/Sớm nhất: .*GMT\+7/);
+    expect(row).toHaveTextContent("Chỉ 100 ứng viên được duyệt đầu tiên");
+    expect(within(row).getByLabelText("50 trở lên")).toBeInTheDocument();
+  });
+
+  it("translates the empty, loading, error and access-denied states", async () => {
+    serve();
+    mount("vi");
+    expect(
+      await screen.findByText("Bạn đã xử lý xong mọi việc"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Tạo tin tuyển dụng" }),
+    ).toBeInTheDocument();
+    cleanup();
+
+    mocks.get.mockReturnValue(new Promise(() => {}));
+    mount("vi");
+    expect(await screen.findAllByText(/^Đang tải /)).toHaveLength(5);
+    cleanup();
+
+    serve({}, (url, params) =>
+      url === "/recruiter/applications" && params.status === "pending"
+        ? Promise.reject(failure(500))
+        : undefined,
+    );
+    mount("vi");
+    expect(
+      await screen.findByText("Không thể tải con số này."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    cleanup();
+
+    mocks.get.mockRejectedValue(failure(403));
+    mount("vi");
+    expect(
+      await screen.findByText("Bạn không có quyền truy cập trang tổng quan"),
+    ).toBeInTheDocument();
   });
 });

@@ -1,12 +1,12 @@
 import { LockKeyhole, ShieldCheck, UnlockKeyhole } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
-import { roleLabels } from "@/config/navigation";
 import type { AdminAccount } from "../api/accounts";
 import { isAccountLocked } from "../schemas/account-state";
 
 export function AccountRoleBadge({ role }: { role: AdminAccount["role"] }) {
-  const valid =
-    role === "candidate" || role === "recruiter" || role === "admin";
+  const t = useTranslations("admin.accounts.badges");
+  const roles = useTranslations("common.shell.roles");
   const colors =
     role === "candidate"
       ? "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-200"
@@ -16,7 +16,9 @@ export function AccountRoleBadge({ role }: { role: AdminAccount["role"] }) {
   return (
     <Badge variant="outline" className={`h-6 gap-1.5 ${colors}`}>
       {role === "admin" && <ShieldCheck aria-hidden />}
-      {valid ? roleLabels[role] : "Unknown"}
+      {role === "candidate" || role === "recruiter" || role === "admin"
+        ? roles(role)
+        : t("unknownRole")}
     </Badge>
   );
 }
@@ -28,6 +30,7 @@ export function AccountLockBadge({
   user: AdminAccount;
   checkedAt: number;
 }) {
+  const t = useTranslations("admin.accounts.badges");
   const locked = isAccountLocked(user, checkedAt);
   const Icon = locked ? LockKeyhole : UnlockKeyhole;
   const colors = locked
@@ -36,7 +39,7 @@ export function AccountLockBadge({
   return (
     <Badge variant="outline" className={`h-6 gap-1.5 ${colors}`}>
       <Icon aria-hidden />
-      {locked ? "Locked" : "Active"}
+      {locked ? t("locked") : t("active")}
     </Badge>
   );
 }

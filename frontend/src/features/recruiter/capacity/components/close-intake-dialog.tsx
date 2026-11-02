@@ -1,6 +1,7 @@
 "use client";
 
 import { LoaderCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +26,8 @@ export function CloseIntakeDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useTranslations("recruiter.capacity.closeDialog");
+  const tCommon = useTranslations("common");
   return (
     <Dialog
       open={open}
@@ -34,12 +37,8 @@ export function CloseIntakeDialog({
     >
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Close intake for this posting?</DialogTitle>
-          <DialogDescription>
-            Applications still pending will be rejected. Candidates already
-            approved for an interview keep their place and can still interview.
-            No new applications will be accepted.
-          </DialogDescription>
+          <DialogTitle>{t("title")}</DialogTitle>
+          <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
         {error && (
           <p role="alert" className="text-sm text-destructive">
@@ -54,7 +53,7 @@ export function CloseIntakeDialog({
             disabled={pending}
             onClick={onCancel}
           >
-            Cancel
+            {tCommon("actions.cancel")}
           </Button>
           <Button
             type="button"
@@ -69,7 +68,7 @@ export function CloseIntakeDialog({
                 aria-hidden
               />
             )}
-            {pending ? "Closing intake…" : "Close intake"}
+            {pending ? t("pending") : t("confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -92,7 +92,7 @@ function failure(status: number, code: string, message: string) {
     config: { headers: new AxiosHeaders() },
   });
 }
-function mount() {
+function mount(locale: "en" | "vi" = "en") {
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -104,6 +104,7 @@ function mount() {
     <QueryClientProvider client={client}>
       <NewJobPosting />
     </QueryClientProvider>,
+    { locale },
   );
   return client;
 }
@@ -321,7 +322,7 @@ describe("NewJobPosting", () => {
     );
     expect(
       await screen.findByText(
-        /job description extraction failed\. your pdf is still uploaded/i,
+        /we couldn't read the requirements from this description\. try again\. your pdf is still uploaded/i,
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Text read from the PDF")).toHaveTextContent(
@@ -343,7 +344,7 @@ describe("NewJobPosting", () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
-  it("shows the server's reason when a PDF can't be read", async () => {
+  it("explains why a PDF can't be read from the error code", async () => {
     mocks.post.mockRejectedValue(
       failure(
         400,
@@ -354,10 +355,9 @@ describe("NewJobPosting", () => {
     mount();
     pickFile(pdf());
     expect(
-      await screen.findByText(
-        "This PDF has no readable text. Scanned PDFs need OCR.",
-      ),
+      await screen.findByText("This file isn't a valid PDF."),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Scanned PDFs need OCR/)).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText("Text read from the PDF"),
     ).not.toBeInTheDocument();
@@ -434,7 +434,7 @@ describe("NewJobPosting", () => {
     );
     expect(
       await screen.findByText(
-        "required voice must be an active voice profile Your draft is still here.",
+        "We couldn't save the posting. Your draft is still here.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -588,7 +588,7 @@ it(
       screen.getByRole("button", { name: "Confirm & generate questions" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "LLM unavailable",
+      "We couldn't generate questions. Try again.",
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Retry generating questions" }),
@@ -658,3 +658,32 @@ it(
   },
   LONG_FLOW_MS,
 );
+
+describe("NewJobPosting in Vietnamese", () => {
+  it("shows the screen, local file errors and API errors in Vietnamese", async () => {
+    mocks.post.mockRejectedValue(failure(400, "INVALID_PDF", "bad pdf"));
+    mount("vi");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Tin tuyển dụng mới",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Tiến trình tin tuyển dụng" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("form", { name: "Tạo tin tuyển dụng" }),
+    ).toBeInTheDocument();
+
+    pickFile(new File(["hello"], "jd.txt", { type: "text/plain" }));
+    expect(
+      await screen.findByText("Hãy chọn một tệp PDF."),
+    ).toBeInTheDocument();
+    pickFile(pdf());
+    expect(
+      await screen.findByText("Tệp này không phải PDF hợp lệ."),
+    ).toBeInTheDocument();
+  });
+});

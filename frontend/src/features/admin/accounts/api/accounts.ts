@@ -122,10 +122,12 @@ export async function updateAccountLock(action: AccountAction) {
 }
 
 // A client error is shown by its stable API code in the active language; the server's own text
-// never reaches the screen.
-export function getAccountActionError(error: unknown, t: ErrorTranslator) {
-  const fallback =
-    "We couldn't confirm the change. Please refresh before trying again.";
+// never reaches the screen. `fallback` is the screen's translated copy for any other failure.
+export function getAccountActionError(
+  error: unknown,
+  t: ErrorTranslator,
+  fallback: string,
+) {
   return isAxiosError(error) && error.response && error.response.status < 500
     ? apiErrorMessage(t, error, fallback)
     : fallback;

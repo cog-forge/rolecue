@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
+import { createTranslator } from "next-intl";
+import { messagesFor } from "@tests/helpers/intl";
+import type { AppLocale } from "@/lib/i18n/config";
 import {
+  createRejectFormSchema,
   postingPageEnvelopeSchema,
-  rejectFormSchema,
   reviewPostingEnvelopeSchema,
 } from "@/features/admin/moderation/schemas/moderation-schema";
+
+const rejectSchema = (locale: AppLocale = "en") =>
+  createRejectFormSchema(
+    createTranslator({
+      locale,
+      messages: messagesFor(locale),
+      namespace: "admin.moderation.validation",
+    }),
+  );
 
 const recruiter = {
   id: "22222222-2222-4222-8222-222222222222",
@@ -120,7 +132,10 @@ describe("moderation wire schemas", () => {
 
 describe("reject form", () => {
   const ok = (reason: string) =>
-    rejectFormSchema.safeParse({ reject_reason: reason }).success;
+    rejectSchema().safeParse({ reject_reason: reason }).success;
+  const messageFor = (reason: string, locale: AppLocale) =>
+    rejectSchema(locale).safeParse({ reject_reason: reason }).error?.issues[0]
+      ?.message;
 
   it("requires a non-blank reason", () => {
     expect(ok("")).toBe(false);
@@ -136,5 +151,29 @@ describe("reject form", () => {
 
   it("rejects NUL characters", () => {
     expect(ok("bad\u0000reason")).toBe(false);
+  });
+
+  it("explains each failure in English", () => {
+    expect(messageFor("  ", "en")).toBe(
+      "Tell the recruiter why this posting is rejected.",
+    );
+    expect(messageFor("a".repeat(1001), "en")).toBe(
+      "Keep the reason to 1,000 characters or fewer.",
+    );
+    expect(messageFor("bad\u0000reason", "en")).toBe(
+      "Remove the unsupported characters from the reason.",
+    );
+  });
+
+  it("explains each failure in Vietnamese with the locale's number format", () => {
+    expect(messageFor("  ", "vi")).toBe(
+      "Hãy cho nhà tuyển dụng biết vì sao tin tuyển dụng này bị từ chối.",
+    );
+    expect(messageFor("a".repeat(1001), "vi")).toBe(
+      "Lý do tối đa 1.000 ký tự.",
+    );
+    expect(messageFor("bad\u0000reason", "vi")).toBe(
+      "Hãy xóa các ký tự không được hỗ trợ khỏi lý do.",
+    );
   });
 });
