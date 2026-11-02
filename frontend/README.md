@@ -12,7 +12,7 @@ cp .env.example .env
 bun run dev
 ```
 
-Configure `NEXT_PUBLIC_API_BASE_URL` and the non-secret `AUTH_SOCIAL_PROVIDERS` display allowlist. Use `make -C api dev` for PostgreSQL, Caddy and Go, and `cd auth && bun run dev` for auth. `bun run dev` starts Next on port 3002; open `http://localhost:3000` through Caddy. Provider, signing, mail and database secrets belong in `auth/.env`, never Next.
+Configure `NEXT_PUBLIC_API_BASE_URL` and the non-secret `AUTH_SOCIAL_PROVIDERS` display allowlist. Run `make dev` from the repository root to start PostgreSQL, Go, auth, Next on port 3002 and Caddy in Docker; open `http://localhost:3000` through Caddy. `bun run dev` alone starts Next on port 3002 without auth or Caddy. Provider, signing, mail and database secrets belong in `auth/.env`, never Next.
 
 Next reads `frontend/.env`; Go reads the root `.env`; Bun auth reads `auth/.env`. Existing `.env.local` takes precedence in Next. Keep one local source consistently and never commit secrets. Public `NEXT_PUBLIC_*` values are embedded at build time.
 

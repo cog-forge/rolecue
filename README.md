@@ -3,8 +3,10 @@
 Go API (`api/`) and Next.js frontend (`frontend/`). See
 [frontend setup](frontend/README.md) and [auth setup](auth/README.md) for credentials and local services.
 
-Dev: `make -C api dev` runs PostgreSQL, Caddy, migrations and Go; run `cd auth && bun run dev`
-(auth :3001) and `cd frontend && bun run dev` (Next :3002) in other terminals. Open `http://localhost:3000` through Caddy (routing in root `Caddyfile`).
+Dev: copy `.env.example` to `.env` and `auth/.env.example` to `auth/.env`, then run `make dev` from the
+repository root. It starts PostgreSQL, migrations, auth (:3001), Go with Air (:8080), Next (:3002) and Caddy in
+Docker; open `http://localhost:3000` through Caddy (routing in `.caddy/Caddyfile.local`). `make dev-api` starts
+only Go and its dependencies; `make dev-down` stops the stack and keeps volumes.
 
 ## Development checks
 

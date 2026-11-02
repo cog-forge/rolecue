@@ -5,20 +5,166 @@ services:
     image: postgres:18.6
     container_name: rolecue-postgres
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     environment:
       PGDATA: /var/lib/postgresql/18/docker
-      POSTGRES_DB: ${DB_DATABASE}
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE:?Set DB_DATABASE in .env}
+      POSTGRES_USER: ${DB_USERNAME:?Set DB_USERNAME in .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes:
       - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  migrate:
+    image: migrate/migrate:v4.19.0
+    container_name: rolecue-migrate
+    command:
+      - -path
+      - /migrations
+      - -database
+      - postgres://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_DATABASE}?sslmode=disable
+      - up
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../api/migrations:/migrations:ro
+
+  auth:
+    image: rolecue-auth-dev:local
+    container_name: rolecue-auth
+    build:
+      context: ../auth
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["bun install --frozen-lockfile --ignore-scripts && exec bun run dev"]
+    env_file:
+      - ../auth/.env
+    environment:
+      NODE_ENV: development
+      HOME: /tmp
+      HOST: 0.0.0.0
+      PORT: 3001
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:3000}
+      BETTER_AUTH_DATABASE_URL: postgres://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_DATABASE}?sslmode=disable
+      BETTER_AUTH_COOKIE_DOMAIN: ""
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ../auth:/app
+      - auth-node-modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "const r=await fetch('http://127.0.0.1:3001/readyz');process.exit(r.ok?0:1)"
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+  api:
+    image: rolecue-api-dev:local
+    container_name: rolecue-api
+    build:
+      context: ../api
+      dockerfile: Dockerfile.dev
+    working_dir: /workspace
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    command: ["sh", "-c", "go mod download && air -c .air.toml"]
+    env_file:
+      - ../.env
+    environment:
+      GOCACHE: /tmp/go-build-cache
+      DATABASE_URL: postgres://${DB_USERNAME}:${DB_PASSWORD}@postgres:5432/${DB_DATABASE}?sslmode=disable
+      AUTH_UPSTREAM_URL: http://auth:3001
+      AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:3000}
+      AUTH_SECURE_COOKIES: "false"
+      BETTER_AUTH_COOKIE_DOMAIN: ""
+      PAYOS_CLIENT_ID: ${PAYOS_CLIENT_ID:-local-development}
+      PAYOS_API_KEY: ${PAYOS_API_KEY:-local-development}
+      PAYOS_CHECKSUM_KEY: ${PAYOS_CHECKSUM_KEY:-local-development}
+      LLM_API_KEY: ${LLM_API_KEY:-local-development}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-local-development}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-local-development}
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+    ports:
+      - "127.0.0.1:${SERVER_PORT:-8080}:8080"
+    volumes:
+      - ../api:/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      auth:
+        condition: service_healthy
+
+  frontend:
+    image: rolecue-frontend-dev:local
+    container_name: rolecue-frontend
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    working_dir: /app
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["bun install --frozen-lockfile --ignore-scripts && exec bun run dev:container"]
+    environment:
+      NODE_ENV: development
+      HOME: /tmp
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
+      NEXT_PUBLIC_AVATURN_PROJECT_URL: ${NEXT_PUBLIC_AVATURN_PROJECT_URL:-https://rolecue.avaturn.dev}
+      AUTH_SOCIAL_PROVIDERS: ${AUTH_SOCIAL_PROVIDERS:-}
+      HOSTNAME: 0.0.0.0
+      PORT: 3002
+    volumes:
+      - ../frontend:/app
+      - frontend-node-modules:/app/node_modules
+    tmpfs:
+      - /app/.next:mode=1777
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "const r=await fetch('http://127.0.0.1:3002');process.exit(r.ok?0:1)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   caddy:
     image: caddy:2.10.2-alpine
-    network_mode: host
+    container_name: rolecue-caddy
+    ports:
+      - "127.0.0.1:3000:3000"
     volumes:
-      - ../Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../.caddy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+    depends_on:
+      auth:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:3000/_dev/health]
       interval: 5s
@@ -27,3 +173,5 @@ services:
 
 volumes:
   postgres-data:
+  auth-node-modules:
+  frontend-node-modules:
