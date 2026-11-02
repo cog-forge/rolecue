@@ -278,7 +278,124 @@
     "openHistory": "Mở lịch sử phỏng vấn",
     "errorTitle": "Không thể tải báo cáo này",
     "errorText": "Vui lòng thử lại sau ít phút.",
-    "retry": "Thử lại"
+    "retry": "Thử lại",
+    "autoRefresh": "Trang này sẽ tự cập nhật.",
+    "autoRefreshStopped": "Vẫn đang đánh giá. Hãy kiểm tra lại sau ít phút."
+  },
+  "interviewRoom": {
+    "label": "Phòng phỏng vấn",
+    "stage": "Sân khấu phỏng vấn",
+    "type": {
+      "practice": "Phòng luyện tập",
+      "recruitment": "Phòng tuyển dụng",
+      "unknown": "Phỏng vấn giọng nói"
+    },
+    "preview": "Xem trước",
+    "leave": "Rời phòng",
+    "progress": "Câu {position}/{count}",
+    "detailsError": "Không tải được thông tin buổi phỏng vấn. Người phỏng vấn hiện không khả dụng.",
+    "invalidLink": "Liên kết phòng phỏng vấn này không hợp lệ.",
+    "retryInterviewer": "Tải lại người phỏng vấn",
+    "status": {
+      "connecting": "Đang kết nối với người phỏng vấn…",
+      "reconnecting": "Mất kết nối. Đang kết nối lại…",
+      "loading": "Đang chuẩn bị câu hỏi…",
+      "transitioning": "Đang chuẩn bị câu hỏi tiếp theo…",
+      "pausedTitle": "Buổi phỏng vấn đang tạm dừng",
+      "pausedText": "Buổi phỏng vấn đang tạm dừng. Khi bạn quay lại, phỏng vấn sẽ tiếp tục từ đúng câu hỏi này.",
+      "completedTitle": "Đã hoàn thành buổi phỏng vấn",
+      "completedText": "Đang mở báo cáo của bạn…",
+      "viewReport": "Xem báo cáo"
+    },
+    "end": {
+      "supersededTitle": "Buổi phỏng vấn đang tiếp tục ở cửa sổ khác",
+      "supersededText": "Mỗi lúc chỉ một cửa sổ được chạy buổi phỏng vấn. Hãy đóng cửa sổ kia, hoặc tiếp tục tại đây.",
+      "continueHere": "Tiếp tục tại đây",
+      "notEligibleTitle": "Buổi phỏng vấn này không còn nhận câu trả lời",
+      "notEligibleText": "Thời hạn phỏng vấn của đơn ứng tuyển này đã kết thúc.",
+      "deniedTitle": "Bạn không thể mở buổi phỏng vấn này",
+      "deniedText": "Hãy đăng nhập bằng tài khoản đã bắt đầu buổi phỏng vấn.",
+      "notFoundTitle": "Không tìm thấy buổi phỏng vấn này",
+      "notFoundText": "Có thể buổi phỏng vấn thuộc tài khoản khác. Hãy mở lại từ lịch sử phỏng vấn.",
+      "protocolTitle": "Kết nối phỏng vấn gặp lỗi",
+      "protocolText": "Hãy tải lại trang để thử lại. Các câu trả lời đã lưu vẫn được giữ nguyên.",
+      "gaveUpTitle": "Không thể kết nối lại",
+      "gaveUpText": "Hãy kiểm tra kết nối mạng rồi thử lại. Các câu trả lời đã lưu vẫn được giữ nguyên.",
+      "retry": "Thử lại",
+      "history": "Về lịch sử phỏng vấn"
+    },
+    "playback": {
+      "blocked": "Trình duyệt đã chặn âm thanh của người phỏng vấn.",
+      "play": "Phát câu hỏi"
+    },
+    "caption": "Câu hỏi của người phỏng vấn",
+    "answer": {
+      "yourTurn": "Đến lượt bạn trả lời",
+      "startVoice": "Trả lời bằng giọng nói",
+      "done": "Trả lời xong",
+      "recording": "Đang ghi âm câu trả lời",
+      "timeLeft": "Còn {time}",
+      "timerLabel": "Thời gian trả lời còn lại",
+      "typeInstead": "Nhập câu trả lời",
+      "textLabel": "Câu trả lời của bạn",
+      "textPlaceholder": "Nhập câu trả lời…",
+      "textHint": "{count}/{max} ký tự",
+      "send": "Gửi câu trả lời",
+      "sending": "Đang gửi câu trả lời…",
+      "held": "Câu trả lời sẽ được gửi khi có kết nối trở lại.",
+      "processing": "Đang xử lý câu trả lời…",
+      "resend": "Gửi lại",
+      "timeLimit": "Đã hết giờ. Câu trả lời của bạn đã được gửi.",
+      "recorderUnsupported": "Trình duyệt này không ghi âm được. Hãy nhập câu trả lời.",
+      "recorderFailed": "Ghi âm bị dừng đột ngột. Hãy thử lại, hoặc nhập câu trả lời.",
+      "micNeeded": "Hãy bật micro để trả lời bằng giọng nói, hoặc nhập câu trả lời."
+    },
+    "issue": {
+      "STT_NO_SPEECH": "Chưa nghe được giọng nói của bạn. Hãy trả lời lại.",
+      "STT_FAILED": "Không chuyển được câu trả lời thành văn bản. Hãy trả lời lại.",
+      "ANSWER_TOO_LONG": "Câu trả lời dài quá 3 phút. Hãy trả lời lại ngắn gọn hơn.",
+      "AUDIO": "Không dùng được bản ghi âm này. Hãy ghi âm lại câu trả lời.",
+      "VALIDATION_ERROR": "Câu trả lời đang trống hoặc quá dài. Hãy thử lại.",
+      "INTERNAL_ERROR": "Chưa lưu được câu trả lời. Hãy gửi lại.",
+      "generic": "Câu trả lời chưa được nhận. Hãy trả lời lại."
+    },
+    "transcript": {
+      "title": "Bản ghi trực tiếp",
+      "subtitle": "Câu hỏi và câu trả lời của bạn",
+      "subtitleRecruitment": "Câu hỏi của người phỏng vấn",
+      "expand": "Mở rộng bản ghi",
+      "reduce": "Thu gọn bản ghi",
+      "you": "Bạn",
+      "interviewer": "Người phỏng vấn",
+      "transcribing": "Đang chuyển thành văn bản…",
+      "empty": "Câu hỏi và câu trả lời của bạn sẽ hiện ở đây trong suốt buổi phỏng vấn.",
+      "emptyRecruitment": "Câu hỏi của người phỏng vấn sẽ hiện ở đây. Câu trả lời trong phỏng vấn tuyển dụng không được hiển thị cho bạn.",
+      "footer": "Câu trả lời hiển thị đúng như bản chuyển văn bản hoặc nội dung bạn đã nhập.",
+      "footerRecruitment": "Câu trả lời của bạn chỉ được chia sẻ với nhà tuyển dụng."
+    },
+    "controls": {
+      "toolbar": "Điều khiển phỏng vấn",
+      "showTranscript": "Hiện bản ghi",
+      "hideTranscript": "Ẩn bản ghi",
+      "micRequesting": "Đang xin quyền dùng micro",
+      "micUnmute": "Bật tiếng micro",
+      "micMute": "Tắt tiếng micro",
+      "micRetry": "Thử lại micro",
+      "micEnable": "Bật micro",
+      "cameraOff": "Tắt camera",
+      "cameraCancel": "Huỷ yêu cầu camera",
+      "cameraWaiting": "Đang chờ quyền dùng camera",
+      "cameraRetry": "Thử lại camera",
+      "cameraOn": "Bật camera",
+      "micInterrupted": "Tín hiệu micro bị gián đoạn. Hãy kiểm tra phần Cài đặt âm thanh.",
+      "micStatus": {
+        "allow": "Cho phép micro",
+        "error": "Lỗi micro",
+        "muted": "Đã tắt tiếng",
+        "on": "Micro bật",
+        "off": "Micro tắt"
+      }
+    }
   },
   "avatars": {
     "inventory": {

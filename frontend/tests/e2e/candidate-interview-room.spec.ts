@@ -19,13 +19,14 @@ test.use({
   },
 });
 
-test("voice room preview reads the selected avatar context without the text interview flow", async ({
+test("voice room reads the selected avatar context and runs over the live socket, not the REST turn flow", async ({
   page,
 }) => {
   const calls = await mockRoomPreview(page, { completed: true });
   await page.goto(room);
   await expect(page.getByText("Practice room")).toBeVisible();
-  await expect(page.getByText("Preview", { exact: true })).toBeVisible();
+  await expect(page.getByText("Question 1 of 1")).toBeVisible();
+  await expect(page.getByText("Preview", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("textbox")).toHaveCount(0);
   await expect(page.getByText("Old REST question")).toHaveCount(0);
   await expect(page.getByText("Old answer")).toHaveCount(0);
@@ -38,7 +39,9 @@ test("voice room preview reads the selected avatar context without the text inte
     page.getByRole("button", { name: "Enable microphone" }),
   ).toBeVisible();
   await expect(
-    page.getByText("Live captions are unavailable in this preview."),
+    page
+      .getByLabel("Live transcript")
+      .getByText("Walk me through a recent project."),
   ).toBeVisible();
   await page.getByRole("button", { name: "Hide transcript" }).click();
   await page.getByRole("link", { name: "Leave", exact: true }).click();
@@ -324,23 +327,19 @@ test("generated backgrounds are selectable from the dock without a tool rail or 
   await expect(page.getByRole("textbox")).toHaveCount(0);
 });
 
-test("scripted avatar performance cycles states and resets on room remount", async ({
+test("avatar performance follows the server state and resumes from it after a reload", async ({
   page,
 }) => {
-  await page.clock.install();
   await mockRoomPreview(page);
   await page.goto(room);
   const stage = page.getByRole("region", {
     name: "Interview room",
     exact: true,
   });
-  await expect(stage).toHaveAttribute("data-performance-state", "speaking");
-  await page.clock.fastForward(5000);
   await expect(stage).toHaveAttribute("data-performance-state", "listening");
-  await page.clock.fastForward(5000);
-  await expect(stage).toHaveAttribute("data-performance-state", "processing");
+  await expect(page.getByText("Your turn to answer")).toBeVisible();
   await page.reload();
-  await expect(stage).toHaveAttribute("data-performance-state", "speaking");
+  await expect(stage).toHaveAttribute("data-performance-state", "listening");
   await expect(
     page.getByRole("button", { name: "Enable microphone" }),
   ).toBeVisible();

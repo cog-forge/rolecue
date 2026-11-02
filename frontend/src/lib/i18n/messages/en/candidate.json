@@ -278,7 +278,124 @@
     "openHistory": "Open interview history",
     "errorTitle": "We couldn't load this report",
     "errorText": "Please try again in a moment.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "autoRefresh": "We'll update this page automatically.",
+    "autoRefreshStopped": "Still evaluating. Check again in a moment."
+  },
+  "interviewRoom": {
+    "label": "Interview room",
+    "stage": "Interview stage",
+    "type": {
+      "practice": "Practice room",
+      "recruitment": "Recruitment room",
+      "unknown": "Voice interview"
+    },
+    "preview": "Preview",
+    "leave": "Leave",
+    "progress": "Question {position} of {count}",
+    "detailsError": "Unable to load interview details. Your interviewer is unavailable.",
+    "invalidLink": "This interview room link is invalid.",
+    "retryInterviewer": "Retry interviewer",
+    "status": {
+      "connecting": "Connecting to your interviewer…",
+      "reconnecting": "Connection lost. Reconnecting…",
+      "loading": "Preparing the question…",
+      "transitioning": "Preparing the next question…",
+      "pausedTitle": "Interview paused",
+      "pausedText": "Your interview is paused. It continues from the same question when you return.",
+      "completedTitle": "Interview complete",
+      "completedText": "Opening your report…",
+      "viewReport": "View report"
+    },
+    "end": {
+      "supersededTitle": "This interview continues in another window",
+      "supersededText": "An interview runs in one window at a time. Close the other one, or continue here.",
+      "continueHere": "Continue here",
+      "notEligibleTitle": "This interview no longer accepts answers",
+      "notEligibleText": "The interview window for this application has closed.",
+      "deniedTitle": "You can't open this interview",
+      "deniedText": "Sign in with the account that started it.",
+      "notFoundTitle": "We couldn't find this interview",
+      "notFoundText": "It may belong to another account. Open it again from your interview history.",
+      "protocolTitle": "The interview connection failed",
+      "protocolText": "Reload the page to try again. Your saved answers are kept.",
+      "gaveUpTitle": "We couldn't reconnect",
+      "gaveUpText": "Check your connection, then try again. Your saved answers are kept.",
+      "retry": "Try again",
+      "history": "Back to interview history"
+    },
+    "playback": {
+      "blocked": "Your browser paused the interviewer's audio.",
+      "play": "Play question"
+    },
+    "caption": "Interviewer's question",
+    "answer": {
+      "yourTurn": "Your turn to answer",
+      "startVoice": "Answer by voice",
+      "done": "Done answering",
+      "recording": "Recording your answer",
+      "timeLeft": "{time} left",
+      "timerLabel": "Time left to answer",
+      "typeInstead": "Type instead",
+      "textLabel": "Your answer",
+      "textPlaceholder": "Type your answer…",
+      "textHint": "{count} / {max} characters",
+      "send": "Send answer",
+      "sending": "Sending your answer…",
+      "held": "Your answer will be sent when the connection is back.",
+      "processing": "Processing your answer…",
+      "resend": "Send again",
+      "timeLimit": "Time's up. Your answer was sent.",
+      "recorderUnsupported": "This browser can't record audio. Type your answer instead.",
+      "recorderFailed": "Recording stopped unexpectedly. Try again, or type your answer.",
+      "micNeeded": "Turn on your microphone to answer by voice, or type your answer."
+    },
+    "issue": {
+      "STT_NO_SPEECH": "We didn't catch any speech. Please answer again.",
+      "STT_FAILED": "We couldn't transcribe that answer. Please answer again.",
+      "ANSWER_TOO_LONG": "That answer ran over 3 minutes. Please answer again more briefly.",
+      "AUDIO": "We couldn't use that recording. Please record your answer again.",
+      "VALIDATION_ERROR": "Your answer was empty or too long. Please try again.",
+      "INTERNAL_ERROR": "We couldn't save your answer. Send it again.",
+      "generic": "Your answer wasn't accepted. Please answer again."
+    },
+    "transcript": {
+      "title": "Live transcript",
+      "subtitle": "Questions and your answers",
+      "subtitleRecruitment": "The interviewer's questions",
+      "expand": "Expand transcript",
+      "reduce": "Reduce transcript",
+      "you": "You",
+      "interviewer": "Interviewer",
+      "transcribing": "Transcribing…",
+      "empty": "Questions and your answers appear here as the interview goes on.",
+      "emptyRecruitment": "The interviewer's questions appear here. Answers in a recruitment interview are not shown to you.",
+      "footer": "Answers appear as they were transcribed or typed.",
+      "footerRecruitment": "Your answers are shared with the recruiter only."
+    },
+    "controls": {
+      "toolbar": "Interview controls",
+      "showTranscript": "Show transcript",
+      "hideTranscript": "Hide transcript",
+      "micRequesting": "Requesting microphone access",
+      "micUnmute": "Unmute microphone",
+      "micMute": "Mute microphone",
+      "micRetry": "Retry microphone",
+      "micEnable": "Enable microphone",
+      "cameraOff": "Turn camera off",
+      "cameraCancel": "Cancel camera request",
+      "cameraWaiting": "Waiting for camera permission",
+      "cameraRetry": "Retry camera",
+      "cameraOn": "Turn camera on",
+      "micInterrupted": "Your microphone input was interrupted. Check Audio settings.",
+      "micStatus": {
+        "allow": "Allow mic",
+        "error": "Mic error",
+        "muted": "Muted",
+        "on": "Mic on",
+        "off": "Mic off"
+      }
+    }
   },
   "avatars": {
     "inventory": {

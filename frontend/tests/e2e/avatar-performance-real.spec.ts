@@ -54,10 +54,8 @@ test("real team VRM survives performance changes and remount through mock model 
     name: "Interview room",
     exact: true,
   });
+  // The mocked live socket asks one text-only question, so the room listens right away.
   await expect(stage).toHaveAttribute("data-performance-state", "listening", {
-    timeout: 10000,
-  });
-  await expect(stage).toHaveAttribute("data-performance-state", "processing", {
     timeout: 10000,
   });
   expect(downloads).toBe(1);

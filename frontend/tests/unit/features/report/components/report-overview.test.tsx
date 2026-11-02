@@ -1,9 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
-import { ReportOverview } from "@/features/report/components/report-overview";
+import {
+  REPORT_MAX_POLLS,
+  REPORT_POLL_MS,
+  ReportOverview,
+} from "@/features/report/components/report-overview";
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -279,5 +289,75 @@ describe("ReportOverview", () => {
       screen.getByRole("heading", { name: "This link isn't valid" }),
     ).toBeInTheDocument();
     expect(mocks.get).not.toHaveBeenCalled();
+  });
+
+  describe("while evaluation is pending", () => {
+    const pending = envelope(
+      report({
+        status: "pending",
+        overall_score: null,
+        summary: null,
+        breakdown: null,
+        questions: null,
+      }),
+    );
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it("refreshes by itself and stops once the report is completed", async () => {
+      mocks.get
+        .mockResolvedValueOnce(pending)
+        .mockResolvedValueOnce(pending)
+        .mockResolvedValue(envelope(report()));
+      renderReport();
+      expect(
+        await screen.findByText("We'll update this page automatically."),
+      ).toBeInTheDocument();
+      await act(() => vi.advanceTimersByTimeAsync(REPORT_POLL_MS));
+      await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+      await act(() => vi.advanceTimersByTimeAsync(REPORT_POLL_MS));
+      expect(
+        await screen.findByRole("heading", { name: "Overall score" }),
+      ).toBeInTheDocument();
+      await act(() => vi.advanceTimersByTimeAsync(REPORT_POLL_MS * 3));
+      expect(mocks.get).toHaveBeenCalledTimes(3);
+    });
+
+    it("gives up after a bounded number of checks and leaves Check again", async () => {
+      mocks.get.mockResolvedValue(pending);
+      renderReport();
+      await screen.findByText("We'll update this page automatically.");
+      for (let poll = 1; poll < REPORT_MAX_POLLS + 5; poll++)
+        await act(() => vi.advanceTimersByTimeAsync(REPORT_POLL_MS));
+      expect(mocks.get).toHaveBeenCalledTimes(REPORT_MAX_POLLS);
+      expect(
+        await screen.findByText("Still evaluating. Check again in a moment."),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+      await waitFor(() =>
+        expect(mocks.get).toHaveBeenCalledTimes(REPORT_MAX_POLLS + 1),
+      );
+    });
+
+    it("stays bounded when every refresh fails", async () => {
+      mocks.get.mockResolvedValueOnce(pending).mockRejectedValue(failure(500));
+      renderReport();
+      await screen.findByText("We'll update this page automatically.");
+      for (let poll = 1; poll < REPORT_MAX_POLLS + 5; poll++)
+        await act(() => vi.advanceTimersByTimeAsync(REPORT_POLL_MS));
+      expect(mocks.get).toHaveBeenCalledTimes(REPORT_MAX_POLLS);
+    });
+
+    it("does not poll a failed evaluation", async () => {
+      mocks.get.mockResolvedValue(
+        envelope(report({ status: "failed", overall_score: null })),
+      );
+      renderReport();
+      await screen.findByText("Practice interview");
+      await act(() => vi.advanceTimersByTimeAsync(REPORT_POLL_MS * 3));
+      expect(mocks.get).toHaveBeenCalledTimes(1);
+    });
   });
 });

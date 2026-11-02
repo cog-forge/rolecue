@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { ArrowUpRight, RotateCcw } from "lucide-react";
@@ -18,42 +20,73 @@ import type {
   AvatarDirector,
   PerformanceState,
 } from "@/components/avatar-viewer/avatar-director";
+import type { InterviewState } from "../machine/interview-machine";
+import {
+  InterviewerPlaybackProvider,
+  useInterviewerPlayback,
+  useInterviewerPlaybackController,
+  useInterviewerPlaybackStatus,
+} from "../playback/interviewer-playback";
+import { useInterviewSession } from "../session/use-interview-session";
 import { useCamera } from "../video/use-camera";
 import { InterviewerAvatar } from "./interviewer-avatar";
-import { RoomTranscript, type TranscriptEntry } from "./room-transcript";
+import { RoomTranscript } from "./room-transcript";
+import { RoomAnswer } from "./room-answer";
+import { RoomStatus } from "./room-status";
 import { RoomDock } from "./room-controls";
 import { roomGlass } from "./room-control-button";
 import { RoomSelfView } from "./room-self-view";
 import { roomBackgrounds, type RoomBackgroundId } from "./room-backgrounds";
 import type { CameraView } from "./room-audio-settings";
 
+/** Shown after completion so the Candidate sees it before the report opens. */
+const REPORT_REDIRECT_MS = 1500;
+const scripted =
+  process.env.NODE_ENV !== "production" &&
+  process.env.NEXT_PUBLIC_INTERVIEW_TRANSPORT === "scripted";
+
 export function InterviewRoom({
   interviewId,
-  transcriptEntries,
   performance,
   onDirectorReady,
 }: {
   performance?: AvatarPerformance;
   onDirectorReady?: (director: AvatarDirector | null) => void;
   interviewId: string;
-  transcriptEntries?: readonly TranscriptEntry[];
 }) {
   const user = useSessionUser();
   return (
-    <RoomPreview
-      key={`${user.id}:${interviewId}`}
-      userId={user.id}
-      interviewId={interviewId}
-      performance={performance}
-      onDirectorReady={onDirectorReady}
-      transcriptEntries={transcriptEntries}
-    />
+    <InterviewerPlaybackProvider key={`${user.id}:${interviewId}`}>
+      <LiveRoom
+        userId={user.id}
+        interviewId={interviewId}
+        performance={performance}
+        onDirectorReady={onDirectorReady}
+      />
+    </InterviewerPlaybackProvider>
   );
 }
-function RoomPreview({
+
+function performanceState(
+  phase: InterviewState,
+  playing: boolean,
+): PerformanceState {
+  if (playing) return "speaking";
+  switch (phase) {
+    case "LISTENING":
+      return "listening";
+    case "ASSET_LOADING":
+    case "PROCESSING_ANSWER":
+    case "TRANSITIONING":
+      return "processing";
+    default:
+      return "idle";
+  }
+}
+
+function LiveRoom({
   userId,
   interviewId,
-  transcriptEntries,
   performance: suppliedPerformance,
   onDirectorReady,
 }: {
@@ -61,8 +94,9 @@ function RoomPreview({
   onDirectorReady?: (director: AvatarDirector | null) => void;
   userId: string;
   interviewId: string;
-  transcriptEntries?: readonly TranscriptEntry[];
 }) {
+  const t = useTranslations("candidate.interviewRoom");
+  const router = useRouter();
   const validId = z.uuid().safeParse(interviewId).success;
   const details = useQuery({
     queryKey: [...interviewKeys.detail(interviewId), "room-context", userId],
@@ -78,33 +112,37 @@ function RoomPreview({
   const [sceneReady, setSceneReady] = useState(false);
   const camera = useCamera();
   const microphone = useMicrophone();
-  const [previewState, setPreviewState] =
-    useState<PerformanceState>("speaking");
-  // Local preview only. KAN-249 will supply the authoritative performance state via transport.
-  useEffect(() => {
-    if (suppliedPerformance) return;
-    const phases: readonly PerformanceState[] = [
-      "speaking",
-      "listening",
-      "processing",
-    ];
-    let index = 0;
-    const timer = window.setInterval(() => {
-      index = (index + 1) % phases.length;
-      setPreviewState(phases[index]);
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [suppliedPerformance]);
+  const { view, session } = useInterviewSession(interviewId, validId);
+  const playbackController = useInterviewerPlaybackController();
+  const playback = useInterviewerPlayback();
+  const playbackStatus = useInterviewerPlaybackStatus();
   const candidateSpeaking = microphone.snapshot.activity === "speaking";
-  const previewPerformance = useMemo<AvatarPerformance>(
+  const state = performanceState(view.phase, playback.playing);
+  const livePerformance = useMemo<AvatarPerformance>(
     () => ({
-      state: previewState,
+      state,
       candidateSpeaking,
-      emotion: previewState === "speaking" ? { happy: 0.15 } : { relaxed: 0.2 },
+      emotion: state === "speaking" ? { happy: 0.15 } : { relaxed: 0.2 },
+      // KAN-59 merge point: mouth: createInterviewerMouth(playback.audio, playback.turn),
+      // with speech timing from playback.turn (visemes, blend_shapes, words).
+      mouth: undefined,
     }),
-    [previewState, candidateSpeaking],
+    [state, candidateSpeaking],
   );
-  const performance = suppliedPerformance ?? previewPerformance;
+  const performance = suppliedPerformance ?? livePerformance;
+  const completed = view.phase === "COMPLETED";
+  useEffect(() => {
+    if (!completed) return;
+    const timer = window.setTimeout(
+      () => router.replace(routes.reports.detail(interviewId)),
+      REPORT_REDIRECT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [completed, interviewId, router]);
+  const sessionType = view.sessionType ?? details.data?.type ?? null;
+  const showCaption =
+    view.turn !== null &&
+    (view.phase === "INTERVIEWER_SPEAKING" || view.phase === "LISTENING");
   const selectedBackground =
     roomBackgrounds.find((option) => option.id === background) ??
     roomBackgrounds[0];
@@ -112,13 +150,13 @@ function RoomPreview({
   return (
     <TooltipProvider delayDuration={250}>
       <section
-        aria-label="Interview room"
+        aria-label={t("label")}
         data-background={background}
         data-performance-state={performance.state}
         className="fixed inset-0 z-30 isolate overflow-hidden bg-neutral-900 text-white [--panel-translate-y:8px] [--panel-blur:0px] [--panel-open-dur:240ms] [--panel-close-dur:180ms]"
       >
-        <h1 className="sr-only">Interview room</h1>
-        <div aria-label="Interview stage" className="absolute inset-0">
+        <h1 className="sr-only">{t("label")}</h1>
+        <div aria-label={t("stage")} className="absolute inset-0">
           {available ? (
             <InterviewerAvatar
               performance={performance}
@@ -142,16 +180,20 @@ function RoomPreview({
         />
         <header className="absolute top-[max(16px,env(safe-area-inset-top))] right-4 left-4 z-20 flex items-start justify-between gap-3 md:top-6 md:right-6 md:left-6">
           <div className="flex h-10 items-center gap-2 rounded-full border border-white/15 bg-neutral-900/55 px-4 text-xs shadow-lg backdrop-blur-xl">
-            <span>
-              {details.data?.type === "practice"
-                ? "Practice room"
-                : details.data?.type === "recruitment"
-                  ? "Recruitment room"
-                  : "Voice interview"}
-            </span>
-            <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/65">
-              Preview
-            </span>
+            <span>{t(`type.${sessionType ?? "unknown"}`)}</span>
+            {view.position !== null && view.questionCount !== null && (
+              <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/80 tabular-nums">
+                {t("progress", {
+                  position: view.position,
+                  count: view.questionCount,
+                })}
+              </span>
+            )}
+            {scripted && (
+              <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/65">
+                {t("preview")}
+              </span>
+            )}
           </div>
           <Button
             asChild
@@ -159,7 +201,7 @@ function RoomPreview({
             className="h-10 rounded-full border border-white/15 bg-neutral-900/55 px-4 text-xs text-white shadow-lg backdrop-blur-xl hover:bg-neutral-900/80 hover:text-white"
           >
             <Link href={routes.history}>
-              Leave
+              {t("leave")}
               <ArrowUpRight aria-hidden className="size-3.5" />
             </Link>
           </Button>
@@ -169,11 +211,7 @@ function RoomPreview({
             role="alert"
             className={`absolute top-20 left-4 z-30 max-w-sm space-y-3 rounded-2xl p-4 text-sm ${roomGlass}`}
           >
-            <p>
-              {validId
-                ? "Unable to load interview details. Your interviewer is unavailable."
-                : "This interview room link is invalid."}
-            </p>
+            <p>{validId ? t("detailsError") : t("invalidLink")}</p>
             {validId && (
               <Button
                 variant="secondary"
@@ -182,7 +220,7 @@ function RoomPreview({
                 }}
               >
                 <RotateCcw aria-hidden />
-                Retry interviewer
+                {t("retryInterviewer")}
               </Button>
             )}
           </div>
@@ -206,11 +244,44 @@ function RoomPreview({
           className={`t-panel-slide absolute ${expanded ? "top-20" : "top-[40%] max-md:[@media(max-height:740px)]:top-[34%]"} right-3 bottom-[110px] left-3 z-20 flex min-h-0 flex-col overflow-hidden rounded-[26px] text-white [--glass-foreground:#fafafa] md:top-20 md:right-auto md:bottom-32 md:left-6 md:w-[360px] xl:w-[390px] 2xl:w-[420px]`}
         >
           <RoomTranscript
-            entries={transcriptEntries}
+            entries={view.transcript}
+            recruitment={sessionType === "recruitment"}
             expanded={expanded}
             onExpand={() => setExpanded((value) => !value)}
           />
         </LiquidGlass>
+        <div
+          className={`absolute right-3 bottom-[104px] left-3 z-30 flex justify-center md:right-6 md:bottom-32 md:left-6 ${transcriptOpen ? "md:pl-[384px] lg:pr-[280px] xl:pl-[414px] 2xl:pl-[444px]" : "lg:pr-[280px]"}`}
+        >
+          <div className="flex w-full max-w-[520px] flex-col gap-3">
+            {validId && (
+              <RoomStatus
+                view={view}
+                interviewId={interviewId}
+                playback={playbackStatus}
+                onPlay={() => playbackController.resume()}
+                onRetry={() => session.retry()}
+              />
+            )}
+            {showCaption && view.turn && (
+              <figure
+                className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${roomGlass}`}
+              >
+                <figcaption className="sr-only">{t("caption")}</figcaption>
+                <p aria-live="polite" lang="en">
+                  {view.turn.text}
+                </p>
+              </figure>
+            )}
+            {validId && (
+              <RoomAnswer
+                view={view}
+                session={session}
+                microphone={microphone}
+              />
+            )}
+          </div>
+        </div>
         <RoomSelfView
           camera={camera.snapshot}
           hideOnMobile={transcriptOpen && expanded}
