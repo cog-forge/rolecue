@@ -30,6 +30,9 @@ func TestFullPracticeInterviewDrivesEveryStateInOrder(t *testing.T) {
 	if turn.AudioStatus != AudioReady || turn.Audio == nil || turn.Audio.MimeType != "audio/wav" || len(turn.Audio.Data) == 0 || len(turn.Visemes) == 0 {
 		t.Fatalf("turn audio = %s, %d visemes", turn.AudioStatus, len(turn.Visemes))
 	}
+	if len(turn.BlendShapes) == 0 || len(turn.BlendShapes[0].Values) != tts.BlendShapeCount || len(turn.Words) == 0 {
+		t.Fatalf("turn timelines = %d blend-shape frames, %d words", len(turn.BlendShapes), len(turn.Words))
+	}
 
 	// A recording sent in two chunks.
 	c.listen("played-1", 1)

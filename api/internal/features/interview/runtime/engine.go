@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"regexp"
 	"strings"
 	"sync"
@@ -541,8 +542,24 @@ func (c *conn) performTurn(ctx context.Context, d domain.Delivery) InterviewerTu
 	for _, v := range result.Visemes {
 		turn.Visemes = append(turn.Visemes, Viseme{OffsetMs: v.OffsetMs, ID: v.ID})
 	}
-	// KAN-248 adds tts.Result.BlendShapes and Words; map them into turn.BlendShapes and turn.Words here.
+	for _, f := range result.BlendShapes {
+		turn.BlendShapes = append(turn.BlendShapes, BlendShapeFrame{OffsetMs: f.OffsetMs, Values: roundWeights(f.Values)})
+	}
+	for _, w := range result.Words {
+		turn.Words = append(turn.Words, WordTiming{OffsetMs: w.OffsetMs, DurationMs: w.DurationMs, Text: w.Text})
+	}
 	return turn
+}
+
+// roundWeights keeps three decimals of each blend-shape weight. The avatar cannot show finer steps, and a
+// float32 widened to float64 would otherwise print about 17 digits per value in JSON, multiplying the size
+// of a 60 FPS, 55-value timeline several times over.
+func roundWeights(values []float32) []float64 {
+	out := make([]float64, len(values))
+	for i, v := range values {
+		out[i] = math.Round(float64(v)*1000) / 1000
+	}
+	return out
 }
 
 // synthesize speaks one text, through the cache. It reports false on any failure, which the caller turns

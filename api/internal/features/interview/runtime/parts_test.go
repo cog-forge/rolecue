@@ -100,3 +100,13 @@ func TestAudioTypesAndContainers(t *testing.T) {
 		}
 	}
 }
+
+func TestRoundWeightsKeepsThreeDecimals(t *testing.T) {
+	got := roundWeights([]float32{0, 0.12345, 0.9999, 1})
+	want := []float64{0, 0.123, 1, 1}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("roundWeights = %v, want %v", got, want)
+		}
+	}
+}

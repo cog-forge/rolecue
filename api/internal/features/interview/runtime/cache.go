@@ -54,7 +54,7 @@ func (c *synthesisCache) get(voice, text string) (tts.Result, bool) {
 }
 
 func (c *synthesisCache) put(voice, text string, result tts.Result) {
-	if c == nil || len(result.Audio) > maxCachedAudioBytes {
+	if c == nil || resultBytes(result) > maxCachedAudioBytes {
 		return
 	}
 	c.mu.Lock()
@@ -65,12 +65,22 @@ func (c *synthesisCache) put(voice, text string, result tts.Result) {
 		return
 	}
 	c.entries[key] = c.order.PushFront(&cacheEntry{key: key, result: result})
-	c.bytes += len(result.Audio)
+	c.bytes += resultBytes(result)
 	for c.order.Len() > c.limit || c.bytes > maxCachedAudioBytes {
 		oldest := c.order.Back()
 		entry := oldest.Value.(*cacheEntry)
 		c.order.Remove(oldest)
 		delete(c.entries, entry.key)
-		c.bytes -= len(entry.result.Audio)
+		c.bytes -= resultBytes(entry.result)
 	}
+}
+
+// resultBytes estimates the memory one cached result holds: the audio plus its timelines. Blend shapes
+// dominate the timelines (55 float32 weights per 60 FPS frame).
+func resultBytes(r tts.Result) int {
+	n := len(r.Audio) + len(r.Visemes)*16 + len(r.Words)*32
+	for _, f := range r.BlendShapes {
+		n += 8 + len(f.Values)*4
+	}
+	return n
 }

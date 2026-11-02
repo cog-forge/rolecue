@@ -195,7 +195,7 @@ func withCache(entries int) harnessOption {
 
 func newHarness(t *testing.T, sessions *fakeSessions, opts ...harnessOption) *harness {
 	t.Helper()
-	cfg := harnessConfig{synthesizer: tts.NewFake(tts.WithFakeVisemes()), transcriber: NewFakeTranscriber()}
+	cfg := harnessConfig{synthesizer: tts.NewFake(tts.WithFakeVisemes(), tts.WithFakeBlendShapes(), tts.WithFakeWordBoundaries()), transcriber: NewFakeTranscriber()}
 	for _, opt := range opts {
 		opt(&cfg)
 	}

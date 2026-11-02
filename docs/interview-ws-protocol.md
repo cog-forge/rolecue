@@ -154,10 +154,13 @@ same text, because the text is frozen when it is first delivered.
   - `no_voice`: the session has no provider voice and no default is configured. Show `text`.
 - `visemes`: Azure viseme ids with their offsets from the audio start. Empty when the synthesizer gives
   none (the REST adapter); the client then lip-syncs from the audio.
-- `blend_shapes`, `words`: always present, empty until KAN-248 merges. The engine then fills them from
-  `tts.Result`:
-  - `blend_shapes`: `[{ "offset_ms": n, "values": [55 numbers] }]` at 60 FPS;
-  - `words`: `[{ "offset_ms": n, "duration_ms": n, "text": "…" }]`.
+- `blend_shapes`, `words`: always present. They are filled when the API runs the Azure Speech SDK (a build
+  with the `azure_sdk` tag, KAN-248) and empty with the default REST synthesizer or when one call fell back
+  to REST:
+  - `blend_shapes`: `[{ "offset_ms": n, "values": [55 numbers] }]` at 60 FPS, in Azure's ARKit order
+    (`jawOpen` is index 17), each weight rounded to 3 decimals;
+  - `words`: `[{ "offset_ms": n, "duration_ms": n, "text": "…" }]`, without punctuation; show captions from
+    `text`, and use `words` only for timing.
 - `cues`: always present, empty until KAN-250 (emotion and gesture cues).
 - Never sent: the question bank, `core_question_id`, other positions' questions, evaluation data, and
   (for recruitment) any transcript.
