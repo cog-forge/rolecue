@@ -13,19 +13,37 @@ import {
   createVRMAnimationClip,
   type VRMAnimation,
 } from "@pixiv/three-vrm-animation";
+import type { InterviewerTimelines } from "./lipsync/timelines";
+import {
+  planSpeechMotion,
+  sampleSpeechMotion,
+  type SpeechMotionFrame,
+  type SpeechMotionPlan,
+} from "./lipsync/speech-motion";
 
 export type PerformanceState = "idle" | "speaking" | "listening" | "processing";
 export type Emotion = "happy" | "relaxed" | "sad" | "angry" | "surprised";
 export type MouthSample = Readonly<Record<string, number>>;
-/** KAN-59 owns sampling from audio.currentTime, wlipsync or amplitude. No clock here. */
+/**
+ * Sampled once per frame while speaking (lipsync/createInterviewerMouth reads audio.currentTime; no clock
+ * here). Mouth, jaw and tongue channels win over emotion; brow, cheek and nose channels add lightly on top.
+ * Any other name (eyes, blink) is ignored: those belong to the blink and gaze layers.
+ */
 export interface MouthSource {
   sample: () => MouthSample | null;
+}
+/** The turn being spoken; drives subtle head, gaze and brow motion from its word timings. */
+export interface SpeechPerformance {
+  audio: HTMLMediaElement;
+  words: InterviewerTimelines["words"];
+  text: string;
 }
 export interface AvatarPerformance {
   state: PerformanceState;
   candidateSpeaking?: boolean;
   emotion?: Partial<Record<Emotion, number>>;
   mouth?: MouthSource;
+  speech?: SpeechPerformance;
 }
 const emotions: readonly Emotion[] = [
   "happy",
@@ -37,10 +55,18 @@ const emotions: readonly Emotion[] = [
 const vowels = new Set(["aa", "ih", "ou", "ee", "oh"]);
 export const isMouthChannel = (name: string) =>
   vowels.has(name) || /^(viseme_|mouth|jaw|tongue)/.test(name);
+const isAccentChannel = (name: string) => /^(brow|cheek|nose)/.test(name);
+const speechBrow: Readonly<Record<string, number>> = {
+  browInnerUp: 1,
+  browOuterUpLeft: 0.6,
+  browOuterUpRight: 0.6,
+};
+// Reduced motion keeps speech motion but at a fraction of its amplitude.
+const reducedSpeechMotion = 0.3;
 const clamp = (n: number) =>
   Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
 
-/** Random wait → close → open, inspired by Amica autoBlink (MIT); see docs. No timers. */
+/** Random wait → close → open, inspired by Amica autoBlink (MIT); see docs/avatar-lip-sync.md. No timers. */
 export class BlinkScheduler {
   private elapsed = 0;
   private next: number;
@@ -79,6 +105,14 @@ export class AvatarDirector {
   private disposed = false;
   private gestureFading = false;
   private readonly mouthNames: string[];
+  private readonly accentNames: string[];
+  private speechPlan:
+    | {
+        words: SpeechPerformance["words"];
+        text: string;
+        plan: SpeechMotionPlan;
+      }
+    | undefined;
   private readonly upperEmotions = new Map<Emotion, VRMExpression>();
   private readonly emotionWeights = new Map<Emotion, number>();
   private readonly overrides = new Map<
@@ -95,9 +129,9 @@ export class AvatarDirector {
     this.basePose = vrm.humanoid.getNormalizedPose();
     this.previousLookAt = vrm.lookAt?.target;
     if (vrm.lookAt) vrm.lookAt.target = this.gaze;
-    this.mouthNames = Object.keys(
-      vrm.expressionManager?.expressionMap ?? {},
-    ).filter(isMouthChannel);
+    const names = Object.keys(vrm.expressionManager?.expressionMap ?? {});
+    this.mouthNames = names.filter(isMouthChannel);
+    this.accentNames = names.filter(isAccentChannel);
     for (const name of emotions) {
       const expression = vrm.expressionManager?.getExpression(name);
       if (expression) {
@@ -188,6 +222,10 @@ export class AvatarDirector {
     ) => this.vrm.humanoid.getNormalizedBoneNode(name);
     const chest = bone("chest") ?? bone("spine");
     const head = bone("head");
+    const speech =
+      input.state === "speaking"
+        ? this.speechMotion(input.speech, reducedMotion)
+        : null;
     if (!reducedMotion) {
       if (chest) {
         chest.rotation.x += Math.sin(this.time * 1.5) * 0.008;
@@ -196,6 +234,11 @@ export class AvatarDirector {
       if (head && input.state === "listening" && input.candidateSpeaking)
         head.rotation.x += Math.sin(this.time * 2.4) * 0.045;
       if (head && input.state === "processing") head.rotation.y += 0.12;
+    }
+    if (head && speech) {
+      head.rotation.x += speech.pitch;
+      head.rotation.z += speech.roll;
+      head.rotation.y += speech.yaw;
     }
     const manager = this.vrm.expressionManager;
     const sample = input.state === "speaking" ? input.mouth?.sample() : null;
@@ -221,6 +264,14 @@ export class AvatarDirector {
     manager?.setValue("blink", reducedMotion ? 0 : this.blink.update(dt));
     for (const name of this.mouthNames)
       manager?.setValue(name, mouthActive ? clamp(sample[name] ?? 0) : 0);
+    for (const name of this.accentNames)
+      manager?.setValue(
+        name,
+        clamp(
+          (mouthActive ? (sample[name] ?? 0) : 0) +
+            (speech ? speech.brow * (speechBrow[name] ?? 0) : 0),
+        ),
+      );
     if (this.vrm.lookAt) {
       this.gazeTime -= dt;
       if (this.gazeTime <= 0) {
@@ -236,10 +287,34 @@ export class AvatarDirector {
           ? 0.6
           : this.gazeX;
       this.gaze.position.y += reducedMotion ? 0 : this.gazeY;
+      if (speech) {
+        this.gaze.position.x += speech.gazeX;
+        this.gaze.position.y += speech.gazeY;
+      }
       this.gaze.position.z += 3;
       this.gaze.updateMatrixWorld();
     }
     this.vrm.update(dt);
+  }
+  private speechMotion(
+    speech: SpeechPerformance | undefined,
+    reducedMotion: boolean,
+  ): SpeechMotionFrame | null {
+    if (!speech || speech.audio.paused || speech.audio.ended) return null;
+    if (
+      this.speechPlan?.words !== speech.words ||
+      this.speechPlan.text !== speech.text
+    )
+      this.speechPlan = {
+        words: speech.words,
+        text: speech.text,
+        plan: planSpeechMotion(speech.words, speech.text),
+      };
+    return sampleSpeechMotion(
+      this.speechPlan.plan,
+      speech.audio.currentTime * 1000,
+      reducedMotion ? reducedSpeechMotion : 1,
+    );
   }
   dispose() {
     if (this.disposed) return;
@@ -254,6 +329,7 @@ export class AvatarDirector {
       this.vrm.expressionManager?.unregisterExpression(expression);
     this.upperEmotions.clear();
     this.emotionWeights.clear();
+    this.speechPlan = undefined;
     for (const [name, override] of this.overrides) {
       const expression = this.vrm.expressionManager?.getExpression(name);
       if (expression) {

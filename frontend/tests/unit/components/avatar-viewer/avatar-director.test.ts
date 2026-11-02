@@ -12,6 +12,7 @@ import {
   AvatarDirector,
   BlinkScheduler,
 } from "@/components/avatar-viewer/avatar-director";
+import fixture from "@tests/fixtures/interviewer-turn-timelines.json";
 
 function model() {
   const scene = new Group();
@@ -187,5 +188,93 @@ describe("AvatarDirector", () => {
     const remounted = new AvatarDirector(vrm);
     remounted.update(0.05, { state: "idle" });
     remounted.dispose();
+  });
+});
+
+describe("AvatarDirector speech performance", () => {
+  function speakingModel() {
+    const vrm = model();
+    for (const name of [
+      "browInnerUp",
+      "browOuterUpLeft",
+      "cheekSquintLeft",
+      "eyeBlinkLeft",
+    ])
+      vrm.expressionManager!.registerExpression(new VRMExpression(name));
+    return vrm;
+  }
+  function playing(currentTime: number) {
+    const audio = document.createElement("audio");
+    const state = { currentTime, paused: false, ended: false };
+    for (const key of ["currentTime", "paused", "ended"] as const)
+      Object.defineProperty(audio, key, {
+        configurable: true,
+        get: () => state[key],
+      });
+    return {
+      state,
+      speech: { audio, words: fixture.words, text: fixture.text },
+    };
+  }
+  // "CSS-in-JS" is a stressed word; its nod peaks 190 ms after it starts 60 ms early.
+  const nodPeak = (1413 - 60 + 190) / 1000;
+
+  it("layers word-timed head and brow motion over a mouth that keeps precedence", () => {
+    const vrm = speakingModel();
+    const manager = vrm.expressionManager!;
+    const happy = manager.getExpression("happy")!;
+    happy.overrideMouth = "block";
+    const director = new AvatarDirector(vrm);
+    const head = vrm.humanoid.getNormalizedBoneNode("head")!;
+    const { state, speech } = playing(5.1);
+    const mouth = {
+      sample: () => ({
+        jawOpen: 0.5,
+        browInnerUp: 0.1,
+        cheekSquintLeft: 0.05,
+        eyeBlinkLeft: 1,
+      }),
+    };
+    director.update(0.016, {
+      state: "speaking",
+      emotion: { happy: 1 },
+      mouth,
+      speech,
+    });
+    expect(happy.overrideMouth).toBe("none");
+    expect(manager.getValue("happy")).toBe(0);
+    expect(manager.getValue("jawOpen")).toBe(0.5);
+    // Azure's light brow plus the end-of-question lift.
+    expect(manager.getValue("browInnerUp")).toBeCloseTo(0.5);
+    expect(manager.getValue("browOuterUpLeft")).toBeCloseTo(0.24);
+    expect(manager.getValue("cheekSquintLeft")).toBeCloseTo(0.05);
+    // Eye channels belong to the blink layer, whatever the source sends.
+    expect(manager.getValue("eyeBlinkLeft")).toBe(0);
+
+    state.currentTime = nodPeak;
+    director.update(0.016, { state: "speaking", mouth, speech });
+    expect(head.rotation.x).toBeCloseTo(0.045, 3);
+    director.update(0.016, { state: "speaking", mouth, speech }, true);
+    expect(head.rotation.x).toBeCloseTo(0.045 * 0.3, 3);
+
+    state.paused = true;
+    director.update(0.016, { state: "speaking", speech });
+    expect(head.rotation.x).toBeCloseTo(0);
+    expect(manager.getValue("browInnerUp")).toBe(0);
+    expect(manager.getValue("jawOpen")).toBe(0);
+    director.dispose();
+    expect(happy.overrideMouth).toBe("block");
+  });
+  it("performs speech only in the speaking state", () => {
+    const vrm = speakingModel();
+    const director = new AvatarDirector(vrm);
+    const head = vrm.humanoid.getNormalizedBoneNode("head")!;
+    const { speech } = playing(5.1);
+    director.update(0.016, { state: "speaking", speech });
+    expect(vrm.expressionManager!.getValue("browInnerUp")).toBeCloseTo(0.4);
+    director.update(0.016, { state: "listening", speech });
+    expect(vrm.expressionManager!.getValue("browInnerUp")).toBe(0);
+    expect(head.rotation.x).toBeCloseTo(0);
+    director.dispose();
   });
 });

@@ -20,6 +20,7 @@ import type {
   AvatarDirector,
   PerformanceState,
 } from "@/components/avatar-viewer/avatar-director";
+import { useInterviewerSpeech } from "@/components/avatar-viewer/lipsync/use-interviewer-speech";
 import type { InterviewState } from "../machine/interview-machine";
 import {
   InterviewerPlaybackProvider,
@@ -118,16 +119,19 @@ function LiveRoom({
   const playbackStatus = useInterviewerPlaybackStatus();
   const candidateSpeaking = microphone.snapshot.activity === "speaking";
   const state = performanceState(view.phase, playback.playing);
+  // A turn without audio keeps the mouth released instead of flapping on text.
+  const spokenTurn =
+    playback.turn?.audio_status === "ready" ? playback.turn : null;
+  const { mouth, speech } = useInterviewerSpeech(playback.audio, spokenTurn);
   const livePerformance = useMemo<AvatarPerformance>(
     () => ({
       state,
       candidateSpeaking,
       emotion: state === "speaking" ? { happy: 0.15 } : { relaxed: 0.2 },
-      // KAN-59 merge point: mouth: createInterviewerMouth(playback.audio, playback.turn),
-      // with speech timing from playback.turn (visemes, blend_shapes, words).
-      mouth: undefined,
+      mouth,
+      speech,
     }),
-    [state, candidateSpeaking],
+    [state, candidateSpeaking, mouth, speech],
   );
   const performance = suppliedPerformance ?? livePerformance;
   const completed = view.phase === "COMPLETED";

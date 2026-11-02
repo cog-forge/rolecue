@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import type { AvatarPerformance } from "@/components/avatar-viewer/avatar-director";
 import { InterviewRoom } from "@/features/interview/components/interview-room";
 import type { AppLocale } from "@/lib/i18n/config";
 import { IntlWrapper } from "@tests/helpers/intl";
@@ -415,4 +416,47 @@ it("renders room chrome in Vietnamese while the question stays in English", asyn
   expect(await screen.findByText("Đến lượt bạn trả lời")).toBeVisible();
   expect(screen.getByText("Câu 1/3")).toBeVisible();
   expect(screen.getAllByText("Why Go?")[0]).toBeVisible();
+});
+
+it("drives the avatar mouth and speech motion from the turn whose audio is playing", async () => {
+  const play = vi
+    .spyOn(HTMLMediaElement.prototype, "play")
+    .mockResolvedValue(undefined);
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+  vi.stubGlobal(
+    "URL",
+    Object.assign(URL, {
+      createObjectURL: vi.fn(() => "blob:turn-1"),
+      revokeObjectURL: vi.fn(),
+    }),
+  );
+  const lastPerformance = () =>
+    (mocks.viewer.mock.lastCall?.[0] as { performance?: AvatarPerformance })
+      .performance;
+  mount();
+  const socket = await connected();
+  serve(socket, "session.sync", syncData());
+  serve(socket, "interviewer.turn", textTurn(1, { text: "Text only?" }));
+  await waitFor(() => expect(mocks.viewer).toHaveBeenCalled());
+  expect(lastPerformance()?.speech).toBeUndefined();
+  serve(
+    socket,
+    "interviewer.turn",
+    textTurn(2, {
+      text: "Why Go?",
+      audio: { mime_type: "audio/mpeg", data: "SUQz" },
+      audio_status: "ready",
+    }),
+  );
+  await waitFor(() => expect(play).toHaveBeenCalled());
+  const audio = play.mock.contexts.at(-1) as HTMLAudioElement;
+  act(() => audio.onplaying?.(new Event("playing")));
+  await waitFor(() =>
+    expect(lastPerformance()).toMatchObject({
+      state: "speaking",
+      mouth: { sample: expect.any(Function) },
+      speech: { audio, text: "Why Go?", words: [] },
+    }),
+  );
 });
