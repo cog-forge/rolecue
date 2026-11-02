@@ -21,7 +21,10 @@ type CandidateApplication struct {
 	InterviewDeadline *time.Time `json:"interview_deadline"`
 	// CanStartInterview is true only while the Application is interview_eligible and the deadline
 	// has not passed. Start itself is checked again on the server when it exists.
-	CanStartInterview bool `json:"can_start_interview"`
+	CanStartInterview  bool      `json:"can_start_interview"`
+	Blocker            *string   `json:"blocker"`
+	PostingUnavailable bool      `json:"-"`
+	ReadAt             time.Time `json:"-"`
 	// Interview is the score and state of this Application's interview, or null (KAN-114).
 	Interview *CandidateInterview `json:"interview"`
 	CreatedAt time.Time           `json:"created_at"`

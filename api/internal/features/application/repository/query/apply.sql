@@ -47,6 +47,8 @@ RETURNING id, job_posting_id, status::text AS status, created_at;
 -- name: ListCandidateApplications :many
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, u.company_name, jp.location AS job_posting_location,
        a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at,
+       (jp.status NOT IN ('open', 'intake_closed') OR jp.interview_slot IS NULL OR (jp.status = 'intake_closed' AND a.status = 'pending'))::boolean AS posting_unavailable,
+       statement_timestamp()::timestamptz AS read_at,
        i.id AS interview_id, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
@@ -63,6 +65,8 @@ SELECT count(*) FROM public.applications WHERE candidate_id = @candidate_id;
 -- name: GetCandidateApplication :one
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, u.company_name, jp.location AS job_posting_location,
        a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at,
+       (jp.status NOT IN ('open', 'intake_closed') OR jp.interview_slot IS NULL OR (jp.status = 'intake_closed' AND a.status = 'pending'))::boolean AS posting_unavailable,
+       statement_timestamp()::timestamptz AS read_at,
        i.id AS interview_id, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a

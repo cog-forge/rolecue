@@ -2041,7 +2041,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only, your own Applications. Returns the status, the rejection reason, the interview deadline (set on CV approval) and can_start_interview, which is true only while the Application is interview_eligible and the deadline has not passed. Another Candidate's Application is not found.",
+                "description": "Candidate only, your own Applications. Returns the status, the rejection reason, the interview deadline (set on CV approval) and can_start_interview, which is true only while the Application is interview_eligible, the posting is funded and open or intake_closed, and the deadline has not passed. Includes a stable blocker code for ineligible states. Expired interview_eligible rows are presented as rejected even before the expiry worker persists that transition. Another Candidate's Application is not found.",
                 "produces": [
                     "application/json"
                 ],
@@ -2104,6 +2104,59 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/applications/{id}/interviewer": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate-owned, interview-eligible Application before its deadline on a funded open or intake_closed posting. Returns only a GET model_access grant (up to five minutes, bounded by the deadline) and display names. No capacity or coin consumption. Foreign or ineligible requests return 404. Responses must not be cached.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "applications"
+                ],
+                "summary": "Read the locked company interviewer for eligible preflight",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Application ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.CompanyInterviewer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -2599,6 +2652,59 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interviews/{id}/interviewer": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Same eligibility policy as preflight, additionally requires an unfinished recruitment session belonging to the Candidate. Practice, foreign, completed and ineligible sessions return 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Read the company interviewer during your recruitment session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.CompanyInterviewer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -8247,6 +8353,9 @@ const docTemplate = `{
         "domain.CandidateApplication": {
             "type": "object",
             "properties": {
+                "blocker": {
+                    "type": "string"
+                },
                 "can_start_interview": {
                     "description": "CanStartInterview is true only while the Application is interview_eligible and the deadline\nhas not passed. Start itself is checked again on the server when it exists.",
                     "type": "boolean"
@@ -8402,6 +8511,20 @@ const docTemplate = `{
                 },
                 "feature": {
                     "description": "practice_interview, interview_slots, avatar_storage, other",
+                    "type": "string"
+                }
+            }
+        },
+        "domain.CompanyInterviewer": {
+            "type": "object",
+            "properties": {
+                "model_access": {
+                    "$ref": "#/definitions/domain.ModelAccess"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "voice_name": {
                     "type": "string"
                 }
             }
