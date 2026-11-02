@@ -4147,6 +4147,59 @@ paths:
       tags:
       - interviews
   /interviews/{id}/recording:
+    get:
+      description: 'Candidate only, owner of the recruitment interview. Returns only
+        record_status, never the object or a link, so the interview room can show
+        the real upload state after a reload. A practice interview is RECORDING_NOT_ALLOWED.
+        Errors: FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED.'
+      parameters:
+      - description: Interview session ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.RecordingStatus'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read the state of your recruitment recording
+      tags:
+      - interviews
     post:
       consumes:
       - application/json

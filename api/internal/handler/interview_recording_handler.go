@@ -17,6 +17,7 @@ import (
 type InterviewRecordingService interface {
 	GrantUpload(ctx context.Context, candidateID uuid.UUID, role string, interviewID uuid.UUID, input domain.RecordingUploadInput) (domain.RecordingUploadGrant, error)
 	CompleteUpload(ctx context.Context, candidateID uuid.UUID, role string, interviewID uuid.UUID) (domain.RecordingStatus, error)
+	Status(ctx context.Context, candidateID uuid.UUID, role string, interviewID uuid.UUID) (domain.RecordingStatus, error)
 	Recording(ctx context.Context, recruiterID uuid.UUID, role string, jobPostingID, applicationID uuid.UUID) (domain.RecruiterRecording, error)
 	Transcript(ctx context.Context, recruiterID uuid.UUID, role string, jobPostingID, applicationID uuid.UUID) (domain.Transcript, error)
 }
@@ -99,6 +100,34 @@ func (h *InterviewRecordingHandler) CompleteUpload(c *gin.Context) {
 		return
 	}
 	status, err := h.service.CompleteUpload(c.Request.Context(), user.ID, user.Role, id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, status)
+}
+
+// Status godoc
+// @Summary Read the state of your recruitment recording
+// @Description Candidate only, owner of the recruitment interview. Returns only record_status, never the object or a link, so the interview room can show the real upload state after a reload. A practice interview is RECORDING_NOT_ALLOWED. Errors: FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED.
+// @Tags interviews
+// @Produce json
+// @Security SessionCookie
+// @Param id path string true "Interview session ID" format(uuid)
+// @Success 200 {object} response.Envelope{data=domain.RecordingStatus}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /interviews/{id}/recording [get]
+func (h *InterviewRecordingHandler) Status(c *gin.Context) {
+	user, id, ok := interviewTarget(c)
+	if !ok {
+		return
+	}
+	status, err := h.service.Status(c.Request.Context(), user.ID, user.Role, id)
 	if err != nil {
 		response.Error(c, err)
 		return

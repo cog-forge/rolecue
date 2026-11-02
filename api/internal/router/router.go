@@ -213,6 +213,7 @@ func (r *Router) Setup() *gin.Engine {
 	// RequireAuth checks it only for writes and a WebSocket handshake is a GET.
 	interviews.GET("/:id/live", r.interviewHandlers.Live.Live)
 	interviews.GET("/:id/report", r.interviewHandlers.Report.Get)
+	interviews.GET("/:id/recording", r.interviewHandlers.Recording.Status)
 	interviews.POST("/:id/recording", r.interviewHandlers.Recording.CreateUpload)
 	interviews.POST("/:id/recording/complete", r.interviewHandlers.Recording.CompleteUpload)
 

@@ -500,3 +500,39 @@ func TestCompleteUploadPassesRepositoryErrorsThrough(t *testing.T) {
 		t.Fatalf("err = %v, want the repository error", err)
 	}
 }
+
+func TestRecordingStatusReturnsOnlyTheStateToTheCandidate(t *testing.T) {
+	for _, status := range []domain.RecordStatus{domain.RecordNone, domain.RecordUploading, domain.RecordReady, domain.RecordFailed} {
+		t.Run(string(status), func(t *testing.T) {
+			repo := &fakeRecordingRepository{state: recruitmentRecordingState(status, recordingPath(testRecordingKey))}
+			store := &fakeRecordingStore{grantKey: testRecordingKey}
+			svc := newTestRecordingService(t, repo, store)
+			got, err := svc.Status(context.Background(), uuid.New(), "candidate", uuid.New())
+			if err != nil {
+				t.Fatalf("Status() error = %v", err)
+			}
+			if got.RecordStatus != status {
+				t.Fatalf("record_status = %s, want %s", got.RecordStatus, status)
+			}
+			if store.putCalls != 0 || store.getCalls != 0 || len(store.downloadKeys) != 0 || repo.uploadCalls != 0 || repo.resultCalls != 0 {
+				t.Fatal("reading the status must not touch storage or write the recording")
+			}
+		})
+	}
+}
+
+func TestRecordingStatusRefusesPracticeAndOtherRoles(t *testing.T) {
+	repo := &fakeRecordingRepository{state: domain.RecordingState{Type: domain.TypePractice, RecordStatus: domain.RecordNone}}
+	svc := newTestRecordingService(t, repo, &fakeRecordingStore{})
+	_, err := svc.Status(context.Background(), uuid.New(), "candidate", uuid.New())
+	assertCode(t, err, apperror.CodeRecordingNotAllowed)
+	_, err = svc.Status(context.Background(), uuid.New(), "recruiter", uuid.New())
+	assertCode(t, err, apperror.CodeForbidden)
+}
+
+func TestRecordingStatusOfAnotherCandidatesInterviewIsNotFound(t *testing.T) {
+	repo := &fakeRecordingRepository{stateErr: domain.ErrInterviewNotFound}
+	svc := newTestRecordingService(t, repo, &fakeRecordingStore{})
+	_, err := svc.Status(context.Background(), uuid.New(), "candidate", uuid.New())
+	assertCode(t, err, apperror.CodeInterviewNotFound)
+}
