@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tts"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tts/azure"
+	"github.com/cog-forge/rolecue/api/internal/pkg/tts/sdk"
 )
 
 func TestProvideSynthesizer(t *testing.T) {
@@ -34,8 +36,62 @@ func TestProvideSynthesizer(t *testing.T) {
 
 	t.Run("configured", func(t *testing.T) {
 		s := ProvideSynthesizer(&config.Config{TTS: config.TTSConfig{Key: "k", Region: "koreacentral", Timeout: time.Second}}, log)
-		if _, ok := s.(*azure.Client); !ok {
-			t.Fatalf("synthesizer = %T, want *azure.Client", s)
+		switch s.(type) {
+		case *azure.Client, *sdk.Synthesizer:
+		default:
+			t.Fatalf("synthesizer = %T, want an Azure synthesizer", s)
 		}
 	})
+}
+
+func TestProvideSynthesizerEngine(t *testing.T) {
+	cfg := &config.Config{TTS: config.TTSConfig{Key: "k", Region: "koreacentral", Timeout: time.Second}}
+	sdkSynth := tts.NewFake(tts.WithFakeVisemes())
+
+	cases := map[string]struct {
+		err        error
+		wantEngine string
+		check      func(tts.Synthesizer) bool
+	}{
+		"sdk": {
+			wantEngine: "sdk",
+			check:      func(s tts.Synthesizer) bool { return s == tts.Synthesizer(sdkSynth) },
+		},
+		"built without the tag": {
+			err:        sdk.ErrNotBuilt,
+			wantEngine: "rest",
+			check:      func(s tts.Synthesizer) bool { _, ok := s.(*azure.Client); return ok },
+		},
+		"sdk initialization fails": {
+			err:        errors.New("initialize azure speech sdk: SPXERR_RUNTIME_ERROR"),
+			wantEngine: "sdk",
+			check:      func(s tts.Synthesizer) bool { _, ok := s.(tts.Unavailable); return ok },
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			core, logs := observer.New(zap.InfoLevel)
+			var got sdk.Config
+			factory := func(c sdk.Config, _ *logger.Logger) (tts.Synthesizer, error) {
+				got = c
+				if tc.err != nil {
+					return nil, tc.err
+				}
+				return sdkSynth, nil
+			}
+
+			s := provideSynthesizer(cfg, &logger.Logger{Logger: zap.New(core)}, factory)
+
+			if got != (sdk.Config{Key: "k", Region: "koreacentral", Timeout: time.Second}) {
+				t.Fatalf("sdk config = %+v", got)
+			}
+			if !tc.check(s) {
+				t.Fatalf("synthesizer = %T", s)
+			}
+			entries := logs.All()
+			if len(entries) != 1 || entries[0].ContextMap()["engine"] != tc.wantEngine {
+				t.Fatalf("logs = %+v, want one entry with engine %q", entries, tc.wantEngine)
+			}
+		})
+	}
 }
