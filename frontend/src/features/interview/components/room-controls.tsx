@@ -19,6 +19,7 @@ import { RoomAudioSettings, type CameraView } from "./room-audio-settings";
 import type { RoomBackgroundId } from "./room-backgrounds";
 
 export function RoomDock({
+  microphone,
   transcriptOpen,
   onTranscriptToggle,
   camera,
@@ -29,6 +30,7 @@ export function RoomDock({
   sceneReady,
   onReset,
 }: {
+  microphone: ReturnType<typeof useMicrophone>;
   transcriptOpen: boolean;
   onTranscriptToggle: () => void;
   camera: ReturnType<typeof useCamera>;
@@ -39,7 +41,6 @@ export function RoomDock({
   sceneReady: boolean;
   onReset: () => void;
 }) {
-  const microphone = useMicrophone();
   const state = microphone.snapshot;
   const reduced = useReducedMotion();
   const active = state.stream !== null;

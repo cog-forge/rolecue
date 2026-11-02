@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
@@ -12,6 +12,12 @@ import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { interviewKeys } from "../api/keys";
 import { getRoomDetails } from "../api/room-details";
+import { useMicrophone } from "../audio/use-microphone";
+import type {
+  AvatarPerformance,
+  AvatarDirector,
+  PerformanceState,
+} from "@/components/avatar-viewer/avatar-director";
 import { useCamera } from "../video/use-camera";
 import { InterviewerAvatar } from "./interviewer-avatar";
 import { RoomTranscript, type TranscriptEntry } from "./room-transcript";
@@ -24,7 +30,11 @@ import type { CameraView } from "./room-audio-settings";
 export function InterviewRoom({
   interviewId,
   transcriptEntries,
+  performance,
+  onDirectorReady,
 }: {
+  performance?: AvatarPerformance;
+  onDirectorReady?: (director: AvatarDirector | null) => void;
   interviewId: string;
   transcriptEntries?: readonly TranscriptEntry[];
 }) {
@@ -34,6 +44,8 @@ export function InterviewRoom({
       key={`${user.id}:${interviewId}`}
       userId={user.id}
       interviewId={interviewId}
+      performance={performance}
+      onDirectorReady={onDirectorReady}
       transcriptEntries={transcriptEntries}
     />
   );
@@ -42,7 +54,11 @@ function RoomPreview({
   userId,
   interviewId,
   transcriptEntries,
+  performance: suppliedPerformance,
+  onDirectorReady,
 }: {
+  performance?: AvatarPerformance;
+  onDirectorReady?: (director: AvatarDirector | null) => void;
   userId: string;
   interviewId: string;
   transcriptEntries?: readonly TranscriptEntry[];
@@ -61,6 +77,34 @@ function RoomPreview({
   const [reset, setReset] = useState(0);
   const [sceneReady, setSceneReady] = useState(false);
   const camera = useCamera();
+  const microphone = useMicrophone();
+  const [previewState, setPreviewState] =
+    useState<PerformanceState>("speaking");
+  // Local preview only. KAN-249 will supply the authoritative performance state via transport.
+  useEffect(() => {
+    if (suppliedPerformance) return;
+    const phases: readonly PerformanceState[] = [
+      "speaking",
+      "listening",
+      "processing",
+    ];
+    let index = 0;
+    const timer = window.setInterval(() => {
+      index = (index + 1) % phases.length;
+      setPreviewState(phases[index]);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [suppliedPerformance]);
+  const candidateSpeaking = microphone.snapshot.activity === "speaking";
+  const previewPerformance = useMemo<AvatarPerformance>(
+    () => ({
+      state: previewState,
+      candidateSpeaking,
+      emotion: previewState === "speaking" ? { happy: 0.15 } : { relaxed: 0.2 },
+    }),
+    [previewState, candidateSpeaking],
+  );
+  const performance = suppliedPerformance ?? previewPerformance;
   const selectedBackground =
     roomBackgrounds.find((option) => option.id === background) ??
     roomBackgrounds[0];
@@ -70,12 +114,15 @@ function RoomPreview({
       <section
         aria-label="Interview room"
         data-background={background}
+        data-performance-state={performance.state}
         className="fixed inset-0 z-30 isolate overflow-hidden bg-neutral-900 text-white [--panel-translate-y:8px] [--panel-blur:0px] [--panel-open-dur:240ms] [--panel-close-dur:180ms]"
       >
         <h1 className="sr-only">Interview room</h1>
         <div aria-label="Interview stage" className="absolute inset-0">
           {available ? (
             <InterviewerAvatar
+              performance={performance}
+              onDirectorReady={onDirectorReady}
               userId={userId}
               session={details.data}
               atmosphere="warm"
@@ -169,6 +216,7 @@ function RoomPreview({
           hideOnMobile={transcriptOpen && expanded}
         />
         <RoomDock
+          microphone={microphone}
           transcriptOpen={transcriptOpen}
           onTranscriptToggle={() => setTranscriptOpen((value) => !value)}
           camera={camera}

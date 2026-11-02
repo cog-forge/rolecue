@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 import { Box, LoaderCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { AvatarPerformance, AvatarDirector } from "./avatar-director";
 import type { CanvasStatus } from "./avatar-canvas";
 import { StudioBackdrop } from "./studio-backdrop";
 import { isWebGLAvailable } from "./webgl";
@@ -45,6 +46,8 @@ const messages = {
  * recovered automatically, a second one in a row shows the error so it can't loop.
  */
 export function AvatarViewer({
+  performance,
+  onDirectorReady,
   access,
   label,
   onAccessExpired,
@@ -58,6 +61,8 @@ export function AvatarViewer({
   backgroundSrc,
   horizontalOffset = 0,
 }: {
+  performance?: AvatarPerformance;
+  onDirectorReady?: (director: AvatarDirector | null) => void;
   access: ModelAccess | null;
   label: string;
   onAccessExpired: () => void;
@@ -167,6 +172,8 @@ export function AvatarViewer({
             >
               <div role="img" aria-label={label} className="absolute inset-0">
                 <AvatarCanvas
+                  performance={performance}
+                  onDirectorReady={onDirectorReady}
                   access={access}
                   resetSignal={immersive ? viewResetSignal : resetSignal}
                   presentation={presentation}
@@ -243,10 +250,22 @@ function FallbackCard({
             : "bg-card",
         )}
       >
-        <Box
-          className={cn("size-6", !immersive && "text-muted-foreground")}
-          strokeWidth={1.5}
-        />
+        {immersive ? (
+          <span
+            aria-hidden
+            className="flex h-8 items-center gap-1 motion-safe:animate-pulse"
+          >
+            {[8, 16, 26, 16, 8].map((height, index) => (
+              <span
+                key={index}
+                className="w-1 rounded-full bg-current"
+                style={{ height }}
+              />
+            ))}
+          </span>
+        ) : (
+          <Box className="size-6 text-muted-foreground" strokeWidth={1.5} />
+        )}
       </span>
       <div className="space-y-1">
         <p className="text-sm font-medium [overflow-wrap:anywhere]">{label}</p>

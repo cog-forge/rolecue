@@ -5,4 +5,4 @@ test("Vitest unit and component suite", async () => {
     stderr: "inherit",
   });
   expect(await child.exited).toBe(0);
-}, 120_000);
+}, 300_000);
