@@ -3,6 +3,7 @@ package tts
 import (
 	"context"
 	"encoding/binary"
+	"strings"
 	"sync"
 )
 
@@ -18,10 +19,12 @@ const (
 // silent 16 kHz mono WAV whose length depends only on the text length, and applies the same request
 // validation as a real provider. The same request always yields the same bytes.
 type Fake struct {
-	mu      sync.Mutex
-	err     error
-	visemes bool
-	calls   []Request
+	mu          sync.Mutex
+	err         error
+	visemes     bool
+	blendShapes bool
+	words       bool
+	calls       []Request
 }
 
 // FakeOption configures a Fake.
@@ -30,6 +33,12 @@ type FakeOption func(*Fake)
 // WithFakeVisemes makes the fake emit deterministic visemes and report the Visemes capability, to exercise
 // callers that consume timing. Without it the fake mirrors a provider that returns audio only.
 func WithFakeVisemes() FakeOption { return func(f *Fake) { f.visemes = true } }
+
+// WithFakeBlendShapes makes the fake emit blend-shape frames and report the capability.
+func WithFakeBlendShapes() FakeOption { return func(f *Fake) { f.blendShapes = true } }
+
+// WithFakeWordBoundaries makes the fake emit evenly spaced word boundaries and report the capability.
+func WithFakeWordBoundaries() FakeOption { return func(f *Fake) { f.words = true } }
 
 // WithFakeError makes every valid request fail with err, to exercise a caller's fallback path.
 func WithFakeError(err error) FakeOption { return func(f *Fake) { f.err = err } }
@@ -42,7 +51,9 @@ func NewFake(opts ...FakeOption) *Fake {
 	return f
 }
 
-func (f *Fake) Capabilities() Capabilities { return Capabilities{Visemes: f.visemes} }
+func (f *Fake) Capabilities() Capabilities {
+	return Capabilities{Visemes: f.visemes, BlendShapes: f.blendShapes, WordBoundaries: f.words}
+}
 
 // Calls returns the valid requests received so far, oldest first.
 func (f *Fake) Calls() []Request {
@@ -75,6 +86,12 @@ func (f *Fake) Synthesize(ctx context.Context, req Request) (Result, error) {
 	if f.visemes {
 		res.Visemes = fakeVisemes(durationMs)
 	}
+	if f.blendShapes {
+		res.BlendShapes = fakeBlendShapes(durationMs)
+	}
+	if f.words {
+		res.Words = fakeWords(req.Text, durationMs)
+	}
 	return res, nil
 }
 
@@ -85,6 +102,33 @@ func fakeVisemes(durationMs int) []Viseme {
 		out = append(out, Viseme{OffsetMs: at, ID: i%21 + 1})
 	}
 	return append(out, Viseme{OffsetMs: durationMs, ID: 0})
+}
+
+const fakeJawOpen = 17
+
+// fakeBlendShapes opens and closes the jaw every 200 ms.
+func fakeBlendShapes(durationMs int) []BlendShapeFrame {
+	n := durationMs * BlendShapeFPS / 1000
+	out := make([]BlendShapeFrame, 0, n)
+	for i := range n {
+		values := make([]float32, BlendShapeCount)
+		values[fakeJawOpen] = float32(i%12) / 12
+		out = append(out, BlendShapeFrame{OffsetMs: i * 1000 / BlendShapeFPS, Values: values})
+	}
+	return out
+}
+
+func fakeWords(text string, durationMs int) []WordBoundary {
+	fields := strings.Fields(text)
+	if len(fields) == 0 {
+		return nil
+	}
+	each := durationMs / len(fields)
+	out := make([]WordBoundary, len(fields))
+	for i, w := range fields {
+		out[i] = WordBoundary{Text: w, OffsetMs: i * each, DurationMs: each}
+	}
+	return out
 }
 
 // silentWAV builds a 16-bit mono PCM WAV of durationMs of silence.
