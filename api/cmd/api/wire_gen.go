@@ -10,6 +10,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/config"
 	service2 "github.com/cog-forge/rolecue/api/internal/features/application/service"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/email"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
@@ -159,7 +160,15 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	adminInterviewsHandler := provider.ProvideAdminInterviewsHandler(service11)
-	repository13 := provider.ProvideInterviewRepository(pool)
+	repository13 := provider.ProvideAdminOverviewRepository(pool)
+	service12, err := provider.ProvideAdminOverviewService(repository13, service2)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	adminOverviewHandler := provider.ProvideAdminOverviewHandler(service12)
+	repository14 := provider.ProvideInterviewRepository(pool)
 	scorer := provider.ProvideInterviewScorer(config)
 	scoring, err := provider.ProvideInterviewEvaluationService(repository5, scorer)
 	if err != nil {
@@ -167,16 +176,16 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	service12, err := provider.ProvideInterviewService(repository13, config, scoring)
+	service13, err := provider.ProvideInterviewService(repository14, config, scoring)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	interviewHandler := provider.ProvideInterviewHandler(service12)
-	interviewHistoryHandler := provider.ProvideInterviewHistoryHandler(service12)
+	interviewHandler := provider.ProvideInterviewHandler(service13)
+	interviewHistoryHandler := provider.ProvideInterviewHistoryHandler(service13)
 	interviewReportHandler := provider.ProvideInterviewReportHandler(scoring)
-	recordingService, err := provider.ProvideInterviewRecordingService(repository13, store)
+	recordingService, err := provider.ProvideInterviewRecordingService(repository14, store)
 	if err != nil {
 		cleanup2()
 		cleanup()
@@ -184,7 +193,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	}
 	interviewRecordingHandler := provider.ProvideInterviewRecordingHandler(recordingService)
 	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, interviewHandlers)
+	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers)
 	server := provider.ProvideHTTPServer(config, engine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
@@ -200,6 +209,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
+	sender := provider.ProvideEmailSender(config, logger)
+	dispatcher, cleanup4 := provider.ProvideEmailDispatcher(config, sender, logger)
 	application := &Application{
 		Server:      server,
 		Pool:        pool,
@@ -210,8 +221,10 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		Documents:   roleProfileDocumentApplication,
 		Synthesizer: synthesizer,
 		Expiry:      expiryRunner,
+		Email:       dispatcher,
 	}
 	return application, func() {
+		cleanup4()
 		cleanup3()
 		cleanup2()
 		cleanup()
@@ -232,4 +245,6 @@ type Application struct {
 	Synthesizer tts.Synthesizer
 	// Expiry rejects Applications whose interview deadline passed; main starts it.
 	Expiry *service2.ExpiryRunner
+	// Email sends transactional mail asynchronously; its consumers (KAN-219) inject it, and cleanup drains it.
+	Email *email.Dispatcher
 }

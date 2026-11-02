@@ -110,6 +110,7 @@ describe("internal account notification integration", () => {
       "locked",
       expect.objectContaining({ id: candidateId }),
       "Public reason",
+      null,
     );
     const skipped = await request(
       "/admin/unban-user",
@@ -120,6 +121,41 @@ describe("internal account notification integration", () => {
       notification: { status: "not-needed" },
     });
     expect(mail.send).toHaveBeenCalledTimes(1);
+  });
+  it("passes the end of a timed lock to the notice", async () => {
+    const before = Date.now();
+    const response = await request(
+      "/admin/ban-user",
+      { userId: candidateId, banReason: "Cooling off", banExpiresIn: 3600 },
+      internalHeaders(),
+    );
+    expect(response.status).toBe(200);
+    const [kind, , reason, endsAt] = mail.send.mock.calls[0];
+    expect(kind).toBe("locked");
+    expect(reason).toBe("Cooling off");
+    expect(endsAt).toBeInstanceOf(Date);
+    // One hour after the request, give or take the time the request took.
+    expect(endsAt.getTime()).toBeGreaterThanOrEqual(before + 3_600_000 - 1000);
+    expect(endsAt.getTime()).toBeLessThanOrEqual(Date.now() + 3_600_000 + 1000);
+  });
+  it("sends no end for an unlock", async () => {
+    await request(
+      "/admin/ban-user",
+      { userId: candidateId, banReason: "Spam" },
+      { ...internalHeaders(), "X-RoleCue-Account-Notification": "skip" },
+    );
+    await request(
+      "/admin/unban-user",
+      { userId: candidateId },
+      internalHeaders(),
+    );
+    expect(mail.send).toHaveBeenCalledTimes(1);
+    expect(mail.send).toHaveBeenCalledWith(
+      "unlocked",
+      expect.objectContaining({ id: candidateId }),
+      "",
+      null,
+    );
   });
   it("keeps the plugin transition successful when sending mail fails", async () => {
     mail.send.mockRejectedValue(new Error("Provider unavailable"));

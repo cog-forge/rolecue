@@ -1,9 +1,16 @@
-import { AdminSection } from "@/features/admin/components/admin-section";
+import { Suspense } from "react";
+import { AdminOverview } from "@/features/admin/overview/components/admin-overview";
+
 export default function Page() {
   return (
-    <AdminSection
-      title="Admin dashboard"
-      description="Platform operations overview."
-    />
+    <Suspense
+      fallback={
+        <p role="status" className="text-sm text-muted-foreground">
+          Loading admin overview…
+        </p>
+      }
+    >
+      <AdminOverview />
+    </Suspense>
   );
 }
