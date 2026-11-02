@@ -28,10 +28,10 @@ Copy templates only for a fresh checkout. Preserve existing secrets when migrati
 | `frontend/.env`  | Public build-time `NEXT_PUBLIC_API_BASE_URL`; non-secret `AUTH_SOCIAL_PROVIDERS=google,github,facebook` display allowlist matching enabled provider pairs                                                 |
 | root `.env` / Go | Existing business configuration, `AUTH_UPSTREAM_URL`, `AUTH_BASE_URL`, same cookie prefix/domain and Admin secret; `AUTH_SECURE_COOKIES`, `AUTH_SESSION_TIMEOUT`                                          |
 
-| Deployment   | APP_URL / AUTH_BASE_URL       | AUTH_UPSTREAM_URL                     | Cookie configuration                            |
-| ------------ | ----------------------------- | ------------------------------------- | ----------------------------------------------- |
-| Local        | `http://localhost:3000`       | `http://auth:3001` (set by Compose)   | prefix `rolecue`, empty domain, Go secure=false |
-| Production   | `https://rolecue.dorriss.com` | `http://auth:3001` on private network | domain `dorriss.com`, Go secure=true            |
+| Deployment | APP_URL / AUTH_BASE_URL       | AUTH_UPSTREAM_URL                     | Cookie configuration                            |
+| ---------- | ----------------------------- | ------------------------------------- | ----------------------------------------------- |
+| Local      | `http://localhost:3000`       | `http://auth:3001` (set by Compose)   | prefix `rolecue`, empty domain, Go secure=false |
+| Production | `https://rolecue.dorriss.com` | `http://auth:3001` on private network | domain `dorriss.com`, Go secure=true            |
 
 `APP_URL` is the frontend origin for account email links; browser verification/reset and OAuth callback targets remain public URLs. `AUTH_BASE_URL` is the public auth origin, never `auth:3001`. Both public origins are exact trusted origins. Keep them equal for the preserved same-origin `/api/auth/*` topology. Provider console redirect URIs remain `${AUTH_BASE_URL}/api/auth/callback/google`, `/github`, `/facebook`. No redirect URI change is needed when the public origin stays unchanged.
 
