@@ -323,3 +323,25 @@ test("generated backgrounds are selectable from the dock without a tool rail or 
   expect(calls.writes).toEqual([]);
   await expect(page.getByRole("textbox")).toHaveCount(0);
 });
+
+test("scripted avatar performance cycles states and resets on room remount", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await mockRoomPreview(page);
+  await page.goto(room);
+  const stage = page.getByRole("region", {
+    name: "Interview room",
+    exact: true,
+  });
+  await expect(stage).toHaveAttribute("data-performance-state", "speaking");
+  await page.clock.fastForward(5000);
+  await expect(stage).toHaveAttribute("data-performance-state", "listening");
+  await page.clock.fastForward(5000);
+  await expect(stage).toHaveAttribute("data-performance-state", "processing");
+  await page.reload();
+  await expect(stage).toHaveAttribute("data-performance-state", "speaking");
+  await expect(
+    page.getByRole("button", { name: "Enable microphone" }),
+  ).toBeVisible();
+});

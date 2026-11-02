@@ -4,9 +4,15 @@ import { memo, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AvatarViewer } from "@/components/avatar-viewer/avatar-viewer";
 import { avatarKeys, getAvatar } from "@/features/avatar/api/inventory";
+import type {
+  AvatarPerformance,
+  AvatarDirector,
+} from "@/components/avatar-viewer/avatar-director";
 import type { RoomDetails } from "../api/room-details";
 
 export const InterviewerAvatar = memo(function InterviewerAvatar({
+  performance,
+  onDirectorReady,
   userId,
   session,
   cameraView,
@@ -16,6 +22,8 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
   backgroundSrc,
   horizontalOffset,
 }: {
+  performance?: AvatarPerformance;
+  onDirectorReady?: (director: AvatarDirector | null) => void;
   userId: string;
   session: RoomDetails;
   cameraView: "conversation" | "close";
@@ -60,6 +68,8 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
 
   return (
     <AvatarViewer
+      performance={performance}
+      onDirectorReady={onDirectorReady}
       access={fallbackReason ? null : access}
       label={
         detail.data?.name
