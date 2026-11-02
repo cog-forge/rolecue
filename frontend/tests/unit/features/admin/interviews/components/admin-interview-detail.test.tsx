@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import { renderWithIntl } from "@tests/helpers/intl";
+import type { AppLocale } from "@/lib/i18n/config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminInterviewDetail } from "@/features/admin/interviews/components/admin-interview-detail";
 
@@ -58,14 +60,15 @@ function apiError(status: number, code: string) {
   });
 }
 
-function renderDetail(id = interviewId) {
+function renderDetail(id = interviewId, locale: AppLocale = "en") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  return renderWithIntl(
     <QueryClientProvider client={client}>
       <AdminInterviewDetail id={id} />
     </QueryClientProvider>,
+    { locale },
   );
 }
 
@@ -212,5 +215,28 @@ describe("AdminInterviewDetail", () => {
       ),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+  });
+
+  it("renders the labels and values in Vietnamese, leaving stored names as they are", async () => {
+    mocks.detail.mockResolvedValue(detail);
+    renderDetail(interviewId, "vi");
+    await screen.findByText("Mã phỏng vấn", { selector: "dt" });
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Phiên phỏng vấn" }),
+    ).toBeInTheDocument();
+    expect(field("Loại")).toHaveTextContent("Tuyển dụng");
+    expect(field("Tin tuyển dụng")).toHaveTextContent("Backend Engineer");
+    expect(field("Hồ sơ vị trí")).toHaveTextContent("Go backend role");
+    expect(field("Giọng nói")).toHaveTextContent("Không có");
+    expect(field("Báo cáo")).toHaveTextContent("Có sẵn");
+    expect(field("Bản ghi")).toHaveTextContent("Đã ghi âm");
+  });
+
+  it("shows the not-found state in Vietnamese", async () => {
+    mocks.detail.mockRejectedValue(apiError(404, "INTERVIEW_NOT_FOUND"));
+    renderDetail(interviewId, "vi");
+    expect(
+      await screen.findByText("Không tìm thấy phiên phỏng vấn"),
+    ).toBeInTheDocument();
   });
 });

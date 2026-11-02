@@ -13,6 +13,7 @@ import {
   QueryClientProvider,
   QueryObserver,
 } from "@tanstack/react-query";
+import type { AppLocale } from "@/lib/i18n/config";
 import { AccountManagement } from "@/features/admin/accounts/components/account-management";
 
 const mocks = vi.hoisted(() => ({
@@ -169,7 +170,7 @@ async function openAccountAction(name: string, locked = false) {
   );
 }
 
-function mount() {
+function mount(locale: AppLocale = "en") {
   const cache = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -177,6 +178,7 @@ function mount() {
     <QueryClientProvider client={cache}>
       <AccountManagement />
     </QueryClientProvider>,
+    { locale },
   );
   return cache;
 }
@@ -562,5 +564,95 @@ describe("administrator account list", () => {
         }),
       ),
     );
+  });
+});
+
+describe("administrator account list in Vietnamese", () => {
+  it("translates labels, role and lock badges, and formats dates, but not the Admin-typed reason", async () => {
+    mount("vi");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Tài khoản" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Tìm tài khoản")).toBeVisible();
+    const table = await screen.findByRole("table", {
+      name: "Tài khoản trên nền tảng",
+    });
+    expect(await screen.findByText("3 tài khoản")).toBeVisible();
+    expect(within(table).getByText("Ứng viên")).toBeVisible();
+    expect(within(table).getByText("Nhà tuyển dụng")).toBeVisible();
+    expect(within(table).getByText("Quản trị viên")).toBeVisible();
+    expect(within(table).getByText("Đã khóa")).toBeVisible();
+    // The reason is rendered as the Admin typed it; the expiry is formatted in Vietnamese.
+    expect(within(table).getByText("Spam")).toBeVisible();
+    expect(within(table).getByText(/^Đến .*thg 10, 2099/)).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Thao tác cho Alex Candidate" }),
+    ).toBeEnabled();
+  });
+
+  it("shows the lock dialog and its validation errors in Vietnamese", async () => {
+    mount("vi");
+    const button = await screen.findByRole("button", {
+      name: "Thao tác cho Alex Candidate",
+    });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Khóa tài khoản" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Ngăn người dùng này đăng nhập");
+    fireEvent.click(within(dialog).getByRole("button", { name: "24 giờ" }));
+    expect(dialog).toHaveTextContent(
+      "Tài khoản này sẽ bị khóa trong 24 giờ, tính từ lúc bạn xác nhận.",
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Xác nhận khóa" }),
+    );
+    expect(await within(dialog).findAllByRole("alert")).not.toHaveLength(0);
+    expect(dialog).toHaveTextContent("Nhập lý do khóa tài khoản này.");
+    expect(mocks.lock).not.toHaveBeenCalled();
+  });
+
+  it("maps a failed lock to the translated fallback instead of the server message", async () => {
+    mocks.lock.mockResolvedValue({
+      data: null,
+      error: { status: 400, message: "Invalid lock" },
+    });
+    mount("vi");
+    const button = await screen.findByRole("button", {
+      name: "Thao tác cho Alex Candidate",
+    });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Khóa tài khoản" }),
+    );
+    fireEvent.change(screen.getByLabelText("Lý do gửi cho người dùng"), {
+      target: { value: "Abuse" },
+    });
+    fireEvent.click(screen.getByLabelText("Khóa vô thời hạn"));
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận khóa" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Không xác nhận được thay đổi. Vui lòng làm mới trước khi thử lại.",
+    );
+    expect(alert).not.toHaveTextContent("Invalid lock");
+  });
+
+  it("opens the details sheet in Vietnamese", async () => {
+    mount("vi");
+    const button = await screen.findByRole("button", {
+      name: "Thao tác cho Alex Candidate",
+    });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Xem chi tiết" }),
+    );
+    const sheet = await screen.findByRole("dialog");
+    expect(await within(sheet).findByText("Mã tài khoản")).toBeVisible();
+    expect(within(sheet).getByText("Đã xác minh")).toBeVisible();
+    expect(within(sheet).getByText("Hiện không bị khóa")).toBeVisible();
   });
 });

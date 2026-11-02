@@ -1,30 +1,36 @@
 import { z } from "zod";
+import type { useTranslations } from "next-intl";
 
+// `admin.accounts.validation` translator; the form schema is built from it so field errors are
+// already in the active language.
+export type LockValidation = ReturnType<
+  typeof useTranslations<"admin.accounts.validation">
+>;
+
+// `labelKey` names the `admin.accounts.fields.durations.*` entry that shows the preset.
 export const lockDurations = [
-  { value: "3600", label: "1 hour" },
-  { value: "86400", label: "24 hours" },
-  { value: "604800", label: "7 days" },
-  { value: "2592000", label: "30 days" },
+  { value: "3600", labelKey: "hour1" },
+  { value: "86400", labelKey: "hours24" },
+  { value: "604800", labelKey: "days7" },
+  { value: "2592000", labelKey: "days30" },
 ] as const;
 
-const reasonSchema = z
-  .string()
-  .trim()
-  .min(1, "Enter a reason for locking this account.")
-  .max(500, "Use 500 characters or fewer.");
+const MAX_REASON_LENGTH = 500;
+
+// The request contract sent to the API. Its checks guard the payload and are never shown, so they
+// carry no copy; the form schema below owns the messages the Admin reads.
+const requestReasonSchema = z.string().trim().min(1).max(MAX_REASON_LENGTH);
 export const targetRequestSchema = z.object({
   userId: z.uuid().transform((id) => id.toLowerCase()),
 });
 export const banRequestSchema = targetRequestSchema.extend({
-  banReason: reasonSchema,
+  banReason: requestReasonSchema,
   banExpiresIn: z
     .number()
     .int()
     .positive()
-    .refine(
-      (seconds) =>
-        Number.isFinite(new Date(Date.now() + seconds * 1000).getTime()),
-      "Choose a valid lock duration.",
+    .refine((seconds) =>
+      Number.isFinite(new Date(Date.now() + seconds * 1000).getTime()),
     )
     .optional(),
 });
@@ -45,10 +51,14 @@ function localExpiry(value: string) {
   return date.getTime();
 }
 
-export function createLockFormSchema(now = Date.now) {
+export function createLockFormSchema(v: LockValidation, now = Date.now) {
   return z
     .object({
-      reason: reasonSchema,
+      reason: z
+        .string()
+        .trim()
+        .min(1, v("reasonRequired"))
+        .max(MAX_REASON_LENGTH, v("reasonMax")),
       indefinite: z.boolean(),
       duration: z.enum(["", "3600", "86400", "604800", "2592000", "custom"]),
       expiresAt: z.string(),
@@ -59,7 +69,7 @@ export function createLockFormSchema(now = Date.now) {
         ctx.addIssue({
           code: "custom",
           path: ["duration"],
-          message: "Choose a lock duration.",
+          message: v("durationRequired"),
         });
       if (
         values.duration === "custom" &&
@@ -68,7 +78,7 @@ export function createLockFormSchema(now = Date.now) {
         ctx.addIssue({
           code: "custom",
           path: ["expiresAt"],
-          message: "Choose a valid date and time in the future.",
+          message: v("expiryInvalid"),
         });
     });
 }
@@ -78,9 +88,10 @@ export type LockFormValues = z.infer<ReturnType<typeof createLockFormSchema>>;
 export function lockRequest(
   userId: string,
   values: LockFormValues,
+  v: LockValidation,
   now = Date.now(),
 ) {
-  const parsed = createLockFormSchema(() => now).parse(values);
+  const parsed = createLockFormSchema(v, () => now).parse(values);
   return banRequestSchema.parse({
     userId,
     banReason: parsed.reason,

@@ -1,4 +1,6 @@
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,9 +38,13 @@ export function AccountLockDialog({
   onConfirm: (action: AccountAction) => Promise<void>;
   onRestoreFocus: () => void;
 }) {
+  const t = useTranslations("admin.accounts");
+  const tCommon = useTranslations("common");
+  const v = useTranslations("admin.accounts.validation");
+  const schema = useMemo(() => createLockFormSchema(v), [v]);
   const locked = user.banned === true;
   const form = useForm<LockFormValues>({
-    resolver: zodResolver(createLockFormSchema()),
+    resolver: zodResolver(schema),
     defaultValues: {
       reason: "",
       indefinite: false,
@@ -50,11 +56,9 @@ export function AccountLockDialog({
     if (pending || blocked) return;
     let request;
     try {
-      request = lockRequest(user.id, values);
+      request = lockRequest(user.id, values, v);
     } catch {
-      form.setError("expiresAt", {
-        message: "Choose a valid date and time in the future.",
-      });
+      form.setError("expiresAt", { message: v("expiryInvalid") });
       return;
     }
     await onConfirm({ kind: "lock", request });
@@ -82,12 +86,12 @@ export function AccountLockDialog({
       >
         <DialogHeader>
           <DialogTitle>
-            {locked ? "Unlock account" : "Lock account"}
+            {locked ? t("actions.unlock") : t("actions.lock")}
           </DialogTitle>
           <DialogDescription>
             {locked
-              ? "Allow this user to sign in again. Previously revoked sessions will stay invalid. A notification email will be sent after the change."
-              : "Prevent this user from signing in and revoke all of their active sessions. A notification email will be sent after the change."}
+              ? t("dialog.unlockDescription")
+              : t("dialog.lockDescription")}
           </DialogDescription>
         </DialogHeader>
         <div className="min-w-0 rounded-lg border bg-muted/40 p-3">
@@ -98,9 +102,7 @@ export function AccountLockDialog({
         </div>
         <form
           noValidate
-          aria-label={
-            locked ? "Unlock account confirmation" : "Lock account confirmation"
-          }
+          aria-label={locked ? t("dialog.unlockForm") : t("dialog.lockForm")}
           className="space-y-5"
           onSubmit={
             locked
@@ -136,7 +138,7 @@ export function AccountLockDialog({
               disabled={pending}
               onClick={onCancel}
             >
-              Cancel
+              {tCommon("actions.cancel")}
             </Button>
             <Button
               type="submit"
@@ -152,10 +154,10 @@ export function AccountLockDialog({
                 />
               )}
               {pending
-                ? "Updating…"
+                ? t("dialog.updating")
                 : locked
-                  ? "Confirm unlock"
-                  : "Confirm lock"}
+                  ? t("dialog.confirmUnlock")
+                  : t("dialog.confirmLock")}
             </Button>
           </DialogFooter>
         </form>

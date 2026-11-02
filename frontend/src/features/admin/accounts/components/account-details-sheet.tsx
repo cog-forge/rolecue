@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -29,6 +30,7 @@ export function AccountDetailsSheet({
   onAccessError: () => Promise<void>;
 }) {
   const fmt = useFormatters();
+  const t = useTranslations("admin.accounts");
   const viewer = useSessionUser();
   const detail = useQuery({
     queryKey: accountsKeys.detail(viewer.id, id),
@@ -60,29 +62,25 @@ export function AccountDetailsSheet({
         }}
       >
         <SheetHeader className="border-b p-6">
-          <SheetTitle>Account details</SheetTitle>
-          <SheetDescription>
-            Current account information and access status.
-          </SheetDescription>
+          <SheetTitle>{t("details.title")}</SheetTitle>
+          <SheetDescription>{t("details.description")}</SheetDescription>
         </SheetHeader>
         <div className="space-y-6 p-6">
           {detail.isPending && (
             <p role="status" className="text-sm text-muted-foreground">
-              Loading account details…
+              {t("details.loading")}
             </p>
           )}
           {detail.error && (
             <div className="space-y-3" role="alert">
-              <p className="text-sm">
-                Unable to load account details. Please try again.
-              </p>
+              <p className="text-sm">{t("details.loadFailed")}</p>
               <Button
                 variant="outline"
                 className="h-11"
                 disabled={detail.isFetching}
                 onClick={() => void detail.refetch()}
               >
-                Retry details
+                {t("details.retry")}
               </Button>
             </div>
           )}
@@ -109,30 +107,32 @@ export function AccountDetailsSheet({
               </div>
               <dl className="divide-y text-sm">
                 {[
-                  ["Account ID", user.id],
+                  [t("details.accountId"), user.id],
                   [
-                    "Email verification",
+                    t("details.emailVerification"),
                     user.emailVerified === undefined ||
                     user.emailVerified === null
-                      ? "Not available"
+                      ? t("details.notAvailable")
                       : user.emailVerified
-                        ? "Verified"
-                        : "Not verified",
+                        ? t("details.verified")
+                        : t("details.notVerified"),
                   ],
-                  ["Created", accountDate(user.createdAt, fmt)],
+                  [t("details.created"), accountDate(user.createdAt, fmt)],
                   [
-                    "Last updated",
+                    t("details.lastUpdated"),
                     user.updatedAt
                       ? accountDate(user.updatedAt, fmt)
-                      : "Not available",
+                      : t("details.notAvailable"),
                   ],
                   [
-                    "Lock duration",
+                    t("details.lockDuration"),
                     locked
                       ? user.banExpires
-                        ? `Until ${accountDate(user.banExpires, fmt)}`
-                        : "Indefinitely"
-                      : "No current lock",
+                        ? t("lockState.until", {
+                            date: accountDate(user.banExpires, fmt),
+                          })
+                        : t("lockState.indefinitely")
+                      : t("details.noCurrentLock"),
                   ],
                 ].map(([label, value]) => (
                   <div key={label} className="space-y-1 py-4">
@@ -143,25 +143,26 @@ export function AccountDetailsSheet({
               </dl>
               {expired && user.banExpires && (
                 <p className="text-sm text-muted-foreground">
-                  Previous lock expired on {accountDate(user.banExpires, fmt)}.
-                  This account is active; previously revoked sessions remain
-                  invalid.
+                  {t("details.expired", {
+                    date: accountDate(user.banExpires, fmt),
+                  })}
                 </p>
               )}
               {user.banned && (
                 <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
                   <h3 className="text-sm font-medium">
-                    {expired ? "Previous lock reason" : "Recorded lock reason"}
+                    {expired
+                      ? t("details.previousReason")
+                      : t("details.recordedReason")}
                   </h3>
                   <p className="break-words text-sm">
-                    {user.banReason || "No reason recorded"}
+                    {user.banReason || t("lockState.noReason")}
                   </p>
                 </div>
               )}
               {user.role === "admin" && (
                 <p className="text-xs text-muted-foreground">
-                  Administrator accounts are read only and cannot be locked or
-                  unlocked here.
+                  {t("details.adminReadOnly")}
                 </p>
               )}
             </>

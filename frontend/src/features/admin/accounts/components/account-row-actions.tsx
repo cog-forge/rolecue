@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { Eye, LockKeyhole, MoreHorizontal, UnlockKeyhole } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -23,6 +24,7 @@ export function AccountRowActions({
   onAction: (user: AdminAccount, trigger: HTMLButtonElement | null) => void;
   onView: (user: AdminAccount, trigger: HTMLButtonElement | null) => void;
 }) {
+  const t = useTranslations("admin.accounts.actions");
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDialog = useRef(false);
   const managed = user.role === "candidate" || user.role === "recruiter";
@@ -41,7 +43,7 @@ export function AccountRowActions({
           variant="ghost"
           className="size-11"
           disabled={disabled}
-          aria-label={`Actions for ${name}`}
+          aria-label={t("menu", { name })}
         >
           <MoreHorizontal aria-hidden />
         </Button>
@@ -61,7 +63,7 @@ export function AccountRowActions({
           }}
         >
           <Eye aria-hidden />
-          View details
+          {t("view")}
         </DropdownMenuItem>
         <DropdownMenuItem
           className="min-h-11"
@@ -73,7 +75,7 @@ export function AccountRowActions({
           }}
         >
           <Icon aria-hidden />
-          {managed ? (locked ? "Unlock account" : "Lock account") : "Read only"}
+          {managed ? (locked ? t("unlock") : t("lock")) : t("readOnly")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -2,6 +2,7 @@ import {
   DataTable,
   type DataTableColumn,
 } from "@/components/data-table/data-table";
+import { useTranslations } from "next-intl";
 import { UserAvatar } from "@/components/account/user-avatar";
 import type { AdminAccount } from "../api/accounts";
 import { AccountRoleBadge, AccountLockBadge } from "./account-badges";
@@ -31,10 +32,11 @@ export function AccountsTable({
   onView: (user: AdminAccount, trigger: HTMLButtonElement | null) => void;
 }) {
   const fmt = useFormatters();
+  const t = useTranslations("admin.accounts");
   const columns: DataTableColumn<AdminAccount>[] = [
     {
       id: "account",
-      header: "Account",
+      header: t("table.account"),
       cell: (user) => (
         <div className="flex items-center gap-3">
           <UserAvatar
@@ -55,12 +57,12 @@ export function AccountsTable({
     },
     {
       id: "role",
-      header: "Role",
+      header: t("table.role"),
       cell: (user) => <AccountRoleBadge role={user.role} />,
     },
     {
       id: "lock",
-      header: "Lock state",
+      header: t("table.lockState"),
       className: "max-w-72 px-5 py-4",
       cell: (user) => (
         <>
@@ -68,12 +70,14 @@ export function AccountsTable({
           {isAccountLocked(user, checkedAt) && (
             <>
               <p className="mt-2 break-words text-xs text-muted-foreground">
-                {user.banReason || "No reason recorded"}
+                {user.banReason || t("lockState.noReason")}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {user.banExpires
-                  ? `Until ${accountDate(user.banExpires, fmt)}`
-                  : "Indefinitely"}
+                  ? t("lockState.until", {
+                      date: accountDate(user.banExpires, fmt),
+                    })
+                  : t("lockState.indefinitely")}
               </p>
             </>
           )}
@@ -82,7 +86,7 @@ export function AccountsTable({
     },
     {
       id: "created",
-      header: "Created",
+      header: t("table.created"),
       className: "whitespace-nowrap px-5 py-4 text-xs text-muted-foreground",
       cell: (user) => (
         <time dateTime={user.createdAt.toISOString()}>
@@ -92,7 +96,7 @@ export function AccountsTable({
     },
     {
       id: "actions",
-      header: "Actions",
+      header: t("table.actions"),
       className: "px-5 py-2",
       cell: (user) => (
         <AccountRowActions
@@ -110,7 +114,7 @@ export function AccountsTable({
       rows={users}
       columns={columns}
       getRowId={(user) => user.id}
-      label="Platform accounts"
+      label={t("table.label")}
     />
   );
 }
