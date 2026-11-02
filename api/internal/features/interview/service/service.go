@@ -31,6 +31,7 @@ type Repository interface {
 	AppendTurn(ctx context.Context, candidateID, id uuid.UUID, position int32, answer string) (domain.Session, error)
 	Complete(ctx context.Context, candidateID, id uuid.UUID) (domain.Session, bool, error)
 	MarkEvaluationFailed(ctx context.Context, id uuid.UUID) error
+	Deliver(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string) (domain.Delivery, error)
 }
 
 // Evaluator scores a completed session. It writes the session's evaluation status itself; the service
@@ -40,9 +41,12 @@ type Evaluator interface {
 }
 
 // Settings are the configured interview rules.
-// QuestionLimit is the most questions one session asks; zero uses the default.
+// QuestionLimit is the most questions one session asks; zero uses the default. DefaultProviderVoiceID is
+// the provider voice a live session speaks with when it has no voice of its own; empty means such a
+// session is shown as text only.
 type Settings struct {
-	QuestionLimit int32
+	QuestionLimit          int32
+	DefaultProviderVoiceID string
 }
 
 type Service struct {
@@ -159,6 +163,16 @@ func (s *Service) AppendTurn(ctx context.Context, candidateID uuid.UUID, role st
 		logger.Int("bytes", len(normalized)),
 	)
 	return presentSession(session), nil
+}
+
+// Deliver prepares the next live turn: the question the interviewer asks now, frozen with the session's
+// provider voice so a reconnect repeats the same words. It never charges and never consumes a slot. A
+// completed session is INTERVIEW_COMPLETED and a closed recruitment window APPLICATION_NOT_ELIGIBLE.
+func (s *Service) Deliver(ctx context.Context, candidateID uuid.UUID, role string, id uuid.UUID) (domain.Delivery, error) {
+	if role != candidateRole {
+		return domain.Delivery{}, apperror.New(apperror.CodeForbidden, "only candidates can take interviews")
+	}
+	return s.repository.Deliver(ctx, candidateID, id, s.settings.DefaultProviderVoiceID)
 }
 
 // Complete marks the session completed. It is idempotent. The evaluation starts once, after the first

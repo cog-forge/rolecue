@@ -136,8 +136,10 @@ func (r *Repository) AppendTurn(ctx context.Context, candidateID, id uuid.UUID, 
 			if err != nil {
 				return internal(err)
 			}
+			// The question text is the one the interviewer spoke when it was delivered live.
 			err = q.InsertInterviewTurn(ctx, InsertInterviewTurnParams{
 				InterviewID: id, Position: position, Question: question.Content, Answer: &answer,
+				AskedAt: question.AskedAt,
 			})
 			if err != nil {
 				return internal(err)
@@ -150,6 +152,62 @@ func (r *Repository) AppendTurn(ctx context.Context, candidateID, id uuid.UUID, 
 		return domain.Session{}, internal(err)
 	}
 	return session, nil
+}
+
+// Deliver prepares the next live turn under the session lock: it refuses a completed session and a
+// recruitment session whose window closed (the same rules as AppendTurn), then freezes the text and the
+// time of the next unanswered question and the session's provider voice. A repeat for the same question
+// returns what was frozen the first time. When every question is answered it freezes nothing and returns
+// no question.
+func (r *Repository) Deliver(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string) (domain.Delivery, error) {
+	var delivery domain.Delivery
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		header, err := lockSession(ctx, q, candidateID, id)
+		if err != nil {
+			return err
+		}
+		if header.CompletedAt.Valid {
+			return domain.ErrInterviewCompleted
+		}
+		if err := requireOpenWindow(ctx, q, header.ApplicationID); err != nil {
+			return err
+		}
+		questionCount, err := q.CountInterviewQuestions(ctx, id)
+		if err != nil {
+			return internal(err)
+		}
+		turns, err := listTurns(ctx, q, id)
+		if err != nil {
+			return err
+		}
+		delivery = domain.Delivery{
+			Type: domain.Type(header.Type), QuestionCount: int32(questionCount), AnsweredCount: int32(len(turns)),
+		}
+		if int64(len(turns)) >= questionCount {
+			return nil
+		}
+		position := int32(len(turns)) + 1
+		asked, err := q.MarkInterviewQuestionAsked(ctx, MarkInterviewQuestionAskedParams{InterviewID: id, Position: position})
+		if err != nil {
+			return internal(err)
+		}
+		voice, err := q.FreezeInterviewVoice(ctx, FreezeInterviewVoiceParams{ID: id, DefaultProviderVoiceID: defaultProviderVoiceID})
+		if err != nil {
+			return internal(err)
+		}
+		if voice != nil {
+			delivery.ProviderVoiceID = *voice
+		}
+		delivery.Question = &domain.AskedQuestion{
+			Position: position, Kind: domain.TurnCore, Text: asked.SpokenText, AskedAt: asked.AskedAt.Time,
+		}
+		return nil
+	})
+	if err != nil {
+		return domain.Delivery{}, internal(err)
+	}
+	return delivery, nil
 }
 
 // evaluationStaleAfter is how long a pending evaluation may run before another Complete takes it over.

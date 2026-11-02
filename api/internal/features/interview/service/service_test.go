@@ -36,6 +36,11 @@ type fakeRepository struct {
 	completeErr     error
 	completeCalls   int
 
+	deliverVoice    string
+	deliverDelivery domain.Delivery
+	deliverErr      error
+	deliverCalls    int
+
 	// failed receives each interview the service marks failed, so a test waits for the background
 	// goroutine without sleeping.
 	failed chan uuid.UUID
@@ -61,6 +66,12 @@ func (r *fakeRepository) AppendTurn(_ context.Context, candidateID, _ uuid.UUID,
 func (r *fakeRepository) Complete(_ context.Context, _, _ uuid.UUID) (domain.Session, bool, error) {
 	r.completeCalls++
 	return r.completeSession, r.completeFirst, r.completeErr
+}
+
+func (r *fakeRepository) Deliver(_ context.Context, _, _ uuid.UUID, defaultProviderVoiceID string) (domain.Delivery, error) {
+	r.deliverCalls++
+	r.deliverVoice = defaultProviderVoiceID
+	return r.deliverDelivery, r.deliverErr
 }
 
 func (r *fakeRepository) MarkEvaluationFailed(_ context.Context, id uuid.UUID) error {
@@ -455,5 +466,25 @@ func TestCompleteMarksAPanickingEvaluationFailed(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("a panicking evaluation was not marked failed")
+	}
+}
+
+func TestDeliverPassesTheDefaultVoiceAndRefusesNonCandidates(t *testing.T) {
+	want := domain.Delivery{Type: domain.TypePractice, QuestionCount: 3, Question: &domain.AskedQuestion{Position: 1, Kind: domain.TurnCore, Text: "Q1"}}
+	repo := &fakeRepository{deliverDelivery: want}
+	svc := newTestService(t, repo, Settings{DefaultProviderVoiceID: "en-US-AvaNeural"})
+
+	got, err := svc.Deliver(context.Background(), candidateID, "candidate", sessionID)
+	if err != nil {
+		t.Fatalf("Deliver: %v", err)
+	}
+	if got.Question == nil || got.Question.Text != "Q1" || repo.deliverVoice != "en-US-AvaNeural" {
+		t.Fatalf("Deliver = %+v, default voice %q", got, repo.deliverVoice)
+	}
+
+	_, err = svc.Deliver(context.Background(), candidateID, "recruiter", sessionID)
+	assertCode(t, err, apperror.CodeForbidden)
+	if repo.deliverCalls != 1 {
+		t.Fatalf("repository called %d times, want 1", repo.deliverCalls)
 	}
 }
