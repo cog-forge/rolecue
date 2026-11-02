@@ -3977,6 +3977,57 @@ paths:
       summary: Complete an interview session
       tags:
       - interviews
+  /interviews/{id}/live:
+    get:
+      description: 'Candidate only, your own session. Upgrades to the live interview
+        protocol (subprotocol rolecue.interview.v1); the contract is docs/interview-ws-protocol.md.
+        The socket never charges and never consumes a slot: start the session with
+        POST /interviews first. Before the upgrade the request needs the session cookie
+        and an Origin from CORS_ALLOW_ORIGINS (cross-site WebSocket guard). Errors
+        before the upgrade: VALIDATION_ERROR (bad id, not a WebSocket request), INVALID_TOKEN,
+        FORBIDDEN (untrusted Origin, onboarding, not a Candidate), INTERVIEW_NOT_FOUND
+        (missing or another Candidate''s).'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: rolecue.interview.v1
+        in: header
+        name: Sec-WebSocket-Protocol
+        required: true
+        type: string
+      - description: Interview session ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "101":
+          description: Switching Protocols
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Open the live interview WebSocket
+      tags:
+      - interviews
   /interviews/{id}/recording:
     post:
       consumes:

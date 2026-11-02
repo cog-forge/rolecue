@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/features/interview/runtime"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/email"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
@@ -33,6 +34,8 @@ type Application struct {
 	Expiry *applicationservice.ExpiryRunner
 	// Email sends transactional mail asynchronously; its consumers (KAN-219) inject it, and cleanup drains it.
 	Email *email.Dispatcher
+	// LiveInterviews drives the live interview sockets; main closes them on shutdown.
+	LiveInterviews *runtime.Engine
 }
 
 func InitializeApplication(configPath string) (*Application, func(), error) {
@@ -108,6 +111,9 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideInterviewReportHandler,
 		provider.ProvideInterviewRecordingService,
 		provider.ProvideInterviewRecordingHandler,
+		provider.ProvideTranscriber,
+		provider.ProvideInterviewLiveEngine,
+		provider.ProvideInterviewLiveHandler,
 		provider.ProvideInterviewHandlers,
 		provider.ProvideApplicationExpiryRunner,
 		provider.ProvideEmailSender,

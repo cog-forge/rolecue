@@ -207,6 +207,9 @@ func (r *Router) Setup() *gin.Engine {
 	interviews.POST("/:id/resume", r.interviewHandlers.Sessions.Resume)
 	interviews.POST("/:id/turns", r.interviewHandlers.Sessions.AppendTurn)
 	interviews.POST("/:id/complete", r.interviewHandlers.Sessions.Complete)
+	// The live interview socket (docs/interview-ws-protocol.md). It checks Origin itself, because
+	// RequireAuth checks it only for writes and a WebSocket handshake is a GET.
+	interviews.GET("/:id/live", r.interviewHandlers.Live.Live)
 	interviews.GET("/:id/report", r.interviewHandlers.Report.Get)
 	interviews.POST("/:id/recording", r.interviewHandlers.Recording.CreateUpload)
 	interviews.POST("/:id/recording/complete", r.interviewHandlers.Recording.CompleteUpload)

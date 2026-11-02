@@ -2599,6 +2599,73 @@
                 }
             }
         },
+        "/interviews/{id}/live": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, your own session. Upgrades to the live interview protocol (subprotocol rolecue.interview.v1); the contract is docs/interview-ws-protocol.md. The socket never charges and never consumes a slot: start the session with POST /interviews first. Before the upgrade the request needs the session cookie and an Origin from CORS_ALLOW_ORIGINS (cross-site WebSocket guard). Errors before the upgrade: VALIDATION_ERROR (bad id, not a WebSocket request), INVALID_TOKEN, FORBIDDEN (untrusted Origin, onboarding, not a Candidate), INTERVIEW_NOT_FOUND (missing or another Candidate's).",
+                "tags": [
+                    "interviews"
+                ],
+                "summary": "Open the live interview WebSocket",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "rolecue.interview.v1",
+                        "name": "Sec-WebSocket-Protocol",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Interview session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/interviews/{id}/recording": {
             "post": {
                 "security": [

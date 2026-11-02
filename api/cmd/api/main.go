@@ -48,7 +48,15 @@ func run(configPath string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	provider.StartApplicationExpiryRunner(ctx, app.Expiry)
-	return serve(ctx, app.Server, app.Config.Server.ShutdownTimeout)
+	err = serve(ctx, app.Server, app.Config.Server.ShutdownTimeout)
+	// http.Server.Shutdown does not track hijacked connections: close the live interview sockets with
+	// 1001 and give their in-flight answers the same time to be stored.
+	liveCtx, cancel := context.WithTimeout(context.Background(), app.Config.Server.ShutdownTimeout)
+	defer cancel()
+	if liveErr := app.LiveInterviews.Hub().Shutdown(liveCtx); liveErr != nil {
+		app.Logger.Warn("Live interviews did not stop in time", logger.Error(liveErr))
+	}
+	return err
 }
 
 type httpServer interface {

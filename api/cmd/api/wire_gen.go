@@ -9,6 +9,7 @@ package main
 import (
 	"github.com/cog-forge/rolecue/api/internal/config"
 	service2 "github.com/cog-forge/rolecue/api/internal/features/application/service"
+	"github.com/cog-forge/rolecue/api/internal/features/interview/runtime"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/email"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
@@ -192,16 +193,29 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	interviewRecordingHandler := provider.ProvideInterviewRecordingHandler(recordingService)
-	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler)
-	engine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers)
-	server := provider.ProvideHTTPServer(config, engine, logger)
+	synthesizer := provider.ProvideSynthesizer(config, logger)
+	transcriber, err := provider.ProvideTranscriber(config, logger)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	engine, err := provider.ProvideInterviewLiveEngine(service13, synthesizer, transcriber, config)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	interviewLiveHandler := provider.ProvideInterviewLiveHandler(service13, engine, config)
+	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler, interviewLiveHandler)
+	ginEngine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers)
+	server := provider.ProvideHTTPServer(config, ginEngine, logger)
 	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	synthesizer := provider.ProvideSynthesizer(config, logger)
 	expiryRunner, err := provider.ProvideApplicationExpiryRunner(service10)
 	if err != nil {
 		cleanup3()
@@ -212,16 +226,17 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	sender := provider.ProvideEmailSender(config, logger)
 	dispatcher, cleanup4 := provider.ProvideEmailDispatcher(config, sender, logger)
 	application := &Application{
-		Server:      server,
-		Pool:        pool,
-		Logger:      logger,
-		Tracer:      tracer,
-		Config:      config,
-		Storage:     store,
-		Documents:   roleProfileDocumentApplication,
-		Synthesizer: synthesizer,
-		Expiry:      expiryRunner,
-		Email:       dispatcher,
+		Server:         server,
+		Pool:           pool,
+		Logger:         logger,
+		Tracer:         tracer,
+		Config:         config,
+		Storage:        store,
+		Documents:      roleProfileDocumentApplication,
+		Synthesizer:    synthesizer,
+		Expiry:         expiryRunner,
+		Email:          dispatcher,
+		LiveInterviews: engine,
 	}
 	return application, func() {
 		cleanup4()
@@ -247,4 +262,6 @@ type Application struct {
 	Expiry *service2.ExpiryRunner
 	// Email sends transactional mail asynchronously; its consumers (KAN-219) inject it, and cleanup drains it.
 	Email *email.Dispatcher
+	// LiveInterviews drives the live interview sockets; main closes them on shutdown.
+	LiveInterviews *runtime.Engine
 }
