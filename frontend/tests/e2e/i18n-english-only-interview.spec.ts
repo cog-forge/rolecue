@@ -1,10 +1,12 @@
 import { expect, test, type Page, type Request } from "@playwright/test";
 import { cors } from "./fixtures/avatar-api";
+import { mockLiveServer } from "./fixtures/live-interview";
 import { mockRoomPreview, roomId } from "./fixtures/room-preview-api";
 
-// KAN-229: the UI may be Vietnamese, the interview never is. The language is the NEXT_LOCALE cookie
-// the switcher writes; the browser itself stays English so a browser-added Accept-Language cannot
-// be mistaken for one the app chose.
+// KAN-229: the UI may be Vietnamese, the interview conversation never is. The room chrome follows
+// the catalogs; questions, transcripts and AI feedback stay as the engine produced them. The
+// language is the NEXT_LOCALE cookie the switcher writes; the browser itself stays English so a
+// browser-added Accept-Language cannot be mistaken for one the app chose.
 test.use({
   locale: "en-US",
   launchOptions: {
@@ -104,30 +106,40 @@ function expectNoLocale(
   }
 }
 
-test("the interview room stays English with the UI in Vietnamese and has no language switcher", async ({
+test("the interview stays English inside a Vietnamese room and no locale reaches the API or socket", async ({
   page,
 }) => {
   await useVietnamese(page);
   const requests = recordApiRequests(page);
-  await mockRoomPreview(page);
+  await mockRoomPreview(page, { live: false });
+  const live = await mockLiveServer(page, {
+    sessionId: roomId,
+    questions: [{ text: "Walk me through a recent project." }],
+  });
   await page.goto(`/interviews/${roomId}/room`);
 
+  // The room chrome follows the UI language...
   await expect(page.locator("html")).toHaveAttribute("lang", "vi");
-  await expect(page.getByText("Practice room")).toBeVisible();
+  await expect(page.getByText("Phòng luyện tập")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Bật micro" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Enable microphone" }),
+    page.getByRole("link", { name: "Rời phòng", exact: true }),
   ).toBeVisible();
+  // ...while the conversation itself stays English, exactly as the interviewer sent it.
   await expect(
-    page.getByText("Live captions are unavailable in this preview."),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Leave", exact: true }),
+    page
+      .getByLabel("Bản ghi trực tiếp")
+      .getByText("Walk me through a recent project."),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /Change language|Đổi ngôn ngữ/ }),
   ).toHaveCount(0);
 
   expectNoLocale(await requests.settled());
+  const frames = live.frames.flat();
+  expect(frames.length).toBeGreaterThan(0);
+  for (const frame of frames)
+    expect(JSON.stringify(frame)).not.toMatch(/"(locale|lang|language)"/);
 });
 
 test("a Vietnamese report keeps the transcript and AI feedback English and sends no locale", async ({
