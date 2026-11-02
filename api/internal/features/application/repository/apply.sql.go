@@ -69,6 +69,8 @@ func (q *Queries) GetApplyPostingState(ctx context.Context, id uuid.UUID) (GetAp
 const getCandidateApplication = `-- name: GetCandidateApplication :one
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, u.company_name, jp.location AS job_posting_location,
        a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at,
+       (jp.status NOT IN ('open', 'intake_closed') OR jp.interview_slot IS NULL OR (jp.status = 'intake_closed' AND a.status = 'pending'))::boolean AS posting_unavailable,
+       statement_timestamp()::timestamptz AS read_at,
        i.id AS interview_id, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
@@ -93,6 +95,8 @@ type GetCandidateApplicationRow struct {
 	RejectReason              *string
 	InterviewDeadline         pgtype.Timestamptz
 	CreatedAt                 pgtype.Timestamptz
+	PostingUnavailable        bool
+	ReadAt                    pgtype.Timestamptz
 	InterviewID               *uuid.UUID
 	InterviewCompletedAt      pgtype.Timestamptz
 	InterviewEvaluationStatus *string
@@ -112,6 +116,8 @@ func (q *Queries) GetCandidateApplication(ctx context.Context, arg GetCandidateA
 		&i.RejectReason,
 		&i.InterviewDeadline,
 		&i.CreatedAt,
+		&i.PostingUnavailable,
+		&i.ReadAt,
 		&i.InterviewID,
 		&i.InterviewCompletedAt,
 		&i.InterviewEvaluationStatus,
@@ -155,6 +161,8 @@ func (q *Queries) InsertCandidateApplication(ctx context.Context, arg InsertCand
 const listCandidateApplications = `-- name: ListCandidateApplications :many
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, u.company_name, jp.location AS job_posting_location,
        a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at,
+       (jp.status NOT IN ('open', 'intake_closed') OR jp.interview_slot IS NULL OR (jp.status = 'intake_closed' AND a.status = 'pending'))::boolean AS posting_unavailable,
+       statement_timestamp()::timestamptz AS read_at,
        i.id AS interview_id, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score
 FROM public.applications a
@@ -182,6 +190,8 @@ type ListCandidateApplicationsRow struct {
 	RejectReason              *string
 	InterviewDeadline         pgtype.Timestamptz
 	CreatedAt                 pgtype.Timestamptz
+	PostingUnavailable        bool
+	ReadAt                    pgtype.Timestamptz
 	InterviewID               *uuid.UUID
 	InterviewCompletedAt      pgtype.Timestamptz
 	InterviewEvaluationStatus *string
@@ -209,6 +219,8 @@ func (q *Queries) ListCandidateApplications(ctx context.Context, arg ListCandida
 			&i.RejectReason,
 			&i.InterviewDeadline,
 			&i.CreatedAt,
+			&i.PostingUnavailable,
+			&i.ReadAt,
 			&i.InterviewID,
 			&i.InterviewCompletedAt,
 			&i.InterviewEvaluationStatus,

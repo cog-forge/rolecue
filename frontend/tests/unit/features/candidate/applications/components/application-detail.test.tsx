@@ -132,7 +132,9 @@ describe("CandidateApplicationDetail", () => {
     expect(
       screen.getByText("Free for you. Complete it before the deadline."),
     ).toBeInTheDocument();
-    expect(mocks.get).toHaveBeenCalledTimes(1);
+    expect(mocks.get).toHaveBeenCalledWith(`/applications/${id}/interviewer`, {
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it("shows the same deadline countdown and a localized time in Vietnamese", async () => {
@@ -252,3 +254,18 @@ describe("CandidateApplicationDetail", () => {
     expect(mocks.get).not.toHaveBeenCalled();
   });
 });
+
+it.each([
+  ["en", "Wait for the company to review your CV."],
+  ["vi", "Vui lòng chờ công ty xét duyệt CV."],
+] as const)(
+  "shows the authoritative blocker in %s",
+  async (locale, message) => {
+    mocks.get.mockResolvedValue(application({ blocker: "awaiting_cv_review" }));
+    renderDetail(id, locale);
+    expect(await screen.findByText(message)).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: /Start interview|Bắt đầu phỏng vấn/ }),
+    ).not.toBeInTheDocument();
+  },
+);

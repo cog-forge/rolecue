@@ -118,6 +118,7 @@ func (r *Repository) ListCandidateApplications(ctx context.Context, candidateID 
 			ID: row.ID, JobPostingID: row.JobPostingID, JobPostingTitle: row.JobPostingTitle,
 			CompanyName: row.CompanyName, JobPostingLocation: row.JobPostingLocation,
 			Status: domain.ApplicationStatus(row.Status), RejectReason: row.RejectReason,
+			PostingUnavailable: row.PostingUnavailable, ReadAt: row.ReadAt.Time,
 			InterviewDeadline: timePtr(row.InterviewDeadline), CreatedAt: row.CreatedAt.Time,
 			Interview: candidateInterview(row.InterviewID, row.InterviewCompletedAt, row.InterviewEvaluationStatus, row.InterviewScore),
 		})
@@ -139,6 +140,7 @@ func (r *Repository) GetCandidateApplication(ctx context.Context, candidateID, a
 		ID: row.ID, JobPostingID: row.JobPostingID, JobPostingTitle: row.JobPostingTitle,
 		CompanyName: row.CompanyName, JobPostingLocation: row.JobPostingLocation,
 		Status: domain.ApplicationStatus(row.Status), RejectReason: row.RejectReason,
+		PostingUnavailable: row.PostingUnavailable, ReadAt: row.ReadAt.Time,
 		InterviewDeadline: timePtr(row.InterviewDeadline), CreatedAt: row.CreatedAt.Time,
 		Interview: candidateInterview(row.InterviewID, row.InterviewCompletedAt, row.InterviewEvaluationStatus, row.InterviewScore),
 	}, nil

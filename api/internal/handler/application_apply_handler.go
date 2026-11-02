@@ -178,7 +178,7 @@ func (h *ApplicationHandler) ListMine(c *gin.Context) {
 
 // DetailMine godoc
 // @Summary Read one of your Applications
-// @Description Candidate only, your own Applications. Returns the status, the rejection reason, the interview deadline (set on CV approval) and can_start_interview, which is true only while the Application is interview_eligible and the deadline has not passed. Another Candidate's Application is not found.
+// @Description Candidate only, your own Applications. Returns the status, the rejection reason, the interview deadline (set on CV approval) and can_start_interview, which is true only while the Application is interview_eligible, the posting is funded and open or intake_closed, and the deadline has not passed. Includes a stable blocker code for ineligible states. Expired interview_eligible rows are presented as rejected even before the expiry worker persists that transition. Another Candidate's Application is not found.
 // @Tags applications
 // @Produce json
 // @Security SessionCookie

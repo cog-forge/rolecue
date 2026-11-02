@@ -196,6 +196,7 @@ func (r *Router) Setup() *gin.Engine {
 	candidateApplications := router.Group("/applications", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate"))
 	candidateApplications.GET("", r.applicationHandler.ListMine)
 	candidateApplications.GET("/:id", r.applicationHandler.DetailMine)
+	candidateApplications.GET("/:id/interviewer", r.applicationHandler.CompanyInterviewer)
 
 	// Interview sessions. Roles are checked in the services: sessions, history and recording are
 	// Candidate only (403 otherwise); the report is readable by the owning Candidate or Recruiter and
@@ -204,6 +205,7 @@ func (r *Router) Setup() *gin.Engine {
 	interviews.POST("", r.interviewHandlers.Sessions.Create)
 	interviews.GET("", r.interviewHandlers.History.List)
 	interviews.GET("/:id", r.interviewHandlers.Sessions.Get)
+	interviews.GET("/:id/interviewer", r.applicationHandler.SessionCompanyInterviewer)
 	interviews.POST("/:id/resume", r.interviewHandlers.Sessions.Resume)
 	interviews.POST("/:id/turns", r.interviewHandlers.Sessions.AppendTurn)
 	interviews.POST("/:id/complete", r.interviewHandlers.Sessions.Complete)

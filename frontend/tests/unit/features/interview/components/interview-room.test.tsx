@@ -460,3 +460,40 @@ it("drives the avatar mouth and speech motion from the turn whose audio is playi
     }),
   );
 });
+
+it("loads only the owned recruitment presentation grant into the viewer", async () => {
+  const access = {
+    url: "https://assets.example.test/company.vrm",
+    method: "GET",
+    headers: { "x-model": "grant" },
+    expires_at: "2099-01-01T00:00:00Z",
+  };
+  mocks.get.mockImplementation(async (path: string) => {
+    if (path === `/interviews/${id}/interviewer`)
+      return ok({
+        name: "Company interviewer",
+        voice_name: "Company voice",
+        model_access: access,
+      });
+    if (path === `/interviews/${id}`)
+      return ok({ ...details, type: "recruitment" });
+    throw new Error("Unexpected path");
+  });
+  mount();
+  await waitFor(() =>
+    expect(mocks.viewer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        access: {
+          url: access.url,
+          method: "GET",
+          headers: access.headers,
+          expiresAt: access.expires_at,
+        },
+      }),
+    ),
+  );
+  expect(
+    mocks.get.mock.calls.every(([path]) => !path.includes("inventory")),
+  ).toBe(true);
+  expect(mocks.post).not.toHaveBeenCalled();
+});

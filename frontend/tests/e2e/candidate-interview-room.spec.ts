@@ -47,6 +47,7 @@ test("voice room reads the selected avatar context and runs over the live socket
   await page.getByRole("link", { name: "Leave", exact: true }).click();
   await expect(page).toHaveURL("/history");
   expect(calls.writes).toEqual([]);
+  expect(calls.companyInterviewerReads).toBe(0);
 });
 
 test("mic is opt-in, supports mute, input settings and stop, and releases its track on Leave", async ({
@@ -128,18 +129,33 @@ test("microphone refusal is visible and retryable", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("recruitment never reads recruiter inventory and a metadata failure does not start or end a session", async ({
+test("recruitment reads the company grant without inventory access or session writes, including metadata failure", async ({
   page,
 }) => {
   const calls = await mockRoomPreview(page, {
     recruitment: true,
     avatar: true,
   });
+  const modelRequests: string[] = [];
+  await page.route("https://s3.test/**", (route) => {
+    modelRequests.push(new URL(route.request().url()).pathname);
+    return route.fulfill({
+      status: 503,
+      headers: { "access-control-allow-origin": "*" },
+      body: "Model temporarily unavailable",
+    });
+  });
   await page.goto(room);
   await expect(page.getByText("Recruitment room")).toBeVisible();
   await expect(
-    page.getByText(/company interviewer is shown in 2D/),
+    page.getByText("Acme interviewer", { exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByText(/We couldn't download this avatar/),
+  ).toBeVisible();
+  expect(modelRequests).toEqual(["/company-interviewer.vrm"]);
+  expect(calls.companyInterviewerReads).toBe(1);
+  expect(calls.inventoryReads).toEqual([]);
   expect(calls.details).toBe(0);
   expect(calls.writes).toEqual([]);
   await page.unroute("http://localhost:8080/**");
@@ -152,6 +168,30 @@ test("recruitment never reads recruiter inventory and a metadata failure does no
   await page.getByRole("button", { name: "Retry interviewer" }).click();
   await expect.poll(() => failed.reads).toBe(2);
   expect(failed.writes).toEqual([]);
+});
+
+test("recruitment interviewer failure keeps the 2D fallback without inventory access or session writes", async ({
+  page,
+}) => {
+  const calls = await mockRoomPreview(page, {
+    recruitment: true,
+    avatar: true,
+    companyInterviewerError: true,
+  });
+  await page.goto(room);
+  await expect(page.getByText("Recruitment room")).toBeVisible();
+  await expect(
+    page.getByText("We couldn’t load the company interviewer.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Internal server information")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Enable microphone" }),
+  ).toBeEnabled();
+  expect(calls.companyInterviewerReads).toBe(1);
+  expect(calls.inventoryReads).toEqual([]);
+  expect(calls.writes).toEqual([]);
 });
 
 test("expired VRM access is renewed once and remains independent of microphone controls", async ({

@@ -39,7 +39,7 @@ func (s *Service) ListMine(ctx context.Context, candidateID uuid.UUID, role stri
 	}
 	now := time.Now()
 	for i := range items {
-		items[i].CanStartInterview = domain.CanStartInterview(items[i].Status, items[i].InterviewDeadline, now)
+		candidatePreflight(&items[i], now)
 	}
 	return domain.CandidatePage{Items: items, Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
 }
@@ -58,6 +58,41 @@ func (s *Service) GetMine(ctx context.Context, candidateID uuid.UUID, role strin
 	if err != nil {
 		return domain.CandidateApplication{}, err
 	}
-	application.CanStartInterview = domain.CanStartInterview(application.Status, application.InterviewDeadline, time.Now())
+	candidatePreflight(&application, time.Now())
 	return application, nil
+}
+
+// Read-time expiry is authoritative even between expiry worker passes; reads never mutate capacity.
+func candidatePreflight(a *domain.CandidateApplication, now time.Time) {
+	if !a.ReadAt.IsZero() {
+		now = a.ReadAt
+	}
+	var blocker string
+	if a.Status == domain.StatusInterviewEligible && a.InterviewDeadline != nil && !now.Before(*a.InterviewDeadline) {
+		a.Status = domain.StatusRejected
+		blocker = "deadline_expired"
+	} else {
+		switch a.Status {
+		case domain.StatusPending:
+			blocker = "awaiting_cv_review"
+			if a.PostingUnavailable {
+				blocker = "posting_unavailable"
+			}
+		case domain.StatusInterviewed:
+			blocker = "awaiting_final_decision"
+		case domain.StatusApproved, domain.StatusRejected:
+			blocker = "application_decided"
+		case domain.StatusInterviewEligible:
+			if a.PostingUnavailable {
+				blocker = "posting_unavailable"
+			} else if a.InterviewDeadline == nil {
+				blocker = "not_eligible"
+			}
+		}
+	}
+	a.CanStartInterview = blocker == "" && domain.CanStartInterview(a.Status, a.InterviewDeadline, now)
+	a.Blocker = nil
+	if blocker != "" {
+		a.Blocker = &blocker
+	}
 }

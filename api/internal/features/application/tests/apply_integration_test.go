@@ -400,7 +400,7 @@ func TestCanStartInterviewOnlyWhenEligibleBeforeDeadline(t *testing.T) {
 	s := newSeed(t, ctx, pool)
 	svc := newApplyService(t, pool, &fakeCVStore{})
 	candidate := s.user("candidate")
-	postingID := s.posting(s.user("recruiter"), "open", nil)
+	postingID := s.posting(s.user("recruiter"), "open", slot(3))
 
 	future := time.Now().Add(time.Hour)
 	past := time.Now().Add(-time.Minute)

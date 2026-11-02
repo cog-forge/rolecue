@@ -11,7 +11,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { ArrowLeft, AudioLines, Building2 } from "lucide-react";
+import { ArrowLeft, AudioLines } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
@@ -38,6 +38,9 @@ import {
   useUnfinishedPractice,
 } from "../api/setup-catalog";
 import { setupHref, type SetupParams } from "../lib/setup-params";
+import { CompanyInterviewer } from "@/features/candidate/applications/components/company-interviewer";
+import { CandidateApplicationStatusBadge } from "@/features/candidate/applications/components/application-status";
+import { useNow } from "@/features/candidate/applications/utils/use-now";
 import { AvatarPortrait } from "./avatar-portrait";
 import { PreflightCheck, type MicrophoneReadiness } from "./preflight-check";
 import { PracticeProgress, ResumeCallout } from "./resume-callout";
@@ -425,12 +428,15 @@ function RecruitmentReadiness({
 }) {
   const t = useTranslations("candidate.setup");
   const fmt = useFormatters();
+  const now = useNow();
+  const ti = useTranslations("candidate.applications.interviewer");
   const user = useSessionUser();
   const application = useQuery({
     queryKey: candidateApplicationKeys.detail(user.id, applicationId),
     queryFn: ({ signal }) => getCandidateApplication(applicationId, signal),
     // Eligibility and the deadline move on the recruiter's side, so always ask again.
     refetchOnMount: "always",
+    refetchInterval: 30_000,
     retry: false,
   });
   const data = application.data;
@@ -505,97 +511,120 @@ function RecruitmentReadiness({
           {data.job_posting_title}
         </SummaryRow>
         <SummaryRow label={t("readiness.summary.keptLabel")}>
-          <span className="flex items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted">
-              <Building2
-                aria-hidden="true"
-                className="size-5 text-muted-foreground"
-              />
-            </span>
-            <span>
-              {t("readiness.summary.companyInterviewer")}
-              <span className="block text-xs font-normal text-muted-foreground">
-                {t("readiness.summary.companyNote")}
-              </span>
-            </span>
-          </span>
+          {data.can_start_interview &&
+          (!data.interview_deadline ||
+            now < Date.parse(data.interview_deadline)) ? (
+            <CompanyInterviewer
+              userId={user.id}
+              applicationId={applicationId}
+            />
+          ) : (
+            t("readiness.summary.companyInterviewer")
+          )}
+          <CandidateApplicationStatusBadge status={data.status} />
         </SummaryRow>
       </dl>
     </section>
   );
 
   const deadline = data.interview_deadline;
-  const side = !data.can_start_interview ? (
-    <div className="space-y-3 rounded-xl border bg-card p-5 text-sm">
-      <h2 className="font-semibold">
-        {t(`readiness.recruitment.status.${data.status}`)}
-      </h2>
-      <p role="status" className="text-muted-foreground">
-        {t("readiness.recruitment.notEligible")}
-      </p>
-      <Button
-        asChild
-        variant="outline"
-        className="h-auto min-h-11 whitespace-normal py-2 w-full"
+  const side =
+    !data.can_start_interview ||
+    (deadline !== null && now >= Date.parse(deadline)) ? (
+      <div className="space-y-3 rounded-xl border bg-card p-5 text-sm">
+        <h2 className="font-semibold">
+          {t(`readiness.recruitment.status.${data.status}`)}
+        </h2>
+        <p role="status" className="text-muted-foreground">
+          {data.blocker
+            ? ti(`blockers.${data.blocker}`)
+            : t("readiness.recruitment.notEligible")}
+        </p>
+        {deadline && (
+          <dl className="space-y-2">
+            <div>
+              <dt className="text-muted-foreground">
+                {t("readiness.recruitment.completeBy")}
+              </dt>
+              <dd>
+                <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">
+                {t("readiness.recruitment.timeLeft")}
+              </dt>
+              <dd className="tabular-nums">
+                <TimeLeft deadline={deadline} />
+              </dd>
+            </div>
+          </dl>
+        )}
+        <Button
+          asChild
+          variant="outline"
+          className="h-auto min-h-11 whitespace-normal py-2 w-full"
+        >
+          <Link href={routes.application(applicationId)}>
+            {t("readiness.recruitment.back")}
+          </Link>
+        </Button>
+      </div>
+    ) : (
+      <StartPanel
+        readiness={readiness}
+        links={{ applicationId }}
+        returnPath={setupHref(routes.interviews.new.preflight, {
+          applicationId,
+        })}
+        plan={
+          inProgress && data.interview
+            ? {
+                kind: "resume",
+                type: "recruitment",
+                sessionId: data.interview.id,
+                callout: (
+                  <ResumeCallout
+                    title={t("resume.calloutTitle")}
+                    details={
+                      deadline
+                        ? t.rich("readiness.recruitment.completeIt", {
+                            deadline: formatDeadline(deadline, fmt),
+                            time: (chunks) => (
+                              <time dateTime={deadline}>{chunks}</time>
+                            ),
+                          })
+                        : undefined
+                    }
+                    note={t("readiness.recruitment.resumeNote")}
+                  />
+                ),
+              }
+            : { kind: "new", request: { type: "recruitment", applicationId } }
+        }
       >
-        <Link href={routes.application(applicationId)}>
-          {t("readiness.recruitment.back")}
-        </Link>
-      </Button>
-    </div>
-  ) : (
-    <StartPanel
-      readiness={readiness}
-      links={{ applicationId }}
-      returnPath={setupHref(routes.interviews.new.preflight, { applicationId })}
-      plan={
-        inProgress && data.interview
-          ? {
-              kind: "resume",
-              type: "recruitment",
-              sessionId: data.interview.id,
-              callout: (
-                <ResumeCallout
-                  title={t("resume.calloutTitle")}
-                  details={
-                    deadline
-                      ? t.rich("readiness.recruitment.completeIt", {
-                          deadline: formatDeadline(deadline, fmt),
-                          time: (chunks) => (
-                            <time dateTime={deadline}>{chunks}</time>
-                          ),
-                        })
-                      : undefined
-                  }
-                  note={t("readiness.recruitment.resumeNote")}
-                />
-              ),
-            }
-          : { kind: "new", request: { type: "recruitment", applicationId } }
-      }
-    >
-      {deadline && (
-        <dl className="divide-y rounded-lg border text-sm">
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-muted-foreground">
-              {t("readiness.recruitment.completeBy")}
-            </dt>
-            <dd className="text-right font-semibold">
-              <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-4 px-4 py-3">
-            <dt className="text-muted-foreground">
-              {t("readiness.recruitment.timeLeft")}
-            </dt>
-            <dd className="font-semibold tabular-nums">
-              <TimeLeft deadline={deadline} />
-            </dd>
-          </div>
-        </dl>
-      )}
-    </StartPanel>
-  );
+        {deadline && (
+          <dl className="divide-y rounded-lg border text-sm">
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
+              <dt className="text-muted-foreground">
+                {t("readiness.recruitment.completeBy")}
+              </dt>
+              <dd className="text-right font-semibold">
+                <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
+              <dt className="text-muted-foreground">
+                {t("readiness.recruitment.timeLeft")}
+              </dt>
+              <dd className="font-semibold tabular-nums">
+                <TimeLeft deadline={deadline} />
+              </dd>
+            </div>
+          </dl>
+        )}
+      </StartPanel>
+    );
 
   return (
     <section className="space-y-8">

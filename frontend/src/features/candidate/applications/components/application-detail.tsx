@@ -23,6 +23,7 @@ import {
   timeLeftText,
 } from "../utils/application-text";
 import { useNow } from "../utils/use-now";
+import { CompanyInterviewer } from "./company-interviewer";
 import { ApplicationProgress } from "./application-progress";
 import { CandidateApplicationStatusBadge } from "./application-status";
 import { useFormatters } from "@/lib/i18n/use-formatters";
@@ -41,6 +42,7 @@ export function CandidateApplicationDetail({ id }: { id: string }) {
     enabled: validId,
     // Status and the deadline move on the recruiter's side, so always ask again.
     refetchOnMount: "always",
+    refetchInterval: 30_000,
     retry: false,
   });
   const denied = isAccessDenied(query.error);
@@ -125,6 +127,8 @@ function ApplicationContent({
   const t = useTranslations("candidate.applications.detail");
   const tActions = useTranslations("candidate.applications.actions");
   const now = useNow();
+  const user = useSessionUser();
+  const tInterviewer = useTranslations("candidate.applications.interviewer");
   const {
     status,
     interview_deadline: deadline,
@@ -194,7 +198,15 @@ function ApplicationContent({
         </CardContent>
       </Card>
 
-      {application.can_start_interview && (
+      {application.blocker && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {tInterviewer(`blockers.${application.blocker}`)}
+        </p>
+      )}
+      {application.can_start_interview && !passed && (
+        <CompanyInterviewer userId={user.id} applicationId={application.id} />
+      )}
+      {application.can_start_interview && !passed && (
         <div className="space-y-3">
           {/* Navigation only: the start (or resume) happens after the microphone check. */}
           <Button

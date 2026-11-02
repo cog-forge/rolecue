@@ -11,9 +11,16 @@ export async function mockRoomPreview(
     completed?: boolean;
     /** Serve a one-question live socket so the room never reaches a real API (default). */
     live?: boolean;
+    companyInterviewerError?: boolean;
   } = {},
 ) {
-  const calls = { reads: 0, details: 0, writes: [] as string[] };
+  const calls = {
+    reads: 0,
+    details: 0,
+    companyInterviewerReads: 0,
+    inventoryReads: [] as string[],
+    writes: [] as string[],
+  };
   if (options.live !== false)
     await mockLiveServer(page, {
       sessionId: roomId,
@@ -74,6 +81,32 @@ export async function mockRoomPreview(
         answered_count: 1,
       });
     }
+    if (path === `/interviews/${roomId}/interviewer`) {
+      calls.companyInterviewerReads++;
+      if (options.companyInterviewerError)
+        return route.fulfill({
+          status: 503,
+          headers: cors,
+          json: {
+            success: false,
+            error: {
+              code: "AVATAR_ASSET_UNAVAILABLE",
+              message: "Internal server information",
+            },
+          },
+        });
+      return ok({
+        name: "Acme interviewer",
+        voice_name: "Company voice",
+        model_access: {
+          url: "https://s3.test/company-interviewer.vrm",
+          method: "GET",
+          headers: {},
+          expires_at: "2099-01-01T00:00:00Z",
+        },
+      });
+    }
+    if (path.startsWith("/inventory")) calls.inventoryReads.push(path);
     if (path.startsWith("/inventory/avatars/")) {
       calls.details++;
       return ok({
