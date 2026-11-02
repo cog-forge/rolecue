@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { avatarItem, cors } from "./avatar-api";
+import { mockLiveServer } from "./live-interview";
 export const roomId = "aaaaaaaa-aaaa-4aaa-8aaa-000000000053";
 export async function mockRoomPreview(
   page: Page,
@@ -8,9 +9,17 @@ export async function mockRoomPreview(
     avatar?: boolean;
     error?: boolean;
     completed?: boolean;
+    /** Serve a one-question live socket so the room never reaches a real API (default). */
+    live?: boolean;
   } = {},
 ) {
   const calls = { reads: 0, details: 0, writes: [] as string[] };
+  if (options.live !== false)
+    await mockLiveServer(page, {
+      sessionId: roomId,
+      sessionType: options.recruitment ? "recruitment" : "practice",
+      questions: [{ text: "Walk me through a recent project." }],
+    });
   await page.route("http://localhost:8080/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
