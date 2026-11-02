@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { RoomTranscript } from "@/features/interview/components/room-transcript";
+import { renderWithIntl } from "@tests/helpers/intl";
 it("renders only supplied questions and STT answers and updates a partial turn in place", () => {
   const expand = vi.fn();
   const entries = [
@@ -16,7 +17,7 @@ it("renders only supplied questions and STT answers and updates a partial turn i
       partial: true,
     },
   ];
-  const view = render(
+  const view = renderWithIntl(
     <RoomTranscript expanded={false} onExpand={expand} entries={entries} />,
   );
   expect(screen.getByText("How did you diagnose the latency?")).toBeVisible();
@@ -42,7 +43,13 @@ it("renders only supplied questions and STT answers and updates a partial turn i
     view.container.querySelectorAll('[data-message-id="a1"]'),
   ).toHaveLength(1);
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+});
+it("labels a recruitment transcript as questions only", () => {
+  renderWithIntl(
+    <RoomTranscript expanded={false} onExpand={vi.fn()} recruitment />,
+  );
+  expect(screen.getByText("The interviewer's questions")).toBeVisible();
   expect(
-    screen.queryByText("Live captions are unavailable in this preview."),
-  ).not.toBeInTheDocument();
+    screen.getByText("Your answers are shared with the recruiter only."),
+  ).toBeVisible();
 });

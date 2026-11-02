@@ -8,6 +8,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { Toolbar } from "radix-ui";
+import { useTranslations } from "next-intl";
 import { useReducedMotion } from "motion/react";
 import { Dock, DockIcon } from "@/components/ui/dock";
 import { AIVoiceInput } from "@/components/ui/ai-voice-input";
@@ -41,39 +42,38 @@ export function RoomDock({
   sceneReady: boolean;
   onReset: () => void;
 }) {
+  const t = useTranslations("candidate.interviewRoom.controls");
   const state = microphone.snapshot;
   const reduced = useReducedMotion();
   const active = state.stream !== null;
   const micLabel = state.requestPending
-    ? "Requesting microphone access"
+    ? t("micRequesting")
     : active
       ? state.muted
-        ? "Unmute microphone"
-        : "Mute microphone"
+        ? t("micUnmute")
+        : t("micMute")
       : state.error
-        ? "Retry microphone"
-        : "Enable microphone";
+        ? t("micRetry")
+        : t("micEnable");
   const cameraLabel =
     camera.snapshot.status === "active"
-      ? "Turn camera off"
+      ? t("cameraOff")
       : camera.snapshot.status === "requesting"
-        ? "Cancel camera request"
+        ? t("cameraCancel")
         : camera.snapshot.requestPending
-          ? "Waiting for camera permission"
+          ? t("cameraWaiting")
           : camera.snapshot.error
-            ? "Retry camera"
-            : "Turn camera on";
+            ? t("cameraRetry")
+            : t("cameraOn");
   const micWarning =
     state.error?.message ??
-    (state.readiness === "interrupted"
-      ? "Your microphone input was interrupted. Check Audio settings."
-      : null);
+    (state.readiness === "interrupted" ? t("micInterrupted") : null);
   const warnings = [camera.snapshot.error, micWarning].filter(
     (warning): warning is string => Boolean(warning),
   );
   return (
     <div className="absolute bottom-[max(14px,env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-6">
-      <Toolbar.Root asChild aria-label="Interview controls">
+      <Toolbar.Root asChild aria-label={t("toolbar")}>
         <Dock
           iconSize={44}
           iconMagnification={reduced ? 44 : 58}
@@ -83,7 +83,7 @@ export function RoomDock({
           <DockIcon>
             <RoomControlButton
               icon={MessageSquare}
-              label={transcriptOpen ? "Hide transcript" : "Show transcript"}
+              label={transcriptOpen ? t("hideTranscript") : t("showTranscript")}
               aria-pressed={transcriptOpen}
               aria-controls="room-transcript"
               onClick={onTranscriptToggle}
@@ -143,14 +143,14 @@ export function RoomDock({
               className="text-[9px] whitespace-nowrap text-white/65"
             >
               {state.requestPending
-                ? "Allow mic"
+                ? t("micStatus.allow")
                 : state.error
-                  ? "Mic error"
+                  ? t("micStatus.error")
                   : active
                     ? state.muted
-                      ? "Muted"
-                      : "Mic on"
-                    : "Mic off"}
+                      ? t("micStatus.muted")
+                      : t("micStatus.on")
+                    : t("micStatus.off")}
             </span>
           </div>
           <Toolbar.Separator className="mx-0.5 h-6 w-px shrink-0 bg-white/15" />
