@@ -22,10 +22,13 @@ export function ReportBody({
   report,
   onCheckAgain,
   checking,
+  autoRefresh = false,
 }: {
   report: Report;
   onCheckAgain: () => void;
   checking: boolean;
+  /** The page refetches by itself while evaluation is pending (bounded). */
+  autoRefresh?: boolean;
 }) {
   const t = useTranslations("candidate.report");
   const fmt = useFormatters();
@@ -64,6 +67,7 @@ export function ReportBody({
         status={status}
         onCheckAgain={onCheckAgain}
         checking={checking}
+        autoRefresh={autoRefresh}
       />
 
       {finished ? (
@@ -191,10 +195,12 @@ function StatusNotice({
   status,
   onCheckAgain,
   checking,
+  autoRefresh,
 }: {
   status: Report["status"];
   onCheckAgain: () => void;
   checking: boolean;
+  autoRefresh: boolean;
 }) {
   const t = useTranslations("candidate.report");
   if (status === "completed") return null;
@@ -210,6 +216,11 @@ function StatusNotice({
       <p className="mt-2 text-sm text-muted-foreground">
         {t(`notice.${status}.text`)}
       </p>
+      {status === "pending" ? (
+        <p role="status" className="mt-2 text-sm text-muted-foreground">
+          {autoRefresh ? t("autoRefresh") : t("autoRefreshStopped")}
+        </p>
+      ) : null}
       {status === "pending" || status === "in_progress" ? (
         <Button
           variant="outline"

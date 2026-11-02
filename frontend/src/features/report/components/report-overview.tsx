@@ -13,6 +13,21 @@ import { getInterviewReport, reportKeys } from "../api/report";
 import { apiStatus, isAccessDenied } from "../utils/api-status";
 import { ReportBody } from "./report-body";
 
+/** While evaluation is pending, refetch every few seconds for about three minutes, then leave it to
+ * "Check again". Both successful and failed fetches count, so the bound holds across remounts and
+ * against an API that keeps erroring.
+ */
+export const REPORT_POLL_MS = 4000;
+export const REPORT_MAX_POLLS = 45;
+function autoRefreshes(
+  status: string | undefined,
+  state: { dataUpdateCount: number; errorUpdateCount: number } | undefined,
+) {
+  const fetches =
+    (state?.dataUpdateCount ?? 0) + (state?.errorUpdateCount ?? 0);
+  return status === "pending" && fetches < REPORT_MAX_POLLS;
+}
+
 // One interview report for the user who may read it. The Go API decides visibility; a refused or
 // missing report looks the same (404), so this screen does not reveal whether it exists.
 export function ReportOverview({ reportId }: { reportId: string }) {
@@ -20,14 +35,24 @@ export function ReportOverview({ reportId }: { reportId: string }) {
   const user = useSessionUser();
   const cache = useQueryClient();
   const validId = z.uuid().safeParse(reportId).success;
+  const queryKey = reportKeys.detail(user.id, reportId);
   const query = useQuery({
-    queryKey: reportKeys.detail(user.id, reportId),
+    queryKey,
     queryFn: ({ signal }) => getInterviewReport(reportId, signal),
     enabled: validId,
     // Evaluation finishes on the server, so every visit asks again.
     refetchOnMount: "always",
+    refetchInterval: (current) =>
+      autoRefreshes(current.state.data?.status, current.state)
+        ? REPORT_POLL_MS
+        : false,
     retry: false,
   });
+  // Reading the update times re-renders after every fetch, even when the report is unchanged.
+  const pollState =
+    query.dataUpdatedAt || query.errorUpdatedAt
+      ? cache.getQueryState(queryKey)
+      : undefined;
   const denied = isAccessDenied(query.error);
   useEffect(() => {
     if (denied) void cache.invalidateQueries({ queryKey: ["auth", "me"] });
@@ -95,6 +120,7 @@ export function ReportOverview({ reportId }: { reportId: string }) {
       ) : (
         <ReportBody
           report={query.data}
+          autoRefresh={autoRefreshes(query.data.status, pollState)}
           checking={query.isFetching}
           onCheckAgain={() => void query.refetch()}
         />
