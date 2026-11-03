@@ -50,7 +50,7 @@ func newBufferLogger(out *syncBuffer) *logger.Logger {
 // line carries the recipient, subject, body or API key. The sender's error deliberately includes the secrets,
 // so the test also proves the dispatcher does not log error text.
 func TestLogsNeverContainSensitiveData(t *testing.T) {
-	secretMsg := email.Message{To: secretRecipient, Subject: secretSubject, Body: secretBody}
+	secretMsg := email.Message{To: secretRecipient, Subject: secretSubject, Body: secretBody, Template: &email.HostedTemplate{ID: "template", Variables: map[string]string{"REJECT_REASON": secretBody}}}
 	leakyErr := errors.New("provider rejected " + secretRecipient + " " + secretSubject + " " + secretBody + " " + secretKey)
 
 	cases := []struct {

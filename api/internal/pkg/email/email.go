@@ -1,5 +1,6 @@
-// Package email is the vendor-neutral transactional email boundary. Features build a Message from a Template
-// and hand it to a Dispatcher; a provider (internal/pkg/email/resend) or the log-only adapter
+// Package email is the vendor-neutral transactional email boundary. Features build a Message using
+// a plain-text Template or a HostedTemplate reference and hand it to a Dispatcher. A provider
+// (internal/pkg/email/resend) or the log-only adapter
 // (internal/pkg/email/logsender) sits behind Sender, so swapping vendors never touches the features.
 package email
 
@@ -8,11 +9,19 @@ import (
 	"errors"
 )
 
-// Message is one plain-text email.
+// HostedTemplate references content managed by the email provider. The sender translates this
+// vendor-neutral reference into its API payload; the dispatcher treats it like any other message.
+type HostedTemplate struct {
+	ID        string
+	Variables map[string]string
+}
+
+// Message contains either plain-text content or a hosted template reference.
 type Message struct {
-	To      string
-	Subject string
-	Body    string
+	To       string
+	Subject  string
+	Body     string
+	Template *HostedTemplate
 	// ID names this message across every retry; a provider that supports it uses it to refuse a duplicate
 	// when an attempt timed out after the provider had already accepted the mail. Dispatch fills it in
 	// when the caller leaves it empty.

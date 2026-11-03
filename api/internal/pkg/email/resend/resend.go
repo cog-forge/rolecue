@@ -66,16 +66,30 @@ func New(cfg Config) email.Sender {
 	}
 }
 
-// payload is the Resend send-email body. Only text is sent; the dispatcher never produces HTML.
+// payload supports existing plain-text messages and provider-hosted templates. Resend forbids
+// combining a template with text/html content.
 type payload struct {
-	From    string   `json:"from"`
-	To      []string `json:"to"`
-	Subject string   `json:"subject"`
-	Text    string   `json:"text"`
+	From     string           `json:"from"`
+	To       []string         `json:"to"`
+	Subject  string           `json:"subject,omitempty"`
+	Text     string           `json:"text,omitempty"`
+	Template *templatePayload `json:"template,omitempty"`
+}
+
+type templatePayload struct {
+	ID        string            `json:"id"`
+	Variables map[string]string `json:"variables,omitempty"`
 }
 
 func (c *client) Send(ctx context.Context, msg email.Message) error {
-	body, err := json.Marshal(payload{From: c.from, To: []string{msg.To}, Subject: msg.Subject, Text: msg.Body})
+	request := payload{From: c.from, To: []string{msg.To}, Subject: msg.Subject, Text: msg.Body}
+	if msg.Template != nil {
+		if msg.Template.ID == "" || msg.Body != "" || msg.Subject != "" {
+			return email.Permanent(errors.New("resend: hosted template requires an ID and no inline content"))
+		}
+		request.Template = &templatePayload{ID: msg.Template.ID, Variables: msg.Template.Variables}
+	}
+	body, err := json.Marshal(request)
 	if err != nil {
 		return email.Permanent(errors.New("resend: encode request"))
 	}

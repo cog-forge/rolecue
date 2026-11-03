@@ -19,9 +19,14 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/features/admin/moderation/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/admin/moderation/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/admin/moderation/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/email"
+	"github.com/cog-forge/rolecue/api/internal/pkg/email/logsender"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func openPool(t *testing.T) (context.Context, *pgxpool.Pool) {
@@ -191,5 +196,69 @@ func TestAdminDetailOfAPostingWithTextButNoContentPath(t *testing.T) {
 	}
 	if got.DocumentURL != nil || got.DocumentExpiresAt != nil {
 		t.Fatalf("document_url=%v expires=%v, want no document link", got.DocumentURL, got.DocumentExpiresAt)
+	}
+}
+
+// CommittedNoticeSender verifies that a separate connection sees the committed status before
+// delivery, then forwards to the real log-only adapter. No external email is sent.
+type committedNoticeSender struct {
+	pool     *pgxpool.Pool
+	id       uuid.UUID
+	expected string
+	next     email.Sender
+	calls    int
+}
+
+func (s *committedNoticeSender) Send(ctx context.Context, msg email.Message) error {
+	var status string
+	if err := s.pool.QueryRow(ctx, "SELECT status::text FROM public.job_postings WHERE id=$1", s.id).Scan(&status); err != nil {
+		return err
+	}
+	if status != s.expected {
+		return email.Permanent(errors.New("decision not committed"))
+	}
+	s.calls++
+	return s.next.Send(ctx, msg)
+}
+
+func TestModerationNoticeAfterCommit(t *testing.T) {
+	ctx, pool := openPool(t)
+	seed := newSeed(t, ctx, pool)
+	recruiter := seed.recruiter()
+	for _, status := range []string{"open", "rejected"} {
+		t.Run(status, func(t *testing.T) {
+			text := "Stored job description"
+			id := seed.submittedPosting(recruiter, nil, &text)
+			core, logs := observer.New(zap.InfoLevel)
+			log := &logger.Logger{Logger: zap.New(core)}
+			sender := &committedNoticeSender{pool: pool, id: id, expected: status, next: logsender.New(log)}
+			dispatcher := email.NewDispatcher(sender, email.DispatcherOptions{MaxAttempts: 3, Logger: log})
+			svc, err := service.New(repository.NewRepository(pool), refusingTexts{}, log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.SetNotices(dispatcher, "https://rolecue.test", "approved-template", "rejected-template"); err != nil {
+				t.Fatal(err)
+			}
+			decide := func() {
+				var err error
+				if status == "open" {
+					_, err = svc.Approve(ctx, uuid.New(), "admin", id)
+				} else {
+					_, err = svc.Reject(ctx, uuid.New(), "admin", id, "Add salary")
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			decide()
+			decide()
+			if err := dispatcher.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if sender.calls != 1 || logs.FilterMessage("email sent").Len() != 1 {
+				t.Fatal("expected one log-only delivery after commit")
+			}
+		})
 	}
 }

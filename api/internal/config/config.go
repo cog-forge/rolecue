@@ -175,6 +175,9 @@ type TTSConfig struct {
 // EmailConfig configures the Go API's transactional email (KAN-213). Provider "log" sends nothing and
 // only logs, which is the default for local development and tests; "resend" sends through Resend.
 type EmailConfig struct {
+	ModerationApprovedTemplateID string `mapstructure:"approved_template_id"`
+	ModerationRejectedTemplateID string `mapstructure:"rejected_template_id"`
+
 	Provider    string        `mapstructure:"provider"`
 	From        string        `mapstructure:"from"`
 	APIKey      string        `mapstructure:"api_key"`
@@ -337,6 +340,8 @@ func Load(configPath string) (*Config, error) {
 		"email.queue_size":                    "EMAIL_QUEUE_SIZE",
 		"email.max_attempts":                  "EMAIL_MAX_ATTEMPTS",
 		"email.backoff":                       "EMAIL_BACKOFF",
+		"email.approved_template_id":          "EMAIL_MODERATION_APPROVED_TEMPLATE_ID",
+		"email.rejected_template_id":          "EMAIL_MODERATION_REJECTED_TEMPLATE_ID",
 		"payos.client_id":                     "PAYOS_CLIENT_ID",
 		"payos.api_key":                       "PAYOS_API_KEY",
 		"payos.checksum_key":                  "PAYOS_CHECKSUM_KEY",

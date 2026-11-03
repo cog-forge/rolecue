@@ -86,8 +86,11 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	service4, err := provider.ProvideModerationService(repository4, store, logger, service3)
+	sender := provider.ProvideEmailSender(config, logger)
+	dispatcher, cleanup3 := provider.ProvideEmailDispatcher(config, sender, logger)
+	service4, err := provider.ProvideModerationService(repository4, store, logger, service3, dispatcher, config)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -104,12 +107,14 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository7 := provider.ProvideVoiceCatalogRepository(pool)
 	voiceProvider, err := provider.ProvideVoiceCatalogProvider(config)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	service6, err := provider.ProvideVoiceCatalogService(repository7, voiceProvider, config, logger)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -118,12 +123,14 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository8 := provider.ProvideJobPostingRepository(pool)
 	service7, err := provider.ProvideJobPostingService(repository8, store)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	extraction, err := provider.ProvideJobPostingExtraction(config, extractionService)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -132,6 +139,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository9 := provider.ProvideVoiceRepository(pool)
 	service8, err := provider.ProvideVoiceService(repository9)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -140,6 +148,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository10 := provider.ProvideJobBoardRepository(pool)
 	service9, err := provider.ProvideJobBoardService(repository10, store)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -149,6 +158,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository11 := provider.ProvideApplicationRepository(pool)
 	service10, err := provider.ProvideApplicationService(repository11, store)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -157,6 +167,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository12 := provider.ProvideAdminInterviewsRepository(pool)
 	service11, err := provider.ProvideAdminInterviewsService(repository12)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -165,6 +176,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository13 := provider.ProvideAdminOverviewRepository(pool)
 	service12, err := provider.ProvideAdminOverviewService(repository13, service2)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -174,12 +186,14 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	scorer := provider.ProvideInterviewScorer(config)
 	scoring, err := provider.ProvideInterviewEvaluationService(repository5, scorer)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	service13, err := provider.ProvideInterviewService(repository14, config, scoring)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -189,6 +203,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	interviewReportHandler := provider.ProvideInterviewReportHandler(scoring)
 	recordingService, err := provider.ProvideInterviewRecordingService(repository14, store)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -197,12 +212,14 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	synthesizer := provider.ProvideSynthesizer(config, logger)
 	transcriber, err := provider.ProvideTranscriber(config, logger)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	engine, err := provider.ProvideInterviewLiveEngine(service13, synthesizer, transcriber, config)
 	if err != nil {
+		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
@@ -211,21 +228,21 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler, interviewLiveHandler)
 	ginEngine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers)
 	server := provider.ProvideHTTPServer(config, ginEngine, logger)
-	tracer, cleanup3, err := provider.ProvideTracer(config, logger)
-	if err != nil {
-		cleanup2()
-		cleanup()
-		return nil, nil, err
-	}
-	expiryRunner, err := provider.ProvideApplicationExpiryRunner(service10)
+	tracer, cleanup4, err := provider.ProvideTracer(config, logger)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	sender := provider.ProvideEmailSender(config, logger)
-	dispatcher, cleanup4 := provider.ProvideEmailDispatcher(config, sender, logger)
+	expiryRunner, err := provider.ProvideApplicationExpiryRunner(service10)
+	if err != nil {
+		cleanup4()
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	recordingUpkeep, err := provider.ProvideRecordingUpkeep(repository14, store, config)
 	if err != nil {
 		cleanup4()

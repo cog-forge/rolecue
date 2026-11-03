@@ -49,6 +49,7 @@ type Service struct {
 	repository Repository
 	texts      TextStore
 	log        *logger.Logger
+	notices    *Notices
 }
 
 // New builds the service. Decisions are logged because the brain asks for an admin audit trail
@@ -111,6 +112,15 @@ func (s *Service) Reject(ctx context.Context, adminID uuid.UUID, role string, id
 // decide applies the transition. When the posting is no longer pending, repeating the decision it
 // already has succeeds with the current state, so a client retry after a lost response is safe.
 func (s *Service) decide(ctx context.Context, adminID, id uuid.UUID, status domain.PostingStatus, reason *string) (domain.ReviewPosting, error) {
+	// Capture the owner and title before the atomic transition; no storage reads are needed for mail.
+	var posting domain.ReviewPosting
+	if s.notices != nil {
+		var err error
+		posting, err = s.repository.Get(ctx, id)
+		if err != nil {
+			return domain.ReviewPosting{}, err
+		}
+	}
 	err := s.repository.Decide(ctx, id, status, reason)
 	if err == nil {
 		// Log before re-reading: the decision is already committed, and a failed read followed by an
@@ -126,12 +136,15 @@ func (s *Service) decide(ctx context.Context, adminID, id uuid.UUID, status doma
 			fields = append(fields, logger.Int("reason_length", utf8.RuneCountInString(*reason)))
 		}
 		s.log.WithContext(ctx).Info("job posting moderated", fields...)
+		if s.notices != nil {
+			s.notices.send(posting, status, reason)
+		}
 		return s.review(ctx, id)
 	}
 	if !errors.Is(err, domain.ErrNotPending) {
 		return domain.ReviewPosting{}, err
 	}
-	posting, err := s.repository.Get(ctx, id)
+	posting, err = s.repository.Get(ctx, id)
 	if err != nil {
 		return domain.ReviewPosting{}, err
 	}

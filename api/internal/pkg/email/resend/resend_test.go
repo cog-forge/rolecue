@@ -201,3 +201,85 @@ func TestIdempotencyKeyIsTheMessageIDOnEveryAttempt(t *testing.T) {
 		t.Fatalf("idempotency keys = %q", keys)
 	}
 }
+
+func TestHostedTemplateRequestShape(t *testing.T) {
+	var body map[string]json.RawMessage
+	var key string
+	s := newSender(t, func(w http.ResponseWriter, r *http.Request) {
+		key = r.Header.Get("Idempotency-Key")
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}, time.Second)
+	msg := email.Message{ID: "decision-id", To: "owner@example.test", Template: &email.HostedTemplate{
+		ID: "approved-template", Variables: map[string]string{"POSTING_TITLE": "Engineer", "POSTING_URL": "https://rolecue.test/posting"},
+	}}
+	if err := s.Send(context.Background(), msg); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"subject", "text", "html", "react"} {
+		if _, ok := body[field]; ok {
+			t.Fatalf("hosted send unexpectedly contains %s", field)
+		}
+	}
+	var template struct {
+		ID        string
+		Variables map[string]string
+	}
+	if err := json.Unmarshal(body["template"], &template); err != nil {
+		t.Fatal(err)
+	}
+	if template.ID != msg.Template.ID || template.Variables["POSTING_TITLE"] != "Engineer" || template.Variables["POSTING_URL"] != msg.Template.Variables["POSTING_URL"] || key != msg.ID {
+		t.Fatal("template or idempotency data changed")
+	}
+}
+
+func TestInvalidHostedTemplateNeverCallsProvider(t *testing.T) {
+	var calls int
+	s := newSender(t, func(w http.ResponseWriter, _ *http.Request) { calls++; w.WriteHeader(http.StatusOK) }, time.Second)
+	for _, msg := range []email.Message{
+		{Template: &email.HostedTemplate{}},
+		{Template: &email.HostedTemplate{ID: "template"}, Body: "inline"},
+		{Template: &email.HostedTemplate{ID: "template"}, Subject: "inline"},
+	} {
+		if err := s.Send(context.Background(), msg); !email.IsPermanent(err) {
+			t.Fatal("invalid template must fail permanently before sending")
+		}
+	}
+	if calls != 0 {
+		t.Fatal("invalid payload reached provider")
+	}
+}
+
+func TestHostedTemplateRetryKeepsPayloadAndIdempotencyKey(t *testing.T) {
+	var payloads []string
+	var keys []string
+	s := newSender(t, func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Error(err)
+		}
+		payloads = append(payloads, string(body))
+		keys = append(keys, r.Header.Get("Idempotency-Key"))
+		if len(payloads) == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}, time.Second)
+	dispatcher := email.NewDispatcher(s, email.DispatcherOptions{MaxAttempts: 2})
+	dispatcher.Dispatch("moderation:test:rejected", email.Message{
+		ID: "stable-decision-id", To: "owner@example.test", Template: &email.HostedTemplate{
+			ID: "rejected-template", Variables: map[string]string{"POSTING_TITLE": "Engineer", "REJECT_REASON_1": "Add salary"},
+		},
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := dispatcher.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(payloads) != 2 || payloads[0] != payloads[1] || keys[0] != "stable-decision-id" || keys[0] != keys[1] {
+		t.Fatal("hosted retry changed payload or idempotency key")
+	}
+}
