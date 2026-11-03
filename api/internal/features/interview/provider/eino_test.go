@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -63,11 +64,29 @@ func TestDecideDecodesAStrictReply(t *testing.T) {
 			reply: ` {"follow_up":false,"question":"","reason":"Complete answer."}` + "\n",
 			want:  domain.FollowUpProposal{Reason: "Complete answer."},
 		},
+		"with cues": {
+			reply: `{"follow_up":true,"question":"Which algorithm handles bursts?","reason":"r","cues":[{"word":0,"emotion":"curious"},{"word":1,"gesture":"lean_in"}]}`,
+			want: domain.FollowUpProposal{FollowUp: true, Question: "Which algorithm handles bursts?", Reason: "r", Cues: []domain.PerformanceCue{
+				{Word: 0, Kind: domain.CueEmotion, Name: domain.EmotionCurious}, {Word: 1, Kind: domain.CueGesture, Name: domain.GestureLeanIn},
+			}},
+		},
+		"empty cues": {
+			reply: `{"follow_up":false,"question":"","reason":"r","cues":[]}`,
+			want:  domain.FollowUpProposal{Reason: "r"},
+		},
+		// A cue the service cannot perform is kept as an invalid cue, never as a guess: the service then
+		// drops the list and the engine uses its rules. The question itself is unaffected.
+		"unperformable cue": {
+			reply: `{"follow_up":true,"question":"Why?","reason":"r","cues":[{"word":0,"emotion":"curious","gesture":"nod"},{"emotion":"smug"}]}`,
+			want: domain.FollowUpProposal{FollowUp: true, Question: "Why?", Reason: "r", Cues: []domain.PerformanceCue{
+				{Word: 0}, {Word: -1, Kind: domain.CueEmotion, Name: "smug"},
+			}},
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			got, err := decider(t, replying(tt.reply)).Decide(context.Background(), slot())
-			if err != nil || got != tt.want {
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("Decide = %+v, %v; want %+v", got, err, tt.want)
 			}
 		})
@@ -114,16 +133,18 @@ func TestDecideKeepsTheAnswerInsideUntrustedData(t *testing.T) {
 
 func TestDecideRejectsMalformedReplies(t *testing.T) {
 	tests := map[string]string{
-		"not JSON":         `follow up: yes`,
-		"markdown fence":   "```json\n{\"follow_up\":false,\"question\":\"\",\"reason\":\"r\"}\n```",
-		"unknown field":    `{"follow_up":false,"question":"","reason":"r","confidence":0.9}`,
-		"trailing data":    `{"follow_up":false,"question":"","reason":"r"} {}`,
-		"missing decision": `{"question":"","reason":"r"}`,
-		"missing question": `{"follow_up":false,"reason":"r"}`,
-		"missing reason":   `{"follow_up":true,"question":"Why?"}`,
-		"wrong type":       `{"follow_up":"yes","question":"Why?","reason":"r"}`,
-		"array":            `[{"follow_up":false,"question":"","reason":"r"}]`,
-		"oversized":        `{"follow_up":false,"question":"","reason":"` + strings.Repeat("x", maxReplyBytes) + `"}`,
+		"not JSON":          `follow up: yes`,
+		"markdown fence":    "```json\n{\"follow_up\":false,\"question\":\"\",\"reason\":\"r\"}\n```",
+		"unknown field":     `{"follow_up":false,"question":"","reason":"r","confidence":0.9}`,
+		"unknown cue field": `{"follow_up":false,"question":"","reason":"r","cues":[{"word":0,"emotion":"curious","intensity":2}]}`,
+		"cues not a list":   `{"follow_up":false,"question":"","reason":"r","cues":{"word":0}}`,
+		"trailing data":     `{"follow_up":false,"question":"","reason":"r"} {}`,
+		"missing decision":  `{"question":"","reason":"r"}`,
+		"missing question":  `{"follow_up":false,"reason":"r"}`,
+		"missing reason":    `{"follow_up":true,"question":"Why?"}`,
+		"wrong type":        `{"follow_up":"yes","question":"Why?","reason":"r"}`,
+		"array":             `[{"follow_up":false,"question":"","reason":"r"}]`,
+		"oversized":         `{"follow_up":false,"question":"","reason":"` + strings.Repeat("x", maxReplyBytes) + `"}`,
 	}
 	for name, reply := range tests {
 		t.Run(name, func(t *testing.T) {

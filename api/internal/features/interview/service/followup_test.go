@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -171,7 +172,7 @@ func TestAppendFollowUpStoresTheAnswerWithItsFollowUp(t *testing.T) {
 	if _, err := svc.AppendFollowUp(ctx, candidateID, "candidate", sessionID, followUp, "  "+sentinelAnswer+"  "); err != nil {
 		t.Fatalf("AppendFollowUp: %v", err)
 	}
-	if repo.appendedFollowUp != followUp || repo.appendAnswer != sentinelAnswer || repo.appendLimit != 1 {
+	if !reflect.DeepEqual(repo.appendedFollowUp, followUp) || repo.appendAnswer != sentinelAnswer || repo.appendLimit != 1 {
 		t.Fatalf("stored %+v / %q with limit %d", repo.appendedFollowUp, repo.appendAnswer, repo.appendLimit)
 	}
 	if fields := onlyEntry(t, logs, "interview answer recorded").ContextMap(); fields["kind"] != "follow_up" || fields["question_number"] != int64(2) {
@@ -225,6 +226,65 @@ func TestValidateProposal(t *testing.T) {
 				t.Fatalf("error %v is not an invalid proposal", err)
 			}
 		})
+	}
+}
+
+// Cues never decide a proposal's validity: a usable list is kept, anything else is dropped as a whole so
+// the live engine falls back to its rules, and a declined proposal keeps none.
+func TestValidateProposalKeepsOnlyAPerformableCueList(t *testing.T) {
+	question := "Which algorithm would you pick for bursts?" // 7 words
+	good := []domain.PerformanceCue{
+		{Word: 0, Kind: domain.CueEmotion, Name: domain.EmotionCurious},
+		{Word: 6, Kind: domain.CueGesture, Name: domain.GestureLeanIn},
+	}
+	tests := []struct {
+		name     string
+		cues     []domain.PerformanceCue
+		followUp bool
+		kept     bool
+	}{
+		{name: "valid list", cues: good, followUp: true, kept: true},
+		{name: "none proposed", followUp: true},
+		{name: "unknown emotion", cues: []domain.PerformanceCue{{Word: 0, Kind: domain.CueEmotion, Name: "smug"}}, followUp: true},
+		{name: "unknown gesture", cues: []domain.PerformanceCue{{Word: 0, Kind: domain.CueGesture, Name: "shrug"}}, followUp: true},
+		{name: "unknown kind", cues: []domain.PerformanceCue{{Word: 0, Kind: "pose", Name: domain.GestureNod}}, followUp: true},
+		{name: "word past the question", cues: []domain.PerformanceCue{{Word: 7, Kind: domain.CueGesture, Name: domain.GestureNod}}, followUp: true},
+		{name: "negative word", cues: []domain.PerformanceCue{{Word: -1, Kind: domain.CueGesture, Name: domain.GestureNod}}, followUp: true},
+		{name: "one bad cue drops the list", cues: append(append([]domain.PerformanceCue{}, good...), domain.PerformanceCue{Word: 1, Kind: domain.CueEmotion, Name: "x"}), followUp: true},
+		{name: "duplicate kind on a word", cues: []domain.PerformanceCue{{Word: 0, Kind: domain.CueEmotion, Name: domain.EmotionCurious}, {Word: 0, Kind: domain.CueEmotion, Name: domain.EmotionFriendly}}, followUp: true},
+		{name: "too many", cues: []domain.PerformanceCue{
+			{Word: 0, Kind: domain.CueEmotion, Name: domain.EmotionCurious}, {Word: 1, Kind: domain.CueGesture, Name: domain.GestureNod},
+			{Word: 2, Kind: domain.CueGesture, Name: domain.GestureNod}, {Word: 3, Kind: domain.CueGesture, Name: domain.GestureNod},
+			{Word: 4, Kind: domain.CueGesture, Name: domain.GestureNod},
+		}, followUp: true},
+		{name: "declined keeps none", cues: good},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proposal := domain.FollowUpProposal{FollowUp: tt.followUp, Reason: "r", Cues: tt.cues}
+			if tt.followUp {
+				proposal.Question = question
+			}
+			if err := validateProposal(&proposal, pendingSlot()); err != nil {
+				t.Fatalf("validateProposal = %v", err)
+			}
+			if tt.kept != (proposal.Cues != nil) {
+				t.Fatalf("cues = %+v, kept %v", proposal.Cues, tt.kept)
+			}
+		})
+	}
+}
+
+func TestFollowUpCarriesTheValidatedCues(t *testing.T) {
+	cues := []domain.PerformanceCue{{Word: 0, Kind: domain.CueEmotion, Name: domain.EmotionCurious}}
+	decider := &scriptedDecider{proposal: domain.FollowUpProposal{FollowUp: true, Question: "Why that one?", Reason: "r", Cues: cues}}
+	svc, _ := followUpService(t, decider, 1)
+	delivery, err := svc.FollowUp(context.Background(), candidateID, "candidate", sessionID)
+	if err != nil || delivery.Question == nil {
+		t.Fatalf("FollowUp = %+v, %v", delivery, err)
+	}
+	if got := delivery.Question.Cues; len(got) != 1 || got[0] != cues[0] {
+		t.Fatalf("cues = %+v, want %+v", got, cues)
 	}
 }
 

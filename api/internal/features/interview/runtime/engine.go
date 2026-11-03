@@ -554,8 +554,9 @@ func (c *conn) fatal(err error, replyTo string) bool {
 	return true
 }
 
-// performTurn builds the interviewer turn with synthesized speech. A missing voice or a failed synthesis
-// sends the turn as text only; the interview never stops for speech.
+// performTurn builds the interviewer turn with synthesized speech and its performance cues. A missing
+// voice or a failed synthesis sends the turn as text only, without cues; the interview never stops for
+// speech.
 func (c *conn) performTurn(ctx context.Context, d domain.Delivery) InterviewerTurn {
 	q := d.Question
 	turn := InterviewerTurn{
@@ -581,6 +582,8 @@ func (c *conn) performTurn(ctx context.Context, d domain.Delivery) InterviewerTu
 	for _, w := range result.Words {
 		turn.Words = append(turn.Words, WordTiming{OffsetMs: w.OffsetMs, DurationMs: w.DurationMs, Text: w.Text})
 	}
+	// Cues only accompany spoken audio: a text-only turn is shown idle and neutral (KAN-250).
+	turn.Cues = planCues(*q, turn.Words)
 	return turn
 }
 

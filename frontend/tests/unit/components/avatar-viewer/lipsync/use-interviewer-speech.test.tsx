@@ -38,6 +38,7 @@ describe("useInterviewerSpeech", () => {
     expect(stable.sample()?.jawOpen).toBeCloseTo(0.35, 2);
     expect(result.current.speech).toEqual({
       audio,
+      cues: [],
       words: fixture.words,
       text: fixture.text,
     });
