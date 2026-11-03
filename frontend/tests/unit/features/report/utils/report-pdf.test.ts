@@ -17,6 +17,7 @@ const report: Report = {
   overall_score: 82,
   started_at: "2026-11-03T01:00:00Z",
   completed_at: "2026-11-03T01:30:00Z",
+  end_reason: "completed",
   summary: "Practise explaining trade-offs.",
   breakdown: [
     {
