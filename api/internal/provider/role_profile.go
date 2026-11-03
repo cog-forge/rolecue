@@ -5,7 +5,6 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	questionbankservice "github.com/cog-forge/rolecue/api/internal/features/questionbank/service"
-	roleprofileprovider "github.com/cog-forge/rolecue/api/internal/features/roleprofile/provider"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
@@ -18,18 +17,19 @@ func ProvideRoleProfileRepository(pool *pgxpool.Pool) *repository.RoleProfileRep
 	return repository.NewRoleProfileRepository(pool)
 }
 func ProvideRoleProfileExtraction(cfg *config.Config) (*service.ExtractionService, error) {
-	model, err := ai.NewChatModel(context.Background(), cfg.LLM)
+	model, err := ai.NewTaskAdapter(context.Background(), cfg, config.TaskJD)
 	if err != nil {
 		return nil, err
 	}
-	extractor, err := roleprofileprovider.New(model)
-	if err != nil {
-		return nil, err
+	retries := 0
+	if cfg.AI.Route(config.TaskJD) == (config.TaskRoute{}) {
+		retries = cfg.LLM.MaxRetries
 	}
-	return service.NewExtractionService(extractor, cfg.LLM.MaxRetries)
+	return service.NewExtractionService(model, retries)
 }
 func ProvideRoleProfileService(cfg *config.Config, extraction *service.ExtractionService, repo *repository.RoleProfileRepository, questionBank *questionbankservice.Service) (*service.RoleProfileApplication, error) {
-	return service.NewRoleProfileApplication(extraction, repo, questionBank, cfg.LLM.Timeout)
+	primary, _ := cfg.TaskLLM(config.TaskJD)
+	return service.NewRoleProfileApplication(extraction, repo, questionBank, primary.Timeout)
 }
 func ProvideRoleProfileDocumentApplication(repo *repository.RoleProfileRepository, store storage.Store) *service.RoleProfileDocumentApplication {
 	return service.NewRoleProfileDocumentApplication(repo, store, service.PopplerParser{})
