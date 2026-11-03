@@ -75,3 +75,29 @@ func TestCheckRecruitmentStart(t *testing.T) {
 		})
 	}
 }
+
+func TestReasonForTellsCompletionFromLeavingAndAbandonment(t *testing.T) {
+	cases := []struct {
+		cause                   EndCause
+		answered, questionCount int32
+		want                    EndReason
+	}{
+		{EndByCandidate, 8, 8, EndCompleted},
+		{EndByCandidate, 2, 8, EndLeft},
+		{EndByCandidate, 0, 8, EndLeft},
+		{EndBySystem, 2, 8, EndAbandoned},
+		{EndBySystem, 8, 8, EndAbandoned},
+	}
+	for _, c := range cases {
+		if got := ReasonFor(c.cause, c.answered, c.questionCount); got != c.want {
+			t.Errorf("ReasonFor(%v, %d, %d) = %s, want %s", c.cause, c.answered, c.questionCount, got, c.want)
+		}
+	}
+}
+
+func TestAnsweredCoreSkipsFollowUps(t *testing.T) {
+	turns := []Turn{{Kind: TurnCore}, {Kind: TurnFollowUp}, {Kind: TurnCore}}
+	if got := AnsweredCore(turns); got != 2 {
+		t.Fatalf("AnsweredCore = %d, want 2", got)
+	}
+}

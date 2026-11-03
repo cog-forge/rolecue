@@ -95,8 +95,7 @@ The server announces each state change with a `state` message, before any conten
 | `listening` | The server accepts an answer for the current position. | `LISTENING` |
 | `processing` | The answer arrived; STT and persistence are running. | `PROCESSING_ANSWER` |
 | `transitioning` | The answer is stored; the next turn is being prepared, or the session is completing. | `TRANSITIONING` |
-| `completed` | The session is completed and evaluation has started. | `COMPLETED` |
-| `paused` | Reserved for KAN-215 (pause and exit). Not sent in v1. | `PAUSED` |
+| `completed` | The session ended (all answered, the Candidate left, or it was abandoned) and evaluation has started. | `COMPLETED` |
 | (socket lost) | Abnormal close or ping timeout. | `RECONNECTING` |
 | (close 4001 / 4003 / 4000) | Not recoverable by reconnecting. | `TERMINATED_EARLY` / `FATAL_ERROR` |
 
@@ -111,6 +110,48 @@ connect ─► session.sync(interviewer_speaking) ─► interviewer.turn
 The next position is a core question or a follow-up (`kind`); the flow is the same for both. While
 `transitioning`, the server may decide a follow-up (§4.2), which is bounded by
 `INTERVIEW_FOLLOW_UP_TIMEOUT`.
+
+There is **no pause** (decision 2026-11-03): v1 has no `paused` state and no pause command. Leaving
+ends the interview (§3.1).
+
+### 3.1 Leaving and other endings
+
+A session ends in exactly one way on the server: one end path, shared by the three endings below. It
+sets `completed_at` and `end_reason` once, moves a recruitment Application from `interview_eligible` to
+`interviewed`, and starts the evaluation once. Core questions never answered stay without a turn
+(`null` in the report). Nothing is charged, refunded or consumed again: the charge and the slot belong to
+the start. The end path is idempotent, so a double click, two tabs or a reconnect racing a leave all see
+the first ending.
+
+| `end_reason` | Who ends it | How |
+|---|---|---|
+| `completed` | The server, after the last answer (and its follow-ups) is stored. | The socket flow above. |
+| `left` | The Candidate, before every core question is answered. | `POST /interviews/{id}/complete` (REST, not a socket command). |
+| `abandoned` | The System Handler, after `JOBS_ABANDONED_SESSIONS_TIMEOUT` (15 min) without activity. | A background job. |
+
+**Leave is REST, not a socket message.** The room's Leave asks for confirmation, shows "submitting…",
+calls `POST /interviews/{id}/complete` and opens the report. REST works while the socket is
+reconnecting, and it is the same end path the socket uses. Calling it after every core question was
+answered ends the session as `completed`.
+
+When a session ends outside its socket (a leave, another tab's leave, an abandonment), the socket that
+drives it on this API instance sends `session.sync` with `state: completed`, then `session.completed`,
+and closes with `1000`; the client goes to the result. A socket on another instance learns it at its
+next command. An answer that arrives after the end is not stored. A connection opened after the end gets
+the same `session.sync(completed)`, `session.completed` and `1000`: a left or abandoned session can
+never be resumed.
+
+**An accidental disconnect is not a leave.** A dropped socket keeps the session; reconnecting before the
+abandonment timeout continues the same session (§8).
+
+**Abandonment.** The last activity of a session is derived from what is stored: the start, the latest
+question delivered (`interview_questions.asked_at`) and the latest answer stored
+(`conversation_turns.answered_at`). An answer lasts at most 3 minutes, so a session with none of these
+for the timeout is abandoned even if a socket is still open; a reconnect alone does not count as
+activity. A recruitment session is abandoned only while its window is open; after the deadline the
+Application expiry pass owns it. The job runs every `JOBS_ABANDONED_SESSIONS_INTERVAL` (1 min), takes a
+PostgreSQL advisory lock (safe with several API instances) and checks the activity again under the
+session lock before it ends anything.
 
 ## 4. Server messages
 
@@ -233,7 +274,9 @@ with short-lived URLs only if turns become long or audio must be cached by the b
 - `duplicate: true` means the position was already stored; nothing changed.
 
 ### `session.completed`
-`{ "evaluation_status": "pending" }`, then the server closes with `1000`.
+`{ "evaluation_status": "pending" }`, then the server closes with `1000`. It follows the last answer, or
+a `session.sync` in state `completed` when the session ended outside the socket (§3.1). Read
+`GET /interviews/{id}` for `end_reason`.
 
 ### `ack`
 `{ "duplicate": true }` with `reply_to`: a repeated command id; nothing changed.
@@ -317,13 +360,13 @@ stops the recorder at 3:00. The server enforces it from the transcriber's `Trans
 WebM recordings usually carry no duration): a recording longer than 3 minutes plus 5 s of grace is refused
 with `ANSWER_TOO_LONG`. While the transcriber reports no duration (the development fake), only the byte
 limits above apply; at the recommended 32 kbps, 4 MiB is roughly 17 minutes, so they are a technical
-backstop, not the rule. Pause and abandon timeouts remain open (KAN-215, KAN-180).
+backstop, not the rule. There is no pause; a session without activity for 15 minutes is abandoned (§3.1).
 
 ## 7. Close codes
 
 | Code | Meaning | Client action |
 |---|---|---|
-| 1000 | Interview completed (after `session.completed`). | Go to the result. |
+| 1000 | Interview ended (after `session.completed`): completed, left or abandoned. | Go to the result. |
 | 1001 | API shutting down. | Reconnect with backoff. |
 | 1006 | (Browser-side) connection lost, or refused before the upgrade. | `GET /interviews/{id}`: 2xx with `completed_at: null` means reconnect with backoff; 401, 403 or 404 means stop. |
 | 1009 | Message too big. | Fix the client; do not resend the same frame. |
@@ -350,6 +393,8 @@ backstop, not the rule. Pause and abandon timeouts remain open (KAN-215, KAN-180
   `INTERVIEW_FOLLOW_UP_TIMEOUT`) and then also goes on with the next core question.
 - A session whose answers are all stored but which was not completed (the socket dropped in between)
   completes on the next connection.
+- Reconnecting is free and possible until the session ends: the Candidate leaves (§3.1), or it is
+  abandoned after `JOBS_ABANDONED_SESSIONS_TIMEOUT` without a delivered question or a stored answer.
 
 ## 9. STT boundary (for KAN-55)
 
@@ -393,3 +438,4 @@ type Transcript struct {
 | `INTERVIEW_TTS_CACHE_ENTRIES` | `128` | In-memory cache of synthesized turns per (provider voice, text); `0` disables. |
 | `INTERVIEW_FOLLOW_UP_LIMIT` | `1` | Most follow-ups after one core question (0 to 3). `0` turns follow-ups off: core questions only. Follow-ups also stay off when no LLM is configured. |
 | `INTERVIEW_FOLLOW_UP_TIMEOUT` | `5s` | Bound for one follow-up decision (1s to 15s); after it the next core question follows. |
+| `JOBS_ABANDONED_SESSIONS_TIMEOUT` | `15m` | Inactivity after which the System Handler ends a session as `abandoned` (30s to 24h; §3.1). `JOBS_ABANDONED_SESSIONS_ENABLED` and `_INTERVAL` (`1m`) switch and pace the job. |

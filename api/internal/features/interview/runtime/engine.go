@@ -190,6 +190,10 @@ func (c *conn) run(ctx context.Context, incoming <-chan inbound) {
 		case <-c.engine.hub.shutdown:
 			c.close(websocket.CloseGoingAway, "the server is restarting")
 			return
+		case <-c.lease.ended:
+			// The session ended elsewhere (the Candidate left, or it was abandoned): report it and close.
+			c.endedElsewhere(ctx)
+			return
 		case in := <-incoming:
 			if in.err != nil {
 				// A drop keeps everything already stored; a partial recording is discarded and the
@@ -509,6 +513,14 @@ func (c *conn) complete(ctx context.Context) bool {
 	c.send(TypeSessionCompleted, "", SessionCompleted{EvaluationStatus: string(session.EvaluationStatus)})
 	c.close(websocket.CloseNormalClosure, "interview completed")
 	return true
+}
+
+// endedElsewhere reports a session that another path ended. It waits for this socket's turn work, so the
+// end is reported after any answer still being stored.
+func (c *conn) endedElsewhere(ctx context.Context) {
+	c.stream.turn.Lock()
+	defer c.stream.turn.Unlock()
+	c.finishCompleted(ctx, "")
 }
 
 // finishCompleted reports a session that is already completed and closes with 1000.

@@ -202,8 +202,8 @@ func (h *InterviewHandler) AppendTurn(c *gin.Context) {
 }
 
 // Complete godoc
-// @Summary Complete an interview session
-// @Description Candidate only. Idempotent: the first call sets completed_at, and later calls return the session as it is. A recruitment session also moves its Application to interviewed. The evaluation starts in the background after the first completion.
+// @Summary Complete or leave an interview session
+// @Description Candidate only. Ends the session through the one end path shared with the live socket and the abandoned-session job. Called before every core question is answered it is the room's Leave: the session ends with end_reason left and is evaluated on what was answered; unanswered questions have no turn. Idempotent: the first call sets completed_at and end_reason, and later calls (a double click, a second tab) return the session as it is. A recruitment session also moves its Application to interviewed; nothing is charged, refunded or consumed again. An open live socket of the session receives session.completed and closes with 1000. The evaluation starts in the background after the first ending. A recruitment session whose window closed is APPLICATION_NOT_ELIGIBLE.
 // @Tags interviews
 // @Produce json
 // @Security SessionCookie
@@ -214,6 +214,7 @@ func (h *InterviewHandler) AppendTurn(c *gin.Context) {
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
 // @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
 // @Failure 500 {object} response.Envelope
 // @Router /interviews/{id}/complete [post]
 func (h *InterviewHandler) Complete(c *gin.Context) {

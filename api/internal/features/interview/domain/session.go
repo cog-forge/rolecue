@@ -33,7 +33,42 @@ const (
 	RecordProcessing RecordStatus = "processing"
 	RecordReady      RecordStatus = "ready"
 	RecordFailed     RecordStatus = "failed"
+	// RecordDeleted is a recording purged after the retention period: the object and its key are gone.
+	RecordDeleted RecordStatus = "deleted"
 )
+
+// EndReason is how a session ended. Every ending goes through the one end path (the repository's End):
+// EndCompleted when every core question was answered, EndLeft when the Candidate ended it early, and
+// EndAbandoned when the System Handler ended it after the inactivity timeout. A session ended before the
+// reason was recorded has none.
+type EndReason string
+
+const (
+	EndCompleted EndReason = "completed"
+	EndLeft      EndReason = "left"
+	EndAbandoned EndReason = "abandoned"
+)
+
+// EndCause is who ends a session: the Candidate (a normal completion or leaving early, told apart by
+// the answers stored) or the System Handler after the inactivity timeout.
+type EndCause int
+
+const (
+	EndByCandidate EndCause = iota
+	EndBySystem
+)
+
+// ReasonFor decides the end reason under the session lock. A Candidate ending the session after every
+// core question is answered completed it, earlier they left it; the System Handler only abandons.
+func ReasonFor(cause EndCause, answeredCore, questionCount int32) EndReason {
+	if cause == EndBySystem {
+		return EndAbandoned
+	}
+	if answeredCore >= questionCount {
+		return EndCompleted
+	}
+	return EndLeft
+}
 
 // PracticeInterviewCoins is the price of one practice session, in coins. The team fixed it at 5; it is a
 // constant on purpose, not configuration.
@@ -89,7 +124,8 @@ type Turn struct {
 // Session is one interview session as the Candidate sees it. Turns is set only for practice sessions:
 // recruitment sessions never return turns, the question list, core question ids, the recording or any
 // asset link. Turns is a pointer so a practice session with no answers still returns an empty array,
-// and a recruitment session omits the key.
+// and a recruitment session omits the key. EndReason is null while the session runs, and for a session
+// ended before the reason was recorded.
 type Session struct {
 	ID               uuid.UUID        `json:"id"`
 	Type             Type             `json:"type" enums:"practice,recruitment"`
@@ -99,6 +135,7 @@ type Session struct {
 	VoiceID          *uuid.UUID       `json:"voice_id"`
 	StartedAt        time.Time        `json:"started_at"`
 	CompletedAt      *time.Time       `json:"completed_at"`
+	EndReason        *EndReason       `json:"end_reason" enums:"completed,left,abandoned"`
 	EvaluationStatus EvaluationStatus `json:"evaluation_status" enums:"pending,completed,failed"`
 	// QuestionCount is the number of core questions and AnsweredCount how many of them are answered, so
 	// together they are the session's progress. Follow-ups are not counted.
@@ -110,4 +147,39 @@ type Session struct {
 	// CurrentQuestion is null when every question is answered or the session is completed.
 	CurrentQuestion *CurrentQuestion `json:"current_question"`
 	Turns           *[]Turn          `json:"turns,omitempty"`
+}
+
+// EndParams asks the one end path to end a session. CandidateID is the owner, also when the System Handler
+// ends it. IdleBefore is set only for an abandonment: the session is ended only if its last activity is
+// before it, checked again under the session lock.
+type EndParams struct {
+	CandidateID uuid.UUID
+	ID          uuid.UUID
+	Cause       EndCause
+	IdleBefore  *time.Time
+}
+
+// EndResult is the session after an end. Ended is true only for the call that ended it now;
+// StartEvaluation only for the call that claimed its evaluation.
+type EndResult struct {
+	Session         Session
+	Ended           bool
+	StartEvaluation bool
+}
+
+// SessionRef names a session and its owner, for the System Handler.
+type SessionRef struct {
+	ID          uuid.UUID
+	CandidateID uuid.UUID
+}
+
+// AnsweredCore counts the answered core questions among the stored turns; follow-ups are not counted.
+func AnsweredCore(turns []Turn) int32 {
+	answered := int32(0)
+	for _, turn := range turns {
+		if turn.Kind != TurnFollowUp {
+			answered++
+		}
+	}
+	return answered
 }
