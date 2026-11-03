@@ -497,6 +497,32 @@
         "resume": "Bật lại camera",
         "waiting": "Đang chờ camera"
       }
+    },
+    "background": {
+      "choose": "Chọn phông nền",
+      "panel": "Phông nền phòng",
+      "title": "Đổi khung cảnh",
+      "intro": "Chọn bối cảnh cho buổi phỏng vấn này.",
+      "group": "Phông nền phòng phỏng vấn",
+      "scenes": "Phòng 3D",
+      "photos": "Ảnh",
+      "badge": "3D",
+      "sceneLabel": "{name} (phòng 3D)",
+      "options": {
+        "cafe-3d": "Quán cà phê",
+        "office-3d": "Văn phòng",
+        "meeting-3d": "Phòng họp",
+        "office": "Văn phòng",
+        "balcony": "Ban công",
+        "cafe": "Quán cà phê"
+      },
+      "loading": "Đang tải phòng 3D… {percent}",
+      "fallback": {
+        "unsupported": "Thiết bị này hiển thị ảnh của phòng thay cho 3D.",
+        "error": "Không tải được phòng 3D nên đang hiển thị ảnh thay thế.",
+        "timeout": "Phòng 3D tải quá lâu nên đang hiển thị ảnh thay thế."
+      },
+      "credits": "Phòng 3D dùng ảnh và mô hình CC0 từ <link>Poly Haven</link>."
     }
   },
   "avatars": {

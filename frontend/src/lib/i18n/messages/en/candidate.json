@@ -497,6 +497,32 @@
         "resume": "Turn the camera back on",
         "waiting": "Waiting for the camera"
       }
+    },
+    "background": {
+      "choose": "Choose background",
+      "panel": "Room backgrounds",
+      "title": "A change of scenery",
+      "intro": "Choose a setting for this visit.",
+      "group": "Room background",
+      "scenes": "3D rooms",
+      "photos": "Photos",
+      "badge": "3D",
+      "sceneLabel": "{name} (3D room)",
+      "options": {
+        "cafe-3d": "Café",
+        "office-3d": "Office",
+        "meeting-3d": "Meeting room",
+        "office": "Office",
+        "balcony": "Balcony",
+        "cafe": "Café"
+      },
+      "loading": "Loading the 3D room… {percent}",
+      "fallback": {
+        "unsupported": "This device shows a photo of the room instead of 3D.",
+        "error": "The 3D room couldn't load, so a photo is shown instead.",
+        "timeout": "The 3D room took too long to load, so a photo is shown instead."
+      },
+      "credits": "3D rooms use CC0 photos and models from <link>Poly Haven</link>."
     }
   },
   "avatars": {

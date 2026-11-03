@@ -13,6 +13,8 @@ import type {
   AvatarPerformance,
   AvatarDirector,
 } from "@/components/avatar-viewer/avatar-director";
+import type { EnvironmentStatus } from "@/components/avatar-viewer/environment/environment-state";
+import type { EnvironmentScene } from "@/components/avatar-viewer/environment/scenes";
 import type { RoomDetails } from "../api/room-details";
 
 export const InterviewerAvatar = memo(function InterviewerAvatar({
@@ -26,6 +28,8 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
   onReadyChange,
   backgroundSrc,
   horizontalOffset,
+  environment,
+  onEnvironmentStatusChange,
 }: {
   performance?: AvatarPerformance;
   onDirectorReady?: (director: AvatarDirector | null) => void;
@@ -37,6 +41,8 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
   onReadyChange: (ready: boolean) => void;
   backgroundSrc: string;
   horizontalOffset: number;
+  environment?: EnvironmentScene;
+  onEnvironmentStatusChange: (status: EnvironmentStatus) => void;
 }) {
   const t = useTranslations("candidate.applications.interviewer");
   const company = useQuery({
@@ -105,6 +111,8 @@ export const InterviewerAvatar = memo(function InterviewerAvatar({
       }}
       fallbackReason={fallbackReason}
       backgroundSrc={backgroundSrc}
+      environment={environment}
+      onEnvironmentStatusChange={onEnvironmentStatusChange}
       horizontalOffset={horizontalOffset}
       presentation="interview"
       cameraView={cameraView}

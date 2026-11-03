@@ -19,6 +19,7 @@ import { RoomControlButton, roomGlass } from "./room-control-button";
 import { RoomBackgroundPicker } from "./room-background-picker";
 import { RoomAudioSettings, type CameraView } from "./room-audio-settings";
 import type { RoomBackgroundId } from "./room-backgrounds";
+import type { EnvironmentStatus } from "@/components/avatar-viewer/environment/environment-state";
 
 export function RoomDock({
   microphone,
@@ -27,6 +28,7 @@ export function RoomDock({
   camera,
   background,
   onBackgroundChange,
+  sceneStatus,
   cameraView,
   onCameraViewChange,
   sceneReady,
@@ -39,6 +41,7 @@ export function RoomDock({
   camera: ReturnType<typeof useCamera>;
   background: RoomBackgroundId;
   onBackgroundChange: (id: RoomBackgroundId) => void;
+  sceneStatus: EnvironmentStatus;
   cameraView: CameraView;
   onCameraViewChange: (view: CameraView) => void;
   sceneReady: boolean;
@@ -197,6 +200,7 @@ export function RoomDock({
             <RoomBackgroundPicker
               value={background}
               onChange={onBackgroundChange}
+              sceneStatus={sceneStatus}
             />
           </DockIcon>
           <DockIcon>
