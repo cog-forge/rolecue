@@ -1,3 +1,4 @@
+import { ReportExport } from "./report-export";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -65,6 +66,7 @@ export function ReportBody({
       </header>
 
       <EndNotice report={report} />
+      <ReportExport report={report} />
 
       <StatusNotice
         status={status}

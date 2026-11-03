@@ -239,7 +239,7 @@ func TestEmailConfig(t *testing.T) {
 	t.Setenv("PAYOS_CLIENT_ID", "test-client-id")
 	t.Setenv("PAYOS_API_KEY", "test-api-key")
 	t.Setenv("PAYOS_CHECKSUM_KEY", "test-checksum-key")
-	names := []string{"EMAIL_PROVIDER", "EMAIL_FROM", "RESEND_API_KEY", "EMAIL_TIMEOUT", "EMAIL_WORKERS", "EMAIL_QUEUE_SIZE", "EMAIL_MAX_ATTEMPTS", "EMAIL_BACKOFF"}
+	names := []string{"EMAIL_PROVIDER", "EMAIL_FROM", "RESEND_API_KEY", "EMAIL_TIMEOUT", "EMAIL_WORKERS", "EMAIL_QUEUE_SIZE", "EMAIL_MAX_ATTEMPTS", "EMAIL_BACKOFF", "EMAIL_MODERATION_APPROVED_TEMPLATE_ID", "EMAIL_MODERATION_REJECTED_TEMPLATE_ID"}
 	reset := func() {
 		for _, name := range names {
 			t.Setenv(name, "")
@@ -274,6 +274,18 @@ func TestEmailConfig(t *testing.T) {
 		}
 		if cfg.Email.Provider != "resend" || cfg.Email.APIKey != "re_test" || cfg.Email.From == "" {
 			t.Fatalf("email = %+v", cfg.Email)
+		}
+	})
+	t.Run("loads hosted moderation template IDs", func(t *testing.T) {
+		reset()
+		t.Setenv("EMAIL_MODERATION_APPROVED_TEMPLATE_ID", "approved-template")
+		t.Setenv("EMAIL_MODERATION_REJECTED_TEMPLATE_ID", "rejected-template")
+		cfg, err := Load(writeConfig(t, minimalYAML))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Email.ModerationApprovedTemplateID != "approved-template" || cfg.Email.ModerationRejectedTemplateID != "rejected-template" {
+			t.Fatal("template env bindings were not loaded")
 		}
 	})
 	t.Run("rejects an unknown provider and out-of-range pool settings", func(t *testing.T) {
