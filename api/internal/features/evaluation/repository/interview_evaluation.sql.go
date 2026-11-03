@@ -77,19 +77,25 @@ func (q *Queries) GetInterviewRecord(ctx context.Context, id uuid.UUID) (GetInte
 }
 
 const listEvaluationTurns = `-- name: ListEvaluationTurns :many
-SELECT position, question, answer, feedback
+SELECT position,
+       (count(*) FILTER (WHERE kind = 'core') OVER (ORDER BY position))::int AS question_number,
+       kind, question, answer, feedback
 FROM public.conversation_turns
 WHERE interview_id = $1
 ORDER BY position
 `
 
 type ListEvaluationTurnsRow struct {
-	Position int32
-	Question string
-	Answer   *string
-	Feedback *string
+	Position       int32
+	QuestionNumber int32
+	Kind           string
+	Question       string
+	Answer         *string
+	Feedback       *string
 }
 
+// question_number is the core question a turn belongs to (a follow-up follows its core question), derived
+// like ListInterviewTurns in the interview feature.
 func (q *Queries) ListEvaluationTurns(ctx context.Context, interviewID uuid.UUID) ([]ListEvaluationTurnsRow, error) {
 	rows, err := q.db.Query(ctx, listEvaluationTurns, interviewID)
 	if err != nil {
@@ -101,6 +107,8 @@ func (q *Queries) ListEvaluationTurns(ctx context.Context, interviewID uuid.UUID
 		var i ListEvaluationTurnsRow
 		if err := rows.Scan(
 			&i.Position,
+			&i.QuestionNumber,
+			&i.Kind,
 			&i.Question,
 			&i.Answer,
 			&i.Feedback,

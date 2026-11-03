@@ -20,8 +20,12 @@ FROM public.interviews
 WHERE id = @id
 FOR UPDATE;
 
+-- question_number is the core question a turn belongs to (a follow-up follows its core question), derived
+-- like ListInterviewTurns in the interview feature.
 -- name: ListEvaluationTurns :many
-SELECT position, question, answer, feedback
+SELECT position,
+       (count(*) FILTER (WHERE kind = 'core') OVER (ORDER BY position))::int AS question_number,
+       kind, question, answer, feedback
 FROM public.conversation_turns
 WHERE interview_id = @interview_id
 ORDER BY position;

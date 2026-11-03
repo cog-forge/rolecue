@@ -144,7 +144,9 @@ func buildScoreInput(record domain.InterviewRecord, turns []domain.TurnRecord, s
 		if turn.Answer == nil || strings.TrimSpace(*turn.Answer) == "" {
 			continue
 		}
-		answered = append(answered, domain.ScoreTurn{Position: turn.Position, Question: turn.Question, Answer: *turn.Answer})
+		answered = append(answered, domain.ScoreTurn{
+			Position: turn.Position, QuestionNumber: turn.QuestionNumber, Kind: turn.Kind, Question: turn.Question, Answer: *turn.Answer,
+		})
 	}
 	if len(answered) == 0 {
 		return domain.ScoreInput{}, errors.New("interview has no answered questions to evaluate")

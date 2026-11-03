@@ -32,12 +32,23 @@ type InterviewRecord struct {
 	RecruiterID      *uuid.UUID
 }
 
+// Turn kinds: a core question of the session, or a bounded follow-up the live interviewer asked about one
+// (KAN-56).
+const (
+	TurnCore     = "core"
+	TurnFollowUp = "follow_up"
+)
+
 // TurnRecord is one stored question of an interview with its answer and the feedback once evaluated.
+// Position is its place in the conversation; QuestionNumber is the core question it belongs to, which a
+// follow-up shares with its core question.
 type TurnRecord struct {
-	Position int32
-	Question string
-	Answer   *string
-	Feedback *string
+	Position       int32
+	QuestionNumber int32
+	Kind           string
+	Question       string
+	Answer         *string
+	Feedback       *string
 }
 
 // ScoreInput is what the Scorer sees: the answered questions of the session and the metrics to score,
@@ -49,11 +60,14 @@ type ScoreInput struct {
 	Metrics     []ScoredMetric
 }
 
-// ScoreTurn is one answered question as it was asked and answered.
+// ScoreTurn is one answered question as it was asked and answered. A follow-up (Kind TurnFollowUp) is
+// scored as part of the answer to its core question (the same QuestionNumber) and gets its own feedback.
 type ScoreTurn struct {
-	Position int32
-	Question string
-	Answer   string
+	Position       int32
+	QuestionNumber int32
+	Kind           string
+	Question       string
+	Answer         string
 }
 
 // ScoredMetric is one metric the answers are graded on. Weight is relative: the overall score divides

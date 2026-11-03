@@ -139,3 +139,18 @@ func TestUnavailableScorerFailsWithTheReason(t *testing.T) {
 		t.Fatalf("error = %v, want an internal error that names the cause", err)
 	}
 }
+
+func TestScoreSendsFollowUpsWithTheirCoreQuestion(t *testing.T) {
+	chat := replying(`{"scores":[]}`)
+	input := scoringInput()
+	input.Turns = append(input.Turns, domain.ScoreTurn{Position: 2, QuestionNumber: 1, Kind: domain.TurnFollowUp, Question: "Which index type?", Answer: "B-tree."})
+	_, _ = adapterFor(t, chat).Score(context.Background(), input)
+
+	user := chat.messages[1].Content
+	if !strings.Contains(user, `{"position":2,"question_number":1,"kind":"follow_up","question":"Which index type?","answer":"B-tree."}`) {
+		t.Fatalf("user message = %s, want the follow-up with its core question number", user)
+	}
+	if !strings.Contains(chat.messages[0].Content, "score a follow-up answer as part of the answer to that core question") {
+		t.Fatal("the instruction does not say how follow-ups are scored")
+	}
+}

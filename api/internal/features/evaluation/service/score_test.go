@@ -274,3 +274,30 @@ func TestEvaluateScorerPanicMarksFailedInsteadOfCrashing(t *testing.T) {
 		t.Fatalf("saves = %d, marked = %v; want nothing saved and marked failed", repo.saveCalls, repo.marked)
 	}
 }
+
+// A follow-up answer is scored with its core question: the scorer sees it with the core question's number
+// and its kind, and its feedback is kept under its own position.
+func TestEvaluateScoresFollowUpsWithTheirCoreQuestion(t *testing.T) {
+	core, followUp := "I would use a token bucket.", "Refill tokens at a fixed rate."
+	turns := []domain.TurnRecord{
+		{Position: 1, QuestionNumber: 1, Kind: domain.TurnCore, Question: "How would you design a rate limiter?", Answer: &core},
+		{Position: 2, QuestionNumber: 1, Kind: domain.TurnFollowUp, Question: "How do bursts refill?", Answer: &followUp},
+	}
+	repo := &fakeInterviewRepository{record: completedPracticeRecord(), turns: turns, metrics: scoringCatalog}
+	scorer := &fakeScorer{output: domain.ScoreOutput{
+		Scores:    scoresFor(70, 70, 70),
+		Questions: []domain.QuestionFeedback{{Position: 1, Feedback: "Good start."}, {Position: 2, Feedback: "Clear refill rule."}},
+	}}
+	if err := newScoringForTest(t, repo, scorer).Evaluate(context.Background(), scoringInterviewID); err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if len(scorer.input.Turns) != 2 {
+		t.Fatalf("scored turns = %+v, want the core answer and its follow-up", scorer.input.Turns)
+	}
+	if got := scorer.input.Turns[1]; got.Position != 2 || got.QuestionNumber != 1 || got.Kind != domain.TurnFollowUp {
+		t.Fatalf("follow-up turn = %+v", got)
+	}
+	if len(repo.saved.Questions) != 2 || repo.saved.Questions[1].Position != 2 {
+		t.Fatalf("feedback = %+v, want one per answered position", repo.saved.Questions)
+	}
+}

@@ -8548,6 +8548,9 @@ const docTemplate = `{
                 },
                 "position": {
                     "type": "integer"
+                },
+                "question_number": {
+                    "type": "integer"
                 }
             }
         },
@@ -9732,11 +9735,21 @@ const docTemplate = `{
                 "feedback": {
                     "type": "string"
                 },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "core",
+                        "follow_up"
+                    ]
+                },
                 "position": {
                     "type": "integer"
                 },
                 "question": {
                     "type": "string"
+                },
+                "question_number": {
+                    "type": "integer"
                 }
             }
         },
@@ -10157,6 +10170,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "question_count": {
+                    "description": "QuestionCount is the number of core questions and AnsweredCount how many of them are answered, so\ntogether they are the session's progress. Follow-ups are not counted.",
                     "type": "integer"
                 },
                 "role_profile_id": {
@@ -10369,11 +10383,25 @@ const docTemplate = `{
                 "answer": {
                     "type": "string"
                 },
+                "kind": {
+                    "enum": [
+                        "core",
+                        "follow_up"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.TurnKind"
+                        }
+                    ]
+                },
                 "position": {
                     "type": "integer"
                 },
                 "question": {
                     "type": "string"
+                },
+                "question_number": {
+                    "type": "integer"
                 }
             }
         },
@@ -10397,13 +10425,38 @@ const docTemplate = `{
                 "answer": {
                     "type": "string"
                 },
+                "kind": {
+                    "enum": [
+                        "core",
+                        "follow_up"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.TurnKind"
+                        }
+                    ]
+                },
                 "position": {
                     "type": "integer"
                 },
                 "question": {
                     "type": "string"
+                },
+                "question_number": {
+                    "type": "integer"
                 }
             }
+        },
+        "domain.TurnKind": {
+            "type": "string",
+            "enum": [
+                "core",
+                "follow_up"
+            ],
+            "x-enum-varnames": [
+                "TurnCore",
+                "TurnFollowUp"
+            ]
         },
         "domain.Type": {
             "type": "string",
