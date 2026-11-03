@@ -6,24 +6,36 @@ import {
   type ModelAccess,
 } from "@/components/avatar-viewer/avatar-viewer";
 import type { CanvasStatus } from "@/components/avatar-viewer/avatar-canvas";
+import type { EnvironmentStatus } from "@/components/avatar-viewer/environment/environment-state";
+import {
+  environmentScenes,
+  type EnvironmentScene,
+} from "@/components/avatar-viewer/environment/scenes";
 
 const mocks = vi.hoisted(() => ({
   webgl: true,
+  environments: true,
   mounts: 0,
   crash: false,
   report: null as ((status: CanvasStatus) => void) | null,
+  reportEnvironment: null as ((status: EnvironmentStatus) => void) | null,
 }));
 vi.mock("@/components/avatar-viewer/webgl", () => ({
   isWebGLAvailable: () => mocks.webgl,
+  canRenderEnvironments: () => mocks.environments,
 }));
 // The real canvas needs WebGL; this stand-in lets each test drive the load result.
 vi.mock("@/components/avatar-viewer/avatar-canvas", () => ({
   default: function FakeCanvas({
     access,
     onStatus,
+    environment,
+    onEnvironmentStatus,
   }: {
     access: ModelAccess;
     onStatus: (status: CanvasStatus) => void;
+    environment?: EnvironmentScene;
+    onEnvironmentStatus?: (status: EnvironmentStatus) => void;
   }) {
     if (mocks.crash) throw new Error("render failed");
     useEffect(() => {
@@ -31,7 +43,16 @@ vi.mock("@/components/avatar-viewer/avatar-canvas", () => ({
       mocks.report = onStatus;
       onStatus({ state: "loading" });
     }, [access, onStatus]);
-    return <canvas data-testid="canvas" data-url={access.url} />;
+    useEffect(() => {
+      mocks.reportEnvironment = onEnvironmentStatus ?? null;
+    }, [onEnvironmentStatus]);
+    return (
+      <canvas
+        data-testid="canvas"
+        data-url={access.url}
+        data-environment={environment?.backplate}
+      />
+    );
   },
 }));
 
@@ -46,8 +67,14 @@ function report(status: CanvasStatus) {
   act(() => mocks.report?.(status));
 }
 
+function reportEnvironment(status: EnvironmentStatus) {
+  act(() => mocks.reportEnvironment?.(status));
+}
+
 beforeEach(() => {
   mocks.webgl = true;
+  mocks.environments = true;
+  mocks.reportEnvironment = null;
   mocks.mounts = 0;
   mocks.crash = false;
   mocks.report = null;
@@ -239,4 +266,106 @@ it("keeps preview reset by default but delegates interview view controls to the 
     screen.queryByRole("button", { name: "Reset view" }),
   ).not.toBeInTheDocument();
   expect(screen.getByRole("img", { name: "Interviewer" })).toBeInTheDocument();
+});
+
+describe("AvatarViewer environments", () => {
+  const cafe = environmentScenes.cafe;
+  const office = environmentScenes.office;
+  const view = (
+    environment: EnvironmentScene | undefined,
+    onStatus: (status: EnvironmentStatus) => void,
+    access: ModelAccess | null = grant("https://s3/a"),
+  ) => (
+    <AvatarViewer
+      access={access}
+      label="Interviewer"
+      onAccessExpired={vi.fn()}
+      presentation="interview"
+      backgroundSrc={environment?.still}
+      environment={environment}
+      onEnvironmentStatusChange={onStatus}
+    />
+  );
+
+  it("loads the chosen scene into the canvas over its still, then reports progress and readiness", async () => {
+    const onStatus = vi.fn();
+    const { container } = render(view(cafe, onStatus));
+    expect(await screen.findByTestId("canvas")).toHaveAttribute(
+      "data-environment",
+      cafe.backplate,
+    );
+    expect(
+      container.querySelector('[data-slot="studio-backdrop"] img'),
+    ).toHaveAttribute("src", expect.stringContaining("cafe%2Fstill.webp"));
+    expect(onStatus).toHaveBeenLastCalledWith({
+      state: "loading",
+      progress: 0,
+    });
+    reportEnvironment({ state: "loading", progress: 0.5 });
+    expect(onStatus).toHaveBeenLastCalledWith({
+      state: "loading",
+      progress: 0.5,
+    });
+    reportEnvironment({ state: "ready" });
+    expect(onStatus).toHaveBeenLastCalledWith({ state: "ready" });
+    expect(container.firstChild).toHaveAttribute("data-environment", "ready");
+  });
+
+  it("keeps only the still on weak WebGL and still renders the interviewer", async () => {
+    mocks.environments = false;
+    const onStatus = vi.fn();
+    render(view(cafe, onStatus));
+    const canvas = await screen.findByTestId("canvas");
+    expect(canvas).not.toHaveAttribute("data-environment");
+    expect(onStatus).toHaveBeenLastCalledWith({
+      state: "fallback",
+      reason: "unsupported",
+    });
+  });
+
+  it("reports a failed or slow scene as a fallback without breaking the interviewer", async () => {
+    const onStatus = vi.fn();
+    render(view(cafe, onStatus));
+    await screen.findByTestId("canvas");
+    report({ state: "ready" });
+    reportEnvironment({ state: "fallback", reason: "timeout" });
+    expect(onStatus).toHaveBeenLastCalledWith({
+      state: "fallback",
+      reason: "timeout",
+    });
+    expect(screen.getByRole("img", { name: "Interviewer" })).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("starts a newly chosen scene from zero and reports off for a 2D photo", async () => {
+    const onStatus = vi.fn();
+    const { rerender } = render(view(cafe, onStatus));
+    await screen.findByTestId("canvas");
+    reportEnvironment({ state: "ready" });
+    rerender(view(office, onStatus));
+    expect(screen.getByTestId("canvas")).toHaveAttribute(
+      "data-environment",
+      office.backplate,
+    );
+    expect(onStatus).toHaveBeenLastCalledWith({
+      state: "loading",
+      progress: 0,
+    });
+    rerender(view(undefined, onStatus));
+    expect(screen.getByTestId("canvas")).not.toHaveAttribute(
+      "data-environment",
+    );
+    expect(onStatus).toHaveBeenLastCalledWith({ state: "off" });
+  });
+
+  it("falls back to the still when the interviewer can't render at all", () => {
+    mocks.webgl = false;
+    const onStatus = vi.fn();
+    render(view(cafe, onStatus));
+    expect(screen.queryByTestId("canvas")).not.toBeInTheDocument();
+    expect(onStatus).toHaveBeenLastCalledWith({
+      state: "fallback",
+      reason: "unsupported",
+    });
+  });
 });

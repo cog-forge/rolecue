@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentRef,
+} from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, OrbitControls } from "@react-three/drei";
 import { VRMUtils, type VRM } from "@pixiv/three-vrm";
@@ -11,6 +18,9 @@ import { useReducedMotion } from "motion/react";
 import { AvatarDirector, type AvatarPerformance } from "./avatar-director";
 import { poseIdle } from "./pose";
 import type { ModelAccess } from "./avatar-viewer";
+import { EnvironmentLayer } from "./environment/environment-layer";
+import type { EnvironmentStatus } from "./environment/environment-state";
+import type { EnvironmentScene } from "./environment/scenes";
 
 export type CanvasStatus =
   | { state: "loading" }
@@ -29,6 +39,8 @@ export default function AvatarCanvas({
   cameraView = "conversation",
   atmosphere = "warm",
   horizontalOffset = 0,
+  environment,
+  onEnvironmentStatus,
 }: {
   performance?: AvatarPerformance;
   onDirectorReady?: (director: AvatarDirector | null) => void;
@@ -39,9 +51,22 @@ export default function AvatarCanvas({
   horizontalOffset?: number;
   resetSignal: number;
   onStatus: (status: CanvasStatus) => void;
+  /** A photographic room to stand the interviewer in; the backdrop behind the canvas shows until it's ready. */
+  environment?: EnvironmentScene;
+  onEnvironmentStatus?: (status: EnvironmentStatus) => void;
 }) {
   const reducedMotion = useReducedMotion() ?? true;
   const [vrm, setVrm] = useState<VRM | null>(null);
+  const [litScene, setLitScene] = useState<EnvironmentScene | null>(null);
+  const handleEnvironmentStatus = useCallback(
+    (status: EnvironmentStatus) => {
+      setLitScene(status.state === "ready" ? (environment ?? null) : null);
+      onEnvironmentStatus?.(status);
+    },
+    [environment, onEnvironmentStatus],
+  );
+  // The room's own light rig replaces the studio lights once its photo is on screen.
+  const light = litScene === environment ? litScene?.light : undefined;
 
   useEffect(() => {
     const abort = new AbortController();
@@ -81,23 +106,48 @@ export default function AvatarCanvas({
       fallback={null}
     >
       <ContextLifecycle onStatus={onStatus} />
-      <hemisphereLight
-        args={[
-          atmosphere === "warm" ? "#fff4e5" : "#eef4ff",
-          "#77706a",
-          atmosphere === "evening" ? 1.1 : 1.6,
-        ]}
-      />
-      <directionalLight
-        position={[1.5, 3, 2.5]}
-        intensity={atmosphere === "daylight" ? 2.3 : 1.8}
-      />
-      {presentation === "interview" && (
-        <directionalLight
-          position={[-3, 2, -2]}
-          color="#dce9ff"
-          intensity={1.5}
+      {environment && (
+        <EnvironmentLayer
+          key={environment.backplate}
+          scene={environment}
+          onStatus={handleEnvironmentStatus}
         />
+      )}
+      {light ? (
+        <>
+          <hemisphereLight args={[light.sky, light.ground, light.ambient]} />
+          <directionalLight
+            position={[1.5, 3, 2.5]}
+            color={light.key}
+            intensity={light.keyIntensity}
+          />
+          <directionalLight
+            position={[-3, 2, -2]}
+            color={light.rim}
+            intensity={light.rimIntensity}
+          />
+        </>
+      ) : (
+        <>
+          <hemisphereLight
+            args={[
+              atmosphere === "warm" ? "#fff4e5" : "#eef4ff",
+              "#77706a",
+              atmosphere === "evening" ? 1.1 : 1.6,
+            ]}
+          />
+          <directionalLight
+            position={[1.5, 3, 2.5]}
+            intensity={atmosphere === "daylight" ? 2.3 : 1.8}
+          />
+          {presentation === "interview" && (
+            <directionalLight
+              position={[-3, 2, -2]}
+              color="#dce9ff"
+              intensity={1.5}
+            />
+          )}
+        </>
       )}
       {vrm && (
         <Scene

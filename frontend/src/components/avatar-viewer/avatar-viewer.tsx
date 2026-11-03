@@ -15,8 +15,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AvatarPerformance, AvatarDirector } from "./avatar-director";
 import type { CanvasStatus } from "./avatar-canvas";
+import type { EnvironmentStatus } from "./environment/environment-state";
+import type { EnvironmentScene } from "./environment/scenes";
 import { StudioBackdrop } from "./studio-backdrop";
-import { isWebGLAvailable } from "./webgl";
+import { canRenderEnvironments, isWebGLAvailable } from "./webgl";
 
 /** A temporary, private GET grant for one VRM file (e.g. `model_access` from the inventory API). */
 export type ModelAccess = {
@@ -60,6 +62,8 @@ export function AvatarViewer({
   onReadyChange,
   backgroundSrc,
   horizontalOffset = 0,
+  environment,
+  onEnvironmentStatusChange,
 }: {
   performance?: AvatarPerformance;
   onDirectorReady?: (director: AvatarDirector | null) => void;
@@ -74,14 +78,27 @@ export function AvatarViewer({
   atmosphere?: "warm" | "daylight" | "evening";
   viewResetSignal?: number;
   onReadyChange?: (ready: boolean) => void;
+  /** Still image of the room; it stays on screen while a 3D `environment` loads or if it can't. */
   backgroundSrc?: string;
   horizontalOffset?: number;
+  /** A photographic 3D room around the interviewer (interview presentation). */
+  environment?: EnvironmentScene;
+  onEnvironmentStatusChange?: (status: EnvironmentStatus) => void;
 }) {
   const webgl = useSyncExternalStore(
     noSubscription,
     isWebGLAvailable,
     () => null,
   );
+  const environmentCapable = useSyncExternalStore(
+    noSubscription,
+    canRenderEnvironments,
+    () => null,
+  );
+  const [reported, setReported] = useState<{
+    scene: EnvironmentScene;
+    status: EnvironmentStatus;
+  } | null>(null);
   const [status, setStatus] = useState<CanvasStatus>({ state: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [resetSignal, setResetSignal] = useState(0);
@@ -113,6 +130,46 @@ export function AvatarViewer({
     );
   }, [webgl, access, fallbackReason, status.state, onReadyChange]);
 
+  const canvasMounted =
+    webgl === true &&
+    !!access &&
+    !fallbackReason &&
+    (status.state === "loading" || status.state === "ready");
+  const sceneEnabled = !!environment && environmentCapable === true;
+  const environmentStatus: EnvironmentStatus = !environment
+    ? { state: "off" }
+    : environmentCapable === null ||
+        (webgl !== false && !access && !fallbackReason)
+      ? { state: "loading", progress: 0 }
+      : !sceneEnabled || !canvasMounted
+        ? { state: "fallback", reason: "unsupported" }
+        : reported?.scene === environment
+          ? reported.status
+          : { state: "loading", progress: 0 };
+  const handleEnvironmentStatus = useCallback(
+    (next: EnvironmentStatus) =>
+      setReported(environment ? { scene: environment, status: next } : null),
+    [environment],
+  );
+  const environmentProgress =
+    environmentStatus.state === "loading" ? environmentStatus.progress : null;
+  const environmentReason =
+    environmentStatus.state === "fallback" ? environmentStatus.reason : null;
+  useEffect(() => {
+    onEnvironmentStatusChange?.(
+      environmentProgress !== null
+        ? { state: "loading", progress: environmentProgress }
+        : environmentReason !== null
+          ? { state: "fallback", reason: environmentReason }
+          : { state: environmentStatus.state === "ready" ? "ready" : "off" },
+    );
+  }, [
+    environmentStatus.state,
+    environmentProgress,
+    environmentReason,
+    onEnvironmentStatusChange,
+  ]);
+
   const retry = () => {
     expiredOnce.current = false;
     setStatus({ state: "loading" });
@@ -132,6 +189,7 @@ export function AvatarViewer({
 
   return (
     <div
+      data-environment={environmentStatus.state}
       className={cn(
         immersive
           ? "relative isolate h-full w-full overflow-hidden"
@@ -181,6 +239,8 @@ export function AvatarViewer({
                   atmosphere={atmosphere}
                   horizontalOffset={horizontalOffset}
                   onStatus={handleStatus}
+                  environment={sceneEnabled ? environment : undefined}
+                  onEnvironmentStatus={handleEnvironmentStatus}
                 />
               </div>
             </ViewerBoundary>
