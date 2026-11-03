@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef } from "react";
 import type { VRMAnimation } from "@pixiv/three-vrm-animation";
 import type {
   AvatarDirector,
+  ClipSlot,
   MouthSample,
   MouthSource,
 } from "./avatar-director";
@@ -13,7 +14,7 @@ export function useAvatarPerformance() {
   const director = useRef<AvatarDirector | null>(null);
   const mouth = useRef<MouthSource | null>(null);
   const clips = useRef(
-    new Map<string, { animation: VRMAnimation; slot: "idle" | "gesture" }>(),
+    new Map<string, { animation: VRMAnimation; slot: ClipSlot }>(),
   );
   const onDirectorReady = useCallback((instance: AvatarDirector | null) => {
     director.current = instance;
@@ -33,7 +34,7 @@ export function useAvatarPerformance() {
       registerClip: (
         name: string,
         animation: VRMAnimation,
-        slot: "idle" | "gesture" = "gesture",
+        slot: ClipSlot = "gesture",
       ) => {
         clips.current.set(name, { animation, slot });
         director.current?.registerClip(name, animation, slot);

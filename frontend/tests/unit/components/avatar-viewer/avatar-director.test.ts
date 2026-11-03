@@ -76,7 +76,7 @@ describe("BlinkScheduler", () => {
 describe("AvatarDirector", () => {
   it("smooths emotion and gives mouth channels precedence only with a speaking sample", () => {
     const vrm = model();
-    const director = new AvatarDirector(vrm);
+    const director = new AvatarDirector(vrm, Math.random, null);
     const manager = vrm.expressionManager!;
     manager.getExpression("happy")!.overrideMouth = "block";
     director.update(0.05, { state: "listening", emotion: { happy: 1 } });
@@ -121,7 +121,7 @@ describe("AvatarDirector", () => {
     );
     happy.overrideMouth = "block";
     const initial = manager.expressions.length;
-    const director = new AvatarDirector(vrm);
+    const director = new AvatarDirector(vrm, Math.random, null);
     director.update(0.05, {
       state: "speaking",
       emotion: { happy: 1 },
@@ -137,7 +137,7 @@ describe("AvatarDirector", () => {
   });
   it("never calls the mouth provider outside speaking; clears stale and non-finite values", () => {
     const vrm = model();
-    const director = new AvatarDirector(vrm);
+    const director = new AvatarDirector(vrm, Math.random, null);
     const sample = vi.fn(() => ({ aa: Number.NaN, jawOpen: -1 }));
     director.update(0.05, { state: "listening", mouth: { sample } });
     expect(sample).not.toHaveBeenCalled();
@@ -148,17 +148,14 @@ describe("AvatarDirector", () => {
   });
   it("keeps pose bounded across a simulated 30 minute interview and restores it on disposal", () => {
     const vrm = model();
-    const director = new AvatarDirector(vrm, () => 0);
+    const director = new AvatarDirector(vrm, () => 0, null);
     const head = vrm.humanoid.getNormalizedBoneNode("head")!;
     for (let i = 0; i < 30 * 60 * 30; i++)
       director.update(1 / 30, { state: "listening", candidateSpeaking: true });
     expect(Math.abs(head.rotation.x)).toBeLessThan(0.046);
-    director.update(
-      0.05,
-      { state: "processing", emotion: { relaxed: 1 } },
-      true,
-    );
+    director.update(0.05, { state: "idle", emotion: { relaxed: 1 } }, true);
     expect(vrm.expressionManager?.getValue("relaxed")).toBe(1);
+    director.update(0.05, { state: "processing" }, true);
     expect(head.rotation.y).toBe(0);
     expect(vrm.expressionManager?.getValue("blink")).toBe(0);
     director.dispose();
@@ -170,7 +167,7 @@ describe("AvatarDirector", () => {
   });
   it("supports the empty gesture slot, retargets registered VRMA and releases mixer bindings", () => {
     const vrm = model();
-    const director = new AvatarDirector(vrm);
+    const director = new AvatarDirector(vrm, Math.random, null);
     expect(director.triggerGesture("nod")).toBe(false);
     const animation = new VRMAnimation();
     animation.duration = 1;
@@ -185,7 +182,7 @@ describe("AvatarDirector", () => {
     director.update(0.05, { state: "idle" });
     director.dispose();
     expect(director.triggerGesture("nod")).toBe(false);
-    const remounted = new AvatarDirector(vrm);
+    const remounted = new AvatarDirector(vrm, Math.random, null);
     remounted.update(0.05, { state: "idle" });
     remounted.dispose();
   });
@@ -224,7 +221,7 @@ describe("AvatarDirector speech performance", () => {
     const manager = vrm.expressionManager!;
     const happy = manager.getExpression("happy")!;
     happy.overrideMouth = "block";
-    const director = new AvatarDirector(vrm);
+    const director = new AvatarDirector(vrm, Math.random, null);
     const head = vrm.humanoid.getNormalizedBoneNode("head")!;
     const { state, speech } = playing(5.1);
     const mouth = {
@@ -267,7 +264,7 @@ describe("AvatarDirector speech performance", () => {
   });
   it("performs speech only in the speaking state", () => {
     const vrm = speakingModel();
-    const director = new AvatarDirector(vrm);
+    const director = new AvatarDirector(vrm, Math.random, null);
     const head = vrm.humanoid.getNormalizedBoneNode("head")!;
     const { speech } = playing(5.1);
     director.update(0.016, { state: "speaking", speech });

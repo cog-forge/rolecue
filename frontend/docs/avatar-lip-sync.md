@@ -8,11 +8,11 @@ How the 3D interviewer moves its mouth, head and brows while a turn plays. The c
 
 The director applies these layers in order every frame:
 
-1. Idle base pose.
-2. Gestures (VRMA clips, KAN-251).
-3. Procedural blink, gaze, breathing and listening.
-4. Facial emotion.
-5. Mouth.
+1. Idle base pose, then the `idle` clip and the additive gestures and held loops (KAN-251; see
+   `docs/avatar-performance.md`).
+2. Procedural blink, gaze, breathing, listening nods and speech motion.
+3. Facial emotion, from the turn's cues or the state (KAN-250).
+4. Mouth.
 
 While the interviewer speaks, the mouth wins. Emotion `overrideMouth` is cleared, and emotion is applied
 through upper-face-only binds, so the jaw and lips follow the mouth source only. Brow, cheek and nose

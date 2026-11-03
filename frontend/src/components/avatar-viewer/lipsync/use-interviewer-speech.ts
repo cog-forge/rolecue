@@ -6,11 +6,14 @@ import type {
   MouthSource,
   SpeechPerformance,
 } from "../avatar-director";
+import type { PerformanceCue } from "../motions/vocabulary";
 import { createInterviewerMouth } from "./interviewer-mouth";
 import type { InterviewerTimelines } from "./timelines";
 
 export type InterviewerTurnPerformance = InterviewerTimelines & {
   text: string;
+  /** Performance cues of the turn (KAN-250); absent on turns sent before them. */
+  cues?: readonly PerformanceCue[];
 };
 
 /**
@@ -40,7 +43,9 @@ export function useInterviewerSpeech(
   );
   const speech = useMemo(
     () =>
-      audio && turn ? { audio, words: turn.words, text: turn.text } : undefined,
+      audio && turn
+        ? { audio, words: turn.words, text: turn.text, cues: turn.cues ?? [] }
+        : undefined,
     [audio, turn],
   );
   return { mouth, speech };
