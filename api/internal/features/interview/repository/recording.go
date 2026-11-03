@@ -80,7 +80,10 @@ func (r *Repository) ListTranscript(ctx context.Context, interviewID uuid.UUID) 
 	}
 	turns := make([]domain.TranscriptTurn, 0, len(rows))
 	for _, row := range rows {
-		turns = append(turns, domain.TranscriptTurn{Position: row.Position, Question: row.Question, Answer: row.Answer})
+		turns = append(turns, domain.TranscriptTurn{
+			Position: row.Position, QuestionNumber: row.QuestionNumber, Kind: domain.TurnKind(row.Kind),
+			Question: row.Question, Answer: row.Answer,
+		})
 	}
 	return turns, nil
 }

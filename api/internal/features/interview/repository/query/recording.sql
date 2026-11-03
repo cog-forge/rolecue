@@ -46,7 +46,9 @@ FROM public.interviews i
 WHERE i.application_id = @application_id;
 
 -- name: ListRecruitmentTurns :many
-SELECT position, question, answer
+SELECT position,
+       (count(*) FILTER (WHERE kind = 'core') OVER (ORDER BY position))::int AS question_number,
+       kind, question, answer
 FROM public.conversation_turns
 WHERE interview_id = @interview_id
 ORDER BY position;

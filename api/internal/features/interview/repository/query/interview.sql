@@ -146,17 +146,35 @@ LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
 WHERE i.id = @id AND COALESCE(rp.candidate_id, a.candidate_id) = @candidate_id;
 
+-- The stored turns in conversation order. question_number is the core question a turn belongs to: a
+-- follow-up always comes right after its core question (or an earlier follow-up of it), so it is the
+-- number of core turns up to and including the row (KAN-56). It is derived, not stored.
 -- name: ListInterviewTurns :many
-SELECT position, question, COALESCE(answer, '')::text AS answer
+SELECT position,
+       (count(*) FILTER (WHERE kind = 'core') OVER (ORDER BY position))::int AS question_number,
+       kind, question, COALESCE(answer, '')::text AS answer
 FROM public.conversation_turns
 WHERE interview_id = @interview_id
 ORDER BY position;
 
--- A core turn. asked_at is the live delivery time of its question (NULL for an answer to a question that
--- was never delivered live); answered_at is the statement time.
+-- A core turn, or a follow-up the live interviewer asked. asked_at is the live delivery time of its
+-- question (NULL for an answer to a core question that was never delivered live); answered_at is the
+-- statement time.
 -- name: InsertInterviewTurn :exec
-INSERT INTO public.conversation_turns (interview_id, position, question, answer, kind, asked_at, answered_at)
-VALUES (@interview_id, @position, @question, @answer, 'core', sqlc.narg(asked_at), statement_timestamp());
+INSERT INTO public.conversation_turns (interview_id, position, kind, question, answer, asked_at, answered_at)
+VALUES (@interview_id, @position, @kind, @question, @answer, sqlc.narg(asked_at), statement_timestamp());
+
+-- The requirements of the Job Description a session was started from: the role profile's JD for practice,
+-- the posting's JD for recruitment. A follow-up decider reads them; the Candidate never does.
+-- name: ListInterviewRequirements :many
+SELECT r.name, r.target, COALESCE(r.type::text, '')::text AS type
+FROM public.interviews i
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+LEFT JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.requirements r ON r.jd_id = COALESCE(rp.jd_id, jp.jd_id)
+WHERE i.id = @interview_id
+ORDER BY r.name, r.id;
 
 -- The guard keeps the first completion's time; a repeat changes nothing.
 -- name: SetInterviewCompleted :exec

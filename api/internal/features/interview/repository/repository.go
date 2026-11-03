@@ -99,10 +99,51 @@ func (r *Repository) Get(ctx context.Context, candidateID, id uuid.UUID) (domain
 	return session, nil
 }
 
-// AppendTurn stores the answer to the next unanswered question. A retry of an answer already stored
-// returns the session unchanged. The rules are in domain.ClassifyTurn and run under the session lock.
-// The turn stores the question text as it was asked.
+// AppendTurn stores the answer to the next core question. A retry of an answer already stored returns the
+// session unchanged. The rules are in domain.AcceptAnswer and run under the session lock. The turn stores
+// the question text as it was asked.
 func (r *Repository) AppendTurn(ctx context.Context, candidateID, id uuid.UUID, position int32, answer string) (domain.Session, error) {
+	return r.appendAnswer(ctx, candidateID, id, func(q *Queries, turns []domain.Turn, questionCount int32) error {
+		slot, unchanged, err := domain.AcceptAnswer(turns, questionCount, position, answer)
+		if err != nil || unchanged {
+			return err
+		}
+		question, err := q.GetInterviewQuestion(ctx, GetInterviewQuestionParams{InterviewID: id, Position: slot.QuestionNumber})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.ErrTurnConflict
+		}
+		if err != nil {
+			return internal(err)
+		}
+		// The question text is the one the interviewer spoke when it was delivered live.
+		return insertTurn(ctx, q, InsertInterviewTurnParams{
+			InterviewID: id, Position: position, Kind: string(domain.TurnCore), Question: question.Content, Answer: &answer,
+			AskedAt: question.AskedAt,
+		})
+	})
+}
+
+// AppendFollowUp stores the answer to a follow-up the live interviewer asked, together with the
+// follow-up's text and the time it was asked. A follow-up is stored only with its answer: one that was
+// asked but never answered (the socket dropped) leaves no trace. The rules are in domain.AcceptFollowUp:
+// the slot must still be open within followUpLimit, so no core question ever gets more follow-ups than
+// the limit, and a retry of a stored answer changes nothing.
+func (r *Repository) AppendFollowUp(ctx context.Context, candidateID, id uuid.UUID, followUp domain.AskedQuestion, answer string, followUpLimit int32) (domain.Session, error) {
+	return r.appendAnswer(ctx, candidateID, id, func(q *Queries, turns []domain.Turn, _ int32) error {
+		_, unchanged, err := domain.AcceptFollowUp(turns, followUpLimit, followUp.Position, answer)
+		if err != nil || unchanged {
+			return err
+		}
+		return insertTurn(ctx, q, InsertInterviewTurnParams{
+			InterviewID: id, Position: followUp.Position, Kind: string(domain.TurnFollowUp), Question: followUp.Text, Answer: &answer,
+			AskedAt: pgtype.Timestamptz{Time: followUp.AskedAt, Valid: true},
+		})
+	})
+}
+
+// appendAnswer runs one answer write under the session lock: it refuses a completed session and a
+// recruitment session whose window closed, lets store decide and write, and reads the session back.
+func (r *Repository) appendAnswer(ctx context.Context, candidateID, id uuid.UUID, store func(q *Queries, turns []domain.Turn, questionCount int32) error) (domain.Session, error) {
 	var session domain.Session
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
@@ -116,34 +157,12 @@ func (r *Repository) AppendTurn(ctx context.Context, candidateID, id uuid.UUID, 
 		if err := requireOpenWindow(ctx, q, header.ApplicationID); err != nil {
 			return err
 		}
-		turns, err := listTurns(ctx, q, id)
+		questionCount, turns, err := readTurns(ctx, q, id)
 		if err != nil {
 			return err
 		}
-		questionCount, err := q.CountInterviewQuestions(ctx, id)
-		if err != nil {
-			return internal(err)
-		}
-		unchanged, err := domain.ClassifyTurn(turns, int(questionCount), position, answer)
-		if err != nil {
+		if err := store(q, turns, questionCount); err != nil {
 			return err
-		}
-		if !unchanged {
-			question, err := q.GetInterviewQuestion(ctx, GetInterviewQuestionParams{InterviewID: id, Position: position})
-			if errors.Is(err, pgx.ErrNoRows) {
-				return domain.ErrTurnConflict
-			}
-			if err != nil {
-				return internal(err)
-			}
-			// The question text is the one the interviewer spoke when it was delivered live.
-			err = q.InsertInterviewTurn(ctx, InsertInterviewTurnParams{
-				InterviewID: id, Position: position, Question: question.Content, Answer: &answer,
-				AskedAt: question.AskedAt,
-			})
-			if err != nil {
-				return internal(err)
-			}
 		}
 		session, err = readSession(ctx, q, candidateID, id)
 		return err
@@ -154,13 +173,88 @@ func (r *Repository) AppendTurn(ctx context.Context, candidateID, id uuid.UUID, 
 	return session, nil
 }
 
-// Deliver prepares the next live turn under the session lock: it refuses a completed session and a
+func insertTurn(ctx context.Context, q *Queries, params InsertInterviewTurnParams) error {
+	if err := q.InsertInterviewTurn(ctx, params); err != nil {
+		return internal(err)
+	}
+	return nil
+}
+
+// Deliver prepares the next core question under the session lock: it refuses a completed session and a
 // recruitment session whose window closed (the same rules as AppendTurn), then freezes the text and the
-// time of the next unanswered question and the session's provider voice. A repeat for the same question
-// returns what was frozen the first time. When every question is answered it freezes nothing and returns
-// no question.
+// time of the next core question and the session's provider voice. A repeat for the same question
+// returns what was frozen the first time. When every core question is answered it freezes nothing and
+// returns no question. It never asks a follow-up: follow-ups are decided only after a new answer
+// (FollowUpContext).
 func (r *Repository) Deliver(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string) (domain.Delivery, error) {
 	var delivery domain.Delivery
+	err := r.atTurnBoundary(ctx, candidateID, id, defaultProviderVoiceID, func(q *Queries, turns []domain.Turn, questionCount int32, d *domain.Delivery) error {
+		delivery = *d
+		slot, ok := domain.NextCore(turns, questionCount)
+		if !ok {
+			return nil
+		}
+		asked, err := q.MarkInterviewQuestionAsked(ctx, MarkInterviewQuestionAskedParams{InterviewID: id, Position: slot.QuestionNumber})
+		if err != nil {
+			return internal(err)
+		}
+		delivery.Question = &domain.AskedQuestion{
+			Position: slot.Position, QuestionNumber: slot.QuestionNumber, Kind: domain.TurnCore,
+			Text: asked.SpokenText, AskedAt: asked.AskedAt.Time,
+		}
+		return nil
+	})
+	if err != nil {
+		return domain.Delivery{}, err
+	}
+	return delivery, nil
+}
+
+// FollowUpContext reads, under the session lock, what a follow-up decider needs when a follow-up slot is
+// open after the last stored answer (domain.FollowUpSlot): the core question as it was asked, its answer
+// and the earlier follow-ups with theirs, and the Job Description's requirements. It returns nil when no
+// slot is open. The Delivery carries the session's position and provider voice, without a question.
+func (r *Repository) FollowUpContext(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string, followUpLimit int32) (domain.Delivery, *domain.FollowUpContext, error) {
+	var delivery domain.Delivery
+	var pending *domain.FollowUpContext
+	err := r.atTurnBoundary(ctx, candidateID, id, defaultProviderVoiceID, func(q *Queries, turns []domain.Turn, _ int32, d *domain.Delivery) error {
+		delivery = *d
+		slot, ok := domain.FollowUpSlot(turns, followUpLimit)
+		if !ok {
+			return nil
+		}
+		core, err := q.GetInterviewQuestion(ctx, GetInterviewQuestionParams{InterviewID: id, Position: slot.QuestionNumber})
+		if err != nil {
+			return internal(err)
+		}
+		pending = &domain.FollowUpContext{
+			Position: slot.Position, QuestionNumber: slot.QuestionNumber, Ordinal: slot.Ordinal, CoreQuestion: core.Content,
+			Exchanges: []domain.Exchange{}, Requirements: []domain.Requirement{},
+		}
+		for _, turn := range turns {
+			if turn.QuestionNumber == slot.QuestionNumber {
+				pending.Exchanges = append(pending.Exchanges, domain.Exchange{Question: turn.Question, Answer: turn.Answer})
+			}
+		}
+		rows, err := q.ListInterviewRequirements(ctx, id)
+		if err != nil {
+			return internal(err)
+		}
+		for _, row := range rows {
+			pending.Requirements = append(pending.Requirements, domain.Requirement{Name: row.Name, Target: row.Target, Type: row.Type})
+		}
+		return nil
+	})
+	if err != nil {
+		return domain.Delivery{}, nil, err
+	}
+	return delivery, pending, nil
+}
+
+// atTurnBoundary runs read under the session lock with the session's position and frozen provider voice:
+// it refuses a completed session and a recruitment session whose window closed, the same rules as an
+// answer.
+func (r *Repository) atTurnBoundary(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string, read func(q *Queries, turns []domain.Turn, questionCount int32, d *domain.Delivery) error) error {
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
 		header, err := lockSession(ctx, q, candidateID, id)
@@ -173,41 +267,24 @@ func (r *Repository) Deliver(ctx context.Context, candidateID, id uuid.UUID, def
 		if err := requireOpenWindow(ctx, q, header.ApplicationID); err != nil {
 			return err
 		}
-		questionCount, err := q.CountInterviewQuestions(ctx, id)
-		if err != nil {
-			return internal(err)
-		}
-		turns, err := listTurns(ctx, q, id)
+		questionCount, turns, err := readTurns(ctx, q, id)
 		if err != nil {
 			return err
-		}
-		delivery = domain.Delivery{
-			Type: domain.Type(header.Type), QuestionCount: int32(questionCount), AnsweredCount: int32(len(turns)),
-		}
-		if int64(len(turns)) >= questionCount {
-			return nil
-		}
-		position := int32(len(turns)) + 1
-		asked, err := q.MarkInterviewQuestionAsked(ctx, MarkInterviewQuestionAskedParams{InterviewID: id, Position: position})
-		if err != nil {
-			return internal(err)
 		}
 		voice, err := q.FreezeInterviewVoice(ctx, FreezeInterviewVoiceParams{ID: id, DefaultProviderVoiceID: defaultProviderVoiceID})
 		if err != nil {
 			return internal(err)
 		}
+		d := domain.Delivery{Type: domain.Type(header.Type), QuestionCount: questionCount, AnsweredCount: int32(len(turns))}
 		if voice != nil {
-			delivery.ProviderVoiceID = *voice
+			d.ProviderVoiceID = *voice
 		}
-		delivery.Question = &domain.AskedQuestion{
-			Position: position, Kind: domain.TurnCore, Text: asked.SpokenText, AskedAt: asked.AskedAt.Time,
-		}
-		return nil
+		return read(q, turns, questionCount, &d)
 	})
 	if err != nil {
-		return domain.Delivery{}, internal(err)
+		return internal(err)
 	}
-	return delivery, nil
+	return nil
 }
 
 // evaluationStaleAfter is how long a pending evaluation may run before another Complete takes it over.
@@ -460,6 +537,18 @@ func lockSession(ctx context.Context, q *Queries, candidateID, id uuid.UUID) (Ge
 	return row, nil
 }
 
+func readTurns(ctx context.Context, q *Queries, id uuid.UUID) (int32, []domain.Turn, error) {
+	questionCount, err := q.CountInterviewQuestions(ctx, id)
+	if err != nil {
+		return 0, nil, internal(err)
+	}
+	turns, err := listTurns(ctx, q, id)
+	if err != nil {
+		return 0, nil, err
+	}
+	return int32(questionCount), turns, nil
+}
+
 func listTurns(ctx context.Context, q *Queries, id uuid.UUID) ([]domain.Turn, error) {
 	rows, err := q.ListInterviewTurns(ctx, id)
 	if err != nil {
@@ -467,7 +556,10 @@ func listTurns(ctx context.Context, q *Queries, id uuid.UUID) ([]domain.Turn, er
 	}
 	turns := make([]domain.Turn, 0, len(rows))
 	for _, row := range rows {
-		turns = append(turns, domain.Turn{Position: row.Position, Question: row.Question, Answer: row.Answer})
+		turns = append(turns, domain.Turn{
+			Position: row.Position, QuestionNumber: row.QuestionNumber, Kind: domain.TurnKind(row.Kind),
+			Question: row.Question, Answer: row.Answer,
+		})
 	}
 	return turns, nil
 }
@@ -482,28 +574,35 @@ func readSession(ctx context.Context, q *Queries, candidateID, id uuid.UUID) (do
 	if err != nil {
 		return domain.Session{}, internal(err)
 	}
-	questionCount, err := q.CountInterviewQuestions(ctx, id)
-	if err != nil {
-		return domain.Session{}, internal(err)
-	}
-	turns, err := listTurns(ctx, q, id)
+	questionCount, turns, err := readTurns(ctx, q, id)
 	if err != nil {
 		return domain.Session{}, err
+	}
+	answeredCore := int32(0)
+	for _, turn := range turns {
+		if turn.Kind != domain.TurnFollowUp {
+			answeredCore++
+		}
 	}
 	session := domain.Session{
 		ID: row.ID, Type: domain.Type(row.Type), RoleProfileID: row.RoleProfileID,
 		ApplicationID: row.ApplicationID, AvatarID: row.AvatarID, VoiceID: row.VoiceID,
 		StartedAt: row.StartedAt.Time, CompletedAt: timePtr(row.CompletedAt),
 		EvaluationStatus: domain.EvaluationStatus(row.EvaluationStatus),
-		QuestionCount:    int32(questionCount), AnsweredCount: int32(len(turns)), Turns: &turns,
+		QuestionCount:    questionCount, AnsweredCount: answeredCore, AnsweredTurns: int32(len(turns)), Turns: &turns,
 	}
-	if !row.CompletedAt.Valid && int64(len(turns)) < questionCount {
-		question, err := q.GetInterviewQuestion(ctx, GetInterviewQuestionParams{InterviewID: id, Position: int32(len(turns)) + 1})
-		if err != nil {
-			return domain.Session{}, internal(err)
-		}
-		session.CurrentQuestion = &domain.CurrentQuestion{Position: question.Position, Content: question.Content}
+	if row.CompletedAt.Valid {
+		return session, nil
 	}
+	slot, ok := domain.NextCore(turns, questionCount)
+	if !ok {
+		return session, nil
+	}
+	question, err := q.GetInterviewQuestion(ctx, GetInterviewQuestionParams{InterviewID: id, Position: slot.QuestionNumber})
+	if err != nil {
+		return domain.Session{}, internal(err)
+	}
+	session.CurrentQuestion = &domain.CurrentQuestion{Position: slot.Position, QuestionNumber: slot.QuestionNumber, Content: question.Content}
 	return session, nil
 }
 
