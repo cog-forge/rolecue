@@ -82,6 +82,14 @@ export function InterviewResult({
               )}
             </dd>
           </div>
+          {interview.end_reason ? (
+            <div>
+              <dt className="text-muted-foreground">{t("interview.ended")}</dt>
+              <dd className="mt-1 font-medium">
+                {t(`interview.endReason.${interview.end_reason}`)}
+              </dd>
+            </div>
+          ) : null}
         </dl>
 
         {finished ? (

@@ -125,7 +125,7 @@ test("the interview stays English inside a Vietnamese room and no locale reaches
   await expect(page.getByText("Phòng luyện tập")).toBeVisible();
   await expect(page.getByRole("button", { name: "Bật micro" })).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Rời phòng", exact: true }),
+    page.getByRole("button", { name: "Rời phòng", exact: true }),
   ).toBeVisible();
   // ...while the conversation itself stays English, exactly as the interviewer sent it.
   await expect(

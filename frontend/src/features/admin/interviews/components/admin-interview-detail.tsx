@@ -135,6 +135,14 @@ function InterviewDetailFields({ interview }: { interview: InterviewDetail }) {
     [fields("questions"), fmt.number(interview.question_count)],
     [fields("turns"), fmt.number(interview.turn_count)],
     [
+      fields("ended"),
+      interview.completed_at === null
+        ? values("inProgress")
+        : interview.end_reason
+          ? values(`endReason.${interview.end_reason}`)
+          : values("endReason.unknown"),
+    ],
+    [
       fields("score"),
       interview.score === null
         ? values("notScored")

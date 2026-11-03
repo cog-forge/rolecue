@@ -281,7 +281,14 @@
     "errorText": "Vui lòng thử lại sau ít phút.",
     "retry": "Thử lại",
     "autoRefresh": "Trang này sẽ tự cập nhật.",
-    "autoRefreshStopped": "Vẫn đang đánh giá. Hãy kiểm tra lại sau ít phút."
+    "autoRefreshStopped": "Vẫn đang đánh giá. Hãy kiểm tra lại sau ít phút.",
+    "end": {
+      "leftTitle": "Bạn đã rời buổi phỏng vấn sớm",
+      "leftText": "Buổi phỏng vấn kết thúc khi bạn rời phòng. Chỉ những câu bạn đã trả lời được chấm điểm.",
+      "abandonedTitle": "Buổi phỏng vấn đã kết thúc vì không có hoạt động",
+      "abandonedText": "Quá lâu không có câu hỏi hay câu trả lời nào nên buổi phỏng vấn đã được kết thúc. Chỉ những câu bạn đã trả lời được chấm điểm.",
+      "answered": "Đã trả lời {answered}/{total} câu; {unanswered, plural, =0 {không còn câu nào chưa trả lời} other {# câu chưa trả lời}}."
+    }
   },
   "interviewRoom": {
     "label": "Phòng phỏng vấn",
@@ -293,6 +300,17 @@
     },
     "preview": "Xem trước",
     "leave": "Rời phòng",
+    "leaveDialog": {
+      "title": "Rời phòng và kết thúc buổi phỏng vấn?",
+      "description": "Rời phòng sẽ kết thúc buổi phỏng vấn ngay. Đây không phải tạm dừng: bạn không thể quay lại buổi này.",
+      "answers": "Các câu trả lời bạn đã đưa ra sẽ được nộp và chấm điểm. Những câu chưa trả lời sẽ được tính là chưa trả lời.",
+      "practice": "Số xu của buổi luyện tập này không được hoàn lại.",
+      "recruitment": "Buổi này được tính là buổi phỏng vấn của đơn ứng tuyển. Bản ghi hình vẫn được tải lên như bình thường.",
+      "disconnect": "Nếu mất kết nối thì không tính là rời phòng: hãy kết nối lại để tiếp tục từ chỗ đang dở.",
+      "stay": "Tiếp tục phỏng vấn",
+      "confirm": "Rời phòng và nộp bài",
+      "submitting": "Đang nộp…"
+    },
     "progress": "Câu {position}/{count}",
     "followUp": {
       "label": "Câu hỏi thêm"
@@ -305,8 +323,9 @@
       "reconnecting": "Mất kết nối. Đang kết nối lại…",
       "loading": "Đang chuẩn bị câu hỏi…",
       "transitioning": "Đang chuẩn bị câu hỏi tiếp theo…",
-      "pausedTitle": "Buổi phỏng vấn đang tạm dừng",
-      "pausedText": "Buổi phỏng vấn đang tạm dừng. Khi bạn quay lại, phỏng vấn sẽ tiếp tục từ đúng câu hỏi này.",
+      "submitting": "Đang nộp buổi phỏng vấn…",
+      "leaveFailedTitle": "Buổi phỏng vấn chưa được kết thúc",
+      "leaveFailedText": "Không kết nối được tới RoleCue. Buổi phỏng vấn vẫn đang diễn ra: hãy kiểm tra kết nối rồi chọn Rời phòng lần nữa, hoặc tiếp tục trả lời.",
       "completedTitle": "Đã hoàn thành buổi phỏng vấn",
       "completedText": "Đang mở báo cáo của bạn…",
       "viewReport": "Xem báo cáo"

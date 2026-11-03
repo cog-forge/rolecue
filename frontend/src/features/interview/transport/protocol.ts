@@ -22,7 +22,6 @@ export const serverStateSchema = z.enum([
   "processing",
   "transitioning",
   "completed",
-  "paused",
 ]);
 export const evaluationStatusSchema = z.enum([
   "pending",

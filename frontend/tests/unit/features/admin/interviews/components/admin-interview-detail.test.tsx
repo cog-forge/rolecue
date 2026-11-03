@@ -48,6 +48,8 @@ const detail = {
   voice: null,
   question_count: 5,
   turn_count: 12,
+  completed_at: "2026-11-03T10:00:00Z",
+  end_reason: "left",
 };
 
 function apiError(status: number, code: string) {
@@ -114,6 +116,20 @@ describe("AdminInterviewDetail", () => {
     expect(field("Score")).toHaveTextContent("82");
     expect(field("Report")).toHaveTextContent("Available");
     expect(field("Recording")).toHaveTextContent("Recorded");
+    expect(field("How it ended")).toHaveTextContent(
+      "Left early by the Candidate",
+    );
+  });
+
+  it.each([
+    [{ completed_at: null, end_reason: null }, "In progress"],
+    [{ end_reason: "abandoned" }, "Abandoned after a period without activity"],
+    [{ end_reason: null }, "Ended (reason not recorded)"],
+  ])("says how the interview ended: %o", async (over, text) => {
+    mocks.detail.mockResolvedValue({ ...detail, ...over });
+    renderDetail();
+    await awaitDetailFields();
+    expect(field("How it ended")).toHaveTextContent(text);
   });
 
   it("is read-only and offers no recording link, transcript or edit action", async () => {

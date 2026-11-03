@@ -34,6 +34,11 @@ export const reportQuestionSchema = z.object({
   feedback: z.string().nullable(),
 });
 
+// How the interview ended (KAN-215): null while it runs and for interviews ended before it was
+// recorded. `question_count` is the number of core questions; `questions` lists only answered ones.
+export const endReasonSchema = z.enum(["completed", "left", "abandoned"]);
+export type EndReason = z.infer<typeof endReasonSchema>;
+
 export const reportSchema = z.object({
   interview_id: z.uuid(),
   type: reportTypeSchema,
@@ -41,6 +46,8 @@ export const reportSchema = z.object({
   overall_score: scoreSchema.nullable(),
   started_at: z.iso.datetime({ offset: true }),
   completed_at: z.iso.datetime({ offset: true }).nullable(),
+  end_reason: endReasonSchema.nullish().transform((value) => value ?? null),
+  question_count: z.number().int().nonnegative().optional(),
   summary: z.string().nullable(),
   breakdown: z.array(reportMetricSchema).nullable(),
   questions: z.array(reportQuestionSchema).nullable(),

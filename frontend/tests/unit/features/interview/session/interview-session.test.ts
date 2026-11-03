@@ -1,3 +1,4 @@
+import { AxiosError, AxiosHeaders } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createInterviewSession } from "@/features/interview/session/interview-session";
 import type {
@@ -72,9 +73,16 @@ function setup(sessionType: "practice" | "recruitment" = "practice") {
     stop: vi.fn(),
   };
   let ids = 0;
+  const endSession = vi.fn(async () => ({
+    id: "00000000-0000-4000-8000-000000000001",
+    completed_at: "2026-11-03T10:00:00Z",
+    end_reason: "left" as const,
+    evaluation_status: "pending" as const,
+  }));
   const session = createInterviewSession({
     transport: typed,
     playback,
+    endSession,
     newId: () => `id-${++ids}`,
   });
   const view = () => session.getSnapshot();
@@ -94,7 +102,7 @@ function setup(sessionType: "practice" | "recruitment" = "practice") {
     transport.emit("state", { state: "listening", position });
   }
   session.start();
-  return { session, transport, playback, done, view, toListening };
+  return { session, transport, playback, done, view, toListening, endSession };
 }
 const sentOf = (sent: ClientMessage[], type: ClientMessage["type"]) =>
   sent.filter((message) => message.type === type);
@@ -523,5 +531,95 @@ describe("ends", () => {
     expect(t.view().phase).toBe("IDLE");
     t.transport.emit("state", { state: "processing", position: 1 });
     expect(t.view().phase).toBe("IDLE");
+  });
+});
+
+describe("leave", () => {
+  it("submits immediately, then shows the end and disconnects", async () => {
+    t.toListening(3, 2);
+    const left = t.session.leave();
+    expect(t.view().leaving).toBe("submitting");
+    expect(t.playback.stop).toHaveBeenCalled();
+    // While submitting nothing new plays or goes out.
+    t.transport.emit("interviewer.turn", textTurn(4));
+    expect(t.playback.play).toHaveBeenCalledTimes(1);
+    expect(t.session.submitText("late")).toBe(false);
+    await expect(left).resolves.toBe(true);
+    expect(t.endSession).toHaveBeenCalledTimes(1);
+    expect(t.view()).toMatchObject({
+      phase: "COMPLETED",
+      leaving: "idle",
+      end: { reason: "completed" },
+      evaluationStatus: "pending",
+    });
+    expect(t.transport.disconnect).toHaveBeenCalledTimes(1);
+    expect(sentOf(t.transport.sent, "answer.text")).toEqual([]);
+  });
+
+  it("ignores a double click and a leave after the end", async () => {
+    t.toListening();
+    const first = t.session.leave();
+    const second = t.session.leave();
+    await expect(second).resolves.toBe(false);
+    await first;
+    await expect(t.session.leave()).resolves.toBe(false);
+    expect(t.endSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops an answer still in flight", async () => {
+    t.toListening();
+    expect(t.session.submitText("half an answer")).toBe(true);
+    await t.session.leave();
+    t.transport.emit("state", { state: "listening", position: 1 });
+    expect(sentOf(t.transport.sent, "answer.text")).toHaveLength(1);
+    expect(t.view().sending).toBe(false);
+  });
+
+  it("lets the Candidate try again when the request failed", async () => {
+    t.toListening();
+    t.endSession.mockRejectedValueOnce(new Error("offline"));
+    await expect(t.session.leave()).resolves.toBe(false);
+    expect(t.view()).toMatchObject({ leaving: "failed", phase: "LISTENING" });
+    expect(t.transport.disconnect).not.toHaveBeenCalled();
+    expect(t.session.submitText("still here")).toBe(true);
+  });
+
+  it("ends the room when the recruitment window closed meanwhile", async () => {
+    t.toListening();
+    t.endSession.mockRejectedValueOnce(
+      new AxiosError("conflict", "409", undefined, undefined, {
+        status: 409,
+        statusText: "Conflict",
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: {
+          success: false,
+          error: { code: "APPLICATION_NOT_ELIGIBLE", message: "closed" },
+        },
+      }),
+    );
+    await expect(t.session.leave()).resolves.toBe(false);
+    expect(t.view()).toMatchObject({
+      phase: "TERMINATED_EARLY",
+      end: { reason: "not-eligible" },
+      leaving: "idle",
+    });
+  });
+
+  it("works while reconnecting", async () => {
+    t.toListening();
+    t.transport.status("reconnecting");
+    expect(t.view().phase).toBe("RECONNECTING");
+    await expect(t.session.leave()).resolves.toBe(true);
+    expect(t.view().phase).toBe("COMPLETED");
+  });
+
+  it("follows a server-side end that arrives on the socket first", async () => {
+    t.toListening();
+    const left = t.session.leave();
+    t.transport.emit("session.completed", { evaluation_status: "pending" });
+    expect(t.view().phase).toBe("COMPLETED");
+    await expect(left).resolves.toBe(true);
+    expect(t.view().phase).toBe("COMPLETED");
   });
 });

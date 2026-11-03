@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { avatarItem, cors } from "./avatar-api";
 import { mockLiveServer } from "./live-interview";
 export const roomId = "aaaaaaaa-aaaa-4aaa-8aaa-000000000053";
@@ -20,6 +20,8 @@ export async function mockRoomPreview(
     companyInterviewerReads: 0,
     inventoryReads: [] as string[],
     writes: [] as string[],
+    /** POST /interviews/{id}/complete: the room's Leave (docs/interview-ws-protocol.md §3.1). */
+    ends: 0,
   };
   if (options.live !== false)
     await mockLiveServer(page, {
@@ -34,6 +36,18 @@ export async function mockRoomPreview(
       return route.fulfill({ status: 204, headers: cors });
     const ok = (data: unknown) =>
       route.fulfill({ headers: cors, json: { success: true, data } });
+    if (
+      request.method() === "POST" &&
+      path === `/interviews/${roomId}/complete`
+    ) {
+      calls.ends++;
+      return ok({
+        id: roomId,
+        completed_at: "2026-11-03T09:00:00Z",
+        end_reason: "left",
+        evaluation_status: "pending",
+      });
+    }
     if (request.method() !== "GET") {
       calls.writes.push(`${request.method()} ${path}`);
       return route.fulfill({
@@ -122,4 +136,14 @@ export async function mockRoomPreview(
     return ok({ items: [], pagination: { total: 0, limit: 20, offset: 0 } });
   });
   return calls;
+}
+
+/** Leaves the room the way a Candidate does: Leave, confirm, and the room opens the report. */
+export async function leaveRoom(page: Page, name = "Leave") {
+  await page.getByRole("button", { name, exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Leave and submit|Rời phòng và nộp bài/ })
+    .click();
+  await expect(page).toHaveURL(`/reports/${roomId}`);
 }

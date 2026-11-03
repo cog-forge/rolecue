@@ -170,7 +170,14 @@
       "available": "Available",
       "notAvailable": "Not available",
       "recorded": "Recorded",
-      "notRecorded": "Not recorded"
+      "notRecorded": "Not recorded",
+      "inProgress": "In progress",
+      "endReason": {
+        "completed": "Completed: every question answered",
+        "left": "Left early by the Candidate",
+        "abandoned": "Abandoned after a period without activity",
+        "unknown": "Ended (reason not recorded)"
+      }
     },
     "accessDenied": {
       "message": "We couldn't confirm your administrator access. Interview data is hidden until access is verified.",
@@ -237,6 +244,7 @@
         "voice": "Voice",
         "questions": "Questions",
         "turns": "Turns",
+        "ended": "How it ended",
         "score": "Score",
         "report": "Report",
         "recording": "Recording"

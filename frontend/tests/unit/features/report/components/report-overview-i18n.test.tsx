@@ -85,6 +85,19 @@ beforeEach(() => {
 });
 
 describe("ReportOverview in Vietnamese", () => {
+  it("says in Vietnamese that the Candidate left early", async () => {
+    mocks.get.mockResolvedValue(
+      envelope(report({ end_reason: "left", question_count: 5 })),
+    );
+    renderReport();
+    expect(
+      await screen.findByText("Bạn đã rời buổi phỏng vấn sớm"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("report-end-notice")).toHaveTextContent(
+      /\/5 câu; .* câu chưa trả lời\./,
+    );
+  });
+
   it("translates the chrome and keeps AI feedback, summary and questions as stored", async () => {
     mocks.get.mockResolvedValue(envelope(report()));
     renderReport();

@@ -1,16 +1,16 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { ArrowUpRight, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
 import { StudioBackdrop } from "@/components/avatar-viewer/studio-backdrop";
 import { routes } from "@/config/routes";
+import type { TransportEnd } from "../transport/interview-transport";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { interviewKeys } from "../api/keys";
 import { getRoomDetails } from "../api/room-details";
@@ -41,6 +41,7 @@ import { RoomTranscript } from "./room-transcript";
 import { RoomAnswer } from "./room-answer";
 import { RoomStatus } from "./room-status";
 import { RoomDock } from "./room-controls";
+import { RoomLeave } from "./room-leave";
 import { roomGlass } from "./room-control-button";
 import { RoomSelfView } from "./room-self-view";
 import {
@@ -51,6 +52,14 @@ import {
 } from "./room-recording";
 import { roomBackgrounds, type RoomBackgroundId } from "./room-backgrounds";
 import type { CameraView } from "./room-audio-settings";
+
+/** Ends after which the session may still be running on the server, so Leave can still end it. A
+ * completed session, a closed recruitment window and a session this account cannot open cannot. */
+const leavableEnds: ReadonlySet<TransportEnd["reason"]> = new Set([
+  "superseded",
+  "protocol",
+  "gave-up",
+]);
 
 /** Shown after completion so the Candidate sees it before the report opens. */
 const REPORT_REDIRECT_MS = 1500;
@@ -211,6 +220,11 @@ function LiveRoom({
     roomBackgrounds.find((option) => option.id === background) ??
     roomBackgrounds[0];
   const available = validId && details.data !== undefined && !details.isError;
+  const canLeave =
+    available &&
+    details.data.completed_at === null &&
+    !completed &&
+    (view.end === null || leavableEnds.has(view.end.reason));
   return (
     <TooltipProvider delayDuration={250}>
       <section
@@ -273,16 +287,14 @@ function LiveRoom({
               </span>
             )}
           </div>
-          <Button
-            asChild
-            variant="ghost"
-            className="h-10 rounded-full border border-white/15 bg-neutral-900/55 px-4 text-xs text-white shadow-lg backdrop-blur-xl hover:bg-neutral-900/80 hover:text-white"
-          >
-            <Link href={routes.history}>
-              {t("leave")}
-              <ArrowUpRight aria-hidden className="size-3.5" />
-            </Link>
-          </Button>
+          <RoomLeave
+            live={canLeave}
+            sessionType={sessionType}
+            submitting={view.leaving === "submitting"}
+            onLeave={() => {
+              void session.leave();
+            }}
+          />
         </header>
         {(details.isError || !validId) && (
           <div

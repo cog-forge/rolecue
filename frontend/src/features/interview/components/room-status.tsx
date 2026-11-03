@@ -24,7 +24,7 @@ const endCopy: Record<
   "gave-up": "gaveUp",
 };
 
-/** Connection, pause, completion and end banners, plus the one-tap Play after an autoplay refusal.
+/** Connection, leaving, completion and end banners, plus the one-tap Play after an autoplay refusal.
  * A recruitment room passes `completion`: its recording upload replaces the report banner. */
 export function RoomStatus({
   view,
@@ -45,6 +45,18 @@ export function RoomStatus({
   const end = view.end ? endCopy[view.end.reason] : null;
   const reportHref = routes.reports.detail(interviewId);
 
+  if (view.leaving === "submitting")
+    return (
+      <Banner role="status">
+        <p className="flex items-center gap-2">
+          <LoaderCircle
+            aria-hidden
+            className="size-4 shrink-0 motion-safe:animate-spin"
+          />
+          {t("status.submitting")}
+        </p>
+      </Banner>
+    );
   if (view.phase === "COMPLETED" && completion) return completion;
   if (view.phase === "COMPLETED")
     return (
@@ -76,10 +88,10 @@ export function RoomStatus({
         </div>
       </Banner>
     );
-  if (view.phase === "PAUSED")
+  if (view.leaving === "failed")
     return (
-      <Banner role="status" title={t("status.pausedTitle")}>
-        <p>{t("status.pausedText")}</p>
+      <Banner role="alert" title={t("status.leaveFailedTitle")}>
+        <p>{t("status.leaveFailedText")}</p>
       </Banner>
     );
   if (playback === "blocked" && view.phase === "INTERVIEWER_SPEAKING")

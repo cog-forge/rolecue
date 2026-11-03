@@ -132,6 +132,55 @@ describe("ReportOverview", () => {
     });
   });
 
+  it("says the Candidate left early and counts the unanswered questions", async () => {
+    const answered = {
+      position: 1,
+      question_number: 1,
+      kind: "core",
+      question: "Q1",
+      answer: "A1",
+      feedback: null,
+    };
+    mocks.get.mockResolvedValue(
+      envelope(
+        report({
+          end_reason: "left",
+          question_count: 8,
+          questions: [
+            answered,
+            { ...answered, position: 2, question_number: 2 },
+          ],
+        }),
+      ),
+    );
+    renderReport();
+    const notice = await screen.findByTestId("report-end-notice");
+    expect(
+      within(notice).getByRole("heading", {
+        name: "You left the interview early",
+      }),
+    ).toBeInTheDocument();
+    expect(notice).toHaveTextContent(
+      "2 of 8 questions answered; 6 questions not answered.",
+    );
+  });
+
+  it("explains an abandoned interview and shows nothing for a normal completion", async () => {
+    mocks.get.mockResolvedValue(
+      envelope(report({ end_reason: "abandoned", question_count: 2 })),
+    );
+    const view = renderReport();
+    expect(
+      await screen.findByText("This interview ended because it was inactive"),
+    ).toBeInTheDocument();
+    view.unmount();
+
+    mocks.get.mockResolvedValue(envelope(report({ end_reason: "completed" })));
+    renderReport();
+    await screen.findByRole("heading", { name: "Practice interview" });
+    expect(screen.queryByTestId("report-end-notice")).not.toBeInTheDocument();
+  });
+
   it("shows a follow-up under its core question, numbered by core questions", async () => {
     mocks.get.mockResolvedValue(
       envelope(

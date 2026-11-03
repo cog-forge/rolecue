@@ -5,6 +5,7 @@ import {
   type InterviewEvent,
   type InterviewState,
 } from "@/features/interview/machine/interview-machine";
+import { serverStateSchema } from "@/features/interview/transport/protocol";
 describe("interview lifecycle", () => {
   it("progresses through an answer and completion", () => {
     const events: InterviewEvent[] = [
@@ -18,11 +19,8 @@ describe("interview lifecycle", () => {
     ];
     expect(events.reduce<InterviewState>(transition, "IDLE")).toBe("COMPLETED");
   });
-  it("requires synchronization after pause or connection loss", () => {
+  it("requires synchronization after a connection loss", () => {
     expect(transition("LISTENING", "CONNECTION_LOST")).toBe("RECONNECTING");
-    expect(transition(transition("LISTENING", "PAUSE"), "RESUME")).toBe(
-      "RECONNECTING",
-    );
     expect(transition("RECONNECTING", "RECONNECTED")).toBe("ASSET_LOADING");
   });
   it("acknowledges a 2D fallback without fabricating avatar behavior", () => {
@@ -59,13 +57,15 @@ describe("server reconciliation", () => {
     ["processing", "PROCESSING_ANSWER"],
     ["transitioning", "TRANSITIONING"],
     ["completed", "COMPLETED"],
-    ["paused", "PAUSED"],
   ] as const)(
     "after a reconnect, server %s becomes %s without guessing",
     (phase, state) => {
       expect(reconcile("RECONNECTING", phase)).toBe(state);
     },
   );
+  it("has no pause state: the protocol never sends one", () => {
+    expect(serverStateSchema.safeParse("paused").success).toBe(false);
+  });
   it("lets the server move a failed answer back to listening", () => {
     expect(reconcile("PROCESSING_ANSWER", "listening")).toBe("LISTENING");
   });

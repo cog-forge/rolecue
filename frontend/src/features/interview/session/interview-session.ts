@@ -12,6 +12,8 @@ import type {
   InterviewTransport,
   TransportEnd,
 } from "../transport/interview-transport";
+import { readApiError } from "@/lib/i18n/api-errors";
+import type { EndedSession } from "../api/leave-interview";
 import {
   MAX_ANSWER_TEXT_LENGTH,
   newCommandId,
@@ -47,6 +49,9 @@ export interface InterviewSessionView {
   /** The last answer failed on the server side (INTERNAL_ERROR) and can be sent again as is. */
   canResend: boolean;
   evaluationStatus: EvaluationStatus | null;
+  /** Leave ends the interview (no pause): submitting while the end request runs, failed when it did
+   * not reach the server and the Candidate may try again. */
+  leaving: "idle" | "submitting" | "failed";
 }
 interface PlaybackPort {
   play(turn: InterviewerTurn, onDone: () => void): void;
@@ -83,6 +88,7 @@ const INITIAL: InterviewSessionView = {
   sending: false,
   canResend: false,
   evaluationStatus: null,
+  leaving: "idle",
 };
 
 /**
@@ -99,10 +105,13 @@ function turnKey(turn: InterviewerTurn) {
 export function createInterviewSession({
   transport,
   playback,
+  endSession,
   newId = newCommandId,
 }: {
   transport: InterviewTransport<ServerMessage, ClientMessage>;
   playback: PlaybackPort;
+  /** Ends the session on the server (POST /interviews/{id}/complete); the room's Leave calls it. */
+  endSession: () => Promise<EndedSession>;
   newId?: () => string;
 }) {
   let view = INITIAL;
@@ -168,6 +177,9 @@ export function createInterviewSession({
     if (state === "listening" && pending && unconfirmed) sendPending();
   }
   function handle(message: ServerMessage) {
+    // While leaving, only the end itself matters: no new turn plays and no answer goes out.
+    if (view.leaving === "submitting" && message.type !== "session.completed")
+      return;
     switch (message.type) {
       case "session.sync": {
         const data = message.data;
@@ -269,6 +281,7 @@ export function createInterviewSession({
   function answerable() {
     return (
       !pending &&
+      view.leaving !== "submitting" &&
       view.position !== null &&
       (view.phase === "LISTENING" || view.phase === "RECONNECTING")
     );
@@ -332,6 +345,49 @@ export function createInterviewSession({
         audio,
       };
       sendPending();
+      return true;
+    },
+    /** Leaves: ends the session on the server now. The answers stored so far are evaluated and the rest
+     * stay unanswered; the room then shows the end and opens the report. An answer still in flight is
+     * dropped. Resolves true once the session ended. */
+    async leave() {
+      if (view.leaving === "submitting" || view.phase === "COMPLETED")
+        return false;
+      pending = null;
+      unconfirmed = false;
+      playback.stop();
+      publish({
+        leaving: "submitting",
+        sending: false,
+        canResend: false,
+        issue: null,
+      });
+      let ended: EndedSession;
+      try {
+        ended = await endSession();
+      } catch (error) {
+        if (!unsubscribe) return false;
+        // The recruitment window closed meanwhile: the session cannot be ended or continued.
+        if (readApiError(error).code === "APPLICATION_NOT_ELIGIBLE") {
+          publish({
+            leaving: "idle",
+            end: { reason: "not-eligible" },
+            phase: transition(view.phase, "TERMINATE"),
+          });
+          transport.disconnect();
+          return false;
+        }
+        publish({ leaving: "failed" });
+        return false;
+      }
+      if (!unsubscribe) return false;
+      publish({
+        leaving: "idle",
+        phase: "COMPLETED",
+        end: { reason: "completed" },
+        evaluationStatus: ended.evaluation_status,
+      });
+      transport.disconnect();
       return true;
     },
     /** Sends the failed answer again with the same id (allowed: failed commands are not remembered). */

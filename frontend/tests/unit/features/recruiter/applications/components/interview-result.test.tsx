@@ -34,6 +34,7 @@ const completed: ApplicationInterview = {
   status: "completed",
   score: 82,
   record_status: "ready",
+  end_reason: "completed",
 };
 
 const report = {
@@ -232,6 +233,23 @@ describe("InterviewResult", () => {
     expect(
       screen.queryByRole("button", { name: "Get the recording link" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("says how the interview ended and that a purged recording was deleted", () => {
+    mount({ ...completed, end_reason: "left", record_status: "deleted" });
+    expect(screen.getByText("How it ended")).toBeInTheDocument();
+    expect(screen.getByText("The Candidate left early")).toBeInTheDocument();
+    expect(
+      screen.getByText("The recording was deleted after the retention period."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Get the recording link" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no end reason for an interview ended before it was recorded", () => {
+    mount({ ...completed, end_reason: null });
+    expect(screen.queryByText("How it ended")).not.toBeInTheDocument();
   });
 
   it("loads the transcript only when the Recruiter opens it", async () => {

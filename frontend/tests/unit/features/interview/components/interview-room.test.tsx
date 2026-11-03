@@ -531,3 +531,79 @@ it("labels a follow-up and keeps counting core questions, in English and Vietnam
     unmount();
   }
 });
+
+const ended = {
+  id,
+  completed_at: "2026-11-03T10:00:00Z",
+  end_reason: "left",
+  evaluation_status: "pending",
+};
+
+it("asks before leaving, then submits at once and opens the report", async () => {
+  let finish: (value: unknown) => void = () => {};
+  mocks.post.mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
+  mount();
+  const socket = await connected();
+  await listening(socket);
+
+  fireEvent.click(screen.getByRole("button", { name: "Leave" }));
+  const dialog = await screen.findByRole("dialog", {
+    name: "Leave and end this interview?",
+  });
+  expect(dialog).toHaveTextContent("It is not a pause");
+  expect(dialog).toHaveTextContent(
+    "The coins for this practice are not refunded.",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Keep interviewing" }));
+  expect(mocks.post).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("button", { name: "Leave" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Leave and submit" }),
+  );
+  expect(mocks.post).toHaveBeenCalledWith(
+    `/interviews/${id}/complete`,
+    undefined,
+    expect.anything(),
+  );
+  expect(await screen.findByText("Submitting your interview…")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Submitting…" })).toBeDisabled();
+
+  await act(async () => finish(ok(ended)));
+  expect(await screen.findByText("Interview complete")).toBeVisible();
+  expect(socket.readyState).toBe(FakeSocket.CLOSED);
+  await waitFor(
+    () => expect(mocks.replace).toHaveBeenCalledWith(`/reports/${id}`),
+    { timeout: 3000 },
+  );
+  expect(mocks.post).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the interview running when leaving fails", async () => {
+  mocks.post.mockRejectedValue(new Error("offline"));
+  mount();
+  const socket = await connected();
+  await listening(socket);
+  fireEvent.click(screen.getByRole("button", { name: "Leave" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Leave and submit" }),
+  );
+  expect(await screen.findByText("The interview was not ended")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Leave" })).toBeEnabled();
+  expect(mocks.replace).not.toHaveBeenCalled();
+});
+
+it("leaves a completed interview with a plain link", async () => {
+  mocks.get.mockResolvedValue(
+    ok({ ...details, completed_at: "2026-11-03T10:00:00Z" }),
+  );
+  mount();
+  expect(await screen.findByRole("link", { name: "Leave" })).toHaveAttribute(
+    "href",
+    "/history",
+  );
+});

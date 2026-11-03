@@ -19,6 +19,7 @@ export const recordStatusSchema = z.enum([
   "processing",
   "ready",
   "failed",
+  "deleted",
 ]);
 export type RecordStatus = z.infer<typeof recordStatusSchema>;
 
@@ -31,6 +32,12 @@ export const applicationInterviewSchema = z.object({
   status: interviewStatusSchema,
   score: z.number().int().nullable(),
   record_status: recordStatusSchema,
+  // How the interview ended (KAN-215): completed, left early, or abandoned when inactive. Null while
+  // it runs and for interviews ended before it was recorded.
+  end_reason: z
+    .enum(["completed", "left", "abandoned"])
+    .nullish()
+    .transform((value) => value ?? null),
 });
 export type ApplicationInterview = z.infer<typeof applicationInterviewSchema>;
 

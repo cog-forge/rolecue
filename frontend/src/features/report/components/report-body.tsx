@@ -64,6 +64,8 @@ export function ReportBody({
         </div>
       </header>
 
+      <EndNotice report={report} />
+
       <StatusNotice
         status={status}
         onCheckAgain={onCheckAgain}
@@ -210,6 +212,42 @@ function TurnDetails({ item }: { item: ReportQuestion }) {
         </p>
       ) : null}
     </>
+  );
+}
+
+// An interview the Candidate left, or that ended without activity, says so, with how many core
+// questions were answered. Unanswered questions have no entry in the list and are not scored.
+function EndNotice({ report }: { report: Report }) {
+  const t = useTranslations("candidate.report.end");
+  const fmt = useFormatters();
+  const reason = report.end_reason;
+  if (reason !== "left" && reason !== "abandoned") return null;
+  const total = report.question_count;
+  const answered = report.questions
+    ? report.questions.filter(
+        (item) => item.kind === "core" && item.answer !== null,
+      ).length
+    : null;
+  return (
+    <section
+      aria-labelledby="report-end-title"
+      data-testid="report-end-notice"
+      className="rounded-xl border bg-muted/40 p-5"
+    >
+      <h2 id="report-end-title" className="font-semibold">
+        {t(`${reason}Title`)}
+      </h2>
+      <p className="mt-2 text-sm text-muted-foreground">{t(`${reason}Text`)}</p>
+      {answered !== null && total !== undefined && total > 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground tabular-nums">
+          {t("answered", {
+            answered: fmt.number(answered),
+            total: fmt.number(total),
+            unanswered: Math.max(total - answered, 0),
+          })}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

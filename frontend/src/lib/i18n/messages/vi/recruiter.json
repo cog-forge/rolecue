@@ -559,6 +559,12 @@
       "notScored": "Chưa có điểm",
       "scoreValue": "{score}/100",
       "notCompleted": "Chưa hoàn tất",
+      "ended": "Cách kết thúc",
+      "endReason": {
+        "completed": "Đã trả lời tất cả câu hỏi",
+        "left": "Ứng viên đã rời phòng sớm",
+        "abandoned": "Kết thúc do không có hoạt động trong thời gian dài"
+      },
       "showEvaluation": "Xem đánh giá",
       "hideEvaluation": "Ẩn đánh giá",
       "notFinished": "Ứng viên chưa hoàn tất buổi phỏng vấn.",
@@ -581,7 +587,8 @@
         "uploading": "Bản ghi hình vẫn đang được tải lên.",
         "processing": "Bản ghi hình vẫn đang được xử lý.",
         "ready": "Đã có bản ghi hình.",
-        "failed": "Không thể lưu bản ghi hình."
+        "failed": "Không thể lưu bản ghi hình.",
+        "deleted": "Bản ghi hình đã bị xóa sau thời hạn lưu trữ."
       },
       "getLink": "Lấy liên kết bản ghi hình",
       "gettingLink": "Đang lấy liên kết bản ghi hình…",

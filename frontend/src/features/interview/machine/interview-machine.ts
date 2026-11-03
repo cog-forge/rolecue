@@ -6,7 +6,6 @@ export type InterviewState =
   | "LISTENING"
   | "PROCESSING_ANSWER"
   | "TRANSITIONING"
-  | "PAUSED"
   | "RECONNECTING"
   | "DEGRADED_2D"
   | "COMPLETED"
@@ -20,8 +19,6 @@ export type InterviewEvent =
   | "ANSWER_SUBMITTED"
   | "ANSWER_PROCESSED"
   | "NEXT_QUESTION"
-  | "PAUSE"
-  | "RESUME"
   | "CONNECTION_LOST"
   | "RECONNECTED"
   | "AVATAR_UNAVAILABLE"
@@ -41,19 +38,16 @@ const transitions: Partial<
   },
   INTERVIEWER_SPEAKING: {
     SPEECH_ENDED: "LISTENING",
-    PAUSE: "PAUSED",
     AVATAR_UNAVAILABLE: "DEGRADED_2D",
   },
-  LISTENING: { ANSWER_SUBMITTED: "PROCESSING_ANSWER", PAUSE: "PAUSED" },
+  LISTENING: { ANSWER_SUBMITTED: "PROCESSING_ANSWER" },
   PROCESSING_ANSWER: { ANSWER_PROCESSED: "TRANSITIONING" },
   TRANSITIONING: {
     NEXT_QUESTION: "INTERVIEWER_SPEAKING",
     COMPLETE: "COMPLETED",
-    PAUSE: "PAUSED",
   },
-  PAUSED: { RESUME: "RECONNECTING" },
   RECONNECTING: { RECONNECTED: "ASSET_LOADING" },
-  DEGRADED_2D: { CONTINUE_2D: "INTERVIEWER_SPEAKING", PAUSE: "PAUSED" },
+  DEGRADED_2D: { CONTINUE_2D: "INTERVIEWER_SPEAKING" },
 };
 const terminalStates: readonly InterviewState[] = [
   "COMPLETED",
@@ -61,7 +55,9 @@ const terminalStates: readonly InterviewState[] = [
   "FATAL_ERROR",
 ];
 /** Local lifecycle foundation, not a wire protocol.
- * Resume always requires synchronization; invalid events are deterministic no-ops.
+ * There is no pause: leaving ends the interview (docs/interview-ws-protocol.md §3.1), so the room goes
+ * straight to COMPLETED. A reconnect always requires synchronization; invalid events are deterministic
+ * no-ops.
  * DEGRADED_2D is a fallback acknowledgement gate, not a persistent rendering mode.
  */
 export function transition(
@@ -83,15 +79,13 @@ export type ServerPhase =
   | "listening"
   | "processing"
   | "transitioning"
-  | "completed"
-  | "paused";
+  | "completed";
 const serverPhaseStates: Record<ServerPhase, InterviewState> = {
   interviewer_speaking: "INTERVIEWER_SPEAKING",
   listening: "LISTENING",
   processing: "PROCESSING_ANSWER",
   transitioning: "TRANSITIONING",
   completed: "COMPLETED",
-  paused: "PAUSED",
 };
 /** The server is authoritative: its announced state replaces the local phase, so a reconnect never
  * guesses where the conversation was. A turn announced outside the live TRANSITIONING step (a fresh
