@@ -26,6 +26,7 @@ func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, sc
 		DefaultProviderVoiceID: cfg.Interview.DefaultProviderVoiceID,
 		FollowUpLimit:          int32(cfg.Interview.FollowUpLimit),
 		FollowUpTimeout:        cfg.Interview.FollowUpTimeout,
+		AbandonTimeout:         cfg.Jobs.AbandonedSessions.Timeout,
 	})
 	if err != nil {
 		return nil, err

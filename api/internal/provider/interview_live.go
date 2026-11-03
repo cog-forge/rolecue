@@ -17,6 +17,7 @@ var (
 	_ runtime.Sessions               = (*service.Service)(nil)
 	_ handler.InterviewSessionReader = (*service.Service)(nil)
 	_ handler.InterviewLiveEngine    = (*runtime.Engine)(nil)
+	_ service.EndNotifier            = (*runtime.Hub)(nil)
 )
 
 // ProvideTranscriber selects the speech-to-text adapter of the live interview. Only the deterministic
@@ -31,12 +32,19 @@ func ProvideTranscriber(cfg *config.Config, log *logger.Logger) (runtime.Transcr
 }
 
 // ProvideInterviewLiveEngine wires the live interview engine over the interview service, the shared
-// synthesizer and the transcriber.
+// synthesizer and the transcriber. Its hub hears every session the service ends, so an open socket
+// reports a leave or an abandonment at once.
 func ProvideInterviewLiveEngine(svc *service.Service, synthesizer tts.Synthesizer, transcriber runtime.Transcriber, cfg *config.Config) (*runtime.Engine, error) {
-	return runtime.NewEngine(svc, synthesizer, transcriber, runtime.NewHub(), runtime.Settings{
+	hub := runtime.NewHub()
+	engine, err := runtime.NewEngine(svc, synthesizer, transcriber, hub, runtime.Settings{
 		STTTimeout:   cfg.Interview.STTTimeout,
 		CacheEntries: cfg.Interview.TTSCacheEntries,
 	})
+	if err != nil {
+		return nil, err
+	}
+	svc.SetEndNotifier(hub)
+	return engine, nil
 }
 
 // ProvideInterviewLiveHandler trusts the same browser origins as CORS.

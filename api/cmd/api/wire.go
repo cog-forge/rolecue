@@ -12,6 +12,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/features/interview/runtime"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/email"
+	"github.com/cog-forge/rolecue/api/internal/pkg/jobs"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
@@ -36,6 +37,8 @@ type Application struct {
 	Email *email.Dispatcher
 	// LiveInterviews drives the live interview sockets; main closes them on shutdown.
 	LiveInterviews *runtime.Engine
+	// Jobs runs the System Handler's background jobs; main starts it and stops it on shutdown.
+	Jobs *jobs.Runner
 }
 
 func InitializeApplication(configPath string) (*Application, func(), error) {
@@ -116,6 +119,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideInterviewLiveHandler,
 		provider.ProvideInterviewHandlers,
 		provider.ProvideApplicationExpiryRunner,
+		provider.ProvideRecordingUpkeep,
+		provider.ProvideSystemJobs,
 		provider.ProvideEmailSender,
 		provider.ProvideEmailDispatcher,
 		provider.ProvideRouter,

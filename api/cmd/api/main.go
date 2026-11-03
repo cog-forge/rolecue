@@ -48,6 +48,7 @@ func run(configPath string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	provider.StartApplicationExpiryRunner(ctx, app.Expiry)
+	app.Jobs.Start(ctx)
 	err = serve(ctx, app.Server, app.Config.Server.ShutdownTimeout)
 	// http.Server.Shutdown does not track hijacked connections: close the live interview sockets with
 	// 1001 and give their in-flight answers the same time to be stored.
@@ -55,6 +56,12 @@ func run(configPath string) error {
 	defer cancel()
 	if liveErr := app.LiveInterviews.Hub().Shutdown(liveCtx); liveErr != nil {
 		app.Logger.Warn("Live interviews did not stop in time", logger.Error(liveErr))
+	}
+	// The signal context is already cancelled, so the jobs are stopping; wait for their runs in flight.
+	jobsCtx, cancelJobs := context.WithTimeout(context.Background(), app.Config.Server.ShutdownTimeout)
+	defer cancelJobs()
+	if jobsErr := app.Jobs.Stop(jobsCtx); jobsErr != nil {
+		app.Logger.Warn("System jobs did not stop in time", logger.Error(jobsErr))
 	}
 	return err
 }
