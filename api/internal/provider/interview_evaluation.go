@@ -18,18 +18,14 @@ var (
 	_ handler.InterviewReportService = (*service.Scoring)(nil)
 )
 
-// ProvideInterviewScorer builds the LLM scorer from the same LLM config as question generation. When no LLM
+// ProvideInterviewScorer builds the scorer from the evaluation task route. When no LLM
 // can be built, it returns a scorer that fails each evaluation with the reason instead of stopping the server.
 func ProvideInterviewScorer(cfg *config.Config) service.Scorer {
-	model, err := ai.NewChatModel(context.Background(), cfg.LLM)
+	model, err := ai.NewTaskAdapter(context.Background(), cfg, config.TaskEvaluation)
 	if err != nil {
 		return evalprovider.NewUnavailableScorer(err)
 	}
-	scorer, err := evalprovider.New(model)
-	if err != nil {
-		return evalprovider.NewUnavailableScorer(err)
-	}
-	return scorer
+	return model
 }
 func ProvideInterviewEvaluationService(repo *repository.Repository, scorer service.Scorer) (*service.Scoring, error) {
 	return service.NewScoring(repo, scorer)

@@ -89,3 +89,16 @@ question_bank:
 
 evaluation:
   weight_total: 100  # a posting's evaluation weights must add up to this; 0 turns the sum check off
+
+# Opt-in task routing. Blank routes preserve LLM_* behavior and service retries.
+# Per task: provider, model, timeout (total task budget), max_retries, fallback.
+# Environment: AI_<JD_EXTRACTION|QUESTION_BANK|FOLLOW_UP|EVALUATION>_<FIELD>.
+# Groq-first model defaults when provider=groq: openai/gpt-oss-120b,
+# except follow_up: openai/gpt-oss-20b. Suggested fallback: gemini.
+# GROQ_API_KEY is env-only; never put credentials in this file.
+# See docs/ai-routing.md for the complete recipe.
+ai:
+  jd_extraction: {}
+  question_bank: {}
+  follow_up: {}
+  evaluation: {}

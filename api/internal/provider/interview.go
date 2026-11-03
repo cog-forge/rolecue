@@ -5,7 +5,6 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	evaluationservice "github.com/cog-forge/rolecue/api/internal/features/evaluation/service"
-	interviewprovider "github.com/cog-forge/rolecue/api/internal/features/interview/provider"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
@@ -43,14 +42,14 @@ func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, sc
 	return svc, nil
 }
 
-// provideFollowUpDecider is the default follow-up decider: one call to the configured LLM. Another
+// provideFollowUpDecider routes decision and text together within the live time budget. Another
 // decision provider plugs in here behind service.FollowUpDecider.
 func provideFollowUpDecider(cfg *config.Config) (service.FollowUpDecider, error) {
-	model, err := ai.NewChatModel(context.Background(), cfg.LLM)
+	model, err := ai.NewTaskAdapter(context.Background(), cfg, config.TaskFollowUp)
 	if err != nil {
 		return nil, err
 	}
-	return interviewprovider.New(model)
+	return model, nil
 }
 
 func ProvideInterviewHandler(svc *service.Service) *handler.InterviewHandler {

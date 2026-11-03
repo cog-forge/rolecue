@@ -14,8 +14,8 @@ import (
 )
 
 func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatModel, error) {
-	if cfg.Provider != "gemini" {
-		return nil, fmt.Errorf("unsupported LLM provider %q: expected gemini", cfg.Provider)
+	if cfg.Provider != "gemini" && cfg.Provider != "groq" {
+		return nil, fmt.Errorf("unsupported LLM provider %q: expected gemini or groq", cfg.Provider)
 	}
 	if strings.TrimSpace(cfg.APIKey) == "" || strings.ContainsAny(cfg.APIKey, "\r\n") {
 		return nil, fmt.Errorf("LLM API key is required and must not contain newlines")
@@ -25,6 +25,9 @@ func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatMode
 	}
 	if cfg.Timeout <= 0 {
 		return nil, fmt.Errorf("LLM timeout must be positive")
+	}
+	if cfg.Provider == "groq" {
+		return &loggedModel{inner: &groqModel{key: cfg.APIKey, model: cfg.Model, endpoint: "https://api.groq.com/openai/v1/chat/completions", client: &http.Client{Timeout: cfg.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, provider: cfg.Provider, model: cfg.Model}, nil
 	}
 	attempts := int32(1)
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
