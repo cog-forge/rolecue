@@ -118,7 +118,9 @@ type ClientMessage struct {
 	Data json.RawMessage `json:"data"`
 }
 
-// SessionSync opens every connection with the full state.
+// SessionSync opens every connection with the full state. QuestionCount counts core questions;
+// AnsweredCount every stored answer (follow-ups included), the last answered position. QuestionNumber is
+// the core question the open turn belongs to, for progress; nil like Position when no turn is open.
 type SessionSync struct {
 	SessionID        string  `json:"session_id"`
 	SessionType      string  `json:"session_type"`
@@ -126,6 +128,7 @@ type SessionSync struct {
 	QuestionCount    int32   `json:"question_count"`
 	AnsweredCount    int32   `json:"answered_count"`
 	Position         *int32  `json:"position"`
+	QuestionNumber   *int32  `json:"question_number"`
 	Resumed          bool    `json:"resumed"`
 	EvaluationStatus *string `json:"evaluation_status"`
 	ServerTime       string  `json:"server_time"`
@@ -169,19 +172,22 @@ type Cue struct {
 	Name     string `json:"name"`
 }
 
-// InterviewerTurn is one question as the interviewer performs it. The arrays are always present, empty
+// InterviewerTurn is one question as the interviewer performs it. Position is its place in the
+// conversation (the number its answer names); QuestionNumber the core question it belongs to, 1..
+// QuestionCount, which a follow-up shares with its core question. The arrays are always present, empty
 // when there is nothing to perform, so the client schema never changes shape.
 type InterviewerTurn struct {
-	Position      int32             `json:"position"`
-	Kind          string            `json:"kind"`
-	QuestionCount int32             `json:"question_count"`
-	Text          string            `json:"text"`
-	Audio         *TurnAudio        `json:"audio"`
-	AudioStatus   string            `json:"audio_status"`
-	Visemes       []Viseme          `json:"visemes"`
-	BlendShapes   []BlendShapeFrame `json:"blend_shapes"`
-	Words         []WordTiming      `json:"words"`
-	Cues          []Cue             `json:"cues"`
+	Position       int32             `json:"position"`
+	QuestionNumber int32             `json:"question_number"`
+	Kind           string            `json:"kind"`
+	QuestionCount  int32             `json:"question_count"`
+	Text           string            `json:"text"`
+	Audio          *TurnAudio        `json:"audio"`
+	AudioStatus    string            `json:"audio_status"`
+	Visemes        []Viseme          `json:"visemes"`
+	BlendShapes    []BlendShapeFrame `json:"blend_shapes"`
+	Words          []WordTiming      `json:"words"`
+	Cues           []Cue             `json:"cues"`
 }
 
 // AnswerAccepted confirms a stored answer. Transcript is set for practice sessions only: a recruitment

@@ -1,8 +1,8 @@
 # Live Interview WebSocket Protocol (v1)
 
 This is the authoritative contract between the live interview room (KAN-249) and the interview engine
-(KAN-52). The server is authoritative: it decides which question is asked, when the session listens,
-when an answer counts and when the interview ends. The client renders what the server says and reports
+(KAN-52, bounded follow-ups KAN-56). The server is authoritative: it decides which question is asked,
+whether a follow-up is asked, when the session listens, when an answer counts and when the interview ends. The client renders what the server says and reports
 two facts only: that the interviewer turn finished playing, and the Candidate's answer.
 
 Code: `api/internal/features/interview/runtime` (engine, hub, STT boundary) and
@@ -77,7 +77,8 @@ Two independent guards; neither can advance the session twice.
 1. **Message id.** The server remembers the ids of the last 256 commands it accepted for the session
    (across reconnects, for the life of the stream). Repeating one gets `ack` with `duplicate: true` and
    has no effect. A command that failed is not remembered, so it may be retried with the same id.
-2. **Position (durable).** Every answer names the `position` it answers. An answer for a position that is
+2. **Position (durable).** Every answer names the `position` it answers: the turn's place in the
+   conversation (§4.1). An answer for a position that is
    already stored is acknowledged with `answer.accepted` and `duplicate: true`, without running STT or
    writing anything. This holds after an API restart too, because it reads the stored turns.
    Repository-level: one stored turn per `(interview_id, position)` (unique constraint).
@@ -107,7 +108,54 @@ connect ─► session.sync(interviewer_speaking) ─► interviewer.turn
         … last answer ─► state(transitioning) ─► state(completed) ─► session.completed ─► close 1000
 ```
 
+The next position is a core question or a follow-up (`kind`); the flow is the same for both. While
+`transitioning`, the server may decide a follow-up (§4.2), which is bounded by
+`INTERVIEW_FOLLOW_UP_TIMEOUT`.
+
 ## 4. Server messages
+
+### 4.1 Positions, question numbers and progress
+
+A session asks `question_count` core questions (sampled once when it starts, `INTERVIEW_QUESTION_LIMIT`)
+and at most `INTERVIEW_FOLLOW_UP_LIMIT` follow-ups after each of them.
+
+| Field | Meaning |
+|---|---|
+| `position` | The turn's place in the conversation: 1, 2, 3, … across core questions and follow-ups. Answers and `turn.played` name it. It is the number of stored answers plus one, so a follow-up that was dropped (§4.2) gives its position to the next core question: identify a turn by `position`, `kind` and `question_number` together. |
+| `question_number` | The core question the turn belongs to, 1..`question_count`. A follow-up has its core question's number. |
+| `kind` | `core` or `follow_up`. |
+| `question_count` | The number of core questions. Follow-ups never change it. |
+| `answered_count` | The number of stored answers, follow-ups included, which is also the last answered position. Use it for the idempotency rules, not for progress. |
+
+**Progress** counts core questions: show "Question `question_number` of `question_count`". A follow-up
+keeps its core question's progress and is labelled as a follow-up ("Question 3 of 8 · Follow-up").
+Without follow-ups (`INTERVIEW_FOLLOW_UP_LIMIT=0`, or none decided), `position` equals `question_number`
+and every turn is `core`, exactly as before KAN-56.
+
+Example with follow-ups: core 1 (`position` 1, `question_number` 1), follow-up (2, 1), core 2 (3, 2),
+core 3 (4, 3), follow-up (5, 3).
+
+### 4.2 Follow-ups
+
+Right after a **new** answer is stored on a live socket, the server decides whether to ask a follow-up
+before it delivers the next core question:
+
+- The decision is made by a decision provider behind `FollowUpDecider` (default: one call to the
+  configured LLM; no vendor is selected, Decision 14). The Candidate's answers are untrusted data; the
+  provider never follows instructions inside them.
+- It is bounded by `INTERVIEW_FOLLOW_UP_TIMEOUT` (5 s). On timeout, a provider error or an output that
+  breaks the contract (not one short English question on one line), no follow-up is asked and the next
+  core question follows. The Candidate never sees an error for it.
+- The loop is bounded whatever the provider returns: at most `INTERVIEW_FOLLOW_UP_LIMIT` follow-ups per
+  core question, counted from the stored follow-up answers. The session completes after the last core
+  question and its follow-ups.
+- **A follow-up exists only in the socket that asked it.** It is stored with its answer (as a
+  `follow_up` turn). If the socket drops, is superseded or the API restarts before the answer is stored,
+  the follow-up is dropped: the reconnect continues with the next core question, at the same `position`
+  (team decision 2026-11-03). A reconnect, a replayed answer or a duplicate never triggers a decision.
+- Clients must not send an answer held for the dropped follow-up to the core question that replaced it;
+  compare `kind` and `question_number`, not only `position`.
+- The decider's reason is internal. Never sent: the reason, the bank, other questions.
 
 ### `session.sync`
 First message of every connection.
@@ -116,13 +164,14 @@ First message of every connection.
 {
   "session_id": "uuid", "session_type": "practice",
   "state": "interviewer_speaking",
-  "question_count": 8, "answered_count": 3, "position": 4,
+  "question_count": 8, "answered_count": 3, "position": 4, "question_number": 3,
   "resumed": true, "evaluation_status": null,
   "server_time": "2026-10-30T10:00:00Z"
 }
 ```
 
-- `position`: the current question, or `null` when none is open (`transitioning`, `completed`).
+- `position`: the current turn, or `null` when none is open (`transitioning`, `completed`).
+- `question_number`: the current turn's core question (§4.1), `null` exactly when `position` is.
 - `resumed`: an earlier connection of this session existed on the same stream.
 - `evaluation_status`: only set when `state` is `completed`.
 
@@ -135,8 +184,8 @@ same text, because the text is frozen when it is first delivered.
 
 ```json
 {
-  "position": 4, "kind": "core", "question_count": 8,
-  "text": "Walk me through how you would design a rate limiter.",
+  "position": 4, "question_number": 3, "kind": "follow_up", "question_count": 8,
+  "text": "Which algorithm would you pick for bursty traffic?",
   "audio": { "mime_type": "audio/mpeg", "data": "<base64>" },
   "audio_status": "ready",
   "visemes": [ { "offset_ms": 0, "id": 0 }, { "offset_ms": 85, "id": 12 } ],
@@ -146,7 +195,9 @@ same text, because the text is frozen when it is first delivered.
 }
 ```
 
-- `kind`: `core` or `follow_up`. Only `core` exists until KAN-56.
+- `kind`: `core` or `follow_up` (§4.1). A follow-up is spoken like a core turn: the same voice, visemes,
+  blend shapes and synthesis cache.
+- `question_number`: the core question this turn belongs to; show progress with it (§4.1).
 - `audio`: `null` when `audio_status` is not `ready`.
 - `audio_status`:
   - `ready`: play `audio`.
@@ -162,8 +213,8 @@ same text, because the text is frozen when it is first delivered.
   - `words`: `[{ "offset_ms": n, "duration_ms": n, "text": "…" }]`, without punctuation; show captions from
     `text`, and use `words` only for timing.
 - `cues`: always present, empty until KAN-250 (emotion and gesture cues).
-- Never sent: the question bank, `core_question_id`, other positions' questions, evaluation data, and
-  (for recruitment) any transcript.
+- Never sent: the question bank, `core_question_id`, other positions' questions, the follow-up decision's
+  reason, evaluation data, and (for recruitment) any transcript.
 
 **Why audio is inline base64, not a URL:** the turn arrives atomically, so the text, the audio and the
 viseme timeline can never disagree or arrive out of order. There is no second authenticated endpoint or
@@ -174,6 +225,8 @@ with short-lived URLs only if turns become long or audio must be cached by the b
 
 ### `answer.accepted`
 `{ "position": 4, "answered_count": 4, "duplicate": false, "transcript": "…" }`
+
+- `answered_count`: stored answers, follow-ups included (§4.1).
 
 - `transcript` is present only for **practice** sessions. A recruitment transcript is never sent to the
   Candidate (Interview §5.6).
@@ -284,12 +337,17 @@ backstop, not the rule. Pause and abandon timeouts remain open (KAN-215, KAN-180
 - Persisted at every step, so an abnormal disconnect loses at most the recording in flight:
   - the asked question's text and time (`interview_questions.spoken_text`, `asked_at`);
   - the session's provider voice (`interviews.provider_voice_id`);
-  - each answer (`conversation_turns`, with `kind`, `asked_at`, `answered_at`).
+  - each answer (`conversation_turns`, with `kind`, `asked_at`, `answered_at`); a follow-up's text is
+    stored with its answer. `question_number` is derived from the order of the turns.
 - An answer whose last chunk reached the server is stored even if the socket drops during `processing`;
   the reconnect then starts at the next question.
 - A partial recording (no `final` chunk) is discarded; the reconnect asks the same question again.
-- After reconnecting, the server re-sends the current `interviewer.turn` in `interviewer_speaking`. A
-  client that already played it may send `turn.played` right away.
+- After reconnecting, the server re-sends the current core `interviewer.turn` in `interviewer_speaking`.
+  A client that already played that turn (same `position`, `kind` and `question_number`) may send
+  `turn.played` right away.
+- A follow-up that was not answered is never re-sent: the reconnect asks the next core question
+  (§4.2). A reconnect while a follow-up is being decided waits for the old socket's turn (at most
+  `INTERVIEW_FOLLOW_UP_TIMEOUT`) and then also goes on with the next core question.
 - A session whose answers are all stored but which was not completed (the socket dropped in between)
   completes on the next connection.
 
@@ -333,3 +391,5 @@ type Transcript struct {
 | `INTERVIEW_STT_TIMEOUT` | `30s` | Bound for one transcription (1s to 2m). |
 | `INTERVIEW_DEFAULT_PROVIDER_VOICE_ID` | `en-US-JennyNeural` | Provider voice for sessions without a voice ("Default voice" in setup; team decision 2026-10-30). Empty: such sessions get text-only turns. |
 | `INTERVIEW_TTS_CACHE_ENTRIES` | `128` | In-memory cache of synthesized turns per (provider voice, text); `0` disables. |
+| `INTERVIEW_FOLLOW_UP_LIMIT` | `1` | Most follow-ups after one core question (0 to 3). `0` turns follow-ups off: core questions only. Follow-ups also stay off when no LLM is configured. |
+| `INTERVIEW_FOLLOW_UP_TIMEOUT` | `5s` | Bound for one follow-up decision (1s to 15s); after it the next core question follows. |
