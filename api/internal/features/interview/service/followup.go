@@ -73,13 +73,13 @@ func (s *Service) FollowUp(ctx context.Context, candidateID uuid.UUID, role stri
 	if err != nil || pending == nil {
 		return delivery, err
 	}
-	text, ok := s.decideFollowUp(ctx, id, *pending)
+	text, cues, ok := s.decideFollowUp(ctx, id, *pending)
 	if !ok {
 		return delivery, nil
 	}
 	delivery.Question = &domain.AskedQuestion{
 		Position: pending.Position, QuestionNumber: pending.QuestionNumber, Kind: domain.TurnFollowUp,
-		Text: text, AskedAt: time.Now().UTC(),
+		Text: text, AskedAt: time.Now().UTC(), Cues: cues,
 	}
 	return delivery, nil
 }
@@ -113,11 +113,12 @@ func (s *Service) AppendFollowUp(ctx context.Context, candidateID uuid.UUID, rol
 	return presentSession(session), nil
 }
 
-// decideFollowUp asks the decider about one slot and returns the follow-up to ask, if any. It never
-// fails: a timeout, a provider error, a panic or an invalid proposal is skipped, and the interview moves
-// on to the next core question. Only the classified outcome and the duration are logged, never the
-// answer, the prompt, the proposed text or the decider's reason.
-func (s *Service) decideFollowUp(ctx context.Context, interviewID uuid.UUID, in domain.FollowUpContext) (string, bool) {
+// decideFollowUp asks the decider about one slot and returns the follow-up to ask, if any, with its
+// validated performance cues (nil when none were proposed or the list was invalid). It never fails: a
+// timeout, a provider error, a panic or an invalid proposal is skipped, and the interview moves on to the
+// next core question. Only the classified outcome and the duration are logged, never the answer, the
+// prompt, the proposed text or the decider's reason.
+func (s *Service) decideFollowUp(ctx context.Context, interviewID uuid.UUID, in domain.FollowUpContext) (string, []domain.PerformanceCue, bool) {
 	started := time.Now()
 	proposal, err := s.proposeFollowUp(ctx, in)
 	if err == nil {
@@ -143,8 +144,9 @@ func (s *Service) decideFollowUp(ctx context.Context, interviewID uuid.UUID, in 
 		logger.Duration("duration", time.Since(started)),
 	}
 	if outcome != followUpSkipped {
+		fields = append(fields, logger.Int("cues", len(proposal.Cues)))
 		logger.FromContext(ctx).Info("interview follow-up decided", fields...)
-		return proposal.Question, outcome == followUpAsked
+		return proposal.Question, proposal.Cues, outcome == followUpAsked
 	}
 	// The cause of an invalid proposal names the rule only; a provider error carries no prompt.
 	fields = append(fields, logger.String("reason", reason))
@@ -152,7 +154,7 @@ func (s *Service) decideFollowUp(ctx context.Context, interviewID uuid.UUID, in 
 		fields = append(fields, logger.Cause(err))
 	}
 	logger.FromContext(ctx).Warn("interview follow-up skipped", fields...)
-	return "", false
+	return "", nil, false
 }
 
 // proposeFollowUp runs the decider within FollowUpTimeout. The call runs in its own goroutine, so a
@@ -199,6 +201,10 @@ func invalidProposal(rule string) error {
 // validateProposal checks an untrusted proposal and normalizes it in place. A follow-up is one bounded
 // English question on one line, different from what was already asked; a declined proposal carries no
 // question. Both carry a short reason. The error names the rule only, never the text.
+//
+// Performance cues never make a proposal invalid: the question is what matters. An unusable cue list
+// (outside the vocabulary, too long, a word index past the question or a duplicate) is dropped as a
+// whole, and the live engine falls back to its rules for the line (KAN-250).
 func validateProposal(p *domain.FollowUpProposal, in domain.FollowUpContext) error {
 	p.Reason = strings.TrimSpace(p.Reason)
 	if p.Reason == "" || !singleLine(p.Reason) || utf8.RuneCountInString(p.Reason) > maxFollowUpReasonRunes {
@@ -206,10 +212,14 @@ func validateProposal(p *domain.FollowUpProposal, in domain.FollowUpContext) err
 	}
 	p.Question = strings.TrimSpace(p.Question)
 	if !p.FollowUp {
+		p.Cues = nil
 		if p.Question != "" {
 			return invalidProposal("a declined follow-up has no question")
 		}
 		return nil
+	}
+	if len(p.Cues) == 0 || !domain.ValidCues(p.Cues, len(strings.Fields(p.Question))) {
+		p.Cues = nil
 	}
 	switch {
 	case p.Question == "" || utf8.RuneCountInString(p.Question) > maxFollowUpRunes:

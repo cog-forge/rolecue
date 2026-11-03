@@ -65,8 +65,13 @@ export const interviewerTurnSchema = z.object({
   words: z.array(
     z.object({ offset_ms: offset, duration_ms: offset, text: z.string() }),
   ),
+  // §4 cues (KAN-250): the client performs only the names it knows; others are ignored, never fatal.
   cues: z.array(
-    z.object({ offset_ms: offset, kind: z.string(), name: z.string() }),
+    z.object({
+      offset_ms: offset,
+      kind: z.enum(["emotion", "gesture"]),
+      name: z.string().min(1),
+    }),
   ),
 });
 const answerAcceptedSchema = z.object({

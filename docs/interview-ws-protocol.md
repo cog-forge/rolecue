@@ -156,6 +156,9 @@ before it delivers the next core question:
 - Clients must not send an answer held for the dropped follow-up to the core question that replaced it;
   compare `kind` and `question_number`, not only `position`.
 - The decider's reason is internal. Never sent: the reason, the bank, other questions.
+- The decider may attach up to 4 performance cues to its question (word index plus an emotion or a
+  gesture from the bounded vocabulary, KAN-250). Anything outside the vocabulary, past the question's
+  words or duplicated drops the whole list; the question is still asked, with rule-based cues.
 
 ### `session.sync`
 First message of every connection.
@@ -212,7 +215,33 @@ same text, because the text is frozen when it is first delivered.
     (`jawOpen` is index 17), each weight rounded to 3 decimals;
   - `words`: `[{ "offset_ms": n, "duration_ms": n, "text": "…" }]`, without punctuation; show captions from
     `text`, and use `words` only for timing.
-- `cues`: always present, empty until KAN-250 (emotion and gesture cues).
+- `cues`: always present. Performance cues (KAN-250): how the interviewer performs the line, each an
+  emotion or a gesture starting at `offset_ms` from the audio start, sorted by offset.
+
+  ```json
+  "cues": [
+    { "offset_ms": 0, "kind": "emotion", "name": "encouraging" },
+    { "offset_ms": 0, "kind": "gesture", "name": "nod" },
+    { "offset_ms": 1375, "kind": "emotion", "name": "curious" }
+  ]
+  ```
+
+  - `kind` is `emotion` or `gesture`. The vocabulary is bounded and the server never sends anything
+    else: emotion ∈ {`neutral`, `friendly`, `curious`, `encouraging`, `thinking`}; gesture ∈ {`nod`,
+    `explain_hand`, `lean_in`, `greet`, `listen`}. A client ignores a name it does not know.
+  - An emotion cue stays in force until the next emotion cue of the turn; a gesture plays once at its
+    offset. The mouth is never a cue: lip-sync owns it.
+  - Cues are anchored to words: the server picks a word of `text` and converts it with the matching
+    entry of `words`; without word timings it estimates the offset from the speaking rate. They are a
+    function of the turn's frozen text, its `kind` and `position` and the synthesized timings, so a
+    reconnect re-sends the same cues with the same turn.
+  - Core questions get rule-based cues (no model call): the first turn greets (`friendly` + `greet`);
+    a later turn opens with `encouraging` + `nod` and turns `curious` (or `neutral` for a statement) at
+    the question; a question of 18 words or more adds `explain_hand`. A follow-up carries the cues its
+    decider proposed, validated against the vocabulary, or `curious` + `lean_in`.
+  - Empty when the turn has no audio (`audio_status` other than `ready`): the line is shown idle and
+    neutral. While the API is `processing` or `transitioning`, the client shows thinking on its own.
+  - Never sent: the reason for a cue, the decider's output, free-form animation.
 - Never sent: the question bank, `core_question_id`, other positions' questions, the follow-up decision's
   reason, evaluation data, and (for recruitment) any transcript.
 

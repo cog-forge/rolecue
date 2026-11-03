@@ -17,13 +17,15 @@ const (
 // probes. Text is what the interviewer speaks. A core question's text is frozen on its first delivery,
 // so a reconnect repeats exactly the same words and the stored turn keeps them. A follow-up's text lives
 // only in the socket that asked it and is stored with its answer. It never carries the core question id
-// or any other bank data.
+// or any other bank data. Cues are the performance cues a follow-up decider attached to the line (KAN-250),
+// already validated; nil for a core question, whose cues come from rules in the live engine.
 type AskedQuestion struct {
 	Position       int32
 	QuestionNumber int32
 	Kind           TurnKind
 	Text           string
 	AskedAt        time.Time
+	Cues           []PerformanceCue
 }
 
 // Delivery is the live engine's view of a session at a turn boundary. QuestionCount is the number of core
@@ -68,11 +70,14 @@ type Requirement struct {
 }
 
 // FollowUpProposal is a decider's untrusted answer: ask a follow-up (with its wording) or not, and why.
-// The service validates it before anything is asked.
+// The service validates it before anything is asked. Cues are optional performance cues for the question,
+// word-anchored and limited to the bounded vocabulary (KAN-250); the service drops the whole list when any
+// cue is invalid, and the engine then uses its rules.
 type FollowUpProposal struct {
 	FollowUp bool
 	Question string
 	Reason   string
+	Cues     []PerformanceCue
 }
 
 // Slot is the place of the next turn: its position in the conversation, the core question it belongs to
