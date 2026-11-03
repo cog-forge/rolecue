@@ -202,12 +202,19 @@ const MaxQuestionBankSize = 100
 // transcription (0 uses 30s); DefaultProviderVoiceID, the provider voice of a session without its own
 // voice (default en-US-JennyNeural, team decision 2026-10-30; set it empty for text-only turns); and TTSCacheEntries, the size of the in-memory synthesis cache (0
 // disables it).
+//
+// Bounded follow-ups (KAN-56): FollowUpLimit is the most follow-ups the live interviewer asks after one
+// core question (default 1, coordinator proposal 2026-11-03; 0 turns follow-ups off and the interview is
+// core questions only); FollowUpTimeout bounds one follow-up decision (0 uses 5s), after which the
+// interview moves on to the next core question.
 type InterviewConfig struct {
 	QuestionLimit          int           `mapstructure:"question_limit"`
 	STTProvider            string        `mapstructure:"stt_provider"`
 	STTTimeout             time.Duration `mapstructure:"stt_timeout"`
 	DefaultProviderVoiceID string        `mapstructure:"default_provider_voice_id"`
 	TTSCacheEntries        int           `mapstructure:"tts_cache_entries"`
+	FollowUpLimit          int           `mapstructure:"follow_up_limit"`
+	FollowUpTimeout        time.Duration `mapstructure:"follow_up_timeout"`
 }
 
 // MaxInterviewQuestionLimit bounds INTERVIEW_QUESTION_LIMIT to a sane technical range.
@@ -222,6 +229,9 @@ const (
 	MaxInterviewSTTTimeout      = 2 * time.Minute
 	MaxInterviewTTSCacheEntries = 4096
 	maxProviderVoiceIDLength    = 128
+	MaxInterviewFollowUpLimit   = 3
+	MinInterviewFollowUpTimeout = time.Second
+	MaxInterviewFollowUpTimeout = 15 * time.Second
 )
 
 // Validate checks the live interview settings.
@@ -240,6 +250,12 @@ func (c InterviewConfig) Validate() error {
 	}
 	if c.TTSCacheEntries < 0 || c.TTSCacheEntries > MaxInterviewTTSCacheEntries {
 		return fmt.Errorf("interview.tts_cache_entries must be between 0 and %d", MaxInterviewTTSCacheEntries)
+	}
+	if c.FollowUpLimit < 0 || c.FollowUpLimit > MaxInterviewFollowUpLimit {
+		return fmt.Errorf("interview.follow_up_limit must be between 0 and %d", MaxInterviewFollowUpLimit)
+	}
+	if c.FollowUpTimeout != 0 && (c.FollowUpTimeout < MinInterviewFollowUpTimeout || c.FollowUpTimeout > MaxInterviewFollowUpTimeout) {
+		return fmt.Errorf("interview.follow_up_timeout must be between %s and %s", MinInterviewFollowUpTimeout, MaxInterviewFollowUpTimeout)
 	}
 	return nil
 }
@@ -331,6 +347,8 @@ func Load(configPath string) (*Config, error) {
 		"interview.stt_timeout":               "INTERVIEW_STT_TIMEOUT",
 		"interview.default_provider_voice_id": "INTERVIEW_DEFAULT_PROVIDER_VOICE_ID",
 		"interview.tts_cache_entries":         "INTERVIEW_TTS_CACHE_ENTRIES",
+		"interview.follow_up_limit":           "INTERVIEW_FOLLOW_UP_LIMIT",
+		"interview.follow_up_timeout":         "INTERVIEW_FOLLOW_UP_TIMEOUT",
 		"avatar_conversion.enabled":           "AVATAR_CONVERSION_ENABLED",
 		"avatar_conversion.blender_binary":    "AVATAR_BLENDER_BINARY",
 		"avatar_conversion.timeout":           "AVATAR_CONVERSION_TIMEOUT",
@@ -452,6 +470,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("interview.stt_timeout", "30s")
 	v.SetDefault("interview.default_provider_voice_id", "en-US-JennyNeural")
 	v.SetDefault("interview.tts_cache_entries", 128)
+	v.SetDefault("interview.follow_up_limit", 1)
+	v.SetDefault("interview.follow_up_timeout", "5s")
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
 	v.SetDefault("avatar_conversion.timeout", "120s")

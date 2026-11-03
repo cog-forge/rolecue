@@ -293,3 +293,54 @@ func TestEmailConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestInterviewFollowUpConfig(t *testing.T) {
+	t.Setenv("PAYOS_CLIENT_ID", "test-client-id")
+	t.Setenv("PAYOS_API_KEY", "test-api-key")
+	t.Setenv("PAYOS_CHECKSUM_KEY", "test-checksum-key")
+	for _, key := range []string{"INTERVIEW_FOLLOW_UP_LIMIT", "INTERVIEW_FOLLOW_UP_TIMEOUT"} {
+		t.Setenv(key, "")
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cfg, err := Load(writeConfig(t, minimalYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Interview.FollowUpLimit != 1 || cfg.Interview.FollowUpTimeout != 5*time.Second {
+		t.Fatalf("defaults = %d, %s; want 1 follow-up within 5s", cfg.Interview.FollowUpLimit, cfg.Interview.FollowUpTimeout)
+	}
+
+	t.Setenv("INTERVIEW_FOLLOW_UP_LIMIT", "0")
+	t.Setenv("INTERVIEW_FOLLOW_UP_TIMEOUT", "3s")
+	cfg, err = Load(writeConfig(t, minimalYAML))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Interview.FollowUpLimit != 0 || cfg.Interview.FollowUpTimeout != 3*time.Second {
+		t.Fatalf("from the environment = %d, %s; want 0 and 3s", cfg.Interview.FollowUpLimit, cfg.Interview.FollowUpTimeout)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		limit   int
+		timeout time.Duration
+		ok      bool
+	}{
+		{"off", 0, 0, true},
+		{"maximum", MaxInterviewFollowUpLimit, MaxInterviewFollowUpTimeout, true},
+		{"negative limit", -1, 0, false},
+		{"limit above maximum", MaxInterviewFollowUpLimit + 1, 0, false},
+		{"timeout below minimum", 1, 500 * time.Millisecond, false},
+		{"timeout above maximum", 1, MaxInterviewFollowUpTimeout + time.Second, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := InterviewConfig{FollowUpLimit: tc.limit, FollowUpTimeout: tc.timeout}.Validate()
+			if (err == nil) != tc.ok {
+				t.Fatalf("Validate() = %v, want ok=%t", err, tc.ok)
+			}
+		})
+	}
+}
