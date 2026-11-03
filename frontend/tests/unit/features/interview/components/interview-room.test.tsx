@@ -497,3 +497,35 @@ it("loads only the owned recruitment presentation grant into the viewer", async 
   ).toBe(true);
   expect(mocks.post).not.toHaveBeenCalled();
 });
+
+it("labels a follow-up and keeps counting core questions, in English and Vietnamese", async () => {
+  for (const [locale, progress, label] of [
+    ["en", "Question 1 of 3", "Follow-up"],
+    ["vi", "Câu 1/3", "Câu hỏi thêm"],
+  ] as const) {
+    FakeSocket.reset();
+    const { unmount } = mount(locale);
+    const socket = await connected();
+    serve(socket, "session.sync", syncData());
+    serve(socket, "interviewer.turn", textTurn(1));
+    expect(screen.queryByTestId("follow-up-label")).not.toBeInTheDocument();
+    serve(
+      socket,
+      "interviewer.turn",
+      textTurn(2, {
+        kind: "follow_up",
+        question_number: 1,
+        text: "Which algorithm would you pick?",
+      }),
+    );
+    expect(screen.getByText(progress)).toBeVisible();
+    expect(screen.getByTestId("follow-up-label")).toHaveTextContent(label);
+    // The follow-up question itself stays English in the Vietnamese room.
+    expect(
+      screen.getAllByText("Which algorithm would you pick?")[0],
+    ).toBeVisible();
+    serve(socket, "interviewer.turn", textTurn(3, { question_number: 2 }));
+    expect(screen.queryByTestId("follow-up-label")).not.toBeInTheDocument();
+    unmount();
+  }
+});

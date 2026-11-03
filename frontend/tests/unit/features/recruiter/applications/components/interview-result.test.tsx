@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
@@ -75,10 +75,25 @@ const transcript = {
     turns: [
       {
         position: 1,
+        question_number: 1,
+        kind: "core",
         question: "Tell us about a service you built.",
         answer: "I built a queue worker.",
       },
-      { position: 2, question: "How do you test it?", answer: null },
+      {
+        position: 2,
+        question_number: 1,
+        kind: "follow_up",
+        question: "How does it retry a failed job?",
+        answer: "With backoff.",
+      },
+      {
+        position: 3,
+        question_number: 2,
+        kind: "core",
+        question: "How do you test it?",
+        answer: null,
+      },
     ],
   },
 };
@@ -232,6 +247,18 @@ describe("InterviewResult", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("I built a queue worker.")).toBeInTheDocument();
     expect(screen.getByText("No answer was recorded.")).toBeInTheDocument();
+    // The follow-up sits under its core question; numbering counts core questions.
+    const first = screen
+      .getByText("Tell us about a service you built.")
+      .closest("li") as HTMLElement;
+    expect(
+      within(first).getByText("How does it retry a failed job?"),
+    ).toBeInTheDocument();
+    expect(within(first).getByText("Follow-up")).toBeInTheDocument();
+    const second = screen
+      .getByText("How do you test it?")
+      .closest("li") as HTMLElement;
+    expect(within(second).getByText("Question 2")).toBeInTheDocument();
   });
 
   it("offers no transcript until the interview is completed", () => {

@@ -164,3 +164,18 @@ func TestReportCompletedWithoutScoresHasEmptyBreakdown(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+func TestReportShowsFollowUpsWithTheirCoreQuestion(t *testing.T) {
+	answer := "Refill tokens at a fixed rate."
+	repo := evaluatedRepository(evaluatedRecord(completedPracticeRecord(), 80, "Solid answers."))
+	repo.turns = append(repo.turns, domain.TurnRecord{
+		Position: 2, QuestionNumber: 1, Kind: domain.TurnFollowUp, Question: "How do bursts refill?", Answer: &answer,
+	})
+	report := reportFor(t, repo, scoringCandidateID, candidateRole)
+	if len(report.Questions) != 2 {
+		t.Fatalf("Questions = %+v", report.Questions)
+	}
+	if got := report.Questions[1]; got.Position != 2 || got.QuestionNumber != 1 || got.Kind != domain.TurnFollowUp || got.Answer == nil {
+		t.Fatalf("follow-up = %+v", got)
+	}
+}

@@ -23,8 +23,12 @@ export const reportMetricSchema = z.object({
   score: scoreSchema,
 });
 
+// `position` is the turn's place in the interview; `question_number` the core question it belongs to,
+// which a follow-up (`kind: "follow_up"`) shares with its core question.
 export const reportQuestionSchema = z.object({
   position: z.number().int().min(1),
+  question_number: z.number().int().min(1),
+  kind: z.enum(["core", "follow_up"]),
   question: z.string(),
   answer: z.string().nullable(),
   feedback: z.string().nullable(),

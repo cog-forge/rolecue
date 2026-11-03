@@ -84,6 +84,8 @@ type liveMessage struct {
 type liveClient struct {
 	t  *testing.T
 	ws *websocket.Conn
+	// frames is every message data read, so a test can check what reached the Candidate.
+	frames []json.RawMessage
 }
 
 func (l *liveStack) dial(t *testing.T, candidate, sessionID uuid.UUID) (*liveClient, *http.Response, error) {
@@ -111,6 +113,7 @@ func (c *liveClient) expect(messageType string, out any) liveMessage {
 	if err := json.Unmarshal(data, &msg); err != nil {
 		c.t.Fatal(err)
 	}
+	c.frames = append(c.frames, msg.Data)
 	if msg.Type != messageType {
 		c.t.Fatalf("got %s %s, want %s", msg.Type, msg.Data, messageType)
 	}

@@ -108,6 +108,55 @@ describe("parseServerMessage", () => {
   });
 });
 
+describe("follow-ups (KAN-56)", () => {
+  it("reads a follow-up turn with its core question number", () => {
+    const result = parse(
+      serverMessage(
+        "interviewer.turn",
+        textTurn(5, { kind: "follow_up", question_number: 3 }),
+        1,
+      ),
+    );
+    expect(result.success && result.message.data).toMatchObject({
+      position: 5,
+      question_number: 3,
+      kind: "follow_up",
+      question_count: 3,
+    });
+    const sync = parse(
+      serverMessage(
+        "session.sync",
+        syncData({ position: 5, question_number: 3, answered_count: 4 }),
+        2,
+      ),
+    );
+    expect(sync.success && sync.message.data).toMatchObject({
+      position: 5,
+      question_number: 3,
+    });
+  });
+
+  it("requires the question number", () => {
+    const turn: Record<string, unknown> = { ...textTurn(1) };
+    delete turn.question_number;
+    expect(parse(serverMessage("interviewer.turn", turn, 1)).success).toBe(
+      false,
+    );
+    const sync: Record<string, unknown> = { ...syncData() };
+    delete sync.question_number;
+    expect(parse(serverMessage("session.sync", sync, 1)).success).toBe(false);
+    expect(
+      parse(
+        serverMessage(
+          "interviewer.turn",
+          textTurn(1, { kind: "probe" as "core" }),
+          1,
+        ),
+      ).success,
+    ).toBe(false);
+  });
+});
+
 describe("createStreamOrder", () => {
   it("drops repeated or older messages on a stream", () => {
     const order = createStreamOrder();

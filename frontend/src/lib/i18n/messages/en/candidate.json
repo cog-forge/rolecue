@@ -249,6 +249,7 @@
     "answer": "Answer:",
     "feedback": "Feedback:",
     "noAnswer": "No answer recorded.",
+    "followUp": "Follow-up",
     "recruitmentNote": "Detailed feedback for recruitment interviews is not shown here.",
     "score": "{score} / 100",
     "scoreText": "{score} out of 100",
@@ -293,6 +294,9 @@
     "preview": "Preview",
     "leave": "Leave",
     "progress": "Question {position} of {count}",
+    "followUp": {
+      "label": "Follow-up"
+    },
     "detailsError": "Unable to load interview details. Your interviewer is unavailable.",
     "invalidLink": "This interview room link is invalid.",
     "retryInterviewer": "Retry interviewer",

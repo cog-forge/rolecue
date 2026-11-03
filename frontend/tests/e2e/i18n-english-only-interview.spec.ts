@@ -47,6 +47,8 @@ const report = {
   questions: [
     {
       position: 1,
+      question_number: 1,
+      kind: "core",
       question: "Describe a hard bug you fixed.",
       answer: "A race in the cache invalidation.",
       feedback: "Good root-cause analysis.",

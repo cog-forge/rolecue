@@ -67,17 +67,23 @@ type CreateParams struct {
 	StartKey *string
 }
 
-// CurrentQuestion is the one question the Candidate sees now. The full bank is never returned.
+// CurrentQuestion is the one question the Candidate sees now. The full bank is never returned. Position
+// is its place in the conversation, the number an answer names; QuestionNumber is its core question
+// number. It is always a core question: a follow-up exists only in the live socket that asks it.
 type CurrentQuestion struct {
-	Position int32  `json:"position"`
-	Content  string `json:"content"`
+	Position       int32  `json:"position"`
+	QuestionNumber int32  `json:"question_number"`
+	Content        string `json:"content"`
 }
 
-// Turn is one answered question of a practice session.
+// Turn is one answered question of a practice session. Position is its place in the conversation;
+// QuestionNumber is the core question it belongs to, so a follow-up shares its core question's number.
 type Turn struct {
-	Position int32  `json:"position"`
-	Question string `json:"question"`
-	Answer   string `json:"answer"`
+	Position       int32    `json:"position"`
+	QuestionNumber int32    `json:"question_number"`
+	Kind           TurnKind `json:"kind" enums:"core,follow_up"`
+	Question       string   `json:"question"`
+	Answer         string   `json:"answer"`
 }
 
 // Session is one interview session as the Candidate sees it. Turns is set only for practice sessions:
@@ -94,8 +100,13 @@ type Session struct {
 	StartedAt        time.Time        `json:"started_at"`
 	CompletedAt      *time.Time       `json:"completed_at"`
 	EvaluationStatus EvaluationStatus `json:"evaluation_status" enums:"pending,completed,failed"`
-	QuestionCount    int32            `json:"question_count"`
-	AnsweredCount    int32            `json:"answered_count"`
+	// QuestionCount is the number of core questions and AnsweredCount how many of them are answered, so
+	// together they are the session's progress. Follow-ups are not counted.
+	QuestionCount int32 `json:"question_count"`
+	AnsweredCount int32 `json:"answered_count"`
+	// AnsweredTurns is every stored answer, follow-ups included: the last answered position. The live
+	// engine's position guard uses it; it is not part of the REST response.
+	AnsweredTurns int32 `json:"-"`
 	// CurrentQuestion is null when every question is answered or the session is completed.
 	CurrentQuestion *CurrentQuestion `json:"current_question"`
 	Turns           *[]Turn          `json:"turns,omitempty"`

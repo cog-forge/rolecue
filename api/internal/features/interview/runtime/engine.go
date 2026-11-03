@@ -29,6 +29,10 @@ type Sessions interface {
 	Deliver(ctx context.Context, candidateID uuid.UUID, role string, id uuid.UUID) (domain.Delivery, error)
 	AppendTurn(ctx context.Context, candidateID uuid.UUID, role string, id uuid.UUID, position int32, answer string) (domain.Session, error)
 	Complete(ctx context.Context, candidateID uuid.UUID, role string, id uuid.UUID) (domain.Session, error)
+	// FollowUp decides after a new answer whether a follow-up is asked next; the Delivery has no
+	// Question when none is. AppendFollowUp stores the answer to a follow-up this engine asked.
+	FollowUp(ctx context.Context, candidateID uuid.UUID, role string, id uuid.UUID) (domain.Delivery, error)
+	AppendFollowUp(ctx context.Context, candidateID uuid.UUID, role string, id uuid.UUID, followUp domain.AskedQuestion, answer string) (domain.Session, error)
 }
 
 // Participant is the authenticated Candidate and the session one socket is bound to.
@@ -389,20 +393,29 @@ func (c *conn) processAnswer(ctx context.Context, id string, position int32, aud
 		text = transcript
 	}
 
-	session, err := c.engine.sessions.AppendTurn(work, c.p.CandidateID, c.p.Role, c.p.SessionID, position, text)
+	var session domain.Session
+	var err error
+	if c.current.Kind == domain.TurnFollowUp {
+		// The follow-up exists only in this socket; it is stored with its answer.
+		session, err = c.engine.sessions.AppendFollowUp(work, c.p.CandidateID, c.p.Role, c.p.SessionID, *c.current, text)
+	} else {
+		session, err = c.engine.sessions.AppendTurn(work, c.p.CandidateID, c.p.Role, c.p.SessionID, position, text)
+	}
 	if err != nil {
 		return c.answerFailed(work, id, err)
 	}
 	c.stream.accept(id)
-	c.answered = session.AnsweredCount
-	accepted := AnswerAccepted{Position: position, AnsweredCount: session.AnsweredCount}
+	stored := session.AnsweredTurns > c.answered
+	c.answered = session.AnsweredTurns
+	accepted := AnswerAccepted{Position: position, AnsweredCount: session.AnsweredTurns}
 	if session.Type == domain.TypePractice {
 		// Only a practice Candidate sees their transcript; a recruitment transcript is Recruiter-only.
 		stored := strings.TrimSpace(text)
 		accepted.Transcript = &stored
 	}
 	c.send(TypeAnswerAccepted, id, accepted)
-	return c.advance(work)
+	// Only a newly stored answer can lead to a follow-up; a retry that changed nothing never does.
+	return c.advance(work, stored)
 }
 
 func (c *conn) transcribe(ctx context.Context, audio Audio) (string, error) {
@@ -447,9 +460,10 @@ func (c *conn) answerFailed(ctx context.Context, id string, err error) bool {
 	return false
 }
 
-// advance moves past a stored answer: the next turn, or completion after the last one. A superseded
-// socket stops here and leaves the next turn to the socket that took over.
-func (c *conn) advance(ctx context.Context) bool {
+// advance moves past a stored answer: a follow-up when one is decided (only after a new answer), else
+// the next core question, or completion after the last one. A superseded socket stops here and leaves
+// the next turn to the socket that took over.
+func (c *conn) advance(ctx context.Context, newAnswer bool) bool {
 	select {
 	case <-c.lease.superseded:
 		c.close(CloseSuperseded, "another connection took over this interview")
@@ -457,7 +471,14 @@ func (c *conn) advance(ctx context.Context) bool {
 	default:
 	}
 	c.setState(StateTransitioning, "")
-	delivery, err := c.engine.sessions.Deliver(ctx, c.p.CandidateID, c.p.Role, c.p.SessionID)
+	var delivery domain.Delivery
+	var err error
+	if newAnswer {
+		delivery, err = c.engine.sessions.FollowUp(ctx, c.p.CandidateID, c.p.Role, c.p.SessionID)
+	}
+	if err == nil && delivery.Question == nil {
+		delivery, err = c.engine.sessions.Deliver(ctx, c.p.CandidateID, c.p.Role, c.p.SessionID)
+	}
 	if err != nil {
 		if codeOf(err) == apperror.CodeInterviewCompleted {
 			return c.finishCompleted(ctx, "")
@@ -498,7 +519,7 @@ func (c *conn) finishCompleted(ctx context.Context, replyTo string) bool {
 	}
 	status := string(session.EvaluationStatus)
 	c.state, c.current = StateCompleted, nil
-	c.sessionType, c.questionCount, c.answered = session.Type, session.QuestionCount, session.AnsweredCount
+	c.sessionType, c.questionCount, c.answered = session.Type, session.QuestionCount, session.AnsweredTurns
 	c.sendSync(replyTo, &status)
 	c.send(TypeSessionCompleted, "", SessionCompleted{EvaluationStatus: status})
 	c.close(websocket.CloseNormalClosure, "interview completed")
@@ -526,7 +547,7 @@ func (c *conn) fatal(err error, replyTo string) bool {
 func (c *conn) performTurn(ctx context.Context, d domain.Delivery) InterviewerTurn {
 	q := d.Question
 	turn := InterviewerTurn{
-		Position: q.Position, Kind: string(q.Kind), QuestionCount: d.QuestionCount, Text: q.Text,
+		Position: q.Position, QuestionNumber: q.QuestionNumber, Kind: string(q.Kind), QuestionCount: d.QuestionCount, Text: q.Text,
 		AudioStatus: AudioNoVoice, Visemes: []Viseme{}, BlendShapes: []BlendShapeFrame{}, Words: []WordTiming{}, Cues: []Cue{},
 	}
 	if d.ProviderVoiceID == "" {
@@ -592,7 +613,7 @@ func (c *conn) sendSync(replyTo string, evaluationStatus *string) {
 	c.send(TypeSessionSync, replyTo, SessionSync{
 		SessionID: c.p.SessionID.String(), SessionType: string(c.sessionType), State: c.state,
 		QuestionCount: c.questionCount, AnsweredCount: c.answered, Position: c.openPosition(),
-		Resumed: c.lease.resumed, EvaluationStatus: evaluationStatus,
+		QuestionNumber: c.openQuestionNumber(), Resumed: c.lease.resumed, EvaluationStatus: evaluationStatus,
 		ServerTime: time.Now().UTC().Format(time.RFC3339),
 	})
 }
@@ -604,6 +625,15 @@ func (c *conn) openPosition() *int32 {
 	}
 	position := c.current.Position
 	return &position
+}
+
+// openQuestionNumber is the current question's core question number while one is open.
+func (c *conn) openQuestionNumber() *int32 {
+	if c.openPosition() == nil {
+		return nil
+	}
+	number := c.current.QuestionNumber
+	return &number
 }
 
 // sendError sends an error message. A fatal one is followed by a close.

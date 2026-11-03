@@ -167,3 +167,91 @@ test("a recruitment room shows questions but never answer transcripts", async ({
   await expect(page.getByText("Because of the product.")).toHaveCount(0);
   await expect(page.getByText("The interviewer's questions")).toBeVisible();
 });
+
+test("a follow-up keeps the core question's progress and is labelled", async ({
+  page,
+}) => {
+  await mockRoomPreview(page, { live: false });
+  const server = await mockLiveServer(page, {
+    sessionId: roomId,
+    questions: [
+      {
+        text: "How would you design a rate limiter?",
+        followUp: "Which algorithm would you pick for bursty traffic?",
+      },
+      { text: "How do you test it?" },
+    ],
+  });
+  await page.goto(room);
+  const followUpLabel = page.getByTestId("follow-up-label");
+  await expect(page.getByText("Question 1 of 2")).toBeVisible();
+  await expect(followUpLabel).toHaveCount(0);
+  await page.getByRole("button", { name: "Type instead" }).click();
+  await page.getByLabel("Your answer").fill("A token bucket per client.");
+  await page.getByRole("button", { name: "Send answer" }).click();
+
+  // The follow-up is turn 2 of the conversation but still question 1 of 2.
+  await expect(followUpLabel).toHaveText("Follow-up");
+  await expect(page.getByText("Question 1 of 2")).toBeVisible();
+  await expect(
+    page
+      .getByLabel("Live transcript")
+      .getByText("Which algorithm would you pick for bursty traffic?"),
+  ).toBeVisible();
+  await page.getByLabel("Your answer").fill("Token bucket, it allows bursts.");
+  await page.getByRole("button", { name: "Send answer" }).click();
+
+  // The typed composer stays open between turns.
+  await expect(page.getByText("Question 2 of 2")).toBeVisible();
+  await expect(followUpLabel).toHaveCount(0);
+  await page.getByLabel("Your answer").fill("Table-driven tests.");
+  await page.getByRole("button", { name: "Send answer" }).click();
+  await expect(page.getByText("Interview complete")).toBeVisible();
+  const answers = server.frames[0].filter(
+    (frame) => frame.type === "answer.text",
+  );
+  expect(answers.map((frame) => frame.data.position)).toEqual([1, 2, 3]);
+});
+
+test("a follow-up lost in a reconnect is dropped and the next core question takes its place", async ({
+  page,
+}) => {
+  await mockRoomPreview(page, { live: false });
+  const server = await mockLiveServer(page, {
+    sessionId: roomId,
+    questions: [
+      {
+        text: "How would you design a rate limiter?",
+        followUp: "Which algorithm would you pick for bursty traffic?",
+      },
+      { text: "How do you test it?" },
+    ],
+    dropWhenListeningAt: 2,
+  });
+  await page.goto(room);
+  await page.getByRole("button", { name: "Type instead" }).click();
+  await page.getByLabel("Your answer").fill("A token bucket per client.");
+  await page.getByRole("button", { name: "Send answer" }).click();
+  await expect(page.getByTestId("follow-up-label")).toHaveText("Follow-up");
+
+  // The socket drops while the Candidate is asked the follow-up.
+  await expect(page.getByText("Question 2 of 2")).toBeVisible();
+  await expect(page.getByTestId("follow-up-label")).toHaveCount(0);
+  await expect(
+    page.getByLabel("Live transcript").getByText("How do you test it?"),
+  ).toBeVisible();
+  await expect(page.getByText("Your turn to answer")).toBeVisible();
+  expect(server.connections).toBe(2);
+  const typeInstead = page.getByRole("button", { name: "Type instead" });
+  if (await typeInstead.isVisible()) await typeInstead.click();
+  await page.getByLabel("Your answer").fill("Table-driven tests.");
+  await page.getByRole("button", { name: "Send answer" }).click();
+  await expect(page.getByText("Interview complete")).toBeVisible();
+  const answers = server.frames
+    .flat()
+    .filter((frame) => frame.type === "answer.text");
+  expect(answers.map((frame) => frame.data)).toEqual([
+    { position: 1, text: "A token bucket per client." },
+    { position: 2, text: "Table-driven tests." },
+  ]);
+});

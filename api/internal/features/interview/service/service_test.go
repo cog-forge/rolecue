@@ -41,6 +41,15 @@ type fakeRepository struct {
 	deliverErr      error
 	deliverCalls    int
 
+	// followUpPending is returned by FollowUpContext: the open follow-up slot, or nil.
+	followUpPending *domain.FollowUpContext
+	followUpLimit   int32
+	followUpCalls   int
+	followUpErr     error
+
+	appendedFollowUp domain.AskedQuestion
+	appendLimit      int32
+
 	// failed receives each interview the service marks failed, so a test waits for the background
 	// goroutine without sleeping.
 	failed chan uuid.UUID
@@ -72,6 +81,18 @@ func (r *fakeRepository) Deliver(_ context.Context, _, _ uuid.UUID, defaultProvi
 	r.deliverCalls++
 	r.deliverVoice = defaultProviderVoiceID
 	return r.deliverDelivery, r.deliverErr
+}
+
+func (r *fakeRepository) FollowUpContext(_ context.Context, _, _ uuid.UUID, _ string, followUpLimit int32) (domain.Delivery, *domain.FollowUpContext, error) {
+	r.followUpCalls++
+	r.followUpLimit = followUpLimit
+	return r.deliverDelivery, r.followUpPending, r.followUpErr
+}
+
+func (r *fakeRepository) AppendFollowUp(_ context.Context, candidateID, _ uuid.UUID, followUp domain.AskedQuestion, answer string, followUpLimit int32) (domain.Session, error) {
+	r.appendCalls++
+	r.appendCandidate, r.appendedFollowUp, r.appendAnswer, r.appendLimit = candidateID, followUp, answer, followUpLimit
+	return r.appendSession, r.appendErr
 }
 
 func (r *fakeRepository) MarkEvaluationFailed(_ context.Context, id uuid.UUID) error {

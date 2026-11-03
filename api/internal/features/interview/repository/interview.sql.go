@@ -367,24 +367,27 @@ func (q *Queries) InsertInterviewQuestion(ctx context.Context, arg InsertIntervi
 }
 
 const insertInterviewTurn = `-- name: InsertInterviewTurn :exec
-INSERT INTO public.conversation_turns (interview_id, position, question, answer, kind, asked_at, answered_at)
-VALUES ($1, $2, $3, $4, 'core', $5, statement_timestamp())
+INSERT INTO public.conversation_turns (interview_id, position, kind, question, answer, asked_at, answered_at)
+VALUES ($1, $2, $3, $4, $5, $6, statement_timestamp())
 `
 
 type InsertInterviewTurnParams struct {
 	InterviewID uuid.UUID
 	Position    int32
+	Kind        string
 	Question    string
 	Answer      *string
 	AskedAt     pgtype.Timestamptz
 }
 
-// A core turn. asked_at is the live delivery time of its question (NULL for an answer to a question that
-// was never delivered live); answered_at is the statement time.
+// A core turn, or a follow-up the live interviewer asked. asked_at is the live delivery time of its
+// question (NULL for an answer to a core question that was never delivered live); answered_at is the
+// statement time.
 func (q *Queries) InsertInterviewTurn(ctx context.Context, arg InsertInterviewTurnParams) error {
 	_, err := q.db.Exec(ctx, insertInterviewTurn,
 		arg.InterviewID,
 		arg.Position,
+		arg.Kind,
 		arg.Question,
 		arg.Answer,
 		arg.AskedAt,
@@ -392,19 +395,65 @@ func (q *Queries) InsertInterviewTurn(ctx context.Context, arg InsertInterviewTu
 	return err
 }
 
+const listInterviewRequirements = `-- name: ListInterviewRequirements :many
+SELECT r.name, r.target, COALESCE(r.type::text, '')::text AS type
+FROM public.interviews i
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+LEFT JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.requirements r ON r.jd_id = COALESCE(rp.jd_id, jp.jd_id)
+WHERE i.id = $1
+ORDER BY r.name, r.id
+`
+
+type ListInterviewRequirementsRow struct {
+	Name   string
+	Target string
+	Type   string
+}
+
+// The requirements of the Job Description a session was started from: the role profile's JD for practice,
+// the posting's JD for recruitment. A follow-up decider reads them; the Candidate never does.
+func (q *Queries) ListInterviewRequirements(ctx context.Context, interviewID uuid.UUID) ([]ListInterviewRequirementsRow, error) {
+	rows, err := q.db.Query(ctx, listInterviewRequirements, interviewID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListInterviewRequirementsRow
+	for rows.Next() {
+		var i ListInterviewRequirementsRow
+		if err := rows.Scan(&i.Name, &i.Target, &i.Type); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInterviewTurns = `-- name: ListInterviewTurns :many
-SELECT position, question, COALESCE(answer, '')::text AS answer
+SELECT position,
+       (count(*) FILTER (WHERE kind = 'core') OVER (ORDER BY position))::int AS question_number,
+       kind, question, COALESCE(answer, '')::text AS answer
 FROM public.conversation_turns
 WHERE interview_id = $1
 ORDER BY position
 `
 
 type ListInterviewTurnsRow struct {
-	Position int32
-	Question string
-	Answer   string
+	Position       int32
+	QuestionNumber int32
+	Kind           string
+	Question       string
+	Answer         string
 }
 
+// The stored turns in conversation order. question_number is the core question a turn belongs to: a
+// follow-up always comes right after its core question (or an earlier follow-up of it), so it is the
+// number of core turns up to and including the row (KAN-56). It is derived, not stored.
 func (q *Queries) ListInterviewTurns(ctx context.Context, interviewID uuid.UUID) ([]ListInterviewTurnsRow, error) {
 	rows, err := q.db.Query(ctx, listInterviewTurns, interviewID)
 	if err != nil {
@@ -414,7 +463,13 @@ func (q *Queries) ListInterviewTurns(ctx context.Context, interviewID uuid.UUID)
 	var items []ListInterviewTurnsRow
 	for rows.Next() {
 		var i ListInterviewTurnsRow
-		if err := rows.Scan(&i.Position, &i.Question, &i.Answer); err != nil {
+		if err := rows.Scan(
+			&i.Position,
+			&i.QuestionNumber,
+			&i.Kind,
+			&i.Question,
+			&i.Answer,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

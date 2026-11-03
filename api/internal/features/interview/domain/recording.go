@@ -58,10 +58,14 @@ type RecruiterRecording struct {
 }
 
 // TranscriptTurn is one question of a completed recruitment interview and the Candidate's answer.
+// Position is its place in the conversation; QuestionNumber is the core question it belongs to, so a
+// follow-up is shown under its core question.
 type TranscriptTurn struct {
-	Position int32   `json:"position"`
-	Question string  `json:"question"`
-	Answer   *string `json:"answer"`
+	Position       int32    `json:"position"`
+	QuestionNumber int32    `json:"question_number"`
+	Kind           TurnKind `json:"kind" enums:"core,follow_up"`
+	Question       string   `json:"question"`
+	Answer         *string  `json:"answer"`
 }
 
 // Transcript is the list of turns of a completed recruitment interview.

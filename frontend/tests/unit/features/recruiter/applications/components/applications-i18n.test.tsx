@@ -405,7 +405,13 @@ describe("ApplicationDetail in Vietnamese", () => {
         return Promise.resolve(
           ok({
             turns: [
-              { position: 1, question: "Tell me about Go", answer: null },
+              {
+                position: 1,
+                question_number: 1,
+                kind: "core",
+                question: "Tell me about Go",
+                answer: null,
+              },
             ],
           }),
         );

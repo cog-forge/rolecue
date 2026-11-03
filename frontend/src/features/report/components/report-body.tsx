@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { routes } from "@/config/routes";
-import type { Report } from "../schemas/report-schema";
+import type { Report, ReportQuestion } from "../schemas/report-schema";
+import { groupByQuestion } from "../utils/question-groups";
 import { formatInterviewTime, scoreText } from "../utils/report-text";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
@@ -144,30 +145,32 @@ export function ReportBody({
           </CardHeader>
           <CardContent>
             <ol className="space-y-6">
-              {report.questions.map((item) => (
+              {groupByQuestion(report.questions).map(({ core, followUps }) => (
                 <li
-                  key={item.position}
+                  key={core.position}
                   className="space-y-2 border-t pt-4 first:border-t-0 first:pt-0"
                 >
                   <h3 className="font-medium [overflow-wrap:anywhere]">
                     <span className="text-muted-foreground tabular-nums">
-                      {item.position}.
+                      {core.question_number}.
                     </span>{" "}
-                    {item.question}
+                    {core.question}
                   </h3>
-                  <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                    <span className="font-medium text-foreground">
-                      {t("answer")}{" "}
-                    </span>
-                    {item.answer ?? t("noAnswer")}
-                  </p>
-                  {item.feedback ? (
-                    <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                      <span className="font-medium text-foreground">
-                        {t("feedback")}{" "}
-                      </span>
-                      {item.feedback}
-                    </p>
+                  <TurnDetails item={core} />
+                  {followUps.length > 0 ? (
+                    <ol className="mt-3 space-y-3 border-l-2 pl-4">
+                      {followUps.map((item) => (
+                        <li key={item.position} className="space-y-2">
+                          <h4 className="text-sm font-medium [overflow-wrap:anywhere]">
+                            <Badge variant="secondary" className="mr-2">
+                              {t("followUp")}
+                            </Badge>
+                            {item.question}
+                          </h4>
+                          <TurnDetails item={item} />
+                        </li>
+                      ))}
+                    </ol>
                   ) : null}
                 </li>
               ))}
@@ -188,6 +191,25 @@ export function ReportBody({
         <Link href={routes.history}>{t("backToHistory")}</Link>
       </Button>
     </div>
+  );
+}
+
+// The Candidate's answer to one question and its feedback once evaluated.
+function TurnDetails({ item }: { item: ReportQuestion }) {
+  const t = useTranslations("candidate.report");
+  return (
+    <>
+      <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
+        <span className="font-medium text-foreground">{t("answer")} </span>
+        {item.answer ?? t("noAnswer")}
+      </p>
+      {item.feedback ? (
+        <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
+          <span className="font-medium text-foreground">{t("feedback")} </span>
+          {item.feedback}
+        </p>
+      ) : null}
+    </>
   );
 }
 

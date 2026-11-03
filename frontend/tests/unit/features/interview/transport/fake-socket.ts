@@ -91,6 +91,7 @@ export function textTurn(
 ): InterviewerTurn {
   return {
     position,
+    question_number: position,
     kind: "core",
     question_count: 3,
     text: `Question ${position}?`,
@@ -111,6 +112,7 @@ export function syncData(
     question_count: number;
     answered_count: number;
     position: number | null;
+    question_number: number | null;
     resumed: boolean;
     evaluation_status: string | null;
   }> = {},
@@ -122,6 +124,7 @@ export function syncData(
     question_count: 3,
     answered_count: 0,
     position: 1,
+    question_number: 1,
     resumed: false,
     evaluation_status: null,
     server_time: "2026-11-02T10:00:00Z",

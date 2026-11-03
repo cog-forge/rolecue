@@ -51,12 +51,16 @@ const report = (over: Record<string, unknown> = {}) => ({
   questions: [
     {
       position: 1,
+      question_number: 1,
+      kind: "core",
       question: "Tell me about a project.",
       answer: "I built an API.",
       feedback: "Name the impact.",
     },
     {
       position: 2,
+      question_number: 2,
+      kind: "core",
       question: "Why this role?",
       answer: null,
       feedback: null,
@@ -126,6 +130,54 @@ describe("ReportOverview", () => {
     expect(mocks.get).toHaveBeenCalledWith(`/interviews/${INTERVIEW}/report`, {
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it("shows a follow-up under its core question, numbered by core questions", async () => {
+    mocks.get.mockResolvedValue(
+      envelope(
+        report({
+          questions: [
+            {
+              position: 1,
+              question_number: 1,
+              kind: "core",
+              question: "How would you design a rate limiter?",
+              answer: "A token bucket.",
+              feedback: "Good start.",
+            },
+            {
+              position: 2,
+              question_number: 1,
+              kind: "follow_up",
+              question: "How do bursts refill?",
+              answer: "At a fixed rate.",
+              feedback: "Clear refill rule.",
+            },
+            {
+              position: 3,
+              question_number: 2,
+              kind: "core",
+              question: "How do you test it?",
+              answer: null,
+              feedback: null,
+            },
+          ],
+        }),
+      ),
+    );
+    renderReport();
+    const core = (
+      await screen.findByText("How would you design a rate limiter?")
+    ).closest("li") as HTMLElement;
+    const followUp = within(core).getByText("How do bursts refill?");
+    expect(within(core).getByText("Follow-up")).toBeInTheDocument();
+    expect(within(core).getByText("Clear refill rule.")).toBeInTheDocument();
+    expect(followUp.closest("li")).not.toBe(core);
+    const second = screen
+      .getByText("How do you test it?")
+      .closest("li") as HTMLElement;
+    expect(within(second).getByText("2.")).toBeInTheDocument();
+    expect(within(second).queryByText("Follow-up")).not.toBeInTheDocument();
   });
 
   it("renders metric names exactly as the API sends them", async () => {

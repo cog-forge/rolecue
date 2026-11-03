@@ -29,12 +29,16 @@ type ReportBreakdown struct {
 	Score    int32     `json:"score"`
 }
 
-// ReportQuestion is one question of the interview with the Candidate's answer and its feedback.
+// ReportQuestion is one question of the interview with the Candidate's answer and its feedback. Position is
+// its place in the conversation; QuestionNumber is the core question it belongs to, so a follow-up
+// (kind follow_up) is shown under its core question.
 type ReportQuestion struct {
-	Position int32   `json:"position"`
-	Question string  `json:"question"`
-	Answer   *string `json:"answer"`
-	Feedback *string `json:"feedback"`
+	Position       int32   `json:"position"`
+	QuestionNumber int32   `json:"question_number"`
+	Kind           string  `json:"kind" enums:"core,follow_up"`
+	Question       string  `json:"question"`
+	Answer         *string `json:"answer"`
+	Feedback       *string `json:"feedback"`
 }
 
 // ErrInterviewNotFound hides an interview from every viewer who may not see it, so its existence does not

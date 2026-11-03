@@ -166,6 +166,8 @@ async function mockDecision(page: Page, scenario: Scenario = {}) {
         turns: [
           {
             position: 1,
+            question_number: 1,
+            kind: "core",
             question: "Walk me through a service you built.",
             answer: "I built the payments API in Go.",
           },

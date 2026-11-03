@@ -34,6 +34,8 @@ export interface InterviewSessionView {
   end: TransportEnd | null;
   sessionType: "practice" | "recruitment" | null;
   position: number | null;
+  /** The core question of the open turn (§4.1): progress is "question N of questionCount". */
+  questionNumber: number | null;
   questionCount: number | null;
   answeredCount: number;
   turn: InterviewerTurn | null;
@@ -50,7 +52,8 @@ interface PlaybackPort {
   play(turn: InterviewerTurn, onDone: () => void): void;
   stop(): void;
 }
-type PendingAnswer = { id: string; position: number } & (
+/** The answer and the turn it answers (`turnKey`): a position alone can be reused (see `turnKey`). */
+type PendingAnswer = { id: string; position: number; turn: string | null } & (
   { kind: "text"; text: string } | { kind: "audio"; audio: RecordedAnswer }
 );
 /** Errors after which the Candidate answers again; the server is back in listening. */
@@ -71,6 +74,7 @@ const INITIAL: InterviewSessionView = {
   end: null,
   sessionType: null,
   position: null,
+  questionNumber: null,
   questionCount: null,
   answeredCount: 0,
   turn: null,
@@ -80,6 +84,14 @@ const INITIAL: InterviewSessionView = {
   canResend: false,
   evaluationStatus: null,
 };
+
+/**
+ * Identifies an interviewer turn. A position alone is not enough: a follow-up that was never answered is
+ * dropped on reconnect, and the next core question takes its position (§4.2).
+ */
+function turnKey(turn: InterviewerTurn) {
+  return `${turn.position}:${turn.kind}:${turn.question_number}`;
+}
 
 /** Drives one room from the server's messages. The server decides every phase; this only
  * renders it, plays turns, and reports `turn.played`, and sends answers with ids that are reused only to retry the same answer.
@@ -95,10 +107,10 @@ export function createInterviewSession({
 }) {
   let view = INITIAL;
   const listeners = new Set<() => void>();
-  // Positions whose turn finished playing. Each delivery of a turn is reported with a fresh id: the
+  // Turns (`turnKey`) that finished playing. Each delivery of a turn is reported with a fresh id: the
   // server remembers accepted ids for the whole stream, so an id reused after a reconnect would only
   // be acknowledged as a duplicate and the session would never move to listening.
-  const played = new Set<number>();
+  const played = new Set<string>();
   let pending: PendingAnswer | null = null;
   // The pending answer may not have reached the server (send failed or the socket dropped).
   let unconfirmed = false;
@@ -136,9 +148,13 @@ export function createInterviewSession({
     unconfirmed = false;
     publish({ sending: false, canResend: false, issue });
   }
-  function reportPlayed(position: number) {
-    played.add(position);
-    transport.send({ id: newId(), type: "turn.played", data: { position } });
+  function reportPlayed(turn: InterviewerTurn) {
+    played.add(turnKey(turn));
+    transport.send({
+      id: newId(),
+      type: "turn.played",
+      data: { position: turn.position },
+    });
   }
   function enterServerState(
     state: Parameters<typeof reconcile>[1],
@@ -159,6 +175,7 @@ export function createInterviewSession({
         if (pending && data.answered_count >= pending.position) clearPending();
         publish({
           sessionType: data.session_type,
+          questionNumber: data.question_number ?? view.questionNumber,
           questionCount: data.question_count,
           answeredCount: data.answered_count,
           evaluationStatus: data.evaluation_status,
@@ -172,20 +189,24 @@ export function createInterviewSession({
         return;
       case "interviewer.turn": {
         const turn = message.data;
+        // An answer held for another turn at this position (a follow-up dropped on reconnect) is not
+        // sent to the core question that replaced it.
+        if (pending && pending.turn !== turnKey(turn)) clearPending();
         addEntry({
-          id: `question-${turn.position}`,
+          id: `question-${turnKey(turn)}`,
           speaker: "interviewer",
           text: turn.text,
         });
         publish({
           turn,
           position: turn.position,
+          questionNumber: turn.question_number,
           questionCount: turn.question_count,
           phase: transition(view.phase, "ASSETS_READY"),
         });
         // A turn re-sent after a reconnect that already played is acknowledged without replaying it.
-        if (played.has(turn.position)) reportPlayed(turn.position);
-        else playback.play(turn, () => reportPlayed(turn.position));
+        if (played.has(turnKey(turn))) reportPlayed(turn);
+        else playback.play(turn, () => reportPlayed(turn));
         return;
       }
       case "answer.accepted": {
@@ -293,6 +314,7 @@ export function createInterviewSession({
       pending = {
         id: newId(),
         position: view.position,
+        turn: view.turn && turnKey(view.turn),
         kind: "text",
         text: trimmed,
       };
@@ -302,7 +324,13 @@ export function createInterviewSession({
     submitAudio(audio: RecordedAnswer) {
       if (!answerable() || view.position === null || audio.chunks.length === 0)
         return false;
-      pending = { id: newId(), position: view.position, kind: "audio", audio };
+      pending = {
+        id: newId(),
+        position: view.position,
+        turn: view.turn && turnKey(view.turn),
+        kind: "audio",
+        audio,
+      };
       sendPending();
       return true;
     },

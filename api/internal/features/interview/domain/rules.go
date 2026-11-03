@@ -7,23 +7,54 @@ const RoleProfileConfirmed = "confirmed"
 // application feature's status value.
 const applicationInterviewEligible = "interview_eligible"
 
-// ClassifyTurn decides an answer against the turns already stored. A position already answered with the
-// same text is a retry and reports unchanged, so nothing is written; with other text it is a conflict.
-// Otherwise the position must be the next unanswered question and must exist in the bank. The caller
-// holds the session lock, so the turns it passes are the ones the answer lands after.
-func ClassifyTurn(turns []Turn, questionCount int, position int32, answer string) (unchanged bool, err error) {
+// ClassifyTurn decides an answer against the turns already stored. A position already answered, as a turn
+// of the same kind, with the same text is a retry and reports unchanged, so nothing is written; anything
+// else at a stored position is a conflict. Otherwise the position must be the next one in the
+// conversation. The caller holds the session lock, so the turns it passes are the ones the answer lands
+// after.
+func ClassifyTurn(turns []Turn, kind TurnKind, position int32, answer string) (unchanged bool, err error) {
 	for _, turn := range turns {
 		if turn.Position == position {
-			if turn.Answer == answer {
+			if turn.Kind == kind && turn.Answer == answer {
 				return true, nil
 			}
 			return false, ErrTurnConflict
 		}
 	}
-	if int(position) != len(turns)+1 || int(position) > questionCount {
+	if int(position) != len(turns)+1 {
 		return false, ErrTurnConflict
 	}
 	return false, nil
+}
+
+// AcceptAnswer applies the turn rules to an answer to a core question: ClassifyTurn, then the next core
+// question must be open at that position. It returns the slot the answer is stored for. An answer after
+// the last core question is a conflict.
+func AcceptAnswer(turns []Turn, questionCount, position int32, answer string) (Slot, bool, error) {
+	unchanged, err := ClassifyTurn(turns, TurnCore, position, answer)
+	if err != nil || unchanged {
+		return Slot{}, unchanged, err
+	}
+	slot, ok := NextCore(turns, questionCount)
+	if !ok || slot.Position != position {
+		return Slot{}, false, ErrTurnConflict
+	}
+	return slot, false, nil
+}
+
+// AcceptFollowUp applies the turn rules to an answer to a follow-up the live interviewer asked:
+// ClassifyTurn, then a follow-up slot must be open at that position within followUpLimit. It returns the
+// slot the answer is stored for.
+func AcceptFollowUp(turns []Turn, followUpLimit, position int32, answer string) (Slot, bool, error) {
+	unchanged, err := ClassifyTurn(turns, TurnFollowUp, position, answer)
+	if err != nil || unchanged {
+		return Slot{}, unchanged, err
+	}
+	slot, ok := FollowUpSlot(turns, followUpLimit)
+	if !ok || slot.Position != position {
+		return Slot{}, false, ErrTurnConflict
+	}
+	return slot, false, nil
 }
 
 // CheckRecruitmentStart is the Application and capacity rule of a recruitment start, in the order the

@@ -16,6 +16,8 @@ const (
 	candidateRole = "candidate"
 	// defaultQuestionLimit is used when the configured question limit is zero.
 	defaultQuestionLimit = 8
+	// defaultFollowUpTimeout bounds one follow-up decision when the setting is zero.
+	defaultFollowUpTimeout = 5 * time.Second
 	// evaluationTimeout bounds one background evaluation, which runs after the request has returned.
 	evaluationTimeout = 2 * time.Minute
 	// failureWriteTimeout bounds the write that marks a panicked evaluation failed. It runs on a fresh
@@ -32,6 +34,8 @@ type Repository interface {
 	Complete(ctx context.Context, candidateID, id uuid.UUID) (domain.Session, bool, error)
 	MarkEvaluationFailed(ctx context.Context, id uuid.UUID) error
 	Deliver(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string) (domain.Delivery, error)
+	FollowUpContext(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string, followUpLimit int32) (domain.Delivery, *domain.FollowUpContext, error)
+	AppendFollowUp(ctx context.Context, candidateID, id uuid.UUID, followUp domain.AskedQuestion, answer string, followUpLimit int32) (domain.Session, error)
 }
 
 // Evaluator scores a completed session. It writes the session's evaluation status itself; the service
@@ -41,18 +45,23 @@ type Evaluator interface {
 }
 
 // Settings are the configured interview rules.
-// QuestionLimit is the most questions one session asks; zero uses the default. DefaultProviderVoiceID is
-// the provider voice a live session speaks with when it has no voice of its own; empty means such a
-// session is shown as text only.
+// QuestionLimit is the most core questions one session asks; zero uses the default. DefaultProviderVoiceID
+// is the provider voice a live session speaks with when it has no voice of its own; empty means such a
+// session is shown as text only. FollowUpLimit is the most follow-ups the live interviewer asks after one
+// core question; zero turns follow-ups off. FollowUpTimeout bounds one follow-up decision; zero uses the
+// default.
 type Settings struct {
 	QuestionLimit          int32
 	DefaultProviderVoiceID string
+	FollowUpLimit          int32
+	FollowUpTimeout        time.Duration
 }
 
 type Service struct {
 	repository Repository
 	settings   Settings
 	evaluator  Evaluator
+	decider    FollowUpDecider
 }
 
 func New(repository Repository, settings Settings) (*Service, error) {
@@ -61,6 +70,12 @@ func New(repository Repository, settings Settings) (*Service, error) {
 	}
 	if settings.QuestionLimit <= 0 {
 		settings.QuestionLimit = defaultQuestionLimit
+	}
+	if settings.FollowUpLimit < 0 {
+		return nil, fmt.Errorf("interview follow-up limit must not be negative")
+	}
+	if settings.FollowUpTimeout <= 0 {
+		settings.FollowUpTimeout = defaultFollowUpTimeout
 	}
 	return &Service{repository: repository, settings: settings}, nil
 }
@@ -165,9 +180,11 @@ func (s *Service) AppendTurn(ctx context.Context, candidateID uuid.UUID, role st
 	return presentSession(session), nil
 }
 
-// Deliver prepares the next live turn: the question the interviewer asks now, frozen with the session's
-// provider voice so a reconnect repeats the same words. It never charges and never consumes a slot. A
-// completed session is INTERVIEW_COMPLETED and a closed recruitment window APPLICATION_NOT_ELIGIBLE.
+// Deliver prepares the next core question: the question the interviewer asks now, frozen with the
+// session's provider voice so a reconnect repeats the same words. It never charges and never consumes a
+// slot. A completed session is INTERVIEW_COMPLETED and a closed recruitment window
+// APPLICATION_NOT_ELIGIBLE. It never asks a follow-up, so a reconnect during a follow-up goes on with
+// the next core question (team decision 2026-11-03).
 func (s *Service) Deliver(ctx context.Context, candidateID uuid.UUID, role string, id uuid.UUID) (domain.Delivery, error) {
 	if role != candidateRole {
 		return domain.Delivery{}, apperror.New(apperror.CodeForbidden, "only candidates can take interviews")

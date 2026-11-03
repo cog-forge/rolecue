@@ -101,6 +101,8 @@ func (s *seed) cleanup() {
 			[]any{postings}},
 		{"core_questions", `DELETE FROM public.core_questions WHERE jd_id = ANY($1::text[]::uuid[])`,
 			[]any{jds}},
+		{"requirements", `DELETE FROM public.requirements WHERE jd_id = ANY($1::text[]::uuid[])`,
+			[]any{jds}},
 		{"role_profiles", `DELETE FROM public.role_profiles WHERE candidate_id = ANY($1::text[]::uuid[])`,
 			[]any{userIDs}},
 		{"job_descriptions", `DELETE FROM public.job_descriptions WHERE id = ANY($1::text[]::uuid[])`,

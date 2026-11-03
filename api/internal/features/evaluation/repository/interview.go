@@ -40,7 +40,10 @@ func (r *Repository) InterviewTurns(ctx context.Context, interviewID uuid.UUID) 
 	}
 	turns := make([]domain.TurnRecord, 0, len(rows))
 	for _, row := range rows {
-		turns = append(turns, domain.TurnRecord{Position: row.Position, Question: row.Question, Answer: row.Answer, Feedback: row.Feedback})
+		turns = append(turns, domain.TurnRecord{
+			Position: row.Position, QuestionNumber: row.QuestionNumber, Kind: row.Kind,
+			Question: row.Question, Answer: row.Answer, Feedback: row.Feedback,
+		})
 	}
 	return turns, nil
 }

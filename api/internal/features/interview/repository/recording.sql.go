@@ -80,16 +80,20 @@ func (q *Queries) GetCandidateRecordingState(ctx context.Context, arg GetCandida
 }
 
 const listRecruitmentTurns = `-- name: ListRecruitmentTurns :many
-SELECT position, question, answer
+SELECT position,
+       (count(*) FILTER (WHERE kind = 'core') OVER (ORDER BY position))::int AS question_number,
+       kind, question, answer
 FROM public.conversation_turns
 WHERE interview_id = $1
 ORDER BY position
 `
 
 type ListRecruitmentTurnsRow struct {
-	Position int32
-	Question string
-	Answer   *string
+	Position       int32
+	QuestionNumber int32
+	Kind           string
+	Question       string
+	Answer         *string
 }
 
 func (q *Queries) ListRecruitmentTurns(ctx context.Context, interviewID uuid.UUID) ([]ListRecruitmentTurnsRow, error) {
@@ -101,7 +105,13 @@ func (q *Queries) ListRecruitmentTurns(ctx context.Context, interviewID uuid.UUI
 	var items []ListRecruitmentTurnsRow
 	for rows.Next() {
 		var i ListRecruitmentTurnsRow
-		if err := rows.Scan(&i.Position, &i.Question, &i.Answer); err != nil {
+		if err := rows.Scan(
+			&i.Position,
+			&i.QuestionNumber,
+			&i.Kind,
+			&i.Question,
+			&i.Answer,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -8,27 +8,25 @@ import (
 )
 
 func TestClassifyTurn(t *testing.T) {
-	answered := []Turn{{Position: 1, Question: "Q1", Answer: "A1"}}
+	answered := []Turn{{Position: 1, Kind: TurnCore, Question: "Q1", Answer: "A1"}}
 	tests := []struct {
-		name          string
-		turns         []Turn
-		questionCount int
-		position      int32
-		answer        string
-		unchanged     bool
-		wantCode      apperror.Code
+		name      string
+		turns     []Turn
+		position  int32
+		answer    string
+		unchanged bool
+		wantCode  apperror.Code
 	}{
-		{name: "first answer", questionCount: 3, position: 1, answer: "A"},
-		{name: "next answer after one", turns: answered, questionCount: 3, position: 2, answer: "A2"},
-		{name: "retry of the same answer", turns: answered, questionCount: 3, position: 1, answer: "A1", unchanged: true},
-		{name: "same position other answer", turns: answered, questionCount: 3, position: 1, answer: "other", wantCode: apperror.CodeInterviewTurnConflict},
-		{name: "position skips the next", turns: answered, questionCount: 3, position: 3, answer: "A3", wantCode: apperror.CodeInterviewTurnConflict},
-		{name: "position zero", questionCount: 3, position: 0, answer: "A", wantCode: apperror.CodeInterviewTurnConflict},
-		{name: "position beyond the bank", turns: answered, questionCount: 1, position: 2, answer: "A2", wantCode: apperror.CodeInterviewTurnConflict},
+		{name: "first answer", position: 1, answer: "A"},
+		{name: "next answer after one", turns: answered, position: 2, answer: "A2"},
+		{name: "retry of the same answer", turns: answered, position: 1, answer: "A1", unchanged: true},
+		{name: "same position other answer", turns: answered, position: 1, answer: "other", wantCode: apperror.CodeInterviewTurnConflict},
+		{name: "position skips the next", turns: answered, position: 3, answer: "A3", wantCode: apperror.CodeInterviewTurnConflict},
+		{name: "position zero", position: 0, answer: "A", wantCode: apperror.CodeInterviewTurnConflict},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			unchanged, err := ClassifyTurn(tt.turns, tt.questionCount, tt.position, tt.answer)
+			unchanged, err := ClassifyTurn(tt.turns, TurnCore, tt.position, tt.answer)
 			if tt.wantCode != "" {
 				if !apperror.IsCode(err, tt.wantCode) {
 					t.Fatalf("error = %v, want %s", err, tt.wantCode)

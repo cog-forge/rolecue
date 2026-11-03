@@ -51,7 +51,7 @@ func (f *fakeSessions) session() domain.Session {
 	status := domain.EvaluationPending
 	session := domain.Session{
 		ID: testSession, Type: f.kind, QuestionCount: int32(len(f.questions)), AnsweredCount: int32(len(f.answers)),
-		EvaluationStatus: status,
+		AnsweredTurns: int32(len(f.answers)), EvaluationStatus: status,
 	}
 	if f.completed {
 		now := time.Now()
@@ -87,7 +87,7 @@ func (f *fakeSessions) Deliver(_ context.Context, _ uuid.UUID, _ string, _ uuid.
 	if _, ok := f.spoken[position]; !ok {
 		f.spoken[position] = f.questions[position-1]
 	}
-	d.Question = &domain.AskedQuestion{Position: position, Kind: domain.TurnCore, Text: f.spoken[position], AskedAt: time.Now()}
+	d.Question = &domain.AskedQuestion{Position: position, QuestionNumber: position, Kind: domain.TurnCore, Text: f.spoken[position], AskedAt: time.Now()}
 	return d, nil
 }
 
@@ -110,9 +110,9 @@ func (f *fakeSessions) AppendTurn(_ context.Context, _ uuid.UUID, _ string, _ uu
 	}
 	turns := make([]domain.Turn, 0, len(f.answers))
 	for i, a := range f.answers {
-		turns = append(turns, domain.Turn{Position: int32(i + 1), Answer: a})
+		turns = append(turns, domain.Turn{Position: int32(i + 1), QuestionNumber: int32(i + 1), Kind: domain.TurnCore, Answer: a})
 	}
-	unchanged, err := domain.ClassifyTurn(turns, len(f.questions), position, answer)
+	_, unchanged, err := domain.AcceptAnswer(turns, int32(len(f.questions)), position, answer)
 	if err != nil {
 		return domain.Session{}, err
 	}
@@ -121,6 +121,15 @@ func (f *fakeSessions) AppendTurn(_ context.Context, _ uuid.UUID, _ string, _ uu
 		f.appended <- int32(len(f.answers))
 	}
 	return f.session(), nil
+}
+
+// FollowUp never asks one: these sessions have follow-ups off (followup_test.go covers them).
+func (f *fakeSessions) FollowUp(context.Context, uuid.UUID, string, uuid.UUID) (domain.Delivery, error) {
+	return domain.Delivery{}, nil
+}
+
+func (f *fakeSessions) AppendFollowUp(context.Context, uuid.UUID, string, uuid.UUID, domain.AskedQuestion, string) (domain.Session, error) {
+	return domain.Session{}, errors.New("follow-ups are off")
 }
 
 func (f *fakeSessions) Complete(_ context.Context, _ uuid.UUID, _ string, _ uuid.UUID) (domain.Session, error) {
@@ -195,6 +204,14 @@ func withCache(entries int) harnessOption {
 
 func newHarness(t *testing.T, sessions *fakeSessions, opts ...harnessOption) *harness {
 	t.Helper()
+	h := serve(t, sessions, opts...)
+	h.sessions = sessions
+	return h
+}
+
+// serve runs the engine over any Sessions, such as the real service over an in-memory repository.
+func serve(t *testing.T, sessions Sessions, opts ...harnessOption) *harness {
+	t.Helper()
 	cfg := harnessConfig{synthesizer: tts.NewFake(tts.WithFakeVisemes(), tts.WithFakeBlendShapes(), tts.WithFakeWordBoundaries()), transcriber: NewFakeTranscriber()}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -212,7 +229,7 @@ func newHarness(t *testing.T, sessions *fakeSessions, opts ...harnessOption) *ha
 		engine.Serve(r.Context(), ws, Participant{CandidateID: testCandidate, Role: "candidate", SessionID: testSession})
 	}))
 	t.Cleanup(server.Close)
-	return &harness{t: t, sessions: sessions, engine: engine, server: server}
+	return &harness{t: t, engine: engine, server: server}
 }
 
 // received is a server message as the client decodes it.

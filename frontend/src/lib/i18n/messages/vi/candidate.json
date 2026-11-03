@@ -249,6 +249,7 @@
     "answer": "Câu trả lời:",
     "feedback": "Nhận xét:",
     "noAnswer": "Chưa ghi nhận câu trả lời.",
+    "followUp": "Câu hỏi thêm",
     "recruitmentNote": "Phản hồi chi tiết của phỏng vấn tuyển dụng không được hiển thị tại đây.",
     "score": "{score} / 100",
     "scoreText": "{score} trên 100",
@@ -293,6 +294,9 @@
     "preview": "Xem trước",
     "leave": "Rời phòng",
     "progress": "Câu {position}/{count}",
+    "followUp": {
+      "label": "Câu hỏi thêm"
+    },
     "detailsError": "Không tải được thông tin buổi phỏng vấn. Người phỏng vấn hiện không khả dụng.",
     "invalidLink": "Liên kết phòng phỏng vấn này không hợp lệ.",
     "retryInterviewer": "Tải lại người phỏng vấn",

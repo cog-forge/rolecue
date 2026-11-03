@@ -591,6 +591,8 @@ definitions:
         type: string
       position:
         type: integer
+      question_number:
+        type: integer
     type: object
   domain.Detail:
     properties:
@@ -1387,10 +1389,17 @@ definitions:
         type: string
       feedback:
         type: string
+      kind:
+        enum:
+        - core
+        - follow_up
+        type: string
       position:
         type: integer
       question:
         type: string
+      question_number:
+        type: integer
     type: object
   domain.RequirementType:
     enum:
@@ -1689,6 +1698,9 @@ definitions:
       id:
         type: string
       question_count:
+        description: |-
+          QuestionCount is the number of core questions and AnsweredCount how many of them are answered, so
+          together they are the session's progress. Follow-ups are not counted.
         type: integer
       role_profile_id:
         type: string
@@ -1837,10 +1849,18 @@ definitions:
     properties:
       answer:
         type: string
+      kind:
+        allOf:
+        - $ref: '#/definitions/domain.TurnKind'
+        enum:
+        - core
+        - follow_up
       position:
         type: integer
       question:
         type: string
+      question_number:
+        type: integer
     type: object
   domain.Transition:
     properties:
@@ -1855,11 +1875,27 @@ definitions:
     properties:
       answer:
         type: string
+      kind:
+        allOf:
+        - $ref: '#/definitions/domain.TurnKind'
+        enum:
+        - core
+        - follow_up
       position:
         type: integer
       question:
         type: string
+      question_number:
+        type: integer
     type: object
+  domain.TurnKind:
+    enum:
+    - core
+    - follow_up
+    type: string
+    x-enum-varnames:
+    - TurnCore
+    - TurnFollowUp
   domain.Type:
     enum:
     - practice

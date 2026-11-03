@@ -597,6 +597,7 @@
       "transcriptFailed": "We couldn't load the transcript. Try again.",
       "noQuestions": "No questions were recorded.",
       "question": "Question {position}",
+      "followUp": "Follow-up",
       "noAnswer": "No answer was recorded."
     }
   },
