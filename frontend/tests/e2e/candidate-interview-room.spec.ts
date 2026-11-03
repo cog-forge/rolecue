@@ -355,6 +355,15 @@ test("generated backgrounds are selectable from the dock without a tool rail or 
   await expect(
     page.getByRole("complementary", { name: "Room tools" }),
   ).toHaveCount(0);
+  const stage = page.getByRole("region", {
+    name: "Interview room",
+    exact: true,
+  });
+  // The café 3D room is the default; without an interviewer it keeps its still.
+  await expect(stage).toHaveAttribute("data-background", "cafe-3d");
+  await expect(
+    page.locator('[data-slot="studio-backdrop"] img'),
+  ).toHaveAttribute("src", /cafe%2Fstill\.webp/);
   for (const [label, file] of [
     ["Balcony", "balcony"],
     ["Café", "cafe"],
@@ -365,6 +374,7 @@ test("generated backgrounds are selectable from the dock without a tool rail or 
     await expect(
       page.locator('[data-slot="studio-backdrop"] img'),
     ).toHaveAttribute("src", new RegExp(`${file}\\.webp`));
+    await expect(stage).toHaveAttribute("data-scene-status", "off");
     await page.keyboard.press("Escape");
   }
   expect(calls.writes).toEqual([]);

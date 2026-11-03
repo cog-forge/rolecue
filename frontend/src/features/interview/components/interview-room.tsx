@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LiquidGlass } from "@/components/ui/liquid-glass";
 import { StudioBackdrop } from "@/components/avatar-viewer/studio-backdrop";
+import type { EnvironmentStatus } from "@/components/avatar-viewer/environment/environment-state";
+import { environmentScenes } from "@/components/avatar-viewer/environment/scenes";
 import { routes } from "@/config/routes";
 import type { TransportEnd } from "../transport/interview-transport";
 import { useSessionUser } from "@/features/auth/components/session-gate";
@@ -50,7 +52,11 @@ import {
   RecordingNotice,
   RecordingUploadPanel,
 } from "./room-recording";
-import { roomBackgrounds, type RoomBackgroundId } from "./room-backgrounds";
+import {
+  defaultRoomBackground,
+  roomBackgrounds,
+  type RoomBackgroundId,
+} from "./room-backgrounds";
 import type { CameraView } from "./room-audio-settings";
 
 /** Ends after which the session may still be running on the server, so Leave can still end it. A
@@ -146,7 +152,13 @@ function LiveRoom({
   });
   const [transcriptOpen, setTranscriptOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
-  const [background, setBackground] = useState<RoomBackgroundId>("office");
+  const [background, setBackground] = useState<RoomBackgroundId>(
+    defaultRoomBackground,
+  );
+  const [sceneStatus, setSceneStatus] = useState<EnvironmentStatus>({
+    state: "loading",
+    progress: 0,
+  });
   const [cameraView, setCameraView] = useState<CameraView>("conversation");
   const [reset, setReset] = useState(0);
   const [sceneReady, setSceneReady] = useState(false);
@@ -225,11 +237,23 @@ function LiveRoom({
     details.data.completed_at === null &&
     !completed &&
     (view.end === null || leavableEnds.has(view.end.reason));
+  const environment = selectedBackground.scene
+    ? environmentScenes[selectedBackground.scene]
+    : undefined;
+  // Without an interviewer canvas a 3D room can't render, so its still stays.
+  const roomSceneStatus: EnvironmentStatus = !environment
+    ? { state: "off" }
+    : available
+      ? sceneStatus
+      : !validId || details.isError
+        ? { state: "fallback", reason: "unsupported" }
+        : { state: "loading", progress: 0 };
   return (
     <TooltipProvider delayDuration={250}>
       <section
         aria-label={t("label")}
         data-background={background}
+        data-scene-status={roomSceneStatus.state}
         data-performance-state={performance.state}
         className="fixed inset-0 z-30 isolate overflow-hidden bg-neutral-900 text-white [--panel-translate-y:8px] [--panel-blur:0px] [--panel-open-dur:240ms] [--panel-close-dur:180ms]"
       >
@@ -246,6 +270,8 @@ function LiveRoom({
               viewResetSignal={reset}
               onReadyChange={setSceneReady}
               backgroundSrc={selectedBackground.image}
+              environment={environment}
+              onEnvironmentStatusChange={setSceneStatus}
               horizontalOffset={transcriptOpen ? 0.13 : 0}
             />
           ) : (
@@ -415,6 +441,7 @@ function LiveRoom({
           camera={camera}
           background={background}
           onBackgroundChange={setBackground}
+          sceneStatus={roomSceneStatus}
           cameraView={cameraView}
           onCameraViewChange={setCameraView}
           sceneReady={available && sceneReady}
