@@ -365,3 +365,126 @@ test("in Vietnamese the report chrome is translated while the AI feedback stays 
     page.getByRole("link", { name: "Quay lại lịch sử phỏng vấn" }).first(),
   ).toBeVisible();
 });
+
+test("PDF export is offered only for a completed own practice report", async ({
+  page,
+}) => {
+  await mockReports(page, {
+    [practiceDone]: [{ status: 200, body: report({}) }],
+    [recruitmentDone]: [
+      {
+        status: 200,
+        body: report({
+          type: "recruitment",
+          summary: null,
+          breakdown: null,
+          questions: null,
+        }),
+      },
+    ],
+    [practicePending]: [
+      { status: 200, body: report({ status: "pending", overall_score: null }) },
+    ],
+    [practiceFailed]: [
+      { status: 200, body: report({ status: "failed", overall_score: null }) },
+    ],
+  });
+  await page.goto(`/reports/${practiceDone}`);
+  await expect(
+    page.getByRole("button", { name: "Export PDF", exact: true }),
+  ).toBeVisible();
+  for (const id of [
+    recruitmentDone,
+    practicePending,
+    practiceFailed,
+    missing,
+    forbidden,
+  ]) {
+    await page.goto(`/reports/${id}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Export PDF", exact: true }),
+    ).toHaveCount(0);
+  }
+});
+
+test("PDF rechecks access and prints only the authorized report", async ({
+  page,
+}) => {
+  await page.context().addInitScript(() => {
+    window.print = () => {};
+    // CDP printToPDF also fires afterprint; keep the target alive until the PDF bytes return.
+    window.close = () => {};
+  });
+  const { calls } = await mockReports(page, {
+    [practiceDone]: [{ status: 200, body: report({}) }],
+  });
+  await page.goto(`/reports/${practiceDone}`);
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Export PDF", exact: true }).click();
+  const popup = await popupPromise;
+  await expect(
+    popup.getByRole("heading", { name: "RoleCue — Practice interview" }),
+  ).toBeVisible();
+  await expect(popup.getByText("Good root-cause analysis.")).toBeVisible();
+  expect(calls[practiceDone]).toBe(2);
+  await popup.evaluate(() => document.fonts.ready);
+  await popup.pdf({
+    path: test.info().outputPath("practice-report.pdf"),
+    format: "A4",
+    printBackground: true,
+  });
+  await popup.close();
+});
+
+test("PDF refuses access revoked after the report was loaded", async ({
+  page,
+}) => {
+  await mockReports(page, {
+    [practiceDone]: [
+      { status: 200, body: report({}) },
+      {
+        status: 404,
+        body: { code: "INTERVIEW_NOT_FOUND", message: "not found" },
+      },
+    ],
+  });
+  await page.goto(`/reports/${practiceDone}`);
+  await page.getByRole("button", { name: "Export PDF", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Unable to export." }),
+  ).toBeVisible();
+});
+
+test("Vietnamese PDF embeds the font and preserves English feedback", async ({
+  page,
+}) => {
+  await page
+    .context()
+    .addCookies([
+      { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+    ]);
+  await page.context().addInitScript(() => {
+    window.print = () => {};
+    // CDP printToPDF also fires afterprint; keep the target alive until the PDF bytes return.
+    window.close = () => {};
+  });
+  await mockReports(page, {
+    [practiceDone]: [{ status: 200, body: report({}) }],
+  });
+  await page.goto(`/reports/${practiceDone}`);
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Xuất PDF", exact: true }).click();
+  const popup = await popupPromise;
+  await expect(popup.locator("html")).toHaveAttribute("lang", "vi");
+  await expect(popup.getByText("Good root-cause analysis.")).toBeVisible();
+  await popup.evaluate(() => document.fonts.ready);
+  expect(await popup.evaluate(() => document.fonts.check("11pt Report"))).toBe(
+    true,
+  );
+  await popup.pdf({
+    path: test.info().outputPath("practice-report-vi.pdf"),
+    format: "A4",
+  });
+  await popup.close();
+});

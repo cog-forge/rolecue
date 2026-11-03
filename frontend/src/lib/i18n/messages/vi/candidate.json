@@ -288,7 +288,11 @@
       "abandonedTitle": "Buổi phỏng vấn đã kết thúc vì không có hoạt động",
       "abandonedText": "Quá lâu không có câu hỏi hay câu trả lời nào nên buổi phỏng vấn đã được kết thúc. Chỉ những câu bạn đã trả lời được chấm điểm.",
       "answered": "Đã trả lời {answered}/{total} câu; {unanswered, plural, =0 {không còn câu nào chưa trả lời} other {# câu chưa trả lời}}."
-    }
+    },
+    "exportPdf": "Xuất PDF",
+    "exporting": "Đang chuẩn bị PDF…",
+    "exportHint": "Chọn “Lưu dưới dạng PDF” trong hộp thoại in. Tắt đầu trang và chân trang để báo cáo gọn gàng.",
+    "exportError": "Không thể xuất báo cáo. Hãy cho phép cửa sổ bật lên và thử lại."
   },
   "interviewRoom": {
     "label": "Phòng phỏng vấn",

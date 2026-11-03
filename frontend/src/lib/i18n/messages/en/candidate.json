@@ -288,7 +288,11 @@
       "abandonedTitle": "This interview ended because it was inactive",
       "abandonedText": "Nothing was asked or answered for too long, so the interview was ended. Only the questions you answered are evaluated.",
       "answered": "{answered} of {total} questions answered; {unanswered, plural, =0 {none left unanswered} one {# question not answered} other {# questions not answered}}."
-    }
+    },
+    "exportPdf": "Export PDF",
+    "exporting": "Preparing PDF…",
+    "exportHint": "Choose “Save as PDF” in the print dialog. Turn off headers and footers for a clean report.",
+    "exportError": "Unable to export. Allow popups and try again."
   },
   "interviewRoom": {
     "label": "Interview room",
