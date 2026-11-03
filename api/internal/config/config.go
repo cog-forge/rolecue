@@ -24,6 +24,7 @@ type Config struct {
 	CORS             CORSConfig             `mapstructure:"cors"`
 	Logger           LoggerConfig           `mapstructure:"logger"`
 	Tracer           TracerConfig           `mapstructure:"tracer"`
+	AI               AIConfig               `mapstructure:"ai"`
 	LLM              LLMConfig              `mapstructure:"llm"`
 	TTS              TTSConfig              `mapstructure:"tts"`
 	Email            EmailConfig            `mapstructure:"email"`
@@ -367,10 +368,15 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("bind auth.url: %w", err)
 	}
 
+	if err := bindAI(v); err != nil {
+		return nil, err
+	}
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
+
+	cfg.AI.GroqAPIKey = os.Getenv("GROQ_API_KEY")
 
 	if cfg.Auth.PublicURL == "" {
 		if os.Getenv("AUTH_UPSTREAM_URL") != "" {
@@ -481,6 +487,9 @@ func setDefaults(v *viper.Viper) {
 
 // Validate checks configuration integrity and security constraints.
 func (c *Config) Validate() error {
+	if err := c.validateAI(); err != nil {
+		return err
+	}
 	if err := c.AvatarConversion.Validate(); err != nil {
 		return err
 	}
