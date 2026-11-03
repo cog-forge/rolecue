@@ -480,3 +480,79 @@ func TestTranscriptOnlyAfterCompletion(t *testing.T) {
 		}
 	}
 }
+
+// TestRecruitmentReloadKeepsOneSessionSlotAndRecording plays the room's reload and reconnect around a
+// recording: the Candidate resumes and restarts the same recruitment interview, finishes it, and uploads
+// after a first failed attempt. There is still one interview on one slot, no coin moved, and the
+// Candidate's status read follows the recording through none, uploading, failed and ready.
+func TestRecruitmentReloadKeepsOneSessionSlotAndRecording(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(t, pool, 3)
+	store := newFakeRecordingStore()
+	recording := newRecordingService(t, pool, store)
+	fx := newRecordingFixture(t, ctx, s, svc)
+	s.wallet(fx.candidate, 10)
+	status := func(want domain.RecordStatus) {
+		t.Helper()
+		got, err := recording.Status(ctx, fx.candidate, "candidate", fx.session.ID)
+		if err != nil {
+			t.Fatalf("Status() error = %v", err)
+		}
+		if got.RecordStatus != want {
+			t.Fatalf("record_status = %s, want %s", got.RecordStatus, want)
+		}
+	}
+	status(domain.RecordNone)
+
+	if _, err := svc.AppendTurn(ctx, fx.candidate, "candidate", fx.session.ID, 1, "First answer."); err != nil {
+		t.Fatalf("AppendTurn(1) error = %v", err)
+	}
+	// A reload resumes the session and a second start from the preflight returns the same one.
+	for range 2 {
+		resumed, err := svc.Resume(ctx, fx.candidate, "candidate", fx.session.ID)
+		if err != nil || resumed.ID != fx.session.ID || resumed.AnsweredCount != 1 {
+			t.Fatalf("Resume() = %s answered %d, error %v; want the same session with 1 answer", resumed.ID, resumed.AnsweredCount, err)
+		}
+	}
+	again, created, err := svc.Create(ctx, fx.candidate, "candidate", recruitmentInput(fx.application))
+	if err != nil || created || again.ID != fx.session.ID {
+		t.Fatalf("repeat Create() = %s created %v error %v, want the existing session", again.ID, created, err)
+	}
+	for position := int32(2); position <= fx.session.QuestionCount; position++ {
+		if _, err := svc.AppendTurn(ctx, fx.candidate, "candidate", fx.session.ID, position, "Another answer."); err != nil {
+			t.Fatalf("AppendTurn(%d) error = %v", position, err)
+		}
+	}
+	if _, err := svc.Complete(ctx, fx.candidate, "candidate", fx.session.ID); err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
+	if n := s.interviewsOfPosting(fx.posting); n != 1 {
+		t.Fatalf("interviews on the posting = %d after reloads, want 1 slot used", n)
+	}
+	if b := s.balance(fx.candidate); b != 10 {
+		t.Fatalf("balance = %d after reloads, want 10", b)
+	}
+	status(domain.RecordNone)
+
+	// The first upload never reaches storage: completing it records failed, and the Candidate retries.
+	if _, err := recording.GrantUpload(ctx, fx.candidate, "candidate", fx.session.ID, validUpload); err != nil {
+		t.Fatalf("GrantUpload() error = %v", err)
+	}
+	status(domain.RecordUploading)
+	_, err = recording.CompleteUpload(ctx, fx.candidate, "candidate", fx.session.ID)
+	assertCode(t, err, apperror.CodeRecordingNotFound)
+	status(domain.RecordFailed)
+	if _, err := recording.GrantUpload(ctx, fx.candidate, "candidate", fx.session.ID, validUpload); err != nil {
+		t.Fatalf("retry GrantUpload() error = %v", err)
+	}
+	store.putObject(store.lastKey(t), validUpload.Size)
+	if _, err := recording.CompleteUpload(ctx, fx.candidate, "candidate", fx.session.ID); err != nil {
+		t.Fatalf("retry CompleteUpload() error = %v", err)
+	}
+	status(domain.RecordReady)
+
+	intruder := s.user("candidate")
+	_, err = recording.Status(ctx, intruder, "candidate", fx.session.ID)
+	assertCode(t, err, apperror.CodeInterviewNotFound)
+}

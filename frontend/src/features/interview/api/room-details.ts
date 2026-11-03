@@ -1,11 +1,16 @@
 import { z } from "zod";
 import { apiClient } from "@/lib/api/client";
 
-/** Read-only room context for the saved avatar. No questions, turns or lifecycle mutations. */
+/** Read-only room context for the saved avatar. No questions, turns or lifecycle mutations.
+ * completed_at tells a recruitment room whether to record or to finish the upload. */
 export const roomDetailsSchema = z.object({
   id: z.uuid(),
   type: z.enum(["practice", "recruitment"]),
   avatar_id: z.uuid().nullable(),
+  completed_at: z.iso
+    .datetime({ offset: true })
+    .nullish()
+    .transform((value) => value ?? null),
 });
 export type RoomDetails = z.infer<typeof roomDetailsSchema>;
 const envelope = z.object({

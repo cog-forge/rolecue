@@ -13,6 +13,7 @@ import { useReducedMotion } from "motion/react";
 import { Dock, DockIcon } from "@/components/ui/dock";
 import { AIVoiceInput } from "@/components/ui/ai-voice-input";
 import { useMicrophone } from "../audio/use-microphone";
+import type { SessionRecorderSnapshot } from "../recording/session-recorder";
 import type { useCamera } from "../video/use-camera";
 import { RoomControlButton, roomGlass } from "./room-control-button";
 import { RoomBackgroundPicker } from "./room-background-picker";
@@ -30,6 +31,7 @@ export function RoomDock({
   onCameraViewChange,
   sceneReady,
   onReset,
+  recordingCamera,
 }: {
   microphone: ReturnType<typeof useMicrophone>;
   transcriptOpen: boolean;
@@ -41,8 +43,16 @@ export function RoomDock({
   onCameraViewChange: (view: CameraView) => void;
   sceneReady: boolean;
   onReset: () => void;
+  /** A recruitment room: the camera belongs to the recording and cannot be turned off. */
+  recordingCamera?: {
+    status: SessionRecorderSnapshot["status"];
+    /** The interview is in progress, so a stopped camera can be turned back on. */
+    live: boolean;
+    onResume: () => void;
+  };
 }) {
   const t = useTranslations("candidate.interviewRoom.controls");
+  const tRecording = useTranslations("candidate.interviewRoom.recording");
   const state = microphone.snapshot;
   const reduced = useReducedMotion();
   const active = state.stream !== null;
@@ -68,9 +78,10 @@ export function RoomDock({
   const micWarning =
     state.error?.message ??
     (state.readiness === "interrupted" ? t("micInterrupted") : null);
-  const warnings = [camera.snapshot.error, micWarning].filter(
-    (warning): warning is string => Boolean(warning),
-  );
+  const warnings = [
+    recordingCamera ? null : camera.snapshot.error,
+    micWarning,
+  ].filter((warning): warning is string => Boolean(warning));
   return (
     <div className="absolute bottom-[max(14px,env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-6">
       <Toolbar.Root asChild aria-label={t("toolbar")}>
@@ -90,29 +101,57 @@ export function RoomDock({
             />
           </DockIcon>
           <DockIcon>
-            <RoomControlButton
-              icon={
-                camera.snapshot.status === "requesting"
-                  ? LoaderCircle
-                  : camera.snapshot.stream
-                    ? Video
-                    : VideoOff
-              }
-              label={cameraLabel}
-              aria-pressed={camera.snapshot.stream !== null}
-              disabled={
-                camera.snapshot.requestPending &&
-                camera.snapshot.status !== "requesting"
-              }
-              onClick={() => {
-                if (
-                  camera.snapshot.status === "active" ||
+            {recordingCamera ? (
+              <RoomControlButton
+                icon={
+                  recordingCamera.status === "requesting"
+                    ? LoaderCircle
+                    : recordingCamera.status === "recording"
+                      ? Video
+                      : VideoOff
+                }
+                label={
+                  recordingCamera.status === "recording"
+                    ? tRecording("camera.recording")
+                    : recordingCamera.status === "requesting"
+                      ? tRecording("camera.waiting")
+                      : recordingCamera.live
+                        ? tRecording("camera.resume")
+                        : tRecording("indicatorStopped")
+                }
+                aria-pressed={recordingCamera.status === "recording"}
+                disabled={
+                  recordingCamera.status === "recording" ||
+                  recordingCamera.status === "requesting" ||
+                  !recordingCamera.live
+                }
+                onClick={recordingCamera.onResume}
+              />
+            ) : (
+              <RoomControlButton
+                icon={
                   camera.snapshot.status === "requesting"
-                )
-                  camera.stop();
-                else void camera.start();
-              }}
-            />
+                    ? LoaderCircle
+                    : camera.snapshot.stream
+                      ? Video
+                      : VideoOff
+                }
+                label={cameraLabel}
+                aria-pressed={camera.snapshot.stream !== null}
+                disabled={
+                  camera.snapshot.requestPending &&
+                  camera.snapshot.status !== "requesting"
+                }
+                onClick={() => {
+                  if (
+                    camera.snapshot.status === "active" ||
+                    camera.snapshot.status === "requesting"
+                  )
+                    camera.stop();
+                  else void camera.start();
+                }}
+              />
+            )}
           </DockIcon>
           <DockIcon>
             <RoomControlButton

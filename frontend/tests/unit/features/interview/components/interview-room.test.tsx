@@ -12,6 +12,7 @@ import { InterviewRoom } from "@/features/interview/components/interview-room";
 import type { AppLocale } from "@/lib/i18n/config";
 import { IntlWrapper } from "@tests/helpers/intl";
 import { installMediaFakes } from "../audio/media-fakes";
+import { installRecordingFakes } from "../recording/recording-fakes";
 import {
   FakeSocket,
   serverMessage,
@@ -393,6 +394,7 @@ it("offers a one-tap Play when autoplay is refused, then reports the turn once i
   expect(sent(socket, "turn.played")).toHaveLength(1);
 });
 it("never shows recruitment answers in the transcript", async () => {
+  installRecordingFakes();
   mocks.get.mockResolvedValue(ok({ ...details, type: "recruitment" }));
   mount();
   const socket = await connected();

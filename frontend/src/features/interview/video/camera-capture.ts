@@ -1,28 +1,52 @@
+export type CameraErrorCode =
+  | "insecure"
+  | "permission-denied"
+  | "no-device"
+  | "device-unavailable"
+  | "device-lost"
+  | "failed";
 export type CameraSnapshot = {
   status: "off" | "requesting" | "active" | "error";
   stream: MediaStream | null;
   requestPending: boolean;
   error: string | null;
+  /** The kind of error, for localized copy (the recruitment preflight). */
+  code: CameraErrorCode | null;
 };
 export const INITIAL_CAMERA_SNAPSHOT: CameraSnapshot = {
   status: "off",
   stream: null,
   requestPending: false,
   error: null,
+  code: null,
 };
 
-function cameraError(error: unknown) {
+function cameraError(error: unknown): { code: CameraErrorCode; error: string } {
   const name =
     typeof error === "object" && error !== null && "name" in error
       ? error.name
       : "";
   if (name === "NotAllowedError" || name === "SecurityError")
-    return "Camera permission is blocked. Allow camera access in your browser and try again.";
+    return {
+      code: "permission-denied",
+      error:
+        "Camera permission is blocked. Allow camera access in your browser and try again.",
+    };
   if (name === "NotFoundError")
-    return "No camera was found. Connect a camera and try again.";
+    return {
+      code: "no-device",
+      error: "No camera was found. Connect a camera and try again.",
+    };
   if (name === "NotReadableError")
-    return "Your camera is unavailable. Close other apps using it and try again.";
-  return "We could not open your camera. Check your device and try again.";
+    return {
+      code: "device-unavailable",
+      error:
+        "Your camera is unavailable. Close other apps using it and try again.",
+    };
+  return {
+    code: "failed",
+    error: "We could not open your camera. Check your device and try again.",
+  };
 }
 
 /** This controller owns only local video. It never opens audio or uploads a stream. */
@@ -46,7 +70,7 @@ export function createCameraCapture() {
   function stop() {
     generation++;
     release();
-    publish({ status: "off", stream: null, error: null });
+    publish({ status: "off", stream: null, error: null, code: null });
   }
   function start(): Promise<void> {
     if (disposed) return Promise.resolve();
@@ -55,13 +79,19 @@ export function createCameraCapture() {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       publish({
         status: "error",
+        code: "insecure",
         error:
           "Camera access requires HTTPS or localhost in a supported browser.",
       });
       return Promise.resolve();
     }
     const current = ++generation;
-    publish({ status: "requesting", requestPending: true, error: null });
+    publish({
+      status: "requesting",
+      requestPending: true,
+      error: null,
+      code: null,
+    });
     let request: Promise<MediaStream>;
     try {
       request = navigator.mediaDevices.getUserMedia({
@@ -88,15 +118,16 @@ export function createCameraCapture() {
           publish({
             status: "error",
             stream: null,
+            code: "device-lost",
             error: "Your camera disconnected. Reconnect it and try again.",
           });
         };
         video.addEventListener("ended", ended);
         detach = () => video.removeEventListener("ended", ended);
-        publish({ status: "active", stream, error: null });
+        publish({ status: "active", stream, error: null, code: null });
       } catch (error) {
         if (!disposed && current === generation)
-          publish({ status: "error", stream: null, error: cameraError(error) });
+          publish({ status: "error", stream: null, ...cameraError(error) });
       } finally {
         pending = null;
         publish({ requestPending: false });

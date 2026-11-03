@@ -399,6 +399,81 @@
         "on": "Mic on",
         "off": "Mic off"
       }
+    },
+    "recording": {
+      "indicator": "Recording",
+      "indicatorStopped": "Not recording",
+      "disclosure": {
+        "title": "This interview is recorded",
+        "what": "Your camera and microphone are recorded for the whole interview.",
+        "who": "Only the recruiter of this job posting can watch the recording.",
+        "why": "It is used as interview evidence for your application.",
+        "retention": "It is deleted 90 days after the hiring decision."
+      },
+      "gate": {
+        "title": "Turn on your camera to start",
+        "text": "The interview starts as soon as the recording is ready.",
+        "requesting": "Waiting for camera and microphone access…",
+        "retry": "Try again"
+      },
+      "error": {
+        "permission-denied": "Camera or microphone access is blocked. Allow both for this site in your browser settings, then try again.",
+        "no-device": "No camera or microphone was found. Connect one, then try again.",
+        "device-unavailable": "Your camera or microphone is in use by another app. Close that app, then try again.",
+        "device-lost": "Your camera or microphone disconnected. Reconnect it, then try again.",
+        "unsupported": "This browser can't record the interview. Use a recent version of Chrome, Edge, Firefox or Safari.",
+        "insecure": "Recording needs a secure connection. Open RoleCue over HTTPS.",
+        "failed": "The recording couldn't start. Try again."
+      },
+      "interrupted": {
+        "title": "Recording stopped",
+        "note": "What was recorded so far is kept. The interview continues.",
+        "resume": "Turn the camera back on"
+      },
+      "limit": "The recording reached its size limit. What was recorded is kept.",
+      "upload": {
+        "title": "Interview recording",
+        "checking": "Checking your recording…",
+        "preparing": "Preparing your recording…",
+        "uploading": "Uploading your recording… {percent}",
+        "retrying": "The upload was interrupted. Trying again…",
+        "processing": "Your recording is being processed.",
+        "ready": "Your recording was uploaded.",
+        "failed": "We couldn't upload your recording.",
+        "failedNote": "Check your connection and try again. The recording stays in this browser until it is uploaded.",
+        "rejected": "This recording can't be uploaded. The recruiter will see that it failed.",
+        "abandoned": "The recording was not uploaded and was deleted from this browser. The recruiter will see that it failed.",
+        "missing": "This browser doesn't have the recording. If you took the interview on another device, open this page there to upload it.",
+        "partial": "Only part of the recording could be kept after the page reloaded.",
+        "keepOpen": "Keep this page open until the upload finishes.",
+        "progressLabel": "Upload progress",
+        "retry": "Try the upload again",
+        "giveUp": "Stop trying",
+        "confirmTitle": "Stop uploading the recording?",
+        "confirmText": "It will be deleted from this browser, and the recruiter will see that the recording failed.",
+        "confirm": "Delete recording",
+        "keep": "Keep trying",
+        "viewReport": "View report",
+        "openingReport": "Opening your report…"
+      },
+      "preflight": {
+        "title": "Camera and recording",
+        "intro": "Recruitment interviews are recorded. Turn on your camera to check it before you start.",
+        "test": "Test camera",
+        "checking": "Waiting for camera access…",
+        "retry": "Try again",
+        "stop": "Turn camera off",
+        "ready": "Your camera is ready.",
+        "idle": "Your camera is off.",
+        "previewLabel": "Camera preview",
+        "startHint": "Turn on your camera to start. This interview is recorded.",
+        "releaseNote": "Stop the checks or leave this page to release your microphone and camera."
+      },
+      "camera": {
+        "recording": "Camera on for the recording",
+        "resume": "Turn the camera back on",
+        "waiting": "Waiting for the camera"
+      }
     }
   },
   "avatars": {

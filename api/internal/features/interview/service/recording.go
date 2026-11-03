@@ -49,8 +49,10 @@ type RecordingStore interface {
 // Recruiter read access to the recording and the transcript. The recording is evidence for the Recruiter,
 // so practice sessions never have one.
 //
-// Retention, consent and any Admin access to recordings are open product gates. This service enforces
-// none of them and does not delete objects.
+// Retention (decided 2026-11-03): a recording is kept for 90 days after the Application's final decision,
+// then deleted, on the normal storage provider. Deletion needs the System Handler job runner (KAN-174) and
+// is a separate task, so this service does not delete objects yet. Admin access to recordings is still
+// an open product gate.
 type RecordingService struct {
 	repository RecordingRepository
 	store      RecordingStore
@@ -163,6 +165,22 @@ func (s *RecordingService) CompleteUpload(ctx context.Context, candidateID uuid.
 	}
 	logRecordingStatus(ctx, interviewID, candidateID, state.RecordStatus, domain.RecordReady, zap.Int64("bytes", object.Size))
 	return domain.RecordingStatus{RecordStatus: domain.RecordReady}, nil
+}
+
+// Status returns the Candidate's view of the recording of their recruitment interview: only the state,
+// never the object or a link. The room reads it after a reload to show the real upload state.
+func (s *RecordingService) Status(ctx context.Context, candidateID uuid.UUID, role string, interviewID uuid.UUID) (domain.RecordingStatus, error) {
+	if role != candidateRole {
+		return domain.RecordingStatus{}, apperror.New(apperror.CodeForbidden, "only candidates can read their recording status")
+	}
+	state, err := s.repository.GetCandidateRecording(ctx, candidateID, interviewID)
+	if err != nil {
+		return domain.RecordingStatus{}, err
+	}
+	if state.Type != domain.TypeRecruitment {
+		return domain.RecordingStatus{}, domain.ErrRecordingNotAllowed
+	}
+	return domain.RecordingStatus{RecordStatus: state.RecordStatus}, nil
 }
 
 // Recording returns the Recruiter's view of the recording of an Application. The read link is issued

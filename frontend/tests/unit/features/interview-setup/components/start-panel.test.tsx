@@ -327,6 +327,39 @@ describe("a recruitment interview", () => {
     });
   });
 
+  it("cannot start, or resume, until the camera for the recording is live", async () => {
+    const client = new QueryClient();
+    const panel = (cameraReady: boolean, plan: StartPlan) => (
+      <QueryClientProvider client={client}>
+        <StartPanel
+          plan={plan}
+          readiness="ready"
+          cameraReady={cameraReady}
+          links={{ applicationId }}
+          returnPath="/interviews/new/preflight"
+        />
+      </QueryClientProvider>
+    );
+    const view = renderWithIntl(panel(false, recruitment));
+    expect(startButton()).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Turn on your camera to start. This interview is recorded.",
+      ),
+    ).toBeInTheDocument();
+    view.rerender(panel(true, recruitment));
+    expect(startButton()).toBeEnabled();
+    const resume: StartPlan = {
+      kind: "resume",
+      type: "recruitment",
+      sessionId,
+      callout: null,
+    };
+    view.rerender(panel(false, resume));
+    expect(startButton()).toBeDisabled();
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
   it("explains a full posting and leads back to the application", async () => {
     mocks.post.mockRejectedValue(apiFailure(409, "INTERVIEW_CAPACITY_FULL"));
     renderPanel(recruitment);

@@ -16,6 +16,7 @@ it("reads only room identity and avatar, discarding legacy answer/progress paylo
         turns: [{ answer: "Private answer" }],
         answered_count: 2,
         question_count: 8,
+        completed_at: "2026-11-03T08:20:00Z",
       },
     },
   });
@@ -24,6 +25,7 @@ it("reads only room identity and avatar, discarding legacy answer/progress paylo
     id,
     type: "recruitment",
     avatar_id: null,
+    completed_at: "2026-11-03T08:20:00Z",
   });
   expect(get).toHaveBeenCalledExactlyOnceWith(`/interviews/${id}`, {
     signal: abort.signal,

@@ -24,24 +24,28 @@ const endCopy: Record<
   "gave-up": "gaveUp",
 };
 
-/** Connection, pause, completion and end banners, plus the one-tap Play after an autoplay refusal. */
+/** Connection, pause, completion and end banners, plus the one-tap Play after an autoplay refusal.
+ * A recruitment room passes `completion`: its recording upload replaces the report banner. */
 export function RoomStatus({
   view,
   interviewId,
   playback,
   onPlay,
   onRetry,
+  completion,
 }: {
   view: InterviewSessionView;
   interviewId: string;
   playback: PlaybackStatus;
   onPlay: () => void;
   onRetry: () => void;
+  completion?: ReactNode;
 }) {
   const t = useTranslations("candidate.interviewRoom");
   const end = view.end ? endCopy[view.end.reason] : null;
   const reportHref = routes.reports.detail(interviewId);
 
+  if (view.phase === "COMPLETED" && completion) return completion;
   if (view.phase === "COMPLETED")
     return (
       <Banner role="status" title={t("status.completedTitle")}>
@@ -112,7 +116,7 @@ export function RoomStatus({
   );
 }
 
-function Banner({
+export function Banner({
   role,
   title,
   children,
