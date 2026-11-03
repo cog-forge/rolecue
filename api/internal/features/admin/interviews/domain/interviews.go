@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"time"
+
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -87,4 +89,8 @@ type InterviewDetail struct {
 	Voice         *AssetRef       `json:"voice"`
 	QuestionCount int64           `json:"question_count"`
 	TurnCount     int64           `json:"turn_count"`
+	// CompletedAt is null while the session runs. EndReason is how it ended (completed, left or
+	// abandoned); null while it runs and for sessions ended before the reason was recorded.
+	CompletedAt *time.Time `json:"completed_at"`
+	EndReason   *string    `json:"end_reason" enums:"completed,left,abandoned"`
 }

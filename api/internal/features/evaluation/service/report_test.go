@@ -179,3 +179,23 @@ func TestReportShowsFollowUpsWithTheirCoreQuestion(t *testing.T) {
 		t.Fatalf("follow-up = %+v", got)
 	}
 }
+
+// A session the Candidate left early reports how it ended and how many core questions it had, so the
+// report can show the unanswered ones; a recruitment Candidate's limited view carries both too.
+func TestReportCarriesTheEndReasonAndQuestionCount(t *testing.T) {
+	left := "left"
+	practice := evaluatedRecord(completedPracticeRecord(), 60, "Partial answers.")
+	practice.EndReason, practice.QuestionCount = &left, 8
+	report := reportFor(t, evaluatedRepository(practice), scoringCandidateID, candidateRole)
+	if report.EndReason == nil || *report.EndReason != "left" || report.QuestionCount != 8 || len(report.Questions) != 1 {
+		t.Fatalf("end_reason = %v, question_count = %d, questions = %d", report.EndReason, report.QuestionCount, len(report.Questions))
+	}
+
+	abandoned := "abandoned"
+	recruitment := completedRecruitmentRecord()
+	recruitment.EndReason, recruitment.QuestionCount = &abandoned, 5
+	limited := reportFor(t, &fakeInterviewRepository{record: recruitment}, scoringCandidateID, candidateRole)
+	if limited.EndReason == nil || *limited.EndReason != "abandoned" || limited.QuestionCount != 5 || limited.Questions != nil {
+		t.Fatalf("limited view = %+v", limited)
+	}
+}

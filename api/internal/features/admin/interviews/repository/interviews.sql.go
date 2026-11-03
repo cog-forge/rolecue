@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countAdminInterviews = `-- name: CountAdminInterviews :one
@@ -53,7 +54,9 @@ SELECT i.id,
        vo.id AS voice_id,
        vo.name AS voice_name,
        (SELECT count(*) FROM public.interview_questions iq WHERE iq.interview_id = i.id) AS question_count,
-       (SELECT count(*) FROM public.conversation_turns ct WHERE ct.interview_id = i.id) AS turn_count
+       (SELECT count(*) FROM public.conversation_turns ct WHERE ct.interview_id = i.id) AS turn_count,
+       i.completed_at,
+       i.end_reason
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -84,6 +87,8 @@ type GetAdminInterviewRow struct {
 	VoiceName        *string
 	QuestionCount    int64
 	TurnCount        int64
+	CompletedAt      pgtype.Timestamptz
+	EndReason        *string
 }
 
 // Operational detail for one interview. Only identifiers, names, scores and counts are selected;
@@ -111,6 +116,8 @@ func (q *Queries) GetAdminInterview(ctx context.Context, id uuid.UUID) (GetAdmin
 		&i.VoiceName,
 		&i.QuestionCount,
 		&i.TurnCount,
+		&i.CompletedAt,
+		&i.EndReason,
 	)
 	return i, err
 }

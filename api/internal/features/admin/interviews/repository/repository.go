@@ -3,11 +3,13 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/interviews/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -88,7 +90,18 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.InterviewDet
 		Voice:         namedRef(row.VoiceID, row.VoiceName),
 		QuestionCount: row.QuestionCount,
 		TurnCount:     row.TurnCount,
+		CompletedAt:   completedAt(row.CompletedAt),
+		EndReason:     row.EndReason,
 	}, nil
+}
+
+// completedAt is nil while the interview runs.
+func completedAt(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	t := value.Time
+	return &t
 }
 
 // namedRef is nil when the interview has no avatar or voice.

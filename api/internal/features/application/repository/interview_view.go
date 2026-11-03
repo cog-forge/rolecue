@@ -8,7 +8,7 @@ import (
 
 // recruiterInterview maps the interview columns of Application Detail. A nil id means the left join
 // found no session, so the field is null.
-func recruiterInterview(id *uuid.UUID, startedAt, completedAt pgtype.Timestamptz, evaluation *string, score *int32, record *string) *domain.InterviewSummary {
+func recruiterInterview(id *uuid.UUID, startedAt, completedAt pgtype.Timestamptz, evaluation *string, score *int32, record, endReason *string) *domain.InterviewSummary {
 	if id == nil {
 		return nil
 	}
@@ -16,7 +16,7 @@ func recruiterInterview(id *uuid.UUID, startedAt, completedAt pgtype.Timestamptz
 	return &domain.InterviewSummary{
 		ID: *id, StartedAt: startedAt.Time, CompletedAt: completed,
 		Status: domain.InterviewStatus(completed, derefString(evaluation)), Score: score,
-		RecordStatus: derefString(record),
+		RecordStatus: derefString(record), EndReason: endReason,
 	}
 }
 
