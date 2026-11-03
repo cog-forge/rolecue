@@ -50,9 +50,8 @@ type RecordingStore interface {
 // so practice sessions never have one.
 //
 // Retention (decided 2026-11-03): a recording is kept for 90 days after the Application's final decision,
-// then deleted, on the normal storage provider. Deletion needs the System Handler job runner (KAN-174) and
-// is a separate task, so this service does not delete objects yet. Admin access to recordings is still
-// an open product gate.
+// then deleted, on the normal storage provider, by the System Handler (RecordingUpkeep, KAN-272), which
+// also fails recordings that never arrived. Admin access to recordings is still an open product gate.
 type RecordingService struct {
 	repository RecordingRepository
 	store      RecordingStore

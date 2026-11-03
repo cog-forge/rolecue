@@ -9,7 +9,84 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const clearDeletedRecording = `-- name: ClearDeletedRecording :execrows
+UPDATE public.interviews
+SET record_path = NULL, record_status = 'deleted'
+WHERE id = $1 AND type = 'recruitment' AND record_path = $2
+`
+
+type ClearDeletedRecordingParams struct {
+	ID         uuid.UUID
+	RecordPath *string
+}
+
+// Clears a purged recording: the key is gone and the status says it was deleted after retention. The key
+// must still be the one whose object was deleted.
+func (q *Queries) ClearDeletedRecording(ctx context.Context, arg ClearDeletedRecordingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearDeletedRecording, arg.ID, arg.RecordPath)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const failStaleRecordings = `-- name: FailStaleRecordings :many
+
+WITH stale AS (
+    SELECT i.id, i.record_status
+    FROM public.interviews i
+    WHERE i.type = 'recruitment'
+      AND i.completed_at IS NOT NULL
+      AND ((i.record_status = 'none' AND i.completed_at < $1::timestamptz)
+           OR (i.record_status = 'uploading' AND i.completed_at < $2::timestamptz))
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE public.interviews i
+SET record_status = 'failed'
+FROM stale
+WHERE i.id = stale.id AND i.record_status = stale.record_status
+RETURNING i.id, stale.record_status AS previous_status
+`
+
+type FailStaleRecordingsParams struct {
+	NoneBefore      pgtype.Timestamptz
+	UploadingBefore pgtype.Timestamptz
+}
+
+type FailStaleRecordingsRow struct {
+	ID             uuid.UUID
+	PreviousStatus string
+}
+
+// Recording upkeep of the System Handler (KAN-272). Practice interviews never have a recording and are
+// never touched: every query below is restricted to recruitment interviews.
+// Marks failed the recording of a completed recruitment interview that never started uploading
+// (record_status none since before @none_before) or whose upload never finished (uploading since before
+// @uploading_before, past the upload grant's lifetime). Both are measured from the completion: there is no
+// column for the time of the grant. A failed recording can still take a new upload grant, so a late
+// upload from the Candidate's browser is not lost. The previous status is returned for the log.
+func (q *Queries) FailStaleRecordings(ctx context.Context, arg FailStaleRecordingsParams) ([]FailStaleRecordingsRow, error) {
+	rows, err := q.db.Query(ctx, failStaleRecordings, arg.NoneBefore, arg.UploadingBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FailStaleRecordingsRow
+	for rows.Next() {
+		var i FailStaleRecordingsRow
+		if err := rows.Scan(&i.ID, &i.PreviousStatus); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const getApplicationRecordingState = `-- name: GetApplicationRecordingState :one
 SELECT i.id, i.type::text AS type, i.record_status, i.record_path,
@@ -77,6 +154,52 @@ func (q *Queries) GetCandidateRecordingState(ctx context.Context, arg GetCandida
 		&i.Completed,
 	)
 	return i, err
+}
+
+const listExpiredRecordings = `-- name: ListExpiredRecordings :many
+SELECT i.id, i.record_path::text AS record_path
+FROM public.interviews i
+JOIN public.applications a ON a.id = i.application_id
+WHERE i.type = 'recruitment'
+  AND i.record_path IS NOT NULL
+  AND a.status IN ('approved', 'rejected')
+  AND a.updated_at < $1::timestamptz
+ORDER BY a.updated_at, i.id
+LIMIT $2
+`
+
+type ListExpiredRecordingsParams struct {
+	DecidedBefore pgtype.Timestamptz
+	BatchSize     int32
+}
+
+type ListExpiredRecordingsRow struct {
+	ID         uuid.UUID
+	RecordPath string
+}
+
+// Recordings past retention: a stored object of a recruitment interview whose Application reached its
+// final decision before @decided_before. applications has no decision timestamp; updated_at is the time
+// of the final decision because a terminal Application (approved or rejected) is never updated again.
+// Undecided Applications are never listed.
+func (q *Queries) ListExpiredRecordings(ctx context.Context, arg ListExpiredRecordingsParams) ([]ListExpiredRecordingsRow, error) {
+	rows, err := q.db.Query(ctx, listExpiredRecordings, arg.DecidedBefore, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListExpiredRecordingsRow
+	for rows.Next() {
+		var i ListExpiredRecordingsRow
+		if err := rows.Scan(&i.ID, &i.RecordPath); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRecruitmentTurns = `-- name: ListRecruitmentTurns :many

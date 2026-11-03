@@ -15,6 +15,23 @@ const (
 	RecordingReadTTL         = 5 * time.Minute
 )
 
+// RecordingRetention is how long a recording is kept after its Application's final decision (Decision 18,
+// 2026-11-03); the System Handler then deletes it. It is a product rule, not configuration.
+const RecordingRetention = 90 * 24 * time.Hour
+
+// RecordingChange is one recording the System Handler moved to another status, for the log.
+type RecordingChange struct {
+	InterviewID uuid.UUID
+	From        RecordStatus
+	To          RecordStatus
+}
+
+// StoredRecording is a recording object past retention. Key never leaves the service and is never logged.
+type StoredRecording struct {
+	InterviewID uuid.UUID
+	Key         string
+}
+
 // recordingContentTypes is the closed list of media types a recording may be uploaded as.
 var recordingContentTypes = map[string]bool{
 	"video/webm": true,
@@ -46,13 +63,13 @@ type RecordingUploadGrant struct {
 
 // RecordingStatus is the Candidate's view after finalization: only the state, never the object.
 type RecordingStatus struct {
-	RecordStatus RecordStatus `json:"record_status" enums:"none,uploading,processing,ready,failed"`
+	RecordStatus RecordStatus `json:"record_status" enums:"none,uploading,processing,ready,failed,deleted"`
 }
 
 // RecruiterRecording is the Recruiter's evidence link. URL and ExpiresAt are set only when the
 // recording is ready; the link is valid for RecordingReadTTL.
 type RecruiterRecording struct {
-	RecordStatus RecordStatus `json:"record_status" enums:"none,uploading,processing,ready,failed"`
+	RecordStatus RecordStatus `json:"record_status" enums:"none,uploading,processing,ready,failed,deleted"`
 	URL          *string      `json:"url"`
 	ExpiresAt    *time.Time   `json:"expires_at"`
 }

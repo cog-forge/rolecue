@@ -52,3 +52,49 @@ SELECT position,
 FROM public.conversation_turns
 WHERE interview_id = @interview_id
 ORDER BY position;
+
+-- Recording upkeep of the System Handler (KAN-272). Practice interviews never have a recording and are
+-- never touched: every query below is restricted to recruitment interviews.
+
+-- Marks failed the recording of a completed recruitment interview that never started uploading
+-- (record_status none since before @none_before) or whose upload never finished (uploading since before
+-- @uploading_before, past the upload grant's lifetime). Both are measured from the completion: there is no
+-- column for the time of the grant. A failed recording can still take a new upload grant, so a late
+-- upload from the Candidate's browser is not lost. The previous status is returned for the log.
+-- name: FailStaleRecordings :many
+WITH stale AS (
+    SELECT i.id, i.record_status
+    FROM public.interviews i
+    WHERE i.type = 'recruitment'
+      AND i.completed_at IS NOT NULL
+      AND ((i.record_status = 'none' AND i.completed_at < @none_before::timestamptz)
+           OR (i.record_status = 'uploading' AND i.completed_at < @uploading_before::timestamptz))
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE public.interviews i
+SET record_status = 'failed'
+FROM stale
+WHERE i.id = stale.id AND i.record_status = stale.record_status
+RETURNING i.id, stale.record_status AS previous_status;
+
+-- Recordings past retention: a stored object of a recruitment interview whose Application reached its
+-- final decision before @decided_before. applications has no decision timestamp; updated_at is the time
+-- of the final decision because a terminal Application (approved or rejected) is never updated again.
+-- Undecided Applications are never listed.
+-- name: ListExpiredRecordings :many
+SELECT i.id, i.record_path::text AS record_path
+FROM public.interviews i
+JOIN public.applications a ON a.id = i.application_id
+WHERE i.type = 'recruitment'
+  AND i.record_path IS NOT NULL
+  AND a.status IN ('approved', 'rejected')
+  AND a.updated_at < @decided_before::timestamptz
+ORDER BY a.updated_at, i.id
+LIMIT @batch_size;
+
+-- Clears a purged recording: the key is gone and the status says it was deleted after retention. The key
+-- must still be the one whose object was deleted.
+-- name: ClearDeletedRecording :execrows
+UPDATE public.interviews
+SET record_path = NULL, record_status = 'deleted'
+WHERE id = @id AND type = 'recruitment' AND record_path = @record_path;
