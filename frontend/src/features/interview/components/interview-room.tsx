@@ -185,14 +185,23 @@ function LiveRoom({
         <header className="absolute top-[max(16px,env(safe-area-inset-top))] right-4 left-4 z-20 flex items-start justify-between gap-3 md:top-6 md:right-6 md:left-6">
           <div className="flex h-10 items-center gap-2 rounded-full border border-white/15 bg-neutral-900/55 px-4 text-xs shadow-lg backdrop-blur-xl">
             <span>{t(`type.${sessionType ?? "unknown"}`)}</span>
-            {view.position !== null && view.questionCount !== null && (
+            {view.questionNumber !== null && view.questionCount !== null && (
               <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/80 tabular-nums">
                 {t("progress", {
-                  position: view.position,
+                  position: view.questionNumber,
                   count: view.questionCount,
                 })}
               </span>
             )}
+            {view.turn?.kind === "follow_up" &&
+              view.turn.position === view.position && (
+                <span
+                  data-testid="follow-up-label"
+                  className="rounded-full border border-white/25 bg-white/10 px-2 py-0.5 text-[10px] text-white"
+                >
+                  {t("followUp.label")}
+                </span>
+              )}
             {scripted && (
               <span className="rounded-full border border-white/15 px-2 py-0.5 text-[10px] text-white/65">
                 {t("preview")}

@@ -9,7 +9,8 @@ export type ClientFrame = {
   type: string;
   data: Record<string, unknown>;
 };
-type Question = { text: string; audio?: string };
+/** A core question; `followUp` adds one follow-up turn after it (KAN-56). */
+type Question = { text: string; audio?: string; followUp?: string };
 
 /** A short silent WAV, base64. Real enough for the browser to play and fire `ended`. */
 export function silentWav(seconds = 0.4, rate = 8000) {
@@ -45,10 +46,26 @@ export async function mockLiveServer(
     dropWhenListeningAt?: number;
   },
 ) {
+  // The conversation: each core question, then its follow-up when it has one.
+  const turns = questions.flatMap((question, index) => [
+    { ...question, kind: "core", questionNumber: index + 1 },
+    ...(question.followUp
+      ? [
+          {
+            text: question.followUp,
+            audio: question.audio,
+            kind: "follow_up",
+            questionNumber: index + 1,
+          },
+        ]
+      : []),
+  ]);
   const server = {
     connections: 0,
     frames: [] as ClientFrame[][],
     position: 1,
+    // The turn being asked; it runs ahead of `position` when a follow-up was dropped on reconnect.
+    index: 0,
     completed: false,
   };
   let seq = 0;
@@ -85,10 +102,11 @@ export async function mockLiveServer(
       );
     };
     const turn = () => {
-      const question = questions[server.position - 1];
+      const question = turns[server.index];
       send("interviewer.turn", {
         position: server.position,
-        kind: "core",
+        question_number: question.questionNumber,
+        kind: question.kind,
         question_count: questions.length,
         text: question.text,
         audio: question.audio
@@ -115,7 +133,7 @@ export async function mockLiveServer(
         id,
       );
       setState("transitioning");
-      if (server.position === questions.length) {
+      if (server.index === turns.length - 1) {
         server.completed = true;
         setState("completed");
         send("session.completed", { evaluation_status: "pending" });
@@ -123,9 +141,18 @@ export async function mockLiveServer(
         return;
       }
       server.position++;
+      server.index++;
       setState("interviewer_speaking");
       turn();
     };
+    // Like the engine, a follow-up that was never answered is dropped on reconnect (§4.2): the next
+    // core question takes its position.
+    if (
+      server.connections > 1 &&
+      turns[server.index].kind === "follow_up" &&
+      server.index < turns.length - 1
+    )
+      server.index++;
     send("session.sync", {
       session_id: sessionId,
       session_type: sessionType,
@@ -133,6 +160,7 @@ export async function mockLiveServer(
       question_count: questions.length,
       answered_count: server.position - 1,
       position: server.position,
+      question_number: turns[server.index].questionNumber,
       resumed: server.connections > 1,
       evaluation_status: null,
       server_time: new Date().toISOString(),

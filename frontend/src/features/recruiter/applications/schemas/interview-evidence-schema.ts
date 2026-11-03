@@ -27,6 +27,8 @@ export const interviewReportSchema = z.object({
     .array(
       z.object({
         position: z.number().int(),
+        question_number: z.number().int(),
+        kind: z.enum(["core", "follow_up"]),
         question: z.string(),
         answer: z.string().nullable(),
         feedback: z.string().nullable(),
@@ -55,11 +57,14 @@ export const recordingEnvelopeSchema = z.object({
   data: recordingSchema,
 });
 
-// GET .../transcript: one entry per question of a completed recruitment interview.
+// GET .../transcript: one entry per question of a completed recruitment interview. A follow-up
+// (`kind: "follow_up"`) shares the `question_number` of the core question it probes.
 export const transcriptSchema = z.object({
   turns: z.array(
     z.object({
       position: z.number().int(),
+      question_number: z.number().int(),
+      kind: z.enum(["core", "follow_up"]),
       question: z.string(),
       answer: z.string().nullable(),
     }),

@@ -12,6 +12,7 @@ import {
   getApplicationTranscript,
 } from "../api/applications";
 import type { ApplicationInterview } from "../schemas/application-detail-schema";
+import { groupByQuestion } from "@/features/report/utils/question-groups";
 import { formatDeadline } from "../utils/application-dates";
 import { useApplicationErrorMessage } from "../utils/application-errors";
 import { useFormatters } from "@/lib/i18n/use-formatters";
@@ -207,17 +208,34 @@ function TranscriptBody({
     return <p className="text-sm text-muted-foreground">{t("noQuestions")}</p>;
   return (
     <ol className="space-y-4 text-sm">
-      {turns.map((turn) => (
-        <li key={turn.position} className="space-y-1 border-l-2 pl-4">
+      {groupByQuestion(turns).map(({ core, followUps }) => (
+        <li key={core.position} className="space-y-1 border-l-2 pl-4">
           <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
-            {t("question", { position: turn.position })}
+            {t("question", { position: core.question_number })}
           </p>
           <p className="font-medium [overflow-wrap:anywhere]">
-            {turn.question}
+            {core.question}
           </p>
           <p className="text-muted-foreground [overflow-wrap:anywhere]">
-            {turn.answer ?? t("noAnswer")}
+            {core.answer ?? t("noAnswer")}
           </p>
+          {followUps.length > 0 && (
+            <ol className="mt-3 space-y-3 pl-4">
+              {followUps.map((turn) => (
+                <li key={turn.position} className="space-y-1">
+                  <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+                    {t("followUp")}
+                  </p>
+                  <p className="font-medium [overflow-wrap:anywhere]">
+                    {turn.question}
+                  </p>
+                  <p className="text-muted-foreground [overflow-wrap:anywhere]">
+                    {turn.answer ?? t("noAnswer")}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
         </li>
       ))}
     </ol>

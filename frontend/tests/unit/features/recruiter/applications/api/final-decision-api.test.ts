@@ -99,7 +99,15 @@ describe("interview evidence api", () => {
       data: {
         success: true,
         data: {
-          turns: [{ position: 1, question: "Why Go?", answer: "Concurrency." }],
+          turns: [
+            {
+              position: 1,
+              question_number: 1,
+              kind: "core",
+              question: "Why Go?",
+              answer: "Concurrency.",
+            },
+          ],
         },
       },
     });

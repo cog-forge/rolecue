@@ -26,6 +26,8 @@ const report = {
   questions: [
     {
       position: 1,
+      question_number: 1,
+      kind: "core",
       question: "Tell us about a service you built.",
       answer: "I built a queue worker.",
       feedback: "Clear ownership.",
@@ -140,7 +142,15 @@ describe("recording and transcript schemas", () => {
   it("accepts a transcript turn with no answer", () => {
     const parsed = transcriptEnvelopeSchema.parse(
       envelope({
-        turns: [{ position: 1, question: "How do you test it?", answer: null }],
+        turns: [
+          {
+            position: 1,
+            question_number: 1,
+            kind: "core",
+            question: "How do you test it?",
+            answer: null,
+          },
+        ],
       }),
     );
     expect(parsed.data.turns[0]?.answer).toBeNull();

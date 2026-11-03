@@ -597,6 +597,7 @@
       "transcriptFailed": "Không thể tải bản ghi lời thoại. Hãy thử lại.",
       "noQuestions": "Chưa có câu hỏi nào được ghi lại.",
       "question": "Câu hỏi {position}",
+      "followUp": "Câu hỏi thêm",
       "noAnswer": "Chưa có câu trả lời nào được ghi lại."
     }
   },

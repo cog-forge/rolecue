@@ -55,12 +55,16 @@ function report(over: Record<string, unknown>) {
     questions: [
       {
         position: 1,
+        question_number: 1,
+        kind: "core",
         question: "Describe a hard bug you fixed.",
         answer: "A race in the cache invalidation.",
         feedback: "Good root-cause analysis.",
       },
       {
         position: 2,
+        question_number: 2,
+        kind: "core",
         question: "How would you scale a queue?",
         answer: null,
         feedback: null,

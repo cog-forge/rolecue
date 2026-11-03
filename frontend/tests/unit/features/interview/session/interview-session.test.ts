@@ -121,7 +121,7 @@ describe("server-driven phases", () => {
     expect(t.view().phase).toBe("INTERVIEWER_SPEAKING");
     expect(t.playback.play).toHaveBeenCalledTimes(1);
     expect(t.view().transcript).toEqual([
-      { id: "question-1", speaker: "interviewer", text: "Question 1?" },
+      { id: "question-1:core:1", speaker: "interviewer", text: "Question 1?" },
     ]);
     expect(t.transport.sent).toEqual([]);
     t.done[0]();
@@ -166,9 +166,84 @@ describe("server-driven phases", () => {
     t.transport.emit("interviewer.turn", textTurn(2));
     expect(t.playback.play).toHaveBeenCalledTimes(2);
     expect(t.view().transcript.map((entry) => entry.id)).toEqual([
-      "question-1",
+      "question-1:core:1",
       "answer-1",
-      "question-2",
+      "question-2:core:2",
+    ]);
+  });
+
+  it("answers a follow-up at its own position while progress stays on its core question", () => {
+    t.toListening();
+    t.session.submitText("Token bucket");
+    t.transport.emit(
+      "answer.accepted",
+      { position: 1, answered_count: 1, duplicate: false },
+      "id-2",
+    );
+    t.transport.emit("state", { state: "transitioning", position: null });
+    t.transport.emit("state", { state: "interviewer_speaking", position: 2 });
+    t.transport.emit(
+      "interviewer.turn",
+      textTurn(2, { kind: "follow_up", question_number: 1 }),
+    );
+    expect(t.view()).toMatchObject({ position: 2, questionNumber: 1 });
+    expect(t.view().turn?.kind).toBe("follow_up");
+    t.done.at(-1)?.();
+    t.transport.emit("state", { state: "listening", position: 2 });
+    expect(t.session.submitText("Because of bursts")).toBe(true);
+    expect(sentOf(t.transport.sent, "answer.text").at(-1)).toMatchObject({
+      data: { position: 2, text: "Because of bursts" },
+    });
+  });
+
+  it("drops a follow-up lost in a reconnect and plays the core question that takes its position", () => {
+    t.toListening();
+    t.session.submitText("Token bucket");
+    t.transport.emit(
+      "answer.accepted",
+      { position: 1, answered_count: 1, duplicate: false },
+      "id-2",
+    );
+    t.transport.emit(
+      "interviewer.turn",
+      textTurn(2, {
+        kind: "follow_up",
+        question_number: 1,
+        text: "Why a bucket?",
+      }),
+    );
+    t.done.at(-1)?.();
+    t.transport.emit("state", { state: "listening", position: 2 });
+    // The follow-up answer goes out, then the socket drops before it is stored.
+    expect(t.session.submitText("Because of bursts")).toBe(true);
+    t.transport.status("reconnecting");
+    t.transport.status("connected");
+    t.transport.emit(
+      "session.sync",
+      syncData({ position: 2, question_number: 2, answered_count: 1 }),
+    );
+    const plays = t.playback.play.mock.calls.length;
+    t.transport.emit(
+      "interviewer.turn",
+      textTurn(2, { question_number: 2, text: "Question 2?" }),
+    );
+    // Same position, another turn: it is played, not skipped as already heard, and the held answer is
+    // not sent to it.
+    expect(t.playback.play).toHaveBeenCalledTimes(plays + 1);
+    expect(t.view()).toMatchObject({ questionNumber: 2, sending: false });
+    t.done.at(-1)?.();
+    t.transport.emit("state", { state: "listening", position: 2 });
+    expect(
+      t.transport.sent.filter(
+        (message) =>
+          message.type === "answer.text" &&
+          message.data.text === "Because of bursts",
+      ),
+    ).toHaveLength(1);
+    expect(t.view().transcript.map((entry) => entry.text)).toEqual([
+      "Question 1?",
+      "Why a bucket?",
+      "Question 2?",
     ]);
   });
 

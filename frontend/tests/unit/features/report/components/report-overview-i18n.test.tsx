@@ -37,11 +37,20 @@ const report = (over: Record<string, unknown> = {}) => ({
   questions: [
     {
       position: 1,
+      question_number: 1,
+      kind: "core",
       question: "Tell me about a project.",
       answer: "I built an API.",
       feedback: "Name the impact.",
     },
-    { position: 2, question: "Why this role?", answer: null, feedback: null },
+    {
+      position: 2,
+      question_number: 2,
+      kind: "core",
+      question: "Why this role?",
+      answer: null,
+      feedback: null,
+    },
   ],
   ...over,
 });

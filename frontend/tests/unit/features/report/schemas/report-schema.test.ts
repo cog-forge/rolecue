@@ -19,6 +19,8 @@ const completedPractice: Report = {
   questions: [
     {
       position: 1,
+      question_number: 1,
+      kind: "core",
       question: "Tell me about a project.",
       answer: "I built an API.",
       feedback: "Name the impact.",

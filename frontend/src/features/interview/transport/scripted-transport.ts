@@ -69,6 +69,7 @@ export function createScriptedTransport({
       type: "interviewer.turn",
       data: {
         position,
+        question_number: position,
         kind: "core",
         question_count: scriptedQuestions.length,
         text: scriptedQuestions[position - 1],
@@ -135,6 +136,7 @@ export function createScriptedTransport({
             question_count: scriptedQuestions.length,
             answered_count: position - 1,
             position,
+            question_number: position,
             resumed: seq > 0,
             evaluation_status: null,
             server_time: new Date().toISOString(),

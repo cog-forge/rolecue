@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { ParseResult } from "./interview-transport";
 
-/** Live interview protocol v1. The contract is docs/interview-ws-protocol.md (KAN-52); nothing here is invented. */
+/** Live interview protocol v1. The contract is docs/interview-ws-protocol.md (KAN-52, follow-ups KAN-56); nothing here is invented. */
 export const INTERVIEW_SUBPROTOCOL = "rolecue.interview.v1";
 export const PROTOCOL_VERSION = 1;
 /** §6: one decoded audio chunk. */
@@ -37,6 +37,7 @@ const sessionSyncSchema = z.object({
   question_count: count,
   answered_count: count,
   position: position.nullable(),
+  question_number: position.nullable(),
   resumed: z.boolean(),
   evaluation_status: evaluationStatusSchema.nullable(),
   server_time: z.string(),
@@ -45,8 +46,11 @@ const stateChangeSchema = z.object({
   state: serverStateSchema,
   position: position.nullable(),
 });
+// §4.1: `position` is the turn's place in the conversation (answers name it); `question_number` is the
+// core question it belongs to, which a follow-up shares. Progress counts core questions.
 export const interviewerTurnSchema = z.object({
   position,
+  question_number: position,
   kind: z.enum(["core", "follow_up"]),
   question_count: count,
   text: z.string(),
