@@ -14,6 +14,8 @@ const completedPractice: Report = {
   overall_score: 72,
   started_at: "2026-10-20T08:00:00Z",
   completed_at: "2026-10-20T08:30:00Z",
+  end_reason: "completed",
+  question_count: 1,
   summary: "Clear structure, thin examples.",
   breakdown: [{ metric_id: METRIC, name: "Communication", score: 80 }],
   questions: [
@@ -34,6 +36,23 @@ describe("reportEnvelopeSchema", () => {
   it("accepts a completed practice report", () => {
     const parsed = reportEnvelopeSchema.parse(envelope(completedPractice));
     expect(parsed.data.breakdown?.[0].name).toBe("Communication");
+  });
+
+  it("reads the end reason, and treats a report without one as null", () => {
+    const left = reportEnvelopeSchema.parse(
+      envelope({ ...completedPractice, end_reason: "left", question_count: 4 }),
+    );
+    expect(left.data).toMatchObject({ end_reason: "left", question_count: 4 });
+    const { end_reason: _omitted, ...older } = completedPractice;
+    void _omitted;
+    expect(
+      reportEnvelopeSchema.parse(envelope(older)).data.end_reason,
+    ).toBeNull();
+    expect(
+      reportEnvelopeSchema.safeParse(
+        envelope({ ...completedPractice, end_reason: "paused" }),
+      ).success,
+    ).toBe(false);
   });
 
   it("accepts the recruitment shape the Candidate receives (null sections)", () => {

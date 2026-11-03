@@ -24,6 +24,8 @@ type InterviewRecord struct {
 	Type             string
 	StartedAt        time.Time
 	CompletedAt      *time.Time
+	EndReason        *string
+	QuestionCount    int32
 	EvaluationStatus string
 	Score            *int32
 	Feedback         *string

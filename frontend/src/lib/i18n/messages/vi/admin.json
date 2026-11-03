@@ -170,7 +170,14 @@
       "available": "Có sẵn",
       "notAvailable": "Chưa có",
       "recorded": "Đã ghi âm",
-      "notRecorded": "Chưa ghi âm"
+      "notRecorded": "Chưa ghi âm",
+      "inProgress": "Đang diễn ra",
+      "endReason": {
+        "completed": "Hoàn thành: đã trả lời tất cả câu hỏi",
+        "left": "Ứng viên rời phòng sớm",
+        "abandoned": "Bị bỏ dở, kết thúc do không có hoạt động",
+        "unknown": "Đã kết thúc (không ghi nhận lý do)"
+      }
     },
     "accessDenied": {
       "message": "Chúng tôi chưa thể xác nhận quyền quản trị viên của bạn. Dữ liệu phỏng vấn sẽ được ẩn cho đến khi quyền truy cập được xác minh.",
@@ -237,6 +244,7 @@
         "voice": "Giọng nói",
         "questions": "Số câu hỏi",
         "turns": "Số lượt trao đổi",
+        "ended": "Cách kết thúc",
         "score": "Điểm",
         "report": "Báo cáo",
         "recording": "Bản ghi"

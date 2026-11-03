@@ -31,8 +31,9 @@ func (q *Queries) CompleteInterviewEvaluation(ctx context.Context, arg CompleteI
 
 const getInterviewRecord = `-- name: GetInterviewRecord :one
 
-SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.evaluation_status, i.score, i.feedback,
-       COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id, a.job_posting_id, jp.recruiter_id
+SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.score, i.feedback,
+       COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id, a.job_posting_id, jp.recruiter_id,
+       (SELECT count(*) FROM public.interview_questions iq WHERE iq.interview_id = i.id)::int AS question_count
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -45,12 +46,14 @@ type GetInterviewRecordRow struct {
 	Type             string
 	StartedAt        pgtype.Timestamptz
 	CompletedAt      pgtype.Timestamptz
+	EndReason        *string
 	EvaluationStatus string
 	Score            *int32
 	Feedback         *string
 	CandidateID      uuid.UUID
 	JobPostingID     pgtype.UUID
 	RecruiterID      pgtype.UUID
+	QuestionCount    int32
 }
 
 // Interview evaluation and report. Scores live in score_details, per-question feedback in
@@ -66,12 +69,14 @@ func (q *Queries) GetInterviewRecord(ctx context.Context, id uuid.UUID) (GetInte
 		&i.Type,
 		&i.StartedAt,
 		&i.CompletedAt,
+		&i.EndReason,
 		&i.EvaluationStatus,
 		&i.Score,
 		&i.Feedback,
 		&i.CandidateID,
 		&i.JobPostingID,
 		&i.RecruiterID,
+		&i.QuestionCount,
 	)
 	return i, err
 }

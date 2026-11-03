@@ -97,12 +97,16 @@ func (r *memoryRepository) AppendFollowUp(_ context.Context, _, _ uuid.UUID, fol
 	return r.session(), nil
 }
 
-func (r *memoryRepository) Complete(context.Context, uuid.UUID, uuid.UUID) (domain.Session, bool, error) {
+func (r *memoryRepository) End(context.Context, domain.EndParams) (domain.EndResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	first := !r.completed
 	r.completed = true
-	return r.session(), first, nil
+	return domain.EndResult{Session: r.session(), Ended: first, StartEvaluation: first}, nil
+}
+
+func (r *memoryRepository) ListAbandoned(context.Context, time.Time, time.Time, int32) ([]domain.SessionRef, error) {
+	return nil, nil
 }
 
 func (r *memoryRepository) MarkEvaluationFailed(context.Context, uuid.UUID) error { return nil }

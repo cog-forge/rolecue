@@ -12,6 +12,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/features/interview/runtime"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/email"
+	"github.com/cog-forge/rolecue/api/internal/pkg/jobs"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/internal/pkg/tracer"
@@ -225,6 +226,22 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	}
 	sender := provider.ProvideEmailSender(config, logger)
 	dispatcher, cleanup4 := provider.ProvideEmailDispatcher(config, sender, logger)
+	recordingUpkeep, err := provider.ProvideRecordingUpkeep(repository14, store, config)
+	if err != nil {
+		cleanup4()
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	runner, err := provider.ProvideSystemJobs(config, pool, service13, recordingUpkeep, logger)
+	if err != nil {
+		cleanup4()
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
 	application := &Application{
 		Server:         server,
 		Pool:           pool,
@@ -237,6 +254,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		Expiry:         expiryRunner,
 		Email:          dispatcher,
 		LiveInterviews: engine,
+		Jobs:           runner,
 	}
 	return application, func() {
 		cleanup4()
@@ -264,4 +282,6 @@ type Application struct {
 	Email *email.Dispatcher
 	// LiveInterviews drives the live interview sockets; main closes them on shutdown.
 	LiveInterviews *runtime.Engine
+	// Jobs runs the System Handler's background jobs; main starts it and stops it on shutdown.
+	Jobs *jobs.Runner
 }

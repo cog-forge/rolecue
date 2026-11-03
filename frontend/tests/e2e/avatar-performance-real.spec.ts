@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { mockRoomPreview, roomId } from "./fixtures/room-preview-api";
+import {
+  leaveRoom,
+  mockRoomPreview,
+  roomId,
+} from "./fixtures/room-preview-api";
 const room = `/interviews/${roomId}/room`;
 // A private local likeness must never be embedded in Playwright traces or videos.
 test.use({
@@ -71,7 +75,7 @@ test("real team VRM survives performance changes and remount through mock model 
   await page.keyboard.press("Escape");
   await expect(page.locator("canvas")).toHaveCount(1);
   expect(downloads).toBe(2);
-  await page.getByRole("link", { name: "Leave", exact: true }).click();
+  await leaveRoom(page);
   await expect(page.locator("canvas")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

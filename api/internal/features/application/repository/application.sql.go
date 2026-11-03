@@ -179,7 +179,7 @@ SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS 
         WHERE d.job_posting_id = jp.id)::timestamptz AS final_opens_at,
        i.id AS interview_id, i.started_at AS interview_started_at, i.completed_at AS interview_completed_at,
        i.evaluation_status AS interview_evaluation_status, i.score AS interview_score,
-       i.record_status AS interview_record_status
+       i.record_status AS interview_record_status, i.end_reason AS interview_end_reason
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
 JOIN public.users u ON u.id = a.candidate_id
@@ -218,6 +218,7 @@ type GetRecruiterApplicationRow struct {
 	InterviewEvaluationStatus *string
 	InterviewScore            *int32
 	InterviewRecordStatus     *string
+	InterviewEndReason        *string
 }
 
 // One Application for Application Detail: the list columns, the CV storage key (cv_path, read by the
@@ -255,6 +256,7 @@ func (q *Queries) GetRecruiterApplication(ctx context.Context, arg GetRecruiterA
 		&i.InterviewEvaluationStatus,
 		&i.InterviewScore,
 		&i.InterviewRecordStatus,
+		&i.InterviewEndReason,
 	)
 	return i, err
 }

@@ -2582,14 +2582,14 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only. Idempotent: the first call sets completed_at, and later calls return the session as it is. A recruitment session also moves its Application to interviewed. The evaluation starts in the background after the first completion.",
+                "description": "Candidate only. Ends the session through the one end path shared with the live socket and the abandoned-session job. Called before every core question is answered it is the room's Leave: the session ends with end_reason left and is evaluated on what was answered; unanswered questions have no turn. Idempotent: the first call sets completed_at and end_reason, and later calls (a double click, a second tab) return the session as it is. A recruitment session also moves its Application to interviewed; nothing is charged, refunded or consumed again. An open live socket of the session receives session.completed and closes with 1000. The evaluation starts in the background after the first ending. A recruitment session whose window closed is APPLICATION_NOT_ELIGIBLE.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "interviews"
                 ],
-                "summary": "Complete an interview session",
+                "summary": "Complete or leave an interview session",
                 "parameters": [
                     {
                         "type": "string",
@@ -2646,6 +2646,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -8800,6 +8806,19 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.EndReason": {
+            "type": "string",
+            "enum": [
+                "completed",
+                "left",
+                "abandoned"
+            ],
+            "x-enum-varnames": [
+                "EndCompleted",
+                "EndLeft",
+                "EndAbandoned"
+            ]
+        },
         "domain.EvaluationStatus": {
             "type": "string",
             "enum": [
@@ -8943,6 +8962,18 @@ const docTemplate = `{
                 "avatar": {
                     "$ref": "#/definitions/domain.AssetRef"
                 },
+                "completed_at": {
+                    "description": "CompletedAt is null while the session runs. EndReason is how it ended (completed, left or\nabandoned); null while it runs and for sessions ended before the reason was recorded.",
+                    "type": "string"
+                },
+                "end_reason": {
+                    "type": "string",
+                    "enum": [
+                        "completed",
+                        "left",
+                        "abandoned"
+                    ]
+                },
                 "has_recording": {
                     "type": "boolean"
                 },
@@ -9030,6 +9061,15 @@ const docTemplate = `{
                 "completed_at": {
                     "type": "string"
                 },
+                "end_reason": {
+                    "description": "EndReason is how the interview ended: completed, left early by the Candidate, or abandoned. Null\nwhile it runs and for interviews ended before the reason was recorded.",
+                    "type": "string",
+                    "enum": [
+                        "completed",
+                        "left",
+                        "abandoned"
+                    ]
+                },
                 "id": {
                     "type": "string"
                 },
@@ -9040,7 +9080,8 @@ const docTemplate = `{
                         "uploading",
                         "processing",
                         "ready",
-                        "failed"
+                        "failed",
+                        "deleted"
                     ]
                 },
                 "score": {
@@ -9633,14 +9674,16 @@ const docTemplate = `{
                 "uploading",
                 "processing",
                 "ready",
-                "failed"
+                "failed",
+                "deleted"
             ],
             "x-enum-varnames": [
                 "RecordNone",
                 "RecordUploading",
                 "RecordProcessing",
                 "RecordReady",
-                "RecordFailed"
+                "RecordFailed",
+                "RecordDeleted"
             ]
         },
         "domain.RecordingStatus": {
@@ -9652,7 +9695,8 @@ const docTemplate = `{
                         "uploading",
                         "processing",
                         "ready",
-                        "failed"
+                        "failed",
+                        "deleted"
                     ],
                     "allOf": [
                         {
@@ -9721,7 +9765,8 @@ const docTemplate = `{
                         "uploading",
                         "processing",
                         "ready",
-                        "failed"
+                        "failed",
+                        "deleted"
                     ],
                     "allOf": [
                         {
@@ -9757,10 +9802,23 @@ const docTemplate = `{
                 "completed_at": {
                     "type": "string"
                 },
+                "end_reason": {
+                    "description": "EndReason is how the interview ended: completed, left early by the Candidate, or abandoned after\nthe inactivity timeout. Null while it runs and for interviews ended before the reason was recorded.",
+                    "type": "string",
+                    "enum": [
+                        "completed",
+                        "left",
+                        "abandoned"
+                    ]
+                },
                 "interview_id": {
                     "type": "string"
                 },
                 "overall_score": {
+                    "type": "integer"
+                },
+                "question_count": {
+                    "description": "QuestionCount is the number of core questions the session asked from. Questions lists only the\nanswered ones; a core question never answered has no entry.",
                     "type": "integer"
                 },
                 "questions": {
@@ -10232,6 +10290,18 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/domain.CurrentQuestion"
+                        }
+                    ]
+                },
+                "end_reason": {
+                    "enum": [
+                        "completed",
+                        "left",
+                        "abandoned"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.EndReason"
                         }
                     ]
                 },

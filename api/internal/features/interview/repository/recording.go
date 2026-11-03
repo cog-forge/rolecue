@@ -3,10 +3,12 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // GetCandidateRecording reads the recording state of one of the Candidate's interviews. Another
@@ -86,6 +88,53 @@ func (r *Repository) ListTranscript(ctx context.Context, interviewID uuid.UUID) 
 		})
 	}
 	return turns, nil
+}
+
+// FailStaleRecordings marks failed the recordings of completed recruitment interviews still none since
+// before noneBefore or uploading since before uploadingBefore (both against the completion time) and
+// returns what changed. Rows another transaction holds are skipped and picked up by the next run.
+func (r *Repository) FailStaleRecordings(ctx context.Context, noneBefore, uploadingBefore time.Time) ([]domain.RecordingChange, error) {
+	rows, err := r.queries.FailStaleRecordings(ctx, FailStaleRecordingsParams{
+		NoneBefore:      pgtype.Timestamptz{Time: noneBefore, Valid: true},
+		UploadingBefore: pgtype.Timestamptz{Time: uploadingBefore, Valid: true},
+	})
+	if err != nil {
+		return nil, internal(err)
+	}
+	changes := make([]domain.RecordingChange, 0, len(rows))
+	for _, row := range rows {
+		changes = append(changes, domain.RecordingChange{
+			InterviewID: row.ID, From: domain.RecordStatus(row.PreviousStatus), To: domain.RecordFailed,
+		})
+	}
+	return changes, nil
+}
+
+// ListExpiredRecordings returns up to limit stored recordings whose Application reached its final decision
+// before decidedBefore.
+func (r *Repository) ListExpiredRecordings(ctx context.Context, decidedBefore time.Time, limit int32) ([]domain.StoredRecording, error) {
+	rows, err := r.queries.ListExpiredRecordings(ctx, ListExpiredRecordingsParams{
+		DecidedBefore: pgtype.Timestamptz{Time: decidedBefore, Valid: true},
+		BatchSize:     limit,
+	})
+	if err != nil {
+		return nil, internal(err)
+	}
+	recordings := make([]domain.StoredRecording, 0, len(rows))
+	for _, row := range rows {
+		recordings = append(recordings, domain.StoredRecording{InterviewID: row.ID, Key: row.RecordPath})
+	}
+	return recordings, nil
+}
+
+// ClearDeletedRecording clears the key of a recording whose object was deleted and marks it deleted. It
+// reports false when the key is no longer the interview's (already cleared).
+func (r *Repository) ClearDeletedRecording(ctx context.Context, id uuid.UUID, key string) (bool, error) {
+	updated, err := r.queries.ClearDeletedRecording(ctx, ClearDeletedRecordingParams{ID: id, RecordPath: &key})
+	if err != nil {
+		return false, internal(err)
+	}
+	return updated == 1, nil
 }
 
 func recordingState(id uuid.UUID, interviewType, status string, path *string, completed bool) domain.RecordingState {

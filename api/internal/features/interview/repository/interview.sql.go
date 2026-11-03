@@ -250,7 +250,7 @@ func (q *Queries) GetInterviewQuestion(ctx context.Context, arg GetInterviewQues
 
 const getOwnedInterview = `-- name: GetOwnedInterview :one
 SELECT i.id, i.type::text AS type, i.role_profile_id, i.application_id, i.avatar_id, i.voice_id,
-       i.started_at, i.completed_at, i.evaluation_status
+       i.started_at, i.completed_at, i.end_reason, i.evaluation_status
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -271,6 +271,7 @@ type GetOwnedInterviewRow struct {
 	VoiceID          *uuid.UUID
 	StartedAt        pgtype.Timestamptz
 	CompletedAt      pgtype.Timestamptz
+	EndReason        *string
 	EvaluationStatus string
 }
 
@@ -286,6 +287,7 @@ func (q *Queries) GetOwnedInterview(ctx context.Context, arg GetOwnedInterviewPa
 		&i.VoiceID,
 		&i.StartedAt,
 		&i.CompletedAt,
+		&i.EndReason,
 		&i.EvaluationStatus,
 	)
 	return i, err
@@ -393,6 +395,79 @@ func (q *Queries) InsertInterviewTurn(ctx context.Context, arg InsertInterviewTu
 		arg.AskedAt,
 	)
 	return err
+}
+
+const interviewLastActivity = `-- name: InterviewLastActivity :one
+SELECT GREATEST(
+           i.started_at,
+           (SELECT max(iq.asked_at) FROM public.interview_questions iq WHERE iq.interview_id = i.id),
+           (SELECT max(ct.answered_at) FROM public.conversation_turns ct WHERE ct.interview_id = i.id)
+       )::timestamptz AS last_activity
+FROM public.interviews i
+WHERE i.id = $1
+`
+
+// The last activity of a session, derived from what is stored (no activity column): the start, the latest
+// question the interviewer delivered and the latest stored answer. GREATEST skips the NULLs of a session
+// that has no delivery or answer yet. The socket being open is not activity: an answer lasts at most 3
+// minutes, so a session with nothing delivered or stored for the inactivity timeout is abandoned.
+func (q *Queries) InterviewLastActivity(ctx context.Context, id uuid.UUID) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, interviewLastActivity, id)
+	var last_activity pgtype.Timestamptz
+	err := row.Scan(&last_activity)
+	return last_activity, err
+}
+
+const listAbandonedInterviews = `-- name: ListAbandonedInterviews :many
+SELECT i.id, COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id
+FROM public.interviews i
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE i.completed_at IS NULL
+  AND (i.application_id IS NULL
+       OR (a.status = 'interview_eligible' AND a.interview_deadline > $1::timestamptz))
+  AND GREATEST(
+          i.started_at,
+          (SELECT max(iq.asked_at) FROM public.interview_questions iq WHERE iq.interview_id = i.id),
+          (SELECT max(ct.answered_at) FROM public.conversation_turns ct WHERE ct.interview_id = i.id)
+      ) < $2::timestamptz
+ORDER BY i.started_at, i.id
+LIMIT $3
+`
+
+type ListAbandonedInterviewsParams struct {
+	Now        pgtype.Timestamptz
+	IdleBefore pgtype.Timestamptz
+	BatchSize  int32
+}
+
+type ListAbandonedInterviewsRow struct {
+	ID          uuid.UUID
+	CandidateID uuid.UUID
+}
+
+// Unfinished sessions with no activity since @idle_before (see InterviewLastActivity), oldest first, with
+// their owner. A recruitment session is listed only while its Application still accepts the interview:
+// once the window closed the expiry pass rejects the Application, and ending the session then would
+// make that pass skip it (it leaves Applications with a completed interview alone).
+func (q *Queries) ListAbandonedInterviews(ctx context.Context, arg ListAbandonedInterviewsParams) ([]ListAbandonedInterviewsRow, error) {
+	rows, err := q.db.Query(ctx, listAbandonedInterviews, arg.Now, arg.IdleBefore, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAbandonedInterviewsRow
+	for rows.Next() {
+		var i ListAbandonedInterviewsRow
+		if err := rows.Scan(&i.ID, &i.CandidateID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listInterviewRequirements = `-- name: ListInterviewRequirements :many
@@ -637,15 +712,21 @@ func (q *Queries) MarkInterviewQuestionAsked(ctx context.Context, arg MarkInterv
 	return i, err
 }
 
-const setInterviewCompleted = `-- name: SetInterviewCompleted :exec
+const setInterviewEnded = `-- name: SetInterviewEnded :exec
 UPDATE public.interviews
-SET completed_at = statement_timestamp()
-WHERE id = $1 AND completed_at IS NULL
+SET completed_at = statement_timestamp(), end_reason = $1
+WHERE id = $2 AND completed_at IS NULL
 `
 
-// The guard keeps the first completion's time; a repeat changes nothing.
-func (q *Queries) SetInterviewCompleted(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, setInterviewCompleted, id)
+type SetInterviewEndedParams struct {
+	EndReason *string
+	ID        uuid.UUID
+}
+
+// Ends a session: the one write every end path makes (completion, leaving, abandonment). The guard keeps
+// the first ending's time and reason; a repeat changes nothing.
+func (q *Queries) SetInterviewEnded(ctx context.Context, arg SetInterviewEndedParams) error {
+	_, err := q.db.Exec(ctx, setInterviewEnded, arg.EndReason, arg.ID)
 	return err
 }
 

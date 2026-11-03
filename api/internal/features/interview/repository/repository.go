@@ -20,7 +20,7 @@ import (
 // the posting row and then reads the Application, the order screening, the final decision and the expiry
 // pass use, so they never wait on each other the other way round; it takes no wallet lock because the
 // Candidate is not charged. A practice start locks only the Candidate's wallet row (through the ledger).
-// Turns and completion lock the session row.
+// Turns and the end of a session lock the session row.
 type Repository struct {
 	pool    *pgxpool.Pool
 	queries *Queries
@@ -291,24 +291,50 @@ func (r *Repository) atTurnBoundary(ctx context.Context, candidateID, id uuid.UU
 // It is longer than the service's evaluation timeout, so a live run is never taken over.
 const evaluationStaleAfter = 3 * time.Minute
 
-// Complete sets completed_at once and, for a recruitment session, moves its Application from
-// interview_eligible to interviewed in the same transaction. The bool is true only for the one call that
-// claimed the evaluation (the first completion, a failed evaluation, or a pending one whose run died), so
-// the caller starts it once.
-func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (domain.Session, bool, error) {
-	var session domain.Session
-	startEvaluation := false
-	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+// End is the one end path of a session: a normal completion, the Candidate leaving early and the System
+// Handler abandoning an idle session all go through it. Under the session lock it sets completed_at and
+// the end reason once (domain.ReasonFor, from the answers stored) and, for a recruitment session, moves
+// its Application from interview_eligible to interviewed in the same transaction, exactly as a normal
+// completion does. Unanswered questions stay without a turn. It never charges, refunds or consumes a
+// slot: those happen only at the start.
+//
+// It is idempotent: ending an ended session changes nothing and returns it, so a double click, two tabs or
+// a reconnect racing a leave all see the first ending. A recruitment session whose window closed cannot be
+// ended (APPLICATION_NOT_ELIGIBLE), the same rule as an answer.
+//
+// An abandonment (params.IdleBefore set) re-reads the last activity under the lock and does nothing,
+// reporting ended false, when the session was active at or after IdleBefore: an answer stored while the
+// System Handler was deciding keeps the session alive.
+//
+// The bool startEvaluation is true only for the one call that claimed the evaluation (the first ending, a
+// failed evaluation, or a pending one whose run died), so the caller starts it once.
+func (r *Repository) End(ctx context.Context, params domain.EndParams) (result domain.EndResult, err error) {
+	err = pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
-		header, err := lockSession(ctx, q, candidateID, id)
+		header, err := lockSession(ctx, q, params.CandidateID, params.ID)
 		if err != nil {
 			return err
 		}
 		if !header.CompletedAt.Valid {
+			if params.IdleBefore != nil {
+				last, err := q.InterviewLastActivity(ctx, params.ID)
+				if err != nil {
+					return internal(err)
+				}
+				if !last.Time.Before(*params.IdleBefore) {
+					result.Session, err = readSession(ctx, q, params.CandidateID, params.ID)
+					return err
+				}
+			}
 			if err := requireOpenWindow(ctx, q, header.ApplicationID); err != nil {
 				return err
 			}
-			if err := q.SetInterviewCompleted(ctx, id); err != nil {
+			questionCount, turns, err := readTurns(ctx, q, params.ID)
+			if err != nil {
+				return err
+			}
+			reason := string(domain.ReasonFor(params.Cause, domain.AnsweredCore(turns), questionCount))
+			if err := q.SetInterviewEnded(ctx, SetInterviewEndedParams{ID: params.ID, EndReason: &reason}); err != nil {
 				return internal(err)
 			}
 			if header.ApplicationID != nil {
@@ -316,21 +342,41 @@ func (r *Repository) Complete(ctx context.Context, candidateID, id uuid.UUID) (d
 					return internal(err)
 				}
 			}
+			result.Ended = true
 		}
 		claimed, err := q.ClaimInterviewEvaluation(ctx, ClaimInterviewEvaluationParams{
-			ID: id, StaleSeconds: evaluationStaleAfter.Seconds(),
+			ID: params.ID, StaleSeconds: evaluationStaleAfter.Seconds(),
 		})
 		if err != nil {
 			return internal(err)
 		}
-		startEvaluation = claimed == 1
-		session, err = readSession(ctx, q, candidateID, id)
+		result.StartEvaluation = claimed == 1
+		result.Session, err = readSession(ctx, q, params.CandidateID, params.ID)
 		return err
 	})
 	if err != nil {
-		return domain.Session{}, false, internal(err)
+		return domain.EndResult{}, internal(err)
 	}
-	return session, startEvaluation, nil
+	return result, nil
+}
+
+// ListAbandoned returns up to limit unfinished sessions idle since before idleBefore, with their owners,
+// for the System Handler. now is the time a recruitment window is judged at. The list is a hint: End
+// checks again under the session lock.
+func (r *Repository) ListAbandoned(ctx context.Context, now, idleBefore time.Time, limit int32) ([]domain.SessionRef, error) {
+	rows, err := r.queries.ListAbandonedInterviews(ctx, ListAbandonedInterviewsParams{
+		Now:        pgtype.Timestamptz{Time: now, Valid: true},
+		IdleBefore: pgtype.Timestamptz{Time: idleBefore, Valid: true},
+		BatchSize:  limit,
+	})
+	if err != nil {
+		return nil, internal(err)
+	}
+	refs := make([]domain.SessionRef, 0, len(rows))
+	for _, row := range rows {
+		refs = append(refs, domain.SessionRef{ID: row.ID, CandidateID: row.CandidateID})
+	}
+	return refs, nil
 }
 
 // MarkEvaluationFailed sets the evaluation status to failed unless it is already completed. The service
@@ -578,18 +624,13 @@ func readSession(ctx context.Context, q *Queries, candidateID, id uuid.UUID) (do
 	if err != nil {
 		return domain.Session{}, err
 	}
-	answeredCore := int32(0)
-	for _, turn := range turns {
-		if turn.Kind != domain.TurnFollowUp {
-			answeredCore++
-		}
-	}
 	session := domain.Session{
 		ID: row.ID, Type: domain.Type(row.Type), RoleProfileID: row.RoleProfileID,
 		ApplicationID: row.ApplicationID, AvatarID: row.AvatarID, VoiceID: row.VoiceID,
 		StartedAt: row.StartedAt.Time, CompletedAt: timePtr(row.CompletedAt),
+		EndReason:        (*domain.EndReason)(row.EndReason),
 		EvaluationStatus: domain.EvaluationStatus(row.EvaluationStatus),
-		QuestionCount:    questionCount, AnsweredCount: answeredCore, AnsweredTurns: int32(len(turns)), Turns: &turns,
+		QuestionCount:    questionCount, AnsweredCount: domain.AnsweredCore(turns), AnsweredTurns: int32(len(turns)), Turns: &turns,
 	}
 	if row.CompletedAt.Valid {
 		return session, nil

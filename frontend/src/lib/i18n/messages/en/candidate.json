@@ -281,7 +281,14 @@
     "errorText": "Please try again in a moment.",
     "retry": "Try again",
     "autoRefresh": "We'll update this page automatically.",
-    "autoRefreshStopped": "Still evaluating. Check again in a moment."
+    "autoRefreshStopped": "Still evaluating. Check again in a moment.",
+    "end": {
+      "leftTitle": "You left the interview early",
+      "leftText": "The interview ended when you left. Only the questions you answered are evaluated.",
+      "abandonedTitle": "This interview ended because it was inactive",
+      "abandonedText": "Nothing was asked or answered for too long, so the interview was ended. Only the questions you answered are evaluated.",
+      "answered": "{answered} of {total} questions answered; {unanswered, plural, =0 {none left unanswered} one {# question not answered} other {# questions not answered}}."
+    }
   },
   "interviewRoom": {
     "label": "Interview room",
@@ -293,6 +300,17 @@
     },
     "preview": "Preview",
     "leave": "Leave",
+    "leaveDialog": {
+      "title": "Leave and end this interview?",
+      "description": "Leaving ends the interview now. It is not a pause: you can't come back to this session.",
+      "answers": "The answers you gave are submitted and evaluated. Questions you haven't answered stay unanswered.",
+      "practice": "The coins for this practice are not refunded.",
+      "recruitment": "This counts as your interview for this application. Your recording is uploaded as usual.",
+      "disconnect": "If your connection drops, that is not leaving: reconnect to continue where you were.",
+      "stay": "Keep interviewing",
+      "confirm": "Leave and submit",
+      "submitting": "Submitting…"
+    },
     "progress": "Question {position} of {count}",
     "followUp": {
       "label": "Follow-up"
@@ -305,8 +323,9 @@
       "reconnecting": "Connection lost. Reconnecting…",
       "loading": "Preparing the question…",
       "transitioning": "Preparing the next question…",
-      "pausedTitle": "Interview paused",
-      "pausedText": "Your interview is paused. It continues from the same question when you return.",
+      "submitting": "Submitting your interview…",
+      "leaveFailedTitle": "The interview was not ended",
+      "leaveFailedText": "We couldn't reach RoleCue. Your interview is still running: check your connection, then choose Leave again or keep answering.",
       "completedTitle": "Interview complete",
       "completedText": "Opening your report…",
       "viewReport": "View report"

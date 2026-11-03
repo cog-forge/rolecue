@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useInterviewerPlaybackController } from "../playback/interviewer-playback";
+import { leaveInterview } from "../api/leave-interview";
 import { createRoomTransport } from "../transport/create-room-transport";
 import { createInterviewSession } from "./interview-session";
 
@@ -12,6 +13,7 @@ export function useInterviewSession(interviewId: string, enabled = true) {
     createInterviewSession({
       transport: createRoomTransport(interviewId),
       playback,
+      endSession: () => leaveInterview(interviewId),
     }),
   );
   useEffect(() => {

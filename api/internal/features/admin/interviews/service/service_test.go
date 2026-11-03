@@ -246,7 +246,7 @@ func TestInterviewDetailJSONIsAllowListOnly(t *testing.T) {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	want := []string{"application_id", "avatar", "has_recording", "has_report", "id", "job_posting", "owner", "question_count", "role_profile", "score", "turn_count", "type", "voice"}
+	want := []string{"application_id", "avatar", "completed_at", "end_reason", "has_recording", "has_report", "id", "job_posting", "owner", "question_count", "role_profile", "score", "turn_count", "type", "voice"}
 	if len(keys) != len(want) {
 		t.Fatalf("detail keys %v, want %v", keys, want)
 	}

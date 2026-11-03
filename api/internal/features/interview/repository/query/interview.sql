@@ -140,7 +140,7 @@ FOR UPDATE OF i;
 
 -- name: GetOwnedInterview :one
 SELECT i.id, i.type::text AS type, i.role_profile_id, i.application_id, i.avatar_id, i.voice_id,
-       i.started_at, i.completed_at, i.evaluation_status
+       i.started_at, i.completed_at, i.end_reason, i.evaluation_status
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -176,11 +176,45 @@ JOIN public.requirements r ON r.jd_id = COALESCE(rp.jd_id, jp.jd_id)
 WHERE i.id = @interview_id
 ORDER BY r.name, r.id;
 
--- The guard keeps the first completion's time; a repeat changes nothing.
--- name: SetInterviewCompleted :exec
+-- Ends a session: the one write every end path makes (completion, leaving, abandonment). The guard keeps
+-- the first ending's time and reason; a repeat changes nothing.
+-- name: SetInterviewEnded :exec
 UPDATE public.interviews
-SET completed_at = statement_timestamp()
+SET completed_at = statement_timestamp(), end_reason = @end_reason
 WHERE id = @id AND completed_at IS NULL;
+
+-- The last activity of a session, derived from what is stored (no activity column): the start, the latest
+-- question the interviewer delivered and the latest stored answer. GREATEST skips the NULLs of a session
+-- that has no delivery or answer yet. The socket being open is not activity: an answer lasts at most 3
+-- minutes, so a session with nothing delivered or stored for the inactivity timeout is abandoned.
+-- name: InterviewLastActivity :one
+SELECT GREATEST(
+           i.started_at,
+           (SELECT max(iq.asked_at) FROM public.interview_questions iq WHERE iq.interview_id = i.id),
+           (SELECT max(ct.answered_at) FROM public.conversation_turns ct WHERE ct.interview_id = i.id)
+       )::timestamptz AS last_activity
+FROM public.interviews i
+WHERE i.id = @id;
+
+-- Unfinished sessions with no activity since @idle_before (see InterviewLastActivity), oldest first, with
+-- their owner. A recruitment session is listed only while its Application still accepts the interview:
+-- once the window closed the expiry pass rejects the Application, and ending the session then would
+-- make that pass skip it (it leaves Applications with a completed interview alone).
+-- name: ListAbandonedInterviews :many
+SELECT i.id, COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id
+FROM public.interviews i
+LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
+LEFT JOIN public.applications a ON a.id = i.application_id
+WHERE i.completed_at IS NULL
+  AND (i.application_id IS NULL
+       OR (a.status = 'interview_eligible' AND a.interview_deadline > @now::timestamptz))
+  AND GREATEST(
+          i.started_at,
+          (SELECT max(iq.asked_at) FROM public.interview_questions iq WHERE iq.interview_id = i.id),
+          (SELECT max(ct.answered_at) FROM public.conversation_turns ct WHERE ct.interview_id = i.id)
+      ) < @idle_before::timestamptz
+ORDER BY i.started_at, i.id
+LIMIT @batch_size;
 
 -- Only an Application still waiting for its interview moves on. An Application already interviewed,
 -- or one the Recruiter decided meanwhile, is left as it is.

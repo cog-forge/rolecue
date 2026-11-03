@@ -49,12 +49,17 @@ type sessionStream struct {
 	order  []string
 }
 
-// lease is one socket's hold on a session stream.
+// lease is one socket's hold on a session stream. ended closes when the session ended outside this
+// socket (the Candidate left over REST, another instance, or the System Handler abandoned it).
 type lease struct {
 	stream     *sessionStream
 	superseded chan struct{}
+	ended      chan struct{}
+	endOnce    sync.Once
 	resumed    bool
 }
+
+func (l *lease) end() { l.endOnce.Do(func() { close(l.ended) }) }
 
 func (s *sessionStream) nextSeq() int64 { return s.seq.Add(1) }
 
@@ -106,12 +111,23 @@ func (h *Hub) attach(sessionID uuid.UUID) (*lease, error) {
 	if stream.current != nil {
 		close(stream.current.superseded)
 	}
-	l := &lease{stream: stream, superseded: make(chan struct{}), resumed: stream.everJoined}
+	l := &lease{stream: stream, superseded: make(chan struct{}), ended: make(chan struct{}), resumed: stream.everJoined}
 	stream.current = l
 	stream.attached++
 	stream.everJoined = true
 	h.active.Add(1)
 	return l, nil
+}
+
+// SessionEnded tells the socket that drives a session, if this process has one, that the session ended,
+// so it reports the end and closes. It never blocks. A socket on another instance learns it at its next
+// command (the service refuses an ended session), and a socket that connects later is told on connect.
+func (h *Hub) SessionEnded(sessionID uuid.UUID) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if stream, ok := h.streams[sessionID]; ok && stream.current != nil {
+		stream.current.end()
+	}
 }
 
 // release ends a socket's hold. The stream stays for streamRetention so a reconnect keeps its sequence.

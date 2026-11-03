@@ -559,6 +559,12 @@
       "notScored": "Not scored yet",
       "scoreValue": "{score}/100",
       "notCompleted": "Not completed yet",
+      "ended": "How it ended",
+      "endReason": {
+        "completed": "Answered every question",
+        "left": "The Candidate left early",
+        "abandoned": "Ended after a period without activity"
+      },
       "showEvaluation": "Show evaluation",
       "hideEvaluation": "Hide evaluation",
       "notFinished": "The Candidate has not finished the interview yet.",
@@ -581,7 +587,8 @@
         "uploading": "The recording is still being uploaded.",
         "processing": "The recording is still being processed.",
         "ready": "A recording is available.",
-        "failed": "The recording could not be stored."
+        "failed": "The recording could not be stored.",
+        "deleted": "The recording was deleted after the retention period."
       },
       "getLink": "Get the recording link",
       "gettingLink": "Getting the recording link…",

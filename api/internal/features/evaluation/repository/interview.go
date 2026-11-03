@@ -23,6 +23,8 @@ func (r *Repository) InterviewRecord(ctx context.Context, interviewID uuid.UUID)
 		Type:             row.Type,
 		StartedAt:        row.StartedAt.Time,
 		CompletedAt:      timePtr(row.CompletedAt),
+		EndReason:        row.EndReason,
+		QuestionCount:    row.QuestionCount,
 		EvaluationStatus: row.EvaluationStatus,
 		Score:            row.Score,
 		Feedback:         row.Feedback,

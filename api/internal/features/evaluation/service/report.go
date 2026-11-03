@@ -29,12 +29,14 @@ func (s *Scoring) Report(ctx context.Context, userID uuid.UUID, role string, int
 		return domain.Report{}, err
 	}
 	report := domain.Report{
-		InterviewID:  record.ID,
-		Type:         record.Type,
-		Status:       reportStatus(record),
-		OverallScore: record.Score,
-		StartedAt:    record.StartedAt,
-		CompletedAt:  record.CompletedAt,
+		InterviewID:   record.ID,
+		Type:          record.Type,
+		Status:        reportStatus(record),
+		OverallScore:  record.Score,
+		StartedAt:     record.StartedAt,
+		CompletedAt:   record.CompletedAt,
+		EndReason:     record.EndReason,
+		QuestionCount: record.QuestionCount,
 	}
 	if !full {
 		return report, nil

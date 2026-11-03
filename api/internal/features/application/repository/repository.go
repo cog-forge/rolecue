@@ -312,7 +312,7 @@ func (r *Repository) GetApplicationDetail(ctx context.Context, recruiterID, post
 		InterviewSlot: row.InterviewSlot,
 		CVApprovals:   row.CvApprovals,
 		Interview: recruiterInterview(row.InterviewID, row.InterviewStartedAt, row.InterviewCompletedAt,
-			row.InterviewEvaluationStatus, row.InterviewScore, row.InterviewRecordStatus),
+			row.InterviewEvaluationStatus, row.InterviewScore, row.InterviewRecordStatus, row.InterviewEndReason),
 		OpensAt: timePtr(row.FinalOpensAt),
 	}, nil
 }

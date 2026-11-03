@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { mockRoomPreview, roomId } from "./fixtures/room-preview-api";
+import {
+  leaveRoom,
+  mockRoomPreview,
+  roomId,
+} from "./fixtures/room-preview-api";
 const room = `/interviews/${roomId}/room`;
 
 declare global {
@@ -44,9 +48,11 @@ test("voice room reads the selected avatar context and runs over the live socket
       .getByText("Walk me through a recent project."),
   ).toBeVisible();
   await page.getByRole("button", { name: "Hide transcript" }).click();
+  // A session that already ended has nothing to end: Leave is a plain link back to the history.
   await page.getByRole("link", { name: "Leave", exact: true }).click();
   await expect(page).toHaveURL("/history");
   expect(calls.writes).toEqual([]);
+  expect(calls.ends).toBe(0);
   expect(calls.companyInterviewerReads).toBe(0);
 });
 
@@ -98,8 +104,7 @@ test("mic is opt-in, supports mute, input settings and stop, and releases its tr
   await expect(
     page.getByRole("button", { name: "Mute microphone" }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Leave", exact: true }).click();
-  await expect(page).toHaveURL("/history");
+  await leaveRoom(page);
   expect(
     await page.evaluate(() =>
       window.kan53MicrophoneTracks?.every(
@@ -315,8 +320,7 @@ test("camera is opt-in, shows a real local video preview, and stops on off or Le
   await expect(
     page.getByRole("button", { name: "Turn camera off" }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Leave", exact: true }).click();
-  await expect(page).toHaveURL("/history");
+  await leaveRoom(page);
   expect(
     await page.evaluate(() =>
       window.kan53CameraTracks?.every((track) => track.readyState === "ended"),

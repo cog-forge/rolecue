@@ -707,6 +707,16 @@ definitions:
       title:
         type: string
     type: object
+  domain.EndReason:
+    enum:
+    - completed
+    - left
+    - abandoned
+    type: string
+    x-enum-varnames:
+    - EndCompleted
+    - EndLeft
+    - EndAbandoned
   domain.EvaluationStatus:
     enum:
     - pending
@@ -799,6 +809,17 @@ definitions:
         type: string
       avatar:
         $ref: '#/definitions/domain.AssetRef'
+      completed_at:
+        description: |-
+          CompletedAt is null while the session runs. EndReason is how it ended (completed, left or
+          abandoned); null while it runs and for sessions ended before the reason was recorded.
+        type: string
+      end_reason:
+        enum:
+        - completed
+        - left
+        - abandoned
+        type: string
       has_recording:
         type: boolean
       has_report:
@@ -856,6 +877,15 @@ definitions:
     properties:
       completed_at:
         type: string
+      end_reason:
+        description: |-
+          EndReason is how the interview ended: completed, left early by the Candidate, or abandoned. Null
+          while it runs and for interviews ended before the reason was recorded.
+        enum:
+        - completed
+        - left
+        - abandoned
+        type: string
       id:
         type: string
       record_status:
@@ -865,6 +895,7 @@ definitions:
         - processing
         - ready
         - failed
+        - deleted
         type: string
       score:
         type: integer
@@ -1270,6 +1301,7 @@ definitions:
     - processing
     - ready
     - failed
+    - deleted
     type: string
     x-enum-varnames:
     - RecordNone
@@ -1277,6 +1309,7 @@ definitions:
     - RecordProcessing
     - RecordReady
     - RecordFailed
+    - RecordDeleted
   domain.RecordingStatus:
     properties:
       record_status:
@@ -1288,6 +1321,7 @@ definitions:
         - processing
         - ready
         - failed
+        - deleted
     type: object
   domain.RecordingUploadGrant:
     properties:
@@ -1331,6 +1365,7 @@ definitions:
         - processing
         - ready
         - failed
+        - deleted
       url:
         type: string
     type: object
@@ -1349,9 +1384,23 @@ definitions:
         type: array
       completed_at:
         type: string
+      end_reason:
+        description: |-
+          EndReason is how the interview ended: completed, left early by the Candidate, or abandoned after
+          the inactivity timeout. Null while it runs and for interviews ended before the reason was recorded.
+        enum:
+        - completed
+        - left
+        - abandoned
+        type: string
       interview_id:
         type: string
       overall_score:
+        type: integer
+      question_count:
+        description: |-
+          QuestionCount is the number of core questions the session asked from. Questions lists only the
+          answered ones; a core question never answered has no entry.
         type: integer
       questions:
         items:
@@ -1688,6 +1737,13 @@ definitions:
         - $ref: '#/definitions/domain.CurrentQuestion'
         description: CurrentQuestion is null when every question is answered or the
           session is completed.
+      end_reason:
+        allOf:
+        - $ref: '#/definitions/domain.EndReason'
+        enum:
+        - completed
+        - left
+        - abandoned
       evaluation_status:
         allOf:
         - $ref: '#/definitions/domain.EvaluationStatus'
@@ -4009,10 +4065,16 @@ paths:
       - interviews
   /interviews/{id}/complete:
     post:
-      description: 'Candidate only. Idempotent: the first call sets completed_at,
-        and later calls return the session as it is. A recruitment session also moves
-        its Application to interviewed. The evaluation starts in the background after
-        the first completion.'
+      description: 'Candidate only. Ends the session through the one end path shared
+        with the live socket and the abandoned-session job. Called before every core
+        question is answered it is the room''s Leave: the session ends with end_reason
+        left and is evaluated on what was answered; unanswered questions have no turn.
+        Idempotent: the first call sets completed_at and end_reason, and later calls
+        (a double click, a second tab) return the session as it is. A recruitment
+        session also moves its Application to interviewed; nothing is charged, refunded
+        or consumed again. An open live socket of the session receives session.completed
+        and closes with 1000. The evaluation starts in the background after the first
+        ending. A recruitment session whose window closed is APPLICATION_NOT_ELIGIBLE.'
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -4053,13 +4115,17 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/response.Envelope'
       security:
       - SessionCookie: []
-      summary: Complete an interview session
+      summary: Complete or leave an interview session
       tags:
       - interviews
   /interviews/{id}/interviewer:

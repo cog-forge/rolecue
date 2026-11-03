@@ -48,9 +48,9 @@ const (
 	StateListening           State = "listening"
 	StateProcessing          State = "processing"
 	StateTransitioning       State = "transitioning"
-	StateCompleted           State = "completed"
-	// StatePaused is reserved for KAN-215 and never sent in v1.
-	StatePaused State = "paused"
+	// StateCompleted is the end, however the session ended (docs/interview-ws-protocol.md §3.1). There
+	// is no pause state: leaving ends the interview.
+	StateCompleted State = "completed"
 )
 
 // Server message types.

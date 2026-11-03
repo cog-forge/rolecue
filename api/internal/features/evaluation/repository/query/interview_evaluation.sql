@@ -5,8 +5,9 @@
 -- The interview with the owners the report visibility rules need. The Application and its posting are
 -- joined for recruitment sessions only, so their columns are null for practice.
 -- name: GetInterviewRecord :one
-SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.evaluation_status, i.score, i.feedback,
-       COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id, a.job_posting_id, jp.recruiter_id
+SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.score, i.feedback,
+       COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id, a.job_posting_id, jp.recruiter_id,
+       (SELECT count(*) FROM public.interview_questions iq WHERE iq.interview_id = i.id)::int AS question_count
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id

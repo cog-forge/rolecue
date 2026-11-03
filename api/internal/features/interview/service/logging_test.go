@@ -93,29 +93,31 @@ func TestAppendTurnLogsProgressNeverAnswerText(t *testing.T) {
 	}
 }
 
-func TestCompleteLogsCompletionWithDuration(t *testing.T) {
+func TestCompleteLogsTheEndWithReasonAndDuration(t *testing.T) {
 	ctx, logs := observedContext()
 	evaluator := newFakeEvaluator()
 	session := practiceSession()
 	started := time.Now().Add(-time.Minute)
 	completed := started.Add(time.Minute)
-	session.StartedAt, session.CompletedAt = started, &completed
-	repo := &fakeRepository{completeSession: session, completeFirst: true}
+	left := domain.EndLeft
+	session.StartedAt, session.CompletedAt, session.EndReason = started, &completed, &left
+	repo := &fakeRepository{completeSession: session, completeFirst: true, completeEnded: true}
 	svc := newTestService(t, repo, Settings{})
 	svc.SetEvaluator(evaluator)
 	if _, err := svc.Complete(ctx, candidateID, "candidate", sessionID); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	<-evaluator.calls
-	fields := onlyEntry(t, logs, "interview completed").ContextMap()
-	if _, ok := fields["duration"]; !ok || fields["op"] != "interview.complete" || fields["interview_id"] != sessionID.String() {
-		t.Fatalf("interview completed fields = %v", fields)
+	fields := onlyEntry(t, logs, "interview ended").ContextMap()
+	if _, ok := fields["duration"]; !ok || fields["op"] != "interview.end" || fields["interview_id"] != sessionID.String() ||
+		fields["end_reason"] != "left" {
+		t.Fatalf("interview ended fields = %v", fields)
 	}
 }
 
 func TestCompleteWarnsWhenEvaluationCannotStart(t *testing.T) {
 	ctx, logs := observedContext()
-	repo := &fakeRepository{completeSession: practiceSession(), completeFirst: true}
+	repo := &fakeRepository{completeSession: practiceSession(), completeFirst: true, completeEnded: true}
 	svc := newTestService(t, repo, Settings{})
 	if _, err := svc.Complete(ctx, candidateID, "candidate", sessionID); err != nil {
 		t.Fatalf("Complete: %v", err)

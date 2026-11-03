@@ -31,6 +31,16 @@ const detailSchema = rowSchema.extend({
   voice: z.object({ id: z.uuid(), name: z.string() }).nullable(),
   question_count: z.number().int().nonnegative(),
   turn_count: z.number().int().nonnegative(),
+  // How the session ended (KAN-215); both null while it runs. end_reason is also null for sessions
+  // ended before it was recorded.
+  completed_at: z.iso
+    .datetime({ offset: true })
+    .nullish()
+    .transform((value) => value ?? null),
+  end_reason: z
+    .enum(["completed", "left", "abandoned"])
+    .nullish()
+    .transform((value) => value ?? null),
 });
 
 const listSchema = z.object({

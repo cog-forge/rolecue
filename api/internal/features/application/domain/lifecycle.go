@@ -41,7 +41,10 @@ type InterviewSummary struct {
 	// Status is in_progress until the session completes, then the evaluation status.
 	Status       string `json:"status" enums:"in_progress,pending,completed,failed"`
 	Score        *int32 `json:"score"`
-	RecordStatus string `json:"record_status" enums:"none,uploading,processing,ready,failed"`
+	RecordStatus string `json:"record_status" enums:"none,uploading,processing,ready,failed,deleted"`
+	// EndReason is how the interview ended: completed, left early by the Candidate, or abandoned. Null
+	// while it runs and for interviews ended before the reason was recorded.
+	EndReason *string `json:"end_reason" enums:"completed,left,abandoned"`
 }
 
 // CandidateInterview is the Candidate's view of the interview of one of their Applications: the

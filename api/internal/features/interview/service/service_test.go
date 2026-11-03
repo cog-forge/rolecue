@@ -33,8 +33,19 @@ type fakeRepository struct {
 
 	completeSession domain.Session
 	completeFirst   bool // the repository claimed the evaluation
+	completeEnded   bool // the call ended the session now
 	completeErr     error
 	completeCalls   int
+	endParams       []domain.EndParams
+	// endErrs and endIdle script End per session for the abandonment pass: an error, or a session that
+	// was active again under the lock (not ended).
+	endErrs map[uuid.UUID]error
+	endIdle map[uuid.UUID]bool
+
+	abandonRefs       []domain.SessionRef
+	abandonErr        error
+	abandonNow        time.Time
+	abandonIdleBefore time.Time
 
 	deliverVoice    string
 	deliverDelivery domain.Delivery
@@ -72,9 +83,22 @@ func (r *fakeRepository) AppendTurn(_ context.Context, candidateID, _ uuid.UUID,
 	return r.appendSession, r.appendErr
 }
 
-func (r *fakeRepository) Complete(_ context.Context, _, _ uuid.UUID) (domain.Session, bool, error) {
+func (r *fakeRepository) End(_ context.Context, params domain.EndParams) (domain.EndResult, error) {
 	r.completeCalls++
-	return r.completeSession, r.completeFirst, r.completeErr
+	r.endParams = append(r.endParams, params)
+	if err := r.endErrs[params.ID]; err != nil {
+		return domain.EndResult{}, err
+	}
+	if r.completeErr != nil {
+		return domain.EndResult{}, r.completeErr
+	}
+	ended := r.completeEnded && !r.endIdle[params.ID]
+	return domain.EndResult{Session: r.completeSession, Ended: ended, StartEvaluation: r.completeFirst}, nil
+}
+
+func (r *fakeRepository) ListAbandoned(_ context.Context, now, idleBefore time.Time, _ int32) ([]domain.SessionRef, error) {
+	r.abandonNow, r.abandonIdleBefore = now, idleBefore
+	return r.abandonRefs, r.abandonErr
 }
 
 func (r *fakeRepository) Deliver(_ context.Context, _, _ uuid.UUID, defaultProviderVoiceID string) (domain.Delivery, error) {
@@ -418,7 +442,7 @@ func TestAppendTurnPassesConflictThrough(t *testing.T) {
 
 func TestCompleteStartsEvaluationOnceAfterFirstCompletion(t *testing.T) {
 	evaluator := newFakeEvaluator()
-	repo := &fakeRepository{completeSession: practiceSession(), completeFirst: true}
+	repo := &fakeRepository{completeSession: practiceSession(), completeFirst: true, completeEnded: true}
 	svc := newTestService(t, repo, Settings{})
 	svc.SetEvaluator(evaluator)
 
@@ -434,7 +458,7 @@ func TestCompleteStartsEvaluationOnceAfterFirstCompletion(t *testing.T) {
 		t.Fatal("evaluator was not started after the first completion")
 	}
 
-	repo.completeFirst = false
+	repo.completeFirst, repo.completeEnded = false, false
 	if _, err := svc.Complete(context.Background(), candidateID, "candidate", sessionID); err != nil {
 		t.Fatalf("repeat Complete: %v", err)
 	}
@@ -473,7 +497,7 @@ func TestCompletePassesRepositoryErrorsThrough(t *testing.T) {
 }
 
 func TestCompleteMarksAPanickingEvaluationFailed(t *testing.T) {
-	repo := &fakeRepository{completeSession: practiceSession(), completeFirst: true, failed: make(chan uuid.UUID, 1)}
+	repo := &fakeRepository{completeSession: practiceSession(), completeFirst: true, completeEnded: true, failed: make(chan uuid.UUID, 1)}
 	svc := newTestService(t, repo, Settings{})
 	svc.SetEvaluator(panickingEvaluator{})
 
