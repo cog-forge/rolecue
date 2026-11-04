@@ -178,6 +178,15 @@ type EmailConfig struct {
 	ModerationApprovedTemplateID string `mapstructure:"approved_template_id"`
 	ModerationRejectedTemplateID string `mapstructure:"rejected_template_id"`
 
+	// Application notice templates (KAN-219). A blank ID disables that notice.
+	ApplicationSubmittedTemplateID        string `mapstructure:"application_submitted_template_id"`
+	ApplicationNewApplicationTemplateID   string `mapstructure:"application_new_application_template_id"`
+	ApplicationCVRejectedTemplateID       string `mapstructure:"application_cv_rejected_template_id"`
+	ApplicationCVApprovedTemplateID       string `mapstructure:"application_cv_approved_template_id"`
+	ApplicationDecisionApprovedTemplateID string `mapstructure:"application_decision_approved_template_id"`
+	ApplicationDecisionRejectedTemplateID string `mapstructure:"application_decision_rejected_template_id"`
+	ApplicationAutoRejectedTemplateID     string `mapstructure:"application_auto_rejected_template_id"`
+
 	Provider    string        `mapstructure:"provider"`
 	From        string        `mapstructure:"from"`
 	APIKey      string        `mapstructure:"api_key"`
@@ -306,42 +315,49 @@ func Load(configPath string) (*Config, error) {
 
 	// Explicitly bind environment variables
 	for key, env := range map[string]string{
-		"storage.endpoint":                    "S3_ENDPOINT",
-		"storage.region":                      "S3_REGION",
-		"storage.bucket":                      "S3_BUCKET",
-		"storage.access_key_id":               "S3_ACCESS_KEY_ID",
-		"storage.secret_access_key":           "S3_SECRET_ACCESS_KEY",
-		"storage.session_token":               "S3_SESSION_TOKEN",
-		"database.url":                        "DATABASE_URL",
-		"database.name":                       "DB_DATABASE",
-		"database.user":                       "DB_USERNAME",
-		"database.password":                   "DB_PASSWORD",
-		"database.port":                       "DB_PORT",
-		"auth.public_url":                     "AUTH_BASE_URL",
-		"auth.admin_secret":                   "ADMIN_AUTH_INTERNAL_SECRET",
-		"auth.timeout":                        "AUTH_SESSION_TIMEOUT",
-		"auth.cookie_prefix":                  "BETTER_AUTH_COOKIE_PREFIX",
-		"auth.cookie_domain":                  "BETTER_AUTH_COOKIE_DOMAIN",
-		"auth.secure_cookies":                 "AUTH_SECURE_COOKIES",
-		"llm.provider":                        "LLM_PROVIDER",
-		"llm.api_key":                         "LLM_API_KEY",
-		"llm.model":                           "LLM_MODEL",
-		"llm.timeout":                         "LLM_TIMEOUT",
-		"llm.max_retries":                     "LLM_MAX_RETRIES",
-		"tts.key":                             "AZURE_SPEECH_KEY",
-		"tts.region":                          "AZURE_SPEECH_REGION",
-		"tts.timeout":                         "TTS_TIMEOUT",
-		"tts.sync_locales":                    "TTS_SYNC_LOCALES",
-		"email.provider":                      "EMAIL_PROVIDER",
-		"email.from":                          "EMAIL_FROM",
-		"email.api_key":                       "RESEND_API_KEY",
-		"email.timeout":                       "EMAIL_TIMEOUT",
-		"email.workers":                       "EMAIL_WORKERS",
-		"email.queue_size":                    "EMAIL_QUEUE_SIZE",
-		"email.max_attempts":                  "EMAIL_MAX_ATTEMPTS",
-		"email.backoff":                       "EMAIL_BACKOFF",
-		"email.approved_template_id":          "EMAIL_MODERATION_APPROVED_TEMPLATE_ID",
-		"email.rejected_template_id":          "EMAIL_MODERATION_REJECTED_TEMPLATE_ID",
+		"storage.endpoint":           "S3_ENDPOINT",
+		"storage.region":             "S3_REGION",
+		"storage.bucket":             "S3_BUCKET",
+		"storage.access_key_id":      "S3_ACCESS_KEY_ID",
+		"storage.secret_access_key":  "S3_SECRET_ACCESS_KEY",
+		"storage.session_token":      "S3_SESSION_TOKEN",
+		"database.url":               "DATABASE_URL",
+		"database.name":              "DB_DATABASE",
+		"database.user":              "DB_USERNAME",
+		"database.password":          "DB_PASSWORD",
+		"database.port":              "DB_PORT",
+		"auth.public_url":            "AUTH_BASE_URL",
+		"auth.admin_secret":          "ADMIN_AUTH_INTERNAL_SECRET",
+		"auth.timeout":               "AUTH_SESSION_TIMEOUT",
+		"auth.cookie_prefix":         "BETTER_AUTH_COOKIE_PREFIX",
+		"auth.cookie_domain":         "BETTER_AUTH_COOKIE_DOMAIN",
+		"auth.secure_cookies":        "AUTH_SECURE_COOKIES",
+		"llm.provider":               "LLM_PROVIDER",
+		"llm.api_key":                "LLM_API_KEY",
+		"llm.model":                  "LLM_MODEL",
+		"llm.timeout":                "LLM_TIMEOUT",
+		"llm.max_retries":            "LLM_MAX_RETRIES",
+		"tts.key":                    "AZURE_SPEECH_KEY",
+		"tts.region":                 "AZURE_SPEECH_REGION",
+		"tts.timeout":                "TTS_TIMEOUT",
+		"tts.sync_locales":           "TTS_SYNC_LOCALES",
+		"email.provider":             "EMAIL_PROVIDER",
+		"email.from":                 "EMAIL_FROM",
+		"email.api_key":              "RESEND_API_KEY",
+		"email.timeout":              "EMAIL_TIMEOUT",
+		"email.workers":              "EMAIL_WORKERS",
+		"email.queue_size":           "EMAIL_QUEUE_SIZE",
+		"email.max_attempts":         "EMAIL_MAX_ATTEMPTS",
+		"email.backoff":              "EMAIL_BACKOFF",
+		"email.approved_template_id": "EMAIL_MODERATION_APPROVED_TEMPLATE_ID",
+		"email.rejected_template_id": "EMAIL_MODERATION_REJECTED_TEMPLATE_ID",
+		"email.application_submitted_template_id":         "EMAIL_APPLICATION_SUBMITTED_TEMPLATE_ID",
+		"email.application_new_application_template_id":   "EMAIL_APPLICATION_NEW_APPLICATION_TEMPLATE_ID",
+		"email.application_cv_rejected_template_id":       "EMAIL_APPLICATION_CV_REJECTED_TEMPLATE_ID",
+		"email.application_cv_approved_template_id":       "EMAIL_APPLICATION_CV_APPROVED_TEMPLATE_ID",
+		"email.application_decision_approved_template_id": "EMAIL_APPLICATION_DECISION_APPROVED_TEMPLATE_ID",
+		"email.application_decision_rejected_template_id": "EMAIL_APPLICATION_DECISION_REJECTED_TEMPLATE_ID",
+		"email.application_auto_rejected_template_id":     "EMAIL_APPLICATION_AUTO_REJECTED_TEMPLATE_ID",
 		"payos.client_id":                     "PAYOS_CLIENT_ID",
 		"payos.api_key":                       "PAYOS_API_KEY",
 		"payos.checksum_key":                  "PAYOS_CHECKSUM_KEY",
