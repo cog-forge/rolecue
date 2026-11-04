@@ -11,6 +11,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/pkg/email"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 // noticeLookupTimeout bounds the one context read a notice needs, so a slow database never holds a
@@ -58,6 +59,12 @@ type notices struct {
 func (s *Service) SetNotices(dispatcher MailDispatcher, origin string, t NoticeTemplates) error {
 	if dispatcher == nil {
 		return fmt.Errorf("application notice dispatcher is required")
+	}
+	for name, id := range map[string]string{"submitted": t.Submitted, "new_application": t.NewApplication, "cv_rejected": t.CVRejected,
+		"cv_approved": t.CVApproved, "decision_approved": t.DecisionApproved, "decision_rejected": t.DecisionRejected, "auto_rejected": t.AutoRejected} {
+		if strings.TrimSpace(id) == "" {
+			logger.FromContext(context.Background()).Warn("application notice disabled: no template configured", logger.Op("application.notices"), zap.String("event", name))
+		}
 	}
 	s.notices = &notices{dispatcher: dispatcher, origin: strings.TrimRight(origin, "/"), templates: t}
 	return nil
