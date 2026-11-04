@@ -74,6 +74,8 @@ func (s *Service) Apply(ctx context.Context, candidateID uuid.UUID, role string,
 	logger.FromContext(ctx).Info("application submitted", logger.Op("application.apply"),
 		zap.String("application_id", submission.ID.String()), zap.String("posting_id", postingID.String()),
 		zap.String("user_id", candidateID.String()), zap.String("status", string(submission.Status)))
+	s.notify(ctx, noticeSubmitted, submission.ID)
+	s.notify(ctx, noticeNewApplication, submission.ID)
 	return submission, nil
 }
 

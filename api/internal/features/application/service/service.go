@@ -42,6 +42,7 @@ type Repository interface {
 type Service struct {
 	repository Repository
 	cvLinker   CVLinker
+	notices    *notices
 }
 
 func New(repository Repository, cvLinker CVLinker) (*Service, error) {
@@ -66,6 +67,8 @@ func (s *Service) ApproveCV(ctx context.Context, recruiterID uuid.UUID, role str
 		zap.String("application_id", applicationID.String()), zap.String("posting_id", postingID.String()),
 		zap.String("user_id", recruiterID.String()), zap.String("from_status", string(domain.StatusPending)),
 		zap.String("to_status", string(screening.Status)), zap.String("posting_status", screening.JobPostingStatus))
+	s.notify(ctx, noticeCVApproved, applicationID)
+	s.notify(ctx, noticeAutoRejected, screening.RejectedIDs...)
 	return screening, nil
 }
 
@@ -121,6 +124,7 @@ func (s *Service) RejectCV(ctx context.Context, recruiterID uuid.UUID, role stri
 		zap.String("application_id", applicationID.String()), zap.String("posting_id", postingID.String()),
 		zap.String("user_id", recruiterID.String()), zap.String("from_status", string(domain.StatusPending)),
 		zap.String("to_status", string(screening.Status)), zap.Bool("has_reason", normalized != nil))
+	s.notify(ctx, noticeCVRejected, applicationID)
 	return screening, nil
 }
 
@@ -130,7 +134,12 @@ func (s *Service) CloseIntake(ctx context.Context, recruiterID uuid.UUID, role s
 	if role != recruiterRole {
 		return domain.IntakeClosure{}, apperror.New(apperror.CodeForbidden, "only recruiters can close intake")
 	}
-	return s.repository.CloseIntake(ctx, recruiterID, postingID)
+	closure, err := s.repository.CloseIntake(ctx, recruiterID, postingID)
+	if err != nil {
+		return closure, err
+	}
+	s.notify(ctx, noticeAutoRejected, closure.RejectedIDs...)
+	return closure, nil
 }
 
 // InterviewEligibility is the server-side check a recruitment interview start must pass
