@@ -280,6 +280,57 @@ func (q *Queries) IsPostingOwned(ctx context.Context, arg IsPostingOwnedParams) 
 	return owned, err
 }
 
+const listNoticeContexts = `-- name: ListNoticeContexts :many
+SELECT a.id AS application_id, a.job_posting_id, jp.title AS posting_title,
+       u.name AS candidate_name, u.email AS candidate_email,
+       r.email AS recruiter_email, a.interview_deadline
+FROM public.applications a
+JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = a.candidate_id
+JOIN public.users r ON r.id = jp.recruiter_id
+WHERE a.id = ANY($1::uuid[])
+`
+
+type ListNoticeContextsRow struct {
+	ApplicationID     uuid.UUID
+	JobPostingID      uuid.UUID
+	PostingTitle      string
+	CandidateName     string
+	CandidateEmail    string
+	RecruiterEmail    string
+	InterviewDeadline pgtype.Timestamptz
+}
+
+// The notice context of Applications (KAN-219): who receives an Application email and which posting it
+// is about. The recruiter is the posting owner. No CV, interview, score or storage column is read.
+func (q *Queries) ListNoticeContexts(ctx context.Context, ids []uuid.UUID) ([]ListNoticeContextsRow, error) {
+	rows, err := q.db.Query(ctx, listNoticeContexts, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNoticeContextsRow
+	for rows.Next() {
+		var i ListNoticeContextsRow
+		if err := rows.Scan(
+			&i.ApplicationID,
+			&i.JobPostingID,
+			&i.PostingTitle,
+			&i.CandidateName,
+			&i.CandidateEmail,
+			&i.RecruiterEmail,
+			&i.InterviewDeadline,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecruiterApplications = `-- name: ListRecruiterApplications :many
 SELECT a.id, a.job_posting_id, jp.title AS job_posting_title, a.status::text AS status, a.created_at,
        u.id AS candidate_id, u.name AS candidate_name, u.email AS candidate_email, u.image AS candidate_image,
@@ -473,10 +524,11 @@ func (q *Queries) RejectCV(ctx context.Context, arg RejectCVParams) (RejectCVRow
 	return i, err
 }
 
-const rejectPendingApplications = `-- name: RejectPendingApplications :execrows
+const rejectPendingApplications = `-- name: RejectPendingApplications :many
 UPDATE public.applications
 SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
 WHERE job_posting_id = $2 AND status = 'pending'
+RETURNING id
 `
 
 type RejectPendingApplicationsParams struct {
@@ -486,12 +538,24 @@ type RejectPendingApplicationsParams struct {
 
 // Every pending Application of the posting is rejected when intake closes, in the same transaction
 // as the posting status change. statement_timestamp() for the same reason as ApproveCV.
-func (q *Queries) RejectPendingApplications(ctx context.Context, arg RejectPendingApplicationsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, rejectPendingApplications, arg.RejectReason, arg.JobPostingID)
+func (q *Queries) RejectPendingApplications(ctx context.Context, arg RejectPendingApplicationsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, rejectPendingApplications, arg.RejectReason, arg.JobPostingID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const setApplicationDecision = `-- name: SetApplicationDecision :execrows

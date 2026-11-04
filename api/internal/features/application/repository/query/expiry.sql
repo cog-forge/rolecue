@@ -41,7 +41,7 @@ FOR UPDATE OF i;
 -- Rejects the expired Applications of one posting. The predicate is repeated in the UPDATE so a row that
 -- changed after the list was read (an interview completed, a decision made) is left alone. The caller
 -- holds the posting lock.
--- name: RejectExpiredApplications :execrows
+-- name: RejectExpiredApplications :many
 UPDATE public.applications a
 SET status = 'rejected', reject_reason = sqlc.narg(reject_reason), updated_at = statement_timestamp()
 WHERE a.job_posting_id = sqlc.arg(job_posting_id)
@@ -50,4 +50,5 @@ WHERE a.job_posting_id = sqlc.arg(job_posting_id)
   AND NOT EXISTS (
       SELECT 1 FROM public.interviews i
       WHERE i.application_id = a.id AND i.completed_at IS NOT NULL
-  );
+  )
+RETURNING a.id;
