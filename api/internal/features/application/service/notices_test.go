@@ -106,7 +106,7 @@ func noticeContextFor(app uuid.UUID, candidateEmail string, deadline *time.Time)
 func fullNoticeTemplates() NoticeTemplates {
 	return NoticeTemplates{
 		Submitted: "tpl-submitted", NewApplication: "tpl-new", CVRejected: "tpl-cv-rejected", CVApproved: "tpl-cv-approved",
-		DecisionApproved: "tpl-decision-approved", DecisionRejected: "tpl-decision-rejected", AutoRejected: "tpl-auto-rejected",
+		DecisionApproved: "tpl-decision-approved", DecisionRejected: "tpl-decision-rejected", AutoRejected: "tpl-auto-rejected", IntakeClosed: "tpl-intake-closed",
 	}
 }
 
@@ -204,8 +204,8 @@ func TestNoticeTriggersRouteEachEventToItsRecipient(t *testing.T) {
 			},
 			want: []wantNotice{
 				{noticeAppA, noticeCVApproved, "ada@example.test", "tpl-cv-approved"},
-				{noticeAppB, noticeAutoRejected, "bob@example.test", "tpl-auto-rejected"},
-				{noticeAppC, noticeAutoRejected, "cara@example.test", "tpl-auto-rejected"},
+				{noticeAppB, noticeIntakeClosed, "bob@example.test", "tpl-intake-closed"},
+				{noticeAppC, noticeIntakeClosed, "cara@example.test", "tpl-intake-closed"},
 			},
 		},
 		{
@@ -233,7 +233,7 @@ func TestNoticeTriggersRouteEachEventToItsRecipient(t *testing.T) {
 			want: []wantNotice{{noticeAppA, noticeDecisionRejected, "ada@example.test", "tpl-decision-rejected"}},
 		},
 		{
-			name: "closing intake auto-rejects each closed application",
+			name: "closing intake sends the intake-closed notice to each rejected application",
 			setup: func(f *noticeFake) {
 				f.closure = domain.IntakeClosure{JobPostingID: postingID, Status: "intake_closed", RejectedCount: 2, RejectedIDs: []uuid.UUID{noticeAppA, noticeAppB}}
 			},
@@ -242,8 +242,8 @@ func TestNoticeTriggersRouteEachEventToItsRecipient(t *testing.T) {
 				return err
 			},
 			want: []wantNotice{
-				{noticeAppA, noticeAutoRejected, "ada@example.test", "tpl-auto-rejected"},
-				{noticeAppB, noticeAutoRejected, "bob@example.test", "tpl-auto-rejected"},
+				{noticeAppA, noticeIntakeClosed, "ada@example.test", "tpl-intake-closed"},
+				{noticeAppB, noticeIntakeClosed, "bob@example.test", "tpl-intake-closed"},
 			},
 		},
 		{

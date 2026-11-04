@@ -27,7 +27,7 @@ type MailDispatcher interface{ Dispatch(string, email.Message) }
 // NoticeTemplates names the provider-hosted template of each Application notice. An empty ID skips
 // that notice.
 type NoticeTemplates struct {
-	Submitted, NewApplication, CVRejected, CVApproved, DecisionApproved, DecisionRejected, AutoRejected string
+	Submitted, NewApplication, CVRejected, CVApproved, DecisionApproved, DecisionRejected, AutoRejected, IntakeClosed string
 }
 
 // NoticeRepository is the optional read of the people and posting a notice is about. The Repository
@@ -47,6 +47,7 @@ const (
 	noticeDecisionApproved noticeEvent = "decision_approved"
 	noticeDecisionRejected noticeEvent = "decision_rejected"
 	noticeAutoRejected     noticeEvent = "auto_rejected"
+	noticeIntakeClosed     noticeEvent = "intake_closed"
 )
 
 type notices struct {
@@ -61,7 +62,7 @@ func (s *Service) SetNotices(dispatcher MailDispatcher, origin string, t NoticeT
 		return fmt.Errorf("application notice dispatcher is required")
 	}
 	for name, id := range map[string]string{"submitted": t.Submitted, "new_application": t.NewApplication, "cv_rejected": t.CVRejected,
-		"cv_approved": t.CVApproved, "decision_approved": t.DecisionApproved, "decision_rejected": t.DecisionRejected, "auto_rejected": t.AutoRejected} {
+		"cv_approved": t.CVApproved, "decision_approved": t.DecisionApproved, "decision_rejected": t.DecisionRejected, "auto_rejected": t.AutoRejected, "intake_closed": t.IntakeClosed} {
 		if strings.TrimSpace(id) == "" {
 			logger.FromContext(context.Background()).Warn("application notice disabled: no template configured", logger.Op("application.notices"), zap.String("event", name))
 		}
@@ -87,6 +88,8 @@ func (t NoticeTemplates) template(event noticeEvent) string {
 		return t.DecisionRejected
 	case noticeAutoRejected:
 		return t.AutoRejected
+	case noticeIntakeClosed:
+		return t.IntakeClosed
 	}
 	return ""
 }

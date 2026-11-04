@@ -31,6 +31,7 @@ func ProvideApplicationService(repo *repository.Repository, store storage.Store,
 		DecisionApproved: e.ApplicationDecisionApprovedTemplateID,
 		DecisionRejected: e.ApplicationDecisionRejectedTemplateID,
 		AutoRejected:     e.ApplicationAutoRejectedTemplateID,
+		IntakeClosed:     e.ApplicationIntakeClosedTemplateID,
 	}); err != nil {
 		return nil, err
 	}

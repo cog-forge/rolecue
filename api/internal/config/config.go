@@ -186,6 +186,7 @@ type EmailConfig struct {
 	ApplicationDecisionApprovedTemplateID string `mapstructure:"application_decision_approved_template_id"`
 	ApplicationDecisionRejectedTemplateID string `mapstructure:"application_decision_rejected_template_id"`
 	ApplicationAutoRejectedTemplateID     string `mapstructure:"application_auto_rejected_template_id"`
+	ApplicationIntakeClosedTemplateID     string `mapstructure:"application_intake_closed_template_id"`
 
 	Provider    string        `mapstructure:"provider"`
 	From        string        `mapstructure:"from"`
@@ -358,6 +359,7 @@ func Load(configPath string) (*Config, error) {
 		"email.application_decision_approved_template_id": "EMAIL_APPLICATION_DECISION_APPROVED_TEMPLATE_ID",
 		"email.application_decision_rejected_template_id": "EMAIL_APPLICATION_DECISION_REJECTED_TEMPLATE_ID",
 		"email.application_auto_rejected_template_id":     "EMAIL_APPLICATION_AUTO_REJECTED_TEMPLATE_ID",
+		"email.application_intake_closed_template_id":     "EMAIL_APPLICATION_INTAKE_CLOSED_TEMPLATE_ID",
 		"payos.client_id":                     "PAYOS_CLIENT_ID",
 		"payos.api_key":                       "PAYOS_API_KEY",
 		"payos.checksum_key":                  "PAYOS_CHECKSUM_KEY",

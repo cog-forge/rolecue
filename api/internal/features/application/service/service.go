@@ -68,7 +68,7 @@ func (s *Service) ApproveCV(ctx context.Context, recruiterID uuid.UUID, role str
 		zap.String("user_id", recruiterID.String()), zap.String("from_status", string(domain.StatusPending)),
 		zap.String("to_status", string(screening.Status)), zap.String("posting_status", screening.JobPostingStatus))
 	s.notify(ctx, noticeCVApproved, applicationID)
-	s.notify(ctx, noticeAutoRejected, screening.RejectedIDs...)
+	s.notify(ctx, noticeIntakeClosed, screening.RejectedIDs...)
 	return screening, nil
 }
 
@@ -138,7 +138,7 @@ func (s *Service) CloseIntake(ctx context.Context, recruiterID uuid.UUID, role s
 	if err != nil {
 		return closure, err
 	}
-	s.notify(ctx, noticeAutoRejected, closure.RejectedIDs...)
+	s.notify(ctx, noticeIntakeClosed, closure.RejectedIDs...)
 	return closure, nil
 }
 
