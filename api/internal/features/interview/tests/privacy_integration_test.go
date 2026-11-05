@@ -158,6 +158,9 @@ func TestCVRetentionBoundariesAndRetry(t *testing.T) {
 		id := s.application(posting, s.user("candidate"), "pending", nil)
 		s.exec(`UPDATE public.applications SET cv_path = $2, status = $3::public.application_status, updated_at = now() - $4::interval WHERE id = $1`,
 			id, key, status, ago)
+		if status == "approved" || status == "rejected" {
+			s.exec(`UPDATE public.applications SET decided_at = now() - $2::interval WHERE id = $1`, id, ago)
+		}
 		return id
 	}
 	oldApp := reject("cv/old", "181 days", "rejected")
@@ -165,7 +168,7 @@ func TestCVRetentionBoundariesAndRetry(t *testing.T) {
 	pendingApp := reject("cv/pending", "400 days", "pending")
 	flakyApp := reject("cv/flaky", "181 days", "rejected")
 	_, interviewedApp := s.endedRecruitment(svc, posting, "none", nil, time.Hour)
-	s.exec(`UPDATE public.applications SET cv_path = 'cv/interviewed', status = 'rejected', updated_at = now() - interval '400 days' WHERE id = $1`, interviewedApp)
+	s.exec(`UPDATE public.applications SET cv_path = 'cv/interviewed', status = 'rejected', updated_at = now() - interval '400 days', decided_at = now() - interval '400 days' WHERE id = $1`, interviewedApp)
 
 	store := &upkeepStore{failing: map[string]bool{"cv/flaky": true}}
 	upkeep, err := service.NewRecordingUpkeep(repository.NewRepository(pool), store, 5*time.Minute)

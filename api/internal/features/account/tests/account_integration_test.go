@@ -7,6 +7,7 @@ package tests
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -87,6 +88,17 @@ func (f *fixture) cleanup() {
 		_, _ = f.pool.Exec(ctx, `UPDATE public.job_postings SET status = 'closed' WHERE recruiter_id = $1`, id)
 		_, _ = f.pool.Exec(ctx, `UPDATE public.applications SET status = 'rejected'
  WHERE job_posting_id IN (SELECT id FROM public.job_postings WHERE recruiter_id = $1)`, id)
+	}
+	// Candidates go first: a recruiter is only erasable once no application is left on their postings.
+	var blocked []uuid.UUID
+	for _, id := range f.users {
+		if err := f.repo.Erase(ctx, id); errors.Is(err, repository.ErrActiveWork) {
+			blocked = append(blocked, id)
+		} else if err != nil {
+			f.t.Errorf("cleanup erase %s: %v", id, err)
+		}
+	}
+	for _, id := range blocked {
 		if err := f.repo.Erase(ctx, id); err != nil {
 			f.t.Errorf("cleanup erase %s: %v", id, err)
 		}
