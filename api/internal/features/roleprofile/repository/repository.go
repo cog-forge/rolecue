@@ -164,7 +164,7 @@ func writeReview(ctx context.Context, q *Queries, row GetRoleProfileRow, review 
 		value := string(*review.SeniorityLevel)
 		level = &value
 	}
-	if err := q.SaveProfileJD(ctx, SaveProfileJDParams{ID: row.JdID, RefinementNote: &review.RefinementNote, SeniorityLevel: level}); err != nil {
+	if err := q.SaveProfileJD(ctx, SaveProfileJDParams{ID: row.JdID, CandidateID: row.CandidateID, RefinementNote: &review.RefinementNote, SeniorityLevel: level}); err != nil {
 		return err
 	}
 	if err := q.DeleteProfileRequirements(ctx, row.JdID); err != nil {
@@ -184,7 +184,7 @@ func writeReview(ctx context.Context, q *Queries, row GetRoleProfileRow, review 
 			return err
 		}
 	}
-	return q.CompleteProfileReview(ctx, CompleteProfileReviewParams{ID: row.ID, Title: review.Title})
+	return q.CompleteProfileReview(ctx, CompleteProfileReviewParams{ID: row.ID, CandidateID: row.CandidateID, Title: review.Title})
 }
 
 // logTransition records a Role Profile status change. Call it only after the transaction committed.
@@ -225,7 +225,7 @@ func (r *RoleProfileRepository) ConfirmProfile(ctx context.Context, user, id uui
 			logConflict(ctx, "roleprofile.confirm", id, row.Status)
 			return conflict("Analyze and review this Role Profile before confirming.")
 		}
-		return q.ConfirmRoleProfile(ctx, id)
+		return q.ConfirmRoleProfile(ctx, ConfirmRoleProfileParams{ID: id, CandidateID: user})
 	})
 	if err == nil && from == "confirmed" {
 		logger.FromContext(ctx).Debug("role profile already confirmed", logger.Op("roleprofile.confirm"), logger.String("profile_id", id.String()))
@@ -246,7 +246,7 @@ func (r *RoleProfileRepository) ClaimAnalysis(ctx context.Context, user, id uuid
 			logConflict(ctx, "roleprofile.claim_analysis", id, row.Status)
 			return conflict("This Role Profile is not ready for analysis.")
 		}
-		return q.ClaimProfileAnalysis(ctx, id)
+		return q.ClaimProfileAnalysis(ctx, ClaimProfileAnalysisParams{ID: id, CandidateID: user})
 	})
 	if err == nil && from != "review" {
 		// From analyzing to analyzing means an earlier claim was taken over.
@@ -309,7 +309,7 @@ func (r *RoleProfileRepository) DeleteProfile(ctx context.Context, user, id uuid
 			return rolePersistenceError(err)
 		}
 	}
-	if err = q.DeleteOwnedRoleProfile(ctx, id); err != nil {
+	if err = q.DeleteOwnedRoleProfile(ctx, DeleteOwnedRoleProfileParams{ID: id, CandidateID: user}); err != nil {
 		return rolePersistenceError(err)
 	}
 	if err = q.DeleteProfileJD(ctx, profile.JDID); err != nil {

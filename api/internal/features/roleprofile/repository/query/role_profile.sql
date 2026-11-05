@@ -36,7 +36,9 @@ WHERE jd_id = @jd_id ORDER BY name, id;
 
 -- name: SaveProfileJD :exec
 UPDATE job_descriptions SET refinement_note = @refinement_note,
-level_id = (SELECT id FROM levels WHERE name = sqlc.narg(seniority_level)) WHERE job_descriptions.id = @id;
+level_id = (SELECT id FROM levels WHERE name = sqlc.narg(seniority_level))
+WHERE job_descriptions.id = @id
+  AND EXISTS (SELECT 1 FROM role_profiles rp WHERE rp.jd_id = job_descriptions.id AND rp.candidate_id = @candidate_id);
 
 -- name: DeleteProfileRequirements :exec
 DELETE FROM requirements WHERE jd_id = @jd_id;
@@ -47,13 +49,13 @@ VALUES (@jd_id, @name, @target, @kind, sqlc.narg(category), sqlc.narg(type), sql
 
 -- name: CompleteProfileReview :exec
 UPDATE role_profiles SET title = @title, status = 'review'
-WHERE id = @id;
+WHERE id = @id AND candidate_id = @candidate_id;
 
 -- name: ConfirmRoleProfile :exec
-UPDATE role_profiles SET status = 'confirmed' WHERE id = @id;
+UPDATE role_profiles SET status = 'confirmed' WHERE id = @id AND candidate_id = @candidate_id;
 
 -- name: ClaimProfileAnalysis :exec
-UPDATE role_profiles SET status = 'analyzing' WHERE id = @id;
+UPDATE role_profiles SET status = 'analyzing' WHERE id = @id AND candidate_id = @candidate_id;
 
 -- name: ReleaseProfileAnalysis :exec
 UPDATE role_profiles SET status = 'draft' WHERE id = @id AND status = 'analyzing';
@@ -62,10 +64,15 @@ UPDATE role_profiles SET status = 'draft' WHERE id = @id AND status = 'analyzing
 SELECT EXISTS (SELECT 1 FROM interviews WHERE role_profile_id = @role_profile_id);
 
 -- name: DeleteOwnedRoleProfile :exec
-DELETE FROM role_profiles WHERE id = @id;
+DELETE FROM role_profiles WHERE id = @id AND candidate_id = @candidate_id;
 
 -- name: DeleteProfileQuestions :exec
 DELETE FROM core_questions WHERE jd_id = @jd_id;
 
+-- The owner's Role Profile row is deleted first, so ownership can no longer be read from it. The JD is
+-- removed only when no Role Profile of anyone still references it: a JD id taken from another owner's
+-- live profile is never deleted.
 -- name: DeleteProfileJD :exec
-DELETE FROM job_descriptions WHERE id = @id;
+DELETE FROM job_descriptions
+WHERE job_descriptions.id = @id
+  AND NOT EXISTS (SELECT 1 FROM role_profiles rp WHERE rp.jd_id = job_descriptions.id);
