@@ -62,6 +62,15 @@ class HooksTest(unittest.TestCase):
         self.stage(".env", "KEY=fixture\n")
         self.run_command("git", "commit", "-m", "credential", success=False)
 
+    def test_deploy_env_is_blocked_but_the_example_template_is_allowed(self):
+        self.install()
+        self.stage(".docker/deploy.env", "KEY=fixture\n")
+        self.run_command("git", "commit", "-m", "deploy secrets", success=False)
+        self.run_command("git", "reset", "--", ".docker/deploy.env")
+        (self.repo / ".docker/deploy.env").unlink()
+        self.stage(".docker/deploy.env.example", "KEY=\n")
+        self.run_command("git", "commit", "-m", "deploy template")
+
     def test_partial_staging_and_spaces_preserve_unstaged_content(self):
         self.stage("README.md", "Fixture\n")
         self.run_command("git", "commit", "-m", "initial")

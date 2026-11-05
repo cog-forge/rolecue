@@ -14,3 +14,7 @@ CLAUDE.md
 /.tools/
 /.cache/
 /reports/
+
+# Production deploy environment: holds real secrets, keep only the .example template tracked
+/.docker/deploy.env
+*.deploy.env
