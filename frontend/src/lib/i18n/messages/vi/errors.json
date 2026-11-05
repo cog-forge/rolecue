@@ -14,6 +14,7 @@
     "AVATAR_CONVERTER_UNAVAILABLE": "Hiện chưa thể xử lý avatar. Vui lòng thử lại sau.",
     "AVATAR_CONVERSION_FAILED": "Không thể xử lý avatar này. Hãy thử avatar khác.",
     "AVATAR_CONVERSION_TIMEOUT": "Xử lý avatar mất quá nhiều thời gian. Vui lòng thử lại.",
+    "AVATAR_CONVERSION_QUOTA": "Bạn đã dùng hết số lần chuyển đổi avatar trong ngày. Vui lòng thử lại vào ngày mai.",
     "AVATAR_PERSISTENCE_FAILED": "Không thể lưu avatar của bạn. Vui lòng thử lại.",
     "AVATAR_NOT_FOUND": "Avatar này không còn tồn tại.",
     "AVATAR_IN_USE": "Avatar này đang được sử dụng nên không thể xóa.",

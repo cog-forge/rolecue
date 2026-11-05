@@ -14,6 +14,7 @@
     "AVATAR_CONVERTER_UNAVAILABLE": "Avatar processing is unavailable right now. Try again later.",
     "AVATAR_CONVERSION_FAILED": "We couldn't process this avatar. Try a different one.",
     "AVATAR_CONVERSION_TIMEOUT": "Processing the avatar took too long. Try again.",
+    "AVATAR_CONVERSION_QUOTA": "You have reached the daily avatar conversion limit. Try again tomorrow.",
     "AVATAR_PERSISTENCE_FAILED": "We couldn't save your avatar. Try again.",
     "AVATAR_NOT_FOUND": "This avatar no longer exists.",
     "AVATAR_IN_USE": "This avatar is in use and can't be removed.",
