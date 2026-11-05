@@ -114,6 +114,7 @@
         "accounts": "Accounts",
         "jobPostingModeration": "Job Posting Moderation",
         "interviewSessions": "Interview Sessions",
+        "accessAudit": "Access Audit",
         "voiceProfiles": "Voice Profiles",
         "paymentTransactions": "Payment Transactions",
         "revenueReports": "Revenue Reports"

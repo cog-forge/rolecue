@@ -42,11 +42,14 @@ export async function getRecordingStatus(
 /** The grant binds the exact byte size and media type, and is valid for 15 minutes. */
 export async function createRecordingUpload(
   interviewId: string,
-  upload: { contentType: string; size: number },
+  upload: { contentType: string; size: number; consentVersion?: string },
 ) {
   const response = await apiClient.post<unknown>(path(interviewId), {
     content_type: upload.contentType,
     size: upload.size,
+    ...(upload.consentVersion
+      ? { consent_version: upload.consentVersion }
+      : {}),
   });
   return grantEnvelope.parse(response.data).data;
 }

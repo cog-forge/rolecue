@@ -53,6 +53,7 @@ export function StartPanel({
   plan,
   readiness,
   cameraReady,
+  consentGiven,
   links,
   returnPath,
   children,
@@ -61,6 +62,8 @@ export function StartPanel({
   readiness: MicrophoneReadiness;
   /** Recruitment only: the interview is recorded, so Start also needs a live camera. */
   cameraReady?: boolean;
+  /** Recruitment only: the recording consent box is ticked (KAN-297). */
+  consentGiven?: boolean;
   /** Where the error actions lead: the Role Profile (practice) or the Application (recruitment). */
   links: { roleProfileId?: string; applicationId?: string };
   /** The preflight URL, so PayOS brings the Candidate back here after buying coins. */
@@ -160,7 +163,10 @@ export function StartPanel({
   const busy = start.isPending || start.isSuccess;
   const micReady = readiness === "ready";
   const cameraMissing = cameraReady === false;
-  const disabled = busy || !micReady || cameraMissing || walletBlocks;
+  // Recruitment only: a recording needs the Candidate's consent, so Start waits for the ticked box.
+  const consentMissing = consentGiven === false;
+  const disabled =
+    busy || !micReady || cameraMissing || consentMissing || walletBlocks;
   const problem = start.isError
     ? describeStartFailure(
         startFailure(start.error),
@@ -188,9 +194,11 @@ export function StartPanel({
     ? t(`hint.${micHintKeys[readiness]}`)
     : cameraMissing
       ? recordingT("startHint")
-      : paid && wallet.isError
-        ? t("hint.balance")
-        : null;
+      : consentMissing
+        ? recordingT("consent.startHint")
+        : paid && wallet.isError
+          ? t("hint.balance")
+          : null;
 
   const action = (
     <div className="space-y-3">
