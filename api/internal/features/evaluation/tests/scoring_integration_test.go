@@ -620,8 +620,8 @@ func TestRecruitmentReportShowsCandidateOnlyScoreAndStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if limited.Status != "completed" || limited.OverallScore == nil || *limited.OverallScore != 82 || limited.CompletedAt == nil {
-		t.Fatalf("candidate report = %+v, want completed with the score 82", limited)
+	if limited.Status != "completed" || limited.OverallScore != nil || limited.CompletedAt == nil {
+		t.Fatalf("candidate report = %+v, want completed with the score withheld", limited)
 	}
 	if limited.Summary != nil || limited.Breakdown != nil || limited.Questions != nil {
 		t.Fatalf("candidate report = %+v, want summary, breakdown and questions all null", limited)

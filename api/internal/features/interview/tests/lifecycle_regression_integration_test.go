@@ -564,9 +564,9 @@ func TestKAN75RecruitmentLifecycleAPIRegression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if candidateReport.OverallScore == nil || *candidateReport.OverallScore != 74 ||
+	if candidateReport.OverallScore != nil ||
 		candidateReport.Summary != nil || candidateReport.Breakdown != nil || candidateReport.Questions != nil {
-		t.Fatalf("candidate report = %+v, want the score only", candidateReport)
+		t.Fatalf("candidate report = %+v, want status only, no score", candidateReport)
 	}
 	if strings.Contains(regJSON(t, candidateReport), regAnswerMarker) {
 		t.Fatal("candidate report leaks the transcript")
