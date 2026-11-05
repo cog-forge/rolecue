@@ -24,6 +24,7 @@ const itemKeys = {
   Accounts: "accounts",
   "Job Posting Moderation": "jobPostingModeration",
   "Interview Sessions": "interviewSessions",
+  "Access Audit": "accessAudit",
   "Voice Profiles": "voiceProfiles",
   "Payment Transactions": "paymentTransactions",
   "Revenue Reports": "revenueReports",

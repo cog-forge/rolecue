@@ -159,6 +159,46 @@
       "reasonInvalid": "Remove the unsupported characters from the reason."
     }
   },
+  "accessAudit": {
+    "label": "Recruiter access audit",
+    "eyebrow": "Operations",
+    "title": "Access audit",
+    "description": "Every time a Recruiter opened a recording or a transcript, newest first. Only who, what and when are shown, never the content.",
+    "action": {
+      "recording_view": "Opened a recording",
+      "transcript_view": "Read a transcript"
+    },
+    "accessDenied": {
+      "message": "We couldn't confirm your administrator access. The audit is hidden until access is verified.",
+      "retry": "Retry access check"
+    },
+    "filters": {
+      "label": "Filter the access audit",
+      "recruiterId": "Recruiter ID",
+      "applicationId": "Application ID",
+      "invalidId": "Enter a full ID, for example 3f1c2a4e-0000-4000-8000-000000000001.",
+      "apply": "Apply filters",
+      "clear": "Clear"
+    },
+    "loading": "Loading the access audit…",
+    "loadingLabel": "Loading the access audit",
+    "count": "{filtered, select, true {{total, plural, one {{total} matching entry} other {{total} matching entries}}} other {{total, plural, one {{total} entry} other {{total} entries}}}}",
+    "refresh": "Refresh",
+    "loadFailed": "Unable to load the access audit. Please try again.",
+    "emptyTitle": "No access recorded yet",
+    "emptyHint": "Entries appear here when a Recruiter opens a recording or a transcript.",
+    "emptyFilteredTitle": "No matching entries",
+    "emptyFilteredHint": "Try other filters or clear them.",
+    "paginationLabel": "Access audit pagination",
+    "table": {
+      "label": "Recruiter access audit",
+      "time": "Time",
+      "action": "Action",
+      "recruiter": "Recruiter ID",
+      "application": "Application ID",
+      "interview": "Interview ID"
+    }
+  },
   "interviews": {
     "eyebrow": "Operations",
     "type": {

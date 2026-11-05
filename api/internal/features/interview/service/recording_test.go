@@ -34,13 +34,37 @@ type fakeRecordingRepository struct {
 	ownedCalls       int
 	turns            []domain.TranscriptTurn
 	turnsCalls       int
+	access           []accessRow
+	accessErr        error
+	auditFilter      domain.AccessAuditFilter
+	consentSent      string
+}
+
+// accessRow is one audit row the fake received.
+type accessRow struct {
+	recruiter, application, interview uuid.UUID
+	action                            string
 }
 
 func (r *fakeRecordingRepository) GetCandidateRecording(_ context.Context, _, _ uuid.UUID) (domain.RecordingState, error) {
 	return r.state, r.stateErr
 }
 
-func (r *fakeRecordingRepository) SetRecordingUpload(_ context.Context, _, _ uuid.UUID, key string, maxGrants int32) (bool, error) {
+func (r *fakeRecordingRepository) RecordAccess(_ context.Context, recruiterID, applicationID, interviewID uuid.UUID, action string) error {
+	if r.accessErr != nil {
+		return r.accessErr
+	}
+	r.access = append(r.access, accessRow{recruiterID, applicationID, interviewID, action})
+	return nil
+}
+
+func (r *fakeRecordingRepository) ListAccessAudit(_ context.Context, filter domain.AccessAuditFilter) (domain.AccessAuditPage, error) {
+	r.auditFilter = filter
+	return domain.AccessAuditPage{Items: []domain.AccessAuditEntry{}, Page: filter.Page, PageSize: filter.PageSize}, nil
+}
+
+func (r *fakeRecordingRepository) SetRecordingUpload(_ context.Context, _, _ uuid.UUID, key string, maxGrants int32, consentVersion string) (bool, error) {
+	r.consentSent = consentVersion
 	r.uploadCalls++
 	r.uploadKey = key
 	r.uploadMaxGrants = maxGrants

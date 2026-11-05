@@ -109,6 +109,7 @@ const (
 	CodeRecordingNotAllowed        Code = "RECORDING_NOT_ALLOWED"
 	CodeRecordingUploadLimit       Code = "RECORDING_UPLOAD_LIMIT"
 	CodeRecordingIntegrity         Code = "RECORDING_INTEGRITY"
+	CodeRecordingConsentRequired   Code = "RECORDING_CONSENT_REQUIRED"
 )
 
 type AppError struct {

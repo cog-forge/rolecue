@@ -15,6 +15,97 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/access-audit": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. One row per successful Recruiter read of a recording link or a transcript, newest first, with IDs and times only. Filter by recruiter_id or application_id; page starts at 1, page_size is 1 to 100 (default 20). Errors: VALIDATION_ERROR, FORBIDDEN.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List Recruiter reads of recordings and transcripts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Only reads by this Recruiter",
+                        "name": "recruiter_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Only reads of this Application",
+                        "name": "application_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page, from 1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size, 1 to 100",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.AccessAuditPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/billing/export": {
             "get": {
                 "security": [
@@ -2879,7 +2970,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only, owner of the recruitment interview. Returns a one-time upload to send the recording to, valid 15 minutes, with the headers to send. The grant carries no storage key and no read link. A practice interview is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be replaced (RECORDING_NOT_ALLOWED). Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED.",
+                "description": "Candidate only, owner of the recruitment interview. Returns a one-time upload to send the recording to, valid 15 minutes, with the headers to send. The grant carries no storage key and no read link. A practice interview is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be replaced (RECORDING_NOT_ALLOWED). With consent_version the API stores that version and the time with the grant. When the API enforces consent (RECORDING_CONSENT_REQUIRED), a grant without a stored or sent consent is RECORDING_CONSENT_REQUIRED. Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED, RECORDING_CONSENT_REQUIRED.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8370,7 +8461,8 @@ const docTemplate = `{
                 "RECORDING_NOT_FOUND",
                 "RECORDING_NOT_ALLOWED",
                 "RECORDING_UPLOAD_LIMIT",
-                "RECORDING_INTEGRITY"
+                "RECORDING_INTEGRITY",
+                "RECORDING_CONSENT_REQUIRED"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -8458,8 +8550,56 @@ const docTemplate = `{
                 "CodeRecordingNotFound",
                 "CodeRecordingNotAllowed",
                 "CodeRecordingUploadLimit",
-                "CodeRecordingIntegrity"
+                "CodeRecordingIntegrity",
+                "CodeRecordingConsentRequired"
             ]
+        },
+        "domain.AccessAuditEntry": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "recording_view",
+                        "transcript_view"
+                    ]
+                },
+                "application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_id": {
+                    "type": "string"
+                },
+                "recruiter_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.AccessAuditPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.AccessAuditEntry"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
         },
         "domain.Account": {
             "type": "object",
@@ -11436,6 +11576,11 @@ const docTemplate = `{
         "handler.CreateRecordingRequest": {
             "type": "object",
             "properties": {
+                "consent_version": {
+                    "description": "ConsentVersion is the version of the recording consent text the Candidate accepted, for example\n2026-11-v1. It is stored with the time of the grant. Required when the API enforces consent.",
+                    "type": "string",
+                    "example": "2026-11-v1"
+                },
                 "content_type": {
                     "description": "ContentType is the media type of the recording.",
                     "type": "string",

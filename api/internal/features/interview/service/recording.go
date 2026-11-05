@@ -13,7 +13,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const recruiterRole = "recruiter"
+const (
+	recruiterRole = "recruiter"
+	adminRole     = "admin"
+)
 
 // logRecordingStatus records a recording status change. Only IDs, statuses and sizes are logged.
 func logRecordingStatus(ctx context.Context, interviewID, candidateID uuid.UUID, from, to domain.RecordStatus, extra ...zap.Field) {
@@ -31,12 +34,15 @@ func logRecordingStatus(ctx context.Context, interviewID, candidateID uuid.UUID,
 // repository checks ownership in its queries, so another user's interview or Application is not found.
 type RecordingRepository interface {
 	GetCandidateRecording(ctx context.Context, candidateID, id uuid.UUID) (domain.RecordingState, error)
-	SetRecordingUpload(ctx context.Context, candidateID, id uuid.UUID, key string, maxGrants int32) (bool, error)
+	SetRecordingUpload(ctx context.Context, candidateID, id uuid.UUID, key string, maxGrants int32, consentVersion string) (bool, error)
 	SetRecordingResult(ctx context.Context, candidateID, id uuid.UUID, key string, status domain.RecordStatus, etag string) (bool, error)
 	FailChangedRecording(ctx context.Context, id uuid.UUID, key string) (bool, error)
 	RecruiterOwnsApplication(ctx context.Context, recruiterID, jobPostingID, applicationID uuid.UUID) (bool, error)
 	GetApplicationRecording(ctx context.Context, applicationID uuid.UUID) (domain.RecordingState, error)
 	ListTranscript(ctx context.Context, interviewID uuid.UUID) ([]domain.TranscriptTurn, error)
+	// RecordAccess writes the audit row of one successful Recruiter read (KAN-296).
+	RecordAccess(ctx context.Context, recruiterID, applicationID, interviewID uuid.UUID, action string) error
+	ListAccessAudit(ctx context.Context, filter domain.AccessAuditFilter) (domain.AccessAuditPage, error)
 }
 
 // RecordingStore is the object storage the recording flow uses. storage.Store satisfies it.
@@ -58,7 +64,13 @@ type RecordingStore interface {
 type RecordingService struct {
 	repository RecordingRepository
 	store      RecordingStore
+	// consentRequired refuses an upload grant for an interview with no stored recording consent
+	// (RECORDING_CONSENT_REQUIRED=true, KAN-297). Off by default.
+	consentRequired bool
 }
+
+// SetConsentRequired switches the recording consent gate on or off.
+func (s *RecordingService) SetConsentRequired(required bool) { s.consentRequired = required }
 
 func NewRecordingService(repository RecordingRepository, store RecordingStore) (*RecordingService, error) {
 	if repository == nil {
@@ -91,11 +103,16 @@ func (s *RecordingService) GrantUpload(ctx context.Context, candidateID uuid.UUI
 	if state.GrantCount >= domain.RecordingMaxGrants {
 		return domain.RecordingUploadGrant{}, domain.ErrRecordingUploadLimit
 	}
+	// The consent gate: with the flag on, a recording needs a consent either sent with this request or
+	// already stored from an earlier grant. A Candidate who declines sends none, so no recording starts.
+	if s.consentRequired && input.ConsentVersion == "" && state.ConsentVersion == nil {
+		return domain.RecordingUploadGrant{}, domain.ErrRecordingConsentRequired
+	}
 	grant, err := s.store.PresignPut(ctx, input.ContentType, input.Size, domain.RecordingUploadTTL)
 	if err != nil {
 		return domain.RecordingUploadGrant{}, apperror.Wrap(apperror.CodeInternal, "recording storage is unavailable", err)
 	}
-	updated, err := s.repository.SetRecordingUpload(ctx, candidateID, interviewID, grant.Key, domain.RecordingMaxGrants)
+	updated, err := s.repository.SetRecordingUpload(ctx, candidateID, interviewID, grant.Key, domain.RecordingMaxGrants, input.ConsentVersion)
 	if err != nil {
 		return domain.RecordingUploadGrant{}, err
 	}
@@ -265,6 +282,11 @@ func (s *RecordingService) Recording(ctx context.Context, recruiterID uuid.UUID,
 	if err != nil {
 		return domain.RecruiterRecording{}, apperror.Wrap(apperror.CodeInternal, "recording storage is unavailable", err)
 	}
+	// The read is audited before the link leaves the service: if the row cannot be written, no link is
+	// issued. Only a read that issues a link counts as a view; a status without a link does not.
+	if err := s.repository.RecordAccess(ctx, recruiterID, applicationID, state.InterviewID, domain.AccessRecordingView); err != nil {
+		return domain.RecruiterRecording{}, err
+	}
 	expiresAt := request.ExpiresAt
 	return domain.RecruiterRecording{
 		RecordStatus: state.RecordStatus,
@@ -312,7 +334,29 @@ func (s *RecordingService) Transcript(ctx context.Context, recruiterID uuid.UUID
 	if turns == nil {
 		turns = []domain.TranscriptTurn{}
 	}
+	// The read is audited before the turns leave the service: if the row cannot be written, nothing is returned.
+	if err := s.repository.RecordAccess(ctx, recruiterID, applicationID, state.InterviewID, domain.AccessTranscriptView); err != nil {
+		return domain.Transcript{}, err
+	}
 	return domain.Transcript{Turns: turns}, nil
+}
+
+// AccessAudit returns a page of the Recruiter access audit to an Admin, newest first. Any other role is
+// FORBIDDEN. The audit holds IDs and times only.
+func (s *RecordingService) AccessAudit(ctx context.Context, role string, filter domain.AccessAuditFilter) (domain.AccessAuditPage, error) {
+	if role != adminRole {
+		return domain.AccessAuditPage{}, apperror.New(apperror.CodeForbidden, "only administrators can read the access audit")
+	}
+	if filter.Page == 0 {
+		filter.Page = 1
+	}
+	if filter.PageSize == 0 {
+		filter.PageSize = domain.DefaultAccessAuditPageSize
+	}
+	if filter.Page < 1 || filter.PageSize < 1 || filter.PageSize > domain.MaxAccessAuditPageSize {
+		return domain.AccessAuditPage{}, apperror.New(apperror.CodeValidation, "page must be 1 or more and page_size between 1 and 100")
+	}
+	return s.repository.ListAccessAudit(ctx, filter)
 }
 
 // recruiterInterview checks that the caller is the Recruiter of the posting and reads the interview of
@@ -350,6 +394,9 @@ func validateRecordingUpload(input domain.RecordingUploadInput) error {
 	}
 	if input.Size < 1 || input.Size > domain.RecordingMaxBytes {
 		return apperror.New(apperror.CodeValidation, "size must be between 1 and 524288000 bytes")
+	}
+	if input.ConsentVersion != "" && !domain.ValidConsentVersion(input.ConsentVersion) {
+		return apperror.New(apperror.CodeValidation, "consent_version must be a short token such as 2026-11-v1")
 	}
 	return nil
 }

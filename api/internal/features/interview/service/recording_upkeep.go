@@ -37,6 +37,8 @@ type RecordingUpkeep struct {
 	repository RecordingUpkeepRepository
 	store      RecordingDeleter
 	noneGrace  time.Duration
+	retention  RetentionRepository
+	policy     RetentionPolicy
 }
 
 func NewRecordingUpkeep(repository RecordingUpkeepRepository, store RecordingDeleter, noneGrace time.Duration) (*RecordingUpkeep, error) {
@@ -110,6 +112,77 @@ func (u *RecordingUpkeep) PurgeExpired(ctx context.Context, now time.Time) (int,
 		return purged, fmt.Errorf("%d of %d expired recordings could not be purged", failed, len(expired))
 	}
 	return purged, nil
+}
+
+// RetentionRepository is the persistence of the personal-data retention passes (KAN-281).
+type RetentionRepository interface {
+	ListExpiredCVs(ctx context.Context, decidedBefore time.Time, limit int32) ([]domain.StoredCV, error)
+	ClearExpiredCV(ctx context.Context, applicationID uuid.UUID, key string) (bool, error)
+	ClearExpiredTranscripts(ctx context.Context, completedBefore time.Time, limit int32) (int, error)
+}
+
+// RetentionPolicy is the configured retention in days (RETENTION_CV_DAYS, RETENTION_TRANSCRIPT_DAYS).
+type RetentionPolicy struct {
+	CVDays         int
+	TranscriptDays int
+}
+
+// WithRetention switches the CV and transcript retention passes on. Without it both passes do nothing.
+func (u *RecordingUpkeep) WithRetention(repository RetentionRepository, policy RetentionPolicy) *RecordingUpkeep {
+	u.retention = repository
+	u.policy = policy
+	return u
+}
+
+func days(n int) time.Duration { return time.Duration(n) * 24 * time.Hour }
+
+// PurgeExpiredCVs deletes the CV file of every Application rejected at the CV stage (no interview was ever
+// started) more than CVDays before now, then clears applications.cv_path. The object is deleted first: a
+// failed delete leaves the pointer so the next run retries, and a missing object counts as deleted. The
+// pass takes at most purgeBatch CVs; the next run takes the rest. It returns how many CVs it purged.
+// The log carries counts only.
+func (u *RecordingUpkeep) PurgeExpiredCVs(ctx context.Context, now time.Time) (int, error) {
+	if u.retention == nil || u.policy.CVDays <= 0 {
+		return 0, nil
+	}
+	expired, err := u.retention.ListExpiredCVs(ctx, now.Add(-days(u.policy.CVDays)), purgeBatch)
+	if err != nil {
+		return 0, err
+	}
+	purged, failed := 0, 0
+	for _, cv := range expired {
+		if err := u.store.Delete(ctx, cv.Key); err != nil && !errors.Is(err, storage.ErrNotFound) {
+			if ctx.Err() != nil {
+				return purged, ctx.Err()
+			}
+			failed++
+			continue
+		}
+		if _, err := u.retention.ClearExpiredCV(ctx, cv.ApplicationID, cv.Key); err != nil {
+			if ctx.Err() != nil {
+				return purged, ctx.Err()
+			}
+			failed++
+			continue
+		}
+		purged++
+	}
+	if failed > 0 {
+		logger.FromContext(ctx).Warn("expired CVs not purged; the next run retries",
+			logger.Op("application.cv_retention"), logger.Int("purged", purged), logger.Int("failed", failed))
+		return purged, fmt.Errorf("%d of %d expired CVs could not be purged", failed, len(expired))
+	}
+	return purged, nil
+}
+
+// ClearExpiredTranscripts clears the answers and per-turn feedback of the interviews completed more than
+// TranscriptDays before now, in batches of purgeBatch interviews. The questions, positions and every score
+// stay. A cleared turn is never selected again, so a repeat run changes nothing. It returns the turns cleared.
+func (u *RecordingUpkeep) ClearExpiredTranscripts(ctx context.Context, now time.Time) (int, error) {
+	if u.retention == nil || u.policy.TranscriptDays <= 0 {
+		return 0, nil
+	}
+	return u.retention.ClearExpiredTranscripts(ctx, now.Add(-days(u.policy.TranscriptDays)), purgeBatch)
 }
 
 func (u *RecordingUpkeep) purge(ctx context.Context, recording domain.StoredRecording) error {

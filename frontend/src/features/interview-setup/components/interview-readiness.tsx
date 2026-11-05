@@ -40,6 +40,10 @@ import {
 import { setupHref, type SetupParams } from "../lib/setup-params";
 import { CompanyInterviewer } from "@/features/candidate/applications/components/company-interviewer";
 import { RecordingPreflight } from "@/features/interview/components/recording-preflight";
+import {
+  forgetRecordingConsent,
+  rememberRecordingConsent,
+} from "@/features/interview/recording/recording-consent";
 import { CandidateApplicationStatusBadge } from "@/features/candidate/applications/components/application-status";
 import { useNow } from "@/features/candidate/applications/utils/use-now";
 import { AvatarPortrait } from "./avatar-portrait";
@@ -62,6 +66,18 @@ export function InterviewReadiness(params: SetupParams) {
   );
   // A recruitment interview is recorded, so its Start also waits for the camera (KAN-87).
   const [cameraReady, setCameraReady] = useState(false);
+  // ...and the Candidate's consent to it. The tick is remembered per account so the recording upload,
+  // which happens after the interview, can send the version that was accepted (KAN-297).
+  const sessionUser = useSessionUser();
+  const [consentGiven, setConsentGiven] = useState(false);
+  const onConsentChange = useCallback(
+    (accepted: boolean) => {
+      setConsentGiven(accepted);
+      if (accepted) rememberRecordingConsent(sessionUser.id);
+      else forgetRecordingConsent(sessionUser.id);
+    },
+    [sessionUser.id],
+  );
   const tRecording = useTranslations(
     "candidate.interviewRoom.recording.preflight",
   );
@@ -72,13 +88,17 @@ export function InterviewReadiness(params: SetupParams) {
         applicationId={params.applicationId}
         readiness={readiness}
         cameraReady={cameraReady}
+        consentGiven={consentGiven}
         microphone={
           <>
             <PreflightCheck
               onReadinessChange={onReadiness}
               releaseNote={tRecording("releaseNote")}
             />
-            <RecordingPreflight onReadyChange={setCameraReady} />
+            <RecordingPreflight
+              onReadyChange={setCameraReady}
+              onConsentChange={onConsentChange}
+            />
           </>
         }
       />
@@ -436,11 +456,13 @@ function RecruitmentReadiness({
   applicationId,
   readiness,
   cameraReady,
+  consentGiven,
   microphone,
 }: {
   applicationId: string;
   readiness: MicrophoneReadiness;
   cameraReady: boolean;
+  consentGiven: boolean;
   microphone: ReactNode;
 }) {
   const t = useTranslations("candidate.setup");
@@ -591,6 +613,7 @@ function RecruitmentReadiness({
       <StartPanel
         readiness={readiness}
         cameraReady={cameraReady}
+        consentGiven={consentGiven}
         links={{ applicationId }}
         returnPath={setupHref(routes.interviews.new.preflight, {
           applicationId,

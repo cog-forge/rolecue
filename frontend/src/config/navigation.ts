@@ -12,6 +12,7 @@ import {
   AudioLines,
   ChartNoAxesCombined,
   Wallet,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import type { ProductRole } from "./permissions";
@@ -146,6 +147,11 @@ export const workspaceNavigation: Record<
           label: "Interview Sessions",
           href: routes.admin.interviews,
           icon: Mic,
+        },
+        {
+          label: "Access Audit",
+          href: routes.admin.accessAudit,
+          icon: ScrollText,
         },
         {
           label: "Voice Profiles",

@@ -88,6 +88,7 @@ definitions:
     - RECORDING_NOT_ALLOWED
     - RECORDING_UPLOAD_LIMIT
     - RECORDING_INTEGRITY
+    - RECORDING_CONSENT_REQUIRED
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -176,6 +177,38 @@ definitions:
     - CodeRecordingNotAllowed
     - CodeRecordingUploadLimit
     - CodeRecordingIntegrity
+    - CodeRecordingConsentRequired
+  domain.AccessAuditEntry:
+    properties:
+      action:
+        enum:
+        - recording_view
+        - transcript_view
+        type: string
+      application_id:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: string
+      interview_id:
+        type: string
+      recruiter_id:
+        type: string
+    type: object
+  domain.AccessAuditPage:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.AccessAuditEntry'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+    type: object
   domain.Account:
     properties:
       created_at:
@@ -2242,6 +2275,12 @@ definitions:
     type: object
   handler.CreateRecordingRequest:
     properties:
+      consent_version:
+        description: |-
+          ConsentVersion is the version of the recording consent text the Candidate accepted, for example
+          2026-11-v1. It is stored with the time of the grant. Required when the API enforces consent.
+        example: 2026-11-v1
+        type: string
       content_type:
         description: ContentType is the media type of the recording.
         enum:
@@ -2534,6 +2573,66 @@ info:
   title: AI Interview Practice API
   version: 1.0.0
 paths:
+  /admin/access-audit:
+    get:
+      description: 'Admin only. One row per successful Recruiter read of a recording
+        link or a transcript, newest first, with IDs and times only. Filter by recruiter_id
+        or application_id; page starts at 1, page_size is 1 to 100 (default 20). Errors:
+        VALIDATION_ERROR, FORBIDDEN.'
+      parameters:
+      - description: Only reads by this Recruiter
+        format: uuid
+        in: query
+        name: recruiter_id
+        type: string
+      - description: Only reads of this Application
+        format: uuid
+        in: query
+        name: application_id
+        type: string
+      - default: 1
+        description: Page, from 1
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size, 1 to 100
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.AccessAuditPage'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List Recruiter reads of recordings and transcripts
+      tags:
+      - admin
   /admin/billing/export:
     get:
       description: Admin only. Read-only CSV export respecting active filters, including
@@ -4421,8 +4520,10 @@ paths:
         one-time upload to send the recording to, valid 15 minutes, with the headers
         to send. The grant carries no storage key and no read link. A practice interview
         is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be
-        replaced (RECORDING_NOT_ALLOWED). Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND,
-        RECORDING_NOT_ALLOWED.'
+        replaced (RECORDING_NOT_ALLOWED). With consent_version the API stores that
+        version and the time with the grant. When the API enforces consent (RECORDING_CONSENT_REQUIRED),
+        a grant without a stored or sent consent is RECORDING_CONSENT_REQUIRED. Errors:
+        VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED, RECORDING_CONSENT_REQUIRED.'
       parameters:
       - description: Trusted frontend origin
         in: header

@@ -85,6 +85,7 @@
     "RECORDING_NOT_FOUND": "Buổi phỏng vấn này không có bản ghi.",
     "RECORDING_NOT_ALLOWED": "Bạn không có quyền xem bản ghi này.",
     "RECORDING_UPLOAD_LIMIT": "Bạn đã tải bản ghi lên quá nhiều lần.",
+    "RECORDING_CONSENT_REQUIRED": "Không thể lưu bản ghi này khi chưa có sự đồng ý ghi hình của bạn.",
     "RECORDING_INTEGRITY": "Bản ghi đã thay đổi sau khi lưu nên không thể phát.",
     "EVALUATION_ATTEMPTS_EXCEEDED": "Buổi phỏng vấn này không thể chấm lại nữa. Vui lòng liên hệ hỗ trợ.",
     "LLM_BUDGET_EXCEEDED": "Bạn đã dùng hết lượt thao tác AI trong hôm nay. Lượt dùng được làm mới lúc 0 giờ UTC.",

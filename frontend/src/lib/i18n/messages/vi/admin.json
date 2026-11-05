@@ -159,6 +159,46 @@
       "reasonInvalid": "Hãy xóa các ký tự không được hỗ trợ khỏi lý do."
     }
   },
+  "accessAudit": {
+    "label": "Nhật ký truy cập của nhà tuyển dụng",
+    "eyebrow": "Vận hành",
+    "title": "Nhật ký truy cập",
+    "description": "Mỗi lần nhà tuyển dụng mở bản ghi hoặc bản ghi lời thoại, mới nhất trước. Chỉ hiển thị ai, làm gì và khi nào, không bao giờ hiển thị nội dung.",
+    "action": {
+      "recording_view": "Đã mở bản ghi hình",
+      "transcript_view": "Đã đọc bản ghi lời thoại"
+    },
+    "accessDenied": {
+      "message": "Chúng tôi không thể xác nhận quyền quản trị của bạn. Nhật ký bị ẩn cho đến khi quyền truy cập được xác minh.",
+      "retry": "Kiểm tra lại quyền truy cập"
+    },
+    "filters": {
+      "label": "Lọc nhật ký truy cập",
+      "recruiterId": "ID nhà tuyển dụng",
+      "applicationId": "ID hồ sơ ứng tuyển",
+      "invalidId": "Nhập đầy đủ ID, ví dụ 3f1c2a4e-0000-4000-8000-000000000001.",
+      "apply": "Áp dụng bộ lọc",
+      "clear": "Xóa"
+    },
+    "loading": "Đang tải nhật ký truy cập…",
+    "loadingLabel": "Đang tải nhật ký truy cập",
+    "count": "{filtered, select, true {{total} mục phù hợp} other {{total} mục}}",
+    "refresh": "Làm mới",
+    "loadFailed": "Không thể tải nhật ký truy cập. Vui lòng thử lại.",
+    "emptyTitle": "Chưa có lượt truy cập nào",
+    "emptyHint": "Các mục sẽ xuất hiện khi nhà tuyển dụng mở bản ghi hoặc bản ghi lời thoại.",
+    "emptyFilteredTitle": "Không có mục phù hợp",
+    "emptyFilteredHint": "Hãy thử bộ lọc khác hoặc xóa bộ lọc.",
+    "paginationLabel": "Phân trang nhật ký truy cập",
+    "table": {
+      "label": "Nhật ký truy cập của nhà tuyển dụng",
+      "time": "Thời gian",
+      "action": "Hành động",
+      "recruiter": "ID nhà tuyển dụng",
+      "application": "ID hồ sơ ứng tuyển",
+      "interview": "ID phỏng vấn"
+    }
+  },
   "interviews": {
     "eyebrow": "Vận hành",
     "type": {
