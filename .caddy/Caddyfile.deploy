@@ -14,7 +14,7 @@
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
-		Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), midi=(), accelerometer=(), gyroscope=(), magnetometer=(), display-capture=(), interest-cohort=()"
+		Permissions-Policy "camera=(self \"{$AVATURN_ORIGIN:https://rolecue.avaturn.dev}\"), microphone=(self), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), midi=(), accelerometer=(), gyroscope=(), magnetometer=(), display-capture=(), interest-cohort=()"
 		-Server
 	}
 }

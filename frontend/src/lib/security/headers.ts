@@ -1,24 +1,46 @@
 // Security headers for the Next.js app. Pure functions so next.config.ts, the CSP proxy and the
 // unit tests share one definition. Keep the header snippet in .caddy/Caddyfile.deploy in sync.
 
-export const staticSecurityHeaders = [
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  {
-    key: "Permissions-Policy",
-    // The interview room records audio; the Avaturn creator iframe sets its own allow="camera".
-    value:
-      "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), midi=(), accelerometer=(), gyroscope=(), magnetometer=(), display-capture=(), interest-cohort=()",
-  },
-] as const;
+const DENIED_FEATURES =
+  "geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), midi=(), accelerometer=(), gyroscope=(), magnetometer=(), display-capture=(), interest-cohort=()";
+
+function origin(value: string | undefined | null) {
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+// The interview room records audio. The Avaturn creator iframe needs the camera, and an iframe's
+// allow="camera *" cannot widen the parent's policy, so the configured Avaturn origin is named here.
+export function buildPermissionsPolicy(avaturnProjectUrl?: string | null) {
+  const avaturn = origin(avaturnProjectUrl);
+  const camera = avaturn ? `camera=(self "${avaturn}")` : "camera=(self)";
+  return `${camera}, microphone=(self), ${DENIED_FEATURES}`;
+}
+
+export function buildStaticSecurityHeaders(avaturnProjectUrl?: string | null) {
+  return [
+    { key: "X-Frame-Options", value: "DENY" },
+    { key: "X-Content-Type-Options", value: "nosniff" },
+    { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    {
+      key: "Permissions-Policy",
+      value: buildPermissionsPolicy(avaturnProjectUrl),
+    },
+  ];
+}
 
 // `async` is required by the shape of Next's headers().
 export async function buildNextHeaders() {
   return [
     {
       source: "/:path*",
-      headers: staticSecurityHeaders.map((header) => ({ ...header })),
+      headers: buildStaticSecurityHeaders(
+        process.env.NEXT_PUBLIC_AVATURN_PROJECT_URL,
+      ),
     },
   ];
 }
@@ -29,15 +51,6 @@ export type CspOptions = {
   apiBaseUrl?: string;
   avaturnProjectUrl?: string | null;
 };
-
-function origin(value: string | undefined | null) {
-  if (!value) return null;
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
-}
 
 function unique(values: Array<string | null>) {
   return [

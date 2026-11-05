@@ -20,6 +20,34 @@ func authenticateAs(t *testing.T, user domain.User, opts ...Option) error {
 	return err
 }
 
+// An unenrolled Admin must still reach GET /auth/me (the Settings page needs it to render the authenticator
+// setup) but nothing else, and gets full access once enrolled.
+func TestUnenrolledAdminCanOnlyLoadTheSessionProbe(t *testing.T) {
+	policy := WithAdminMFA(AdminMFAPolicy{Required: true})
+	admin := domain.User{ID: uuid.New(), Role: "admin", EmailVerified: true}
+	enrolled := admin
+	enrolled.TwoFactorEnabled = true
+	for _, tt := range []struct {
+		name, method, path string
+		user               domain.User
+		denied             bool
+	}{
+		{"me is open to an unenrolled admin", http.MethodGet, "/auth/me", admin, false},
+		{"me under an api prefix is open", http.MethodGet, "/api/v1/auth/me", admin, false},
+		{"admin routes are denied", http.MethodGet, "/admin/users", admin, true},
+		{"writes to me are denied", http.MethodPost, "/auth/me", admin, true},
+		{"admin routes open after enrolment", http.MethodGet, "/admin/users", enrolled, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewService(fixedVerifier{id: tt.user.ID}, fixedUsers{user: tt.user}, policy)
+			_, _, err := s.Authenticate(context.Background(), httptest.NewRequest(tt.method, tt.path, nil))
+			if tt.denied != apperror.IsCode(err, apperror.CodeAdminMFARequired) {
+				t.Fatalf("denied=%t, err=%v", tt.denied, err)
+			}
+		})
+	}
+}
+
 func TestAdminMFAPolicy(t *testing.T) {
 	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
 	clock := func() time.Time { return now }

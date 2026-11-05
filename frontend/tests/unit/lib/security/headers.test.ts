@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCsp,
   buildNextHeaders,
+  buildPermissionsPolicy,
   cspHeaderName,
 } from "@/lib/security/headers";
 
@@ -13,9 +14,19 @@ describe("security headers", () => {
     expect(map["X-Frame-Options"]).toBe("DENY");
     expect(map["X-Content-Type-Options"]).toBe("nosniff");
     expect(map["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
-    expect(map["Permissions-Policy"]).toContain("camera=(self)");
+    expect(map["Permissions-Policy"]).toContain("camera=(self");
     expect(map["Permissions-Policy"]).toContain("microphone=(self)");
     expect(map["Permissions-Policy"]).toContain("geolocation=()");
+  });
+
+  it("delegates the camera only to the configured Avaturn origin", () => {
+    const policy = buildPermissionsPolicy(
+      "https://rolecue.avaturn.dev/some/path?x=1",
+    );
+    expect(policy).toContain('camera=(self "https://rolecue.avaturn.dev")');
+    expect(policy).not.toContain("*");
+    expect(buildPermissionsPolicy(null)).toContain("camera=(self),");
+    expect(buildPermissionsPolicy("not a url")).toContain("camera=(self),");
   });
 
   it("builds a nonce-based CSP with the API and Avaturn origins", () => {

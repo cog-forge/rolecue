@@ -215,6 +215,8 @@ services:
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
       API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN}
+      # Origin (scheme + host, no path) of NEXT_PUBLIC_AVATURN_PROJECT_URL; it is allowed to use the camera.
+      AVATURN_ORIGIN: ${AVATURN_ORIGIN:-https://rolecue.avaturn.dev}
     ports:
       - "80:80"
       - "443:443"

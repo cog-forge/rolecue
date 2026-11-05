@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -68,8 +69,16 @@ func (s *Service) Authenticate(ctx context.Context, req *http.Request) (domain.U
 		cause := fmt.Errorf("role %q is not permitted user_id=%s", user.Role, user.ID)
 		return domain.User{}, verified.SetCookies, apperror.Wrap(apperror.CodeForbidden, "account role is not permitted", cause)
 	}
-	if err := s.adminMFA.Check(user); err != nil {
-		return domain.User{}, verified.SetCookies, err
+	// GET /auth/me stays open to an Admin without two-factor so the Settings page can load and the Admin can
+	// enrol; every other route, including all of /admin, still gets ADMIN_MFA_REQUIRED.
+	if !isSessionProbe(req) {
+		if err := s.adminMFA.Check(user); err != nil {
+			return domain.User{}, verified.SetCookies, err
+		}
 	}
 	return user, verified.SetCookies, nil
+}
+
+func isSessionProbe(req *http.Request) bool {
+	return req != nil && req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/auth/me")
 }
