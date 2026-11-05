@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strconv"
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
@@ -20,6 +21,7 @@ type InterviewRecordingService interface {
 	Status(ctx context.Context, candidateID uuid.UUID, role string, interviewID uuid.UUID) (domain.RecordingStatus, error)
 	Recording(ctx context.Context, recruiterID uuid.UUID, role string, jobPostingID, applicationID uuid.UUID) (domain.RecruiterRecording, error)
 	Transcript(ctx context.Context, recruiterID uuid.UUID, role string, jobPostingID, applicationID uuid.UUID) (domain.Transcript, error)
+	AccessAudit(ctx context.Context, role string, filter domain.AccessAuditFilter) (domain.AccessAuditPage, error)
 }
 
 type InterviewRecordingHandler struct{ service InterviewRecordingService }
@@ -35,11 +37,14 @@ type CreateRecordingRequest struct {
 	ContentType *string `json:"content_type" enums:"video/webm,audio/webm,video/mp4" example:"video/webm"`
 	// Size is the byte size of the recording, 1 to 524288000.
 	Size *int64 `json:"size" example:"1048576"`
+	// ConsentVersion is the version of the recording consent text the Candidate accepted, for example
+	// 2026-11-v1. It is stored with the time of the grant. Required when the API enforces consent.
+	ConsentVersion string `json:"consent_version,omitempty" example:"2026-11-v1"`
 }
 
 // CreateUpload godoc
 // @Summary Get an upload grant for your recruitment recording
-// @Description Candidate only, owner of the recruitment interview. Returns a one-time upload to send the recording to, valid 15 minutes, with the headers to send. The grant carries no storage key and no read link. A practice interview is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be replaced (RECORDING_NOT_ALLOWED). Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED.
+// @Description Candidate only, owner of the recruitment interview. Returns a one-time upload to send the recording to, valid 15 minutes, with the headers to send. The grant carries no storage key and no read link. A practice interview is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be replaced (RECORDING_NOT_ALLOWED). With consent_version the API stores that version and the time with the grant. When the API enforces consent (RECORDING_CONSENT_REQUIRED), a grant without a stored or sent consent is RECORDING_CONSENT_REQUIRED. Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED, RECORDING_CONSENT_REQUIRED.
 // @Tags interviews
 // @Accept json
 // @Produce json
@@ -69,7 +74,7 @@ func (h *InterviewRecordingHandler) CreateUpload(c *gin.Context) {
 		return
 	}
 	grant, err := h.service.GrantUpload(c.Request.Context(), user.ID, user.Role, id, domain.RecordingUploadInput{
-		ContentType: *request.ContentType, Size: *request.Size,
+		ContentType: *request.ContentType, Size: *request.Size, ConsentVersion: request.ConsentVersion,
 	})
 	if err != nil {
 		response.Error(c, err)
@@ -188,6 +193,67 @@ func (h *InterviewRecordingHandler) Transcript(c *gin.Context) {
 		return
 	}
 	response.OK(c, transcript)
+}
+
+// AccessAudit godoc
+// @Summary List Recruiter reads of recordings and transcripts
+// @Description Admin only. One row per successful Recruiter read of a recording link or a transcript, newest first, with IDs and times only. Filter by recruiter_id or application_id; page starts at 1, page_size is 1 to 100 (default 20). Errors: VALIDATION_ERROR, FORBIDDEN.
+// @Tags admin
+// @Produce json
+// @Security SessionCookie
+// @Param recruiter_id query string false "Only reads by this Recruiter" format(uuid)
+// @Param application_id query string false "Only reads of this Application" format(uuid)
+// @Param page query int false "Page, from 1" default(1)
+// @Param page_size query int false "Page size, 1 to 100" default(20)
+// @Success 200 {object} response.Envelope{data=domain.AccessAuditPage}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /admin/access-audit [get]
+func (h *InterviewRecordingHandler) AccessAudit(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		response.Error(c, apperror.New(apperror.CodeInvalidToken, "authentication required"))
+		return
+	}
+	filter := domain.AccessAuditFilter{}
+	for _, param := range []struct {
+		name  string
+		value **uuid.UUID
+	}{{"recruiter_id", &filter.RecruiterID}, {"application_id", &filter.ApplicationID}} {
+		raw := c.Query(param.name)
+		if raw == "" {
+			continue
+		}
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			response.Error(c, apperror.New(apperror.CodeValidation, "invalid "+param.name+" filter"))
+			return
+		}
+		*param.value = &id
+	}
+	for _, param := range []struct {
+		name  string
+		value *int32
+	}{{"page", &filter.Page}, {"page_size", &filter.PageSize}} {
+		raw := c.Query(param.name)
+		if raw == "" {
+			continue
+		}
+		number, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil {
+			response.Error(c, apperror.New(apperror.CodeValidation, "invalid pagination parameters"))
+			return
+		}
+		*param.value = int32(number)
+	}
+	page, err := h.service.AccessAudit(c.Request.Context(), user.Role, filter)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, page)
 }
 
 // recordingTarget reads the caller and the posting and Application IDs of a Recruiter route.

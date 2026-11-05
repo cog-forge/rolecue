@@ -53,6 +53,13 @@ type StoredRecording struct {
 	Key         string
 }
 
+// StoredCV is the CV file of an Application past retention. Key never leaves the service and is never
+// logged.
+type StoredCV struct {
+	ApplicationID uuid.UUID
+	Key           string
+}
+
 // recordingContentTypes is the closed list of media types a recording may be uploaded as.
 var recordingContentTypes = map[string]bool{
 	"video/webm": true,
@@ -70,6 +77,65 @@ func ValidRecordingContentType(contentType string) bool {
 type RecordingUploadInput struct {
 	ContentType string
 	Size        int64
+	// ConsentVersion is the version of the consent text the Candidate accepted before recording (KAN-297).
+	// Empty when the request carried none.
+	ConsentVersion string
+}
+
+// MaxConsentVersionLength bounds the consent version a request may carry.
+const MaxConsentVersionLength = 32
+
+// ValidConsentVersion reports whether a consent version is a short token such as "2026-11-v1".
+func ValidConsentVersion(version string) bool {
+	if version == "" || len(version) > MaxConsentVersionLength {
+		return false
+	}
+	for _, r := range version {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// Recruiter access actions written to the access audit (KAN-296).
+const (
+	AccessRecordingView  = "recording_view"
+	AccessTranscriptView = "transcript_view"
+)
+
+// AccessAuditEntry is one successful Recruiter read of a recording or transcript.
+type AccessAuditEntry struct {
+	ID            uuid.UUID `json:"id"`
+	RecruiterID   uuid.UUID `json:"recruiter_id"`
+	ApplicationID uuid.UUID `json:"application_id"`
+	InterviewID   uuid.UUID `json:"interview_id"`
+	Action        string    `json:"action" enums:"recording_view,transcript_view"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// AccessAuditFilter selects a page of the audit, newest first, optionally for one Recruiter or Application.
+type AccessAuditFilter struct {
+	RecruiterID   *uuid.UUID
+	ApplicationID *uuid.UUID
+	Page          int32
+	PageSize      int32
+}
+
+// Page bounds of the access audit list.
+const (
+	DefaultAccessAuditPageSize int32 = 20
+	MaxAccessAuditPageSize     int32 = 100
+)
+
+// AccessAuditPage is one page of the access audit.
+type AccessAuditPage struct {
+	Items    []AccessAuditEntry `json:"items"`
+	Total    int64              `json:"total"`
+	Page     int32              `json:"page"`
+	PageSize int32              `json:"page_size"`
 }
 
 // RecordingUploadGrant is the one-time upload the Candidate sends the recording to. It carries no key
@@ -121,6 +187,8 @@ type RecordingState struct {
 	Completed    bool
 	RecordETag   *string
 	GrantCount   int32
+	// ConsentVersion is the recording consent stored for the interview, nil when none was given.
+	ConsentVersion *string
 }
 
 var (
@@ -133,6 +201,8 @@ var (
 var (
 	ErrRecordingUploadLimit = apperror.New(apperror.CodeRecordingUploadLimit,
 		"this recording has used all of its upload attempts")
+	ErrRecordingConsentRequired = apperror.New(apperror.CodeRecordingConsentRequired,
+		"the Candidate must accept the recording consent before a recording starts")
 	ErrRecordingIntegrity = apperror.New(apperror.CodeRecordingIntegrity,
 		"the stored recording no longer matches its upload and must be uploaded again")
 )

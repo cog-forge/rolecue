@@ -21,15 +21,21 @@ func (r *Repository) GetCandidateRecording(ctx context.Context, candidateID, id 
 	if err != nil {
 		return domain.RecordingState{}, internal(err)
 	}
-	return recordingState(row.ID, row.Type, row.RecordStatus, row.RecordPath, row.Completed, row.RecordEtag, row.RecordGrantCount), nil
+	state := recordingState(row.ID, row.Type, row.RecordStatus, row.RecordPath, row.Completed, row.RecordEtag, row.RecordGrantCount)
+	state.ConsentVersion = row.RecordingConsentVersion
+	return state, nil
 }
 
-// SetRecordingUpload stores the key of a new upload grant and marks the recording uploading. It reports
-// false when the recording is no longer in a state a grant may replace, or when maxGrants grants were
-// already issued for the interview.
-func (r *Repository) SetRecordingUpload(ctx context.Context, candidateID, id uuid.UUID, key string, maxGrants int32) (bool, error) {
+// SetRecordingUpload stores the key of a new upload grant and marks the recording uploading, with the
+// consent version when one is given (empty keeps the stored consent). It reports false when the recording
+// is no longer in a state a grant may replace, or when maxGrants grants were already issued.
+func (r *Repository) SetRecordingUpload(ctx context.Context, candidateID, id uuid.UUID, key string, maxGrants int32, consentVersion string) (bool, error) {
+	var consent *string
+	if consentVersion != "" {
+		consent = &consentVersion
+	}
 	updated, err := r.queries.SetRecordingUpload(ctx, SetRecordingUploadParams{
-		RecordPath: &key, ID: id, CandidateID: candidateID, MaxGrants: maxGrants,
+		RecordPath: &key, ID: id, CandidateID: candidateID, MaxGrants: maxGrants, ConsentVersion: consent,
 	})
 	if err != nil {
 		return false, internal(err)
@@ -151,6 +157,79 @@ func (r *Repository) ClearDeletedRecording(ctx context.Context, id uuid.UUID, ke
 		return false, internal(err)
 	}
 	return updated == 1, nil
+}
+
+// RecordAccess writes one audit row for a successful Recruiter read of a recording or transcript.
+func (r *Repository) RecordAccess(ctx context.Context, recruiterID, applicationID, interviewID uuid.UUID, action string) error {
+	err := r.queries.InsertRecruiterAccess(ctx, InsertRecruiterAccessParams{
+		RecruiterID: recruiterID, ApplicationID: applicationID, InterviewID: interviewID, Action: action,
+	})
+	if err != nil {
+		return internal(err)
+	}
+	return nil
+}
+
+// ListAccessAudit returns one page of the Recruiter access audit, newest first, and the total that match.
+func (r *Repository) ListAccessAudit(ctx context.Context, filter domain.AccessAuditFilter) (domain.AccessAuditPage, error) {
+	total, err := r.queries.CountRecruiterAccessAudit(ctx, CountRecruiterAccessAuditParams{
+		RecruiterID: filter.RecruiterID, ApplicationID: filter.ApplicationID,
+	})
+	if err != nil {
+		return domain.AccessAuditPage{}, internal(err)
+	}
+	rows, err := r.queries.ListRecruiterAccessAudit(ctx, ListRecruiterAccessAuditParams{
+		RecruiterID: filter.RecruiterID, ApplicationID: filter.ApplicationID,
+		PageSize: filter.PageSize, PageOffset: (filter.Page - 1) * filter.PageSize,
+	})
+	if err != nil {
+		return domain.AccessAuditPage{}, internal(err)
+	}
+	items := make([]domain.AccessAuditEntry, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, domain.AccessAuditEntry{
+			ID: row.ID, RecruiterID: row.RecruiterID, ApplicationID: row.ApplicationID,
+			InterviewID: row.InterviewID, Action: row.Action, CreatedAt: row.CreatedAt.Time,
+		})
+	}
+	return domain.AccessAuditPage{Items: items, Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
+}
+
+// ListExpiredCVs returns up to limit CV files of Applications rejected at the CV stage before decidedBefore.
+func (r *Repository) ListExpiredCVs(ctx context.Context, decidedBefore time.Time, limit int32) ([]domain.StoredCV, error) {
+	rows, err := r.queries.ListExpiredCVs(ctx, ListExpiredCVsParams{
+		DecidedBefore: pgtype.Timestamptz{Time: decidedBefore, Valid: true}, BatchSize: limit,
+	})
+	if err != nil {
+		return nil, internal(err)
+	}
+	cvs := make([]domain.StoredCV, 0, len(rows))
+	for _, row := range rows {
+		cvs = append(cvs, domain.StoredCV{ApplicationID: row.ID, Key: row.CvPath})
+	}
+	return cvs, nil
+}
+
+// ClearExpiredCV clears the key of a CV whose object was deleted. It reports false when the key is no
+// longer the Application's (already cleared).
+func (r *Repository) ClearExpiredCV(ctx context.Context, applicationID uuid.UUID, key string) (bool, error) {
+	updated, err := r.queries.ClearExpiredCV(ctx, ClearExpiredCVParams{ID: applicationID, CvPath: &key})
+	if err != nil {
+		return false, internal(err)
+	}
+	return updated == 1, nil
+}
+
+// ClearExpiredTranscripts clears the answers and per-turn feedback of up to limit interviews completed
+// before completedBefore and returns how many turns it cleared.
+func (r *Repository) ClearExpiredTranscripts(ctx context.Context, completedBefore time.Time, limit int32) (int, error) {
+	cleared, err := r.queries.ClearExpiredTranscripts(ctx, ClearExpiredTranscriptsParams{
+		CompletedBefore: pgtype.Timestamptz{Time: completedBefore, Valid: true}, BatchSize: limit,
+	})
+	if err != nil {
+		return 0, internal(err)
+	}
+	return int(cleared), nil
 }
 
 func recordingState(id uuid.UUID, interviewType, status string, path *string, completed bool, etag *string, grants int32) domain.RecordingState {

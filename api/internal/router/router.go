@@ -249,6 +249,7 @@ func (r *Router) Setup() *gin.Engine {
 	admin.POST("/job-postings/:id/approve", r.moderationHandler.Approve)
 	admin.POST("/job-postings/:id/reject", r.moderationHandler.Reject)
 	admin.GET("/overview", r.adminOverviewHandler.Get)
+	admin.GET("/access-audit", r.interviewHandlers.Recording.AccessAudit)
 	admin.GET("/interviews", r.adminInterviewsHandler.List)
 	admin.GET("/interviews/:id", r.adminInterviewsHandler.Get)
 	admin.GET("/voices", r.voiceCatalogHandler.List)

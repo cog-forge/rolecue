@@ -35,6 +35,8 @@ type Config struct {
 	Evaluation       EvaluationConfig       `mapstructure:"evaluation"`
 	AvatarConversion AvatarConversionConfig `mapstructure:"avatar_conversion"`
 	Jobs             JobsConfig             `mapstructure:"jobs"`
+	Retention        RetentionConfig        `mapstructure:"retention"`
+	RecordingConsent RecordingConsentConfig `mapstructure:"recording_consent"`
 }
 
 type AppConfig struct {
@@ -435,6 +437,9 @@ func Load(configPath string) (*Config, error) {
 	if err := bindJobEnv(v); err != nil {
 		return nil, err
 	}
+	if err := bindPrivacyEnv(v); err != nil {
+		return nil, err
+	}
 
 	// AUTH_UPSTREAM_URL takes precedence; legacy BETTER_AUTH_URL keeps one-origin configs working.
 	if err := v.BindEnv("auth.url", "AUTH_UPSTREAM_URL", "BETTER_AUTH_URL"); err != nil {
@@ -561,6 +566,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("interview.live_message_rate", 20)
 	v.SetDefault("interview.live_message_burst", 60)
 	setJobDefaults(v)
+	setPrivacyDefaults(v)
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
 	v.SetDefault("avatar_conversion.timeout", "120s")
@@ -652,6 +658,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.Jobs.Validate(); err != nil {
+		return err
+	}
+	if err := c.Retention.Validate(); err != nil {
 		return err
 	}
 	if math.IsNaN(c.Evaluation.WeightTotal) || c.Evaluation.WeightTotal < 0 || c.Evaluation.WeightTotal > MaxEvaluationWeightTotal {

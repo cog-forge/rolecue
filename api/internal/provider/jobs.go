@@ -14,16 +14,21 @@ import (
 )
 
 // The recording upkeep uses the interview repository; the build fails if a signature drifts.
-var _ service.RecordingUpkeepRepository = (*repository.Repository)(nil)
+var (
+	_ service.RecordingUpkeepRepository = (*repository.Repository)(nil)
+	_ service.RetentionRepository       = (*repository.Repository)(nil)
+)
 
 // defaultRecordingGrace is the team decision (2026-11-03) used only when the jobs are off and unvalidated.
 const defaultRecordingGrace = 5 * time.Minute
 
 // System job names. They name the advisory lock of each job and appear in the logs.
 const (
-	jobAbandonedSessions  = "interview.abandoned_sessions"
-	jobStaleRecordings    = "interview.stale_recordings"
-	jobRecordingRetention = "interview.recording_retention"
+	jobAbandonedSessions   = "interview.abandoned_sessions"
+	jobStaleRecordings     = "interview.stale_recordings"
+	jobRecordingRetention  = "interview.recording_retention"
+	jobCVRetention         = "application.cv_retention"
+	jobTranscriptRetention = "interview.transcript_retention"
 )
 
 func ProvideRecordingUpkeep(repo *repository.Repository, store storage.Store, cfg *config.Config) (*service.RecordingUpkeep, error) {
@@ -33,7 +38,14 @@ func ProvideRecordingUpkeep(repo *repository.Repository, store storage.Store, cf
 		// upkeep then never runs, so the 5-minute decision stands in.
 		grace = defaultRecordingGrace
 	}
-	return service.NewRecordingUpkeep(repo, store, grace)
+	upkeep, err := service.NewRecordingUpkeep(repo, store, grace)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Retention.Enabled {
+		upkeep.WithRetention(repo, service.RetentionPolicy{CVDays: cfg.Retention.CVDays, TranscriptDays: cfg.Retention.TranscriptDays})
+	}
+	return upkeep, nil
 }
 
 // ProvideSystemJobs builds the System Handler's job runner (KAN-174) with every enabled job. main starts
@@ -63,6 +75,15 @@ func ProvideSystemJobs(cfg *config.Config, pool *pgxpool.Pool, interviews *servi
 		{settings.RecordingRetention.Enabled, jobs.Job{
 			Name: jobRecordingRetention, Interval: settings.RecordingRetention.Interval,
 			Run: countRun(jobRecordingRetention, "purged", upkeep.PurgeExpired),
+		}},
+		// Personal-data retention (KAN-281), off unless RETENTION_ENABLED; paced like the recording retention.
+		{cfg.Retention.Enabled, jobs.Job{
+			Name: jobCVRetention, Interval: settings.RecordingRetention.Interval,
+			Run: countRun(jobCVRetention, "purged", upkeep.PurgeExpiredCVs),
+		}},
+		{cfg.Retention.Enabled, jobs.Job{
+			Name: jobTranscriptRetention, Interval: settings.RecordingRetention.Interval,
+			Run: countRun(jobTranscriptRetention, "cleared", upkeep.ClearExpiredTranscripts),
 		}},
 	}
 	enabled := make([]jobs.Job, 0, len(candidates))

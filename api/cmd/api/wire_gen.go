@@ -201,7 +201,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	interviewHandler := provider.ProvideInterviewHandler(service13)
 	interviewHistoryHandler := provider.ProvideInterviewHistoryHandler(service13)
 	interviewReportHandler := provider.ProvideInterviewReportHandler(scoring)
-	recordingService, err := provider.ProvideInterviewRecordingService(repository14, store)
+	recordingService, err := provider.ProvideInterviewRecordingService(repository14, store, config)
 	if err != nil {
 		cleanup3()
 		cleanup2()
