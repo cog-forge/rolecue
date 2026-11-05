@@ -87,7 +87,7 @@
     "RECORDING_UPLOAD_LIMIT": "Too many upload attempts for this recording.",
     "RECORDING_CONSENT_REQUIRED": "This recording can't be saved without your consent to the recording.",
     "RECORDING_INTEGRITY": "This recording changed after it was saved, so it can't be played.",
-    "ACCOUNT_HAS_ACTIVE_WORK": "Close your open job postings and finish the applications in progress before deleting your account.",
+    "ACCOUNT_HAS_ACTIVE_WORK": "You cannot delete your account while you have open job postings or any applications on your postings. Close your postings and contact support to remove candidate history.",
     "ADMIN_CANNOT_SELF_DELETE": "Administrator accounts can't be deleted here.",
     "EVALUATION_ATTEMPTS_EXCEEDED": "This interview can't be re-scored again. Please contact support.",
     "LLM_BUDGET_EXCEEDED": "You've reached today's limit for AI-powered actions. It resets at midnight UTC.",

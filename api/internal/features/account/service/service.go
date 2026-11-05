@@ -98,7 +98,7 @@ func (s *Service) Erase(ctx context.Context, user authdomain.User, confirm strin
 
 func activeWorkError(w domain.ErasureBlockers) error {
 	return apperror.New(apperror.CodeAccountHasActiveWork, fmt.Sprintf(
-		"close your work before deleting the account: %d open job postings, %d applications in progress",
+		"close your work before deleting the account: %d open job postings, %d applications on your postings",
 		w.OpenPostings, w.ApplicationsInProgress))
 }
 

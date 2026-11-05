@@ -242,7 +242,7 @@ func (h *InterviewRecordingHandler) AccessAudit(c *gin.Context) {
 			continue
 		}
 		number, err := strconv.ParseInt(raw, 10, 32)
-		if err != nil {
+		if err != nil || number > 1_000_000 {
 			response.Error(c, apperror.New(apperror.CodeValidation, "invalid pagination parameters"))
 			return
 		}

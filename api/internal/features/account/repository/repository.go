@@ -24,9 +24,6 @@ func NewRepository(pool *pgxpool.Pool) *Repository { return &Repository{pool: po
 // closed posting has no work in flight.
 const activePostingStatuses = `('open', 'intake_closed')`
 
-// inProgressApplicationStatuses are Application states without a final decision.
-const inProgressApplicationStatuses = `('pending', 'interview_eligible', 'interviewed')`
-
 // ownedInterviews selects the interviews that disappear with the account ($1): its own Applications,
 // the Applications on its Job Postings and its practice Role Profiles.
 const ownedInterviews = `
@@ -61,11 +58,13 @@ func activeWork(ctx context.Context, q queryer, id uuid.UUID) (domain.ErasureBlo
 SELECT
   (SELECT count(*) FROM public.job_postings WHERE recruiter_id = $1 AND status IN `+activePostingStatuses+`),
   (SELECT count(*) FROM public.applications a JOIN public.job_postings jp ON jp.id = a.job_posting_id
-     WHERE jp.recruiter_id = $1 AND a.status IN `+inProgressApplicationStatuses+`)`, id).Scan(&w.OpenPostings, &w.ApplicationsInProgress)
+     WHERE jp.recruiter_id = $1)`, id).Scan(&w.OpenPostings, &w.ApplicationsInProgress)
 	return w, err
 }
 
-// ActiveWork counts the live Job Postings and undecided Applications of a Recruiter. A Candidate has none.
+// ActiveWork counts the live Job Postings and every Application on a Recruiter's postings, decided or not: erasing
+// the account would delete those Candidates' CVs, recordings and history, so it is refused until a person decides.
+// (Historical name: ApplicationsInProgress.) A Candidate has none.
 func (r *Repository) ActiveWork(ctx context.Context, id uuid.UUID) (domain.ErasureBlockers, error) {
 	w, err := activeWork(ctx, r.pool, id)
 	if err != nil {

@@ -32,7 +32,7 @@ type ErasureResult struct {
 
 // Erase godoc
 // @Summary Permanently delete your own account and data
-// @Description Requires {"confirm":"DELETE"} (or your email address). A Recruiter with open job postings or applications in progress is refused with ACCOUNT_HAS_ACTIVE_WORK (409, counts only); an Administrator with ADMIN_CANNOT_SELF_DELETE. Stored files are deleted first and the database rows last in one transaction, so a failed call can be repeated. Trusted Origin required; unknown fields reject the whole request.
+// @Description Requires {"confirm":"DELETE"} (or your email address). A Recruiter with open job postings or any applications on their postings is refused with ACCOUNT_HAS_ACTIVE_WORK (409, counts only); an Administrator with ADMIN_CANNOT_SELF_DELETE. Stored files are deleted first and the database rows last in one transaction, so a failed call can be repeated. Trusted Origin required; unknown fields reject the whole request.
 // @Tags account
 // @Accept json
 // @Produce json

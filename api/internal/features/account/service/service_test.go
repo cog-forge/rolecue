@@ -118,7 +118,7 @@ func TestEraseRefusesActiveRecruiterWithCountsOnly(t *testing.T) {
 	err := newService(repo, store).Erase(context.Background(), user("recruiter"), "DELETE")
 	code(t, err, apperror.CodeAccountHasActiveWork)
 	var appErr *apperror.AppError
-	if !errors.As(err, &appErr) || appErr.Message != "close your work before deleting the account: 2 open job postings, 5 applications in progress" {
+	if !errors.As(err, &appErr) || appErr.Message != "close your work before deleting the account: 2 open job postings, 5 applications on your postings" {
 		t.Fatalf("message = %v", err)
 	}
 	if len(store.deleted) != 0 || repo.erased {
