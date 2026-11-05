@@ -25,6 +25,25 @@ func (q *Queries) CountInventoryAvatars(ctx context.Context, userID uuid.UUID) (
 	return column_1, err
 }
 
+const countRecentInventoryAvatars = `-- name: CountRecentInventoryAvatars :one
+SELECT count(*)::bigint FROM public.avatars a
+JOIN public.inventories i ON i.id = a.inventory_id
+WHERE i.user_id = $1 AND a.created_at >= $2::timestamptz
+`
+
+type CountRecentInventoryAvatarsParams struct {
+	OwnerID uuid.UUID
+	Since   pgtype.Timestamptz
+}
+
+// Avatars the owner created since a point in time: the persisted side of the daily conversion quota.
+func (q *Queries) CountRecentInventoryAvatars(ctx context.Context, arg CountRecentInventoryAvatarsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentInventoryAvatars, arg.OwnerID, arg.Since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteInventoryAvatar = `-- name: DeleteInventoryAvatar :execrows
 DELETE FROM public.avatars a USING public.inventories i
 WHERE a.inventory_id = i.id AND i.user_id = $1
@@ -110,6 +129,24 @@ func (q *Queries) GetInventoryCapacity(ctx context.Context, userID uuid.UUID) (G
 	var i GetInventoryCapacityRow
 	err := row.Scan(&i.Slot, &i.Used)
 	return i, err
+}
+
+const getSlotPurchaseByKey = `-- name: GetSlotPurchaseByKey :one
+SELECT amount FROM public.transactions
+WHERE "from" = $1 AND idempotency_key = $2
+`
+
+type GetSlotPurchaseByKeyParams struct {
+	Payer          string
+	IdempotencyKey *string
+}
+
+// The ledger row of an earlier purchase with this Idempotency-Key, read under the inventory row lock.
+func (q *Queries) GetSlotPurchaseByKey(ctx context.Context, arg GetSlotPurchaseByKeyParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getSlotPurchaseByKey, arg.Payer, arg.IdempotencyKey)
+	var amount int32
+	err := row.Scan(&amount)
+	return amount, err
 }
 
 const insertInventoryAvatar = `-- name: InsertInventoryAvatar :one
@@ -227,18 +264,23 @@ func (q *Queries) LockInventoryOwner(ctx context.Context, id uuid.UUID) (uuid.UU
 	return id_2, err
 }
 
-const updateInventorySlot = `-- name: UpdateInventorySlot :exec
+const updateInventorySlot = `-- name: UpdateInventorySlot :execrows
 UPDATE public.inventories
 SET slot = slot + $1
-WHERE user_id = $2
+WHERE user_id = $2 AND slot + $1 <= $3::integer
 `
 
 type UpdateInventorySlotParams struct {
-	Amount int32
-	UserID uuid.UUID
+	Amount   int32
+	UserID   uuid.UUID
+	MaxSlots int32
 }
 
-func (q *Queries) UpdateInventorySlot(ctx context.Context, arg UpdateInventorySlotParams) error {
-	_, err := q.db.Exec(ctx, updateInventorySlot, arg.Amount, arg.UserID)
-	return err
+// Zero rows means the purchase would pass max_slots.
+func (q *Queries) UpdateInventorySlot(ctx context.Context, arg UpdateInventorySlotParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateInventorySlot, arg.Amount, arg.UserID, arg.MaxSlots)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

@@ -13,35 +13,46 @@ import (
 )
 
 const claimProfileAnalysis = `-- name: ClaimProfileAnalysis :exec
-UPDATE role_profiles SET status = 'analyzing' WHERE id = $1
+UPDATE role_profiles SET status = 'analyzing' WHERE id = $1 AND candidate_id = $2
 `
 
-func (q *Queries) ClaimProfileAnalysis(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, claimProfileAnalysis, id)
+type ClaimProfileAnalysisParams struct {
+	ID          uuid.UUID
+	CandidateID uuid.UUID
+}
+
+func (q *Queries) ClaimProfileAnalysis(ctx context.Context, arg ClaimProfileAnalysisParams) error {
+	_, err := q.db.Exec(ctx, claimProfileAnalysis, arg.ID, arg.CandidateID)
 	return err
 }
 
 const completeProfileReview = `-- name: CompleteProfileReview :exec
 UPDATE role_profiles SET title = $1, status = 'review'
-WHERE id = $2
+WHERE id = $2 AND candidate_id = $3
 `
 
 type CompleteProfileReviewParams struct {
-	Title string
-	ID    uuid.UUID
+	Title       string
+	ID          uuid.UUID
+	CandidateID uuid.UUID
 }
 
 func (q *Queries) CompleteProfileReview(ctx context.Context, arg CompleteProfileReviewParams) error {
-	_, err := q.db.Exec(ctx, completeProfileReview, arg.Title, arg.ID)
+	_, err := q.db.Exec(ctx, completeProfileReview, arg.Title, arg.ID, arg.CandidateID)
 	return err
 }
 
 const confirmRoleProfile = `-- name: ConfirmRoleProfile :exec
-UPDATE role_profiles SET status = 'confirmed' WHERE id = $1
+UPDATE role_profiles SET status = 'confirmed' WHERE id = $1 AND candidate_id = $2
 `
 
-func (q *Queries) ConfirmRoleProfile(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, confirmRoleProfile, id)
+type ConfirmRoleProfileParams struct {
+	ID          uuid.UUID
+	CandidateID uuid.UUID
+}
+
+func (q *Queries) ConfirmRoleProfile(ctx context.Context, arg ConfirmRoleProfileParams) error {
+	_, err := q.db.Exec(ctx, confirmRoleProfile, arg.ID, arg.CandidateID)
 	return err
 }
 
@@ -101,18 +112,28 @@ func (q *Queries) CreateRoleProfile(ctx context.Context, arg CreateRoleProfilePa
 }
 
 const deleteOwnedRoleProfile = `-- name: DeleteOwnedRoleProfile :exec
-DELETE FROM role_profiles WHERE id = $1
+DELETE FROM role_profiles WHERE id = $1 AND candidate_id = $2
 `
 
-func (q *Queries) DeleteOwnedRoleProfile(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteOwnedRoleProfile, id)
+type DeleteOwnedRoleProfileParams struct {
+	ID          uuid.UUID
+	CandidateID uuid.UUID
+}
+
+func (q *Queries) DeleteOwnedRoleProfile(ctx context.Context, arg DeleteOwnedRoleProfileParams) error {
+	_, err := q.db.Exec(ctx, deleteOwnedRoleProfile, arg.ID, arg.CandidateID)
 	return err
 }
 
 const deleteProfileJD = `-- name: DeleteProfileJD :exec
-DELETE FROM job_descriptions WHERE id = $1
+DELETE FROM job_descriptions
+WHERE job_descriptions.id = $1
+  AND NOT EXISTS (SELECT 1 FROM role_profiles rp WHERE rp.jd_id = job_descriptions.id)
 `
 
+// The owner's Role Profile row is deleted first, so ownership can no longer be read from it. The JD is
+// removed only when no Role Profile of anyone still references it: a JD id taken from another owner's
+// live profile is never deleted.
 func (q *Queries) DeleteProfileJD(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteProfileJD, id)
 	return err
@@ -337,16 +358,24 @@ func (q *Queries) ReleaseProfileAnalysis(ctx context.Context, id uuid.UUID) erro
 
 const saveProfileJD = `-- name: SaveProfileJD :exec
 UPDATE job_descriptions SET refinement_note = $1,
-level_id = (SELECT id FROM levels WHERE name = $2) WHERE job_descriptions.id = $3
+level_id = (SELECT id FROM levels WHERE name = $2)
+WHERE job_descriptions.id = $3
+  AND EXISTS (SELECT 1 FROM role_profiles rp WHERE rp.jd_id = job_descriptions.id AND rp.candidate_id = $4)
 `
 
 type SaveProfileJDParams struct {
 	RefinementNote *string
 	SeniorityLevel *string
 	ID             uuid.UUID
+	CandidateID    uuid.UUID
 }
 
 func (q *Queries) SaveProfileJD(ctx context.Context, arg SaveProfileJDParams) error {
-	_, err := q.db.Exec(ctx, saveProfileJD, arg.RefinementNote, arg.SeniorityLevel, arg.ID)
+	_, err := q.db.Exec(ctx, saveProfileJD,
+		arg.RefinementNote,
+		arg.SeniorityLevel,
+		arg.ID,
+		arg.CandidateID,
+	)
 	return err
 }

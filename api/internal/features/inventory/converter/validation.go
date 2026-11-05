@@ -15,6 +15,13 @@ import (
 
 var ErrUnsupported = errors.New("unsupported avatar asset")
 
+// Limits checked before Blender starts, so a hostile GLB is refused on the cheap path. A humanoid rig is
+// a few dozen levels deep at most and carries tens of textures.
+const (
+	maxNodeDepth = 128
+	maxImages    = 128
+)
+
 type Capabilities struct {
 	LipSync    bool   `json:"lip_sync"`
 	VRMVersion string `json:"vrm_version"`
@@ -103,6 +110,9 @@ func Validate(r io.ReadSeeker, size int64, output bool) (Capabilities, error) {
 			return fail("invalid accessor data")
 		}
 	}
+	if len(doc.Images) > maxImages {
+		return fail("too many images")
+	}
 	for _, image := range doc.Images {
 		if image == nil || image.URI != "" || image.BufferView == nil || !valid(*image.BufferView, len(doc.BufferViews)) {
 			return fail("external or missing image")
@@ -128,6 +138,9 @@ func Validate(r io.ReadSeeker, size int64, output bool) (Capabilities, error) {
 	}
 	seen := make([]uint8, len(doc.Nodes))
 	parents := make([]int, len(doc.Nodes))
+	// height is the longest chain of descendants below a node, memoized so the limit holds whichever
+	// node the walk starts from.
+	height := make([]int, len(doc.Nodes))
 	var visit func(int) bool
 	visit = func(i int) bool {
 		if !valid(i, len(doc.Nodes)) || doc.Nodes[i] == nil || seen[i] == 1 {
@@ -141,6 +154,10 @@ func Validate(r io.ReadSeeker, size int64, output bool) (Capabilities, error) {
 			if !visit(child) {
 				return false
 			}
+			height[i] = max(height[i], height[child]+1)
+		}
+		if height[i] > maxNodeDepth {
+			return false
 		}
 		seen[i] = 2
 		return true

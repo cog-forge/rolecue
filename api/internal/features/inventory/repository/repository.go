@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ledger"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -127,6 +129,15 @@ func (r *Repository) List(ctx context.Context, owner uuid.UUID, limit, offset in
 	return items, total, nil
 }
 
+// CountRecentAvatars is how many avatars the owner created since the given time.
+func (r *Repository) CountRecentAvatars(ctx context.Context, owner uuid.UUID, since time.Time) (int64, error) {
+	count, err := New(r.pool).CountRecentInventoryAvatars(ctx, CountRecentInventoryAvatarsParams{OwnerID: owner, Since: pgtype.Timestamptz{Time: since, Valid: true}})
+	if err != nil {
+		return 0, persistenceError(err)
+	}
+	return count, nil
+}
+
 func (r *Repository) Get(ctx context.Context, owner, id uuid.UUID) (domain.StoredAvatar, error) {
 	tx, queries, err := r.beginOwner(ctx, owner)
 	if err != nil {
@@ -150,7 +161,10 @@ func (r *Repository) Get(ctx context.Context, owner, id uuid.UUID) (domain.Store
 // inventory in one transaction. The inventory row is locked before the ledger locks the wallet row, so
 // concurrent purchases queue up and each debits the balance it reads under the lock; a top-up is never
 // overwritten. A missing wallet or a low balance is INSUFFICIENT_BALANCE and rolls everything back.
-func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, amount int32) (domain.SlotPurchase, error) {
+//
+// A non-empty idempotencyKey is stored on the ledger row. A repeat with the same key and amount debits
+// nothing and returns the current summary and balance; the same key with another amount is refused.
+func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, amount int32, idempotencyKey string) (domain.SlotPurchase, error) {
 	tx, queries, err := r.beginOwner(ctx, owner)
 	if err != nil {
 		return domain.SlotPurchase{}, err
@@ -162,12 +176,34 @@ func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, amount i
 	if _, err := queries.LockAvatarInventory(ctx, owner); err != nil {
 		return domain.SlotPurchase{}, persistenceError(err)
 	}
-	description := fmt.Sprintf("Avatar inventory, %d slots", amount)
-	if err := ledger.Debit(ctx, tx, owner, amount*domain.PricePerSlot, description); err != nil {
-		return domain.SlotPurchase{}, err
+	replayed := false
+	if idempotencyKey != "" {
+		// The inventory row lock serializes this owner's purchases, so a duplicate submit finds the
+		// first one's ledger row here instead of racing it.
+		paid, err := queries.GetSlotPurchaseByKey(ctx, GetSlotPurchaseByKeyParams{Payer: owner.String(), IdempotencyKey: &idempotencyKey})
+		switch {
+		case err == nil:
+			if paid != amount*domain.PricePerSlot {
+				return domain.SlotPurchase{}, apperror.New(apperror.CodeValidation, "Idempotency-Key was already used for a different purchase")
+			}
+			replayed = true
+		case !errors.Is(err, pgx.ErrNoRows):
+			return domain.SlotPurchase{}, persistenceError(err)
+		}
 	}
-	if err := queries.UpdateInventorySlot(ctx, UpdateInventorySlotParams{UserID: owner, Amount: amount}); err != nil {
-		return domain.SlotPurchase{}, persistenceError(err)
+	if !replayed {
+		description := fmt.Sprintf("Avatar inventory, %d slots", amount)
+		if err := ledger.DebitKeyed(ctx, tx, owner, amount*domain.PricePerSlot, description, idempotencyKey); err != nil {
+			return domain.SlotPurchase{}, uniqueKeyError(err)
+		}
+		updated, err := queries.UpdateInventorySlot(ctx, UpdateInventorySlotParams{UserID: owner, Amount: amount, MaxSlots: domain.MaxInventorySlots})
+		if err != nil {
+			return domain.SlotPurchase{}, persistenceError(err)
+		}
+		if updated == 0 {
+			// Returning rolls the debit back with everything else.
+			return domain.SlotPurchase{}, apperror.New(apperror.CodeInventoryFull, "inventory capacity limit reached")
+		}
 	}
 	row, err := queries.GetInventoryCapacity(ctx, owner)
 	if err != nil {
@@ -204,6 +240,18 @@ func (r *Repository) Delete(ctx context.Context, owner, id uuid.UUID) error {
 		return persistenceError(err)
 	}
 	return nil
+}
+
+// uniqueKeyError reports the unique index on the idempotency key. The lookup under the inventory lock
+// makes it unreachable for one owner; it stays as the backstop, answering as a refused reuse.
+func uniqueKeyError(err error) error {
+	var appErr *apperror.AppError
+	if errors.As(err, &appErr) {
+		if pgErr := (*pgconn.PgError)(nil); errors.As(appErr.Err, &pgErr) && pgErr.Code == "23505" {
+			return apperror.New(apperror.CodeValidation, "Idempotency-Key is already in use")
+		}
+	}
+	return err
 }
 
 func avatarNotFound() error { return apperror.New(apperror.CodeAvatarNotFound, "avatar not found") }

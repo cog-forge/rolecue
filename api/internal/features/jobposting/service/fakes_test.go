@@ -11,6 +11,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
+	"github.com/cog-forge/rolecue/api/internal/pkg/uploadgrant"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
@@ -19,6 +20,7 @@ type fakeRepository struct {
 	record    domain.Record
 	err       error
 	updateErr error
+	grants    map[string]*fakeGrant
 
 	createCalls, listCalls, getCalls, updateCalls, resubmitCalls int
 	recruiter                                                    uuid.UUID
@@ -28,11 +30,42 @@ type fakeRepository struct {
 	document                                                     *domain.NewDocument
 }
 
+// RecordUpload keeps the grant; grants stays nil in tests that do not exercise ownership.
+func (f *fakeRepository) RecordUpload(_ context.Context, recruiterID, key uuid.UUID) error {
+	if f.grants == nil {
+		f.grants = map[string]*fakeGrant{}
+	}
+	f.grants[key.String()] = &fakeGrant{owner: recruiterID}
+	return nil
+}
+
+// consume mirrors uploadgrant.Consume: owner match and single use. It is skipped while no upload
+// was recorded, so tests that put documents straight into the store keep working.
+func (f *fakeRepository) consume(recruiterID uuid.UUID, key string) error {
+	if f.grants == nil {
+		return nil
+	}
+	grant, ok := f.grants[key]
+	if !ok || grant.owner != recruiterID || grant.consumed {
+		return uploadgrant.ErrUnavailable
+	}
+	grant.consumed = true
+	return nil
+}
+
+type fakeGrant struct {
+	owner    uuid.UUID
+	consumed bool
+}
+
 func (f *fakeRepository) Create(_ context.Context, recruiterID uuid.UUID, input domain.NewPosting) (domain.Record, error) {
 	f.createCalls++
 	f.recruiter, f.created = recruiterID, input
 	if f.err != nil {
 		return domain.Record{}, f.err
+	}
+	if err := f.consume(recruiterID, input.ContentPath); err != nil {
+		return domain.Record{}, err
 	}
 	f.record = domain.Record{ContentPath: input.ContentPath, StoredText: &input.RawText, JobPosting: domain.JobPosting{
 		ID: uuid.New(), Title: input.Title, Status: domain.StatusPending, SeniorityLevel: input.SeniorityLevel,
@@ -63,6 +96,9 @@ func (f *fakeRepository) Update(_ context.Context, recruiterID, _ uuid.UUID, pat
 		return f.updateErr
 	}
 	if document != nil {
+		if err := f.consume(recruiterID, document.ContentPath); err != nil {
+			return err
+		}
 		f.record.ContentPath, f.record.StoredText = document.ContentPath, &document.RawText
 	}
 	return nil
@@ -208,7 +244,7 @@ func TestNonRecruitersAreForbidden(t *testing.T) {
 			repo, store := &fakeRepository{}, newStore()
 			s := newService(t, repo, store)
 			ctx, id := context.Background(), uuid.New()
-			_, err := s.UploadDocument(ctx, role, fakePDF(validText()))
+			_, err := s.UploadDocument(ctx, uuid.New(), role, fakePDF(validText()))
 			assertCode(t, err, apperror.CodeForbidden)
 			_, err = s.Create(ctx, uuid.New(), role, validCreate(uuid.NewString()))
 			assertCode(t, err, apperror.CodeForbidden)

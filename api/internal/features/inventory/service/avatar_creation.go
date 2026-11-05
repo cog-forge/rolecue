@@ -23,6 +23,7 @@ type AvatarConverter interface {
 type AvatarCreator interface {
 	Summary(context.Context, uuid.UUID) (domain.Capacity, error)
 	Create(context.Context, uuid.UUID, string, string, string) (domain.Avatar, error)
+	CountRecentAvatars(context.Context, uuid.UUID, time.Time) (int64, error)
 }
 
 type AvatarStore interface {
@@ -35,10 +36,11 @@ type AvatarConversionService struct {
 	store  AvatarStore
 	runner AvatarConverter
 	config config.AvatarConversionConfig
+	gate   *conversionGate
 }
 
 func NewAvatarConversionService(repo AvatarCreator, store AvatarStore, runner AvatarConverter, cfg config.AvatarConversionConfig) *AvatarConversionService {
-	return &AvatarConversionService{repo: repo, store: store, runner: runner, config: cfg}
+	return &AvatarConversionService{repo: repo, store: store, runner: runner, config: cfg, gate: newConversionGate(cfg.UserMaxInflight, cfg.UserDailyQuota)}
 }
 
 func (s *AvatarConversionService) Create(ctx context.Context, user authdomain.User, source io.ReadSeeker, size int64, metadata domain.CreateAvatarInput) (domain.Avatar, error) {
@@ -62,6 +64,26 @@ func (s *AvatarConversionService) Create(ctx context.Context, user authdomain.Us
 		return domain.Avatar{}, err
 	}
 	if capacity.IsFull {
+		return domain.Avatar{}, apperror.New(apperror.CodeInventoryFull, "avatar inventory is full")
+	}
+	// Reserve before the expensive work: the per-user daily quota and in-flight limit are checked
+	// and taken together, then the free slot is read again so each running conversion keeps one
+	// slot for itself. Without the reservation, parallel uploads from one user all pass the check above.
+	var persisted int64
+	if s.config.UserDailyQuota > 0 {
+		if persisted, err = s.repo.CountRecentAvatars(ctx, user.ID, time.Now().Add(-conversionQuotaWindow)); err != nil {
+			return domain.Avatar{}, err
+		}
+	}
+	reserved, err := s.gate.acquire(user.ID, persisted)
+	if err != nil {
+		return domain.Avatar{}, err
+	}
+	defer reserved.release()
+	if capacity, err = s.repo.Summary(ctx, user.ID); err != nil {
+		return domain.Avatar{}, err
+	}
+	if capacity.IsFull || (reserved.others > 0 && capacity.Available <= int64(reserved.others)) {
 		return domain.Avatar{}, apperror.New(apperror.CodeInventoryFull, "avatar inventory is full")
 	}
 	done := logger.Start(ctx, "inventory.avatar_convert", logger.String("user_id", user.ID.String()), zap.Int64("bytes", size))

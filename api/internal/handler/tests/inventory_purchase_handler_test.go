@@ -22,17 +22,23 @@ type purchaseInventory struct {
 	handler.InventoryService
 	calls  int
 	amount int32
+	key    string
 	result domain.SlotPurchase
 	err    error
 }
 
-func (s *purchaseInventory) PurchaseSlot(_ context.Context, _ authdomain.User, amount int32) (domain.SlotPurchase, error) {
+func (s *purchaseInventory) PurchaseSlot(_ context.Context, _ authdomain.User, amount int32, key string) (domain.SlotPurchase, error) {
+	s.key = key
 	s.calls++
 	s.amount = amount
 	return s.result, s.err
 }
 
 func postPurchase(t *testing.T, svc *purchaseInventory, body string) *httptest.ResponseRecorder {
+	return postPurchaseWithKey(t, svc, body, "")
+}
+
+func postPurchaseWithKey(t *testing.T, svc *purchaseInventory, body, key string) *httptest.ResponseRecorder {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -43,6 +49,9 @@ func postPurchase(t *testing.T, svc *purchaseInventory, body string) *httptest.R
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/inventory/purchase", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	if key != "" {
+		req.Header.Set("Idempotency-Key", key)
+	}
 	router.ServeHTTP(w, req)
 	return w
 }
@@ -93,6 +102,31 @@ func TestInventoryPurchaseRejectsAmountsOutsideOneToTen(t *testing.T) {
 		svc := &purchaseInventory{}
 		if w := postPurchase(t, svc, `{"amount":`+amount+`}`); w.Code != http.StatusOK || svc.calls != 1 {
 			t.Fatalf("amount %s: status = %d, calls %d, want 200 and one call", amount, w.Code, svc.calls)
+		}
+	}
+}
+
+func TestInventoryPurchaseForwardsTheIdempotencyKey(t *testing.T) {
+	svc := &purchaseInventory{}
+	if w := postPurchaseWithKey(t, svc, `{"amount":2}`, "  key-123 "); w.Code != http.StatusOK || svc.key != "key-123" {
+		t.Fatalf("status = %d, key = %q, want 200 and the trimmed key", w.Code, svc.key)
+	}
+	svc = &purchaseInventory{}
+	if w := postPurchase(t, svc, `{"amount":2}`); w.Code != http.StatusOK || svc.key != "" {
+		t.Fatalf("status = %d, key = %q, want 200 and no key", w.Code, svc.key)
+	}
+}
+
+func TestInventoryPurchaseRejectsBadIdempotencyKeys(t *testing.T) {
+	for name, key := range map[string]string{
+		"too long":     strings.Repeat("k", 129),
+		"control byte": "key\x01",
+		"non ascii":    "kéy",
+	} {
+		svc := &purchaseInventory{}
+		w := postPurchaseWithKey(t, svc, `{"amount":2}`, key)
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), string(apperror.CodeValidation)) || svc.calls != 0 {
+			t.Fatalf("%s: status = %d, calls %d, body %s, want 400 VALIDATION_ERROR without a service call", name, w.Code, svc.calls, w.Body.String())
 		}
 	}
 }

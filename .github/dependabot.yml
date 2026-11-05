@@ -1,0 +1,61 @@
+version: 2
+
+# Keeps pinned dependencies fresh: Go modules, Bun lockfiles, @sha256 image
+# digests in Dockerfiles and compose files, and SHA-pinned GitHub Actions.
+# Enable "Dependabot version updates" (and ideally security updates) in the
+# repository settings under Code security for this file to take effect.
+updates:
+  - package-ecosystem: gomod
+    directory: /api
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      go-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: bun
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: bun
+    directory: /auth
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      auth-minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /api
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /auth
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker-compose
+    directory: /.docker
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

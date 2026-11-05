@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/domain"
@@ -21,7 +22,7 @@ type InventoryService interface {
 	Summary(context.Context, authdomain.User) (domain.Capacity, error)
 	List(context.Context, authdomain.User, int32, int32) ([]domain.Avatar, int64, error)
 	Get(context.Context, authdomain.User, uuid.UUID) (domain.AvatarDetail, error)
-	PurchaseSlot(ctx context.Context, user authdomain.User, amount int32) (domain.SlotPurchase, error)
+	PurchaseSlot(ctx context.Context, user authdomain.User, amount int32, idempotencyKey string) (domain.SlotPurchase, error)
 	Delete(context.Context, authdomain.User, uuid.UUID) error
 }
 
@@ -191,18 +192,33 @@ func (h *InventoryHandler) Get(c *gin.Context) {
 	response.OK(c, avatar)
 }
 
+// validPurchaseKey accepts an absent key (empty) or up to maxIdempotencyKeyLength printable ASCII bytes.
+func validPurchaseKey(key string) bool {
+	if len(key) > maxIdempotencyKeyLength {
+		return false
+	}
+	for i := 0; i < len(key); i++ {
+		if key[i] < 0x21 || key[i] > 0x7e {
+			return false
+		}
+	}
+	return true
+}
+
 // PurchaseSlot godoc
 // @Summary Purchase inventory slots
-// @Description Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each. The balance check, the coin debit, its ledger row and the capacity increase commit together. Returns the GET /inventory summary after the purchase plus balance, the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE (422) and changes nothing.
+// @Description Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each, up to 100 slots in total (INVENTORY_FULL, 409, beyond that). The balance check, the coin debit, its ledger row and the capacity increase commit together. Send an Idempotency-Key header (up to 128 printable ASCII characters, unique per purchase attempt): a repeat of the same key and amount, such as a double click or a retry, debits nothing again and returns the current summary and balance; the same key with another amount is VALIDATION_ERROR. Without the header every request debits. Returns the GET /inventory summary after the purchase plus balance, the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE (422) and changes nothing.
 // @Tags inventory
 // @Produce json
 // @Security SessionCookie
 // @Accept json
+// @Param Idempotency-Key header string false "Optional. A repeat with the same key and amount charges once; up to 128 characters"
 // @Param request body domain.SlotPurchaseRequest true "Number of slots to purchase, 1 to 10"
 // @Success 200 {object} response.Envelope{data=domain.SlotPurchase}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
 // @Failure 422 {object} response.Envelope
 // @Failure 500 {object} response.Envelope
 // @Failure 503 {object} response.Envelope
@@ -214,6 +230,11 @@ func (h *InventoryHandler) PurchaseSlot(c *gin.Context) {
 	}
 	if c.Request.URL.RawQuery != "" {
 		response.Error(c, apperror.New(apperror.CodeValidation, "invalid inventory request"))
+		return
+	}
+	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if !validPurchaseKey(key) {
+		response.Error(c, apperror.New(apperror.CodeValidation, "Idempotency-Key must be 1 to 128 printable ASCII characters"))
 		return
 	}
 	var request domain.SlotPurchaseRequest
@@ -228,7 +249,7 @@ func (h *InventoryHandler) PurchaseSlot(c *gin.Context) {
 		response.Error(c, apperror.New(apperror.CodeValidation, "invalid inventory request"))
 		return
 	}
-	purchase, err := h.service.PurchaseSlot(c.Request.Context(), user, request.Amount)
+	purchase, err := h.service.PurchaseSlot(c.Request.Context(), user, request.Amount, key)
 	if err != nil {
 		response.Error(c, err)
 		return

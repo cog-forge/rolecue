@@ -1,0 +1,16 @@
+# Hash-locked patches for the Python bundled with Blender (see api/Dockerfile, blender stage).
+# Installed with: pip install --require-hashes --no-deps --only-binary=:all: -r blender-requirements.txt
+# All four are pure-Python (py3-none-any) wheels; hashes come from the PyPI JSON API.
+# packaging is listed explicitly because wheel requires it and --no-deps skips resolution.
+# To bump: update the version and the sha256 of the py3-none-any wheel from
+# https://pypi.org/pypi/<name>/<version>/json (urls[].digests.sha256).
+certifi==2026.10.19 \
+    --hash=sha256:42d35340cc5b9ba78e818ddbff0c5b1c2b779de448a340fd1b989f5fa8670e1b
+packaging==26.3 \
+    --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+setuptools==84.0.0 \
+    --hash=sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670
+urllib3==2.8.0 \
+    --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3
+wheel==0.48.0 \
+    --hash=sha256:3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab

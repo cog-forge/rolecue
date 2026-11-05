@@ -219,6 +219,9 @@ type RevenueReport struct {
 	ByRole           []RevenueMixItem     `json:"by_role"`
 	ByPackage        []RevenueMixItem     `json:"by_package"`
 	SpendByFeature   []CoinFeatureItem    `json:"spend_by_feature"`
+	// SeriesTruncated is true when a window had more top-ups than the report reads, so the series and
+	// by_role are partial while the summary totals (current, comparison, by_package) stay complete.
+	SeriesTruncated bool `json:"series_truncated"`
 	// Coins users hold now: prepaid, not yet used, and not revenue. Its VND value uses the average price
 	// paid per coin over all time.
 	OutstandingCoins    int64 `json:"outstanding_coins"`
@@ -238,4 +241,6 @@ type RevenuePeriodData struct {
 	Summary   BillingSummary
 	Topups    []RevenueTopup
 	NewPayers int64
+	// Truncated is true when the window held more top-ups than the repository reads for the series.
+	Truncated bool
 }

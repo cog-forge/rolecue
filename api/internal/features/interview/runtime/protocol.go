@@ -32,6 +32,7 @@ const (
 	pingInterval         = 25 * time.Second
 	pongWait             = 60 * time.Second
 	writeTimeout         = 10 * time.Second
+	verifyTimeout        = 10 * time.Second
 	streamRetention      = 30 * time.Minute
 	persistTimeout       = 30 * time.Second
 	synthesisTimeout     = 20 * time.Second
@@ -77,6 +78,7 @@ const (
 const (
 	CloseProtocolViolation = 4000
 	CloseSuperseded        = 4001
+	CloseSessionInvalid    = 4002
 	CloseNotEligible       = 4003
 )
 
@@ -91,6 +93,7 @@ const (
 	CodeSTTNoSpeech            = "STT_NO_SPEECH"
 	CodeSTTFailed              = "STT_FAILED"
 	CodeAnswerTooLong          = "ANSWER_TOO_LONG"
+	CodeRateLimited            = "RATE_LIMITED"
 )
 
 // Audio status of an interviewer turn.

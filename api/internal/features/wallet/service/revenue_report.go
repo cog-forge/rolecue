@@ -113,6 +113,7 @@ func BuildRevenueReport(req domain.RevenueReportRequest, current, comparison dom
 		ByPackage:        packageMix(current.Summary.PackageBreakdown, comparison.Summary.PackageBreakdown),
 		SpendByFeature:   featureSpend(current.Summary.FeatureBreakdown, comparison.Summary.FeatureBreakdown),
 		OutstandingCoins: outstandingCoins,
+		SeriesTruncated:  current.Truncated || comparison.Truncated,
 	}
 	if allTimeCoinsSold > 0 {
 		report.OutstandingValueVND = outstandingCoins * allTimeRevenueVND / allTimeCoinsSold

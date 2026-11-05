@@ -216,7 +216,7 @@ func (r *Repository) ListCoinPackages(ctx context.Context) ([]domain.CoinPackage
 			Description: desc,
 			CoinAmount:  row.Amount,
 			Currency:    row.Currency,
-			IsActive:    true,
+			IsActive:    row.IsActive,
 		})
 	}
 	return packages, nil
@@ -241,7 +241,7 @@ func (r *Repository) GetCoinPackageByID(ctx context.Context, id uuid.UUID) (doma
 		Description: desc,
 		CoinAmount:  row.Amount,
 		Currency:    row.Currency,
-		IsActive:    true,
+		IsActive:    row.IsActive,
 	}, nil
 }
 
@@ -629,7 +629,9 @@ func (r *Repository) GetRevenuePeriod(ctx context.Context, from, to time.Time) (
 	if err != nil {
 		return domain.RevenuePeriodData{}, apperror.Wrap(apperror.CodeInternal, "failed to count new payers", err)
 	}
-	return domain.RevenuePeriodData{Summary: summary, Topups: topups, NewPayers: newPayers}, nil
+	// The summary totals are uncapped SQL aggregates; the series and mixes are built from the rows read
+	// above, so more rows than the cap must be reported, not silently dropped.
+	return domain.RevenuePeriodData{Summary: summary, Topups: topups, NewPayers: newPayers, Truncated: page.Total > int64(len(page.Items))}, nil
 }
 
 // userRoles maps the user IDs on the items to their roles; IDs that are not users are left out.

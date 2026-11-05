@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/uploadgrant"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -23,6 +24,11 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 	return &Repository{pool: pool, queries: New(pool)}
 }
 
+// RecordUpload binds a newly stored JD PDF key to the Recruiter who uploaded it.
+func (r *Repository) RecordUpload(ctx context.Context, recruiterID, key uuid.UUID) error {
+	return persistenceError(uploadgrant.Record(ctx, r.pool, recruiterID, key, uploadgrant.PurposeJobPostingPDF))
+}
+
 // Create returns the stored posting built inside the transaction, so a successful insert is never
 // reported as a failure by a read after commit (a client retry would then create a duplicate).
 func (r *Repository) Create(ctx context.Context, recruiterID uuid.UUID, input domain.NewPosting) (domain.Record, error) {
@@ -35,6 +41,9 @@ func (r *Repository) Create(ctx context.Context, recruiterID uuid.UUID, input do
 		}
 		levelID, err := levelID(ctx, q, input.SeniorityLevel)
 		if err != nil {
+			return err
+		}
+		if err := uploadgrant.Consume(ctx, tx, recruiterID, input.ContentPath, uploadgrant.PurposeJobPostingPDF); err != nil {
 			return err
 		}
 		jdID, err := q.InsertJobDescription(ctx, InsertJobDescriptionParams{ContentPath: &input.ContentPath, RawText: &input.RawText, LevelID: levelID, RefinementNote: &input.RefinementNote})
@@ -179,6 +188,9 @@ func (r *Repository) Update(ctx context.Context, recruiterID, id uuid.UUID, patc
 			}
 		}
 		if document != nil {
+			if err := uploadgrant.Consume(ctx, tx, recruiterID, document.ContentPath, uploadgrant.PurposeJobPostingPDF); err != nil {
+				return err
+			}
 			if err := q.UpdateJDDocument(ctx, UpdateJDDocumentParams{ID: current.JdID, ContentPath: &document.ContentPath, RawText: &document.RawText}); err != nil {
 				return err
 			}

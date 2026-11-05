@@ -70,7 +70,11 @@ func TestRoleProfileLifecycle(t *testing.T) {
 	if err != nil || profile.Status != domain.Draft {
 		t.Fatal("draft create", err)
 	}
-	pdfKey := uuid.NewString()
+	pdfID := uuid.New()
+	pdfKey := pdfID.String()
+	if err = repo.RecordUpload(ctx, user, pdfID); err != nil {
+		t.Fatal(err)
+	}
 	pdfProfile, err := repo.CreatePDFProfile(ctx, user, raw, pdfKey)
 	if err != nil || !pdfProfile.HasOriginalDocument || pdfProfile.ContentPath != pdfKey {
 		t.Fatal("PDF path persistence", err)

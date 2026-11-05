@@ -320,15 +320,14 @@ func TestOverviewApplicationsCountStatusesAndSubmittedInWindow(t *testing.T) {
 		beforeSubmitted[d] = read(t, ctx, svc, d).Applications.SubmittedInWindow
 	}
 
-	candidate := s.user("candidate")
 	recruiter := s.user("recruiter")
 	posting := s.posting(recruiter, "open")
 	now := time.Now()
 	for _, st := range []string{"pending", "interview_eligible", "interviewed", "approved", "rejected"} {
-		s.application(posting, candidate, st, now)
+		s.application(posting, s.user("candidate"), st, now)
 	}
 	// Created 40 days ago: outside the 30-day window, inside the 90-day window. Its status still counts all-time.
-	s.application(posting, candidate, "approved", now.Add(-40*24*time.Hour))
+	s.application(posting, s.user("candidate"), "approved", now.Add(-40*24*time.Hour))
 
 	afterStatus := applicationStatusCounts(read(t, ctx, svc, 30).Applications)
 	wantStatus := map[string]int64{"pending": 1, "interview_eligible": 1, "interviewed": 1, "approved": 2, "rejected": 1}

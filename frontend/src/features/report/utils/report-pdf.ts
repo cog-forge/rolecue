@@ -31,7 +31,10 @@ export function reportPrintDocument(
   ) {
     throw new Error("Report is not exportable");
   }
-  const filename = `rolecue-practice-report-${report.completed_at.slice(0, 10)}.pdf`;
+  const day = report.completed_at.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day)))
+    throw new Error("Report is not exportable");
+  const filename = `rolecue-practice-report-${day}.pdf`;
   const heading = (
     key: "overallScore" | "summary" | "breakdown" | "questions",
   ) => `<h2>${escape(t(key))}</h2>`;
@@ -39,7 +42,7 @@ export function reportPrintDocument(
   const turn = (item: NonNullable<Report["questions"]>[number]) =>
     paragraph(t("answer") + " " + (item.answer ?? t("noAnswer"))) +
     (item.feedback ? paragraph(t("feedback") + " " + item.feedback) : "");
-  return `<!doctype html><html lang="${escape(locale)}"><head><meta charset="utf-8"><title>${filename}</title>
+  return `<!doctype html><html lang="${escape(locale)}"><head><meta charset="utf-8"><title>${escape(filename)}</title>
 <style>
 @font-face{font-family:Report;src:url("${font}") format("truetype");font-weight:100 900}
 @page{size:A4;margin:18mm}
@@ -48,7 +51,7 @@ h1{font-size:22pt}h2{font-size:15pt}h3{font-size:12pt}
 h1,h2,h3,h4{break-after:avoid}p{white-space:pre-wrap;overflow-wrap:anywhere;orphans:3;widows:3}
 li{margin-bottom:16px}.follow-up{border-left:2px solid #aaa;padding-left:14px}
 </style></head><body><h1>RoleCue — ${escape(t("type.practice"))}</h1>
-${paragraph(report.completed_at.slice(0, 10))}
+${paragraph(day)}
 ${heading("overallScore")}${paragraph(t("score", { score: number(report.overall_score) }))}
 ${report.summary ? heading("summary") + paragraph(report.summary) : ""}
 ${report.breakdown?.length ? heading("breakdown") + "<ul>" + report.breakdown.map((metric) => `<li>${escape(metric.name)}: ${escape(t("score", { score: number(metric.score) }))}</li>`).join("") + "</ul>" : ""}

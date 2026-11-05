@@ -3575,6 +3575,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Envelope"
                         }
                     },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
                     "503": {
                         "description": "Service Unavailable",
                         "schema": {
@@ -3748,7 +3754,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each. The balance check, the coin debit, its ledger row and the capacity increase commit together. Returns the GET /inventory summary after the purchase plus balance, the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE (422) and changes nothing.",
+                "description": "Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each, up to 100 slots in total (INVENTORY_FULL, 409, beyond that). The balance check, the coin debit, its ledger row and the capacity increase commit together. Send an Idempotency-Key header (up to 128 printable ASCII characters, unique per purchase attempt): a repeat of the same key and amount, such as a double click or a retry, debits nothing again and returns the current summary and balance; the same key with another amount is VALIDATION_ERROR. Without the header every request debits. Returns the GET /inventory summary after the purchase plus balance, the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE (422) and changes nothing.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3760,6 +3766,12 @@ const docTemplate = `{
                 ],
                 "summary": "Purchase inventory slots",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Optional. A repeat with the same key and amount charges once; up to 128 characters",
+                        "name": "Idempotency-Key",
+                        "in": "header"
+                    },
                     {
                         "description": "Number of slots to purchase, 1 to 10",
                         "name": "request",
@@ -3803,6 +3815,12 @@ const docTemplate = `{
                     },
                     "403": {
                         "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -7859,6 +7877,408 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/wallet": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate/Recruiter only. Creates an empty wallet on first read. Admins have no wallet (403).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Get your coin wallet",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Wallet"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/deposit/checkout": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate/Recruiter only. Creates a pending VND order for an active coin package and returns the PayOS checkout URL. The coins are credited only after PayOS confirms payment (webhook or sync). return_url and cancel_url are optional; when given they must be http(s) URLs on the same origin as the request's trusted Origin header, otherwise VALIDATION_ERROR. The JSON body is strict: unknown fields, trailing data and bodies over 4 KiB are VALIDATION_ERROR.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Start a PayOS top-up checkout",
+                "parameters": [
+                    {
+                        "description": "Package and return URLs",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.DepositCheckoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.DepositCheckoutResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/deposit/sync": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate/Recruiter only. Asks PayOS for the authoritative status of the caller's own order and settles it once. A terminal order is returned as it is. Another user's order is FORBIDDEN. The JSON body is strict and capped at 1 KiB.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "Reconcile one of your top-ups with PayOS",
+                "parameters": [
+                    {
+                        "description": "PayOS order code",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SyncDepositRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.Transaction"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/packages": {
+            "get": {
+                "description": "Public catalogue of the packages a top-up can buy. Inactive packages are not listed.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "List the active coin packages",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/domain.CoinPackage"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/transactions": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate/Recruiter only. Newest first; page defaults to 1 and page_size to 20 (1 to 100).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "List your wallet transactions",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.WalletTransactionPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/wallet/webhook/payos": {
+            "post": {
+                "description": "Called by PayOS, not by browsers, so there is no session or Origin check. The request is trusted only after the service verifies the PayOS signature and re-reads the payment link from PayOS; a replay of a settled order changes nothing. The body is read whole, capped at 64 KiB.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "wallet"
+                ],
+                "summary": "PayOS payment webhook",
+                "parameters": [
+                    {
+                        "description": "PayOS webhook payload, signed by PayOS",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.PayOSWebhookAck"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -7876,6 +8296,7 @@ const docTemplate = `{
                 "AVATAR_CONVERTER_UNAVAILABLE",
                 "AVATAR_CONVERSION_FAILED",
                 "AVATAR_CONVERSION_TIMEOUT",
+                "AVATAR_CONVERSION_QUOTA",
                 "AVATAR_PERSISTENCE_FAILED",
                 "AVATAR_NOT_FOUND",
                 "AVATAR_IN_USE",
@@ -7888,6 +8309,7 @@ const docTemplate = `{
                 "INVALID_TOKEN",
                 "AUTH_UNAVAILABLE",
                 "FORBIDDEN",
+                "ADMIN_MFA_REQUIRED",
                 "ONBOARDING_ROLE_CONFLICT",
                 "VALIDATION_ERROR",
                 "INTERNAL_ERROR",
@@ -7961,6 +8383,7 @@ const docTemplate = `{
                 "CodeAvatarConverterUnavailable",
                 "CodeAvatarConversionFailed",
                 "CodeAvatarConversionTimeout",
+                "CodeAvatarConversionQuota",
                 "CodeAvatarPersistenceFailed",
                 "CodeAvatarNotFound",
                 "CodeAvatarInUse",
@@ -7973,6 +8396,7 @@ const docTemplate = `{
                 "CodeInvalidToken",
                 "CodeAuthUnavailable",
                 "CodeForbidden",
+                "CodeAdminMFARequired",
                 "CodeOnboardingRoleConflict",
                 "CodeValidation",
                 "CodeInternal",
@@ -8613,6 +9037,32 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.CoinPackage": {
+            "type": "object",
+            "properties": {
+                "coin_amount": {
+                    "type": "integer"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price_vnd": {
+                    "type": "integer"
+                }
+            }
+        },
         "domain.CompanyInterviewer": {
             "type": "object",
             "properties": {
@@ -8649,6 +9099,26 @@ const docTemplate = `{
                 },
                 "question_number": {
                     "type": "integer"
+                }
+            }
+        },
+        "domain.DepositCheckoutResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "checkout_url": {
+                    "type": "string"
+                },
+                "coin_amount": {
+                    "type": "integer"
+                },
+                "order_code": {
+                    "type": "integer"
+                },
+                "transaction_id": {
+                    "type": "string"
                 }
             }
         },
@@ -10029,6 +10499,10 @@ const docTemplate = `{
                         "$ref": "#/definitions/domain.RevenueSeriesPoint"
                     }
                 },
+                "series_truncated": {
+                    "description": "SeriesTruncated is true when a window had more top-ups than the report reads, so the series and\nby_role are partial while the summary totals (current, comparison, by_package) stay complete.",
+                    "type": "boolean"
+                },
                 "spend_by_feature": {
                     "type": "array",
                     "items": {
@@ -10529,6 +11003,38 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Transaction": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "payos_order_code": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/domain.TransactionStatus"
+                },
+                "to": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.TransactionStatus": {
             "type": "string",
             "enum": [
@@ -10771,6 +11277,20 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.Wallet": {
+            "type": "object",
+            "properties": {
+                "balance": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Weight": {
             "type": "object",
             "properties": {
@@ -10958,6 +11478,25 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.DepositCheckoutRequest": {
+            "type": "object",
+            "required": [
+                "package_id"
+            ],
+            "properties": {
+                "cancel_url": {
+                    "type": "string",
+                    "example": "https://app.example.com/billing?cancel=true"
+                },
+                "package_id": {
+                    "type": "string"
+                },
+                "return_url": {
+                    "type": "string",
+                    "example": "https://app.example.com/billing?status=success"
+                }
+            }
+        },
         "handler.EvaluationWeightEntry": {
             "type": "object",
             "required": [
@@ -11007,6 +11546,19 @@ const docTemplate = `{
                     "description": "Slots is the number of interview slots to buy at 1 coin each.",
                     "type": "integer",
                     "example": 5
+                }
+            }
+        },
+        "handler.PayOSWebhookAck": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "00"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "success"
                 }
             }
         },
@@ -11080,6 +11632,37 @@ const docTemplate = `{
             "properties": {
                 "role": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.SyncDepositRequest": {
+            "type": "object",
+            "required": [
+                "order_code"
+            ],
+            "properties": {
+                "order_code": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.WalletTransactionPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.Transaction"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },

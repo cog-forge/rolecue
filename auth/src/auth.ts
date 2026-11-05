@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import type { AuthEnv } from "./env";
 import { authOptions } from "./options";
 import { createAccountNotifications } from "./account-notifications";
+import { createAuditLog } from "./audit-log";
 import { createMailer } from "./email";
 import { enforceInternalAdmin } from "./internal-admin";
 import { forceRevokeOtherSessions } from "./password-change-sessions";
@@ -19,13 +20,17 @@ export const createBeforeHooks = (adminSecret: string) =>
 export function createAuth(config: AuthEnv, database: Pool) {
   const { baseURL, appURL, secret, domain, secure, cookiePrefix } = config;
   const mailer = createMailer(config.email);
+  const audit = createAuditLog({ secret });
   return betterAuth({
     ...authOptions,
+    plugins: [...authOptions.plugins, audit.plugin],
+    databaseHooks: audit.databaseHooks,
     hooks: {
       before: createBeforeHooks(config.adminSecret),
       after: createAccountNotifications(mailer.sendAccountStatusEmail),
     },
     rateLimit: rateLimitOptions,
+    // The library logger can print token-bearing URLs; audit events come from audit-log.ts instead.
     logger: { disabled: true },
     baseURL,
     secret,

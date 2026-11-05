@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isTrustedCheckoutUrl } from "../lib/checkout-url";
 
 export const transactionStatusSchema = z.enum([
   "pending",
@@ -72,8 +73,14 @@ export const transactionPageEnvelopeSchema = z.object({
 
 export const depositCheckoutRequestSchema = z.object({
   package_id: z.string().min(1),
-  return_url: z.string().url().optional(),
-  cancel_url: z.string().url().optional(),
+  return_url: z
+    .url({ protocol: /^https?$/ })
+    .max(2048)
+    .optional(),
+  cancel_url: z
+    .url({ protocol: /^https?$/ })
+    .max(2048)
+    .optional(),
 });
 
 export type DepositCheckoutRequest = z.infer<
@@ -81,7 +88,12 @@ export type DepositCheckoutRequest = z.infer<
 >;
 
 export const depositCheckoutResponseSchema = z.object({
-  checkout_url: z.string(),
+  // Only an https URL on the PayOS checkout host is ever followed.
+  checkout_url: z
+    .url({ protocol: /^https$/ })
+    .refine((value) => isTrustedCheckoutUrl(value), {
+      message: "Checkout URL is not on the PayOS checkout host",
+    }),
   order_code: z.number().int(),
   amount: z.number().int(),
   coin_amount: z.number().int(),

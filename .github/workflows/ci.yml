@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:18.6
+        image: postgres:18.6@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
         env:
           POSTGRES_DB: rolecue_ci
           POSTGRES_USER: ci
@@ -75,7 +75,7 @@ jobs:
     # Ships Chromium and its system libraries, replacing a slow `playwright install --with-deps`.
     # Keep the tag equal to @playwright/test in frontend/package.json; the image provides Node 24.
     container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
       options: --user 1001
     env:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
@@ -134,7 +134,7 @@ jobs:
         component: [api, frontend, auth]
     services:
       postgres:
-        image: postgres:18.6
+        image: postgres:18.6@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
         env:
           POSTGRES_DB: rolecue_ci
           POSTGRES_USER: ci
@@ -184,6 +184,28 @@ jobs:
           output: trivy-${{ matrix.component }}.json
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
           exit-code: '0'
+      # Misconfiguration and secret scanning use the same HIGH/CRITICAL policy
+      # as `make image-scan` and fail the job. To prove the gate, add `USER root`
+      # as the last line of a Dockerfile in a throwaway branch: the first step
+      # reports DS-0002 (HIGH) and CI fails.
+      - name: Scan Dockerfile and build context (misconfig, secret)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.0
+          scan-type: fs
+          scan-ref: ${{ matrix.component }}
+          scanners: misconfig,secret
+          skip-dirs: node_modules,.next,.tools
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+      - name: Scan image layers and config (secret, misconfig)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.0
+          image-ref: rolecue-${{ matrix.component }}:ci
+          scanners: secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: '1'
       - name: Generate SBOM
         run: trivy image --format cyclonedx --exit-code 0 --output sbom-${{ matrix.component }}.json rolecue-${{ matrix.component }}:ci
       - name: Enforce vulnerability policy
@@ -253,13 +275,22 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # keyless cosign signing; granted to this job only
     outputs:
       image_tag: ${{ steps.tag.outputs.value }}
+      api_digest: ${{ steps.push.outputs.api_digest }}
+      auth_digest: ${{ steps.push.outputs.auth_digest }}
+      frontend_digest: ${{ steps.push.outputs.frontend_digest }}
     steps:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: image-*
           path: images
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          pattern: scan-*
+          path: scans
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
@@ -269,6 +300,7 @@ jobs:
         id: tag
         run: echo "value=sha-${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
       - name: Push exactly the scanned images
+        id: push
         run: |
           tag='${{ steps.tag.outputs.value }}'
           for component in api frontend auth; do
@@ -278,12 +310,38 @@ jobs:
             docker push "$image:$tag"
             digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image:$tag")
             printf '%s\n\n' "$image:$tag" "$digest" >> "$GITHUB_STEP_SUMMARY"
+            printf '%s_digest=%s\n' "$component" "${digest##*@}" >> "$GITHUB_OUTPUT"
           done
           for component in api frontend auth; do
             image="ghcr.io/cog-forge/rolecue-$component"
             docker tag "rolecue-$component:ci" "$image:latest"
             docker push "$image:latest"
           done
+      # Keyless signing: the signature binds the digest to this workflow's OIDC
+      # identity (recorded in the Rekor transparency log). One signature per
+      # digest covers every tag. The CycloneDX SBOM generated for the same image
+      # in the `images` job is attached as a signed in-toto attestation.
+      - name: Sign images and attest SBOM
+        env:
+          DIGEST_api: ${{ steps.push.outputs.api_digest }}
+          DIGEST_auth: ${{ steps.push.outputs.auth_digest }}
+          DIGEST_frontend: ${{ steps.push.outputs.frontend_digest }}
+        run: |
+          set -eu
+          for component in api frontend auth; do
+            digest=$(printenv "DIGEST_$component")
+            test -n "$digest"
+            ref="ghcr.io/cog-forge/rolecue-$component@$digest"
+            cosign sign --yes "$ref"
+            cosign attest --yes --type cyclonedx \
+              --predicate "scans/scan-$component/sbom-$component.json" "$ref"
+          done
+      # The 14-day scan artifacts expire; keep the SBOMs longer for audits.
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: sbom-release
+          path: scans/scan-*/sbom-*.json
+          retention-days: 90
 
   deploy:
     name: Deploy production
@@ -303,50 +361,6 @@ jobs:
     env:
       REGISTRY: ghcr.io/cog-forge
       IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
-      APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
-      API_DOMAIN: ${{ secrets.API_DOMAIN }}
-      APP_URL: ${{ secrets.APP_URL }}
-      AUTH_BASE_URL: ${{ secrets.AUTH_BASE_URL }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DB_DATABASE: ${{ secrets.DB_DATABASE }}
-      DB_USERNAME: ${{ secrets.DB_USERNAME }}
-      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      LOGGER_LEVEL: ${{ vars.LOGGER_LEVEL }}
-      LOGGER_FORMAT: ${{ vars.LOGGER_FORMAT }}
-      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-      BETTER_AUTH_COOKIE_PREFIX: ${{ secrets.BETTER_AUTH_COOKIE_PREFIX }}
-      BETTER_AUTH_COOKIE_DOMAIN: ${{ secrets.BETTER_AUTH_COOKIE_DOMAIN }}
-      ADMIN_AUTH_INTERNAL_SECRET: ${{ secrets.ADMIN_AUTH_INTERNAL_SECRET }}
-      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-      GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
-      GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
-      FACEBOOK_CLIENT_ID: ${{ secrets.FACEBOOK_CLIENT_ID }}
-      FACEBOOK_CLIENT_SECRET: ${{ secrets.FACEBOOK_CLIENT_SECRET }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-      RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
-      RESEND_VERIFY_EMAIL_TEMPLATE_ID: ${{ secrets.RESEND_VERIFY_EMAIL_TEMPLATE_ID }}
-      RESEND_RESET_PASSWORD_TEMPLATE_ID: ${{ secrets.RESEND_RESET_PASSWORD_TEMPLATE_ID }}
-      RESEND_ACCOUNT_LOCKED_TEMPLATE_ID: ${{ secrets.RESEND_ACCOUNT_LOCKED_TEMPLATE_ID }}
-      RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID: ${{ secrets.RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID }}
-      SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL }}
-      PAYOS_CLIENT_ID: ${{ secrets.PAYOS_CLIENT_ID }}
-      PAYOS_API_KEY: ${{ secrets.PAYOS_API_KEY }}
-      PAYOS_CHECKSUM_KEY: ${{ secrets.PAYOS_CHECKSUM_KEY }}
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
-      LLM_MODEL: ${{ vars.LLM_MODEL }}
-      S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
-      S3_REGION: ${{ vars.S3_REGION }}
-      S3_BUCKET: ${{ vars.S3_BUCKET }}
-      S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
-      S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
-      S3_SESSION_TOKEN: ${{ secrets.S3_SESSION_TOKEN }}
-      AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
-      AZURE_SPEECH_REGION: ${{ vars.AZURE_SPEECH_REGION }}
-      AVATAR_CONVERSION_ENABLED: ${{ vars.AVATAR_CONVERSION_ENABLED }}
-      AVATAR_VRM_COMMERCIAL_USAGE: ${{ vars.AVATAR_VRM_COMMERCIAL_USAGE }}
-      AVATAR_VRM_LICENSE_URL: ${{ vars.AVATAR_VRM_LICENSE_URL }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -354,7 +368,77 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # Refuse to deploy anything not signed by this repository's CI workflow
+      # on main. Verification is by digest, so a moved tag cannot slip through.
+      - name: Verify image signatures
+        env:
+          DIGEST_api: ${{ needs.publish.outputs.api_digest }}
+          DIGEST_auth: ${{ needs.publish.outputs.auth_digest }}
+          DIGEST_frontend: ${{ needs.publish.outputs.frontend_digest }}
+        run: |
+          set -eu
+          for component in api auth frontend; do
+            digest=$(printenv "DIGEST_$component")
+            test -n "$digest"
+            cosign verify \
+              --certificate-identity 'https://github.com/cog-forge/rolecue/.github/workflows/ci.yml@refs/heads/main' \
+              --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
+              "ghcr.io/cog-forge/rolecue-$component@$digest" >/dev/null
+          done
       - name: Pull promoted images and deploy
+        env:
+          API_IMAGE_DIGEST: ${{ needs.publish.outputs.api_digest }}
+          AUTH_IMAGE_DIGEST: ${{ needs.publish.outputs.auth_digest }}
+          FRONTEND_IMAGE_DIGEST: ${{ needs.publish.outputs.frontend_digest }}
+          # Production secrets are exposed to this step only (compose
+          # interpolates the whole file, so every variable it requires lives
+          # here). Checkout, registry login and signature verification run
+          # without them.
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+          API_DOMAIN: ${{ secrets.API_DOMAIN }}
+          APP_URL: ${{ secrets.APP_URL }}
+          AUTH_BASE_URL: ${{ secrets.AUTH_BASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DB_DATABASE: ${{ secrets.DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          LOGGER_LEVEL: ${{ vars.LOGGER_LEVEL }}
+          LOGGER_FORMAT: ${{ vars.LOGGER_FORMAT }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          BETTER_AUTH_COOKIE_PREFIX: ${{ secrets.BETTER_AUTH_COOKIE_PREFIX }}
+          BETTER_AUTH_COOKIE_DOMAIN: ${{ secrets.BETTER_AUTH_COOKIE_DOMAIN }}
+          ADMIN_AUTH_INTERNAL_SECRET: ${{ secrets.ADMIN_AUTH_INTERNAL_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
+          FACEBOOK_CLIENT_ID: ${{ secrets.FACEBOOK_CLIENT_ID }}
+          FACEBOOK_CLIENT_SECRET: ${{ secrets.FACEBOOK_CLIENT_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          RESEND_VERIFY_EMAIL_TEMPLATE_ID: ${{ secrets.RESEND_VERIFY_EMAIL_TEMPLATE_ID }}
+          RESEND_RESET_PASSWORD_TEMPLATE_ID: ${{ secrets.RESEND_RESET_PASSWORD_TEMPLATE_ID }}
+          RESEND_ACCOUNT_LOCKED_TEMPLATE_ID: ${{ secrets.RESEND_ACCOUNT_LOCKED_TEMPLATE_ID }}
+          RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID: ${{ secrets.RESEND_ACCOUNT_UNLOCKED_TEMPLATE_ID }}
+          SUPPORT_EMAIL: ${{ secrets.SUPPORT_EMAIL }}
+          PAYOS_CLIENT_ID: ${{ secrets.PAYOS_CLIENT_ID }}
+          PAYOS_API_KEY: ${{ secrets.PAYOS_API_KEY }}
+          PAYOS_CHECKSUM_KEY: ${{ secrets.PAYOS_CHECKSUM_KEY }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+          S3_REGION: ${{ vars.S3_REGION }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_SESSION_TOKEN: ${{ secrets.S3_SESSION_TOKEN }}
+          AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+          AZURE_SPEECH_REGION: ${{ vars.AZURE_SPEECH_REGION }}
+          AVATAR_CONVERSION_ENABLED: ${{ vars.AVATAR_CONVERSION_ENABLED }}
+          AVATAR_VRM_COMMERCIAL_USAGE: ${{ vars.AVATAR_VRM_COMMERCIAL_USAGE }}
+          AVATAR_VRM_LICENSE_URL: ${{ vars.AVATAR_VRM_LICENSE_URL }}
         run: |
           set -eu
           docker compose -p rolecue -f .docker/compose.deploy.yaml pull

@@ -10,6 +10,10 @@ server:
   read_timeout: 10s
   write_timeout: 30s
   shutdown_timeout: 5s
+  # Reverse proxies (IPs or CIDRs) whose X-Forwarded-For header is believed when working out the client
+  # address. Any other peer's header is ignored, so a client cannot forge its logged IP. Behind Caddy or
+  # a load balancer, list its address or network here (env SERVER_TRUSTED_PROXIES, comma separated).
+  trusted_proxies: [127.0.0.1, "::1"]
 
 database:
   url: ""
@@ -19,6 +23,11 @@ database:
   password: postgres
   name: rolecue
   ssl_mode: disable
+  # CA certificate path (sslrootcert) for ssl_mode verify-ca / verify-full; env DATABASE_SSL_ROOT_CERT.
+  ssl_root_cert: ""
+  # When true, production refuses to start unless the connection uses sslmode=verify-full with a root
+  # certificate (env DATABASE_REQUIRE_TLS). Off by default so existing deployments keep working.
+  require_tls: false
   max_open_conns: 25
   max_idle_conns: 10
   conn_max_lifetime: 5m

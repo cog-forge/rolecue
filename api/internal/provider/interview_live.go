@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
+	authservice "github.com/cog-forge/rolecue/api/internal/features/auth/service"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/runtime"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
@@ -37,8 +38,11 @@ func ProvideTranscriber(cfg *config.Config, log *logger.Logger) (runtime.Transcr
 func ProvideInterviewLiveEngine(svc *service.Service, synthesizer tts.Synthesizer, transcriber runtime.Transcriber, cfg *config.Config) (*runtime.Engine, error) {
 	hub := runtime.NewHub()
 	engine, err := runtime.NewEngine(svc, synthesizer, transcriber, hub, runtime.Settings{
-		STTTimeout:   cfg.Interview.STTTimeout,
-		CacheEntries: cfg.Interview.TTSCacheEntries,
+		STTTimeout:         cfg.Interview.STTTimeout,
+		CacheEntries:       cfg.Interview.TTSCacheEntries,
+		RevalidateInterval: cfg.Interview.LiveRecheckInterval,
+		MessageRate:        cfg.Interview.LiveMessageRate,
+		MessageBurst:       cfg.Interview.LiveMessageBurst,
 	})
 	if err != nil {
 		return nil, err
@@ -47,7 +51,8 @@ func ProvideInterviewLiveEngine(svc *service.Service, synthesizer tts.Synthesize
 	return engine, nil
 }
 
-// ProvideInterviewLiveHandler trusts the same browser origins as CORS.
-func ProvideInterviewLiveHandler(svc *service.Service, engine *runtime.Engine, cfg *config.Config) *handler.InterviewLiveHandler {
-	return handler.NewInterviewLiveHandler(svc, engine, cfg.CORS.AllowOrigins)
+// ProvideInterviewLiveHandler trusts the same browser origins as CORS and re-checks each open socket's
+// login through the auth service.
+func ProvideInterviewLiveHandler(svc *service.Service, engine *runtime.Engine, cfg *config.Config, auth authservice.AuthService) *handler.InterviewLiveHandler {
+	return handler.NewInterviewLiveHandler(svc, engine, cfg.CORS.AllowOrigins).WithAuthenticator(auth)
 }

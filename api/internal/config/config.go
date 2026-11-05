@@ -50,16 +50,21 @@ type ServerConfig struct {
 	ReadTimeout     time.Duration `mapstructure:"read_timeout"`
 	WriteTimeout    time.Duration `mapstructure:"write_timeout"`
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
+	// TrustedProxies lists the reverse proxies (IPs or CIDRs) whose X-Forwarded-For is believed.
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 type DatabaseConfig struct {
-	URL             string        `mapstructure:"url"`
-	Host            string        `mapstructure:"host"`
-	Port            int           `mapstructure:"port"`
-	User            string        `mapstructure:"user"`
-	Password        string        `mapstructure:"password"`
-	Name            string        `mapstructure:"name"`
-	SSLMode         string        `mapstructure:"ssl_mode"`
+	URL         string `mapstructure:"url"`
+	Host        string `mapstructure:"host"`
+	Port        int    `mapstructure:"port"`
+	User        string `mapstructure:"user"`
+	Password    string `mapstructure:"password"`
+	Name        string `mapstructure:"name"`
+	SSLMode     string `mapstructure:"ssl_mode"`
+	SSLRootCert string `mapstructure:"ssl_root_cert"`
+	// RequireTLS makes production reject any sslmode but verify-full with a root certificate.
+	RequireTLS      bool          `mapstructure:"require_tls"`
 	MaxOpenConns    int           `mapstructure:"max_open_conns"`
 	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
@@ -101,6 +106,9 @@ func (d *DatabaseConfig) DSN() string {
 	if d.SSLMode != "" {
 		q.Set("sslmode", d.SSLMode)
 	}
+	if d.SSLRootCert != "" {
+		q.Set("sslrootcert", d.SSLRootCert)
+	}
 	if len(q) > 0 {
 		u.RawQuery = q.Encode()
 	}
@@ -116,6 +124,10 @@ type AuthConfig struct {
 	CookiePrefix  string        `mapstructure:"cookie_prefix"`
 	CookieDomain  string        `mapstructure:"cookie_domain"`
 	SecureCookies bool          `mapstructure:"secure_cookies"`
+	// AdminRequireMFA rejects Admin sessions without two-factor authentication; AdminMFAGrace is an RFC3339
+	// instant (empty = none) before which Admins without it are still let in.
+	AdminRequireMFA bool   `mapstructure:"admin_require_mfa"`
+	AdminMFAGrace   string `mapstructure:"admin_mfa_grace"`
 }
 
 type CORSConfig struct {
@@ -233,6 +245,12 @@ type InterviewConfig struct {
 	TTSCacheEntries        int           `mapstructure:"tts_cache_entries"`
 	FollowUpLimit          int           `mapstructure:"follow_up_limit"`
 	FollowUpTimeout        time.Duration `mapstructure:"follow_up_timeout"`
+	// LiveRecheckInterval is how often an open live socket's login is re-verified (0 uses 60s);
+	// LiveMessageRate and LiveMessageBurst size the per-socket incoming-message token bucket (0 uses 20/s
+	// and 60). A socket whose login is gone is closed; a socket that keeps flooding is closed too.
+	LiveRecheckInterval time.Duration `mapstructure:"live_recheck_interval"`
+	LiveMessageRate     float64       `mapstructure:"live_message_rate"`
+	LiveMessageBurst    int           `mapstructure:"live_message_burst"`
 }
 
 // MaxInterviewQuestionLimit bounds INTERVIEW_QUESTION_LIMIT to a sane technical range.
@@ -250,6 +268,10 @@ const (
 	MaxInterviewFollowUpLimit   = 3
 	MinInterviewFollowUpTimeout = time.Second
 	MaxInterviewFollowUpTimeout = 15 * time.Second
+	MinLiveRecheckInterval      = 5 * time.Second
+	MaxLiveRecheckInterval      = 10 * time.Minute
+	MaxLiveMessageRate          = 1000
+	MaxLiveMessageBurst         = 10000
 )
 
 // Validate checks the live interview settings.
@@ -271,6 +293,15 @@ func (c InterviewConfig) Validate() error {
 	}
 	if c.FollowUpLimit < 0 || c.FollowUpLimit > MaxInterviewFollowUpLimit {
 		return fmt.Errorf("interview.follow_up_limit must be between 0 and %d", MaxInterviewFollowUpLimit)
+	}
+	if c.LiveRecheckInterval != 0 && (c.LiveRecheckInterval < MinLiveRecheckInterval || c.LiveRecheckInterval > MaxLiveRecheckInterval) {
+		return fmt.Errorf("interview.live_recheck_interval must be between %s and %s", MinLiveRecheckInterval, MaxLiveRecheckInterval)
+	}
+	if math.IsNaN(c.LiveMessageRate) || c.LiveMessageRate < 0 || c.LiveMessageRate > MaxLiveMessageRate {
+		return fmt.Errorf("interview.live_message_rate must be between 0 and %d", MaxLiveMessageRate)
+	}
+	if c.LiveMessageBurst < 0 || c.LiveMessageBurst > MaxLiveMessageBurst {
+		return fmt.Errorf("interview.live_message_burst must be between 0 and %d", MaxLiveMessageBurst)
 	}
 	if c.FollowUpTimeout != 0 && (c.FollowUpTimeout < MinInterviewFollowUpTimeout || c.FollowUpTimeout > MaxInterviewFollowUpTimeout) {
 		return fmt.Errorf("interview.follow_up_timeout must be between %s and %s", MinInterviewFollowUpTimeout, MaxInterviewFollowUpTimeout)
@@ -319,44 +350,49 @@ func Load(configPath string) (*Config, error) {
 
 	// Explicitly bind environment variables
 	for key, env := range map[string]string{
-		"storage.endpoint":           "S3_ENDPOINT",
-		"storage.region":             "S3_REGION",
-		"storage.bucket":             "S3_BUCKET",
-		"storage.access_key_id":      "S3_ACCESS_KEY_ID",
-		"storage.secret_access_key":  "S3_SECRET_ACCESS_KEY",
-		"storage.session_token":      "S3_SESSION_TOKEN",
-		"database.url":               "DATABASE_URL",
-		"database.name":              "DB_DATABASE",
-		"database.user":              "DB_USERNAME",
-		"database.password":          "DB_PASSWORD",
-		"database.port":              "DB_PORT",
-		"auth.public_url":            "AUTH_BASE_URL",
-		"auth.admin_secret":          "ADMIN_AUTH_INTERNAL_SECRET",
-		"auth.timeout":               "AUTH_SESSION_TIMEOUT",
-		"auth.cookie_prefix":         "BETTER_AUTH_COOKIE_PREFIX",
-		"auth.cookie_domain":         "BETTER_AUTH_COOKIE_DOMAIN",
-		"auth.secure_cookies":        "AUTH_SECURE_COOKIES",
-		"llm.provider":               "LLM_PROVIDER",
-		"llm.api_key":                "LLM_API_KEY",
-		"llm.model":                  "LLM_MODEL",
-		"llm.timeout":                "LLM_TIMEOUT",
-		"llm.max_retries":            "LLM_MAX_RETRIES",
-		"llm.max_output_tokens":      "LLM_MAX_OUTPUT_TOKENS",
-		"tts.key":                    "AZURE_SPEECH_KEY",
-		"tts.region":                 "AZURE_SPEECH_REGION",
-		"tts.timeout":                "TTS_TIMEOUT",
-		"tts.sync_locales":           "TTS_SYNC_LOCALES",
-		"email.provider":             "EMAIL_PROVIDER",
-		"email.from":                 "EMAIL_FROM",
-		"email.api_key":              "RESEND_API_KEY",
-		"email.timeout":              "EMAIL_TIMEOUT",
-		"email.workers":              "EMAIL_WORKERS",
-		"email.queue_size":           "EMAIL_QUEUE_SIZE",
-		"email.max_attempts":         "EMAIL_MAX_ATTEMPTS",
-		"email.backoff":              "EMAIL_BACKOFF",
-		"email.approved_template_id": "EMAIL_MODERATION_APPROVED_TEMPLATE_ID",
-		"email.rejected_template_id": "EMAIL_MODERATION_REJECTED_TEMPLATE_ID",
-		"email.application_submitted_template_id":         "EMAIL_APPLICATION_SUBMITTED_TEMPLATE_ID",
+		"storage.endpoint":                        "S3_ENDPOINT",
+		"storage.region":                          "S3_REGION",
+		"storage.bucket":                          "S3_BUCKET",
+		"storage.access_key_id":                   "S3_ACCESS_KEY_ID",
+		"storage.secret_access_key":               "S3_SECRET_ACCESS_KEY",
+		"storage.session_token":                   "S3_SESSION_TOKEN",
+		"database.url":                            "DATABASE_URL",
+		"database.name":                           "DB_DATABASE",
+		"database.user":                           "DB_USERNAME",
+		"database.password":                       "DB_PASSWORD",
+		"database.require_tls":                    "DATABASE_REQUIRE_TLS",
+		"database.ssl_root_cert":                  "DATABASE_SSL_ROOT_CERT",
+		"server.trusted_proxies":                  "SERVER_TRUSTED_PROXIES",
+		"database.port":                           "DB_PORT",
+		"auth.public_url":                         "AUTH_BASE_URL",
+		"auth.admin_secret":                       "ADMIN_AUTH_INTERNAL_SECRET",
+		"auth.timeout":                            "AUTH_SESSION_TIMEOUT",
+		"auth.cookie_prefix":                      "BETTER_AUTH_COOKIE_PREFIX",
+		"auth.cookie_domain":                      "BETTER_AUTH_COOKIE_DOMAIN",
+		"auth.secure_cookies":                     "AUTH_SECURE_COOKIES",
+		"auth.admin_require_mfa":                  "ADMIN_REQUIRE_MFA",
+		"auth.admin_mfa_grace":                    "ADMIN_MFA_GRACE_UNTIL",
+		"llm.provider":                            "LLM_PROVIDER",
+		"llm.api_key":                             "LLM_API_KEY",
+		"llm.model":                               "LLM_MODEL",
+		"llm.timeout":                             "LLM_TIMEOUT",
+		"llm.max_retries":                         "LLM_MAX_RETRIES",
+		"llm.max_output_tokens":                   "LLM_MAX_OUTPUT_TOKENS",
+		"tts.key":                                 "AZURE_SPEECH_KEY",
+		"tts.region":                              "AZURE_SPEECH_REGION",
+		"tts.timeout":                             "TTS_TIMEOUT",
+		"tts.sync_locales":                        "TTS_SYNC_LOCALES",
+		"email.provider":                          "EMAIL_PROVIDER",
+		"email.from":                              "EMAIL_FROM",
+		"email.api_key":                           "RESEND_API_KEY",
+		"email.timeout":                           "EMAIL_TIMEOUT",
+		"email.workers":                           "EMAIL_WORKERS",
+		"email.queue_size":                        "EMAIL_QUEUE_SIZE",
+		"email.max_attempts":                      "EMAIL_MAX_ATTEMPTS",
+		"email.backoff":                           "EMAIL_BACKOFF",
+		"email.approved_template_id":              "EMAIL_MODERATION_APPROVED_TEMPLATE_ID",
+		"email.rejected_template_id":              "EMAIL_MODERATION_REJECTED_TEMPLATE_ID",
+		"email.application_submitted_template_id": "EMAIL_APPLICATION_SUBMITTED_TEMPLATE_ID",
 		"email.application_new_application_template_id":   "EMAIL_APPLICATION_NEW_APPLICATION_TEMPLATE_ID",
 		"email.application_cv_rejected_template_id":       "EMAIL_APPLICATION_CV_REJECTED_TEMPLATE_ID",
 		"email.application_cv_approved_template_id":       "EMAIL_APPLICATION_CV_APPROVED_TEMPLATE_ID",
@@ -378,6 +414,9 @@ func Load(configPath string) (*Config, error) {
 		"interview.tts_cache_entries":         "INTERVIEW_TTS_CACHE_ENTRIES",
 		"interview.follow_up_limit":           "INTERVIEW_FOLLOW_UP_LIMIT",
 		"interview.follow_up_timeout":         "INTERVIEW_FOLLOW_UP_TIMEOUT",
+		"interview.live_recheck_interval":     "INTERVIEW_LIVE_RECHECK_INTERVAL",
+		"interview.live_message_rate":         "INTERVIEW_LIVE_MESSAGE_RATE",
+		"interview.live_message_burst":        "INTERVIEW_LIVE_MESSAGE_BURST",
 		"avatar_conversion.enabled":           "AVATAR_CONVERSION_ENABLED",
 		"avatar_conversion.blender_binary":    "AVATAR_BLENDER_BINARY",
 		"avatar_conversion.timeout":           "AVATAR_CONVERSION_TIMEOUT",
@@ -385,6 +424,8 @@ func Load(configPath string) (*Config, error) {
 		"avatar_conversion.max_output_bytes":  "AVATAR_MAX_OUTPUT_BYTES",
 		"avatar_conversion.commercial_usage":  "AVATAR_VRM_COMMERCIAL_USAGE",
 		"avatar_conversion.license_url":       "AVATAR_VRM_LICENSE_URL",
+		"avatar_conversion.user_daily_quota":  "AVATAR_CONVERSION_USER_DAILY_QUOTA",
+		"avatar_conversion.user_max_inflight": "AVATAR_CONVERSION_USER_MAX_INFLIGHT",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -440,6 +481,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.read_timeout", "10s")
 	v.SetDefault("server.write_timeout", "30s")
 	v.SetDefault("server.shutdown_timeout", "5s")
+	v.SetDefault("server.trusted_proxies", DefaultTrustedProxies)
 
 	// Database defaults
 	v.SetDefault("database.host", "localhost")
@@ -448,6 +490,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.password", "postgres")
 	v.SetDefault("database.name", "rolecue")
 	v.SetDefault("database.ssl_mode", "disable")
+	v.SetDefault("database.ssl_root_cert", "")
+	v.SetDefault("database.require_tls", false)
 	v.SetDefault("database.max_open_conns", 25)
 	v.SetDefault("database.max_idle_conns", 10)
 	v.SetDefault("database.conn_max_lifetime", "5m")
@@ -457,6 +501,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("auth.cookie_prefix", "rolecue")
 	v.SetDefault("auth.cookie_domain", "")
 	v.SetDefault("auth.secure_cookies", false)
+	v.SetDefault("auth.admin_require_mfa", false)
+	v.SetDefault("auth.admin_mfa_grace", "")
 	// CORS defaults
 	v.SetDefault("cors.allow_origins", []string{"http://localhost:3000"})
 	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
@@ -511,12 +557,17 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("interview.tts_cache_entries", 128)
 	v.SetDefault("interview.follow_up_limit", 1)
 	v.SetDefault("interview.follow_up_timeout", "5s")
+	v.SetDefault("interview.live_recheck_interval", "60s")
+	v.SetDefault("interview.live_message_rate", 20)
+	v.SetDefault("interview.live_message_burst", 60)
 	setJobDefaults(v)
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
 	v.SetDefault("avatar_conversion.timeout", "120s")
 	v.SetDefault("avatar_conversion.max_input_bytes", 50<<20)
 	v.SetDefault("avatar_conversion.max_output_bytes", 100<<20)
+	v.SetDefault("avatar_conversion.user_daily_quota", 20)
+	v.SetDefault("avatar_conversion.user_max_inflight", 1)
 }
 
 // Validate checks configuration integrity and security constraints.
@@ -526,6 +577,14 @@ func (c *Config) Validate() error {
 	}
 	if err := c.AvatarConversion.Validate(); err != nil {
 		return err
+	}
+	if err := validateTrustedProxies(c.Server.TrustedProxies); err != nil {
+		return err
+	}
+	if c.IsProduction() {
+		if err := c.Database.validateProduction(); err != nil {
+			return err
+		}
 	}
 	if c.CORS.AllowCredentials {
 		if len(c.CORS.AllowOrigins) == 0 {
@@ -551,6 +610,11 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.CookiePrefix == "" || strings.ContainsAny(c.Auth.CookiePrefix, " ;=\r\n") {
 		return errors.New("auth.cookie_prefix is invalid")
+	}
+	if g := c.Auth.AdminMFAGrace; g != "" {
+		if _, err := time.Parse(time.RFC3339, g); err != nil {
+			return errors.New("auth.admin_mfa_grace (ADMIN_MFA_GRACE_UNTIL) must be an RFC3339 timestamp")
+		}
 	}
 	if c.Auth.SecureCookies != (u.Scheme == "https") {
 		return errors.New("auth.secure_cookies must match the public auth URL scheme")

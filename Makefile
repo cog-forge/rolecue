@@ -45,11 +45,11 @@ ci: check
 	$(MAKE) -C api test-race vuln
 	$(MAKE) frontend-audit
 
-# User-approved, tooling-only exception. It expires after 2026-11-17 UTC.
+# User-approved, tooling-only exception. It expires after 2027-01-16 UTC (extended 60 days from 2026-11-17: braces 3.0.3 is still resolved; see docs/security-notes.md).
 # No container vulnerability is excluded by this target.
 frontend-audit:
-	cd frontend && if [ "$$(date -u +%Y%m%d)" -le 20261117 ]; then \
-		echo 'Temporary braces exception: GHSA-vfj7-8cjw-p6xm, expires 2026-11-17 UTC'; \
+	cd frontend && if [ "$$(date -u +%Y%m%d)" -le 20270116 ]; then \
+		echo 'Temporary braces exception: GHSA-vfj7-8cjw-p6xm, expires 2027-01-16 UTC'; \
 		bun audit --audit-level=high --ignore GHSA-vfj7-8cjw-p6xm; \
 	else bun audit --audit-level=high; fi
 

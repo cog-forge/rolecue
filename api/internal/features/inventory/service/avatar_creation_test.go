@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,9 @@ import (
 )
 
 type creationRepository struct {
+	mu        sync.Mutex
+	track     bool
+	recent    int64
 	capacity  domain.Capacity
 	createErr error
 	cancel    context.CancelFunc
@@ -28,9 +32,25 @@ type creationRepository struct {
 }
 
 func (r *creationRepository) Summary(context.Context, uuid.UUID) (domain.Capacity, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.capacity, nil
 }
+func (r *creationRepository) CountRecentAvatars(context.Context, uuid.UUID, time.Time) (int64, error) {
+	return r.recent, nil
+}
 func (r *creationRepository) Create(_ context.Context, owner uuid.UUID, name, personality, key string) (domain.Avatar, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.track {
+		// Behave like the real inventory: a full one refuses, otherwise the new avatar takes a slot.
+		if r.capacity.Available <= 0 {
+			return domain.Avatar{}, apperror.New(apperror.CodeInventoryFull, "avatar inventory is full")
+		}
+		r.capacity.Used++
+		r.capacity.Available--
+		r.capacity.IsFull = r.capacity.Available == 0
+	}
 	r.owner, r.key = owner, key
 	if r.cancel != nil {
 		r.cancel()

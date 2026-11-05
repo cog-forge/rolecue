@@ -62,6 +62,7 @@ type CoinPackage struct {
 	Description *string
 	Amount      int32
 	Currency    string
+	IsActive    bool
 }
 
 type Wallet struct {

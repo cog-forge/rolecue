@@ -250,7 +250,7 @@ func TestDocumentCandidateAuthorization(t *testing.T) {
 		t.Run(role, func(t *testing.T) {
 			ctx := context.Background()
 			user, id := uuid.New(), uuid.New()
-			_, err := app.Create(ctx, role, UploadRequest{})
+			_, err := app.Create(ctx, user, role, UploadRequest{})
 			assertCode(t, err, apperror.CodeForbidden)
 			_, err = app.Complete(ctx, user, role, id)
 			assertCode(t, err, apperror.CodeForbidden)

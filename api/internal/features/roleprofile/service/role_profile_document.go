@@ -21,6 +21,7 @@ import (
 type DocumentRepository interface {
 	GetProfile(context.Context, uuid.UUID, uuid.UUID) (domain.RoleProfile, error)
 	CreatePDFProfile(context.Context, uuid.UUID, string, string) (domain.RoleProfile, error)
+	RecordUpload(context.Context, uuid.UUID, uuid.UUID) error
 }
 
 type RoleProfileDocumentApplication struct {
@@ -80,7 +81,7 @@ func storedObjectRule(object storage.Object) string {
 	return ""
 }
 
-func (a *RoleProfileDocumentApplication) Create(ctx context.Context, role string, input UploadRequest) (UploadTicket, error) {
+func (a *RoleProfileDocumentApplication) Create(ctx context.Context, user uuid.UUID, role string, input UploadRequest) (UploadTicket, error) {
 	if err := requireCandidate(role); err != nil {
 		return UploadTicket{}, err
 	}
@@ -100,6 +101,10 @@ func (a *RoleProfileDocumentApplication) Create(ctx context.Context, role string
 	id, err := uuid.Parse(grant.Key)
 	if err != nil {
 		return UploadTicket{}, storageUnavailable(err)
+	}
+	// Binds the key to this Candidate; Complete refuses a key issued to anyone else.
+	if err := a.repo.RecordUpload(ctx, user, id); err != nil {
+		return UploadTicket{}, err
 	}
 	return UploadTicket{UploadID: id, Request: grant.Request}, nil
 }

@@ -8,6 +8,12 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+)
+
+const (
+	uniqueViolation        = "23505"
+	applicationUniqueIndex = "applications_posting_candidate_key"
 )
 
 // CheckIntakeFunded refuses an Application to an approved posting whose Recruiter has not funded
@@ -62,6 +68,11 @@ func (r *Repository) InsertCandidateApplication(ctx context.Context, candidateID
 			JobPostingID: postingID, CandidateID: candidateID, CvPath: &cvKey,
 		})
 		if err != nil {
+			// The unique index is the backstop behind the lock and the check above.
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation && pgErr.ConstraintName == applicationUniqueIndex {
+				return domain.ErrAlreadyApplied
+			}
 			return internal(err)
 		}
 		submission = domain.Submission{

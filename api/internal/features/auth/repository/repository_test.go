@@ -40,8 +40,9 @@ func (r roleRow) Scan(dest ...any) error {
 	*dest[4].(*bool) = r.user.EmailVerified
 	*dest[5].(*bool) = r.user.IsLocked
 	*dest[6].(**string) = r.user.Image
-	*dest[7].(*bool) = r.user.OnboardingRoleSelected
-	*dest[8].(*bool) = r.user.OnboardingCompleted
+	*dest[7].(*bool) = r.user.TwoFactorEnabled
+	*dest[8].(*bool) = r.user.OnboardingRoleSelected
+	*dest[9].(*bool) = r.user.OnboardingCompleted
 	return nil
 }
 

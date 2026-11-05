@@ -328,6 +328,7 @@ a `session.sync` in state `completed` when the session ended outside the socket 
 | `ANSWER_TOO_LONG` | yes | no | The transcriber reports a recording longer than 3 minutes (plus 5 s grace). The state returns to `listening`; ask for a shorter answer. |
 | `VALIDATION_ERROR` | yes | no | The answer text is empty or longer than 8000 characters. |
 | `APPLICATION_NOT_ELIGIBLE` | no | yes | Recruitment window closed (24-hour deadline) or the Application was decided. Close `4003`. |
+| `RATE_LIMITED` | yes | no / yes | More than `INTERVIEW_LIVE_MESSAGE_RATE` messages a second (burst `INTERVIEW_LIVE_MESSAGE_BURST`). The refused messages are dropped. After 100 refused in a row it is fatal: close `1008`. |
 | `INTERNAL_ERROR` | yes | no / yes | Storage or engine failure. Non-fatal: resend the answer. Fatal: close `1011`, reconnect. |
 
 ## 5. Client messages
@@ -402,6 +403,8 @@ backstop, not the rule. There is no pause; a session without activity for 15 min
 | 1011 | Internal error. | Reconnect with backoff. |
 | 4000 | Protocol violation (wrong subprotocol or too many protocol errors). | Do not reconnect automatically. |
 | 4001 | Superseded by a newer connection to the same session. | Do not reconnect; tell the Candidate the interview continues elsewhere. |
+| 1008 | Message rate exceeded (flood). | Fix the client; do not reconnect automatically. |
+| 4002 | The login behind the socket is no longer valid (logged out, locked, password reset). Re-checked every `INTERVIEW_LIVE_RECHECK_INTERVAL` (60 s). | Sign in again; do not reconnect automatically. |
 | 4003 | Session no longer accepts answers (recruitment deadline or Application decided). | Do not reconnect. |
 
 ## 8. Reconnect and recovery

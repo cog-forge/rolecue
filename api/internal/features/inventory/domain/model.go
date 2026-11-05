@@ -12,6 +12,10 @@ import (
 const InitialCapacity int32 = 3
 const PricePerSlot int32 = 1
 
+// MaxInventorySlots caps the capacity of one inventory. The inventories_slot_max CHECK in migration
+// 000023 holds the same number, and UpdateInventorySlot refuses a purchase that would pass it.
+const MaxInventorySlots int32 = 100
+
 // MaxSlotsPerPurchase bounds the slots one purchase request may buy.
 const MaxSlotsPerPurchase int32 = 10
 

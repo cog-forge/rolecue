@@ -2,9 +2,11 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
+	authservice "github.com/cog-forge/rolecue/api/internal/features/auth/service"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/runtime"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -34,6 +36,38 @@ type InterviewLiveHandler struct {
 	engine   InterviewLiveEngine
 	origins  map[string]struct{}
 	upgrader websocket.Upgrader
+	auth     authservice.Authenticator
+}
+
+// WithAuthenticator turns on the periodic re-check of the login behind each open socket: the engine
+// authenticates the upgrade request's cookies again every interval and closes the socket once the
+// session is gone, the account is locked, or the role is no longer permitted. Without it the socket
+// is authenticated only at the upgrade.
+func (h *InterviewLiveHandler) WithAuthenticator(auth authservice.Authenticator) *InterviewLiveHandler {
+	h.auth = auth
+	return h
+}
+
+// verifier builds the engine's login re-check from the upgrade request. A rejection by the auth
+// service ends the socket; an auth outage (503) only skips that check.
+func (h *InterviewLiveHandler) verifier(req *http.Request, userID uuid.UUID) func(context.Context) error {
+	if h.auth == nil {
+		return nil
+	}
+	return func(ctx context.Context) error {
+		user, _, err := h.auth.Authenticate(ctx, req.Clone(ctx))
+		if err != nil {
+			var appErr *apperror.AppError
+			if errors.As(err, &appErr) && (appErr.Code == apperror.CodeInvalidToken || appErr.Code == apperror.CodeForbidden || appErr.Code == apperror.CodeAdminMFARequired) {
+				return runtime.ErrSessionInvalid
+			}
+			return err
+		}
+		if user.ID != userID {
+			return runtime.ErrSessionInvalid
+		}
+		return nil
+	}
 }
 
 // NewInterviewLiveHandler takes the trusted browser origins (CORS_ALLOW_ORIGINS). A wildcard is never
@@ -97,5 +131,5 @@ func (h *InterviewLiveHandler) Live(c *gin.Context) {
 		// The upgrader has already answered the HTTP request.
 		return
 	}
-	h.engine.Serve(c.Request.Context(), ws, runtime.Participant{CandidateID: user.ID, Role: user.Role, SessionID: id})
+	h.engine.Serve(c.Request.Context(), ws, runtime.Participant{CandidateID: user.ID, Role: user.Role, SessionID: id, Verify: h.verifier(c.Request, user.ID)})
 }

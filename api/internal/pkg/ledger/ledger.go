@@ -35,6 +35,13 @@ type DBTX interface {
 // system. The wallet row is locked first. A missing wallet or a balance below amount is
 // INSUFFICIENT_BALANCE and changes nothing.
 func Debit(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, description string) error {
+	return DebitKeyed(ctx, db, userID, amount, description, "")
+}
+
+// DebitKeyed is Debit whose COIN row also carries an idempotency key, scoped to the payer by a unique
+// index. The caller looks the key up under its own lock first and skips the debit on a replay; the
+// index is the backstop that makes a second row for one key impossible. An empty key writes no key.
+func DebitKeyed(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, description, key string) error {
 	if err := checkAmount(amount); err != nil {
 		return err
 	}
@@ -48,7 +55,7 @@ func Debit(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, descrip
 	if _, err := db.Exec(ctx, `UPDATE public.wallets SET balance = $2 WHERE id = $1`, walletID, balance-amount); err != nil {
 		return persistence(err)
 	}
-	if err := insertRow(ctx, db, userID.String(), Counterparty, amount, description); err != nil {
+	if err := insertRowKeyed(ctx, db, userID.String(), Counterparty, amount, description, key); err != nil {
 		return err
 	}
 	// The description is not logged: callers build it from posting titles, and the COIN row already keeps it.
@@ -154,6 +161,20 @@ func insertRow(ctx context.Context, db DBTX, from, to string, amount int32, desc
 		`INSERT INTO public.transactions ("from", "to", amount, currency, description, status)
 		 VALUES ($1, $2, $3, $4, $5, 'success')`,
 		from, to, amount, Currency, description); err != nil {
+		return persistence(err)
+	}
+	return nil
+}
+
+// insertRowKeyed writes the COIN row with an idempotency key; an empty key is the plain insertRow.
+func insertRowKeyed(ctx context.Context, db DBTX, from, to string, amount int32, description, key string) error {
+	if key == "" {
+		return insertRow(ctx, db, from, to, amount, description)
+	}
+	if _, err := db.Exec(ctx,
+		`INSERT INTO public.transactions ("from", "to", amount, currency, description, status, idempotency_key)
+		 VALUES ($1, $2, $3, $4, $5, 'success', $6)`,
+		from, to, amount, Currency, description, key); err != nil {
 		return persistence(err)
 	}
 	return nil

@@ -317,9 +317,15 @@ describe("buy slots", () => {
       await screen.findByRole("list", { name: "Avatar slots, 2 of 5 used" }),
     ).toBeInTheDocument();
     expect(mocks.post).toHaveBeenCalledTimes(1);
-    expect(mocks.post).toHaveBeenCalledWith("/inventory/purchase", {
-      amount: 2,
-    });
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/inventory/purchase",
+      { amount: 2 },
+      {
+        headers: {
+          "Idempotency-Key": expect.stringMatching(/^[0-9a-f-]{36}$/),
+        },
+      },
+    );
   });
 
   it("blocks a purchase the balance can't cover and opens the coin packages", async () => {

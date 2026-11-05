@@ -400,7 +400,7 @@ func TestCanStartInterviewOnlyWhenEligibleBeforeDeadline(t *testing.T) {
 	s := newSeed(t, ctx, pool)
 	svc := newApplyService(t, pool, &fakeCVStore{})
 	candidate := s.user("candidate")
-	postingID := s.posting(s.user("recruiter"), "open", slot(3))
+	recruiter := s.user("recruiter")
 
 	future := time.Now().Add(time.Hour)
 	past := time.Now().Add(-time.Minute)
@@ -419,7 +419,8 @@ func TestCanStartInterviewOnlyWhenEligibleBeforeDeadline(t *testing.T) {
 		{"interviewed", "interviewed", &future, false},
 	}
 	for _, tc := range cases {
-		appID := s.application(postingID, candidate)
+		// One Application per candidate and posting is enforced by the database, so each case gets a posting.
+		appID := s.application(s.posting(recruiter, "open", slot(3)), candidate)
 		setStatusAndDeadline(s, appID, tc.status, tc.deadline)
 
 		got, err := svc.GetMine(ctx, candidate, "candidate", appID)

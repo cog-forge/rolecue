@@ -27,6 +27,7 @@ import {
   walletKeys,
 } from "../api/wallet";
 import type { CoinPackage } from "../schemas/wallet-schema";
+import { redirectToCheckout } from "../lib/checkout-url";
 import { PackageGrid } from "./package-grid";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import { apiErrorMessage } from "@/lib/i18n/api-errors";
@@ -142,7 +143,8 @@ export function AddCoinsDialog({
       });
     },
     onSuccess: (data) => {
-      window.location.href = data.checkout_url;
+      // The schema already refused any other host; this checks again at the point of navigation.
+      redirectToCheckout(data.checkout_url);
     },
   });
   return (

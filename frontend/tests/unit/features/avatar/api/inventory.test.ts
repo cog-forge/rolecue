@@ -92,20 +92,25 @@ describe("purchaseSlots", () => {
       status: 200,
       data: { success: true, data: { ...summary, balance: 7 } },
     });
-    await expect(purchaseSlots(2)).resolves.toEqual({ ...summary, balance: 7 });
-    expect(mocks.post).toHaveBeenCalledWith("/inventory/purchase", {
-      amount: 2,
+    await expect(purchaseSlots(2, "attempt-1")).resolves.toEqual({
+      ...summary,
+      balance: 7,
     });
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/inventory/purchase",
+      { amount: 2 },
+      { headers: { "Idempotency-Key": "attempt-1" } },
+    );
   });
 
   it("never reports an empty 204 as a purchase", async () => {
     mocks.post.mockResolvedValue({ status: 204, data: "" });
-    await expect(purchaseSlots(1)).rejects.toThrow();
+    await expect(purchaseSlots(1, "attempt-1")).rejects.toThrow();
   });
 
   it("never sends an amount outside 1 to 10", async () => {
-    await expect(purchaseSlots(11)).rejects.toThrow();
-    await expect(purchaseSlots(0)).rejects.toThrow();
+    await expect(purchaseSlots(11, "attempt-1")).rejects.toThrow();
+    await expect(purchaseSlots(0, "attempt-1")).rejects.toThrow();
     expect(mocks.post).not.toHaveBeenCalled();
   });
 });

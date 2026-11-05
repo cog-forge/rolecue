@@ -24,7 +24,7 @@ type JobPostingService interface {
 	Update(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID, patch domain.Edit) (domain.JobPosting, error)
 	Submit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
 	Resubmit(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.JobPosting, error)
-	UploadDocument(ctx context.Context, role string, data []byte) (domain.Document, error)
+	UploadDocument(ctx context.Context, recruiterID uuid.UUID, role string, data []byte) (domain.Document, error)
 	Document(ctx context.Context, recruiterID uuid.UUID, role string, id uuid.UUID) (domain.DocumentLink, error)
 }
 type JobPostingExtractor interface {
@@ -453,7 +453,7 @@ func (h *JobPostingHandler) Resubmit(c *gin.Context) {
 // @Failure 503 {object} response.Envelope
 // @Router /job-postings/documents [post]
 func (h *JobPostingHandler) UploadDocument(c *gin.Context) {
-	_, role, ok := jobPostingUser(c)
+	recruiterID, role, ok := jobPostingUser(c)
 	if !ok {
 		return
 	}
@@ -464,7 +464,7 @@ func (h *JobPostingHandler) UploadDocument(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.service.UploadDocument(c.Request.Context(), role, data)
+	result, err := h.service.UploadDocument(c.Request.Context(), recruiterID, role, data)
 	if err != nil {
 		response.Error(c, err)
 		return

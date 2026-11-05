@@ -30,6 +30,12 @@ SELECT count(*)::bigint FROM public.avatars a
 JOIN public.inventories i ON i.id = a.inventory_id
 WHERE i.user_id = $1;
 
+-- Avatars the owner created since a point in time: the persisted side of the daily conversion quota.
+-- name: CountRecentInventoryAvatars :one
+SELECT count(*)::bigint FROM public.avatars a
+JOIN public.inventories i ON i.id = a.inventory_id
+WHERE i.user_id = sqlc.arg(owner_id) AND a.created_at >= sqlc.arg(since)::timestamptz;
+
 -- name: ListInventoryAvatars :many
 SELECT a.id, a.name, a.personality, a.created_at, a.updated_at
 FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id
@@ -47,7 +53,13 @@ DELETE FROM public.avatars a USING public.inventories i
 WHERE a.inventory_id = i.id AND i.user_id = sqlc.arg(owner_id)
   AND a.id = sqlc.arg(avatar_id);
 
--- name: UpdateInventorySlot :exec
+-- Zero rows means the purchase would pass max_slots.
+-- name: UpdateInventorySlot :execrows
 UPDATE public.inventories
 SET slot = slot + @amount
-WHERE user_id = @user_id;
+WHERE user_id = @user_id AND slot + @amount <= @max_slots::integer;
+
+-- The ledger row of an earlier purchase with this Idempotency-Key, read under the inventory row lock.
+-- name: GetSlotPurchaseByKey :one
+SELECT amount FROM public.transactions
+WHERE "from" = @payer AND idempotency_key = @idempotency_key;

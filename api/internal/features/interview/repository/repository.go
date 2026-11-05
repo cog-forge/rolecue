@@ -417,6 +417,15 @@ func startPracticeOnce(ctx context.Context, tx pgx.Tx, q *Queries, p domain.Crea
 			return uuid.Nil, false, internal(err)
 		}
 	}
+	// Ownership comes first. FindUnfinishedPractice is keyed by role profile only, so asking it before this
+	// check would answer another Candidate's profile with that owner's session (or a different error than
+	// an unknown id), which reveals that the profile exists.
+	if _, err := q.GetOwnedRoleProfile(ctx, GetOwnedRoleProfileParams{ID: *p.RoleProfileID, CandidateID: p.CandidateID}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, false, domain.ErrRoleProfileNotFound
+		}
+		return uuid.Nil, false, internal(err)
+	}
 	// Resuming the Candidate's unfinished session for this role profile is free, whatever the client
 	// sent: a double click or a retry never debits twice. The advisory lock serializes concurrent starts.
 	if err := q.LockPracticeStart(ctx, p.CandidateID.String()+":"+p.RoleProfileID.String()); err != nil {

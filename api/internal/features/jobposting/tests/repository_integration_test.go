@@ -153,9 +153,20 @@ func newFixture(t *testing.T) (context.Context, fixture) {
 	return ctx, fixture{repo: repository.NewRepository(pool), seed: s, recruiter: recruiter, avatar: s.avatar(recruiter), voice: s.voice(true)}
 }
 
+// grant records a fresh upload key for owner, as the document upload endpoint does. Grants are
+// removed with their user.
+func (f fixture) grant(t *testing.T, ctx context.Context, owner uuid.UUID) string {
+	t.Helper()
+	key := uuid.New()
+	if err := f.repo.RecordUpload(ctx, owner, key); err != nil {
+		t.Fatal(err)
+	}
+	return key.String()
+}
+
 func (f fixture) create(t *testing.T, ctx context.Context, title string) uuid.UUID {
 	t.Helper()
-	record, err := f.repo.Create(ctx, f.recruiter, domain.NewPosting{ContentPath: "jp/" + f.seed.tag, CreateInput: domain.CreateInput{
+	record, err := f.repo.Create(ctx, f.recruiter, domain.NewPosting{ContentPath: f.grant(t, ctx, f.recruiter), CreateInput: domain.CreateInput{
 		Title: title, RawText: "JD text read from the PDF", SeniorityLevel: domain.Senior, Location: ptr("Ho Chi Minh City"), SalaryMin: ptr(int32(1000)),
 		SalaryMax: ptr(int32(2000)), InterviewDuration: ptr(int32(30)), RequiredAvatarID: f.avatar, RequiredVoiceID: f.voice,
 		Requirements: []domain.PostingRequirement{
@@ -178,7 +189,7 @@ func TestCreateAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Status != domain.StatusPending || got.SeniorityLevel != domain.Senior || got.ContentPath != "jp/"+f.seed.tag {
+	if got.Status != domain.StatusPending || got.SeniorityLevel != domain.Senior || uuid.Validate(got.ContentPath) != nil {
 		t.Fatalf("status=%s level=%s path=%s", got.Status, got.SeniorityLevel, got.ContentPath)
 	}
 	if got.StoredText == nil || *got.StoredText != "JD text read from the PDF" {
@@ -373,7 +384,7 @@ func TestUpdateGuards(t *testing.T) {
 
 func TestCreateReturnsStoredPosting(t *testing.T) {
 	ctx, f := newFixture(t)
-	record, err := f.repo.Create(ctx, f.recruiter, domain.NewPosting{ContentPath: "jp/x", CreateInput: domain.CreateInput{
+	record, err := f.repo.Create(ctx, f.recruiter, domain.NewPosting{ContentPath: f.grant(t, ctx, f.recruiter), CreateInput: domain.CreateInput{
 		Title: "Returned", SeniorityLevel: domain.Junior, RequiredAvatarID: f.avatar, RequiredVoiceID: f.voice,
 		Requirements: []domain.PostingRequirement{{Name: "Go", Target: "tool", Type: domain.Required}},
 	}})
@@ -437,7 +448,7 @@ func TestVoiceSelectionWaitsForAdminDeactivation(t *testing.T) {
 		write func() error
 	}{
 		{"create", forCreate, func() error {
-			record, err := f.repo.Create(ctx, f.recruiter, domain.NewPosting{ContentPath: "jp/race", CreateInput: domain.CreateInput{
+			record, err := f.repo.Create(ctx, f.recruiter, domain.NewPosting{ContentPath: f.grant(t, ctx, f.recruiter), CreateInput: domain.CreateInput{
 				Title: "Raced", SeniorityLevel: domain.Mid, RequiredAvatarID: f.avatar, RequiredVoiceID: forCreate,
 				Requirements: []domain.PostingRequirement{{Name: "Go", Target: "tool", Type: domain.Required}},
 			}})
@@ -538,10 +549,11 @@ func TestRejectedPostingCorrectionAndResubmit(t *testing.T) {
 
 	// A replacement PDF points the JD at the new object, stores its text and clears the bank too.
 	question()
-	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, &domain.NewDocument{ContentPath: "jp/corrected", RawText: "Corrected JD text"}); err != nil {
+	corrected := f.grant(t, ctx, f.recruiter)
+	if err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{}, &domain.NewDocument{ContentPath: corrected, RawText: "Corrected JD text"}); err != nil {
 		t.Fatal(err)
 	}
-	if got := get(); got.ContentPath != "jp/corrected" || got.StoredText == nil || *got.StoredText != "Corrected JD text" || got.CoreQuestionCount != 0 {
+	if got := get(); got.ContentPath != corrected || got.StoredText == nil || *got.StoredText != "Corrected JD text" || got.CoreQuestionCount != 0 {
 		t.Fatalf("after PDF edit: path=%q text=%v bank=%d", got.ContentPath, got.StoredText, got.CoreQuestionCount)
 	}
 

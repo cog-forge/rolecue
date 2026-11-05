@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM golang:1.27.3-trixie AS build
+FROM golang:1.27.3-trixie@sha256:d9fa6e7ba43678ee1e5d1617007db9a134612032a74e2d86b44a9f582f1564cc AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -7,7 +7,7 @@ COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/rolecue ./cmd/api
 
-FROM debian:trixie-slim AS blender
+FROM debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS blender
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xz-utils unzip \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /downloads
@@ -20,8 +20,11 @@ RUN curl -fsSL --retry 3 https://ftp.halifax.rwth-aachen.de/blender/release/Blen
     && mkdir -p /opt/blender-extensions/user_default/vrm \
     && unzip -q vrm.zip -d /opt/blender-extensions/user_default/vrm
 # Patch Python libraries shipped in Blender's archive, including setuptools vendors.
-RUN /opt/blender/5.2/python/bin/python3.13 -m pip install --no-cache-dir \
-    urllib3==2.8.0 setuptools==84.0.0 wheel==0.48.0 certifi==2026.10.19
+# Hash-locked (api/blender-requirements.txt): pip refuses any artifact whose sha256 differs.
+COPY blender-requirements.txt /tmp/blender-requirements.txt
+RUN /opt/blender/5.2/python/bin/python3.13 -m pip install --no-cache-dir --no-deps --only-binary=:all: \
+    --require-hashes -r /tmp/blender-requirements.txt \
+    && rm /tmp/blender-requirements.txt
 
 FROM cgr.dev/chainguard/wolfi-base:latest@sha256:360896efb0753a5701c48f860e17130c205eae5a264797aa3e7ea126ee2923a7 AS runtime
 RUN apk add --no-cache --upgrade \
