@@ -23,8 +23,7 @@ type ClearExpiredCVParams struct {
 	CvPath *string
 }
 
-// Clears the key of a CV whose object was deleted. It does not touch updated_at, which stands in for
-// the decision time. The key must still be the one whose object was deleted.
+// Clears the key of a CV whose object was deleted. It does not touch decided_at or updated_at. The key must still be the one whose object was deleted.
 func (q *Queries) ClearExpiredCV(ctx context.Context, arg ClearExpiredCVParams) (int64, error) {
 	result, err := q.db.Exec(ctx, clearExpiredCV, arg.ID, arg.CvPath)
 	if err != nil {

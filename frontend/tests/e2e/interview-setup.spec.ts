@@ -436,6 +436,11 @@ test("recruitment: start from the Application with the company's interviewer, fo
   await page.getByRole("button", { name: "Test camera" }).click();
   await expect(page.getByText("Your camera is ready.")).toBeVisible();
   await expect(page.getByLabel("Camera preview")).toBeVisible();
+  await page
+    .getByRole("checkbox", {
+      name: /I consent to this interview being recorded/,
+    })
+    .check();
   await start.click();
   await expect(panel.getByRole("alert")).toContainText(
     "All interview slots for this posting are taken.",

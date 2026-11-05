@@ -19,9 +19,7 @@ Both passes are idempotent and take at most 100 items per run. The object is del
 is cleared only afterwards, so a storage failure keeps the pointer and the next run retries (a missing object counts as
 deleted). Logs carry counts only, never keys or ids.
 
-Decision time is `applications.updated_at` for now (a rejected Application is never updated again, and clearing the
-CV does not touch it). TODO: switch the helper query `ListExpiredCVs` to `applications.decided_at` once migration
-000028 lands.
+Decision time is `applications.decided_at`, set once when the Application is decided (migration 000028).
 
 ## Recruiter access audit (KAN-296)
 
