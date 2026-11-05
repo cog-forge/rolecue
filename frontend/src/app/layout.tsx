@@ -5,6 +5,7 @@ import "./globals.css";
 import { site } from "@/config/site";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
+import { headers } from "next/headers";
 import { AppProviders } from "@/providers/app-providers";
 
 const albertSans = localFont({
@@ -56,10 +57,13 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getLocale();
+  // Set by src/proxy.ts; the inline theme script needs it under the nonce-based CSP.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
         <script
+          nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: String.raw`var t="system";try{var p=JSON.parse(localStorage.getItem("rolecue.workspace-preferences")||"null");t=p?.state?.theme??p?.theme??t;if(t!=="light"&&t!=="dark"&&t!=="system")t="system"}catch{}var w=/^\/(admin|recruiter|dashboard|interviews|reports|role-profiles|target-jds|avatar-studio|jobs|applications|history|billing|profile|settings)(\/|$)/.test(location.pathname);document.documentElement.classList.toggle("dark",w&&(t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches)))`,
           }}

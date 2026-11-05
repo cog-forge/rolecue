@@ -6,7 +6,21 @@
 	}
 }
 
+# Response security headers shared by both site blocks. The frontend also sets its own copy and
+# a nonce-based CSP (frontend/src/lib/security/headers.ts); keep the values in sync.
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), midi=(), accelerometer=(), gyroscope=(), magnetometer=(), display-capture=(), interest-cohort=()"
+		-Server
+	}
+}
+
 {$APP_DOMAIN} {
+	import security_headers
 	encode zstd gzip
 	handle /api/auth/* {
 		reverse_proxy auth:3001 {
@@ -25,6 +39,7 @@
 }
 
 {$API_DOMAIN} {
+	import security_headers
 	encode zstd gzip
 	reverse_proxy api:8080
 }
