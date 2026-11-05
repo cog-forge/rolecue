@@ -117,7 +117,9 @@ describe("AccountDataSettings", () => {
     renderWithIntl(<AccountDataSettings />);
     expect(screen.getByText(/expire after 15 minutes/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Download my data" }));
-    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalled(), { timeout: 3000 });
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalled(), {
+      timeout: 3000,
+    });
     expect(fetchMyDataExport).toHaveBeenCalledTimes(1);
   });
 });
