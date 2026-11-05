@@ -1,4 +1,8 @@
 import {
+  AccountDataSettings,
+  DeleteAccountSettings,
+} from "@/features/account-security/components/account-data-settings";
+import {
   AccountSecurity,
   PasswordSettings,
 } from "@/features/account-security/components/account-security";
@@ -18,6 +22,8 @@ export default async function SettingsPage({
         linkingFailed={linked === "failed"}
         password={<PasswordSettings />}
       />
+      <AccountDataSettings />
+      <DeleteAccountSettings />
     </AccountSecurity>
   );
 }

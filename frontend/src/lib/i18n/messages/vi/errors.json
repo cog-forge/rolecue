@@ -86,6 +86,8 @@
     "RECORDING_NOT_ALLOWED": "Bạn không có quyền xem bản ghi này.",
     "RECORDING_UPLOAD_LIMIT": "Bạn đã tải bản ghi lên quá nhiều lần.",
     "RECORDING_INTEGRITY": "Bản ghi đã thay đổi sau khi lưu nên không thể phát.",
+    "ACCOUNT_HAS_ACTIVE_WORK": "Hãy đóng các tin tuyển dụng đang mở và hoàn tất các đơn ứng tuyển đang xử lý trước khi xóa tài khoản.",
+    "ADMIN_CANNOT_SELF_DELETE": "Không thể xóa tài khoản quản trị viên tại đây.",
     "EVALUATION_ATTEMPTS_EXCEEDED": "Buổi phỏng vấn này không thể chấm lại nữa. Vui lòng liên hệ hỗ trợ.",
     "RATE_LIMITED": "Bạn thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại."
   },
