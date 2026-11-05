@@ -77,10 +77,14 @@ definitions:
     - INTERVIEW_COMPLETED
     - INTERVIEW_TURN_CONFLICT
     - INTERVIEW_NOT_COMPLETED
+    - EVALUATION_ATTEMPTS_EXCEEDED
+    - RATE_LIMITED
     - FINAL_REVIEW_LOCKED
     - APPLICATION_NOT_INTERVIEWED
     - RECORDING_NOT_FOUND
     - RECORDING_NOT_ALLOWED
+    - RECORDING_UPLOAD_LIMIT
+    - RECORDING_INTEGRITY
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -158,10 +162,14 @@ definitions:
     - CodeInterviewCompleted
     - CodeInterviewTurnConflict
     - CodeInterviewNotCompleted
+    - CodeEvaluationAttemptsExceeded
+    - CodeRateLimited
     - CodeFinalReviewLocked
     - CodeApplicationNotInterviewed
     - CodeRecordingNotFound
     - CodeRecordingNotAllowed
+    - CodeRecordingUploadLimit
+    - CodeRecordingIntegrity
   domain.Account:
     properties:
       created_at:
@@ -1393,9 +1401,18 @@ definitions:
         - left
         - abandoned
         type: string
+      injection_flagged:
+        description: |-
+          InjectionFlagged is true when the evaluation suspected the Candidate's answers tried to steer it or
+          its evidence quotes could not be verified; the Recruiter should review the answers. Omitted in the
+          limited view.
+        type: boolean
       interview_id:
         type: string
       overall_score:
+        description: |-
+          OverallScore is left out of the limited view (a recruitment Candidate), whose result is the
+          Recruiter's to announce. It is null until the evaluation completed.
         type: integer
       question_count:
         description: |-
@@ -1417,6 +1434,13 @@ definitions:
         type: string
       summary:
         type: string
+      summary_source:
+        description: |-
+          SummarySource says who wrote the summary. It is always "ai": the text is model output, not a
+          Recruiter's judgement. Omitted in the limited view.
+        enum:
+        - ai
+        type: string
       type:
         enum:
         - practice
@@ -1425,6 +1449,11 @@ definitions:
     type: object
   domain.ReportBreakdown:
     properties:
+      evidence:
+        description: |-
+          Evidence is the verbatim quote from a Candidate answer that the score rests on, checked against the
+          stored answers. Null when none was given or it could not be verified.
+        type: string
       metric_id:
         type: string
       name:
@@ -4074,7 +4103,11 @@ paths:
         session also moves its Application to interviewed; nothing is charged, refunded
         or consumed again. An open live socket of the session receives session.completed
         and closes with 1000. The evaluation starts in the background after the first
-        ending. A recruitment session whose window closed is APPLICATION_NOT_ELIGIBLE.'
+        ending. A recruitment session whose window closed is APPLICATION_NOT_ELIGIBLE.
+        A failed evaluation is retried by a repeated call at most 3 times in all;
+        after that the call answers EVALUATION_ATTEMPTS_EXCEEDED (409). Each user
+        may call this endpoint a limited number of times per minute (429 RATE_LIMITED,
+        with Retry-After).'
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -4117,6 +4150,10 @@ paths:
             $ref: '#/definitions/response.Envelope'
         "409":
           description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "429":
+          description: Too Many Requests
           schema:
             $ref: '#/definitions/response.Envelope'
         "500":
@@ -4398,11 +4435,15 @@ paths:
     get:
       description: 'Visibility: the Candidate who owns a practice interview sees all
         of it. The Candidate who owns a recruitment interview sees only interview_id,
-        type, status, overall_score, started_at and completed_at; summary, breakdown
-        and questions are null. The Recruiter of the posting sees a recruitment interview
-        in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until
-        the interview is completed, then the evaluation status (pending, completed
-        or failed). summary and breakdown are null until the evaluation completed.'
+        type, status, started_at and completed_at; overall_score is omitted and summary,
+        breakdown, questions, summary_source and injection_flagged are absent or null.
+        The Recruiter of the posting sees a recruitment interview in full. Everyone
+        else gets INTERVIEW_NOT_FOUND. status is in_progress until the interview is
+        completed, then the evaluation status (pending, completed or failed). summary
+        and breakdown are null until the evaluation completed. summary_source is always
+        "ai": the summary is model output. injection_flagged is true when the evaluation
+        suspected the Candidate answers tried to steer it or a score evidence quote
+        could not be verified; each breakdown item carries the verbatim evidence quote.'
       parameters:
       - description: Interview ID
         format: uuid

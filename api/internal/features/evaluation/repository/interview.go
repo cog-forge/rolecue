@@ -28,6 +28,7 @@ func (r *Repository) InterviewRecord(ctx context.Context, interviewID uuid.UUID)
 		EvaluationStatus: row.EvaluationStatus,
 		Score:            row.Score,
 		Feedback:         row.Feedback,
+		InjectionFlagged: row.InjectionFlagged,
 		CandidateID:      row.CandidateID,
 		PostingID:        uuidPtr(row.JobPostingID),
 		RecruiterID:      uuidPtr(row.RecruiterID),
@@ -58,7 +59,7 @@ func (r *Repository) InterviewScores(ctx context.Context, interviewID uuid.UUID)
 	}
 	scores := make([]domain.ReportBreakdown, 0, len(rows))
 	for _, row := range rows {
-		scores = append(scores, domain.ReportBreakdown{MetricID: row.MetricID, Name: row.Name, Score: row.Score})
+		scores = append(scores, domain.ReportBreakdown{MetricID: row.MetricID, Name: row.Name, Score: row.Score, Evidence: row.Evidence})
 	}
 	return scores, nil
 }
@@ -78,7 +79,7 @@ func (r *Repository) SaveInterviewEvaluation(ctx context.Context, interviewID uu
 		}
 		for _, score := range evaluation.Scores {
 			err := q.UpsertScoreDetail(ctx, UpsertScoreDetailParams{
-				InterviewID: interviewID, MetricID: score.MetricID, Score: score.Score,
+				InterviewID: interviewID, MetricID: score.MetricID, Score: score.Score, Evidence: evidencePtr(score.Evidence),
 			})
 			if err != nil {
 				return interviewPersistenceError(err)
@@ -95,7 +96,7 @@ func (r *Repository) SaveInterviewEvaluation(ctx context.Context, interviewID uu
 		}
 		overall := evaluation.OverallScore
 		err = q.CompleteInterviewEvaluation(ctx, CompleteInterviewEvaluationParams{
-			ID: interviewID, OverallScore: &overall, Feedback: evaluation.Summary,
+			ID: interviewID, OverallScore: &overall, Feedback: evaluation.Summary, InjectionFlagged: evaluation.InjectionFlagged,
 		})
 		return interviewPersistenceError(err)
 	})
@@ -121,6 +122,13 @@ func interviewPersistenceError(err error) error {
 		return domain.ErrInterviewNotFound
 	}
 	return apperror.Wrap(apperror.CodeInternal, "interview evaluation persistence failed", err)
+}
+
+func evidencePtr(evidence string) *string {
+	if evidence == "" {
+		return nil
+	}
+	return &evidence
 }
 
 func timePtr(value pgtype.Timestamptz) *time.Time {

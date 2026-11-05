@@ -21,14 +21,15 @@ func (r *Repository) GetCandidateRecording(ctx context.Context, candidateID, id 
 	if err != nil {
 		return domain.RecordingState{}, internal(err)
 	}
-	return recordingState(row.ID, row.Type, row.RecordStatus, row.RecordPath, row.Completed), nil
+	return recordingState(row.ID, row.Type, row.RecordStatus, row.RecordPath, row.Completed, row.RecordEtag, row.RecordGrantCount), nil
 }
 
 // SetRecordingUpload stores the key of a new upload grant and marks the recording uploading. It reports
-// false when the recording is no longer in a state a grant may replace.
-func (r *Repository) SetRecordingUpload(ctx context.Context, candidateID, id uuid.UUID, key string) (bool, error) {
+// false when the recording is no longer in a state a grant may replace, or when maxGrants grants were
+// already issued for the interview.
+func (r *Repository) SetRecordingUpload(ctx context.Context, candidateID, id uuid.UUID, key string, maxGrants int32) (bool, error) {
 	updated, err := r.queries.SetRecordingUpload(ctx, SetRecordingUploadParams{
-		RecordPath: &key, ID: id, CandidateID: candidateID,
+		RecordPath: &key, ID: id, CandidateID: candidateID, MaxGrants: maxGrants,
 	})
 	if err != nil {
 		return false, internal(err)
@@ -36,12 +37,27 @@ func (r *Repository) SetRecordingUpload(ctx context.Context, candidateID, id uui
 	return updated == 1, nil
 }
 
-// SetRecordingResult moves the upload at key to a final status. It reports false when that upload is no
-// longer the current one, so a stale check cannot overwrite a newer grant.
-func (r *Repository) SetRecordingResult(ctx context.Context, candidateID, id uuid.UUID, key string, status domain.RecordStatus) (bool, error) {
+// SetRecordingResult moves the upload at key to a final status and stores the object's ETag with it (empty
+// for a failed upload). It reports false when that upload is no longer the current one, so a stale check
+// cannot overwrite a newer grant.
+func (r *Repository) SetRecordingResult(ctx context.Context, candidateID, id uuid.UUID, key string, status domain.RecordStatus, etag string) (bool, error) {
+	var recordEtag *string
+	if etag != "" {
+		recordEtag = &etag
+	}
 	updated, err := r.queries.SetRecordingResult(ctx, SetRecordingResultParams{
-		RecordStatus: string(status), ID: id, RecordPath: &key, CandidateID: candidateID,
+		RecordStatus: string(status), ID: id, RecordPath: &key, CandidateID: candidateID, RecordEtag: recordEtag,
 	})
+	if err != nil {
+		return false, internal(err)
+	}
+	return updated == 1, nil
+}
+
+// FailChangedRecording marks a ready recording failed when the object at key no longer matches its stored
+// ETag. It reports false when the recording already changed.
+func (r *Repository) FailChangedRecording(ctx context.Context, id uuid.UUID, key string) (bool, error) {
+	updated, err := r.queries.FailChangedRecording(ctx, FailChangedRecordingParams{ID: id, RecordPath: &key})
 	if err != nil {
 		return false, internal(err)
 	}
@@ -70,7 +86,7 @@ func (r *Repository) GetApplicationRecording(ctx context.Context, applicationID 
 	if err != nil {
 		return domain.RecordingState{}, internal(err)
 	}
-	return recordingState(row.ID, row.Type, row.RecordStatus, row.RecordPath, row.Completed), nil
+	return recordingState(row.ID, row.Type, row.RecordStatus, row.RecordPath, row.Completed, row.RecordEtag, row.RecordGrantCount), nil
 }
 
 // ListTranscript returns the turns of an interview in position order. The answer is nil when the
@@ -137,12 +153,14 @@ func (r *Repository) ClearDeletedRecording(ctx context.Context, id uuid.UUID, ke
 	return updated == 1, nil
 }
 
-func recordingState(id uuid.UUID, interviewType, status string, path *string, completed bool) domain.RecordingState {
+func recordingState(id uuid.UUID, interviewType, status string, path *string, completed bool, etag *string, grants int32) domain.RecordingState {
 	return domain.RecordingState{
 		InterviewID:  id,
 		Type:         domain.Type(interviewType),
 		RecordStatus: domain.RecordStatus(status),
 		RecordPath:   path,
 		Completed:    completed,
+		RecordETag:   etag,
+		GrantCount:   grants,
 	}
 }

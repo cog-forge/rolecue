@@ -191,6 +191,45 @@ describe("InterviewResult", () => {
     ).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("labels the summary AI-generated, flags the evaluation and quotes the evidence", async () => {
+    mocks.get.mockImplementation((path: string) =>
+      path.endsWith("/report")
+        ? Promise.resolve({
+            data: {
+              ...report,
+              data: {
+                ...report.data,
+                summary_source: "ai",
+                injection_flagged: true,
+                breakdown: [
+                  {
+                    ...report.data.breakdown[0],
+                    evidence: "I built a queue worker.",
+                  },
+                  report.data.breakdown[1],
+                ],
+              },
+            },
+          })
+        : routes(path),
+    );
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Show evaluation" }));
+
+    expect(await screen.findByText("AI-generated summary")).toBeInTheDocument();
+    expect(screen.getByTestId("injection-flagged")).toHaveTextContent(
+      "Flagged for review",
+    );
+    expect(screen.getByText("I built a queue worker.")).toBeInTheDocument();
+  });
+
+  it("shows no flag banner for an unflagged evaluation", async () => {
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Show evaluation" }));
+    await screen.findByText("Solid Go answers, weaker on testing.");
+    expect(screen.queryByTestId("injection-flagged")).not.toBeInTheDocument();
+  });
+
   it("shows an evaluation error with a way to retry", async () => {
     mocks.get.mockRejectedValueOnce(failure(500));
     mount();

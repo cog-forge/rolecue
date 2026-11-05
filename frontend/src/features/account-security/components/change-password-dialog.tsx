@@ -1,7 +1,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { gooeyToast } from "goey-toast";
 import { CircleCheck, CircleDashed, LoaderCircle } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import {
   createChangePasswordSchema,
   type ChangePasswordValues,
@@ -100,7 +99,6 @@ function ChangePasswordForm({
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
-      revokeOtherSessions: true,
     },
   });
   useShakeInvalidFields(formRef, submitCount);
@@ -124,15 +122,15 @@ function ChangePasswordForm({
   const submit = async ({
     currentPassword,
     newPassword,
-    revokeOtherSessions,
   }: ChangePasswordValues) => {
     setMessage("");
     onBusyChange(true);
     try {
+      // The server always signs out other devices on password change (KAN-256).
       const result = await authClient.changePassword({
         currentPassword,
         newPassword,
-        revokeOtherSessions,
+        revokeOtherSessions: true,
       });
       if (result.error) {
         // Map known codes only; the server message is never shown.
@@ -166,9 +164,7 @@ function ChangePasswordForm({
         return;
       }
       gooeyToast.success(t("updatedTitle"), {
-        description: revokeOtherSessions
-          ? t("updatedRevoked")
-          : t("updatedKept"),
+        description: t("updatedRevoked"),
       });
       void cache.invalidateQueries({ queryKey: ["auth", "me"] });
       void cache.invalidateQueries({ queryKey: credentialsKeys.all });
@@ -229,29 +225,10 @@ function ChangePasswordForm({
           </li>
         ))}
       </ul>
-      <Controller
-        control={control}
-        name="revokeOtherSessions"
-        render={({ field }) => (
-          <div className="flex items-start gap-3 rounded-xl bg-muted px-4 py-3">
-            <Checkbox
-              id="revoke-other-sessions"
-              checked={field.value}
-              onCheckedChange={(checked) => field.onChange(checked === true)}
-              className="mt-0.5"
-            />
-            <label
-              htmlFor="revoke-other-sessions"
-              className="text-sm leading-snug"
-            >
-              {t("revoke")}
-              <span className="block text-xs text-muted-foreground">
-                {t("revokeHint")}
-              </span>
-            </label>
-          </div>
-        )}
-      />
+      <div className="rounded-xl bg-muted px-4 py-3 text-sm">
+        <p>{t("revoke")}</p>
+        <p className="text-xs text-muted-foreground">{t("revokeHint")}</p>
+      </div>
       {message && (
         <p role="alert" className="text-sm text-destructive">
           {message}

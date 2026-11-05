@@ -1,11 +1,9 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -18,36 +16,49 @@ import (
 
 // fakeRecordingRepository returns the configured recording state and records the writes it receives.
 type fakeRecordingRepository struct {
-	state        domain.RecordingState
-	stateErr     error
-	uploadOK     bool
-	uploadKey    string
-	uploadCalls  int
-	resultOK     bool
-	resultStatus domain.RecordStatus
-	resultKey    string
-	resultCalls  int
-	owned        bool
-	ownedCalls   int
-	turns        []domain.TranscriptTurn
-	turnsCalls   int
+	state            domain.RecordingState
+	stateErr         error
+	uploadOK         bool
+	uploadKey        string
+	uploadCalls      int
+	uploadMaxGrants  int32
+	resultOK         bool
+	resultStatus     domain.RecordStatus
+	resultKey        string
+	resultETag       string
+	resultCalls      int
+	failChangedOK    bool
+	failChangedKey   string
+	failChangedCalls int
+	owned            bool
+	ownedCalls       int
+	turns            []domain.TranscriptTurn
+	turnsCalls       int
 }
 
 func (r *fakeRecordingRepository) GetCandidateRecording(_ context.Context, _, _ uuid.UUID) (domain.RecordingState, error) {
 	return r.state, r.stateErr
 }
 
-func (r *fakeRecordingRepository) SetRecordingUpload(_ context.Context, _, _ uuid.UUID, key string) (bool, error) {
+func (r *fakeRecordingRepository) SetRecordingUpload(_ context.Context, _, _ uuid.UUID, key string, maxGrants int32) (bool, error) {
 	r.uploadCalls++
 	r.uploadKey = key
+	r.uploadMaxGrants = maxGrants
 	return r.uploadOK, nil
 }
 
-func (r *fakeRecordingRepository) SetRecordingResult(_ context.Context, _, _ uuid.UUID, key string, status domain.RecordStatus) (bool, error) {
+func (r *fakeRecordingRepository) SetRecordingResult(_ context.Context, _, _ uuid.UUID, key string, status domain.RecordStatus, etag string) (bool, error) {
 	r.resultCalls++
 	r.resultKey = key
 	r.resultStatus = status
+	r.resultETag = etag
 	return r.resultOK, nil
+}
+
+func (r *fakeRecordingRepository) FailChangedRecording(_ context.Context, _ uuid.UUID, key string) (bool, error) {
+	r.failChangedCalls++
+	r.failChangedKey = key
+	return r.failChangedOK, nil
 }
 
 func (r *fakeRecordingRepository) RecruiterOwnsApplication(_ context.Context, _, _, _ uuid.UUID) (bool, error) {
@@ -64,18 +75,7 @@ func (r *fakeRecordingRepository) ListTranscript(_ context.Context, _ uuid.UUID)
 	return r.turns, nil
 }
 
-// trackingBody records whether the caller closed the object body.
-type trackingBody struct {
-	io.Reader
-	closed bool
-}
-
-func (b *trackingBody) Close() error {
-	b.closed = true
-	return nil
-}
-
-// fakeRecordingStore returns fixed grants and objects and counts the presigned reads.
+// fakeRecordingStore returns fixed grants and object metadata, and counts the calls that reach storage.
 type fakeRecordingStore struct {
 	grantKey     string
 	putCalls     int
@@ -84,9 +84,15 @@ type fakeRecordingStore struct {
 	putErr       error
 	getCalls     int
 	getTTL       time.Duration
-	object       storage.Object
-	downloadErr  error
-	downloadKeys []string
+	getOverrides storage.GetOverrides
+	headInfo     storage.ObjectInfo
+	headErr      error
+	headCalls    int
+	prefix       []byte
+	prefixErr    error
+	prefixCalls  int
+	deleted      []string
+	deleteErr    error
 }
 
 func (s *fakeRecordingStore) PresignPut(_ context.Context, _ string, size int64, ttl time.Duration) (storage.UploadGrant, error) {
@@ -107,9 +113,10 @@ func (s *fakeRecordingStore) PresignPut(_ context.Context, _ string, size int64,
 	}, nil
 }
 
-func (s *fakeRecordingStore) PresignGet(_ context.Context, key string, ttl time.Duration) (storage.SignedRequest, error) {
+func (s *fakeRecordingStore) PresignGetWithOverrides(_ context.Context, key string, ttl time.Duration, overrides storage.GetOverrides) (storage.SignedRequest, error) {
 	s.getCalls++
 	s.getTTL = ttl
+	s.getOverrides = overrides
 	return storage.SignedRequest{
 		URL:       "https://storage.example.test/get/" + key,
 		Method:    "GET",
@@ -117,15 +124,36 @@ func (s *fakeRecordingStore) PresignGet(_ context.Context, key string, ttl time.
 	}, nil
 }
 
-func (s *fakeRecordingStore) Download(_ context.Context, key string) (storage.Object, error) {
-	s.downloadKeys = append(s.downloadKeys, key)
-	if s.downloadErr != nil {
-		return storage.Object{}, s.downloadErr
+func (s *fakeRecordingStore) Head(_ context.Context, _ string) (storage.ObjectInfo, error) {
+	s.headCalls++
+	if s.headErr != nil {
+		return storage.ObjectInfo{}, s.headErr
 	}
-	return s.object, nil
+	return s.headInfo, nil
+}
+
+func (s *fakeRecordingStore) ReadPrefix(_ context.Context, _ string, _ int64) ([]byte, error) {
+	s.prefixCalls++
+	if s.prefixErr != nil {
+		return nil, s.prefixErr
+	}
+	return s.prefix, nil
+}
+
+func (s *fakeRecordingStore) Delete(_ context.Context, key string) error {
+	s.deleted = append(s.deleted, key)
+	return s.deleteErr
 }
 
 const testRecordingKey = "3f1c2a4e-0000-4000-8000-000000000001"
+
+// webmHead is the first bytes of a WebM file: the EBML header.
+var webmHead = []byte{0x1A, 0x45, 0xDF, 0xA3, 0x01, 0x00, 0x00, 0x00}
+
+// webmInfo is the metadata of a stored WebM object with the given ETag.
+func webmInfo(etag string) storage.ObjectInfo {
+	return storage.ObjectInfo{ETag: etag, Size: 10, ContentType: "video/webm"}
+}
 
 func recordingPath(key string) *string { return &key }
 
@@ -145,6 +173,15 @@ func validUpload() domain.RecordingUploadInput {
 func recruitmentRecordingState(status domain.RecordStatus, path *string) domain.RecordingState {
 	return domain.RecordingState{InterviewID: uuid.New(), Type: domain.TypeRecruitment, RecordStatus: status, RecordPath: path}
 }
+
+// readyRecordingWithETag is a ready recruitment recording whose verified ETag is etag.
+func readyRecordingWithETag(etag *string) domain.RecordingState {
+	state := recruitmentRecordingState(domain.RecordReady, recordingPath(testRecordingKey))
+	state.RecordETag = etag
+	return state
+}
+
+func strPtr(s string) *string { return &s }
 
 func TestNewRecordingServiceRequiresDependencies(t *testing.T) {
 	if _, err := NewRecordingService(nil, &fakeRecordingStore{}); err == nil {
@@ -207,7 +244,7 @@ func TestGrantUploadRefusesProcessingAndReadyRecordings(t *testing.T) {
 			svc := newTestRecordingService(t, repo, store)
 			_, err := svc.GrantUpload(context.Background(), uuid.New(), "candidate", uuid.New(), validUpload())
 			assertCode(t, err, apperror.CodeRecordingNotAllowed)
-			if store.putCalls != 0 || repo.uploadCalls != 0 {
+			if store.putCalls != 0 || repo.uploadCalls != 0 || len(store.deleted) != 0 {
 				t.Fatal("a processing or ready recording must not be replaced")
 			}
 		})
@@ -234,6 +271,9 @@ func TestGrantUploadStoresKeyBeforeReturningGrant(t *testing.T) {
 	}
 	if grant.RecordStatus != domain.RecordUploading || grant.Headers["Content-Type"] != "video/webm" {
 		t.Fatalf("grant = %+v", grant)
+	}
+	if len(store.deleted) != 0 {
+		t.Fatalf("a first grant has no previous object to delete, deleted %v", store.deleted)
 	}
 }
 
@@ -277,13 +317,64 @@ func TestGrantUploadPassesOwnershipMissThrough(t *testing.T) {
 	}
 }
 
+func TestGrantUploadEnforcesGrantCap(t *testing.T) {
+	state := recruitmentRecordingState(domain.RecordFailed, recordingPath("old-key"))
+	state.GrantCount = domain.RecordingMaxGrants
+	repo := &fakeRecordingRepository{state: state, uploadOK: true}
+	store := &fakeRecordingStore{grantKey: testRecordingKey}
+	svc := newTestRecordingService(t, repo, store)
+	_, err := svc.GrantUpload(context.Background(), uuid.New(), "candidate", uuid.New(), validUpload())
+	assertCode(t, err, apperror.CodeRecordingUploadLimit)
+	if store.putCalls != 0 || repo.uploadCalls != 0 || len(store.deleted) != 0 {
+		t.Fatal("an exhausted recording must not presign, store or delete anything")
+	}
+}
+
+func TestGrantUploadPassesGrantCapToRepository(t *testing.T) {
+	state := recruitmentRecordingState(domain.RecordFailed, nil)
+	state.GrantCount = domain.RecordingMaxGrants - 1
+	repo := &fakeRecordingRepository{state: state, uploadOK: true}
+	store := &fakeRecordingStore{grantKey: testRecordingKey}
+	svc := newTestRecordingService(t, repo, store)
+	if _, err := svc.GrantUpload(context.Background(), uuid.New(), "candidate", uuid.New(), validUpload()); err != nil {
+		t.Fatalf("the last allowed grant was refused: %v", err)
+	}
+	if repo.uploadMaxGrants != domain.RecordingMaxGrants {
+		t.Fatalf("repository cap = %d, want %d", repo.uploadMaxGrants, domain.RecordingMaxGrants)
+	}
+}
+
+func TestGrantUploadDeletesReplacedObject(t *testing.T) {
+	repo := &fakeRecordingRepository{state: recruitmentRecordingState(domain.RecordFailed, recordingPath("old-key")), uploadOK: true}
+	store := &fakeRecordingStore{grantKey: testRecordingKey}
+	svc := newTestRecordingService(t, repo, store)
+	if _, err := svc.GrantUpload(context.Background(), uuid.New(), "candidate", uuid.New(), validUpload()); err != nil {
+		t.Fatalf("grant upload: %v", err)
+	}
+	if len(store.deleted) != 1 || store.deleted[0] != "old-key" {
+		t.Fatalf("replaced object deletes = %v, want [old-key]", store.deleted)
+	}
+}
+
+func TestGrantUploadSurvivesFailedCleanup(t *testing.T) {
+	repo := &fakeRecordingRepository{state: recruitmentRecordingState(domain.RecordUploading, recordingPath("old-key")), uploadOK: true}
+	store := &fakeRecordingStore{grantKey: testRecordingKey, deleteErr: errors.New("storage unavailable")}
+	svc := newTestRecordingService(t, repo, store)
+	grant, err := svc.GrantUpload(context.Background(), uuid.New(), "candidate", uuid.New(), validUpload())
+	if err != nil {
+		t.Fatalf("a failed cleanup must not refuse the grant: %v", err)
+	}
+	if grant.RecordStatus != domain.RecordUploading || repo.uploadKey != testRecordingKey {
+		t.Fatalf("grant = %+v, stored key %q", grant, repo.uploadKey)
+	}
+}
+
 func TestCompleteUploadMarksPresentObjectReady(t *testing.T) {
-	body := &trackingBody{Reader: bytes.NewReader([]byte("webm-bytes"))}
 	repo := &fakeRecordingRepository{
 		state:    recruitmentRecordingState(domain.RecordUploading, recordingPath(testRecordingKey)),
 		resultOK: true,
 	}
-	store := &fakeRecordingStore{object: storage.Object{Body: body, Size: 10}}
+	store := &fakeRecordingStore{headInfo: webmInfo(`"v1"`), prefix: webmHead}
 	svc := newTestRecordingService(t, repo, store)
 
 	status, err := svc.CompleteUpload(context.Background(), uuid.New(), "candidate", uuid.New())
@@ -296,15 +387,15 @@ func TestCompleteUploadMarksPresentObjectReady(t *testing.T) {
 	if repo.resultKey != testRecordingKey || repo.resultStatus != domain.RecordReady {
 		t.Fatalf("result write = %q %s", repo.resultKey, repo.resultStatus)
 	}
-	if !body.closed {
-		t.Fatal("the object body must be closed")
+	if repo.resultETag != `"v1"` {
+		t.Fatalf("stored ETag = %q, want the verified object's ETag", repo.resultETag)
 	}
-	body2, err := json.Marshal(status)
+	body, err := json.Marshal(status)
 	if err != nil {
 		t.Fatalf("marshal status: %v", err)
 	}
-	if strings.Contains(string(body2), testRecordingKey) {
-		t.Fatalf("status leaks the storage key: %s", body2)
+	if strings.Contains(string(body), testRecordingKey) {
+		t.Fatalf("status leaks the storage key: %s", body)
 	}
 }
 
@@ -313,7 +404,7 @@ func TestCompleteUploadMarksMissingObjectFailed(t *testing.T) {
 		state:    recruitmentRecordingState(domain.RecordUploading, recordingPath(testRecordingKey)),
 		resultOK: true,
 	}
-	store := &fakeRecordingStore{downloadErr: storage.ErrNotFound}
+	store := &fakeRecordingStore{headErr: storage.ErrNotFound}
 	svc := newTestRecordingService(t, repo, store)
 
 	_, err := svc.CompleteUpload(context.Background(), uuid.New(), "candidate", uuid.New())
@@ -328,7 +419,7 @@ func TestCompleteUploadRejectsEmptyObject(t *testing.T) {
 		state:    recruitmentRecordingState(domain.RecordUploading, recordingPath(testRecordingKey)),
 		resultOK: true,
 	}
-	store := &fakeRecordingStore{object: storage.Object{Body: &trackingBody{Reader: strings.NewReader("")}, Size: 0}}
+	store := &fakeRecordingStore{headInfo: storage.ObjectInfo{ETag: `"v1"`, Size: 0, ContentType: "video/webm"}}
 	svc := newTestRecordingService(t, repo, store)
 
 	_, err := svc.CompleteUpload(context.Background(), uuid.New(), "candidate", uuid.New())
@@ -336,10 +427,69 @@ func TestCompleteUploadRejectsEmptyObject(t *testing.T) {
 	if repo.resultStatus != domain.RecordFailed {
 		t.Fatalf("empty object must mark the upload failed, got %s", repo.resultStatus)
 	}
+	if store.prefixCalls != 0 {
+		t.Fatal("an empty object must be refused before its bytes are read")
+	}
+}
+
+func TestCompleteUploadRejectsMediaThatDoesNotMatchItsType(t *testing.T) {
+	mp4 := []byte("\x00\x00\x00\x18ftypmp42")
+	cases := map[string]struct {
+		contentType string
+		head        []byte
+	}{
+		"webm declared, mp4 bytes":  {"video/webm", mp4},
+		"mp4 declared, webm bytes":  {"video/mp4", webmHead},
+		"audio declared, text":      {"audio/webm", []byte("plain text, not media")},
+		"mp4 declared, too short":   {"video/mp4", []byte("ftyp")},
+		"webm declared, empty head": {"video/webm", nil},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			repo := &fakeRecordingRepository{
+				state:    recruitmentRecordingState(domain.RecordUploading, recordingPath(testRecordingKey)),
+				resultOK: true,
+			}
+			store := &fakeRecordingStore{headInfo: storage.ObjectInfo{ETag: `"v1"`, Size: 100, ContentType: tc.contentType}, prefix: tc.head}
+			svc := newTestRecordingService(t, repo, store)
+
+			_, err := svc.CompleteUpload(context.Background(), uuid.New(), "candidate", uuid.New())
+			assertCode(t, err, apperror.CodeValidation)
+			if repo.resultStatus != domain.RecordFailed || repo.resultETag != "" {
+				t.Fatalf("mismatched media must fail without an ETag, got %s %q", repo.resultStatus, repo.resultETag)
+			}
+		})
+	}
+}
+
+func TestCompleteUploadRejectsUnsupportedObjectType(t *testing.T) {
+	repo := &fakeRecordingRepository{
+		state:    recruitmentRecordingState(domain.RecordUploading, recordingPath(testRecordingKey)),
+		resultOK: true,
+	}
+	store := &fakeRecordingStore{headInfo: storage.ObjectInfo{ETag: `"v1"`, Size: 100, ContentType: "application/octet-stream"}, prefix: webmHead}
+	svc := newTestRecordingService(t, repo, store)
+	_, err := svc.CompleteUpload(context.Background(), uuid.New(), "candidate", uuid.New())
+	assertCode(t, err, apperror.CodeValidation)
+	if repo.resultStatus != domain.RecordFailed || store.prefixCalls != 0 {
+		t.Fatal("an unsupported type must fail before its bytes are read")
+	}
+}
+
+func TestRecordingMatchesMagic(t *testing.T) {
+	if !domain.RecordingMatchesMagic("video/webm", webmHead) || !domain.RecordingMatchesMagic("audio/webm", webmHead) {
+		t.Fatal("WebM magic bytes rejected")
+	}
+	if !domain.RecordingMatchesMagic("video/mp4", []byte("\x00\x00\x00\x18ftypmp42")) {
+		t.Fatal("MP4 ftyp box rejected")
+	}
+	if domain.RecordingMatchesMagic("video/mp4", webmHead) || domain.RecordingMatchesMagic("video/webm", []byte("\x00\x00\x00\x18ftyp")) {
+		t.Fatal("media of another container accepted")
+	}
 }
 
 func TestCompleteUploadIsIdempotentWhenReady(t *testing.T) {
-	repo := &fakeRecordingRepository{state: recruitmentRecordingState(domain.RecordReady, recordingPath(testRecordingKey))}
+	repo := &fakeRecordingRepository{state: readyRecordingWithETag(strPtr(`"v1"`))}
 	store := &fakeRecordingStore{}
 	svc := newTestRecordingService(t, repo, store)
 
@@ -350,7 +500,7 @@ func TestCompleteUploadIsIdempotentWhenReady(t *testing.T) {
 	if status.RecordStatus != domain.RecordReady {
 		t.Fatalf("status = %s, want ready", status.RecordStatus)
 	}
-	if len(store.downloadKeys) != 0 || repo.resultCalls != 0 {
+	if store.headCalls != 0 || repo.resultCalls != 0 {
 		t.Fatal("a ready recording must not be verified or written again")
 	}
 }
@@ -368,7 +518,7 @@ func TestCompleteUploadRequiresAnUploadInProgress(t *testing.T) {
 			svc := newTestRecordingService(t, repo, store)
 			_, err := svc.CompleteUpload(context.Background(), uuid.New(), "candidate", uuid.New())
 			assertCode(t, err, apperror.CodeRecordingNotAllowed)
-			if len(store.downloadKeys) != 0 {
+			if store.headCalls != 0 {
 				t.Fatal("no object must be verified without an upload in progress")
 			}
 		})
@@ -394,14 +544,14 @@ func TestRecruiterRecordingIssuesLinkOnlyWhenReady(t *testing.T) {
 	if recording.RecordStatus != domain.RecordUploading || recording.URL != nil || recording.ExpiresAt != nil {
 		t.Fatalf("uploading recording must carry no link: %+v", recording)
 	}
-	if store.getCalls != 0 {
+	if store.getCalls != 0 || store.headCalls != 0 {
 		t.Fatal("no read link may be presigned before the recording is ready")
 	}
 }
 
 func TestRecruiterRecordingPresignsReadyLinkForFiveMinutes(t *testing.T) {
-	repo := &fakeRecordingRepository{owned: true, state: recruitmentRecordingState(domain.RecordReady, recordingPath(testRecordingKey))}
-	store := &fakeRecordingStore{}
+	repo := &fakeRecordingRepository{owned: true, state: readyRecordingWithETag(strPtr(`"v1"`))}
+	store := &fakeRecordingStore{headInfo: webmInfo(`"v1"`)}
 	svc := newTestRecordingService(t, repo, store)
 
 	recording, err := svc.Recording(context.Background(), uuid.New(), "recruiter", uuid.New(), uuid.New())
@@ -413,6 +563,58 @@ func TestRecruiterRecordingPresignsReadyLinkForFiveMinutes(t *testing.T) {
 	}
 	if recording.ExpiresAt == nil || store.getTTL != domain.RecordingReadTTL {
 		t.Fatalf("link ttl = %s, want %s", store.getTTL, domain.RecordingReadTTL)
+	}
+	if store.getOverrides.ContentType != "video/webm" || !strings.HasPrefix(store.getOverrides.ContentDisposition, "attachment;") {
+		t.Fatalf("link must be typed and downloaded as an attachment: %+v", store.getOverrides)
+	}
+}
+
+func TestRecruiterRecordingRefusesOverwrittenObject(t *testing.T) {
+	repo := &fakeRecordingRepository{owned: true, failChangedOK: true, state: readyRecordingWithETag(strPtr(`"v1"`))}
+	store := &fakeRecordingStore{headInfo: webmInfo(`"v2"`)}
+	svc := newTestRecordingService(t, repo, store)
+
+	recording, err := svc.Recording(context.Background(), uuid.New(), "recruiter", uuid.New(), uuid.New())
+	assertCode(t, err, apperror.CodeRecordingIntegrity)
+	if recording.URL != nil || store.getCalls != 0 {
+		t.Fatal("an overwritten recording must never get a read link")
+	}
+	if repo.failChangedCalls != 1 || repo.failChangedKey != testRecordingKey {
+		t.Fatalf("overwritten recording must be marked failed, calls=%d key=%q", repo.failChangedCalls, repo.failChangedKey)
+	}
+}
+
+func TestRecruiterRecordingKeepsLegacyReadyRecordingWithoutETagReadable(t *testing.T) {
+	repo := &fakeRecordingRepository{owned: true, failChangedOK: true, state: readyRecordingWithETag(nil)}
+	store := &fakeRecordingStore{headInfo: webmInfo(`"v1"`)}
+	svc := newTestRecordingService(t, repo, store)
+	if _, err := svc.Recording(context.Background(), uuid.New(), "recruiter", uuid.New(), uuid.New()); err != nil {
+		t.Fatalf("a recording finalized before ETags existed must stay readable: %v", err)
+	}
+	if repo.failChangedCalls != 0 {
+		t.Fatal("a legacy recording must not be marked failed")
+	}
+}
+
+func TestRecruiterRecordingMarksVanishedObjectFailed(t *testing.T) {
+	repo := &fakeRecordingRepository{owned: true, failChangedOK: true, state: readyRecordingWithETag(strPtr(`"v1"`))}
+	store := &fakeRecordingStore{headErr: storage.ErrNotFound}
+	svc := newTestRecordingService(t, repo, store)
+	_, err := svc.Recording(context.Background(), uuid.New(), "recruiter", uuid.New(), uuid.New())
+	assertCode(t, err, apperror.CodeRecordingNotFound)
+	if repo.failChangedCalls != 1 || store.getCalls != 0 {
+		t.Fatalf("vanished object must be marked failed without a link, calls=%d", repo.failChangedCalls)
+	}
+}
+
+func TestRecruiterRecordingStorageFailureDoesNotChangeState(t *testing.T) {
+	repo := &fakeRecordingRepository{owned: true, state: readyRecordingWithETag(strPtr(`"v1"`))}
+	store := &fakeRecordingStore{headErr: errors.New("storage unavailable")}
+	svc := newTestRecordingService(t, repo, store)
+	_, err := svc.Recording(context.Background(), uuid.New(), "recruiter", uuid.New(), uuid.New())
+	assertCode(t, err, apperror.CodeInternal)
+	if repo.failChangedCalls != 0 {
+		t.Fatal("a storage outage must not mark the recording failed")
 	}
 }
 
@@ -427,8 +629,8 @@ func TestRecordingIsHiddenFromOtherRolesAndRecruiters(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			repo := &fakeRecordingRepository{owned: tc.owned, state: recruitmentRecordingState(domain.RecordReady, recordingPath(testRecordingKey))}
-			store := &fakeRecordingStore{}
+			repo := &fakeRecordingRepository{owned: tc.owned, state: readyRecordingWithETag(strPtr(`"v1"`))}
+			store := &fakeRecordingStore{headInfo: webmInfo(`"v1"`)}
 			svc := newTestRecordingService(t, repo, store)
 			_, err := svc.Recording(context.Background(), uuid.New(), tc.role, uuid.New(), uuid.New())
 			assertCode(t, err, apperror.CodeApplicationNotFound)
@@ -514,7 +716,7 @@ func TestRecordingStatusReturnsOnlyTheStateToTheCandidate(t *testing.T) {
 			if got.RecordStatus != status {
 				t.Fatalf("record_status = %s, want %s", got.RecordStatus, status)
 			}
-			if store.putCalls != 0 || store.getCalls != 0 || len(store.downloadKeys) != 0 || repo.uploadCalls != 0 || repo.resultCalls != 0 {
+			if store.putCalls != 0 || store.getCalls != 0 || store.headCalls != 0 || repo.uploadCalls != 0 || repo.resultCalls != 0 {
 				t.Fatal("reading the status must not touch storage or write the recording")
 			}
 		})

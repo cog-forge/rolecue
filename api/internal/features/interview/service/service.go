@@ -225,6 +225,12 @@ func (s *Service) Complete(ctx context.Context, candidateID uuid.UUID, role stri
 	if err != nil {
 		return domain.Session{}, err
 	}
+	// A failed evaluation that used all its attempts is not run again; saying so beats a Complete that
+	// looks successful and leaves the report failed forever. Idempotent completes of a finished or
+	// running evaluation are unaffected.
+	if result.EvaluationExhausted {
+		return domain.Session{}, apperror.New(apperror.CodeEvaluationAttemptsExceeded, "the evaluation of this interview failed too many times and will not be retried")
+	}
 	return presentSession(result.Session), nil
 }
 

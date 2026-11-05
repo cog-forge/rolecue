@@ -23,7 +23,7 @@ func NewInterviewReportHandler(service InterviewReportService) *InterviewReportH
 
 // Get godoc
 // @Summary Get an interview's report
-// @Description Visibility: the Candidate who owns a practice interview sees all of it. The Candidate who owns a recruitment interview sees only interview_id, type, status, overall_score, started_at and completed_at; summary, breakdown and questions are null. The Recruiter of the posting sees a recruitment interview in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until the interview is completed, then the evaluation status (pending, completed or failed). summary and breakdown are null until the evaluation completed.
+// @Description Visibility: the Candidate who owns a practice interview sees all of it. The Candidate who owns a recruitment interview sees only interview_id, type, status, started_at and completed_at; overall_score is omitted and summary, breakdown, questions, summary_source and injection_flagged are absent or null. The Recruiter of the posting sees a recruitment interview in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until the interview is completed, then the evaluation status (pending, completed or failed). summary and breakdown are null until the evaluation completed. summary_source is always "ai": the summary is model output. injection_flagged is true when the evaluation suspected the Candidate answers tried to steer it or a score evidence quote could not be verified; each breakdown item carries the verbatim evidence quote.
 // @Tags interviews
 // @Produce json
 // @Security SessionCookie

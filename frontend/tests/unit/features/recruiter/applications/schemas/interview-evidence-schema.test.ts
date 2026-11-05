@@ -221,3 +221,31 @@ describe("application detail interview and final review fields", () => {
     ).toThrow();
   });
 });
+
+describe("interview report evidence fields (KAN-253)", () => {
+  it("reads summary_source, injection_flagged and per-metric evidence", () => {
+    const parsed = interviewReportEnvelopeSchema.parse(
+      envelope({
+        ...report,
+        summary_source: "ai",
+        injection_flagged: true,
+        breakdown: [
+          { ...report.breakdown[0], evidence: "I built a queue worker." },
+        ],
+      }),
+    );
+    expect(parsed.data.summary_source).toBe("ai");
+    expect(parsed.data.injection_flagged).toBe(true);
+    expect(parsed.data.breakdown?.[0]?.evidence).toBe(
+      "I built a queue worker.",
+    );
+  });
+
+  it("keeps older reports valid and tolerates a missing overall_score", () => {
+    const parsed = interviewReportEnvelopeSchema.parse(
+      envelope({ ...report, overall_score: undefined }),
+    );
+    expect(parsed.data.overall_score).toBeNull();
+    expect(parsed.data.injection_flagged).toBeUndefined();
+  });
+});

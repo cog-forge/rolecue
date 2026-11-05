@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"bytes"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -8,12 +9,32 @@ import (
 )
 
 // Recording limits. The upload grant is valid for 15 minutes, the maximum the storage contract allows. A
-// read link to a recording lasts 5 minutes and is issued on every read, never stored.
+// read link to a recording lasts 5 minutes and is issued on every read, never stored. RecordingMaxGrants
+// caps the upload grants of one interview, so a Candidate cannot replace the object without end.
+// RecordingSniffBytes is how much of the object the media type check reads.
 const (
-	RecordingMaxBytes  int64 = 524288000
-	RecordingUploadTTL       = 15 * time.Minute
-	RecordingReadTTL         = 5 * time.Minute
+	RecordingMaxBytes   int64 = 524288000
+	RecordingUploadTTL        = 15 * time.Minute
+	RecordingReadTTL          = 5 * time.Minute
+	RecordingMaxGrants  int32 = 5
+	RecordingSniffBytes int64 = 12
 )
+
+// recordingEBML is the EBML header every WebM file starts with.
+var recordingEBML = []byte{0x1A, 0x45, 0xDF, 0xA3}
+
+// RecordingMatchesMagic reports whether the leading bytes of an object are the container its declared media
+// type names. The declared type is signed into the upload, so a mismatch means the bytes are not that media.
+func RecordingMatchesMagic(contentType string, head []byte) bool {
+	switch contentType {
+	case "video/webm", "audio/webm":
+		return bytes.HasPrefix(head, recordingEBML)
+	case "video/mp4":
+		return len(head) >= 8 && string(head[4:8]) == "ftyp"
+	default:
+		return false
+	}
+}
 
 // RecordingRetention is how long a recording is kept after its Application's final decision (Decision 18,
 // 2026-11-03); the System Handler then deletes it. It is a product rule, not configuration.
@@ -91,13 +112,15 @@ type Transcript struct {
 }
 
 // RecordingState is the recording part of one interview as the repository reads it. Path is the object
-// key and never leaves the service.
+// key and never leaves the service. ETag is the object's ETag when its upload was verified, nil otherwise.
 type RecordingState struct {
 	InterviewID  uuid.UUID
 	Type         Type
 	RecordStatus RecordStatus
 	RecordPath   *string
 	Completed    bool
+	RecordETag   *string
+	GrantCount   int32
 }
 
 var (
@@ -105,4 +128,11 @@ var (
 	ErrRecordingNotAllowed = apperror.New(apperror.CodeRecordingNotAllowed,
 		"a recording can only be uploaded for a recruitment interview in its current state")
 	ErrInterviewNotCompleted = apperror.New(apperror.CodeInterviewNotCompleted, "interview is not completed")
+)
+
+var (
+	ErrRecordingUploadLimit = apperror.New(apperror.CodeRecordingUploadLimit,
+		"this recording has used all of its upload attempts")
+	ErrRecordingIntegrity = apperror.New(apperror.CodeRecordingIntegrity,
+		"the stored recording no longer matches its upload and must be uploaded again")
 )

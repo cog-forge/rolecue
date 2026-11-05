@@ -81,7 +81,7 @@ describe("ChangePasswordDialog", () => {
     expect(rules).toHaveTextContent("Both new passwords match(met)");
   });
 
-  it("changes the password, signs out other devices by default and closes", async () => {
+  it("changes the password, always signs out other devices and closes", async () => {
     changePassword.mockResolvedValueOnce({ data: { token: "t" }, error: null });
     const { onOpenChange, invalidate } = renderDialog();
     fill({});
@@ -99,23 +99,6 @@ describe("ChangePasswordDialog", () => {
       queryKey: ["auth", "credentials"],
     });
     expectNoPasswordLeak();
-  });
-
-  it("keeps other devices signed in when the box is unticked", async () => {
-    changePassword.mockResolvedValueOnce({
-      data: { token: null },
-      error: null,
-    });
-    const { onOpenChange } = renderDialog();
-    fill({});
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: /Sign out of other devices/ }),
-    );
-    submit();
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
-    expect(changePassword).toHaveBeenCalledWith(
-      expect.objectContaining({ revokeOtherSessions: false }),
-    );
   });
 
   it("shows a field error when the current password is wrong", async () => {

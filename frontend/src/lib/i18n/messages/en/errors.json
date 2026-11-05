@@ -81,7 +81,11 @@
     "FINAL_REVIEW_LOCKED": "The final decision can't be made yet.",
     "APPLICATION_NOT_INTERVIEWED": "This candidate hasn't completed an interview yet.",
     "RECORDING_NOT_FOUND": "No recording is available for this interview.",
-    "RECORDING_NOT_ALLOWED": "You can't access this recording."
+    "RECORDING_NOT_ALLOWED": "You can't access this recording.",
+    "RECORDING_UPLOAD_LIMIT": "Too many upload attempts for this recording.",
+    "RECORDING_INTEGRITY": "This recording changed after it was saved, so it can't be played.",
+    "EVALUATION_ATTEMPTS_EXCEEDED": "This interview can't be re-scored again. Please contact support.",
+    "RATE_LIMITED": "Too many requests. Please wait a moment before trying again."
   },
   "auth": {
     "accountLocked": "Your account has been locked by an administrator. Contact support to request a review. You can sign in again once the lock expires or an administrator unlocks your account.",

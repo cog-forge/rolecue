@@ -1,6 +1,8 @@
 package router
 
 import (
+	"time"
+
 	_ "github.com/cog-forge/rolecue/api/docs"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
@@ -202,13 +204,16 @@ func (r *Router) Setup() *gin.Engine {
 	// Candidate only (403 otherwise); the report is readable by the owning Candidate or Recruiter and
 	// answers anyone else with 404.
 	interviews := router.Group("/interviews", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
+	// Completing a session can start an LLM evaluation, so it is limited per user on top of the attempts
+	// cap (KAN-259): a burst of five covers double clicks and reconnects, then one every 12 seconds.
+	completeLimiter := middleware.NewUserRateLimiter(12*time.Second, 5)
 	interviews.POST("", r.interviewHandlers.Sessions.Create)
 	interviews.GET("", r.interviewHandlers.History.List)
 	interviews.GET("/:id", r.interviewHandlers.Sessions.Get)
 	interviews.GET("/:id/interviewer", r.applicationHandler.SessionCompanyInterviewer)
 	interviews.POST("/:id/resume", r.interviewHandlers.Sessions.Resume)
 	interviews.POST("/:id/turns", r.interviewHandlers.Sessions.AppendTurn)
-	interviews.POST("/:id/complete", r.interviewHandlers.Sessions.Complete)
+	interviews.POST("/:id/complete", completeLimiter.Middleware(), r.interviewHandlers.Sessions.Complete)
 	// The live interview socket (docs/interview-ws-protocol.md). It checks Origin itself, because
 	// RequireAuth checks it only for writes and a WebSocket handshake is a GET.
 	interviews.GET("/:id/live", r.interviewHandlers.Live.Live)

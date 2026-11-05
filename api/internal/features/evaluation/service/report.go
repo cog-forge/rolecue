@@ -14,7 +14,7 @@ const (
 
 // Report returns an interview's report to the viewers who may see it:
 //   - the Candidate who owns a practice session sees all of it;
-//   - the Candidate who owns a recruitment session sees only its score and status, because the summary,
+//   - the Candidate who owns a recruitment session sees only its status (not even the score, which the Recruiter announces), because the summary,
 //     breakdown and questions are the Recruiter's evidence;
 //   - the Recruiter of the posting of a recruitment session sees all of it.
 //
@@ -32,7 +32,6 @@ func (s *Scoring) Report(ctx context.Context, userID uuid.UUID, role string, int
 		InterviewID:   record.ID,
 		Type:          record.Type,
 		Status:        reportStatus(record),
-		OverallScore:  record.Score,
 		StartedAt:     record.StartedAt,
 		CompletedAt:   record.CompletedAt,
 		EndReason:     record.EndReason,
@@ -41,6 +40,9 @@ func (s *Scoring) Report(ctx context.Context, userID uuid.UUID, role string, int
 	if !full {
 		return report, nil
 	}
+	report.OverallScore = record.Score
+	flagged := record.InjectionFlagged
+	report.InjectionFlagged = &flagged
 	turns, err := s.repository.InterviewTurns(ctx, interviewID)
 	if err != nil {
 		return domain.Report{}, err
@@ -55,6 +57,9 @@ func (s *Scoring) Report(ctx context.Context, userID uuid.UUID, role string, int
 			scores = []domain.ReportBreakdown{}
 		}
 		report.Summary = record.Feedback
+		if record.Feedback != nil {
+			report.SummarySource = domain.SummarySourceAI
+		}
 		report.Breakdown = scores
 	}
 	return report, nil

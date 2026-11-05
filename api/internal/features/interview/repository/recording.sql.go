@@ -14,7 +14,7 @@ import (
 
 const clearDeletedRecording = `-- name: ClearDeletedRecording :execrows
 UPDATE public.interviews
-SET record_path = NULL, record_status = 'deleted'
+SET record_path = NULL, record_status = 'deleted', record_etag = NULL
 WHERE id = $1 AND type = 'recruitment' AND record_path = $2
 `
 
@@ -27,6 +27,30 @@ type ClearDeletedRecordingParams struct {
 // must still be the one whose object was deleted.
 func (q *Queries) ClearDeletedRecording(ctx context.Context, arg ClearDeletedRecordingParams) (int64, error) {
 	result, err := q.db.Exec(ctx, clearDeletedRecording, arg.ID, arg.RecordPath)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const failChangedRecording = `-- name: FailChangedRecording :execrows
+UPDATE public.interviews i
+SET record_status = 'failed', record_etag = NULL
+WHERE i.id = $1
+  AND i.type = 'recruitment'
+  AND i.record_status = 'ready'
+  AND i.record_path = $2
+`
+
+type FailChangedRecordingParams struct {
+	ID         uuid.UUID
+	RecordPath *string
+}
+
+// A ready recording whose object no longer matches the stored ETag (or is gone) is not served: it goes
+// back to failed, so the Candidate can upload it again. Only the verified key is changed.
+func (q *Queries) FailChangedRecording(ctx context.Context, arg FailChangedRecordingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failChangedRecording, arg.ID, arg.RecordPath)
 	if err != nil {
 		return 0, err
 	}
@@ -90,17 +114,19 @@ func (q *Queries) FailStaleRecordings(ctx context.Context, arg FailStaleRecordin
 
 const getApplicationRecordingState = `-- name: GetApplicationRecordingState :one
 SELECT i.id, i.type::text AS type, i.record_status, i.record_path,
-       (i.completed_at IS NOT NULL)::boolean AS completed
+       (i.completed_at IS NOT NULL)::boolean AS completed, i.record_etag, i.record_grant_count
 FROM public.interviews i
 WHERE i.application_id = $1
 `
 
 type GetApplicationRecordingStateRow struct {
-	ID           uuid.UUID
-	Type         string
-	RecordStatus string
-	RecordPath   *string
-	Completed    bool
+	ID               uuid.UUID
+	Type             string
+	RecordStatus     string
+	RecordPath       *string
+	Completed        bool
+	RecordEtag       *string
+	RecordGrantCount int32
 }
 
 // The interview of an Application, if one was started. Practice sessions never carry an application_id.
@@ -113,6 +139,8 @@ func (q *Queries) GetApplicationRecordingState(ctx context.Context, applicationI
 		&i.RecordStatus,
 		&i.RecordPath,
 		&i.Completed,
+		&i.RecordEtag,
+		&i.RecordGrantCount,
 	)
 	return i, err
 }
@@ -120,7 +148,7 @@ func (q *Queries) GetApplicationRecordingState(ctx context.Context, applicationI
 const getCandidateRecordingState = `-- name: GetCandidateRecordingState :one
 
 SELECT i.id, i.type::text AS type, i.record_status, i.record_path,
-       (i.completed_at IS NOT NULL)::boolean AS completed
+       (i.completed_at IS NOT NULL)::boolean AS completed, i.record_etag, i.record_grant_count
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -133,11 +161,13 @@ type GetCandidateRecordingStateParams struct {
 }
 
 type GetCandidateRecordingStateRow struct {
-	ID           uuid.UUID
-	Type         string
-	RecordStatus string
-	RecordPath   *string
-	Completed    bool
+	ID               uuid.UUID
+	Type             string
+	RecordStatus     string
+	RecordPath       *string
+	Completed        bool
+	RecordEtag       *string
+	RecordGrantCount int32
 }
 
 // Recruitment recordings and the Recruiter's evidence reads. A Candidate owns an interview through
@@ -152,6 +182,8 @@ func (q *Queries) GetCandidateRecordingState(ctx context.Context, arg GetCandida
 		&i.RecordStatus,
 		&i.RecordPath,
 		&i.Completed,
+		&i.RecordEtag,
+		&i.RecordGrantCount,
 	)
 	return i, err
 }
@@ -269,25 +301,28 @@ func (q *Queries) RecruiterOwnsApplication(ctx context.Context, arg RecruiterOwn
 
 const setRecordingResult = `-- name: SetRecordingResult :execrows
 UPDATE public.interviews i
-SET record_status = $1
-WHERE i.id = $2
-  AND i.record_path = $3
+SET record_status = $1, record_etag = $2::text
+WHERE i.id = $3
+  AND i.record_path = $4
   AND i.record_status = 'uploading'
-  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = $4)
+  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = $5)
 `
 
 type SetRecordingResultParams struct {
 	RecordStatus string
+	RecordEtag   *string
 	ID           uuid.UUID
 	RecordPath   *string
 	CandidateID  uuid.UUID
 }
 
 // Finalization moves only the upload that was verified: the status and the key must still be the ones
-// the Candidate uploaded to, so a newer grant is never overwritten by an older check.
+// the Candidate uploaded to, so a newer grant is never overwritten by an older check. The ETag is stored
+// with ready and cleared for failed.
 func (q *Queries) SetRecordingResult(ctx context.Context, arg SetRecordingResultParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setRecordingResult,
 		arg.RecordStatus,
+		arg.RecordEtag,
 		arg.ID,
 		arg.RecordPath,
 		arg.CandidateID,
@@ -300,23 +335,32 @@ func (q *Queries) SetRecordingResult(ctx context.Context, arg SetRecordingResult
 
 const setRecordingUpload = `-- name: SetRecordingUpload :execrows
 UPDATE public.interviews i
-SET record_path = $1, record_status = 'uploading'
+SET record_path = $1, record_status = 'uploading', record_etag = NULL,
+    record_grant_count = i.record_grant_count + 1
 WHERE i.id = $2
   AND i.type = 'recruitment'
   AND i.record_status IN ('none', 'uploading', 'failed')
-  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = $3)
+  AND i.record_grant_count < $3
+  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = $4)
 `
 
 type SetRecordingUploadParams struct {
 	RecordPath  *string
 	ID          uuid.UUID
+	MaxGrants   int32
 	CandidateID uuid.UUID
 }
 
 // The upload grant is one conditional UPDATE. A recording that is processing or ready is never replaced
-// by a new upload, so the status checked in the service cannot change under the write.
+// by a new upload, so the status checked in the service cannot change under the write. Each grant counts
+// against max_grants, and a new grant clears the ETag of the object it replaces.
 func (q *Queries) SetRecordingUpload(ctx context.Context, arg SetRecordingUploadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setRecordingUpload, arg.RecordPath, arg.ID, arg.CandidateID)
+	result, err := q.db.Exec(ctx, setRecordingUpload,
+		arg.RecordPath,
+		arg.ID,
+		arg.MaxGrants,
+		arg.CandidateID,
+	)
 	if err != nil {
 		return 0, err
 	}

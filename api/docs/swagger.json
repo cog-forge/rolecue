@@ -2575,7 +2575,7 @@
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only. Ends the session through the one end path shared with the live socket and the abandoned-session job. Called before every core question is answered it is the room's Leave: the session ends with end_reason left and is evaluated on what was answered; unanswered questions have no turn. Idempotent: the first call sets completed_at and end_reason, and later calls (a double click, a second tab) return the session as it is. A recruitment session also moves its Application to interviewed; nothing is charged, refunded or consumed again. An open live socket of the session receives session.completed and closes with 1000. The evaluation starts in the background after the first ending. A recruitment session whose window closed is APPLICATION_NOT_ELIGIBLE.",
+                "description": "Candidate only. Ends the session through the one end path shared with the live socket and the abandoned-session job. Called before every core question is answered it is the room's Leave: the session ends with end_reason left and is evaluated on what was answered; unanswered questions have no turn. Idempotent: the first call sets completed_at and end_reason, and later calls (a double click, a second tab) return the session as it is. A recruitment session also moves its Application to interviewed; nothing is charged, refunded or consumed again. An open live socket of the session receives session.completed and closes with 1000. The evaluation starts in the background after the first ending. A recruitment session whose window closed is APPLICATION_NOT_ELIGIBLE. A failed evaluation is retried by a repeated call at most 3 times in all; after that the call answers EVALUATION_ATTEMPTS_EXCEEDED (409). Each user may call this endpoint a limited number of times per minute (429 RATE_LIMITED, with Retry-After).",
                 "produces": [
                     "application/json"
                 ],
@@ -2645,6 +2645,12 @@
                     },
                     "409": {
                         "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -3058,7 +3064,7 @@
                         "SessionCookie": []
                     }
                 ],
-                "description": "Visibility: the Candidate who owns a practice interview sees all of it. The Candidate who owns a recruitment interview sees only interview_id, type, status, overall_score, started_at and completed_at; summary, breakdown and questions are null. The Recruiter of the posting sees a recruitment interview in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until the interview is completed, then the evaluation status (pending, completed or failed). summary and breakdown are null until the evaluation completed.",
+                "description": "Visibility: the Candidate who owns a practice interview sees all of it. The Candidate who owns a recruitment interview sees only interview_id, type, status, started_at and completed_at; overall_score is omitted and summary, breakdown, questions, summary_source and injection_flagged are absent or null. The Recruiter of the posting sees a recruitment interview in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until the interview is completed, then the evaluation status (pending, completed or failed). summary and breakdown are null until the evaluation completed. summary_source is always \"ai\": the summary is model output. injection_flagged is true when the evaluation suspected the Candidate answers tried to steer it or a score evidence quote could not be verified; each breakdown item carries the verbatim evidence quote.",
                 "produces": [
                     "application/json"
                 ],
@@ -7927,10 +7933,14 @@
                 "INTERVIEW_COMPLETED",
                 "INTERVIEW_TURN_CONFLICT",
                 "INTERVIEW_NOT_COMPLETED",
+                "EVALUATION_ATTEMPTS_EXCEEDED",
+                "RATE_LIMITED",
                 "FINAL_REVIEW_LOCKED",
                 "APPLICATION_NOT_INTERVIEWED",
                 "RECORDING_NOT_FOUND",
-                "RECORDING_NOT_ALLOWED"
+                "RECORDING_NOT_ALLOWED",
+                "RECORDING_UPLOAD_LIMIT",
+                "RECORDING_INTEGRITY"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -8008,10 +8018,14 @@
                 "CodeInterviewCompleted",
                 "CodeInterviewTurnConflict",
                 "CodeInterviewNotCompleted",
+                "CodeEvaluationAttemptsExceeded",
+                "CodeRateLimited",
                 "CodeFinalReviewLocked",
                 "CodeApplicationNotInterviewed",
                 "CodeRecordingNotFound",
-                "CodeRecordingNotAllowed"
+                "CodeRecordingNotAllowed",
+                "CodeRecordingUploadLimit",
+                "CodeRecordingIntegrity"
             ]
         },
         "domain.Account": {
@@ -9804,10 +9818,15 @@
                         "abandoned"
                     ]
                 },
+                "injection_flagged": {
+                    "description": "InjectionFlagged is true when the evaluation suspected the Candidate's answers tried to steer it or\nits evidence quotes could not be verified; the Recruiter should review the answers. Omitted in the\nlimited view.",
+                    "type": "boolean"
+                },
                 "interview_id": {
                     "type": "string"
                 },
                 "overall_score": {
+                    "description": "OverallScore is left out of the limited view (a recruitment Candidate), whose result is the\nRecruiter's to announce. It is null until the evaluation completed.",
                     "type": "integer"
                 },
                 "question_count": {
@@ -9835,6 +9854,13 @@
                 "summary": {
                     "type": "string"
                 },
+                "summary_source": {
+                    "description": "SummarySource says who wrote the summary. It is always \"ai\": the text is model output, not a\nRecruiter's judgement. Omitted in the limited view.",
+                    "type": "string",
+                    "enum": [
+                        "ai"
+                    ]
+                },
                 "type": {
                     "type": "string",
                     "enum": [
@@ -9847,6 +9873,10 @@
         "domain.ReportBreakdown": {
             "type": "object",
             "properties": {
+                "evidence": {
+                    "description": "Evidence is the verbatim quote from a Candidate answer that the score rests on, checked against the\nstored answers. Null when none was given or it could not be verified.",
+                    "type": "string"
+                },
                 "metric_id": {
                     "type": "string"
                 },

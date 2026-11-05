@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"testing"
@@ -98,8 +97,20 @@ func (regStore) PresignGet(_ context.Context, _ string, ttl time.Duration) (stor
 	return regCVLinker{}.PresignGet(context.Background(), "", ttl)
 }
 
-func (regStore) Download(context.Context, string) (storage.Object, error) {
-	return storage.Object{Body: io.NopCloser(strings.NewReader(""))}, fmt.Errorf("regression run does not download")
+func (regStore) PresignGetWithOverrides(_ context.Context, _ string, ttl time.Duration, _ storage.GetOverrides) (storage.SignedRequest, error) {
+	return regCVLinker{}.PresignGet(context.Background(), "", ttl)
+}
+
+func (regStore) Head(context.Context, string) (storage.ObjectInfo, error) {
+	return storage.ObjectInfo{}, fmt.Errorf("regression run does not read objects")
+}
+
+func (regStore) ReadPrefix(context.Context, string, int64) ([]byte, error) {
+	return nil, fmt.Errorf("regression run does not read objects")
+}
+
+func (regStore) Delete(context.Context, string) error {
+	return fmt.Errorf("regression run does not delete objects")
 }
 
 // regSeed inserts the rows the lifecycle needs and records their ids. The cleanup deletes them in

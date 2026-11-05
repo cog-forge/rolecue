@@ -172,10 +172,25 @@ function EvaluationBreakdown({
   const breakdown = report.breakdown;
   return (
     <div className="space-y-4 rounded-xl border p-4 text-sm">
+      {report.injection_flagged && (
+        <div
+          role="note"
+          data-testid="injection-flagged"
+          className="rounded-lg border border-destructive/40 bg-destructive/5 p-3"
+        >
+          <p className="font-medium text-destructive">{t("flaggedTitle")}</p>
+          <p className="mt-1 text-muted-foreground">{t("flaggedText")}</p>
+        </div>
+      )}
       {report.summary && (
-        <p className="leading-relaxed [overflow-wrap:anywhere]">
-          {report.summary}
-        </p>
+        <div className="space-y-1">
+          <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">
+            {t("aiGenerated")}
+          </p>
+          <p className="leading-relaxed [overflow-wrap:anywhere]">
+            {report.summary}
+          </p>
+        </div>
       )}
       {breakdown && breakdown.length > 0 ? (
         <dl className="grid gap-3 sm:grid-cols-2">
@@ -185,6 +200,12 @@ function EvaluationBreakdown({
                 {metric.name}
               </dt>
               <dd className="font-medium tabular-nums">{metric.score}/100</dd>
+              {metric.evidence ? (
+                <dd className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                  <span className="font-medium">{t("evidence")}: </span>
+                  <q>{metric.evidence}</q>
+                </dd>
+              ) : null}
             </div>
           ))}
         </dl>

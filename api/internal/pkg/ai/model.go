@@ -27,7 +27,7 @@ func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatMode
 		return nil, fmt.Errorf("LLM timeout must be positive")
 	}
 	if cfg.Provider == "groq" {
-		return &loggedModel{inner: &groqModel{key: cfg.APIKey, model: cfg.Model, endpoint: "https://api.groq.com/openai/v1/chat/completions", client: &http.Client{Timeout: cfg.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, provider: cfg.Provider, model: cfg.Model}, nil
+		return &loggedModel{inner: &groqModel{key: cfg.APIKey, model: cfg.Model, maxTokens: cfg.MaxOutputTokens, endpoint: "https://api.groq.com/openai/v1/chat/completions", client: &http.Client{Timeout: cfg.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, provider: cfg.Provider, model: cfg.Model}, nil
 	}
 	attempts := int32(1)
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
@@ -43,7 +43,12 @@ func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatMode
 	if err != nil {
 		return nil, fmt.Errorf("create Gemini client: %w", err)
 	}
-	inner, err := gemini.NewChatModel(ctx, &gemini.Config{Client: client, Model: cfg.Model})
+	geminiConfig := &gemini.Config{Client: client, Model: cfg.Model}
+	if cfg.MaxOutputTokens > 0 {
+		maxTokens := cfg.MaxOutputTokens
+		geminiConfig.MaxTokens = &maxTokens
+	}
+	inner, err := gemini.NewChatModel(ctx, geminiConfig)
 	if err != nil {
 		return nil, err
 	}

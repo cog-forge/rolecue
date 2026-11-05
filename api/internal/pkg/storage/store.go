@@ -19,10 +19,31 @@ type Store interface {
 	Download(ctx context.Context, key string) (Object, error)
 	Delete(ctx context.Context, key string) error
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (SignedRequest, error)
+	// PresignGetWithOverrides is PresignGet with the response headers the browser receives fixed by the
+	// grant. PresignGet stays as it is because the other features use that exact signature.
+	PresignGetWithOverrides(ctx context.Context, key string, ttl time.Duration, overrides GetOverrides) (SignedRequest, error)
 	// PresignPut binds a positive byte size and permits TTLs up to 15 minutes.
 	// The caller must validate size and MIME against the feature policy before
 	// issuing a grant, then verify the stored object during finalization.
 	PresignPut(ctx context.Context, contentType string, size int64, ttl time.Duration) (UploadGrant, error)
+	// Head reads an object's metadata without its body. A missing object is ErrNotFound.
+	Head(ctx context.Context, key string) (ObjectInfo, error)
+	// ReadPrefix reads at most n leading bytes of an object. It is for content sniffing, not for streams.
+	ReadPrefix(ctx context.Context, key string, n int64) ([]byte, error)
+}
+
+// GetOverrides fixes response headers of a read link. An empty field is not overridden.
+type GetOverrides struct {
+	ContentType        string
+	ContentDisposition string
+}
+
+// ObjectInfo is the metadata of a stored object. ETag changes whenever the object's bytes are replaced,
+// so it identifies the content a caller verified.
+type ObjectInfo struct {
+	ETag        string
+	Size        int64
+	ContentType string
 }
 
 // SignedRequest is a bearer grant. It may be reused before expiration; do not log

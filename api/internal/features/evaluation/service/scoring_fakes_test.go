@@ -90,11 +90,14 @@ func (f *fakeScorer) Score(_ context.Context, in domain.ScoreInput) (domain.Scor
 }
 
 // scoresFor is the deterministic output of a fake scorer: the given score for each metric, in order.
+// answerQuote is a verbatim part of the first answer of answeredTurns.
+const answerQuote = "I would index it."
+
 func scoresFor(scores ...int32) []domain.MetricScore {
 	metrics := []domain.Metric{metricAccuracy, metricDepth, metricClarity}
 	out := make([]domain.MetricScore, 0, len(scores))
 	for i, score := range scores {
-		out = append(out, domain.MetricScore{MetricID: metrics[i].ID, Score: score})
+		out = append(out, domain.MetricScore{MetricID: metrics[i].ID, Score: score, Evidence: answerQuote})
 	}
 	return out
 }
