@@ -33,3 +33,46 @@ patched `braces` is resolvable. Not verified with `bun audit` locally (bun is no
 The frontend sends `Content-Security-Policy-Report-Only` until `CSP_ENFORCE=true` is set on the
 frontend container. Watch browser console violations in the interview room, the Avaturn avatar
 creator and the PayOS redirect, then enforce.
+
+Notes attached to the security-hardening pull request. Each section is owned by
+the ticket named in its heading.
+
+## KAN-254
+
+Scope: `.github/workflows/claude.yml` (the on-demand `@claude` assistant; the
+team has since disabled the review bot, the workflow is kept valid and hardened).
+
+Changes:
+
+- `pull_request_review_comment` and `pull_request_review` runs now require
+  `github.event.pull_request.head.repo.full_name == github.repository`. These
+  events check out the PR merge ref, so for a fork PR the workspace would hold
+  fork code while `CLAUDE_CODE_OAUTH_TOKEN` and `id-token: write` are available.
+  Fork PRs are now skipped for review events. `issue_comment` events check out
+  the default branch (not PR code), so they need no extra gate.
+- `Bash(git diff:*)`, `Bash(git log:*)` and `Bash(git show:*)` were removed from
+  the allowlist. They looked read-only, but `--output=<path>` makes them write
+  files, and git accepts abbreviated long options (`--out=`), so a deny pattern
+  on `--output` alone is not a complete guard. Diff data is available through
+  `gh pr diff`, which stays allowed. As defence in depth the deny list also gets
+  `Bash(git * --output*)`, `Bash(git * --ext-diff*)`, `Bash(git * --textconv*)`
+  and `Bash(git -c:*)` (external diff/textconv programs and config-injected
+  commands).
+
+Does the action load workspace settings from the checkout? Yes for the Claude
+Code CLI, and the action mitigates it. The CLI trusts its working directory: it
+reads `.claude/settings.json`, `.claude/settings.local.json` and `.mcp.json`
+before tool-permission gating and acts on hooks (including SessionStart), `env`,
+`apiKeyHelper` and MCP server entries. `anthropics/claude-code-action` v1.0.259
+(the pinned version) ships `src/github/operations/restore-config.ts`
+(`restoreConfigFromBase`), whose own doc comment states that it replaces
+`.claude/`, `.mcp.json`, `CLAUDE.md`, `.husky` and similar paths with the PR base
+branch versions after a PR checkout. This was read from the action source on
+GitHub, not exercised in a live run. Remaining exposure: everything outside those
+paths (for example `bunfig.toml`, package scripts, Makefile) still comes from the
+checkout, which is why fork code must not be in the workspace at all; the
+same-repository gate above provides that for review events. For an
+`issue_comment` mention on a fork PR the action itself fetches
+`refs/pull/N/head` in tag mode, so keep the mention restricted to
+`OWNER`/`MEMBER`/`COLLABORATOR` (already enforced) and do not re-enable the bot
+for fork PRs without a separate review.
