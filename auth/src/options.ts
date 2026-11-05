@@ -36,7 +36,14 @@ export const authOptions = {
       accessTokenExpiresAt: "access_token_expires_at",
       refreshTokenExpiresAt: "refresh_token_expires_at",
     },
-    accountLinking: { enabled: true, trustedProviders: [] },
+    // No provider is trusted by name: implicit linking needs a provider-verified email and a verified local
+    // email (KAN-291). The defaults for the two flags below are pinned so an upgrade cannot loosen them.
+    accountLinking: {
+      enabled: true,
+      trustedProviders: [],
+      allowDifferentEmails: false,
+      allowUnlinkingAll: false,
+    },
   },
   verification: {
     modelName: "verifications",
