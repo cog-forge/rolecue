@@ -356,6 +356,8 @@ func Load(configPath string) (*Config, error) {
 		"storage.access_key_id":                   "S3_ACCESS_KEY_ID",
 		"storage.secret_access_key":               "S3_SECRET_ACCESS_KEY",
 		"storage.session_token":                   "S3_SESSION_TOKEN",
+		"storage.sse":                             "STORAGE_SSE",
+		"storage.sse_kms_key_id":                  "STORAGE_SSE_KMS_KEY_ID",
 		"database.url":                            "DATABASE_URL",
 		"database.name":                           "DB_DATABASE",
 		"database.user":                           "DB_USERNAME",
