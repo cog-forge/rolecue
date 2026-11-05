@@ -181,3 +181,53 @@ Supply-chain controls in `.github/dependabot.yml` and `.github/workflows/ci.yml`
   Dependabot parsing all run only on GitHub; the workflow YAML was parsed
   locally but not executed. If the repository is renamed, update the
   certificate identity in the deploy job.
+
+## KAN-302
+
+Deploy secret exposure. No secret was added, removed or renamed.
+
+Secret flow. GitHub environment `production` (secrets and vars) is read by the
+`deploy` job on the self-hosted `rolecue-production` runner. They are now set as
+step-level `env` on the single "Pull promoted images and deploy" step instead of
+the whole job, so checkout, registry login, cosign installation and signature
+verification (and any action they run) never see them. `docker compose`
+interpolates every `${VAR:?...}` in the file, even for `pull`, so the full set
+must be present for that one step. Inside the host, compose passes each value to
+the container that needs it as a container environment variable (visible to
+`docker inspect` for anyone in the docker group; this is unchanged and is the
+reason the runner host must be treated as trusted for all production secrets).
+
+Migrate. `DATABASE_URL` is no longer in the `migrate` command. The service now
+uses `entrypoint: ["/bin/sh","-c"]` with `exec migrate ... -database "$DATABASE_URL" up`
+and receives the URL as an environment variable, so it is absent from
+`docker compose config`, the container's `Config.Cmd` and `docker ps`/`docker
+inspect` command output. Limitation: golang-migrate offers no environment or file
+form of `-database`, so the running `migrate` process still has the URL in its
+argv (visible to `docker top` / `/proc` for host root and the docker group only).
+The container is short-lived, read-only and has no capabilities. To remove it
+completely, build the URL without the password and pass `PGUSER`/`PGPASSWORD`
+(lib/pq reads them); that changes how `DATABASE_URL` is composed, so it is left
+as a follow-up. If the Dockerfile for `migrate/migrate` ever loses `/bin/sh`
+this entrypoint breaks; the image is digest-pinned, so that can only happen on a
+deliberate bump.
+
+Recommended GitHub settings (cannot be set from the repository; an admin must
+configure them):
+
+- Environment `production`: Required reviewers (at least one person who is not
+  the pusher, with "Prevent self-review" on); Deployment branches and tags limited
+  to `main` (selected branches, not "all"); keep "Allow administrators to bypass"
+  off; move the production secrets out of repository-level secrets so only this
+  environment holds them.
+- Fork pull requests: workflows triggered by a fork PR run without repository or
+  environment secrets and with a read-only `GITHUB_TOKEN`, and `deploy` is gated
+  on `refs/heads/main` push/dispatch anyway. In Settings > Actions > General set
+  "Fork pull request workflows" to require approval for all outside
+  collaborators, and keep "Send write tokens to workflows from fork pull requests"
+  and "Send secrets to workflows from fork pull requests" off.
+- Self-hosted runner: dedicated host for `rolecue-production`, not shared with
+  other repositories, ephemeral or at least cleaned between runs
+  (`_work` can retain checked-out files), and restricted to this repository in
+  its runner group so a pull-request workflow cannot target it.
+- Note the NEXT_PUBLIC_* build secrets used in `images`/`e2e` are public values by
+  design (they are embedded in the browser bundle), so they are not a concern here.

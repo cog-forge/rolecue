@@ -44,12 +44,15 @@ services:
   migrate:
     image: migrate/migrate:v4.19.0@sha256:d5c978181e3bfa55cc50e3bd8d7da3d87418a87693453250a8804b81ee6494db
     container_name: rolecue-migrate
-    command:
-      - -path
-      - /migrations
-      - -database
-      - ${DATABASE_URL:?Set DATABASE_URL}
-      - up
+    # The URL is handed over as an environment variable and expanded by the
+    # container's own shell, so it no longer appears in the compose command
+    # (`docker compose config`, `docker inspect` Config.Cmd, `docker ps` output).
+    # golang-migrate has no env/file option for -database, so the migrate process
+    # argv inside the container still carries it; see docs/security-notes.md.
+    entrypoint: ["/bin/sh", "-c"]
+    command: ['exec migrate -path /migrations -database "$$DATABASE_URL" up']
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL}
     restart: "no"
     <<: *hardening
     read_only: true
