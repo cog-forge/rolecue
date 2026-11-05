@@ -35,6 +35,13 @@ type Config struct {
 	Evaluation       EvaluationConfig       `mapstructure:"evaluation"`
 	AvatarConversion AvatarConversionConfig `mapstructure:"avatar_conversion"`
 	Jobs             JobsConfig             `mapstructure:"jobs"`
+	Profile          ProfileConfig          `mapstructure:"profile"`
+}
+
+// ProfileConfig holds profile settings. ImageHosts lists the hosts a profile image URL may point to
+// (exact host names, or "*.example.com" for subdomains); empty means the built-in defaults.
+type ProfileConfig struct {
+	ImageHosts []string `mapstructure:"image_hosts"`
 }
 
 type AppConfig struct {
@@ -356,6 +363,7 @@ func Load(configPath string) (*Config, error) {
 		"storage.access_key_id":                   "S3_ACCESS_KEY_ID",
 		"storage.secret_access_key":               "S3_SECRET_ACCESS_KEY",
 		"storage.session_token":                   "S3_SESSION_TOKEN",
+		"profile.image_hosts":                     "PROFILE_IMAGE_HOSTS",
 		"storage.sse":                             "STORAGE_SSE",
 		"storage.sse_kms_key_id":                  "STORAGE_SSE_KMS_KEY_ID",
 		"database.url":                            "DATABASE_URL",

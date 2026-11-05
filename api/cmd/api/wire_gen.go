@@ -71,7 +71,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	roleProfileDocumentApplication := provider.ProvideRoleProfileDocumentApplication(roleProfileRepository, store)
 	roleProfileHandler := provider.ProvideRoleProfileHandler(roleProfileApplication, roleProfileDocumentApplication)
 	repository2 := provider.ProvideProfileRepository(pool)
-	serviceService := provider.ProvideProfileService(repository2)
+	serviceService := provider.ProvideProfileService(config, repository2)
 	profileHandler := provider.ProvideProfileHandler(serviceService)
 	repository3 := provider.ProvideWalletRepository(pool)
 	client := provider.ProvidePayOSClient(config)
