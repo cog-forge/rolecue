@@ -14,7 +14,7 @@ RUN node -e 'const u = new URL(process.env.NEXT_PUBLIC_API_BASE_URL); if (!["htt
     && bun run build
 
 # A minimal, patched runtime avoids shipping npm and Debian administration packages.
-FROM cgr.dev/chainguard/node:latest@sha256:88c4f6e6941bdd4fb9039d98ad05384e1bfe5693dd31ccc8eb2f0c8522bdb40e AS runtime
+FROM cgr.dev/chainguard/node:latest@sha256:4ad7301975908b87d321af8b9ed41630dc69015976269965ee459c27541df252 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
 COPY --from=build --chown=65532:65532 /app/.next/standalone ./
