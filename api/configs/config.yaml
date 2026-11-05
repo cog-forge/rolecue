@@ -84,6 +84,18 @@ llm:
   model: gemini-3.1-flash-lite
   timeout: 30s
   max_retries: 1
+  max_output_tokens: 4096  # cap of one completion; 0 = provider default
+  user_daily_call_budget: 200  # LLM operations one user may start per UTC day; 0 = unlimited (LLM_USER_DAILY_CALL_BUDGET)
+
+# Request limits (KAN-277): in-memory token buckets, per API instance. per_minute 0 turns a limiter off.
+rate_limit:
+  enabled: true
+  llm_per_minute: 10  # per user, routes that start an LLM call
+  llm_burst: 5
+  expensive_per_minute: 20  # per user, wallet checkout/sync and uploads
+  expensive_burst: 10
+  ip_per_minute: 120  # per client address (c.ClientIP) on the same routes
+  ip_burst: 40
 
 storage:
   endpoint: ""

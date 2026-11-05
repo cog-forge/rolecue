@@ -102,6 +102,7 @@ const (
 	CodeInterviewNotCompleted      Code = "INTERVIEW_NOT_COMPLETED"
 	CodeEvaluationAttemptsExceeded Code = "EVALUATION_ATTEMPTS_EXCEEDED"
 	CodeRateLimited                Code = "RATE_LIMITED"
+	CodeLLMBudgetExceeded          Code = "LLM_BUDGET_EXCEEDED"
 	CodeFinalReviewLocked          Code = "FINAL_REVIEW_LOCKED"
 	CodeApplicationNotInterviewed  Code = "APPLICATION_NOT_INTERVIEWED"
 	CodeRecordingNotFound          Code = "RECORDING_NOT_FOUND"

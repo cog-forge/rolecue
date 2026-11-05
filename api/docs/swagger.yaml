@@ -81,6 +81,7 @@ definitions:
     - INTERVIEW_NOT_COMPLETED
     - EVALUATION_ATTEMPTS_EXCEEDED
     - RATE_LIMITED
+    - LLM_BUDGET_EXCEEDED
     - FINAL_REVIEW_LOCKED
     - APPLICATION_NOT_INTERVIEWED
     - RECORDING_NOT_FOUND
@@ -168,6 +169,7 @@ definitions:
     - CodeInterviewNotCompleted
     - CodeEvaluationAttemptsExceeded
     - CodeRateLimited
+    - CodeLLMBudgetExceeded
     - CodeFinalReviewLocked
     - CodeApplicationNotInterviewed
     - CodeRecordingNotFound
