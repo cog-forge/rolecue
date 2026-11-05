@@ -42,7 +42,7 @@ func NewAvatarCreateHandler(service AvatarCreateService, maxSize int64, timeout 
 // @Param file formData file true "Avaturn T2 binary GLB"
 // @Param metadata formData string true "JSON with name and personality"
 // @Success 201 {object} response.Envelope{data=domain.Avatar}
-// @Failure 400,401,403,409,413,422,503 {object} response.Envelope
+// @Failure 400,401,403,409,413,422,429,503 {object} response.Envelope
 // @Router /inventory/avatars [post]
 func (h *AvatarCreateHandler) Create(c *gin.Context) {
 	user, ok := inventoryUser(c)

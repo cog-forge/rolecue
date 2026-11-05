@@ -35,6 +35,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeAvatarConverterUnavailable:      http.StatusServiceUnavailable,
 	apperror.CodeAvatarConversionFailed:          http.StatusBadGateway,
 	apperror.CodeAvatarConversionTimeout:         http.StatusGatewayTimeout,
+	apperror.CodeAvatarConversionQuota:           http.StatusTooManyRequests,
 	apperror.CodeAvatarPersistenceFailed:         http.StatusServiceUnavailable,
 	apperror.CodeAvatarNotFound:                  http.StatusNotFound,
 	apperror.CodeAvatarInUse:                     http.StatusConflict,

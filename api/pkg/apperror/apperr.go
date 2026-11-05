@@ -19,6 +19,7 @@ const (
 	CodeAvatarConverterUnavailable Code = "AVATAR_CONVERTER_UNAVAILABLE"
 	CodeAvatarConversionFailed     Code = "AVATAR_CONVERSION_FAILED"
 	CodeAvatarConversionTimeout    Code = "AVATAR_CONVERSION_TIMEOUT"
+	CodeAvatarConversionQuota      Code = "AVATAR_CONVERSION_QUOTA"
 	CodeAvatarPersistenceFailed    Code = "AVATAR_PERSISTENCE_FAILED"
 	CodeAvatarNotFound             Code = "AVATAR_NOT_FOUND"
 	CodeAvatarInUse                Code = "AVATAR_IN_USE"

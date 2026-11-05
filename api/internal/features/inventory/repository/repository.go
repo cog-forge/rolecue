@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/inventory/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ledger"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -125,6 +127,15 @@ func (r *Repository) List(ctx context.Context, owner uuid.UUID, limit, offset in
 		return nil, 0, persistenceError(err)
 	}
 	return items, total, nil
+}
+
+// CountRecentAvatars is how many avatars the owner created since the given time.
+func (r *Repository) CountRecentAvatars(ctx context.Context, owner uuid.UUID, since time.Time) (int64, error) {
+	count, err := New(r.pool).CountRecentInventoryAvatars(ctx, CountRecentInventoryAvatarsParams{OwnerID: owner, Since: pgtype.Timestamptz{Time: since, Valid: true}})
+	if err != nil {
+		return 0, persistenceError(err)
+	}
+	return count, nil
 }
 
 func (r *Repository) Get(ctx context.Context, owner, id uuid.UUID) (domain.StoredAvatar, error) {

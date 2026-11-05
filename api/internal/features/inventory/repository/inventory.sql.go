@@ -25,6 +25,25 @@ func (q *Queries) CountInventoryAvatars(ctx context.Context, userID uuid.UUID) (
 	return column_1, err
 }
 
+const countRecentInventoryAvatars = `-- name: CountRecentInventoryAvatars :one
+SELECT count(*)::bigint FROM public.avatars a
+JOIN public.inventories i ON i.id = a.inventory_id
+WHERE i.user_id = $1 AND a.created_at >= $2::timestamptz
+`
+
+type CountRecentInventoryAvatarsParams struct {
+	OwnerID uuid.UUID
+	Since   pgtype.Timestamptz
+}
+
+// Avatars the owner created since a point in time: the persisted side of the daily conversion quota.
+func (q *Queries) CountRecentInventoryAvatars(ctx context.Context, arg CountRecentInventoryAvatarsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentInventoryAvatars, arg.OwnerID, arg.Since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteInventoryAvatar = `-- name: DeleteInventoryAvatar :execrows
 DELETE FROM public.avatars a USING public.inventories i
 WHERE a.inventory_id = i.id AND i.user_id = $1

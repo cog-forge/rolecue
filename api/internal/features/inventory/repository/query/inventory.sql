@@ -30,6 +30,12 @@ SELECT count(*)::bigint FROM public.avatars a
 JOIN public.inventories i ON i.id = a.inventory_id
 WHERE i.user_id = $1;
 
+-- Avatars the owner created since a point in time: the persisted side of the daily conversion quota.
+-- name: CountRecentInventoryAvatars :one
+SELECT count(*)::bigint FROM public.avatars a
+JOIN public.inventories i ON i.id = a.inventory_id
+WHERE i.user_id = sqlc.arg(owner_id) AND a.created_at >= sqlc.arg(since)::timestamptz;
+
 -- name: ListInventoryAvatars :many
 SELECT a.id, a.name, a.personality, a.created_at, a.updated_at
 FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id

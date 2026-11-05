@@ -418,6 +418,8 @@ func Load(configPath string) (*Config, error) {
 		"interview.live_recheck_interval":                 "INTERVIEW_LIVE_RECHECK_INTERVAL",
 		"interview.live_message_rate":                     "INTERVIEW_LIVE_MESSAGE_RATE",
 		"interview.live_message_burst":                    "INTERVIEW_LIVE_MESSAGE_BURST",
+		"avatar_conversion.user_daily_quota":              "AVATAR_CONVERSION_USER_DAILY_QUOTA",
+		"avatar_conversion.user_max_inflight":             "AVATAR_CONVERSION_USER_MAX_INFLIGHT",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -556,6 +558,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("avatar_conversion.timeout", "120s")
 	v.SetDefault("avatar_conversion.max_input_bytes", 50<<20)
 	v.SetDefault("avatar_conversion.max_output_bytes", 100<<20)
+	v.SetDefault("avatar_conversion.user_daily_quota", 20)
+	v.SetDefault("avatar_conversion.user_max_inflight", 1)
 }
 
 // Validate checks configuration integrity and security constraints.
