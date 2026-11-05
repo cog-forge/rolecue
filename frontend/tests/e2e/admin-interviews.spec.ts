@@ -187,6 +187,7 @@ test("admin sidebar lists only the confirmed Admin screens", async ({
     "Accounts",
     "Job Posting Moderation",
     "Interview Sessions",
+    "Access Audit",
     "Voice Profiles",
     "Payment Transactions",
     "Revenue Reports",

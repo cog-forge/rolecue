@@ -426,7 +426,9 @@ test("recruitment: start from the Application with the company's interviewer, fo
     page.getByRole("heading", { name: "This interview is recorded" }),
   ).toBeVisible();
   await expect(
-    page.getByText("It is deleted 90 days after the hiring decision."),
+    page.getByText("It is deleted 90 days after the hiring decision.", {
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
     page.getByText(

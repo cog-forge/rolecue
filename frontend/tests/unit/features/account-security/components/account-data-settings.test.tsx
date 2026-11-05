@@ -89,7 +89,7 @@ describe("DeleteAccountSettings", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Delete my account" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Close your open job postings",
+      "You cannot delete your account",
     );
     expect(endLocalSession).not.toHaveBeenCalled();
     expect(signOut).not.toHaveBeenCalled();

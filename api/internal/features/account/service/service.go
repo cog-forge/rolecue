@@ -57,7 +57,7 @@ func (s *Service) Erase(ctx context.Context, user authdomain.User, confirm strin
 		return apperror.New(apperror.CodeAdminCannotSelfDelete, "administrator accounts cannot be deleted here")
 	}
 	confirm = strings.TrimSpace(confirm)
-	if confirm != domain.ErasureConfirmation && !(user.Email != "" && strings.EqualFold(confirm, user.Email)) {
+	if confirm != domain.ErasureConfirmation && (user.Email == "" || !strings.EqualFold(confirm, user.Email)) {
 		return apperror.New(apperror.CodeValidation, `confirm must be "DELETE" or your email address`)
 	}
 	work, err := s.repository.ActiveWork(ctx, user.ID)
