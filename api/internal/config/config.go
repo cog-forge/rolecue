@@ -50,6 +50,8 @@ type ServerConfig struct {
 	ReadTimeout     time.Duration `mapstructure:"read_timeout"`
 	WriteTimeout    time.Duration `mapstructure:"write_timeout"`
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
+	// TrustedProxies lists the reverse proxies (IPs or CIDRs) whose X-Forwarded-For is believed.
+	TrustedProxies []string `mapstructure:"trusted_proxies"`
 }
 
 type DatabaseConfig struct {
@@ -329,6 +331,7 @@ func Load(configPath string) (*Config, error) {
 		"database.name":              "DB_DATABASE",
 		"database.user":              "DB_USERNAME",
 		"database.password":          "DB_PASSWORD",
+		"server.trusted_proxies":     "SERVER_TRUSTED_PROXIES",
 		"database.port":              "DB_PORT",
 		"auth.public_url":            "AUTH_BASE_URL",
 		"auth.admin_secret":          "ADMIN_AUTH_INTERNAL_SECRET",
@@ -440,6 +443,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.read_timeout", "10s")
 	v.SetDefault("server.write_timeout", "30s")
 	v.SetDefault("server.shutdown_timeout", "5s")
+	v.SetDefault("server.trusted_proxies", DefaultTrustedProxies)
 
 	// Database defaults
 	v.SetDefault("database.host", "localhost")
@@ -525,6 +529,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.AvatarConversion.Validate(); err != nil {
+		return err
+	}
+	if err := validateTrustedProxies(c.Server.TrustedProxies); err != nil {
 		return err
 	}
 	if c.CORS.AllowCredentials {

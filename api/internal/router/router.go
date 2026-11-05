@@ -89,12 +89,25 @@ func NewRouter(
 	}
 }
 
+// applyTrustedProxies limits whose X-Forwarded-For header c.ClientIP() believes to the configured
+// proxies. Gin trusts every peer by default, which lets any client forge its logged address. An
+// entry that cannot be parsed (Config.Validate normally stops it first) leaves no proxy trusted.
+func (r *Router) applyTrustedProxies(engine *gin.Engine) {
+	if err := engine.SetTrustedProxies(r.cfg.Server.TrustedProxies); err != nil {
+		_ = engine.SetTrustedProxies(nil)
+		if r.logger != nil {
+			r.logger.Error("invalid server.trusted_proxies; trusting no proxy", logger.Error(err))
+		}
+	}
+}
+
 func (r *Router) Setup() *gin.Engine {
 	if r.cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	router := gin.New()
+	r.applyTrustedProxies(router)
 
 	// Core middlewares
 	router.Use(middleware.RequestIDMiddleware(r.logger))
