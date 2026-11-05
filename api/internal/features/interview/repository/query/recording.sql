@@ -92,8 +92,8 @@ WHERE i.id = stale.id AND i.record_status = stale.record_status
 RETURNING i.id, stale.record_status AS previous_status;
 
 -- Recordings past retention: a stored object of a recruitment interview whose Application reached its
--- final decision before @decided_before. applications has no decision timestamp; updated_at is the time
--- of the final decision because a terminal Application (approved or rejected) is never updated again.
+-- final decision before @decided_before. decided_at is the time
+-- of the final decision, set once when the Application became approved or rejected (KAN-305).
 -- Undecided Applications are never listed.
 -- name: ListExpiredRecordings :many
 SELECT i.id, i.record_path::text AS record_path
@@ -102,8 +102,8 @@ JOIN public.applications a ON a.id = i.application_id
 WHERE i.type = 'recruitment'
   AND i.record_path IS NOT NULL
   AND a.status IN ('approved', 'rejected')
-  AND a.updated_at < @decided_before::timestamptz
-ORDER BY a.updated_at, i.id
+  AND a.decided_at < @decided_before::timestamptz
+ORDER BY a.decided_at, i.id
 LIMIT @batch_size;
 
 -- Clears a purged recording: the key is gone and the status says it was deleted after retention. The key

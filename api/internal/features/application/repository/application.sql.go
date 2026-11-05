@@ -490,7 +490,7 @@ func (q *Queries) LockPostingByID(ctx context.Context, id uuid.UUID) (string, er
 
 const rejectCV = `-- name: RejectCV :one
 UPDATE public.applications
-SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
+SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE id = $2 AND job_posting_id = $3 AND status = 'pending'
 RETURNING id, job_posting_id, status::text AS status, interview_deadline, reject_reason, updated_at
 `
@@ -526,7 +526,7 @@ func (q *Queries) RejectCV(ctx context.Context, arg RejectCVParams) (RejectCVRow
 
 const rejectPendingApplications = `-- name: RejectPendingApplications :many
 UPDATE public.applications
-SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
+SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE job_posting_id = $2 AND status = 'pending'
 RETURNING id
 `
@@ -561,7 +561,7 @@ func (q *Queries) RejectPendingApplications(ctx context.Context, arg RejectPendi
 const setApplicationDecision = `-- name: SetApplicationDecision :execrows
 UPDATE public.applications
 SET status = $1::text::public.application_status,
-    reject_reason = $2, updated_at = statement_timestamp()
+    reject_reason = $2, updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE id = $3 AND job_posting_id = $4 AND status = 'interviewed'
 `
 

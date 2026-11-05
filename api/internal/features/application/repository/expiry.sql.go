@@ -90,7 +90,7 @@ func (q *Queries) LockUnfinishedInterviewsForExpiry(ctx context.Context, arg Loc
 
 const rejectExpiredApplications = `-- name: RejectExpiredApplications :many
 UPDATE public.applications a
-SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
+SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE a.job_posting_id = $2
   AND a.status = 'interview_eligible'
   AND a.interview_deadline < $3::timestamptz

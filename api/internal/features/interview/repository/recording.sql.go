@@ -195,8 +195,8 @@ JOIN public.applications a ON a.id = i.application_id
 WHERE i.type = 'recruitment'
   AND i.record_path IS NOT NULL
   AND a.status IN ('approved', 'rejected')
-  AND a.updated_at < $1::timestamptz
-ORDER BY a.updated_at, i.id
+  AND a.decided_at < $1::timestamptz
+ORDER BY a.decided_at, i.id
 LIMIT $2
 `
 
@@ -211,8 +211,8 @@ type ListExpiredRecordingsRow struct {
 }
 
 // Recordings past retention: a stored object of a recruitment interview whose Application reached its
-// final decision before @decided_before. applications has no decision timestamp; updated_at is the time
-// of the final decision because a terminal Application (approved or rejected) is never updated again.
+// final decision before @decided_before. decided_at is the time
+// of the final decision, set once when the Application became approved or rejected (KAN-305).
 // Undecided Applications are never listed.
 func (q *Queries) ListExpiredRecordings(ctx context.Context, arg ListExpiredRecordingsParams) ([]ListExpiredRecordingsRow, error) {
 	rows, err := q.db.Query(ctx, listExpiredRecordings, arg.DecidedBefore, arg.BatchSize)
