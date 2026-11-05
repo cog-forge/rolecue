@@ -42,7 +42,7 @@ services:
     networks: [private]
 
   migrate:
-    image: migrate/migrate:v4.19.0@sha256:d5c978181e3bfa55cc50e3bd8d7da3d87418a87693453250a8804b81ee6494db
+    image: migrate/migrate:v4.20.1@sha256:76cc2074cb6642631f34a898ced71e6aeaa6b1a4d78c4daa743275a22e0c5be7
     container_name: rolecue-migrate
     # The URL is handed over as an environment variable and expanded by the
     # container's own shell, so it no longer appears in the compose command
