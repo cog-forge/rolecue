@@ -22,7 +22,7 @@ for file in files:
     path = Path(file)
     try:
         if check == "credentials":
-            if (path.name.startswith(".env") and path.name != ".env.example") or ".aws" in path.parts or path.suffix in (".pem", ".key", ".p12", ".pfx"):
+            if (path.name.startswith(".env") and path.name != ".env.example") or path.name.endswith(".env") or ".aws" in path.parts or path.suffix in (".pem", ".key", ".p12", ".pfx"):
                 raise ValueError("credential/environment file must not be committed")
         else:
             text = path.read_text(encoding="utf-8")

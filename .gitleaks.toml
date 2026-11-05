@@ -1,0 +1,15 @@
+title = "RoleCue secret scanning"
+
+[extend]
+useDefault = true
+
+# Fixtures and templates carry placeholder values only.
+[allowlist]
+description = "Test fixtures and example templates"
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''(^|/)deploy\.env\.example$''',
+  '''(^|/)tests?/''',
+  '''_test\.go$''',
+  '''\.test\.tsx?$''',
+]
