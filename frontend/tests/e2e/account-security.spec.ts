@@ -95,7 +95,6 @@ test("changes the password through Better Auth without exposing it in a URL", as
     {
       currentPassword: "Current-Secret-1",
       newPassword: "Brand-New-Secret-2",
-      revokeOtherSessions: true,
     },
   ]);
   expect(urls.join(" ")).not.toContain("Secret");

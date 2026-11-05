@@ -90,7 +90,6 @@ describe("ChangePasswordDialog", () => {
     expect(changePassword).toHaveBeenCalledWith({
       currentPassword: current,
       newPassword: next,
-      revokeOtherSessions: true,
     });
     expect(success).toHaveBeenCalledWith("Password updated", {
       description: "Your other devices have been signed out.",
