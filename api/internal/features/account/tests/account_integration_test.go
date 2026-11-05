@@ -235,20 +235,18 @@ func TestEraseRecruiterRefusedWhileWorkIsActive(t *testing.T) {
 		t.Fatalf("a refused recruiter lost data: deleted %v", f.store.deleted)
 	}
 
-	// Once the posting is closed and the application decided nothing is in flight.
+	// Closing the posting and deciding the application is not enough: erasing the Recruiter would delete
+	// the other Candidate's CV, recording and history, so it stays refused until a person removes them.
 	f.exec(`UPDATE public.job_postings SET status = 'closed' WHERE id = $1`, posting)
 	f.exec(`UPDATE public.applications SET status = 'rejected' WHERE id = $1`, app)
-	if err := f.svc.Erase(f.ctx, recruiter, "DELETE"); err != nil {
-		t.Fatal(err)
+	if err := f.svc.Erase(f.ctx, recruiter, "DELETE"); !apperror.IsCode(err, apperror.CodeAccountHasActiveWork) {
+		t.Fatalf("erase after closing = %v, want ACCOUNT_HAS_ACTIVE_WORK", err)
 	}
-	if f.count(`SELECT count(*) FROM public.job_postings WHERE id = $1`, posting) != 0 {
-		t.Fatal("the posting survived")
+	if f.count(`SELECT count(*) FROM public.applications WHERE id = $1`, app) != 1 {
+		t.Fatal("the other Candidate's application was removed")
 	}
-	if f.count(`SELECT count(*) FROM public.users WHERE id = $1`, carol.ID) != 1 {
-		t.Fatal("the other candidate's account was deleted")
-	}
-	if got := sorted(f.store.deleted); fmt.Sprint(got) != fmt.Sprint(sorted([]string{jdKey, cvKey, f.recordKeyOf(app)})) {
-		t.Fatalf("deleted keys = %v", got)
+	if len(f.store.deleted) != 0 {
+		t.Fatalf("storage objects were deleted for a refused erasure: %v", f.store.deleted)
 	}
 }
 
