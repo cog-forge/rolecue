@@ -48,7 +48,8 @@ func NewAzure(key, region string, timeout time.Duration) (*Azure, error) {
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
-	a.client = &http.Client{Timeout: timeout}
+	// Redirects are refused so the subscription key header never follows one to another host.
+	a.client = &http.Client{Timeout: timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	if key == "" || region == "" {
 		return a, nil
 	}

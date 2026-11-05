@@ -83,8 +83,13 @@ func (h *WalletHandler) ListTransactions(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	// 32-bit parsing rejects a value that int32(...) would silently wrap into a different page.
+	page, pageErr := strconv.ParseInt(c.DefaultQuery("page", "1"), 10, 32)
+	pageSize, sizeErr := strconv.ParseInt(c.DefaultQuery("page_size", "20"), 10, 32)
+	if pageErr != nil || sizeErr != nil {
+		response.Error(c, apperror.New(apperror.CodeValidation, "page and page_size must be integers within 32-bit range"))
+		return
+	}
 
 	txs, total, err := h.service.ListTransactions(c.Request.Context(), user.ID, int32(page), int32(pageSize))
 	if err != nil {
