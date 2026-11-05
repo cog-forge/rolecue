@@ -61,9 +61,12 @@ export async function deleteAvatar(id: string) {
   if (response.status !== 204) throw new UnexpectedResponseError();
 }
 
-export async function purchaseSlots(amount: number) {
+// The Idempotency-Key makes a repeat of the same purchase (double click, retry after a timeout) charge once.
+export async function purchaseSlots(amount: number, idempotencyKey: string) {
   const body = purchaseFormSchema.parse({ amount });
-  const response = await apiClient.post<unknown>("/inventory/purchase", body);
+  const response = await apiClient.post<unknown>("/inventory/purchase", body, {
+    headers: { "Idempotency-Key": idempotencyKey },
+  });
   return purchaseEnvelopeSchema.parse(response.data).data;
 }
 

@@ -25,6 +25,7 @@ type fakeRepository struct {
 	purchase       domain.SlotPurchase
 	purchaseOwner  uuid.UUID
 	purchaseAmount int32
+	purchaseKey    string
 	err            error
 }
 
@@ -48,7 +49,8 @@ func (r *fakeRepository) Delete(_ context.Context, owner, id uuid.UUID) error {
 	r.owner, r.id = owner, id
 	return r.err
 }
-func (r *fakeRepository) PurchaseSlot(_ context.Context, owner uuid.UUID, amount int32) (domain.SlotPurchase, error) {
+func (r *fakeRepository) PurchaseSlot(_ context.Context, owner uuid.UUID, amount int32, key string) (domain.SlotPurchase, error) {
+	r.purchaseKey = key
 	r.calls++
 	r.owner, r.purchaseOwner, r.purchaseAmount = owner, owner, amount
 	return r.purchase, r.err
@@ -102,7 +104,7 @@ func TestServiceAuthorization(t *testing.T) {
 		}},
 		{"delete", func(s *Service, u authdomain.User) error { return s.Delete(context.Background(), u, uuid.New()) }},
 		{"purchase", func(s *Service, u authdomain.User) error {
-			_, err := s.PurchaseSlot(context.Background(), u, 1)
+			_, err := s.PurchaseSlot(context.Background(), u, 1, "")
 			return err
 		}},
 	}
@@ -273,7 +275,7 @@ func TestServicePurchaseSlot(t *testing.T) {
 		want := domain.SlotPurchase{Capacity: domain.Capacity{Capacity: 3 + amount, Used: 1, Available: int64(2 + amount)}, Balance: 7}
 		repo := &fakeRepository{purchase: want}
 
-		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), user, amount)
+		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), user, amount, "")
 		if err != nil {
 			t.Fatalf("purchase %d slots: %v", amount, err)
 		}
@@ -286,10 +288,20 @@ func TestServicePurchaseSlot(t *testing.T) {
 	}
 }
 
+func TestServicePurchaseSlotPassesTheIdempotencyKey(t *testing.T) {
+	repo := &fakeRepository{}
+	if _, err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), 2, "attempt-1"); err != nil {
+		t.Fatalf("PurchaseSlot() error = %v", err)
+	}
+	if repo.purchaseKey != "attempt-1" {
+		t.Fatalf("repository key = %q, want attempt-1", repo.purchaseKey)
+	}
+}
+
 func TestServicePurchaseSlotRejectsInvalidAmounts(t *testing.T) {
 	for _, amount := range []int32{0, -1, domain.MaxSlotsPerPurchase + 1, 1 << 30} {
 		repo := &fakeRepository{}
-		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), amount)
+		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), amount, "")
 		if !apperror.IsCode(err, apperror.CodeValidation) {
 			t.Fatalf("amount %d: want VALIDATION_ERROR, got %v", amount, err)
 		}
@@ -305,7 +317,7 @@ func TestServicePurchaseSlotPassesRepositoryErrorsThrough(t *testing.T) {
 		errors.New("database unavailable"),
 	} {
 		repo := &fakeRepository{err: cause}
-		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), 2)
+		got, err := NewService(repo, nil).PurchaseSlot(context.Background(), inventoryUser(), 2, "")
 		if !errors.Is(err, cause) {
 			t.Fatalf("repository error lost: %v", err)
 		}

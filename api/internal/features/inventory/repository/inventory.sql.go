@@ -112,6 +112,24 @@ func (q *Queries) GetInventoryCapacity(ctx context.Context, userID uuid.UUID) (G
 	return i, err
 }
 
+const getSlotPurchaseByKey = `-- name: GetSlotPurchaseByKey :one
+SELECT amount FROM public.transactions
+WHERE "from" = $1 AND idempotency_key = $2
+`
+
+type GetSlotPurchaseByKeyParams struct {
+	Payer          string
+	IdempotencyKey *string
+}
+
+// The ledger row of an earlier purchase with this Idempotency-Key, read under the inventory row lock.
+func (q *Queries) GetSlotPurchaseByKey(ctx context.Context, arg GetSlotPurchaseByKeyParams) (int32, error) {
+	row := q.db.QueryRow(ctx, getSlotPurchaseByKey, arg.Payer, arg.IdempotencyKey)
+	var amount int32
+	err := row.Scan(&amount)
+	return amount, err
+}
+
 const insertInventoryAvatar = `-- name: InsertInventoryAvatar :one
 INSERT INTO public.avatars (inventory_id, name, model_path, personality)
 SELECT i.id, $1::text, $2::text, $3::text
@@ -227,18 +245,23 @@ func (q *Queries) LockInventoryOwner(ctx context.Context, id uuid.UUID) (uuid.UU
 	return id_2, err
 }
 
-const updateInventorySlot = `-- name: UpdateInventorySlot :exec
+const updateInventorySlot = `-- name: UpdateInventorySlot :execrows
 UPDATE public.inventories
 SET slot = slot + $1
-WHERE user_id = $2
+WHERE user_id = $2 AND slot + $1 <= $3::integer
 `
 
 type UpdateInventorySlotParams struct {
-	Amount int32
-	UserID uuid.UUID
+	Amount   int32
+	UserID   uuid.UUID
+	MaxSlots int32
 }
 
-func (q *Queries) UpdateInventorySlot(ctx context.Context, arg UpdateInventorySlotParams) error {
-	_, err := q.db.Exec(ctx, updateInventorySlot, arg.Amount, arg.UserID)
-	return err
+// Zero rows means the purchase would pass max_slots.
+func (q *Queries) UpdateInventorySlot(ctx context.Context, arg UpdateInventorySlotParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateInventorySlot, arg.Amount, arg.UserID, arg.MaxSlots)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

@@ -165,7 +165,7 @@ func TestPurchaseDebitsTheLedgerAndReturnsTheSummary(t *testing.T) {
 	svc := newService(pool)
 	user := s.candidate(coins(5))
 
-	got, err := svc.PurchaseSlot(ctx, user, 2)
+	got, err := svc.PurchaseSlot(ctx, user, 2, "")
 	if err != nil {
 		t.Fatalf("PurchaseSlot() error = %v", err)
 	}
@@ -211,7 +211,7 @@ func TestConcurrentPurchasesNeverLoseAnUpdate(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			_, errs[i] = svc.PurchaseSlot(ctx, user, 3)
+			_, errs[i] = svc.PurchaseSlot(ctx, user, 3, "")
 		}()
 	}
 	close(start)
@@ -232,6 +232,101 @@ func TestConcurrentPurchasesNeverLoseAnUpdate(t *testing.T) {
 	}
 }
 
+// TestDuplicateKeyedPurchasesChargeOnce submits the same purchase eight times at once with one
+// Idempotency-Key, the way a double click or a client retry does. The wallet is debited once, the
+// capacity grows once and there is one ledger row; every submit answers with the same summary shape.
+func TestDuplicateKeyedPurchasesChargeOnce(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(pool)
+	user := s.candidate(coins(10))
+
+	const submits = 8
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	errs := make([]error, submits)
+	for i := range errs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, errs[i] = svc.PurchaseSlot(ctx, user, 3, "double-click-1")
+		}()
+	}
+	close(start)
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("submit #%d error = %v", i+1, err)
+		}
+	}
+	if balance, _ := s.wallet(user.ID); balance != 7 {
+		t.Fatalf("balance = %d, want 7 (charged once)", balance)
+	}
+	if slot := s.slots(user.ID); slot != domain.InitialCapacity+3 {
+		t.Fatalf("capacity = %d, want %d", slot, domain.InitialCapacity+3)
+	}
+	if rows := s.ledgerRows(user.ID); len(rows) != 1 || rows[0].amount != 3 {
+		t.Fatalf("ledger rows = %+v, want exactly one debit of 3", rows)
+	}
+
+	// A replay after the fact returns the current state and still charges nothing.
+	again, err := svc.PurchaseSlot(ctx, user, 3, "double-click-1")
+	if err != nil || again.Balance != 7 || again.Capacity.Capacity != domain.InitialCapacity+3 {
+		t.Fatalf("replay = %+v, %v, want balance 7 and capacity %d", again, err, domain.InitialCapacity+3)
+	}
+	// A new key is a new purchase, and the same key with another amount is refused.
+	if _, err := svc.PurchaseSlot(ctx, user, 2, "double-click-2"); err != nil {
+		t.Fatalf("second purchase error = %v", err)
+	}
+	if _, err := svc.PurchaseSlot(ctx, user, 4, "double-click-2"); !apperror.IsCode(err, apperror.CodeValidation) {
+		t.Fatalf("reused key with another amount error = %v, want VALIDATION_ERROR", err)
+	}
+	if balance, _ := s.wallet(user.ID); balance != 5 {
+		t.Fatalf("balance = %d, want 5 after two distinct purchases", balance)
+	}
+}
+
+// Another user may reuse a key: it is scoped to the payer.
+func TestIdempotencyKeysAreScopedToThePayer(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(pool)
+	first, second := s.candidate(coins(5)), s.candidate(coins(5))
+	for _, user := range []authdomain.User{first, second} {
+		if _, err := svc.PurchaseSlot(ctx, user, 1, "shared-key"); err != nil {
+			t.Fatalf("PurchaseSlot() error = %v", err)
+		}
+		if balance, _ := s.wallet(user.ID); balance != 4 {
+			t.Fatalf("balance = %d, want 4", balance)
+		}
+	}
+}
+
+// TestPurchasePastTheMaximumIsRefusedAndNotCharged proves the cap is enforced in SQL: a purchase that
+// would pass MaxInventorySlots is INVENTORY_FULL and rolls the debit back.
+func TestPurchasePastTheMaximumIsRefusedAndNotCharged(t *testing.T) {
+	ctx, pool := openPool(t)
+	s := newSeed(t, ctx, pool)
+	svc := newService(pool)
+	user := s.candidate(coins(50))
+	s.exec(`INSERT INTO public.inventories (user_id, slot) VALUES ($1, $2)`, user.ID, domain.MaxInventorySlots-1)
+
+	if _, err := svc.PurchaseSlot(ctx, user, 2, ""); !apperror.IsCode(err, apperror.CodeInventoryFull) {
+		t.Fatalf("PurchaseSlot() error = %v, want INVENTORY_FULL", err)
+	}
+	if balance, _ := s.wallet(user.ID); balance != 50 {
+		t.Fatalf("balance = %d, want 50 (debit rolled back)", balance)
+	}
+	if rows := s.ledgerRows(user.ID); len(rows) != 0 {
+		t.Fatalf("ledger rows = %+v, want none", rows)
+	}
+	got, err := svc.PurchaseSlot(ctx, user, 1, "")
+	if err != nil || got.Capacity.Capacity != domain.MaxInventorySlots {
+		t.Fatalf("PurchaseSlot() = %+v, %v, want capacity %d", got, err, domain.MaxInventorySlots)
+	}
+}
+
 // TestPurchaseKeepsAConcurrentTopUp runs a purchase and a ledger credit at once. The purchase never
 // writes an absolute balance it read earlier, so the credit is kept.
 func TestPurchaseKeepsAConcurrentTopUp(t *testing.T) {
@@ -247,7 +342,7 @@ func TestPurchaseKeepsAConcurrentTopUp(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		<-start
-		_, purchaseErr = svc.PurchaseSlot(ctx, user, 4)
+		_, purchaseErr = svc.PurchaseSlot(ctx, user, 4, "")
 	}()
 	go func() {
 		defer wg.Done()
@@ -287,7 +382,7 @@ func TestPurchaseRefusalsWriteNothing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			s := newSeed(t, ctx, pool)
 			user := s.candidate(tc.balance)
-			got, err := svc.PurchaseSlot(ctx, user, tc.amount)
+			got, err := svc.PurchaseSlot(ctx, user, tc.amount, "")
 			if !apperror.IsCode(err, tc.code) {
 				t.Fatalf("PurchaseSlot() error = %v, want %s", err, tc.code)
 			}

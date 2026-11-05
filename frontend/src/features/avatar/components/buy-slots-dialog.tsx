@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -52,9 +52,16 @@ export function BuySlotsDialog({
     refetchOnMount: "always",
     retry: false,
   });
+  // One key per purchase attempt: a retry after a lost response reuses it, so the API charges once.
+  const attempt = useRef<{ amount: number; key: string } | null>(null);
   const purchase = useMutation({
-    mutationFn: (values: PurchaseForm) => purchaseSlots(values.amount),
+    mutationFn: (values: PurchaseForm) => {
+      if (attempt.current?.amount !== values.amount)
+        attempt.current = { amount: values.amount, key: crypto.randomUUID() };
+      return purchaseSlots(values.amount, attempt.current.key);
+    },
     onSuccess: (result, values) => {
+      attempt.current = null;
       cache.setQueryData(avatarKeys.summary(userId), {
         capacity: result.capacity,
         used: result.used,
@@ -71,7 +78,9 @@ export function BuySlotsDialog({
       const failure = inventoryFailure(error, "purchase");
       if (failure.denied)
         void cache.invalidateQueries({ queryKey: ["auth", "me"] });
-      // No idempotency key exists: show what the server holds now and let the user decide.
+      // A confirmed refusal charged nothing, so the next try is a new purchase. An unconfirmed one may
+      // have charged: show what the server holds now; a retry keeps the key and cannot charge twice.
+      if (failure.confirmed) attempt.current = null;
       if (!failure.confirmed) {
         void cache.invalidateQueries({ queryKey: avatarKeys.summary(userId) });
         void cache.invalidateQueries({ queryKey: walletKeys.all(userId) });
