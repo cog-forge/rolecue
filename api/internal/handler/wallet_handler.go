@@ -177,7 +177,7 @@ func (h *WalletHandler) ListTransactions(c *gin.Context) {
 	if txs == nil {
 		txs = []walletdomain.Transaction{}
 	}
-	response.OK(c, WalletTransactionPage{Items: txs, Total: total, Page: page, PageSize: pageSize})
+	response.OK(c, WalletTransactionPage{Items: txs, Total: total, Page: int(page), PageSize: int(pageSize)})
 }
 
 // ListPackages godoc

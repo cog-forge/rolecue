@@ -40,7 +40,9 @@ function origin(value: string | undefined | null) {
 }
 
 function unique(values: Array<string | null>) {
-  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+  return [
+    ...new Set(values.filter((value): value is string => Boolean(value))),
+  ];
 }
 
 export function buildCsp({

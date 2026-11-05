@@ -23,7 +23,10 @@ func TestCreateConsumesUploadForItsOwnerOnce(t *testing.T) {
 	other := f.seed.user("recruiter")
 	key := f.grant(t, ctx, f.recruiter)
 
-	if _, err := f.repo.Create(ctx, other, f.newPosting(key)); codeOf(err) != apperror.CodeInvalidPDF {
+	// The other Recruiter uses their own avatar so only the upload key can be the reason for the refusal.
+	foreign := f.newPosting(key)
+	foreign.RequiredAvatarID = f.seed.avatar(other)
+	if _, err := f.repo.Create(ctx, other, foreign); codeOf(err) != apperror.CodeInvalidPDF {
 		t.Fatalf("foreign key: %v, want INVALID_PDF", err)
 	}
 	record, err := f.repo.Create(ctx, f.recruiter, f.newPosting(key))
