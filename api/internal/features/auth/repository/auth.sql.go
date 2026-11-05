@@ -22,6 +22,7 @@ WHERE id = $2 AND coalesce(role, 'candidate') <> 'admin'
     ))
 RETURNING id, email, name, coalesce(role, 'candidate')::text AS role,
     email_verified, (coalesce(is_locked, false) AND (lock_expires_at IS NULL OR lock_expires_at > now()))::boolean AS is_locked, image,
+    coalesce(two_factor_enabled, false)::boolean AS two_factor_enabled,
     (coalesce(role, 'candidate') = 'admin' OR onboarding_status IN ('role_selected', 'completed'))::boolean AS onboarding_role_selected,
     (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed')::boolean AS onboarding_completed
 `
@@ -39,6 +40,7 @@ type ChooseOnboardingRoleRow struct {
 	EmailVerified          bool
 	IsLocked               bool
 	Image                  *string
+	TwoFactorEnabled       bool
 	OnboardingRoleSelected bool
 	OnboardingCompleted    bool
 }
@@ -54,6 +56,7 @@ func (q *Queries) ChooseOnboardingRole(ctx context.Context, arg ChooseOnboarding
 		&i.EmailVerified,
 		&i.IsLocked,
 		&i.Image,
+		&i.TwoFactorEnabled,
 		&i.OnboardingRoleSelected,
 		&i.OnboardingCompleted,
 	)
@@ -63,6 +66,7 @@ func (q *Queries) ChooseOnboardingRole(ctx context.Context, arg ChooseOnboarding
 const getAuthUser = `-- name: GetAuthUser :one
 SELECT id, email, name, coalesce(role, 'candidate')::text AS role,
        email_verified, (coalesce(is_locked, false) AND (lock_expires_at IS NULL OR lock_expires_at > now()))::boolean AS is_locked, image,
+       coalesce(two_factor_enabled, false)::boolean AS two_factor_enabled,
        (coalesce(role, 'candidate') = 'admin' OR onboarding_status IN ('role_selected', 'completed'))::boolean AS onboarding_role_selected,
        (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed')::boolean AS onboarding_completed
 FROM public.users
@@ -77,6 +81,7 @@ type GetAuthUserRow struct {
 	EmailVerified          bool
 	IsLocked               bool
 	Image                  *string
+	TwoFactorEnabled       bool
 	OnboardingRoleSelected bool
 	OnboardingCompleted    bool
 }
@@ -92,6 +97,7 @@ func (q *Queries) GetAuthUser(ctx context.Context, id uuid.UUID) (GetAuthUserRow
 		&i.EmailVerified,
 		&i.IsLocked,
 		&i.Image,
+		&i.TwoFactorEnabled,
 		&i.OnboardingRoleSelected,
 		&i.OnboardingCompleted,
 	)

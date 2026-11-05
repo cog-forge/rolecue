@@ -29,6 +29,7 @@ func authUser(row GetAuthUserRow) domain.User {
 	return domain.User{
 		ID: row.ID, Email: row.Email, FullName: row.Name, Role: row.Role,
 		EmailVerified: row.EmailVerified, IsLocked: row.IsLocked, Image: row.Image,
+		TwoFactorEnabled:       row.TwoFactorEnabled,
 		OnboardingRoleSelected: row.OnboardingRoleSelected,
 		OnboardingCompleted:    row.OnboardingCompleted,
 	}

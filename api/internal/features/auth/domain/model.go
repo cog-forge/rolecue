@@ -11,5 +11,7 @@ type User struct {
 	Role                   string    `json:"role"`
 	EmailVerified          bool      `json:"email_verified"`
 	IsLocked               bool      `json:"is_locked"`
-	Image                  *string   `json:"image"`
+	// TwoFactorEnabled is internal policy input; it is not part of any response contract.
+	TwoFactorEnabled bool    `json:"-"`
+	Image            *string `json:"image"`
 }

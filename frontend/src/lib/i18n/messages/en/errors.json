@@ -26,6 +26,7 @@
     "INVALID_TOKEN": "This link is invalid or has expired.",
     "AUTH_UNAVAILABLE": "Sign-in is unavailable right now. Try again in a moment.",
     "FORBIDDEN": "You don't have permission to do that.",
+    "ADMIN_MFA_REQUIRED": "Admin accounts need two-factor authentication. Set up an authenticator app to continue.",
     "ONBOARDING_ROLE_CONFLICT": "Your account role is already set and can't be changed here.",
     "VALIDATION_ERROR": "Some of the information isn't valid. Check it and try again.",
     "INTERNAL_ERROR": "Something went wrong on our side. Try again in a moment.",

@@ -1,6 +1,7 @@
 -- name: GetAuthUser :one
 SELECT id, email, name, coalesce(role, 'candidate')::text AS role,
        email_verified, (coalesce(is_locked, false) AND (lock_expires_at IS NULL OR lock_expires_at > now()))::boolean AS is_locked, image,
+       coalesce(two_factor_enabled, false)::boolean AS two_factor_enabled,
        (coalesce(role, 'candidate') = 'admin' OR onboarding_status IN ('role_selected', 'completed'))::boolean AS onboarding_role_selected,
        (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed')::boolean AS onboarding_completed
 FROM public.users
@@ -17,5 +18,6 @@ WHERE id = sqlc.arg(id) AND coalesce(role, 'candidate') <> 'admin'
     ))
 RETURNING id, email, name, coalesce(role, 'candidate')::text AS role,
     email_verified, (coalesce(is_locked, false) AND (lock_expires_at IS NULL OR lock_expires_at > now()))::boolean AS is_locked, image,
+    coalesce(two_factor_enabled, false)::boolean AS two_factor_enabled,
     (coalesce(role, 'candidate') = 'admin' OR onboarding_status IN ('role_selected', 'completed'))::boolean AS onboarding_role_selected,
     (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed')::boolean AS onboarding_completed;

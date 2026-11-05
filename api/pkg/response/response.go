@@ -97,6 +97,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeInvalidToken:                    http.StatusUnauthorized,
 	apperror.CodeAuthUnavailable:                 http.StatusServiceUnavailable,
 	apperror.CodeForbidden:                       http.StatusForbidden,
+	apperror.CodeAdminMFARequired:                http.StatusForbidden,
 	apperror.CodeOnboardingRoleConflict:          http.StatusConflict,
 	apperror.CodeValidation:                      http.StatusBadRequest,
 	apperror.CodeInternal:                        http.StatusInternalServerError,

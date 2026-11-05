@@ -124,6 +124,10 @@ type AuthConfig struct {
 	CookiePrefix  string        `mapstructure:"cookie_prefix"`
 	CookieDomain  string        `mapstructure:"cookie_domain"`
 	SecureCookies bool          `mapstructure:"secure_cookies"`
+	// AdminRequireMFA rejects Admin sessions without two-factor authentication; AdminMFAGrace is an RFC3339
+	// instant (empty = none) before which Admins without it are still let in.
+	AdminRequireMFA bool   `mapstructure:"admin_require_mfa"`
+	AdminMFAGrace   string `mapstructure:"admin_mfa_grace"`
 }
 
 type CORSConfig struct {
@@ -364,6 +368,8 @@ func Load(configPath string) (*Config, error) {
 		"auth.cookie_prefix":         "BETTER_AUTH_COOKIE_PREFIX",
 		"auth.cookie_domain":         "BETTER_AUTH_COOKIE_DOMAIN",
 		"auth.secure_cookies":        "AUTH_SECURE_COOKIES",
+		"auth.admin_require_mfa":     "ADMIN_REQUIRE_MFA",
+		"auth.admin_mfa_grace":       "ADMIN_MFA_GRACE_UNTIL",
 		"llm.provider":               "LLM_PROVIDER",
 		"llm.api_key":                "LLM_API_KEY",
 		"llm.model":                  "LLM_MODEL",
@@ -495,6 +501,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("auth.cookie_prefix", "rolecue")
 	v.SetDefault("auth.cookie_domain", "")
 	v.SetDefault("auth.secure_cookies", false)
+	v.SetDefault("auth.admin_require_mfa", false)
+	v.SetDefault("auth.admin_mfa_grace", "")
 	// CORS defaults
 	v.SetDefault("cors.allow_origins", []string{"http://localhost:3000"})
 	v.SetDefault("cors.allow_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
@@ -602,6 +610,11 @@ func (c *Config) Validate() error {
 	}
 	if c.Auth.CookiePrefix == "" || strings.ContainsAny(c.Auth.CookiePrefix, " ;=\r\n") {
 		return errors.New("auth.cookie_prefix is invalid")
+	}
+	if g := c.Auth.AdminMFAGrace; g != "" {
+		if _, err := time.Parse(time.RFC3339, g); err != nil {
+			return errors.New("auth.admin_mfa_grace (ADMIN_MFA_GRACE_UNTIL) must be an RFC3339 timestamp")
+		}
 	}
 	if c.Auth.SecureCookies != (u.Scheme == "https") {
 		return errors.New("auth.secure_cookies must match the public auth URL scheme")

@@ -24,10 +24,21 @@ type AuthService interface {
 type Service struct {
 	verifier SessionVerifier
 	users    UserRepository
+	adminMFA AdminMFAPolicy
 }
 
-func NewService(verifier SessionVerifier, users UserRepository) AuthService {
-	return &Service{verifier: verifier, users: users}
+// Option customizes the Service.
+type Option func(*Service)
+
+// WithAdminMFA enforces the Admin two-factor policy (KAN-265).
+func WithAdminMFA(p AdminMFAPolicy) Option { return func(s *Service) { s.adminMFA = p } }
+
+func NewService(verifier SessionVerifier, users UserRepository, opts ...Option) AuthService {
+	s := &Service{verifier: verifier, users: users}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *Service) SelectRole(ctx context.Context, id uuid.UUID, role string) (domain.User, error) {
@@ -56,6 +67,9 @@ func (s *Service) Authenticate(ctx context.Context, req *http.Request) (domain.U
 	if user.Role != "candidate" && user.Role != "recruiter" && user.Role != "admin" {
 		cause := fmt.Errorf("role %q is not permitted user_id=%s", user.Role, user.ID)
 		return domain.User{}, verified.SetCookies, apperror.Wrap(apperror.CodeForbidden, "account role is not permitted", cause)
+	}
+	if err := s.adminMFA.Check(user); err != nil {
+		return domain.User{}, verified.SetCookies, err
 	}
 	return user, verified.SetCookies, nil
 }

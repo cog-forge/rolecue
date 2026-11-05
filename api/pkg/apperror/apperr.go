@@ -32,6 +32,7 @@ const (
 	CodeInvalidToken               Code = "INVALID_TOKEN"
 	CodeAuthUnavailable            Code = "AUTH_UNAVAILABLE"
 	CodeForbidden                  Code = "FORBIDDEN"
+	CodeAdminMFARequired           Code = "ADMIN_MFA_REQUIRED"
 	CodeOnboardingRoleConflict     Code = "ONBOARDING_ROLE_CONFLICT"
 	CodeValidation                 Code = "VALIDATION_ERROR"
 	CodeInternal                   Code = "INTERNAL_ERROR"

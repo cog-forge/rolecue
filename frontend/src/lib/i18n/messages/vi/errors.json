@@ -26,6 +26,7 @@
     "INVALID_TOKEN": "Liên kết không hợp lệ hoặc đã hết hạn.",
     "AUTH_UNAVAILABLE": "Hiện chưa thể đăng nhập. Vui lòng thử lại sau ít phút.",
     "FORBIDDEN": "Bạn không có quyền thực hiện thao tác này.",
+    "ADMIN_MFA_REQUIRED": "Tài khoản quản trị cần xác thực hai yếu tố. Hãy thiết lập ứng dụng xác thực để tiếp tục.",
     "ONBOARDING_ROLE_CONFLICT": "Vai trò tài khoản của bạn đã được chọn và không thể đổi tại đây.",
     "VALIDATION_ERROR": "Một số thông tin chưa hợp lệ. Vui lòng kiểm tra lại.",
     "INTERNAL_ERROR": "Đã xảy ra lỗi từ phía chúng tôi. Vui lòng thử lại sau ít phút.",

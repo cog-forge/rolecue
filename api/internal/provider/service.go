@@ -12,5 +12,8 @@ func ProvideAuthRepository(pool *pgxpool.Pool) *repository.Repository {
 }
 
 func ProvideAuthService(cfg *config.Config, repo *repository.Repository) service.AuthService {
-	return service.NewService(service.NewHTTPVerifier(cfg.Auth), repo)
+	// Config validation already rejected an invalid grace timestamp; if one slips through, enforce with no grace.
+	policy, _ := service.NewAdminMFAPolicy(cfg.Auth.AdminRequireMFA, cfg.Auth.AdminMFAGrace)
+	policy.Required = cfg.Auth.AdminRequireMFA
+	return service.NewService(service.NewHTTPVerifier(cfg.Auth), repo, service.WithAdminMFA(policy))
 }
