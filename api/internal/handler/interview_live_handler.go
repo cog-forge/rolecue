@@ -58,7 +58,7 @@ func (h *InterviewLiveHandler) verifier(req *http.Request, userID uuid.UUID) fun
 		user, _, err := h.auth.Authenticate(ctx, req.Clone(ctx))
 		if err != nil {
 			var appErr *apperror.AppError
-			if errors.As(err, &appErr) && (appErr.Code == apperror.CodeInvalidToken || appErr.Code == apperror.CodeForbidden) {
+			if errors.As(err, &appErr) && (appErr.Code == apperror.CodeInvalidToken || appErr.Code == apperror.CodeForbidden || appErr.Code == apperror.CodeAdminMFARequired) {
 				return runtime.ErrSessionInvalid
 			}
 			return err

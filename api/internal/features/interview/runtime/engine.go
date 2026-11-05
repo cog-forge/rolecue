@@ -285,7 +285,9 @@ func (c *conn) run(ctx context.Context, incoming <-chan inbound) {
 				}
 				continue
 			}
-			c.throttled = 0
+			if c.throttled > 0 {
+				c.throttled--
+			}
 			if in.err != nil {
 				// A drop keeps everything already stored; a partial recording is discarded and the
 				// reconnect asks the same question again.

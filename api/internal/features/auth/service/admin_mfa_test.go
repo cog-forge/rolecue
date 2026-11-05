@@ -33,7 +33,7 @@ func TestUnenrolledAdminCanOnlyLoadTheSessionProbe(t *testing.T) {
 		denied             bool
 	}{
 		{"me is open to an unenrolled admin", http.MethodGet, "/auth/me", admin, false},
-		{"me under an api prefix is open", http.MethodGet, "/api/v1/auth/me", admin, false},
+		{"me under another prefix is not exempt", http.MethodGet, "/api/v1/auth/me", admin, true},
 		{"admin routes are denied", http.MethodGet, "/admin/users", admin, true},
 		{"writes to me are denied", http.MethodPost, "/auth/me", admin, true},
 		{"admin routes open after enrolment", http.MethodGet, "/admin/users", enrolled, false},

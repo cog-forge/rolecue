@@ -121,6 +121,8 @@ services:
       APP_ENVIRONMENT: production
       APP_VERSION: ${IMAGE_TAG}
       APP_DEBUG: "false"
+      # Caddy reaches the API over the Docker bridge, so its forwarded client IP is trusted from there.
+      SERVER_TRUSTED_PROXIES: ${SERVER_TRUSTED_PROXIES:-172.16.0.0/12}
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
       LOGGER_LEVEL: ${LOGGER_LEVEL:-info}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/cog-forge/rolecue/api/internal/features/auth/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -80,5 +79,5 @@ func (s *Service) Authenticate(ctx context.Context, req *http.Request) (domain.U
 }
 
 func isSessionProbe(req *http.Request) bool {
-	return req != nil && req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/auth/me")
+	return req != nil && req.Method == http.MethodGet && req.URL.Path == "/auth/me"
 }
