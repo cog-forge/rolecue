@@ -96,6 +96,12 @@ describe("practice PDF", () => {
       "not exportable",
     );
   });
+  it("refuses a malformed completion date instead of injecting it into the title", () => {
+    const data = { ...report, completed_at: "</title><script>x</script>" };
+    expect(() => reportPrintDocument(data, t, "en", "")).toThrow(
+      "not exportable",
+    );
+  });
   it("uses Vietnamese chrome and escapes stored content", () => {
     const vi = createTranslator({
       locale: "vi",
