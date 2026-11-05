@@ -23,6 +23,11 @@ database:
   password: postgres
   name: rolecue
   ssl_mode: disable
+  # CA certificate path (sslrootcert) for ssl_mode verify-ca / verify-full; env DATABASE_SSL_ROOT_CERT.
+  ssl_root_cert: ""
+  # When true, production refuses to start unless the connection uses sslmode=verify-full with a root
+  # certificate (env DATABASE_REQUIRE_TLS). Off by default so existing deployments keep working.
+  require_tls: false
   max_open_conns: 25
   max_idle_conns: 10
   conn_max_lifetime: 5m

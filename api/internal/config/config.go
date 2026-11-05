@@ -55,13 +55,16 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL             string        `mapstructure:"url"`
-	Host            string        `mapstructure:"host"`
-	Port            int           `mapstructure:"port"`
-	User            string        `mapstructure:"user"`
-	Password        string        `mapstructure:"password"`
-	Name            string        `mapstructure:"name"`
-	SSLMode         string        `mapstructure:"ssl_mode"`
+	URL         string `mapstructure:"url"`
+	Host        string `mapstructure:"host"`
+	Port        int    `mapstructure:"port"`
+	User        string `mapstructure:"user"`
+	Password    string `mapstructure:"password"`
+	Name        string `mapstructure:"name"`
+	SSLMode     string `mapstructure:"ssl_mode"`
+	SSLRootCert string `mapstructure:"ssl_root_cert"`
+	// RequireTLS makes production reject any sslmode but verify-full with a root certificate.
+	RequireTLS      bool          `mapstructure:"require_tls"`
 	MaxOpenConns    int           `mapstructure:"max_open_conns"`
 	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
@@ -102,6 +105,9 @@ func (d *DatabaseConfig) DSN() string {
 	q := make(url.Values)
 	if d.SSLMode != "" {
 		q.Set("sslmode", d.SSLMode)
+	}
+	if d.SSLRootCert != "" {
+		q.Set("sslrootcert", d.SSLRootCert)
 	}
 	if len(q) > 0 {
 		u.RawQuery = q.Encode()
@@ -360,6 +366,8 @@ func Load(configPath string) (*Config, error) {
 		"email.approved_template_id": "EMAIL_MODERATION_APPROVED_TEMPLATE_ID",
 		"email.rejected_template_id": "EMAIL_MODERATION_REJECTED_TEMPLATE_ID",
 		"email.application_submitted_template_id":         "EMAIL_APPLICATION_SUBMITTED_TEMPLATE_ID",
+		"database.require_tls":                            "DATABASE_REQUIRE_TLS",
+		"database.ssl_root_cert":                          "DATABASE_SSL_ROOT_CERT",
 		"email.application_new_application_template_id":   "EMAIL_APPLICATION_NEW_APPLICATION_TEMPLATE_ID",
 		"email.application_cv_rejected_template_id":       "EMAIL_APPLICATION_CV_REJECTED_TEMPLATE_ID",
 		"email.application_cv_approved_template_id":       "EMAIL_APPLICATION_CV_APPROVED_TEMPLATE_ID",
@@ -367,27 +375,27 @@ func Load(configPath string) (*Config, error) {
 		"email.application_decision_rejected_template_id": "EMAIL_APPLICATION_DECISION_REJECTED_TEMPLATE_ID",
 		"email.application_auto_rejected_template_id":     "EMAIL_APPLICATION_AUTO_REJECTED_TEMPLATE_ID",
 		"email.application_intake_closed_template_id":     "EMAIL_APPLICATION_INTAKE_CLOSED_TEMPLATE_ID",
-		"payos.client_id":                     "PAYOS_CLIENT_ID",
-		"payos.api_key":                       "PAYOS_API_KEY",
-		"payos.checksum_key":                  "PAYOS_CHECKSUM_KEY",
-		"payos.timeout":                       "PAYOS_TIMEOUT",
-		"payos.max_retries":                   "PAYOS_MAX_RETRIES",
-		"question_bank.size":                  "QUESTION_BANK_SIZE",
-		"evaluation.weight_total":             "EVALUATION_WEIGHT_TOTAL",
-		"interview.question_limit":            "INTERVIEW_QUESTION_LIMIT",
-		"interview.stt_provider":              "INTERVIEW_STT_PROVIDER",
-		"interview.stt_timeout":               "INTERVIEW_STT_TIMEOUT",
-		"interview.default_provider_voice_id": "INTERVIEW_DEFAULT_PROVIDER_VOICE_ID",
-		"interview.tts_cache_entries":         "INTERVIEW_TTS_CACHE_ENTRIES",
-		"interview.follow_up_limit":           "INTERVIEW_FOLLOW_UP_LIMIT",
-		"interview.follow_up_timeout":         "INTERVIEW_FOLLOW_UP_TIMEOUT",
-		"avatar_conversion.enabled":           "AVATAR_CONVERSION_ENABLED",
-		"avatar_conversion.blender_binary":    "AVATAR_BLENDER_BINARY",
-		"avatar_conversion.timeout":           "AVATAR_CONVERSION_TIMEOUT",
-		"avatar_conversion.max_input_bytes":   "AVATAR_MAX_INPUT_BYTES",
-		"avatar_conversion.max_output_bytes":  "AVATAR_MAX_OUTPUT_BYTES",
-		"avatar_conversion.commercial_usage":  "AVATAR_VRM_COMMERCIAL_USAGE",
-		"avatar_conversion.license_url":       "AVATAR_VRM_LICENSE_URL",
+		"payos.client_id":                                 "PAYOS_CLIENT_ID",
+		"payos.api_key":                                   "PAYOS_API_KEY",
+		"payos.checksum_key":                              "PAYOS_CHECKSUM_KEY",
+		"payos.timeout":                                   "PAYOS_TIMEOUT",
+		"payos.max_retries":                               "PAYOS_MAX_RETRIES",
+		"question_bank.size":                              "QUESTION_BANK_SIZE",
+		"evaluation.weight_total":                         "EVALUATION_WEIGHT_TOTAL",
+		"interview.question_limit":                        "INTERVIEW_QUESTION_LIMIT",
+		"interview.stt_provider":                          "INTERVIEW_STT_PROVIDER",
+		"interview.stt_timeout":                           "INTERVIEW_STT_TIMEOUT",
+		"interview.default_provider_voice_id":             "INTERVIEW_DEFAULT_PROVIDER_VOICE_ID",
+		"interview.tts_cache_entries":                     "INTERVIEW_TTS_CACHE_ENTRIES",
+		"interview.follow_up_limit":                       "INTERVIEW_FOLLOW_UP_LIMIT",
+		"interview.follow_up_timeout":                     "INTERVIEW_FOLLOW_UP_TIMEOUT",
+		"avatar_conversion.enabled":                       "AVATAR_CONVERSION_ENABLED",
+		"avatar_conversion.blender_binary":                "AVATAR_BLENDER_BINARY",
+		"avatar_conversion.timeout":                       "AVATAR_CONVERSION_TIMEOUT",
+		"avatar_conversion.max_input_bytes":               "AVATAR_MAX_INPUT_BYTES",
+		"avatar_conversion.max_output_bytes":              "AVATAR_MAX_OUTPUT_BYTES",
+		"avatar_conversion.commercial_usage":              "AVATAR_VRM_COMMERCIAL_USAGE",
+		"avatar_conversion.license_url":                   "AVATAR_VRM_LICENSE_URL",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -452,6 +460,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("database.password", "postgres")
 	v.SetDefault("database.name", "rolecue")
 	v.SetDefault("database.ssl_mode", "disable")
+	v.SetDefault("database.ssl_root_cert", "")
+	v.SetDefault("database.require_tls", false)
 	v.SetDefault("database.max_open_conns", 25)
 	v.SetDefault("database.max_idle_conns", 10)
 	v.SetDefault("database.conn_max_lifetime", "5m")
@@ -533,6 +543,11 @@ func (c *Config) Validate() error {
 	}
 	if err := validateTrustedProxies(c.Server.TrustedProxies); err != nil {
 		return err
+	}
+	if c.IsProduction() {
+		if err := c.Database.validateProduction(); err != nil {
+			return err
+		}
 	}
 	if c.CORS.AllowCredentials {
 		if len(c.CORS.AllowOrigins) == 0 {

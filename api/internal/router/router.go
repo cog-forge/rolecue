@@ -116,7 +116,10 @@ func (r *Router) Setup() *gin.Engine {
 	router.Use(middleware.CORSMiddleware(r.cfg.CORS))
 
 	router.GET("/health", r.healthHandler.Health)
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// The API reference is a map of every route, so production does not serve it (404).
+	if !r.cfg.IsProduction() {
+		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	auth := router.Group("/auth")
 	{
