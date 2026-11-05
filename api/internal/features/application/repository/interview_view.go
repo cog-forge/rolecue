@@ -20,16 +20,16 @@ func recruiterInterview(id *uuid.UUID, startedAt, completedAt pgtype.Timestamptz
 	}
 }
 
-// candidateInterview maps the interview columns of the Candidate's own Application: the score and the
-// state only.
-func candidateInterview(id *uuid.UUID, completedAt pgtype.Timestamptz, evaluation *string, score *int32) *domain.CandidateInterview {
+// candidateInterview maps the interview columns of the Candidate's own Application:
+// the state only, never a score.
+func candidateInterview(id *uuid.UUID, completedAt pgtype.Timestamptz, evaluation *string) *domain.CandidateInterview {
 	if id == nil {
 		return nil
 	}
 	completed := timePtr(completedAt)
 	return &domain.CandidateInterview{
 		ID: *id, CompletedAt: completed,
-		Status: domain.InterviewStatus(completed, derefString(evaluation)), Score: score,
+		Status: domain.InterviewStatus(completed, derefString(evaluation)),
 	}
 }
 

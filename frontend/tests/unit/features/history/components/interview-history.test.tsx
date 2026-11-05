@@ -147,7 +147,7 @@ describe("InterviewHistory", () => {
     );
   });
 
-  it("links a recruitment row to its Application and shows only the score", async () => {
+  it("links a recruitment row to its Application and never shows its score", async () => {
     mocks.get.mockResolvedValue(
       envelope([
         practice(1, {
@@ -166,6 +166,9 @@ describe("InterviewHistory", () => {
       screen.getByRole("link", { name: "View application" }),
     ).toHaveAttribute("href", `/applications/${APPLICATION}`);
     expect(screen.getByText("Recruitment interview")).toBeInTheDocument();
+    // practice(1) carries score 72: a recruitment score must not reach the screen.
+    expect(screen.queryByText("72 / 100")).not.toBeInTheDocument();
+    expect(screen.queryByText("No score yet")).not.toBeInTheDocument();
   });
 
   it("pages through the history with links that keep the type filter", async () => {

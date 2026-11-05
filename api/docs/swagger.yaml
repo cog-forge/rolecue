@@ -500,8 +500,6 @@ definitions:
         type: string
       id:
         type: string
-      score:
-        type: integer
       status:
         enum:
         - in_progress

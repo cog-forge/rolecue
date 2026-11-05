@@ -8509,9 +8509,6 @@ const docTemplate = `{
                 "id": {
                     "type": "string"
                 },
-                "score": {
-                    "type": "integer"
-                },
                 "status": {
                     "type": "string",
                     "enum": [

@@ -36,6 +36,11 @@ func (r *Repository) ListHistory(ctx context.Context, candidateID uuid.UUID, fil
 	for _, row := range rows {
 		evaluation := domain.EvaluationStatus(row.EvaluationStatus)
 		completedAt := timePtr(row.CompletedAt)
+		// A Candidate never sees a recruitment score; practice scores stay visible.
+		score := row.Score
+		if domain.Type(row.Type) == domain.TypeRecruitment {
+			score = nil
+		}
 		items = append(items, domain.HistoryItem{
 			ID:               row.ID,
 			Type:             domain.Type(row.Type),
@@ -43,7 +48,7 @@ func (r *Repository) ListHistory(ctx context.Context, candidateID uuid.UUID, fil
 			CompletedAt:      completedAt,
 			EvaluationStatus: evaluation,
 			Status:           domain.DeriveSessionStatus(completedAt, evaluation),
-			Score:            row.Score,
+			Score:            score,
 			RoleProfileTitle: row.RoleProfileTitle,
 			JobPostingTitle:  row.JobPostingTitle,
 			ApplicationID:    row.ApplicationID,

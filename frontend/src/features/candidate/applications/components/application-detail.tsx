@@ -266,13 +266,12 @@ function StatusMessage({
   );
 }
 
-// Status and score only: the transcript and recording are never shown to the Candidate.
+// Status only: a recruitment score, the transcript and recording are never shown to the Candidate.
 function interviewResultText(
   interview: NonNullable<CandidateApplication["interview"]>,
   t: DetailTranslator,
 ): string {
-  if (interview.status === "completed" && interview.score !== null)
-    return t("result.score", { score: interview.score });
+  if (interview.status === "completed") return t("result.completed");
   if (interview.status === "failed") return t("result.unavailable");
   if (interview.status === "pending") return t("result.evaluating");
   return t("result.inProgress");

@@ -75,6 +75,7 @@ type ListCandidateInterviewsRow struct {
 // The Candidate's own session history, newest first. The Candidate is taken through the role profile of
 // a practice session or the Application of a recruitment session, so another Candidate's sessions never match. The interview_type filter is optional: a
 // NULL argument disables it. The order ends on the id so a page boundary never splits or repeats rows.
+// The repository blanks the score of recruitment rows: a Candidate never sees a recruitment score.
 // Only list columns are selected; questions, turns, feedback and the recording path are never read here.
 func (q *Queries) ListCandidateInterviews(ctx context.Context, arg ListCandidateInterviewsParams) ([]ListCandidateInterviewsRow, error) {
 	rows, err := q.db.Query(ctx, listCandidateInterviews,

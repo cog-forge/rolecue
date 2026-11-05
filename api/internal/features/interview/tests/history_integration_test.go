@@ -80,6 +80,9 @@ func TestHistoryFiltersByType(t *testing.T) {
 		t.Fatalf("recruitment Create() error = %v", err)
 	}
 
+	// Both kinds are scored. The Candidate sees the practice score and never the recruitment one.
+	s.exec(`UPDATE public.interviews SET completed_at = now(), evaluation_status = 'completed', score = 77 WHERE application_id IN (SELECT id FROM public.applications WHERE candidate_id = $1)
+		OR role_profile_id IN (SELECT id FROM public.role_profiles WHERE candidate_id = $1)`, candidate)
 	all := historyPage(t, ctx, svc, candidate, allPages(1, 20))
 	if all.Total != 3 {
 		t.Fatalf("unfiltered total = %d, want 3", all.Total)
@@ -93,6 +96,9 @@ func TestHistoryFiltersByType(t *testing.T) {
 		*item.ApplicationID != application || item.JobPostingTitle == nil {
 		t.Fatalf("recruitment item = %+v, want the Application's session with its posting title", item)
 	}
+	if item.Score != nil {
+		t.Fatalf("recruitment item score = %d, want none: a Candidate never sees a recruitment score", *item.Score)
+	}
 	prac := historyPage(t, ctx, svc, candidate, domain.HistoryFilter{Type: domain.TypePractice, Page: 1, PageSize: 20})
 	if prac.Total != 2 {
 		t.Fatalf("practice filter total = %d, want 2", prac.Total)
@@ -100,6 +106,9 @@ func TestHistoryFiltersByType(t *testing.T) {
 	for _, p := range prac.Items {
 		if p.Type != domain.TypePractice || p.ApplicationID != nil || p.JobPostingTitle != nil {
 			t.Fatalf("practice item = %+v, want no application or posting", p)
+		}
+		if p.Score == nil || *p.Score != 77 {
+			t.Fatalf("practice item score = %v, want 77 to stay visible", p.Score)
 		}
 	}
 }

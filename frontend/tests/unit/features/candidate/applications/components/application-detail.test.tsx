@@ -91,7 +91,7 @@ describe("CandidateApplicationDetail", () => {
     });
   });
 
-  it("shows only the interview status and score, never a transcript", async () => {
+  it("shows only the interview status, never a score or a transcript", async () => {
     mocks.get.mockResolvedValue(
       application({
         status: "interviewed",
@@ -99,13 +99,14 @@ describe("CandidateApplicationDetail", () => {
           id: "55555555-5555-4555-8555-555555555555",
           completed_at: "2026-10-24T09:00:00Z",
           status: "completed",
-          score: 78,
         },
       }),
     );
     renderDetail();
     expect(await screen.findByText("Interview result")).toBeInTheDocument();
-    expect(screen.getByText("78 / 100")).toBeInTheDocument();
+    // A stale or hostile payload carrying a score still renders none.
+    expect(screen.getByText("Completed")).toBeInTheDocument();
+    expect(screen.queryByText(/78/)).not.toBeInTheDocument();
     expect(screen.queryByText(/transcript|recording/i)).not.toBeInTheDocument();
   });
 
@@ -159,7 +160,6 @@ describe("CandidateApplicationDetail", () => {
           id: "55555555-5555-4555-8555-555555555555",
           completed_at: null,
           status: "in_progress",
-          score: null,
         },
       }),
     );

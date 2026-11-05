@@ -254,9 +254,11 @@ function HistoryRow({ item }: { item: HistoryItem }) {
       </div>
       <div className="space-y-1 text-right text-sm">
         <p className="font-medium">{t(`status.${item.status}`)}</p>
-        <p className="text-muted-foreground tabular-nums">
-          {item.score === null ? t("noScore") : `${item.score} / 100`}
-        </p>
+        {item.type === "practice" && (
+          <p className="text-muted-foreground tabular-nums">
+            {item.score === null ? t("noScore") : `${item.score} / 100`}
+          </p>
+        )}
       </div>
     </li>
   );
