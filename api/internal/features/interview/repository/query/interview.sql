@@ -267,3 +267,15 @@ WHERE id = @id;
 UPDATE public.interviews
 SET evaluation_status = 'failed'
 WHERE id = @id AND evaluation_status <> 'completed';
+
+-- A completed interview whose last allowed evaluation claim went stale will never run again, so it is
+-- failed here instead of staying pending for ever. A fresh (running) claim and a completed or already
+-- failed evaluation are not touched.
+-- name: FailExhaustedStaleEvaluation :execrows
+UPDATE public.interviews
+SET evaluation_status = 'failed'
+WHERE id = @id
+  AND completed_at IS NOT NULL
+  AND evaluation_attempts >= @max_attempts::int
+  AND evaluation_status = 'pending'
+  AND evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8);

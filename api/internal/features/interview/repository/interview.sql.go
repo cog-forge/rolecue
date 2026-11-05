@@ -136,6 +136,33 @@ func (q *Queries) EvaluationAttemptsExhausted(ctx context.Context, arg Evaluatio
 	return exhausted, err
 }
 
+const failExhaustedStaleEvaluation = `-- name: FailExhaustedStaleEvaluation :execrows
+UPDATE public.interviews
+SET evaluation_status = 'failed'
+WHERE id = $1
+  AND completed_at IS NOT NULL
+  AND evaluation_attempts >= $2::int
+  AND evaluation_status = 'pending'
+  AND evaluation_claimed_at < statement_timestamp() - make_interval(secs => $3::float8)
+`
+
+type FailExhaustedStaleEvaluationParams struct {
+	ID           uuid.UUID
+	MaxAttempts  int32
+	StaleSeconds float64
+}
+
+// A completed interview whose last allowed evaluation claim went stale will never run again, so it is
+// failed here instead of staying pending for ever. A fresh (running) claim and a completed or already
+// failed evaluation are not touched.
+func (q *Queries) FailExhaustedStaleEvaluation(ctx context.Context, arg FailExhaustedStaleEvaluationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failExhaustedStaleEvaluation, arg.ID, arg.MaxAttempts, arg.StaleSeconds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const findInterviewByApplication = `-- name: FindInterviewByApplication :one
 SELECT id
 FROM public.interviews

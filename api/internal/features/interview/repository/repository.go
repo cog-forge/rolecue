@@ -352,6 +352,13 @@ func (r *Repository) End(ctx context.Context, params domain.EndParams) (result d
 		}
 		result.StartEvaluation = claimed == 1
 		if claimed == 0 {
+			// The last allowed claim may have gone stale mid-run: nothing can ever finish it, so persist
+			// a terminal state before reporting the exhaustion.
+			if _, err := q.FailExhaustedStaleEvaluation(ctx, FailExhaustedStaleEvaluationParams{
+				ID: params.ID, StaleSeconds: evaluationStaleAfter.Seconds(), MaxAttempts: domain.EvaluationMaxAttempts,
+			}); err != nil {
+				return internal(err)
+			}
 			exhausted, err := q.EvaluationAttemptsExhausted(ctx, EvaluationAttemptsExhaustedParams{
 				ID: params.ID, StaleSeconds: evaluationStaleAfter.Seconds(), MaxAttempts: domain.EvaluationMaxAttempts,
 			})
