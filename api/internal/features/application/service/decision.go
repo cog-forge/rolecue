@@ -45,5 +45,10 @@ func (s *Service) Decide(ctx context.Context, recruiterID uuid.UUID, role string
 		zap.String("application_id", applicationID.String()), zap.String("posting_id", postingID.String()),
 		zap.String("user_id", recruiterID.String()), zap.String("from_status", string(domain.StatusInterviewed)),
 		zap.String("to_status", string(decision.Status())), zap.String("decision", string(decision)))
+	event := noticeDecisionRejected
+	if decision == domain.DecisionApprove {
+		event = noticeDecisionApproved
+	}
+	s.notify(ctx, event, applicationID)
 	return s.GetDetail(ctx, recruiterID, role, postingID, applicationID)
 }

@@ -88,7 +88,7 @@ func (q *Queries) LockUnfinishedInterviewsForExpiry(ctx context.Context, arg Loc
 	return items, nil
 }
 
-const rejectExpiredApplications = `-- name: RejectExpiredApplications :execrows
+const rejectExpiredApplications = `-- name: RejectExpiredApplications :many
 UPDATE public.applications a
 SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
 WHERE a.job_posting_id = $2
@@ -98,6 +98,7 @@ WHERE a.job_posting_id = $2
       SELECT 1 FROM public.interviews i
       WHERE i.application_id = a.id AND i.completed_at IS NOT NULL
   )
+RETURNING a.id
 `
 
 type RejectExpiredApplicationsParams struct {
@@ -109,12 +110,24 @@ type RejectExpiredApplicationsParams struct {
 // Rejects the expired Applications of one posting. The predicate is repeated in the UPDATE so a row that
 // changed after the list was read (an interview completed, a decision made) is left alone. The caller
 // holds the posting lock.
-func (q *Queries) RejectExpiredApplications(ctx context.Context, arg RejectExpiredApplicationsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, rejectExpiredApplications, arg.RejectReason, arg.JobPostingID, arg.Now)
+func (q *Queries) RejectExpiredApplications(ctx context.Context, arg RejectExpiredApplicationsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, rejectExpiredApplications, arg.RejectReason, arg.JobPostingID, arg.Now)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const tryApplicationExpiryLock = `-- name: TryApplicationExpiryLock :one

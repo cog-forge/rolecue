@@ -34,6 +34,8 @@ type IntakeClosure struct {
 	JobPostingID  uuid.UUID `json:"job_posting_id"`
 	Status        string    `json:"status"`
 	RejectedCount int64     `json:"rejected_count"`
+	// RejectedIDs are the Applications the close rejected, for the notice emails (KAN-219). Not serialized.
+	RejectedIDs []uuid.UUID `json:"-"`
 }
 
 // Screening is an Application right after a CV screening decision.
@@ -48,6 +50,8 @@ type Screening struct {
 	InterviewDeadline *time.Time `json:"interview_deadline"`
 	RejectReason      *string    `json:"reject_reason"`
 	UpdatedAt         time.Time  `json:"updated_at"`
+	// RejectedIDs are the Applications an intake close rejected alongside this approval (KAN-219). Not serialized.
+	RejectedIDs []uuid.UUID `json:"-"`
 }
 
 // ListFilter narrows the Recruiter's Application list. Every filter is optional.

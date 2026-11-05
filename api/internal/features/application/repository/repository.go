@@ -54,10 +54,12 @@ func (r *Repository) ApproveCV(ctx context.Context, recruiterID, postingID, appl
 			return internal(err)
 		}
 		postingStatus := posting.Status
+		var rejectedIDs []uuid.UUID
 		// CheckApproval guarantees approvals < slot, so this approval fills the slot exactly when
 		// approvals+1 reaches it.
 		if posting.InterviewSlot != nil && approvals+1 >= int64(*posting.InterviewSlot) {
-			if _, err := closeIntake(ctx, q, postingID); err != nil {
+			rejectedIDs, err = closeIntake(ctx, q, postingID)
+			if err != nil {
 				return err
 			}
 			status, err := evaluateTerminalClose(ctx, q, postingID, "intake_closed")
@@ -67,6 +69,7 @@ func (r *Repository) ApproveCV(ctx context.Context, recruiterID, postingID, appl
 			postingStatus = status
 		}
 		screening = toScreening(row.ID, row.JobPostingID, row.Status, postingStatus, row.InterviewDeadline, row.RejectReason, row.UpdatedAt)
+		screening.RejectedIDs = rejectedIDs
 		return nil
 	})
 	if err != nil {
@@ -117,11 +120,12 @@ func (r *Repository) CloseIntake(ctx context.Context, recruiterID, postingID uui
 		}
 		switch posting.Status {
 		case "open":
-			rejected, err := closeIntake(ctx, q, postingID)
+			rejectedIDs, err := closeIntake(ctx, q, postingID)
 			if err != nil {
 				return err
 			}
-			closure.RejectedCount = rejected
+			closure.RejectedIDs = rejectedIDs
+			closure.RejectedCount = int64(len(rejectedIDs))
 			closure.Status = "intake_closed"
 		case "intake_closed", "closed":
 			closure.Status = posting.Status
@@ -166,17 +170,17 @@ func (r *Repository) EvaluateTerminalClose(ctx context.Context, postingID uuid.U
 
 // closeIntake moves an open posting to intake_closed and rejects its pending Applications with the
 // fixed reason. The caller holds the posting lock.
-func closeIntake(ctx context.Context, q *Queries, postingID uuid.UUID) (int64, error) {
+func closeIntake(ctx context.Context, q *Queries, postingID uuid.UUID) ([]uuid.UUID, error) {
 	if _, err := q.SetPostingIntakeClosed(ctx, postingID); err != nil {
-		return 0, internal(err)
+		return nil, internal(err)
 	}
 	reason := domain.IntakeClosedRejectReason
-	rejected, err := q.RejectPendingApplications(ctx, RejectPendingApplicationsParams{RejectReason: &reason, JobPostingID: postingID})
+	rejectedIDs, err := q.RejectPendingApplications(ctx, RejectPendingApplicationsParams{RejectReason: &reason, JobPostingID: postingID})
 	if err != nil {
-		return 0, internal(err)
+		return nil, internal(err)
 	}
-	logPostingStatus(ctx, "application.intake_close", postingID, "open", "intake_closed", rejected)
-	return rejected, nil
+	logPostingStatus(ctx, "application.intake_close", postingID, "open", "intake_closed", int64(len(rejectedIDs)))
+	return rejectedIDs, nil
 }
 
 // logPostingStatus records a posting status change. The write is in the caller's transaction, so the

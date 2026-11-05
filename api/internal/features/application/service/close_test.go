@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
@@ -15,7 +16,7 @@ func TestCloseIntakeDelegatesForRecruiter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CloseIntake() = %+v, want %+v", got, want)
 	}
 	if repo.closeCalls != 1 || repo.closeRecruiter != recruiterID || repo.closePosting != postingID {

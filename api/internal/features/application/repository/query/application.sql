@@ -139,10 +139,11 @@ WHERE id = @id AND status = 'open';
 
 -- Every pending Application of the posting is rejected when intake closes, in the same transaction
 -- as the posting status change. statement_timestamp() for the same reason as ApproveCV.
--- name: RejectPendingApplications :execrows
+-- name: RejectPendingApplications :many
 UPDATE public.applications
 SET status = 'rejected', reject_reason = @reject_reason, updated_at = statement_timestamp()
-WHERE job_posting_id = @job_posting_id AND status = 'pending';
+WHERE job_posting_id = @job_posting_id AND status = 'pending'
+RETURNING id;
 
 -- Counts the Applications of the posting that can still move (pending, interview_eligible,
 -- interviewed). The terminal close needs none: with no live Application the posting is done, which
@@ -164,3 +165,15 @@ FOR NO KEY UPDATE;
 UPDATE public.job_postings
 SET status = 'closed'
 WHERE id = @id AND status = 'intake_closed';
+
+-- The notice context of Applications (KAN-219): who receives an Application email and which posting it
+-- is about. The recruiter is the posting owner. No CV, interview, score or storage column is read.
+-- name: ListNoticeContexts :many
+SELECT a.id AS application_id, a.job_posting_id, jp.title AS posting_title,
+       u.name AS candidate_name, u.email AS candidate_email,
+       r.email AS recruiter_email, a.interview_deadline
+FROM public.applications a
+JOIN public.job_postings jp ON jp.id = a.job_posting_id
+JOIN public.users u ON u.id = a.candidate_id
+JOIN public.users r ON r.id = jp.recruiter_id
+WHERE a.id = ANY(@ids::uuid[]);
