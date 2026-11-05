@@ -1,4 +1,4 @@
-FROM oven/bun:1.4.2 AS dependencies
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS dependencies
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --ignore-scripts
@@ -8,7 +8,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN bun run typecheck && bun run build
 
-FROM oven/bun:1.4.2 AS production-dependencies
+FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS production-dependencies
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --production --frozen-lockfile --ignore-scripts

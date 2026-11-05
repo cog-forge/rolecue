@@ -76,3 +76,65 @@ same-repository gate above provides that for review events. For an
 `refs/pull/N/head` in tag mode, so keep the mention restricted to
 `OWNER`/`MEMBER`/`COLLABORATOR` (already enforced) and do not re-enable the bot
 for fork PRs without a separate review.
+
+## KAN-301
+
+Container hardening (also covers the duplicate KAN-269).
+
+Digest pinning. Every `FROM` in `api`, `auth` and `frontend` (production and
+`.dev` Dockerfiles), every third-party `image:` in `.docker/compose.deploy.yaml`
+and `.docker/compose.local.yaml`, and the `postgres` service image and the
+`mcr.microsoft.com/playwright` job container in `ci.yml` now carry an
+`@sha256:` digest next to the human-readable tag. The digests are the manifest
+list (multi-arch index) digests resolved with `docker buildx imagetools inspect`
+on 2026-11-05. The oven/bun stage copied into `auth/Dockerfile` and
+`frontend/Dockerfile` is pinned too. Digests only change when someone edits
+them; the Dependabot `docker` and `github-actions` ecosystems added in KAN-303
+open the bump PRs. The Chainguard `wolfi-base` and `node` runtime bases were
+already pinned.
+
+Not pinned: the locally built `rolecue-*-dev:local` images in `compose.local.yaml`
+(built from the repository), and the application images in
+`compose.deploy.yaml`, which are referenced by an immutable run-specific tag
+(`sha-<commit>-<run>-<attempt>`); KAN-303 additionally verifies their signature.
+
+Blender Python patches. `api/blender-requirements.txt` hash-locks the packages
+installed into Blender's bundled Python and `api/Dockerfile` installs them with
+`--require-hashes --no-deps --only-binary=:all:`. Hashes are the sha256 of the
+`py3-none-any` wheels from the PyPI JSON API. `packaging` is listed explicitly
+because `wheel` requires it and `--no-deps` skips resolution. The image build
+itself could not be run here (no daemon), so the first CI build is the real test.
+
+Runtime image slimming. The API and auth runtimes are already multi-stage
+Wolfi images that run as uid 10001 with `apk --no-cache`; the Go binary, Bun
+binary and production `node_modules` are the only application payload. Further
+trimming (stripping Blender's bundled docs/Python test files, removing `apk`)
+was not done: the Blender runtime contract `RUN` and `smoke.sh` depend on the
+exact Blender tree, and the savings are not worth an untestable change.
+
+Compose hardening (`compose.deploy.yaml`). All services get
+`security_opt: no-new-privileges:true` and `cap_drop: [ALL]`, plus
+`pids_limit` and `mem_limit` ceilings (postgres 2g, api 3g because of Blender,
+frontend 768m, auth 512m, caddy and migrate 256m; tune per host). Capabilities
+added back: postgres `CHOWN DAC_OVERRIDE FOWNER SETGID SETUID` (entrypoint fixes
+PGDATA ownership and drops privileges), caddy `NET_BIND_SERVICE`. `read_only`
+with tmpfs is on for postgres, migrate, auth, frontend and caddy. The api is not
+read-only because Blender writes under `/home/rolecue`, which also holds the VRM
+extension a tmpfs would hide.
+
+Network. `rolecue-private` is intentionally not `internal: true`: api and auth
+need outbound internet (Resend, PayOS, LLM, S3, Azure Speech, OAuth providers)
+and caddy needs it for ACME. Only caddy publishes host ports. Use the host
+firewall for egress filtering if required.
+
+Needs validation on the production host (could not be run here): with
+`read_only` and `cap_drop` a service that writes somewhere unexpected will
+crash-loop. Roll out on staging first and check `docker logs` for
+`Read-only file system` or `Operation not permitted`.
+
+Time-sensitive waiver. The Makefile `frontend-audit` target ignores
+`GHSA-vfj7-8cjw-p6xm` (braces, a tooling-only exception) via
+`bun audit --ignore` while `date -u +%Y%m%d` is at most `20261117`. After
+2026-11-17 UTC the audit fails until the dependency is upgraded or the waiver
+is renewed with a written reason. Re-check the advisory before that date
+instead of extending it by default.

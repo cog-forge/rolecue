@@ -1,10 +1,29 @@
 name: rolecue
 
+# Baseline container hardening shared by every service (KAN-301). Services add
+# back only the capabilities they need. mem_limit and pids_limit are generous
+# ceilings against runaway processes, not tuned reservations; raise them per
+# host if a workload legitimately needs more.
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+
 services:
   postgres:
-    image: postgres:18.6
+    image: postgres:18.6@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
     container_name: rolecue-postgres
     restart: unless-stopped
+    <<: *hardening
+    # The entrypoint starts as root, fixes ownership of PGDATA and drops to the
+    # postgres user with gosu, so those capabilities are required.
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    pids_limit: 512
+    mem_limit: 2g
     environment:
       PGDATA: /var/lib/postgresql/18/docker
       POSTGRES_DB: ${DB_DATABASE:?Set DB_DATABASE}
@@ -23,7 +42,7 @@ services:
     networks: [private]
 
   migrate:
-    image: migrate/migrate:v4.19.0
+    image: migrate/migrate:v4.19.0@sha256:d5c978181e3bfa55cc50e3bd8d7da3d87418a87693453250a8804b81ee6494db
     container_name: rolecue-migrate
     command:
       - -path
@@ -32,6 +51,10 @@ services:
       - ${DATABASE_URL:?Set DATABASE_URL}
       - up
     restart: "no"
+    <<: *hardening
+    read_only: true
+    pids_limit: 128
+    mem_limit: 256m
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,6 +66,12 @@ services:
     image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-auth:${IMAGE_TAG:?Set IMAGE_TAG}
     container_name: rolecue-auth
     restart: unless-stopped
+    <<: *hardening
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 256
+    mem_limit: 512m
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
@@ -79,6 +108,12 @@ services:
     image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-api:${IMAGE_TAG:?Set IMAGE_TAG}
     container_name: rolecue-api
     restart: unless-stopped
+    <<: *hardening
+    # No read_only here: Blender writes its config and cache under
+    # /home/rolecue (which also holds the baked-in VRM extension) and a
+    # tmpfs there would hide the extension. /tmp stays writable by default.
+    pids_limit: 512
+    mem_limit: 3g
     environment:
       APP_ENVIRONMENT: production
       APP_VERSION: ${IMAGE_TAG}
@@ -137,6 +172,14 @@ services:
     image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-frontend:${IMAGE_TAG:?Set IMAGE_TAG}
     container_name: rolecue-frontend
     restart: unless-stopped
+    <<: *hardening
+    read_only: true
+    tmpfs:
+      - /tmp
+      # Next.js image-optimisation cache; the image owns it as uid 65532.
+      - /app/.next/cache:uid=65532,gid=65532
+    pids_limit: 256
+    mem_limit: 768m
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
@@ -155,9 +198,17 @@ services:
     networks: [private]
 
   caddy:
-    image: caddy:2.10.2-alpine
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     container_name: rolecue-caddy
     restart: unless-stopped
+    <<: *hardening
+    # Only needed to bind ports 80 and 443 inside the container.
+    cap_add: [NET_BIND_SERVICE]
+    read_only: true
+    tmpfs:
+      - /tmp
+    pids_limit: 256
+    mem_limit: 256m
     environment:
       APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN}
       API_DOMAIN: ${API_DOMAIN:?Set API_DOMAIN}
@@ -179,6 +230,12 @@ services:
     networks: [private]
 
 networks:
+  # Deliberately not `internal: true`. An internal network has no gateway, so
+  # auth and api could not reach Resend, PayOS, the LLM provider, S3, Azure
+  # Speech or the OAuth providers, and caddy could not obtain certificates.
+  # Postgres, migrate, frontend and the service ports are only reachable from
+  # this network (nothing but caddy publishes host ports). Egress filtering, if
+  # wanted, belongs at the host firewall.
   private:
     name: rolecue-private
 
