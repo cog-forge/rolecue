@@ -1,4 +1,6 @@
--- Only the locked interviewer of an owned, currently eligible Application. Session reads must
+-- Only the avatar the posting locked for its interview (required_avatar_id), still owned by the posting's
+-- Recruiter: no other avatar of the Recruiter is reachable through this query (KAN-305). Owned, currently
+-- eligible Application only. Session reads must
 -- additionally identify its unfinished recruitment session; practice cannot match this join.
 -- name: GetCompanyInterviewer :one
 SELECT av.name, av.model_path, v.name AS voice_name, a.interview_deadline

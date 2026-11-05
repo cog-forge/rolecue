@@ -42,7 +42,9 @@ type GetCompanyInterviewerRow struct {
 	InterviewDeadline pgtype.Timestamptz
 }
 
-// Only the locked interviewer of an owned, currently eligible Application. Session reads must
+// Only the avatar the posting locked for its interview (required_avatar_id), still owned by the posting's
+// Recruiter: no other avatar of the Recruiter is reachable through this query (KAN-305). Owned, currently
+// eligible Application only. Session reads must
 // additionally identify its unfinished recruitment session; practice cannot match this join.
 func (q *Queries) GetCompanyInterviewer(ctx context.Context, arg GetCompanyInterviewerParams) (GetCompanyInterviewerRow, error) {
 	row := q.db.QueryRow(ctx, getCompanyInterviewer, arg.CandidateID, arg.ApplicationID, arg.SessionID)
