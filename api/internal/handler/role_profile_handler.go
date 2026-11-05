@@ -29,7 +29,7 @@ type RoleProfileService interface {
 	Delete(context.Context, uuid.UUID, string, uuid.UUID) error
 }
 type DocumentService interface {
-	Create(context.Context, string, service.UploadRequest) (service.UploadTicket, error)
+	Create(context.Context, uuid.UUID, string, service.UploadRequest) (service.UploadTicket, error)
 	Complete(context.Context, uuid.UUID, string, uuid.UUID) (domain.RoleProfile, error)
 	Document(context.Context, uuid.UUID, string, uuid.UUID) (storage.SignedRequest, error)
 }
@@ -61,7 +61,7 @@ func (h *RoleProfileHandler) CreateUpload(c *gin.Context) {
 	if !roleJSON(c, &input) {
 		return
 	}
-	ticket, err := h.documents.Create(c.Request.Context(), user.Role, input)
+	ticket, err := h.documents.Create(c.Request.Context(), user.ID, user.Role, input)
 	if err != nil {
 		response.Error(c, err)
 		return

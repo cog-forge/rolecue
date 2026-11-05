@@ -22,7 +22,11 @@ const recruiterRole = "recruiter"
 // Repository is the persistence contract consumed by Job Posting operations. Every method is
 // scoped to the Recruiter; a posting owned by someone else is reported as not found.
 type Repository interface {
+	// Create and Update claim the uploaded PDF's key for the Recruiter in the same transaction as
+	// the write, refusing a key issued to someone else or already used.
 	Create(ctx context.Context, recruiterID uuid.UUID, input domain.NewPosting) (domain.Record, error)
+	// RecordUpload binds a key handed out by UploadDocument to the Recruiter who uploaded it.
+	RecordUpload(ctx context.Context, recruiterID, key uuid.UUID) error
 	List(ctx context.Context, recruiterID uuid.UUID, filter domain.ListFilter) ([]domain.Summary, int64, error)
 	Get(ctx context.Context, recruiterID, id uuid.UUID) (domain.Record, error)
 	Update(ctx context.Context, recruiterID, id uuid.UUID, patch domain.Edit, document *domain.NewDocument) error
@@ -73,7 +77,7 @@ func requireRecruiter(role string) error {
 // UploadDocument stores a JD PDF and returns its ID with the text read from it, so the Recruiter
 // can ask for requirement suggestions before creating the posting. The PDF is read before it is
 // stored, so an unreadable file leaves nothing behind.
-func (s *Service) UploadDocument(ctx context.Context, role string, data []byte) (domain.Document, error) {
+func (s *Service) UploadDocument(ctx context.Context, recruiterID uuid.UUID, role string, data []byte) (domain.Document, error) {
 	if err := requireRecruiter(role); err != nil {
 		return domain.Document{}, err
 	}
@@ -86,6 +90,13 @@ func (s *Service) UploadDocument(ctx context.Context, role string, data []byte) 
 	done(err)
 	if err != nil {
 		return domain.Document{}, storageError(err)
+	}
+	id, err := uuid.Parse(key)
+	if err != nil {
+		return domain.Document{}, storageError(err)
+	}
+	if err := s.repository.RecordUpload(ctx, recruiterID, id); err != nil {
+		return domain.Document{}, err
 	}
 	return domain.Document{DocumentID: key, RawText: text}, nil
 }

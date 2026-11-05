@@ -6,9 +6,15 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/uploadgrant"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
+
+// RecordUpload binds a newly issued upload key to its Candidate.
+func (r *RoleProfileRepository) RecordUpload(ctx context.Context, user, key uuid.UUID) error {
+	return rolePersistenceError(uploadgrant.Record(ctx, r.pool, user, key, uploadgrant.PurposeRoleProfilePDF))
+}
 
 func (r *RoleProfileRepository) CreatePDFProfile(ctx context.Context, user uuid.UUID, raw, objectKey string) (domain.RoleProfile, error) {
 	tx, err := r.pool.Begin(ctx)
@@ -36,6 +42,11 @@ func (r *RoleProfileRepository) CreatePDFProfile(ctx context.Context, user uuid.
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return domain.RoleProfile{}, rolePersistenceError(err)
+	}
+	// Claimed in the same transaction as the profile, so a failed insert leaves the upload usable and
+	// a foreign or already used key creates nothing.
+	if err = uploadgrant.Consume(ctx, tx, user, objectKey, uploadgrant.PurposeRoleProfilePDF); err != nil {
+		return domain.RoleProfile{}, err
 	}
 	jd, err := q.CreateDocumentJD(ctx, CreateDocumentJDParams{RawText: &raw, ContentPath: &objectKey})
 	if err != nil {

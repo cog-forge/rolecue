@@ -13,7 +13,7 @@ import (
 
 func TestUploadDocumentStoresPDFAndReturnsText(t *testing.T) {
 	store := newStore()
-	got, err := newService(t, &fakeRepository{}, store).UploadDocument(context.Background(), "recruiter", fakePDF(validText()))
+	got, err := newService(t, &fakeRepository{}, store).UploadDocument(context.Background(), uuid.New(), "recruiter", fakePDF(validText()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestUploadDocumentRefusesBadPDFs(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newStore()
-			_, err := newService(t, &fakeRepository{}, store).UploadDocument(context.Background(), "recruiter", tt.data)
+			_, err := newService(t, &fakeRepository{}, store).UploadDocument(context.Background(), uuid.New(), "recruiter", tt.data)
 			assertCode(t, err, tt.code)
 			if store.uploads != 0 {
 				t.Fatal("a refused PDF was stored")
@@ -52,7 +52,7 @@ func TestUploadDocumentRefusesBadPDFs(t *testing.T) {
 func TestUploadDocumentStorageFailure(t *testing.T) {
 	store := newStore()
 	store.uploadErr = errBoom
-	_, err := newService(t, &fakeRepository{}, store).UploadDocument(context.Background(), "recruiter", fakePDF(validText()))
+	_, err := newService(t, &fakeRepository{}, store).UploadDocument(context.Background(), uuid.New(), "recruiter", fakePDF(validText()))
 	assertCode(t, err, apperror.CodeInternal)
 }
 
