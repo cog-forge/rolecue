@@ -138,3 +138,46 @@ Time-sensitive waiver. The Makefile `frontend-audit` target ignores
 2026-11-17 UTC the audit fails until the dependency is upgraded or the waiver
 is renewed with a written reason. Re-check the advisory before that date
 instead of extending it by default.
+
+## KAN-303
+
+Supply-chain controls in `.github/dependabot.yml` and `.github/workflows/ci.yml`.
+
+- Dependabot: weekly updates for `gomod` (/api), `bun` (/frontend, /auth),
+  `docker` (each of /api, /auth, /frontend, which also bumps the `@sha256`
+  digests), `docker-compose` (/.docker) and `github-actions` (/). Minor and
+  patch bumps are grouped to limit PR noise. Needs a repository setting:
+  Settings > Code security > enable Dependabot version updates (and security
+  updates / alerts). The `bun` ecosystem requires a Dependabot version that
+  supports it; if the config shows an error in the Dependabot tab, that is where
+  to look.
+- Trivy: the `images` job adds a filesystem scan of each component's
+  Dockerfile and build context and an image scan, both with
+  `scanners: misconfig,secret` and the existing `HIGH,CRITICAL` policy, exit code
+  1. The vulnerability gate (`make image-scan`) is unchanged. No `.trivyignore`
+  was added because no finding could be observed locally (no Trivy or Docker
+  daemon); add narrowly scoped, justified entries if the first CI run reports
+  false positives.
+- Testing the misconfig gate (do not commit): on a throwaway branch append
+  `USER root` as the last line of `api/Dockerfile` and open a PR. The
+  "Scan Dockerfile and build context" step fails with DS-0002 (HIGH). To test the
+  secret gate add a file containing an AWS-style key to `frontend/`.
+- Signing and SBOM: the `publish` job (the only job with `id-token: write`)
+  signs each pushed image by digest with keyless cosign and attaches the
+  CycloneDX SBOM from the `images` job as a signed attestation
+  (`cosign attest --type cyclonedx`). The SBOMs are also uploaded as the
+  `sbom-release` artifact with 90-day retention (the per-run scan artifacts
+  keep 14 days). This also closes the SBOM-retention item of KAN-307.
+- Deploy: `publish` now exports the pushed digests. The `deploy` job runs
+  `cosign verify` for each image digest against the identity
+  `https://github.com/cog-forge/rolecue/.github/workflows/ci.yml@refs/heads/main`
+  (issuer `https://token.actions.githubusercontent.com`) before pulling, and
+  passes `API_IMAGE_DIGEST`, `AUTH_IMAGE_DIGEST` and `FRONTEND_IMAGE_DIGEST` to
+  `compose.deploy.yaml`, which renders `repo:tag@sha256:...` when they are set
+  (unset keeps the tag-only behaviour for the manual `make deploy-*` path).
+  The self-hosted runner needs outbound access to the Sigstore public-good
+  infrastructure (fulcio, rekor, TUF) and to github.com to install cosign.
+- Not validated here: cosign signing and verification, the Trivy steps and
+  Dependabot parsing all run only on GitHub; the workflow YAML was parsed
+  locally but not executed. If the repository is renamed, update the
+  certificate identity in the deploy job.

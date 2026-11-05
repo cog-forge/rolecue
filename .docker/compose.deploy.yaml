@@ -63,7 +63,7 @@ services:
     networks: [private]
 
   auth:
-    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-auth:${IMAGE_TAG:?Set IMAGE_TAG}
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-auth:${IMAGE_TAG:?Set IMAGE_TAG}${AUTH_IMAGE_DIGEST:+@}${AUTH_IMAGE_DIGEST:-}
     container_name: rolecue-auth
     restart: unless-stopped
     <<: *hardening
@@ -105,7 +105,7 @@ services:
     networks: [private]
 
   api:
-    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-api:${IMAGE_TAG:?Set IMAGE_TAG}
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-api:${IMAGE_TAG:?Set IMAGE_TAG}${API_IMAGE_DIGEST:+@}${API_IMAGE_DIGEST:-}
     container_name: rolecue-api
     restart: unless-stopped
     <<: *hardening
@@ -169,7 +169,7 @@ services:
     networks: [private]
 
   frontend:
-    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-frontend:${IMAGE_TAG:?Set IMAGE_TAG}
+    image: ${REGISTRY:-ghcr.io/cog-forge}/rolecue-frontend:${IMAGE_TAG:?Set IMAGE_TAG}${FRONTEND_IMAGE_DIGEST:+@}${FRONTEND_IMAGE_DIGEST:-}
     container_name: rolecue-frontend
     restart: unless-stopped
     <<: *hardening
