@@ -69,3 +69,17 @@ describe("auth rate limiting", () => {
     expect(otherIp.status).toBe(401);
   });
 });
+
+describe("internal session verification", () => {
+  it("never rate limits get-session calls that carry no client IP", async () => {
+    const auth = createTestAuth();
+    for (let i = 0; i < 150; i++) {
+      const response = await auth.handler(
+        new Request(base + "/get-session?disableCookieCache=true", {
+          headers: { Accept: "application/json" },
+        }),
+      );
+      expect(response.status).toBe(200);
+    }
+  });
+});

@@ -9,6 +9,10 @@ export const rateLimitOptions = {
   modelName: "rate_limits",
   fields: { key: "key", count: "count", lastRequest: "last_request" },
   customRules: {
+    // Go calls this server-to-server for every authenticated API request without a client IP, so a
+    // limit would put all users in one shared bucket and turn into 503s. Session lookups stay
+    // unlimited here; the abuse targets are the credential endpoints below.
+    "/get-session": false,
     // Password guessing: a real user needs at most a few tries per minute.
     "/sign-in/email": { window: 60, max: 5 },
     // Each call sends mail, so keep it well below what a mailbox flood needs.
