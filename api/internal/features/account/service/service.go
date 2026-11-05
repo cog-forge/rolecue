@@ -48,7 +48,9 @@ func NewService(repo *repository.Repository, store Store) *Service {
 
 // Erase deletes the signed-in account. Order matters for retries: the checks run first, then the
 // stored objects are deleted (a missing object counts as deleted), and the database rows go last in one
-// transaction. A storage failure therefore leaves the account whole and the call can be repeated.
+// transaction. A storage failure keeps the account and the call can be repeated (files already removed
+// count as deleted on the retry). If the final in-transaction check finds new work, files removed by then
+// stay removed; the window is only the time between the two checks.
 func (s *Service) Erase(ctx context.Context, user authdomain.User, confirm string) error {
 	if user.ID == uuid.Nil {
 		return apperror.New(apperror.CodeInvalidToken, "authentication required")
@@ -78,7 +80,7 @@ func (s *Service) Erase(ctx context.Context, user authdomain.User, confirm strin
 		if err := s.store.Delete(ctx, key); err != nil && !errors.Is(err, storage.ErrNotFound) {
 			logger.FromContext(ctx).Error("account erasure: storage delete failed",
 				logger.Op("account.erase"), logger.String("user_id", user.ID.String()), logger.Error(err))
-			return apperror.Wrap(apperror.CodeInternal, "your files could not be removed; nothing was deleted, please try again", err)
+			return apperror.Wrap(apperror.CodeInternal, "some of your files could not be removed and your account was kept; please try again", err)
 		}
 	}
 	if err := s.repository.Erase(ctx, user.ID); err != nil {

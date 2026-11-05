@@ -28,10 +28,10 @@ it("keeps the 14 day session lifetime unless AUTH_SESSION_MAX_AGE_DAYS says othe
   });
 });
 
-it("refreshes a one day session no less often than it lives", () => {
+it("refreshes a one day session while it is still valid", () => {
   expect(sessionOptions(1)).toMatchObject({
     expiresIn: 86_400,
-    updateAge: 86_400,
+    updateAge: 43_200,
   });
 });
 

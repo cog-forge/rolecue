@@ -86,7 +86,7 @@ func (s *Service) FollowUp(ctx context.Context, candidateID uuid.UUID, role stri
 			// Counts only: no answer, prompt or user text is logged.
 			logger.FromContext(ctx).Warn("interview follow-up skipped",
 				logger.Op("interview.follow_up"), logger.String("interview_id", id.String()),
-				logger.String("outcome", followUpSkipped), logger.String("reason", "llm_budget"))
+				logger.String("outcome", followUpSkipped), logger.String("reason", followUpSkipReason(err)))
 			return delivery, nil
 		}
 	}
@@ -99,6 +99,14 @@ func (s *Service) FollowUp(ctx context.Context, candidateID uuid.UUID, role stri
 		Text: text, AskedAt: time.Now().UTC(), Cues: cues,
 	}
 	return delivery, nil
+}
+
+// followUpSkipReason names why the budget check let no follow-up through: a spent budget, or a failed check.
+func followUpSkipReason(err error) string {
+	if llmbudget.IsExceeded(err) {
+		return "llm_budget"
+	}
+	return "llm_budget_check_failed"
 }
 
 // AppendFollowUp stores the Candidate's answer to a follow-up the live interviewer asked, together with

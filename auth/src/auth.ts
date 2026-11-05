@@ -18,12 +18,15 @@ export const createBeforeHooks = (adminSecret: string) =>
   });
 
 // The schema mapping lives in authOptions; the lifetime is configurable (AUTH_SESSION_MAX_AGE_DAYS).
-// The session is refreshed at most once a day, and never less often than it lives.
-export const sessionOptions = (maxAgeDays: number) => ({
-  ...authOptions.session,
-  expiresIn: maxAgeDays * 24 * 60 * 60,
-  updateAge: Math.min(authOptions.session.updateAge, maxAgeDays * 24 * 60 * 60),
-});
+// The session is refreshed at most once a day, and always while it is still valid (at most half its life).
+export const sessionOptions = (maxAgeDays: number) => {
+  const expiresIn = maxAgeDays * 24 * 60 * 60;
+  return {
+    ...authOptions.session,
+    expiresIn,
+    updateAge: Math.min(authOptions.session.updateAge, expiresIn / 2),
+  };
+};
 
 export function createAuth(config: AuthEnv, database: Pool) {
   const { baseURL, appURL, secret, domain, secure, cookiePrefix } = config;
