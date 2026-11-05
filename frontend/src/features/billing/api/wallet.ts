@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/api/client";
 import {
   coinPackageListEnvelopeSchema,
   depositCheckoutEnvelopeSchema,
+  depositCheckoutRequestSchema,
   syncDepositEnvelopeSchema,
   transactionPageEnvelopeSchema,
   walletEnvelopeSchema,
@@ -38,7 +39,8 @@ export async function getTransactions(
   return transactionPageEnvelopeSchema.parse(response.data).data;
 }
 
-export async function createDepositCheckout(body: DepositCheckoutRequest) {
+export async function createDepositCheckout(request: DepositCheckoutRequest) {
+  const body = depositCheckoutRequestSchema.parse(request);
   const response = await apiClient.post<unknown>(
     "/wallet/deposit/checkout",
     body,

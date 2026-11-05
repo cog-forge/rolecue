@@ -139,6 +139,7 @@ func newRouter(h *handler.WalletHandler) *gin.Engine {
 func performRequest(r *gin.Engine, method, path string, body []byte, user *authdomain.User) *httptest.ResponseRecorder {
 	req, _ := http.NewRequest(method, path, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://app")
 	w := httptest.NewRecorder()
 
 	// Inject user via a wrapper that sets the context key before the handler.

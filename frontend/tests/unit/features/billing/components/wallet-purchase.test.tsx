@@ -72,6 +72,46 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function checkoutResponse(checkout_url: string) {
+  return {
+    data: {
+      success: true,
+      data: {
+        checkout_url,
+        order_code: 100300,
+        amount: 100000,
+        coin_amount: 250,
+        transaction_id: "tx-new",
+      },
+    },
+  };
+}
+
+it("follows the checkout URL when it is on the PayOS host", async () => {
+  renderDialog();
+  await buy();
+  await waitFor(() =>
+    expect(window.location.href).toBe("https://pay.payos.vn/checkout"),
+  );
+});
+
+it.each([
+  "https://evil.example/checkout",
+  "http://pay.payos.vn/checkout",
+  "javascript:alert(1)",
+  "https://pay.payos.vn@evil.example/checkout",
+])("never navigates to an untrusted checkout URL (%s)", async (url) => {
+  mocks.post.mockResolvedValue(checkoutResponse(url));
+  renderDialog();
+  await buy();
+  await waitFor(() =>
+    expect(
+      screen.getAllByRole("button", { name: "Buy Pro Pack with PayOS" })[0],
+    ).toBeEnabled(),
+  );
+  expect(window.location.href).toBe("");
+});
+
 it("returns PayOS to the screen that asked for coins, keeping its own query", async () => {
   renderDialog(preflight);
   expect(await buy()).toEqual({

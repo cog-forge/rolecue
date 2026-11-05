@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -41,17 +43,80 @@ func NewWalletHandler(service WalletService) *WalletHandler {
 	return &WalletHandler{service: service}
 }
 
+// DepositCheckoutRequest starts a PayOS top-up. return_url and cancel_url are optional; when present they
+// must be http(s) URLs on the origin the request came from, which RequireAuth already checked against the
+// trusted-origin list.
 type DepositCheckoutRequest struct {
 	PackageID uuid.UUID `json:"package_id" binding:"required"`
-	ReturnURL string    `json:"return_url"`
-	CancelURL string    `json:"cancel_url"`
+	ReturnURL string    `json:"return_url" example:"https://app.example.com/billing?status=success"`
+	CancelURL string    `json:"cancel_url" example:"https://app.example.com/billing?cancel=true"`
 }
 
 type SyncDepositRequest struct {
 	OrderCode int64 `json:"order_code" binding:"required"`
 }
 
-// GetWallet handles GET /api/v1/wallet
+// WalletTransactionPage is the body of GET /wallet/transactions.
+type WalletTransactionPage struct {
+	Items    []walletdomain.Transaction `json:"items"`
+	Total    int64                      `json:"total"`
+	Page     int                        `json:"page"`
+	PageSize int                        `json:"page_size"`
+}
+
+// PayOSWebhookAck is the acknowledgement PayOS expects from a webhook.
+type PayOSWebhookAck struct {
+	Code    string `json:"code" example:"00"`
+	Message string `json:"message" example:"success"`
+}
+
+const (
+	maxCheckoutBodyBytes = 4 << 10
+	maxSyncBodyBytes     = 1 << 10
+	maxWebhookBodyBytes  = 64 << 10
+	maxReturnURLLength   = 2048
+)
+
+// walletJSON decodes one JSON object strictly: JSON content type, a size cap, no unknown fields and
+// nothing after the object. Any failure is a generic VALIDATION_ERROR; the parser error is not echoed.
+func walletJSON(c *gin.Context, limit int64, dst any, message string) bool {
+	if c.ContentType() != "application/json" {
+		response.Error(c, apperror.New(apperror.CodeValidation, message))
+		return false
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, limit))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil || decoder.Decode(new(any)) != io.EOF {
+		response.Error(c, apperror.New(apperror.CodeValidation, message))
+		return false
+	}
+	return true
+}
+
+// sameOriginURL reports whether raw is an absolute http(s) URL on the given origin. An empty raw is
+// accepted by the caller; an empty origin never matches.
+func sameOriginURL(raw, origin string) bool {
+	if origin == "" || len(raw) > maxReturnURLLength {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || u.User != nil || (u.Scheme != "https" && u.Scheme != "http") {
+		return false
+	}
+	return strings.EqualFold(u.Scheme+"://"+u.Host, origin)
+}
+
+// GetWallet godoc
+// @Summary Get your coin wallet
+// @Description Candidate/Recruiter only. Creates an empty wallet on first read. Admins have no wallet (403).
+// @Tags wallet
+// @Produce json
+// @Security SessionCookie
+// @Success 200 {object} response.Envelope{data=walletdomain.Wallet}
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /wallet [get]
 func (h *WalletHandler) GetWallet(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
@@ -71,7 +136,19 @@ func (h *WalletHandler) GetWallet(c *gin.Context) {
 	response.OK(c, wallet)
 }
 
-// ListTransactions handles GET /api/v1/wallet/transactions
+// ListTransactions godoc
+// @Summary List your wallet transactions
+// @Description Candidate/Recruiter only. Newest first; page defaults to 1 and page_size to 20 (1 to 100).
+// @Tags wallet
+// @Produce json
+// @Security SessionCookie
+// @Param page query int false "Page number" default(1) minimum(1)
+// @Param page_size query int false "Page size" default(20) minimum(1) maximum(100)
+// @Success 200 {object} response.Envelope{data=WalletTransactionPage}
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /wallet/transactions [get]
 func (h *WalletHandler) ListTransactions(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
@@ -97,15 +174,20 @@ func (h *WalletHandler) ListTransactions(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{
-		"items":     txs,
-		"total":     total,
-		"page":      page,
-		"page_size": pageSize,
-	})
+	if txs == nil {
+		txs = []walletdomain.Transaction{}
+	}
+	response.OK(c, WalletTransactionPage{Items: txs, Total: total, Page: page, PageSize: pageSize})
 }
 
-// ListPackages handles GET /api/v1/wallet/packages
+// ListPackages godoc
+// @Summary List the active coin packages
+// @Description Public catalogue of the packages a top-up can buy. Inactive packages are not listed.
+// @Tags wallet
+// @Produce json
+// @Success 200 {object} response.Envelope{data=[]walletdomain.CoinPackage}
+// @Failure 500 {object} response.Envelope
+// @Router /wallet/packages [get]
 func (h *WalletHandler) ListPackages(c *gin.Context) {
 	packages, err := h.service.ListPackages(c.Request.Context())
 	if err != nil {
@@ -115,7 +197,22 @@ func (h *WalletHandler) ListPackages(c *gin.Context) {
 	response.OK(c, packages)
 }
 
-// CreateDepositCheckout handles POST /api/v1/wallet/deposit/checkout
+// CreateDepositCheckout godoc
+// @Summary Start a PayOS top-up checkout
+// @Description Candidate/Recruiter only. Creates a pending VND order for an active coin package and returns the PayOS checkout URL. The coins are credited only after PayOS confirms payment (webhook or sync). return_url and cancel_url are optional; when given they must be http(s) URLs on the same origin as the request's trusted Origin header, otherwise VALIDATION_ERROR. The JSON body is strict: unknown fields, trailing data and bodies over 4 KiB are VALIDATION_ERROR.
+// @Tags wallet
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param request body DepositCheckoutRequest true "Package and return URLs"
+// @Success 200 {object} response.Envelope{data=walletdomain.DepositCheckoutResponse}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 502 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /wallet/deposit/checkout [post]
 func (h *WalletHandler) CreateDepositCheckout(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
@@ -128,9 +225,21 @@ func (h *WalletHandler) CreateDepositCheckout(c *gin.Context) {
 	}
 
 	var req DepositCheckoutRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if !walletJSON(c, maxCheckoutBodyBytes, &req, "invalid deposit checkout request") {
+		return
+	}
+	if req.PackageID == uuid.Nil {
 		response.Error(c, apperror.New(apperror.CodeValidation, "invalid deposit checkout request"))
 		return
+	}
+	// The Origin header is the one RequireAuth matched against the trusted origins, so a return URL on
+	// it is on a trusted origin. Anything else would let a client send the payer to another site.
+	origin := c.GetHeader("Origin")
+	for _, raw := range []string{req.ReturnURL, req.CancelURL} {
+		if raw != "" && !sameOriginURL(raw, origin) {
+			response.Error(c, apperror.New(apperror.CodeValidation, "return_url and cancel_url must be on the application origin"))
+			return
+		}
 	}
 
 	checkoutResp, err := h.service.CreateDepositCheckout(
@@ -148,7 +257,22 @@ func (h *WalletHandler) CreateDepositCheckout(c *gin.Context) {
 	response.OK(c, checkoutResp)
 }
 
-// SyncDepositStatus handles POST /api/v1/wallet/deposit/sync
+// SyncDepositStatus godoc
+// @Summary Reconcile one of your top-ups with PayOS
+// @Description Candidate/Recruiter only. Asks PayOS for the authoritative status of the caller's own order and settles it once. A terminal order is returned as it is. Another user's order is FORBIDDEN. The JSON body is strict and capped at 1 KiB.
+// @Tags wallet
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param request body SyncDepositRequest true "PayOS order code"
+// @Success 200 {object} response.Envelope{data=walletdomain.Transaction}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 502 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /wallet/deposit/sync [post]
 func (h *WalletHandler) SyncDepositStatus(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
@@ -161,7 +285,10 @@ func (h *WalletHandler) SyncDepositStatus(c *gin.Context) {
 	}
 
 	var req SyncDepositRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if !walletJSON(c, maxSyncBodyBytes, &req, "invalid sync deposit request") {
+		return
+	}
+	if req.OrderCode <= 0 {
 		response.Error(c, apperror.New(apperror.CodeValidation, "invalid sync deposit request"))
 		return
 	}
@@ -175,9 +302,21 @@ func (h *WalletHandler) SyncDepositStatus(c *gin.Context) {
 	response.OK(c, tx)
 }
 
-// HandlePayOSWebhook handles POST /api/v1/wallet/webhook/payos
+// HandlePayOSWebhook godoc
+// @Summary PayOS payment webhook
+// @Description Called by PayOS, not by browsers, so there is no session or Origin check. The request is trusted only after the service verifies the PayOS signature and re-reads the payment link from PayOS; a replay of a settled order changes nothing. The body is read whole, capped at 64 KiB.
+// @Tags wallet
+// @Accept json
+// @Produce json
+// @Param request body object true "PayOS webhook payload, signed by PayOS"
+// @Success 200 {object} PayOSWebhookAck
+// @Failure 400 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 502 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /wallet/webhook/payos [post]
 func (h *WalletHandler) HandlePayOSWebhook(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, maxWebhookBodyBytes))
 	if err != nil {
 		response.Error(c, apperror.New(apperror.CodeValidation, "unable to read request body"))
 		return
@@ -188,7 +327,7 @@ func (h *WalletHandler) HandlePayOSWebhook(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": "00", "message": "success"})
+	c.JSON(http.StatusOK, PayOSWebhookAck{Code: "00", Message: "success"})
 }
 
 func requireAdminUser(c *gin.Context) bool {
