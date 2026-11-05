@@ -10,7 +10,7 @@ import (
 )
 
 func invalid(message string) error { return apperror.New(apperror.CodeValidation, message) }
-func validatePatch(p *domain.Patch, role string) error {
+func validatePatch(p *domain.Patch, role string, imageHosts []string) error {
 	if !p.FullName.Present && !p.Image.Present && !p.CompanyName.Present && !p.CompanyWebsite.Present {
 		return invalid("at least one profile field is required")
 	}
@@ -36,8 +36,8 @@ func validatePatch(p *domain.Patch, role string) error {
 	if p.CompanyWebsite.Value != nil && *p.CompanyWebsite.Value == "" {
 		p.CompanyWebsite.Value = nil
 	}
-	if p.Image.Value != nil && !validURL(*p.Image.Value) {
-		return invalid("image must be an HTTPS URL without credentials, at most 2048 characters")
+	if p.Image.Value != nil && (!validURL(*p.Image.Value) || !allowedImageHost(*p.Image.Value, imageHosts)) {
+		return invalid("image must be an HTTPS URL on an allowed image host, at most 2048 characters")
 	}
 	if p.CompanyWebsite.Value != nil && !validURL(*p.CompanyWebsite.Value) {
 		return invalid("company_website must be an HTTPS URL without credentials, at most 2048 characters")

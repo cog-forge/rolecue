@@ -13,11 +13,25 @@ type Repository interface {
 }
 
 type Service struct {
+	imageHosts []string
 	repository Repository
 }
 
-func NewService(repository Repository) *Service {
-	return &Service{repository: repository}
+// Option configures the Service.
+type Option func(*Service)
+
+// WithImageHosts sets the hosts a profile image URL may point to. Without it the sign-in providers' avatar
+// hosts are the only ones allowed.
+func WithImageHosts(hosts []string) Option {
+	return func(s *Service) { s.imageHosts = hosts }
+}
+
+func NewService(repository Repository, opts ...Option) *Service {
+	s := &Service{repository: repository, imageHosts: []string{"lh3.googleusercontent.com", "avatars.githubusercontent.com"}}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 func (s *Service) Get(ctx context.Context, id uuid.UUID) (domain.Profile, error) {
@@ -25,7 +39,7 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (domain.Profile, error)
 }
 
 func (s *Service) Update(ctx context.Context, id uuid.UUID, role string, patch domain.Patch) (domain.Profile, error) {
-	if err := validatePatch(&patch, role); err != nil {
+	if err := validatePatch(&patch, role, s.imageHosts); err != nil {
 		return domain.Profile{}, err
 	}
 	current, err := s.repository.Get(ctx, id)

@@ -264,3 +264,47 @@ Low-severity CI and Docker items.
   uid still need a writable `node_modules` named volume, so that directory
   keeps mode `1777` (sticky, so users cannot remove each other's files) rather
   than being tightened to 755. Not verified with a build (no Docker daemon).
+
+## KAN-295 Object storage
+
+- `S3_ENDPOINT` must be `https://`; plain `http://` is accepted only for loopback hosts (`localhost`,
+  `*.localhost`, `127.0.0.0/8`, `::1`). Startup fails otherwise.
+- Every object the API writes (`PutObject`) and every presigned upload carries
+  `x-amz-server-side-encryption`. `STORAGE_SSE` is `AES256` (default), `aws:kms` (optional
+  `STORAGE_SSE_KMS_KEY_ID`; empty uses the bucket default key) or `none` (loopback development only).
+  The presigned grant returns the header in `headers`, signed into the URL, and both browser uploaders
+  (`putRecording`, `uploadPDF`) already send the grant's headers unchanged.
+- **Bucket-default verification (manual, per environment).** The header only covers writes through the
+  API. Confirm the bucket itself also encrypts, so a stray write cannot land in clear text:
+  `aws s3api get-bucket-encryption --bucket "$S3_BUCKET" --endpoint-url "$S3_ENDPOINT"` must show a
+  `ServerSideEncryptionConfiguration` rule (AES256 or aws:kms). If the provider has no bucket default
+  (some S3-compatible stores return `ServerSideEncryptionConfigurationNotFoundError`), enable it in the
+  provider console or accept that only API writes are encrypted. Then upload one object through the app
+  and check `aws s3api head-object` reports `ServerSideEncryption`. A provider that rejects the header
+  needs `STORAGE_SSE=none`, which is refused for non-loopback endpoints, so raise it with the provider
+  instead. Not verified against the real provider from this machine.
+
+## KAN-305 backend cleanups
+
+- **Session cookie `__Host-` prefix: not adopted.** `__Host-` forbids a `Domain` attribute, but
+  production requires `BETTER_AUTH_COOKIE_DOMAIN` (the app and auth origins are different subdomains,
+  see `auth/src/env.ts`), so the prefix would never apply where it matters. Without a cookie domain
+  (local, single-origin HTTPS) Better Auth already names the cookie `__Secure-<prefix>.session_token`.
+  Switching the name would also break the Go side, which recognises the session cookie by name
+  (`internal/pkg/authcookie`, the session verifier and the admin account transport). The cookie stays
+  `HttpOnly`, `Secure` under HTTPS and `SameSite=Lax`. Revisit if the app and auth move to one origin.
+- **Sessions.** Password change revokes every other session on the server
+  (`forceRevokeOtherSessions`, PR #99), so the client no longer sends `revokeOtherSessions`; the
+  dialog only informs. The 14-day sliding lifetime is now `AUTH_SESSION_MAX_AGE_DAYS` (1 to 90,
+  default 14); sessions still refresh at most once a day.
+- **Profile image.** `PROFILE_IMAGE_HOSTS` (comma separated, `*.example.com` allowed) limits where a
+  profile image URL may point. Empty means Google and GitHub avatar hosts plus the storage endpoint host.
+  Existing stored images are not rewritten.
+- **Recording retention clock.** `applications.decided_at` (migration 000028) is set once when an
+  Application becomes approved or rejected and drives the recording purge. Rows decided earlier were
+  backfilled from `updated_at`.
+- **Practice start ownership oracle.** Already fixed on main (ownership is checked before
+  `FindUnfinishedPractice`; covered by `practice_ownership_oracle_integration_test.go`).
+- **Company interviewer.** The query already returns only the avatar the posting locked
+  (`required_avatar_id`, owned by the posting's recruiter); a regression test now pins that no other
+  avatar of the recruiter, and no foreign avatar, is reachable. The grant is the posting's VRM by design.
