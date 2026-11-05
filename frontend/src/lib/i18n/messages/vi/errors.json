@@ -81,7 +81,11 @@
     "FINAL_REVIEW_LOCKED": "Chưa thể đưa ra quyết định cuối cùng.",
     "APPLICATION_NOT_INTERVIEWED": "Ứng viên này chưa hoàn thành buổi phỏng vấn.",
     "RECORDING_NOT_FOUND": "Buổi phỏng vấn này không có bản ghi.",
-    "RECORDING_NOT_ALLOWED": "Bạn không có quyền xem bản ghi này."
+    "RECORDING_NOT_ALLOWED": "Bạn không có quyền xem bản ghi này.",
+    "RECORDING_UPLOAD_LIMIT": "Bạn đã tải bản ghi lên quá nhiều lần.",
+    "RECORDING_INTEGRITY": "Bản ghi đã thay đổi sau khi lưu nên không thể phát.",
+    "EVALUATION_ATTEMPTS_EXCEEDED": "Buổi phỏng vấn này không thể chấm lại nữa. Vui lòng liên hệ hỗ trợ.",
+    "RATE_LIMITED": "Bạn thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại."
   },
   "auth": {
     "accountLocked": "Tài khoản của bạn đã bị quản trị viên khóa. Hãy liên hệ bộ phận hỗ trợ để được xem xét. Bạn có thể đăng nhập lại khi khóa hết hạn hoặc khi quản trị viên mở khóa tài khoản.",

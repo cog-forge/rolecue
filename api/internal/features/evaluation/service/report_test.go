@@ -60,14 +60,14 @@ func TestReportPracticeCandidateSeesEverything(t *testing.T) {
 	}
 }
 
-func TestReportRecruitmentCandidateSeesOnlyScoreAndStatus(t *testing.T) {
+func TestReportRecruitmentCandidateSeesOnlyStatus(t *testing.T) {
 	repo := evaluatedRepository(evaluatedRecord(completedRecruitmentRecord(), 80, "Solid answers."))
 	report := reportFor(t, repo, scoringCandidateID, candidateRole)
-
-	if report.Status != domain.EvaluationCompleted || report.OverallScore == nil || *report.OverallScore != 80 {
+	if report.Status != domain.EvaluationCompleted || report.OverallScore != nil {
+		t.Fatalf("status = %q, score = %v; want completed without the score", report.Status, report.OverallScore)
 		t.Fatalf("status = %q, score = %v; want completed with 80", report.Status, report.OverallScore)
 	}
-	if report.Summary != nil || report.Breakdown != nil || report.Questions != nil {
+	if report.Summary != nil || report.Breakdown != nil || report.Questions != nil || report.InjectionFlagged != nil || report.SummarySource != "" {
 		t.Fatalf("limited view leaked evidence: summary=%v breakdown=%+v questions=%+v", report.Summary, report.Breakdown, report.Questions)
 	}
 
@@ -80,6 +80,11 @@ func TestReportRecruitmentCandidateSeesOnlyScoreAndStatus(t *testing.T) {
 			t.Fatalf("JSON %s lacks %s", body, key)
 		}
 	}
+	for _, key := range []string{"overall_score", "injection_flagged", "summary_source"} {
+		if strings.Contains(string(body), key) {
+			t.Fatalf("JSON %s leaks %s to the candidate", body, key)
+		}
+	}
 }
 
 func TestReportRecruitmentRecruiterOfThePostingSeesEverything(t *testing.T) {
@@ -88,6 +93,9 @@ func TestReportRecruitmentRecruiterOfThePostingSeesEverything(t *testing.T) {
 
 	if report.Summary == nil || len(report.Breakdown) != 1 || len(report.Questions) != 1 {
 		t.Fatalf("recruiter view = %+v, want the full report", report)
+	}
+	if report.OverallScore == nil || *report.OverallScore != 80 || report.SummarySource != domain.SummarySourceAI || report.InjectionFlagged == nil || *report.InjectionFlagged {
+		t.Fatalf("recruiter view = %+v, want the score, an ai summary source and an unset flag", report)
 	}
 }
 
@@ -197,5 +205,15 @@ func TestReportCarriesTheEndReasonAndQuestionCount(t *testing.T) {
 	limited := reportFor(t, &fakeInterviewRepository{record: recruitment}, scoringCandidateID, candidateRole)
 	if limited.EndReason == nil || *limited.EndReason != "abandoned" || limited.QuestionCount != 5 || limited.Questions != nil {
 		t.Fatalf("limited view = %+v", limited)
+	}
+}
+
+func TestReportRecruiterSeesTheInjectionFlag(t *testing.T) {
+	record := evaluatedRecord(completedRecruitmentRecord(), 80, "Solid answers.")
+	record.InjectionFlagged = true
+	report := reportFor(t, evaluatedRepository(record), scoringRecruiterID, recruiterRole)
+
+	if report.InjectionFlagged == nil || !*report.InjectionFlagged {
+		t.Fatalf("InjectionFlagged = %v, want true", report.InjectionFlagged)
 	}
 }

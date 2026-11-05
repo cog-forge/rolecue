@@ -86,17 +86,69 @@ func (s *s3Store) Download(ctx context.Context, key string) (Object, error) {
 	done := logger.Start(ctx, "storage.download", logger.String("key", key))
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
 	if err != nil {
-		var apiErr smithy.APIError
-		if errors.As(err, &apiErr) && apiErr.ErrorCode() == "NoSuchKey" {
-			err = fmt.Errorf("download object: %w: %w", ErrNotFound, err)
-		} else {
-			err = fmt.Errorf("download object: %w", err)
-		}
+		err = notFoundAware("download object", err)
 		done(err, failureFields(err)...)
 		return Object{}, err
 	}
 	done(nil, zap.Int64("bytes", aws.ToInt64(out.ContentLength)), zap.String("content_class", contentTypeClass(aws.ToString(out.ContentType))))
 	return Object{Body: out.Body, ContentType: aws.ToString(out.ContentType), Size: aws.ToInt64(out.ContentLength)}, nil
+}
+
+// Head returns the metadata of an object. A HEAD response has no body, so the SDK reports a missing object
+// as NotFound rather than NoSuchKey; both map to ErrNotFound.
+func (s *s3Store) Head(ctx context.Context, key string) (ObjectInfo, error) {
+	if err := validateKey(key); err != nil {
+		return ObjectInfo{}, err
+	}
+	done := logger.Start(ctx, "storage.head", logger.String("key", key))
+	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
+	if err != nil {
+		err = notFoundAware("head object", err)
+		done(err, failureFields(err)...)
+		return ObjectInfo{}, err
+	}
+	done(nil, zap.Int64("bytes", aws.ToInt64(out.ContentLength)))
+	return ObjectInfo{ETag: aws.ToString(out.ETag), Size: aws.ToInt64(out.ContentLength), ContentType: aws.ToString(out.ContentType)}, nil
+}
+
+// maxPrefixBytes bounds ReadPrefix so a caller cannot use it to read an object into memory.
+const maxPrefixBytes = 1 << 16
+
+// ReadPrefix reads a ranged GET of the first n bytes. An object shorter than n returns what it has.
+func (s *s3Store) ReadPrefix(ctx context.Context, key string, n int64) ([]byte, error) {
+	if err := validateKey(key); err != nil {
+		return nil, err
+	}
+	if n < 1 || n > maxPrefixBytes {
+		return nil, fmt.Errorf("%w: prefix length must be between 1 and %d bytes", ErrInvalidInput, maxPrefixBytes)
+	}
+	done := logger.Start(ctx, "storage.read_prefix", logger.String("key", key), zap.Int64("max_bytes", n))
+	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(key), Range: aws.String(fmt.Sprintf("bytes=0-%d", n-1)),
+	})
+	if err != nil {
+		err = notFoundAware("read object prefix", err)
+		done(err, failureFields(err)...)
+		return nil, err
+	}
+	defer func() { _ = out.Body.Close() }()
+	buf, err := io.ReadAll(io.LimitReader(out.Body, n))
+	if err != nil {
+		err = fmt.Errorf("read object prefix: %w", err)
+		done(err, failureFields(err)...)
+		return nil, err
+	}
+	done(nil, zap.Int64("bytes", int64(len(buf))))
+	return buf, nil
+}
+
+// notFoundAware wraps an SDK error for op, adding ErrNotFound when the object does not exist.
+func notFoundAware(op string, err error) error {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) && (apiErr.ErrorCode() == "NoSuchKey" || apiErr.ErrorCode() == "NotFound") {
+		return fmt.Errorf("%s: %w: %w", op, ErrNotFound, err)
+	}
+	return fmt.Errorf("%s: %w", op, err)
 }
 
 // contentTypeClass keeps only the media type family ("text", "audio"), which is enough to diagnose
@@ -160,6 +212,24 @@ func validateKey(key string) error {
 }
 
 func (s *s3Store) PresignGet(ctx context.Context, key string, ttl time.Duration) (SignedRequest, error) {
+	return s.presignGet(ctx, key, ttl, GetOverrides{})
+}
+
+func (s *s3Store) PresignGetWithOverrides(ctx context.Context, key string, ttl time.Duration, overrides GetOverrides) (SignedRequest, error) {
+	for _, v := range []string{overrides.ContentType, overrides.ContentDisposition} {
+		if strings.ContainsAny(v, "\r\n\x00") {
+			return SignedRequest{}, fmt.Errorf("%w: response override must be one header line", ErrInvalidInput)
+		}
+	}
+	if overrides.ContentType != "" {
+		if err := validateContentType(overrides.ContentType); err != nil {
+			return SignedRequest{}, err
+		}
+	}
+	return s.presignGet(ctx, key, ttl, overrides)
+}
+
+func (s *s3Store) presignGet(ctx context.Context, key string, ttl time.Duration, overrides GetOverrides) (SignedRequest, error) {
 	if err := ctx.Err(); err != nil {
 		return SignedRequest{}, err
 	}
@@ -169,8 +239,16 @@ func (s *s3Store) PresignGet(ctx context.Context, key string, ttl time.Duration)
 	if err := validateTTL(ttl); err != nil {
 		return SignedRequest{}, err
 	}
+	input := &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)}
+	// The overrides are signed into the URL, so the browser cannot change the type or the download name.
+	if overrides.ContentType != "" {
+		input.ResponseContentType = aws.String(overrides.ContentType)
+	}
+	if overrides.ContentDisposition != "" {
+		input.ResponseContentDisposition = aws.String(overrides.ContentDisposition)
+	}
 	done := logger.Start(ctx, "storage.presign_get", logger.String("key", key), zap.Duration("ttl", ttl))
-	out, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)}, func(o *s3.PresignOptions) { o.Expires = ttl })
+	out, err := s.presigner.PresignGetObject(ctx, input, func(o *s3.PresignOptions) { o.Expires = ttl })
 	if err != nil {
 		err = fmt.Errorf("presign GET: %w", err)
 		done(err, failureFields(err)...)

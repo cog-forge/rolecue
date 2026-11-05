@@ -94,14 +94,18 @@ const (
 	CodeInterviewNotFound              Code = "INTERVIEW_NOT_FOUND"
 
 	// Interview session, final decision and recording codes.
-	CodeRoleProfileRequired       Code = "ROLE_PROFILE_REQUIRED"
-	CodeInterviewCompleted        Code = "INTERVIEW_COMPLETED"
-	CodeInterviewTurnConflict     Code = "INTERVIEW_TURN_CONFLICT"
-	CodeInterviewNotCompleted     Code = "INTERVIEW_NOT_COMPLETED"
-	CodeFinalReviewLocked         Code = "FINAL_REVIEW_LOCKED"
-	CodeApplicationNotInterviewed Code = "APPLICATION_NOT_INTERVIEWED"
-	CodeRecordingNotFound         Code = "RECORDING_NOT_FOUND"
-	CodeRecordingNotAllowed       Code = "RECORDING_NOT_ALLOWED"
+	CodeRoleProfileRequired        Code = "ROLE_PROFILE_REQUIRED"
+	CodeInterviewCompleted         Code = "INTERVIEW_COMPLETED"
+	CodeInterviewTurnConflict      Code = "INTERVIEW_TURN_CONFLICT"
+	CodeInterviewNotCompleted      Code = "INTERVIEW_NOT_COMPLETED"
+	CodeEvaluationAttemptsExceeded Code = "EVALUATION_ATTEMPTS_EXCEEDED"
+	CodeRateLimited                Code = "RATE_LIMITED"
+	CodeFinalReviewLocked          Code = "FINAL_REVIEW_LOCKED"
+	CodeApplicationNotInterviewed  Code = "APPLICATION_NOT_INTERVIEWED"
+	CodeRecordingNotFound          Code = "RECORDING_NOT_FOUND"
+	CodeRecordingNotAllowed        Code = "RECORDING_NOT_ALLOWED"
+	CodeRecordingUploadLimit       Code = "RECORDING_UPLOAD_LIMIT"
+	CodeRecordingIntegrity         Code = "RECORDING_INTEGRITY"
 )
 
 type AppError struct {

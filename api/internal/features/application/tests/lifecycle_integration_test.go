@@ -474,7 +474,7 @@ func TestRecruiterDetailShowsInterviewAndFinalReview(t *testing.T) {
 	}
 }
 
-func TestCandidateApplicationInterviewBlockHasOnlyTheScore(t *testing.T) {
+func TestCandidateApplicationInterviewBlockNeverCarriesTheScore(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
 	svc := newService(t, pool)
@@ -490,8 +490,8 @@ func TestCandidateApplicationInterviewBlockHasOnlyTheScore(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Interview == nil || got.Interview.ID != interviewID || got.Interview.Status != "completed" ||
-		got.Interview.Score == nil || *got.Interview.Score != 81 || got.Interview.CompletedAt == nil {
-		t.Fatalf("Interview = %+v, want the completed interview with its score", got.Interview)
+		got.Interview.CompletedAt == nil {
+		t.Fatalf("Interview = %+v, want the completed interview without a score", got.Interview)
 	}
 
 	var body map[string]json.RawMessage
@@ -507,8 +507,17 @@ func TestCandidateApplicationInterviewBlockHasOnlyTheScore(t *testing.T) {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	if strings.Join(keys, ",") != "completed_at,id,score,status" {
-		t.Fatalf("interview block keys = %v, want exactly id, completed_at, status, score", keys)
+	if strings.Join(keys, ",") != "completed_at,id,status" {
+		t.Fatalf("interview block keys = %v, want exactly id, completed_at, status: a recruitment score is never shown to the Candidate", keys)
+	}
+
+	// The list read has the same shape: no score in the JSON of any item.
+	listed, err := svc.ListMine(ctx, candidate, "candidate", domain.CandidateListFilter{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw := marshalJSON(t, listed); !strings.Contains(raw, interviewID.String()) || strings.Contains(raw, `"score"`) {
+		t.Fatalf("candidate list = %s, want the interview without any score key", raw)
 	}
 
 	other := s.user("candidate")

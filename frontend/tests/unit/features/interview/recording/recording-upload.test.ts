@@ -227,6 +227,23 @@ describe("upload", () => {
     });
     expect(api.grant).toHaveBeenCalledTimes(1);
   });
+
+  it("treats an exhausted upload limit as final: one grant request and no retry", async () => {
+    const { api } = fakeServer();
+    vi.mocked(api.grant).mockRejectedValue(
+      apiError(409, "RECORDING_UPLOAD_LIMIT"),
+    );
+    const { uploader } = await setup(api);
+    await uploader.run();
+    expect(uploader.getSnapshot()).toMatchObject({
+      status: "failed",
+      reason: "exhausted",
+      abandoned: false,
+    });
+    expect(api.grant).toHaveBeenCalledTimes(1);
+    expect(api.put).not.toHaveBeenCalled();
+    expect(api.complete).not.toHaveBeenCalled();
+  });
 });
 
 describe("reload", () => {

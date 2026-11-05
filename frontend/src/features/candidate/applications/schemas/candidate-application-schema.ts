@@ -38,14 +38,13 @@ export const candidateApplicationSchema = z.object({
     .nullable()
     .optional(),
   created_at: z.iso.datetime({ offset: true }),
-  // The Candidate's own interview of this Application: status and score only, never transcript or
+  // The Candidate's own interview of this Application: status only, never score, transcript or
   // recording (KAN-114).
   interview: z
     .object({
       id: z.uuid(),
       completed_at: z.iso.datetime({ offset: true }).nullable(),
       status: z.enum(["in_progress", "pending", "completed", "failed"]),
-      score: z.number().int().nullable(),
     })
     .nullable()
     .optional(),

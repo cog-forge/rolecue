@@ -49,7 +49,6 @@ describe("validation messages come from the catalog", () => {
       currentPassword: "Current-Secret-1",
       newPassword: "Another-Secret-2",
       confirmPassword: "Different-Secret-3",
-      revokeOtherSessions: true,
     };
     expect(
       messages(

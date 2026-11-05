@@ -99,6 +99,48 @@ func TestPresignRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestPresignGetWithOverridesSignsResponseHeaders(t *testing.T) {
+	store, err := New(testConfig("http://localhost:9000"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	disposition := `attachment; filename="recording.webm"`
+	get, err := store.PresignGetWithOverrides(context.Background(), "recordings/key", time.Minute, GetOverrides{ContentType: "video/webm", ContentDisposition: disposition})
+	if err != nil {
+		t.Fatal(err)
+	}
+	q, err := url.Parse(get.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q.Query().Get("response-content-type") != "video/webm" || q.Query().Get("response-content-disposition") != disposition {
+		t.Fatalf("overrides not signed into the URL: %s", get.URL)
+	}
+	plain, err := store.PresignGet(context.Background(), "recordings/key", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(plain.URL, "response-content") {
+		t.Fatal("PresignGet must not add response overrides")
+	}
+}
+
+func TestPresignGetWithOverridesRejectsHeaderInjection(t *testing.T) {
+	store, err := New(testConfig("http://localhost:9000"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, overrides := range []GetOverrides{
+		{ContentType: "video/webm\r\nX-Injected: 1"},
+		{ContentDisposition: "attachment\nfilename=x"},
+		{ContentType: "not-a-type"},
+	} {
+		if _, err := store.PresignGetWithOverrides(context.Background(), "key", time.Minute, overrides); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("override %+v accepted", overrides)
+		}
+	}
+}
+
 func TestPresignPutRejectsLongTTL(t *testing.T) {
 	store, err := New(testConfig("http://localhost:9000"))
 	if err != nil {

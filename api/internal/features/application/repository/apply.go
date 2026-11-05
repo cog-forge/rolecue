@@ -120,7 +120,7 @@ func (r *Repository) ListCandidateApplications(ctx context.Context, candidateID 
 			Status: domain.ApplicationStatus(row.Status), RejectReason: row.RejectReason,
 			PostingUnavailable: row.PostingUnavailable, ReadAt: row.ReadAt.Time,
 			InterviewDeadline: timePtr(row.InterviewDeadline), CreatedAt: row.CreatedAt.Time,
-			Interview: candidateInterview(row.InterviewID, row.InterviewCompletedAt, row.InterviewEvaluationStatus, row.InterviewScore),
+			Interview: candidateInterview(row.InterviewID, row.InterviewCompletedAt, row.InterviewEvaluationStatus),
 		})
 	}
 	return items, total, nil
@@ -142,6 +142,6 @@ func (r *Repository) GetCandidateApplication(ctx context.Context, candidateID, a
 		Status: domain.ApplicationStatus(row.Status), RejectReason: row.RejectReason,
 		PostingUnavailable: row.PostingUnavailable, ReadAt: row.ReadAt.Time,
 		InterviewDeadline: timePtr(row.InterviewDeadline), CreatedAt: row.CreatedAt.Time,
-		Interview: candidateInterview(row.InterviewID, row.InterviewCompletedAt, row.InterviewEvaluationStatus, row.InterviewScore),
+		Interview: candidateInterview(row.InterviewID, row.InterviewCompletedAt, row.InterviewEvaluationStatus),
 	}, nil
 }

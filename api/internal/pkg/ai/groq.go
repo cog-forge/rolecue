@@ -25,6 +25,7 @@ func (e *HTTPError) Error() string { return fmt.Sprintf("LLM HTTP status %d", e.
 
 type groqModel struct {
 	key, model, endpoint string
+	maxTokens            int
 	client               *http.Client
 }
 
@@ -47,9 +48,10 @@ func (m *groqModel) Generate(ctx context.Context, input []*schema.Message, _ ...
 			Type string `json:"type"`
 		} `json:"response_format"`
 		Reasoning string `json:"reasoning_effort"`
+		MaxTokens int    `json:"max_completion_tokens,omitempty"`
 	}{m.model, messages, struct {
 		Type string `json:"type"`
-	}{"json_object"}, "low"})
+	}{"json_object"}, "low", m.maxTokens})
 	if err != nil {
 		return nil, err
 	}

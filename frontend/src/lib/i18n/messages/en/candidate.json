@@ -465,6 +465,7 @@
         "failed": "We couldn't upload your recording.",
         "failedNote": "Check your connection and try again. The recording stays in this browser until it is uploaded.",
         "rejected": "This recording can't be uploaded. The recruiter will see that it failed.",
+        "exhausted": "You have used every upload attempt for this recording, so it can't be uploaded again. The recruiter will see that it failed.",
         "abandoned": "The recording was not uploaded and was deleted from this browser. The recruiter will see that it failed.",
         "missing": "This browser doesn't have the recording. If you took the interview on another device, open this page there to upload it.",
         "partial": "Only part of the recording could be kept after the page reloaded.",
@@ -1081,7 +1082,7 @@
       },
       "reason": "Reason: {reason}",
       "result": {
-        "score": "{score} / 100",
+        "completed": "Completed",
         "unavailable": "Not available",
         "evaluating": "Being evaluated",
         "inProgress": "In progress"

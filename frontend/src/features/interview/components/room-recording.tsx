@@ -135,7 +135,9 @@ export function RecordingUploadPanel({
             ? t("abandoned")
             : upload.reason === "rejected"
               ? t("rejected")
-              : t("failed")
+              : upload.reason === "exhausted"
+                ? t("exhausted")
+                : t("failed")
           : t(upload.status);
   const recoverable =
     failed && !upload.abandoned && upload.reason === "network";

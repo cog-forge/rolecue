@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
 
@@ -103,5 +104,46 @@ func TestAbandonIdlePassesAListErrorThrough(t *testing.T) {
 	svc := newTestService(t, repo, Settings{AbandonTimeout: time.Minute})
 	if _, err := svc.AbandonIdle(context.Background(), time.Now()); err == nil {
 		t.Fatal("expected the list error")
+	}
+}
+
+func TestCompleteStopsRetryingAFailedEvaluationAfterTheCap(t *testing.T) {
+	evaluator := newFakeEvaluator()
+	repo := &fakeRepository{completeSession: practiceSession(), completeEnded: true, completeCap: domain.EvaluationMaxAttempts}
+	svc := newTestService(t, repo, Settings{})
+	svc.SetEvaluator(evaluator)
+
+	for attempt := int32(1); attempt <= domain.EvaluationMaxAttempts; attempt++ {
+		if _, err := svc.Complete(context.Background(), candidateID, "candidate", sessionID); err != nil {
+			t.Fatalf("Complete %d: %v", attempt, err)
+		}
+		select {
+		case <-evaluator.calls:
+		case <-time.After(5 * time.Second):
+			t.Fatalf("evaluation %d was not started", attempt)
+		}
+	}
+	_, err := svc.Complete(context.Background(), candidateID, "candidate", sessionID)
+	assertCode(t, err, apperror.CodeEvaluationAttemptsExceeded)
+	time.Sleep(50 * time.Millisecond)
+	if len(evaluator.calls) != 0 {
+		t.Fatal("an evaluation started after the attempts cap")
+	}
+}
+
+func TestAbandonIdleIgnoresAnExhaustedEvaluation(t *testing.T) {
+	evaluator := newFakeEvaluator()
+	ref := domain.SessionRef{ID: sessionID, CandidateID: candidateID}
+	repo := &fakeRepository{completeSession: practiceSession(), completeEnded: true, completeExhausted: true, abandonRefs: []domain.SessionRef{ref}}
+	svc := newTestService(t, repo, Settings{AbandonTimeout: time.Minute})
+	svc.SetEvaluator(evaluator)
+
+	ended, err := svc.AbandonIdle(context.Background(), time.Now())
+	if err != nil || ended != 1 {
+		t.Fatalf("AbandonIdle = %d, %v; want 1, nil", ended, err)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if len(evaluator.calls) != 0 {
+		t.Fatal("an evaluation started for an exhausted interview")
 	}
 }

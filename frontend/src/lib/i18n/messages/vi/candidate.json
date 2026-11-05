@@ -465,6 +465,7 @@
         "failed": "Chưa tải được bản ghi lên.",
         "failedNote": "Hãy kiểm tra kết nối rồi thử lại. Bản ghi được giữ trong trình duyệt này cho đến khi tải lên xong.",
         "rejected": "Không thể tải bản ghi này lên. Nhà tuyển dụng sẽ thấy bản ghi bị lỗi.",
+        "exhausted": "Bạn đã dùng hết số lần tải lên cho bản ghi này nên không thể tải lại. Nhà tuyển dụng sẽ thấy bản ghi bị lỗi.",
         "abandoned": "Bản ghi chưa được tải lên và đã bị xóa khỏi trình duyệt này. Nhà tuyển dụng sẽ thấy bản ghi bị lỗi.",
         "missing": "Trình duyệt này không có bản ghi. Nếu bạn phỏng vấn trên thiết bị khác, hãy mở trang này trên thiết bị đó để tải lên.",
         "partial": "Chỉ giữ được một phần bản ghi sau khi trang được tải lại.",
@@ -1081,7 +1082,7 @@
       },
       "reason": "Lý do: {reason}",
       "result": {
-        "score": "{score} / 100",
+        "completed": "Đã hoàn thành",
         "unavailable": "Không có",
         "evaluating": "Đang được đánh giá",
         "inProgress": "Đang diễn ra"

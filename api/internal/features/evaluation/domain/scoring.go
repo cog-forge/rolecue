@@ -29,6 +29,8 @@ type InterviewRecord struct {
 	EvaluationStatus string
 	Score            *int32
 	Feedback         *string
+	// InjectionFlagged is set when the evaluation could not fully trust the Candidate's answers (KAN-253).
+	InjectionFlagged bool
 	CandidateID      uuid.UUID
 	PostingID        *uuid.UUID
 	RecruiterID      *uuid.UUID
@@ -86,12 +88,16 @@ type ScoreOutput struct {
 	Scores    []MetricScore
 	Summary   string
 	Questions []QuestionFeedback
+	// InjectionSuspected is the model's own report that an answer tried to instruct it.
+	InjectionSuspected bool
 }
 
-// MetricScore is the 0..100 score of one metric.
+// MetricScore is the 0..100 score of one metric. Evidence is the verbatim quote from a Candidate answer the
+// score rests on; the service empties it when the quote cannot be found in the stored answers.
 type MetricScore struct {
 	MetricID uuid.UUID
 	Score    int32
+	Evidence string
 }
 
 // QuestionFeedback is the feedback for the answer at one position.
@@ -107,4 +113,7 @@ type Evaluation struct {
 	Summary      *string
 	Scores       []MetricScore
 	Questions    []QuestionFeedback
+	// InjectionFlagged is true when the model suspected an injection or a score's evidence quote could not
+	// be verified against the answers. The evaluation still completes.
+	InjectionFlagged bool
 }

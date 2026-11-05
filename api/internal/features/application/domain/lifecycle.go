@@ -47,13 +47,12 @@ type InterviewSummary struct {
 	EndReason *string `json:"end_reason" enums:"completed,left,abandoned"`
 }
 
-// CandidateInterview is the Candidate's view of the interview of one of their Applications: the
-// score and the state only.
+// CandidateInterview is the Candidate's view of the interview of one of their Applications:
+// the state only. A recruitment score is never shown to the Candidate.
 type CandidateInterview struct {
 	ID          uuid.UUID  `json:"id"`
 	CompletedAt *time.Time `json:"completed_at"`
 	Status      string     `json:"status" enums:"in_progress,pending,completed,failed"`
-	Score       *int32     `json:"score"`
 }
 
 // FinalReview says when the Recruiter may decide and whether they can decide now. OpensAt is the

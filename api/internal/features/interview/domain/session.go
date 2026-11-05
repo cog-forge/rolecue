@@ -159,12 +159,20 @@ type EndParams struct {
 	IdleBefore  *time.Time
 }
 
+// EvaluationMaxAttempts caps how many times one interview's evaluation may be claimed (the first run and
+// its retries), which bounds the LLM cost of a session the model cannot score.
+const EvaluationMaxAttempts int32 = 3
+
 // EndResult is the session after an end. Ended is true only for the call that ended it now;
 // StartEvaluation only for the call that claimed its evaluation.
 type EndResult struct {
 	Session         Session
 	Ended           bool
 	StartEvaluation bool
+	// EvaluationExhausted is true when the evaluation needs another run but used all
+	// EvaluationMaxAttempts. Only a Candidate completing the session reports it; the live socket and the
+	// System Handler just do not start another evaluation.
+	EvaluationExhausted bool
 }
 
 // SessionRef names a session and its owner, for the System Handler.

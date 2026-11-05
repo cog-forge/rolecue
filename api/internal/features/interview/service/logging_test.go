@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
-	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -152,12 +150,11 @@ func TestEvaluationPanicLogsWithoutPanicValue(t *testing.T) {
 
 func TestRecordingStatusChangeIsLogged(t *testing.T) {
 	ctx, logs := observedContext()
-	body := &trackingBody{Reader: bytes.NewReader([]byte("webm-bytes"))}
 	repo := &fakeRecordingRepository{
 		state:    recruitmentRecordingState(domain.RecordUploading, recordingPath(testRecordingKey)),
 		resultOK: true,
 	}
-	store := &fakeRecordingStore{object: storage.Object{Body: body, Size: 10}}
+	store := &fakeRecordingStore{headInfo: webmInfo(`"v1"`), prefix: webmHead}
 	svc := newTestRecordingService(t, repo, store)
 	if _, err := svc.CompleteUpload(ctx, uuid.New(), "candidate", uuid.New()); err != nil {
 		t.Fatalf("CompleteUpload: %v", err)

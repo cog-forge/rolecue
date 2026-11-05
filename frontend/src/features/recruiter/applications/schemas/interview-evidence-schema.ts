@@ -10,16 +10,27 @@ export const interviewReportSchema = z.object({
   interview_id: z.uuid(),
   type: z.enum(["practice", "recruitment"]),
   status: interviewStatusSchema,
-  overall_score: z.number().int().min(0).max(100).nullable(),
+  overall_score: z
+    .number()
+    .int()
+    .min(0)
+    .max(100)
+    .nullish()
+    .transform((value) => value ?? null),
   started_at: z.iso.datetime({ offset: true }),
   completed_at: z.iso.datetime({ offset: true }).nullable(),
   summary: z.string().nullable(),
+  // The summary is model output, never a Recruiter's words. injection_flagged: the evaluation suspected
+  // the answers tried to steer it, or a score's evidence quote could not be verified (KAN-253).
+  summary_source: z.literal("ai").nullish(),
+  injection_flagged: z.boolean().optional(),
   breakdown: z
     .array(
       z.object({
         metric_id: z.uuid(),
         name: z.string(),
         score: z.number().int().min(0).max(100),
+        evidence: z.string().nullish(),
       }),
     )
     .nullable(),

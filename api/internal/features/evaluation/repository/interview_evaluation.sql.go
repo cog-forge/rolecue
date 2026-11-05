@@ -14,24 +14,30 @@ import (
 
 const completeInterviewEvaluation = `-- name: CompleteInterviewEvaluation :exec
 UPDATE public.interviews
-SET score = $1, feedback = $2, evaluation_status = 'completed'
-WHERE id = $3
+SET score = $1, feedback = $2, injection_flagged = $3, evaluation_status = 'completed'
+WHERE id = $4
 `
 
 type CompleteInterviewEvaluationParams struct {
-	OverallScore *int32
-	Feedback     *string
-	ID           uuid.UUID
+	OverallScore     *int32
+	Feedback         *string
+	InjectionFlagged bool
+	ID               uuid.UUID
 }
 
 func (q *Queries) CompleteInterviewEvaluation(ctx context.Context, arg CompleteInterviewEvaluationParams) error {
-	_, err := q.db.Exec(ctx, completeInterviewEvaluation, arg.OverallScore, arg.Feedback, arg.ID)
+	_, err := q.db.Exec(ctx, completeInterviewEvaluation,
+		arg.OverallScore,
+		arg.Feedback,
+		arg.InjectionFlagged,
+		arg.ID,
+	)
 	return err
 }
 
 const getInterviewRecord = `-- name: GetInterviewRecord :one
 
-SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.score, i.feedback,
+SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.score, i.feedback, i.injection_flagged,
        COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id, a.job_posting_id, jp.recruiter_id,
        (SELECT count(*) FROM public.interview_questions iq WHERE iq.interview_id = i.id)::int AS question_count
 FROM public.interviews i
@@ -50,6 +56,7 @@ type GetInterviewRecordRow struct {
 	EvaluationStatus string
 	Score            *int32
 	Feedback         *string
+	InjectionFlagged bool
 	CandidateID      uuid.UUID
 	JobPostingID     pgtype.UUID
 	RecruiterID      pgtype.UUID
@@ -73,6 +80,7 @@ func (q *Queries) GetInterviewRecord(ctx context.Context, id uuid.UUID) (GetInte
 		&i.EvaluationStatus,
 		&i.Score,
 		&i.Feedback,
+		&i.InjectionFlagged,
 		&i.CandidateID,
 		&i.JobPostingID,
 		&i.RecruiterID,
@@ -129,7 +137,7 @@ func (q *Queries) ListEvaluationTurns(ctx context.Context, interviewID uuid.UUID
 }
 
 const listInterviewScores = `-- name: ListInterviewScores :many
-SELECT sd.metric_id, m.name, sd.score
+SELECT sd.metric_id, m.name, sd.score, sd.evidence
 FROM public.score_details sd
 JOIN public.metrics m ON m.id = sd.metric_id
 WHERE sd.interview_id = $1
@@ -140,6 +148,7 @@ type ListInterviewScoresRow struct {
 	MetricID uuid.UUID
 	Name     string
 	Score    int32
+	Evidence *string
 }
 
 func (q *Queries) ListInterviewScores(ctx context.Context, interviewID uuid.UUID) ([]ListInterviewScoresRow, error) {
@@ -151,7 +160,12 @@ func (q *Queries) ListInterviewScores(ctx context.Context, interviewID uuid.UUID
 	var items []ListInterviewScoresRow
 	for rows.Next() {
 		var i ListInterviewScoresRow
-		if err := rows.Scan(&i.MetricID, &i.Name, &i.Score); err != nil {
+		if err := rows.Scan(
+			&i.MetricID,
+			&i.Name,
+			&i.Score,
+			&i.Evidence,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -207,18 +221,24 @@ func (q *Queries) SetTurnFeedback(ctx context.Context, arg SetTurnFeedbackParams
 }
 
 const upsertScoreDetail = `-- name: UpsertScoreDetail :exec
-INSERT INTO public.score_details (interview_id, metric_id, score)
-VALUES ($1, $2, $3)
-ON CONFLICT (interview_id, metric_id) DO UPDATE SET score = EXCLUDED.score
+INSERT INTO public.score_details (interview_id, metric_id, score, evidence)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (interview_id, metric_id) DO UPDATE SET score = EXCLUDED.score, evidence = EXCLUDED.evidence
 `
 
 type UpsertScoreDetailParams struct {
 	InterviewID uuid.UUID
 	MetricID    uuid.UUID
 	Score       int32
+	Evidence    *string
 }
 
 func (q *Queries) UpsertScoreDetail(ctx context.Context, arg UpsertScoreDetailParams) error {
-	_, err := q.db.Exec(ctx, upsertScoreDetail, arg.InterviewID, arg.MetricID, arg.Score)
+	_, err := q.db.Exec(ctx, upsertScoreDetail,
+		arg.InterviewID,
+		arg.MetricID,
+		arg.Score,
+		arg.Evidence,
+	)
 	return err
 }

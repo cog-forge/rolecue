@@ -572,6 +572,10 @@
       "evaluationFailed": "We couldn't load the evaluation. Try again.",
       "noBreakdownFailed": "The evaluation failed, so there is no breakdown.",
       "noBreakdownYet": "The breakdown is not ready yet.",
+      "aiGenerated": "AI-generated summary",
+      "flaggedTitle": "Flagged for review",
+      "flaggedText": "The automatic evaluation suspected that some answers tried to influence the scoring, or a supporting quote could not be verified in the transcript. Check the transcript before relying on these scores.",
+      "evidence": "Evidence",
       "checkAgain": "Check again",
       "status": {
         "in_progress": "In progress",

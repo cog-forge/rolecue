@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"testing"
@@ -98,8 +97,20 @@ func (regStore) PresignGet(_ context.Context, _ string, ttl time.Duration) (stor
 	return regCVLinker{}.PresignGet(context.Background(), "", ttl)
 }
 
-func (regStore) Download(context.Context, string) (storage.Object, error) {
-	return storage.Object{Body: io.NopCloser(strings.NewReader(""))}, fmt.Errorf("regression run does not download")
+func (regStore) PresignGetWithOverrides(_ context.Context, _ string, ttl time.Duration, _ storage.GetOverrides) (storage.SignedRequest, error) {
+	return regCVLinker{}.PresignGet(context.Background(), "", ttl)
+}
+
+func (regStore) Head(context.Context, string) (storage.ObjectInfo, error) {
+	return storage.ObjectInfo{}, fmt.Errorf("regression run does not read objects")
+}
+
+func (regStore) ReadPrefix(context.Context, string, int64) ([]byte, error) {
+	return nil, fmt.Errorf("regression run does not read objects")
+}
+
+func (regStore) Delete(context.Context, string) error {
+	return fmt.Errorf("regression run does not delete objects")
 }
 
 // regSeed inserts the rows the lifecycle needs and records their ids. The cleanup deletes them in
@@ -553,9 +564,9 @@ func TestKAN75RecruitmentLifecycleAPIRegression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if candidateReport.OverallScore == nil || *candidateReport.OverallScore != 74 ||
+	if candidateReport.OverallScore != nil ||
 		candidateReport.Summary != nil || candidateReport.Breakdown != nil || candidateReport.Questions != nil {
-		t.Fatalf("candidate report = %+v, want the score only", candidateReport)
+		t.Fatalf("candidate report = %+v, want status only, no score", candidateReport)
 	}
 	if strings.Contains(regJSON(t, candidateReport), regAnswerMarker) {
 		t.Fatal("candidate report leaks the transcript")
@@ -579,8 +590,8 @@ func TestKAN75RecruitmentLifecycleAPIRegression(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mine.Interview == nil || mine.Interview.Score == nil || *mine.Interview.Score != 74 || strings.Contains(regJSON(t, mine), regAnswerMarker) {
-		t.Fatalf("candidate application = %+v, want the interview score and no transcript", mine)
+	if mine.Interview == nil || strings.Contains(regJSON(t, mine), regAnswerMarker) || strings.Contains(regJSON(t, mine), `"score"`) {
+		t.Fatalf("candidate application = %+v, want the interview state with no score and no transcript", mine)
 	}
 
 	// The decision waits for the deadline of the posting: 24 hours after the approval, so it is locked now.
@@ -612,4 +623,83 @@ func TestKAN75RecruitmentLifecycleAPIRegression(t *testing.T) {
 	if got := s.balance(recruiter); got != 9 {
 		t.Fatalf("recruiter balance = %d after a repeated decision, want still 9 (refund once)", got)
 	}
+}
+
+// TestStaleExhaustedEvaluationBecomesFailed covers an evaluation whose last allowed claim went stale
+// because the process stopped mid-run: Complete refuses a new run, and the report stops saying pending.
+func TestStaleExhaustedEvaluationBecomesFailed(t *testing.T) {
+	ctx, pool := regOpenPool(t)
+	s := newRegSeed(t, ctx, pool)
+	svc := regBuild(t, ctx, pool)
+	candidate := s.user("candidate")
+	s.wallet(candidate, 10)
+	roleID := s.roleProfile(candidate, regQuestionLimit)
+
+	created, _, err := svc.interview.Create(ctx, candidate, "candidate", domain.CreateInput{
+		Type: domain.TypePractice, RoleProfileID: &roleID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for position := int32(1); position <= regQuestionLimit; position++ {
+		if _, err := svc.interview.AppendTurn(ctx, candidate, "candidate", created.ID, position, regAnswer(int(position))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := svc.interview.Complete(ctx, candidate, "candidate", created.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// A running claim on the last attempt is left alone: the report is still pending, Complete is idempotent.
+	s.exec(`UPDATE interviews SET evaluation_status = 'pending', evaluation_attempts = $2, evaluation_claimed_at = now() WHERE id = $1`,
+		created.ID, domain.EvaluationMaxAttempts)
+	if _, err := svc.interview.Complete(ctx, candidate, "candidate", created.ID); err != nil {
+		t.Fatalf("Complete() during a fresh claim error = %v, want an idempotent success", err)
+	}
+	if status := s.evaluationStatus(created.ID); status != "pending" {
+		t.Fatalf("evaluation_status = %q during a fresh claim, want pending", status)
+	}
+
+	// The same claim gone stale can never finish, so Complete reports it and the status becomes failed.
+	s.exec(`UPDATE interviews SET evaluation_claimed_at = now() - interval '1 day' WHERE id = $1`, created.ID)
+	_, err = svc.interview.Complete(ctx, candidate, "candidate", created.ID)
+	regAssertCode(t, err, apperror.CodeEvaluationAttemptsExceeded)
+	if status := s.evaluationStatus(created.ID); status != "failed" {
+		t.Fatalf("evaluation_status = %q after the stale exhausted claim, want failed", status)
+	}
+	if got := s.attempts(created.ID); got != domain.EvaluationMaxAttempts {
+		t.Fatalf("evaluation_attempts = %d, want %d: no new evaluation may start", got, domain.EvaluationMaxAttempts)
+	}
+	report, err := svc.scoring.Report(ctx, candidate, "candidate", created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Status == "pending" {
+		t.Fatalf("report status = %q, want a terminal state", report.Status)
+	}
+
+	// A completed evaluation is never turned into a failed one.
+	s.exec(`UPDATE interviews SET evaluation_status = 'completed', evaluation_claimed_at = now() - interval '1 day' WHERE id = $1`, created.ID)
+	_, _ = svc.interview.Complete(ctx, candidate, "candidate", created.ID)
+	if status := s.evaluationStatus(created.ID); status != "completed" {
+		t.Fatalf("evaluation_status = %q, want completed to stay completed", status)
+	}
+}
+
+func (s *regSeed) evaluationStatus(id uuid.UUID) string {
+	s.t.Helper()
+	var status string
+	if err := s.pool.QueryRow(s.ctx, `SELECT evaluation_status FROM interviews WHERE id = $1`, id).Scan(&status); err != nil {
+		s.t.Fatal(err)
+	}
+	return status
+}
+
+func (s *regSeed) attempts(id uuid.UUID) int32 {
+	s.t.Helper()
+	var attempts int32
+	if err := s.pool.QueryRow(s.ctx, `SELECT evaluation_attempts FROM interviews WHERE id = $1`, id).Scan(&attempts); err != nil {
+		s.t.Fatal(err)
+	}
+	return attempts
 }

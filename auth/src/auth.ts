@@ -1,10 +1,20 @@
 import { betterAuth } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
 import type { Pool } from "pg";
 import type { AuthEnv } from "./env";
 import { authOptions } from "./options";
 import { createAccountNotifications } from "./account-notifications";
 import { createMailer } from "./email";
-import { createInternalAdmin } from "./internal-admin";
+import { enforceInternalAdmin } from "./internal-admin";
+import { forceRevokeOtherSessions } from "./password-change-sessions";
+import { rateLimitIpAddress, rateLimitOptions } from "./rate-limit";
+
+// Better Auth accepts one hooks.before handler, so every before-check runs here in order.
+export const createBeforeHooks = (adminSecret: string) =>
+  createAuthMiddleware(async (ctx) => {
+    enforceInternalAdmin(ctx, adminSecret);
+    return forceRevokeOtherSessions(ctx);
+  });
 
 export function createAuth(config: AuthEnv, database: Pool) {
   const { baseURL, appURL, secret, domain, secure, cookiePrefix } = config;
@@ -12,9 +22,10 @@ export function createAuth(config: AuthEnv, database: Pool) {
   return betterAuth({
     ...authOptions,
     hooks: {
-      before: createInternalAdmin(config.adminSecret),
+      before: createBeforeHooks(config.adminSecret),
       after: createAccountNotifications(mailer.sendAccountStatusEmail),
     },
+    rateLimit: rateLimitOptions,
     logger: { disabled: true },
     baseURL,
     secret,
@@ -22,6 +33,7 @@ export function createAuth(config: AuthEnv, database: Pool) {
     trustedOrigins: [...new Set([appURL, baseURL])],
     advanced: {
       ...authOptions.advanced,
+      ipAddress: rateLimitIpAddress,
       cookiePrefix,
       useSecureCookies: secure,
       defaultCookieAttributes: {

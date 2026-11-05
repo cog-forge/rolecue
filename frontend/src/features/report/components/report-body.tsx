@@ -75,7 +75,7 @@ export function ReportBody({
         autoRefresh={autoRefresh}
       />
 
-      {finished ? (
+      {finished && (score !== null || type === "practice" || report.summary) ? (
         <Card>
           <CardHeader>
             <CardTitle>

@@ -233,16 +233,31 @@ FOR SHARE;
 
 -- One run owns an evaluation at a time. A completed interview is claimed when its evaluation failed, or
 -- when it is pending and was never claimed or its last claim is older than @stale_seconds (the run died
--- with its process). Exactly one concurrent caller gets a row back and starts the evaluation.
+-- with its process). Exactly one concurrent caller gets a row back and starts the evaluation. Each claim
+-- counts as an attempt and none is granted once @max_attempts have been used (KAN-259), so a poison
+-- interview cannot burn LLM calls forever.
 -- name: ClaimInterviewEvaluation :execrows
 UPDATE public.interviews
-SET evaluation_status = 'pending', evaluation_claimed_at = statement_timestamp()
+SET evaluation_status = 'pending', evaluation_claimed_at = statement_timestamp(),
+    evaluation_attempts = evaluation_attempts + 1
 WHERE id = @id
   AND completed_at IS NOT NULL
+  AND evaluation_attempts < @max_attempts::int
   AND (evaluation_status = 'failed'
        OR (evaluation_status = 'pending'
            AND (evaluation_claimed_at IS NULL
                 OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8))));
+
+-- True when a completed interview needs another evaluation run (failed, or pending past its stale claim)
+-- but has used all @max_attempts. A completed or in-flight evaluation is not blocked.
+-- name: EvaluationAttemptsExhausted :one
+SELECT (completed_at IS NOT NULL
+        AND evaluation_attempts >= @max_attempts::int
+        AND (evaluation_status = 'failed'
+             OR (evaluation_status = 'pending'
+                 AND evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8))))::boolean AS exhausted
+FROM public.interviews
+WHERE id = @id;
 
 -- Ends an evaluation whose run panicked, so the next Complete claims and retries it instead of waiting
 -- for the claim to go stale. It is the same guard as MarkInterviewEvaluationFailed in the evaluation
@@ -252,3 +267,15 @@ WHERE id = @id
 UPDATE public.interviews
 SET evaluation_status = 'failed'
 WHERE id = @id AND evaluation_status <> 'completed';
+
+-- A completed interview whose last allowed evaluation claim went stale will never run again, so it is
+-- failed here instead of staying pending for ever. A fresh (running) claim and a completed or already
+-- failed evaluation are not touched.
+-- name: FailExhaustedStaleEvaluation :execrows
+UPDATE public.interviews
+SET evaluation_status = 'failed'
+WHERE id = @id
+  AND completed_at IS NOT NULL
+  AND evaluation_attempts >= @max_attempts::int
+  AND evaluation_status = 'pending'
+  AND evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8);

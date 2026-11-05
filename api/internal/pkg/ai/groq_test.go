@@ -21,8 +21,9 @@ func TestGroqHTTP(t *testing.T) {
 					t.Error("authorization missing")
 				}
 				var body struct {
-					Model  string `json:"model"`
-					Format struct {
+					Model     string `json:"model"`
+					MaxTokens int    `json:"max_completion_tokens"`
+					Format    struct {
 						Type string `json:"type"`
 					} `json:"response_format"`
 				}
@@ -32,12 +33,15 @@ func TestGroqHTTP(t *testing.T) {
 				if body.Model != "test-model" || body.Format.Type != "json_object" {
 					t.Error("model or JSON mode missing")
 				}
+				if body.MaxTokens != 777 {
+					t.Errorf("max_completion_tokens = %d, want 777", body.MaxTokens)
+				}
 				w.Header().Set("Retry-After", "60")
 				w.WriteHeader(status)
 				_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"{}"}}],"usage":{"prompt_tokens":12,"completion_tokens":3,"total_tokens":15}}`))
 			}))
 			defer srv.Close()
-			m := &groqModel{key: "fake-key", model: "test-model", endpoint: srv.URL, client: srv.Client()}
+			m := &groqModel{key: "fake-key", model: "test-model", maxTokens: 777, endpoint: srv.URL, client: srv.Client()}
 			msg, err := m.Generate(context.Background(), []*schema.Message{schema.UserMessage("JSON")})
 			if calls != 1 {
 				t.Fatal("unexpected retry")

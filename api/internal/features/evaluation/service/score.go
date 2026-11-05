@@ -118,6 +118,7 @@ func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 		logger.Op("evaluation.complete"),
 		logger.String("interview_id", interviewID.String()),
 		logger.Int("score", int(evaluation.OverallScore)),
+		logger.Int("injection_flagged", boolInt(evaluation.InjectionFlagged)),
 		logger.Int("metric_count", len(evaluation.Scores)),
 		logger.Int("feedback_count", len(evaluation.Questions)),
 	)
@@ -204,6 +205,9 @@ func buildEvaluation(input domain.ScoreInput, output domain.ScoreOutput) (domain
 	}
 	scored := make(map[uuid.UUID]bool, len(output.Scores))
 	weighted := 0.0
+	answers := normalizedAnswers(input.Turns)
+	flagged := output.InjectionSuspected
+	scores := make([]domain.MetricScore, 0, len(output.Scores))
 	for _, score := range output.Scores {
 		weight, ok := weights[score.MetricID]
 		if !ok {
@@ -217,6 +221,18 @@ func buildEvaluation(input domain.ScoreInput, output domain.ScoreOutput) (domain
 		}
 		scored[score.MetricID] = true
 		weighted += weight * float64(score.Score)
+		// A score rests on a quote the Candidate really said. A quote that is not in the answers is dropped
+		// and flags the interview; a score of 0 may have nothing to quote.
+		evidence := score.Evidence
+		switch {
+		case verifyEvidence(evidence, answers):
+			evidence = strings.TrimSpace(evidence)
+		case evidence == "" && score.Score == 0:
+		default:
+			flagged = true
+			evidence = ""
+		}
+		scores = append(scores, domain.MetricScore{MetricID: score.MetricID, Score: score.Score, Evidence: evidence})
 	}
 	summary := strings.TrimSpace(output.Summary)
 	if !utf8.ValidString(summary) || utf8.RuneCountInString(summary) > maxSummaryRunes {
@@ -227,9 +243,10 @@ func buildEvaluation(input domain.ScoreInput, output domain.ScoreOutput) (domain
 		return domain.Evaluation{}, err
 	}
 	evaluation := domain.Evaluation{
-		OverallScore: int32(math.Round(weighted / totalWeight)),
-		Scores:       output.Scores,
-		Questions:    questions,
+		OverallScore:     int32(math.Round(weighted / totalWeight)),
+		Scores:           scores,
+		Questions:        questions,
+		InjectionFlagged: flagged,
 	}
 	if summary != "" {
 		evaluation.Summary = &summary

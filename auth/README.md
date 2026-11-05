@@ -16,7 +16,9 @@ flowchart LR
   Auth -->|verification/reset/account notices| Resend
 ```
 
-Auth sets the same `rolecue` cookies, 14-day sessions with one-day renewal, no cookie cache. Go relays validated renewal/clear cookies. Logout revokes the current session; reset and Admin ban revoke all sessions; unlock never revives them. Missing/expired/revoked sessions return 401, a valid session rejected by current application policy returns 403, and auth/DB transport failure returns 503.
+Auth sets the same `rolecue` cookies, 14-day sessions with one-day renewal, no cookie cache. Go relays validated renewal/clear cookies. Logout revokes the current session; reset and Admin ban revoke all sessions; unlock never revives them. A password change (`/change-password`) revokes every other session while the current one stays signed in; the server forces `revokeOtherSessions` so clients cannot skip it (`src/password-change-sessions.ts`).
+
+Sign-in, password reset, verification mail and two-factor code checks are rate limited per client IP in PostgreSQL (`rate_limits`, migration 000020; limits in `src/rate-limit.ts`), independent of `NODE_ENV`. The IP is read from `X-Forwarded-For`, which Caddy appends to. Missing/expired/revoked sessions return 401, a valid session rejected by current application policy returns 403, and auth/DB transport failure returns 503.
 
 ## Environment ownership
 

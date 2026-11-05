@@ -65,8 +65,8 @@ export interface UploadSnapshot {
   abandoned: boolean;
   /** The uploaded file holds only part of the session (see assembleRecording). */
   partial: boolean;
-  /** failed: why. "rejected" cannot be fixed by retrying (too large, or no longer accepted). */
-  reason: "network" | "rejected" | null;
+  /** failed: why. "rejected" and "exhausted" cannot be fixed by retrying (too large, refused, or every upload grant of this interview used). */
+  reason: "network" | "rejected" | "exhausted" | null;
 }
 export const INITIAL_UPLOAD_SNAPSHOT: UploadSnapshot = {
   status: "idle",
@@ -114,7 +114,7 @@ function wait(ms: number, signal: AbortSignal) {
   });
 }
 
-type Attempt = "ready" | "retry" | "rejected";
+type Attempt = "ready" | "retry" | "rejected" | "exhausted";
 
 /**
  * Uploads the buffered recording of one interview and finalizes it: grant, PUT to storage, complete.
@@ -162,6 +162,9 @@ export function createRecordingUploader({
       });
     } catch (error) {
       const { code, status } = readApiError(error);
+      // The server issues at most a few upload grants per interview and never another: retrying
+      // cannot succeed.
+      if (code === "RECORDING_UPLOAD_LIMIT") return "exhausted";
       if (code === "RECORDING_NOT_ALLOWED") {
         // Already ready (an earlier page finished it) or no longer accepted.
         const current = await api.status(interviewId).catch(() => null);
@@ -239,6 +242,10 @@ export function createRecordingUploader({
       }
       if (result === "rejected") {
         publish({ status: "failed", reason: "rejected" });
+        return;
+      }
+      if (result === "exhausted") {
+        publish({ status: "failed", reason: "exhausted" });
         return;
       }
       if (index < UPLOAD_ATTEMPTS) {

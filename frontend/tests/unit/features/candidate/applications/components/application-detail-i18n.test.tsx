@@ -98,14 +98,14 @@ describe("CandidateApplicationDetail in Vietnamese", () => {
           id: "55555555-5555-4555-8555-555555555555",
           completed_at: "2026-10-22T08:00:00Z",
           status: "completed",
-          score: 72,
         },
       }),
     );
     renderDetail();
     expect(await screen.findByText("Không được chọn")).toBeInTheDocument();
     expect(screen.getByText("Kết quả phỏng vấn")).toBeInTheDocument();
-    expect(screen.getByText("72 / 100")).toBeInTheDocument();
+    expect(screen.getByText("Đã hoàn thành")).toBeInTheDocument();
+    expect(screen.queryByText(/72/)).not.toBeInTheDocument();
     expect(
       screen.getByText("Lý do: Needs more Kubernetes"),
     ).toBeInTheDocument();
@@ -124,7 +124,6 @@ describe("CandidateApplicationDetail in Vietnamese", () => {
           id: "55555555-5555-4555-8555-555555555555",
           completed_at: null,
           status: "in_progress",
-          score: null,
         },
       }),
     );

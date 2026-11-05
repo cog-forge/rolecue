@@ -5,7 +5,7 @@
 -- The interview with the owners the report visibility rules need. The Application and its posting are
 -- joined for recruitment sessions only, so their columns are null for practice.
 -- name: GetInterviewRecord :one
-SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.score, i.feedback,
+SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.score, i.feedback, i.injection_flagged,
        COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id, a.job_posting_id, jp.recruiter_id,
        (SELECT count(*) FROM public.interview_questions iq WHERE iq.interview_id = i.id)::int AS question_count
 FROM public.interviews i
@@ -32,16 +32,16 @@ WHERE interview_id = @interview_id
 ORDER BY position;
 
 -- name: ListInterviewScores :many
-SELECT sd.metric_id, m.name, sd.score
+SELECT sd.metric_id, m.name, sd.score, sd.evidence
 FROM public.score_details sd
 JOIN public.metrics m ON m.id = sd.metric_id
 WHERE sd.interview_id = @interview_id
 ORDER BY m.name, m.id;
 
 -- name: UpsertScoreDetail :exec
-INSERT INTO public.score_details (interview_id, metric_id, score)
-VALUES (@interview_id, @metric_id, @score)
-ON CONFLICT (interview_id, metric_id) DO UPDATE SET score = EXCLUDED.score;
+INSERT INTO public.score_details (interview_id, metric_id, score, evidence)
+VALUES (@interview_id, @metric_id, @score, sqlc.narg(evidence))
+ON CONFLICT (interview_id, metric_id) DO UPDATE SET score = EXCLUDED.score, evidence = EXCLUDED.evidence;
 
 -- name: SetTurnFeedback :exec
 UPDATE public.conversation_turns
@@ -50,7 +50,7 @@ WHERE interview_id = @interview_id AND position = @position;
 
 -- name: CompleteInterviewEvaluation :exec
 UPDATE public.interviews
-SET score = @overall_score, feedback = sqlc.narg(feedback), evaluation_status = 'completed'
+SET score = @overall_score, feedback = sqlc.narg(feedback), injection_flagged = @injection_flagged, evaluation_status = 'completed'
 WHERE id = @id;
 
 -- A completed evaluation is never turned back into a failed one.

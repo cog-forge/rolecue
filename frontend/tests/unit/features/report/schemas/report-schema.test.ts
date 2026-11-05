@@ -116,3 +116,50 @@ describe("reportEnvelopeSchema", () => {
     ).toBe(false);
   });
 });
+
+describe("recruitment Candidate report without overall_score (KAN-253)", () => {
+  it("reads a missing overall_score as null", () => {
+    const parsed = reportEnvelopeSchema.parse({
+      success: true,
+      data: {
+        ...completedPractice,
+        overall_score: undefined,
+        type: "recruitment",
+        summary: null,
+        breakdown: null,
+        questions: null,
+      },
+    });
+    expect(parsed.data.overall_score).toBeNull();
+  });
+
+  it("accepts the recruiter fields summary_source, injection_flagged and evidence", () => {
+    const parsed = reportEnvelopeSchema.parse({
+      success: true,
+      data: {
+        ...completedPractice,
+        summary_source: "ai",
+        injection_flagged: true,
+        breakdown: [
+          {
+            metric_id: METRIC,
+            name: "Communication",
+            score: 80,
+            evidence: "I built an API.",
+          },
+        ],
+      },
+    });
+    expect(parsed.data.injection_flagged).toBe(true);
+    expect(parsed.data.breakdown?.[0]?.evidence).toBe("I built an API.");
+  });
+
+  it("rejects a summary_source other than ai", () => {
+    expect(
+      reportEnvelopeSchema.safeParse({
+        success: true,
+        data: { ...completedPractice, summary_source: "human" },
+      }).success,
+    ).toBe(false);
+  });
+});

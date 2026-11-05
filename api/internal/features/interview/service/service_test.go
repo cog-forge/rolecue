@@ -34,9 +34,14 @@ type fakeRepository struct {
 	completeSession domain.Session
 	completeFirst   bool // the repository claimed the evaluation
 	completeEnded   bool // the call ended the session now
-	completeErr     error
-	completeCalls   int
-	endParams       []domain.EndParams
+	// completeAttempts counts claims when completeCap is set: the fake then behaves like the
+	// repository, claiming until completeCap attempts are used and reporting exhaustion after.
+	completeAttempts  int32
+	completeCap       int32
+	completeExhausted bool
+	completeErr       error
+	completeCalls     int
+	endParams         []domain.EndParams
 	// endErrs and endIdle script End per session for the abandonment pass: an error, or a session that
 	// was active again under the lock (not ended).
 	endErrs map[uuid.UUID]error
@@ -93,7 +98,14 @@ func (r *fakeRepository) End(_ context.Context, params domain.EndParams) (domain
 		return domain.EndResult{}, r.completeErr
 	}
 	ended := r.completeEnded && !r.endIdle[params.ID]
-	return domain.EndResult{Session: r.completeSession, Ended: ended, StartEvaluation: r.completeFirst}, nil
+	if r.completeCap > 0 {
+		if r.completeAttempts >= r.completeCap {
+			return domain.EndResult{Session: r.completeSession, EvaluationExhausted: true}, nil
+		}
+		r.completeAttempts++
+		return domain.EndResult{Session: r.completeSession, Ended: ended, StartEvaluation: true}, nil
+	}
+	return domain.EndResult{Session: r.completeSession, Ended: ended, StartEvaluation: r.completeFirst, EvaluationExhausted: r.completeExhausted}, nil
 }
 
 func (r *fakeRepository) ListAbandoned(_ context.Context, now, idleBefore time.Time, _ int32) ([]domain.SessionRef, error) {

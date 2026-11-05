@@ -184,6 +184,75 @@ func TestConstructorDoesNotFallBackToMachineCredentials(t *testing.T) {
 	}
 }
 
+func TestHeadReturnsMetadataAndMapsMissingObject(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodHead {
+			t.Errorf("head used method %s", r.Method)
+		}
+		if r.URL.Path != "/test-bucket/present" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("ETag", `"v1"`)
+		w.Header().Set("Content-Length", "13")
+		w.Header().Set("Content-Type", "video/webm")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	store, err := New(testConfig(server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := store.Head(context.Background(), "present")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.ETag != `"v1"` || info.Size != 13 || info.ContentType != "video/webm" {
+		t.Fatalf("unexpected head: %+v", info)
+	}
+	if _, err := store.Head(context.Background(), "missing"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing object not mapped to ErrNotFound: %v", err)
+	}
+	if _, err := store.Head(context.Background(), ""); !errors.Is(err, ErrInvalidInput) {
+		t.Fatal("empty key accepted by Head")
+	}
+}
+
+func TestReadPrefixRequestsOnlyLeadingBytes(t *testing.T) {
+	magic := "\x1a\x45\xdf\xa3\x01\x00"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/test-bucket/missing" {
+			w.Header().Set("Content-Type", "application/xml")
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, "<Error><Code>NoSuchKey</Code></Error>")
+			return
+		}
+		if r.Header.Get("Range") != "bytes=0-5" {
+			t.Errorf("range = %q", r.Header.Get("Range"))
+		}
+		w.Header().Set("Content-Length", "6")
+		w.WriteHeader(http.StatusPartialContent)
+		_, _ = io.WriteString(w, magic)
+	}))
+	defer server.Close()
+	store, err := New(testConfig(server.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.ReadPrefix(context.Background(), "present", 6)
+	if err != nil || string(got) != magic {
+		t.Fatalf("prefix = %q, err = %v", got, err)
+	}
+	if _, err := store.ReadPrefix(context.Background(), "missing", 6); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing object not mapped to ErrNotFound: %v", err)
+	}
+	for _, n := range []int64{0, -1, maxPrefixBytes + 1} {
+		if _, err := store.ReadPrefix(context.Background(), "present", n); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("prefix length %d accepted", n)
+		}
+	}
+}
+
 func TestDeleteObject(t *testing.T) {
 	for _, denied := range []bool{false, true} {
 		t.Run(fmt.Sprint("denied=", denied), func(t *testing.T) {

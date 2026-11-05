@@ -15,7 +15,6 @@ export function createChangePasswordSchema(v: Validation) {
           .min(8, v("passwordMin", { min: 8 }))
           .max(128, v("passwordTooLong")),
         confirmPassword: z.string().min(1, v("confirmNewPasswordRequired")),
-        revokeOtherSessions: z.boolean(),
       })
       .refine((values) => values.newPassword === values.confirmPassword, {
         path: ["confirmPassword"],

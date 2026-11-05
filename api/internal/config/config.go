@@ -148,6 +148,9 @@ type LLMConfig struct {
 	Model      string        `mapstructure:"model"`
 	Timeout    time.Duration `mapstructure:"timeout"`
 	MaxRetries int           `mapstructure:"max_retries"`
+	// MaxOutputTokens caps one completion, which bounds the cost of a single call. Zero leaves the
+	// provider default.
+	MaxOutputTokens int `mapstructure:"max_output_tokens"`
 }
 
 type PayOSConfig struct {
@@ -338,6 +341,7 @@ func Load(configPath string) (*Config, error) {
 		"llm.model":                  "LLM_MODEL",
 		"llm.timeout":                "LLM_TIMEOUT",
 		"llm.max_retries":            "LLM_MAX_RETRIES",
+		"llm.max_output_tokens":      "LLM_MAX_OUTPUT_TOKENS",
 		"tts.key":                    "AZURE_SPEECH_KEY",
 		"tts.region":                 "AZURE_SPEECH_REGION",
 		"tts.timeout":                "TTS_TIMEOUT",
@@ -479,6 +483,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("llm.model", "gemini-3.1-flash-lite")
 	v.SetDefault("llm.timeout", "30s")
 	v.SetDefault("llm.max_retries", 1)
+	v.SetDefault("llm.max_output_tokens", 4096)
 
 	// TTS defaults: one provider call gets 10s; the interview speaks English only, so the voice sync keeps English locales.
 	v.SetDefault("tts.timeout", "10s")

@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -29,10 +28,11 @@ type fakeRecordingStore struct {
 	mu      sync.Mutex
 	keys    []string
 	objects map[string]int64
+	etags   map[string]string
 }
 
 func newFakeRecordingStore() *fakeRecordingStore {
-	return &fakeRecordingStore{objects: map[string]int64{}}
+	return &fakeRecordingStore{objects: map[string]int64{}, etags: map[string]string{}}
 }
 
 func (f *fakeRecordingStore) PresignPut(_ context.Context, contentType string, _ int64, ttl time.Duration) (storage.UploadGrant, error) {
@@ -51,7 +51,7 @@ func (f *fakeRecordingStore) PresignPut(_ context.Context, contentType string, _
 	}, nil
 }
 
-func (f *fakeRecordingStore) PresignGet(_ context.Context, _ string, ttl time.Duration) (storage.SignedRequest, error) {
+func (f *fakeRecordingStore) PresignGetWithOverrides(_ context.Context, _ string, ttl time.Duration, _ storage.GetOverrides) (storage.SignedRequest, error) {
 	return storage.SignedRequest{
 		URL:       "https://storage.example.test/read/" + uuid.NewString(),
 		Method:    http.MethodGet,
@@ -59,14 +59,32 @@ func (f *fakeRecordingStore) PresignGet(_ context.Context, _ string, ttl time.Du
 	}, nil
 }
 
-func (f *fakeRecordingStore) Download(_ context.Context, key string) (storage.Object, error) {
+func (f *fakeRecordingStore) Head(_ context.Context, key string) (storage.ObjectInfo, error) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	size, ok := f.objects[key]
-	f.mu.Unlock()
 	if !ok {
-		return storage.Object{}, fmt.Errorf("download %s: %w", key, storage.ErrNotFound)
+		return storage.ObjectInfo{}, fmt.Errorf("head %s: %w", key, storage.ErrNotFound)
 	}
-	return storage.Object{Body: io.NopCloser(strings.NewReader("recording")), ContentType: "video/webm", Size: size}, nil
+	return storage.ObjectInfo{ETag: f.etags[key], Size: size, ContentType: "video/webm"}, nil
+}
+
+// ReadPrefix returns the EBML header every WebM object starts with.
+func (f *fakeRecordingStore) ReadPrefix(_ context.Context, key string, n int64) ([]byte, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.objects[key]; !ok {
+		return nil, fmt.Errorf("read %s: %w", key, storage.ErrNotFound)
+	}
+	return []byte{0x1A, 0x45, 0xDF, 0xA3, 0x01, 0x00, 0x00, 0x00}[:min(n, 8)], nil
+}
+
+func (f *fakeRecordingStore) Delete(_ context.Context, key string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.objects, key)
+	delete(f.etags, key)
+	return nil
 }
 
 // lastKey returns the key of the most recent upload grant.
@@ -80,11 +98,13 @@ func (f *fakeRecordingStore) lastKey(t *testing.T) string {
 	return f.keys[len(f.keys)-1]
 }
 
-// putObject marks an object present, as the Candidate's upload would.
+// putObject marks an object present, as the Candidate's upload would. Every put gets a new ETag, as a
+// real overwrite does.
 func (f *fakeRecordingStore) putObject(key string, size int64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.objects[key] = size
+	f.etags[key] = `"` + uuid.NewString() + `"`
 }
 
 // newRecordingService builds the recording service over the real repository and the fake store.

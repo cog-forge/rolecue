@@ -52,25 +52,30 @@ func (q *Queries) AvatarOwnedBy(ctx context.Context, arg AvatarOwnedByParams) (b
 
 const claimInterviewEvaluation = `-- name: ClaimInterviewEvaluation :execrows
 UPDATE public.interviews
-SET evaluation_status = 'pending', evaluation_claimed_at = statement_timestamp()
+SET evaluation_status = 'pending', evaluation_claimed_at = statement_timestamp(),
+    evaluation_attempts = evaluation_attempts + 1
 WHERE id = $1
   AND completed_at IS NOT NULL
+  AND evaluation_attempts < $2::int
   AND (evaluation_status = 'failed'
        OR (evaluation_status = 'pending'
            AND (evaluation_claimed_at IS NULL
-                OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => $2::float8))))
+                OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => $3::float8))))
 `
 
 type ClaimInterviewEvaluationParams struct {
 	ID           uuid.UUID
+	MaxAttempts  int32
 	StaleSeconds float64
 }
 
 // One run owns an evaluation at a time. A completed interview is claimed when its evaluation failed, or
 // when it is pending and was never claimed or its last claim is older than @stale_seconds (the run died
-// with its process). Exactly one concurrent caller gets a row back and starts the evaluation.
+// with its process). Exactly one concurrent caller gets a row back and starts the evaluation. Each claim
+// counts as an attempt and none is granted once @max_attempts have been used (KAN-259), so a poison
+// interview cannot burn LLM calls forever.
 func (q *Queries) ClaimInterviewEvaluation(ctx context.Context, arg ClaimInterviewEvaluationParams) (int64, error) {
-	result, err := q.db.Exec(ctx, claimInterviewEvaluation, arg.ID, arg.StaleSeconds)
+	result, err := q.db.Exec(ctx, claimInterviewEvaluation, arg.ID, arg.MaxAttempts, arg.StaleSeconds)
 	if err != nil {
 		return 0, err
 	}
@@ -104,6 +109,58 @@ func (q *Queries) CountInterviewQuestions(ctx context.Context, interviewID uuid.
 	var questions int64
 	err := row.Scan(&questions)
 	return questions, err
+}
+
+const evaluationAttemptsExhausted = `-- name: EvaluationAttemptsExhausted :one
+SELECT (completed_at IS NOT NULL
+        AND evaluation_attempts >= $1::int
+        AND (evaluation_status = 'failed'
+             OR (evaluation_status = 'pending'
+                 AND evaluation_claimed_at < statement_timestamp() - make_interval(secs => $2::float8))))::boolean AS exhausted
+FROM public.interviews
+WHERE id = $3
+`
+
+type EvaluationAttemptsExhaustedParams struct {
+	MaxAttempts  int32
+	StaleSeconds float64
+	ID           uuid.UUID
+}
+
+// True when a completed interview needs another evaluation run (failed, or pending past its stale claim)
+// but has used all @max_attempts. A completed or in-flight evaluation is not blocked.
+func (q *Queries) EvaluationAttemptsExhausted(ctx context.Context, arg EvaluationAttemptsExhaustedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, evaluationAttemptsExhausted, arg.MaxAttempts, arg.StaleSeconds, arg.ID)
+	var exhausted bool
+	err := row.Scan(&exhausted)
+	return exhausted, err
+}
+
+const failExhaustedStaleEvaluation = `-- name: FailExhaustedStaleEvaluation :execrows
+UPDATE public.interviews
+SET evaluation_status = 'failed'
+WHERE id = $1
+  AND completed_at IS NOT NULL
+  AND evaluation_attempts >= $2::int
+  AND evaluation_status = 'pending'
+  AND evaluation_claimed_at < statement_timestamp() - make_interval(secs => $3::float8)
+`
+
+type FailExhaustedStaleEvaluationParams struct {
+	ID           uuid.UUID
+	MaxAttempts  int32
+	StaleSeconds float64
+}
+
+// A completed interview whose last allowed evaluation claim went stale will never run again, so it is
+// failed here instead of staying pending for ever. A fresh (running) claim and a completed or already
+// failed evaluation are not touched.
+func (q *Queries) FailExhaustedStaleEvaluation(ctx context.Context, arg FailExhaustedStaleEvaluationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, failExhaustedStaleEvaluation, arg.ID, arg.MaxAttempts, arg.StaleSeconds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const findInterviewByApplication = `-- name: FindInterviewByApplication :one

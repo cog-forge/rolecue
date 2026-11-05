@@ -572,6 +572,10 @@
       "evaluationFailed": "Không thể tải đánh giá. Hãy thử lại.",
       "noBreakdownFailed": "Đánh giá không thành công nên không có điểm chi tiết.",
       "noBreakdownYet": "Điểm chi tiết chưa sẵn sàng.",
+      "aiGenerated": "Tóm tắt do AI tạo",
+      "flaggedTitle": "Cần xem xét lại",
+      "flaggedText": "Hệ thống đánh giá tự động nghi ngờ một số câu trả lời cố tác động đến việc chấm điểm, hoặc không thể xác minh một trích dẫn minh chứng trong bản ghi. Hãy kiểm tra bản ghi trước khi dựa vào các điểm này.",
+      "evidence": "Minh chứng",
       "checkAgain": "Kiểm tra lại",
       "status": {
         "in_progress": "Đang diễn ra",

@@ -26,6 +26,8 @@ func TestError(t *testing.T) {
 		{"account locked", apperror.CodeAccountLocked, http.StatusForbidden},
 		{"token", apperror.CodeInvalidToken, http.StatusUnauthorized},
 		{"validation", apperror.CodeValidation, http.StatusBadRequest},
+		{"evaluation attempts", apperror.CodeEvaluationAttemptsExceeded, http.StatusConflict},
+		{"rate limited", apperror.CodeRateLimited, http.StatusTooManyRequests},
 		{"JD input", apperror.CodeInvalidJDInput, http.StatusBadRequest},
 		{"JD short", apperror.CodeJDTooShort, http.StatusBadRequest},
 		{"JD long", apperror.CodeJDTooLong, http.StatusBadRequest},

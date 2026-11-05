@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Mirrors GET /interviews/:id/report (KAN-63, snake_case). For a recruitment interview the
-// Candidate receives only the score and status: summary, breakdown and questions are null.
+// Candidate receives only the status: summary, breakdown and questions are null.
 export const reportTypes = ["practice", "recruitment"] as const;
 export const reportStatuses = [
   "in_progress",
@@ -21,6 +21,8 @@ export const reportMetricSchema = z.object({
   metric_id: z.uuid(),
   name: z.string(),
   score: scoreSchema,
+  // Verbatim quote the score rests on (recruiter view); null when absent or unverified.
+  evidence: z.string().nullish(),
 });
 
 // `position` is the turn's place in the interview; `question_number` the core question it belongs to,
@@ -43,12 +45,15 @@ export const reportSchema = z.object({
   interview_id: z.uuid(),
   type: reportTypeSchema,
   status: reportStatusSchema,
-  overall_score: scoreSchema.nullable(),
+  // Omitted for a recruitment Candidate (the Recruiter announces the result); read as null.
+  overall_score: scoreSchema.nullish().transform((value) => value ?? null),
   started_at: z.iso.datetime({ offset: true }),
   completed_at: z.iso.datetime({ offset: true }).nullable(),
   end_reason: endReasonSchema.nullish().transform((value) => value ?? null),
   question_count: z.number().int().nonnegative().optional(),
   summary: z.string().nullable(),
+  summary_source: z.literal("ai").nullish(),
+  injection_flagged: z.boolean().optional(),
   breakdown: z.array(reportMetricSchema).nullable(),
   questions: z.array(reportQuestionSchema).nullable(),
 });

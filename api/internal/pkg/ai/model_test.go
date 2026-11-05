@@ -32,13 +32,17 @@ func TestChatModelRuntime(t *testing.T) {
 				if r.Header.Get("x-goog-api-key") != "test-key" {
 					t.Error("API key not configured")
 				}
+				body, _ := io.ReadAll(r.Body)
+				if !strings.Contains(string(body), `"maxOutputTokens":321`) {
+					t.Errorf("max output tokens not sent: %s", body)
+				}
 				if timeout {
 					<-r.Context().Done()
 					return nil, r.Context().Err()
 				}
 				return &http.Response{StatusCode: http.StatusServiceUnavailable, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"error":{"code":503,"message":"unavailable","status":"UNAVAILABLE"}}`)), Request: r}, nil
 			})
-			m, err := NewChatModel(context.Background(), config.LLMConfig{Provider: "gemini", APIKey: "test-key", Model: "test-model", Timeout: 20 * time.Millisecond})
+			m, err := NewChatModel(context.Background(), config.LLMConfig{Provider: "gemini", APIKey: "test-key", Model: "test-model", Timeout: 20 * time.Millisecond, MaxOutputTokens: 321})
 			if err != nil {
 				t.Fatal(err)
 			}
