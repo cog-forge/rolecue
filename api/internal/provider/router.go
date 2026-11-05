@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
+	accounthandler "github.com/cog-forge/rolecue/api/internal/features/account/handler"
 	"github.com/cog-forge/rolecue/api/internal/handler"
 	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
@@ -35,9 +36,10 @@ func ProvideRouter(
 	adminOverviewHandler *handler.AdminOverviewHandler,
 	interviewHandlers *handler.InterviewHandlers,
 	llmBudget llmbudget.Guard,
+	accountHandler *accounthandler.Handler,
 ) *gin.Engine {
 	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers).WithLLMBudget(llmBudget)
-	return appRouter.Setup()
+	return appRouter.WithAccountHandler(accountHandler).Setup()
 }
 
 func ProvideHTTPServer(

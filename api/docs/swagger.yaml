@@ -89,6 +89,8 @@ definitions:
     - RECORDING_UPLOAD_LIMIT
     - RECORDING_INTEGRITY
     - RECORDING_CONSENT_REQUIRED
+    - ACCOUNT_HAS_ACTIVE_WORK
+    - ADMIN_CANNOT_SELF_DELETE
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -178,6 +180,8 @@ definitions:
     - CodeRecordingUploadLimit
     - CodeRecordingIntegrity
     - CodeRecordingConsentRequired
+    - CodeAccountHasActiveWork
+    - CodeAdminCannotSelfDelete
   domain.AccessAuditEntry:
     properties:
       action:
@@ -656,6 +660,33 @@ definitions:
       question_number:
         type: integer
     type: object
+  domain.DataExport:
+    properties:
+      applications:
+        items:
+          $ref: '#/definitions/domain.ExportApplication'
+        type: array
+      generated_at:
+        type: string
+      interviews:
+        items:
+          $ref: '#/definitions/domain.ExportInterview'
+        type: array
+      job_postings:
+        items:
+          $ref: '#/definitions/domain.ExportPosting'
+        type: array
+      link_ttl_seconds:
+        description: LinkTTLSeconds is the lifetime of every download link in the
+          package.
+        type: integer
+      profile:
+        $ref: '#/definitions/domain.ExportProfile'
+      role_profiles:
+        items:
+          $ref: '#/definitions/domain.ExportRoleProfile'
+        type: array
+    type: object
   domain.DepositCheckoutResponse:
     properties:
       amount:
@@ -739,6 +770,13 @@ definitions:
       url:
         type: string
     type: object
+  domain.DownloadLink:
+    properties:
+      expires_at:
+        type: string
+      url:
+        type: string
+    type: object
   domain.Edit:
     properties:
       document_id:
@@ -792,6 +830,12 @@ definitions:
     - EndCompleted
     - EndLeft
     - EndAbandoned
+  domain.ErasureRequest:
+    properties:
+      confirm:
+        description: Confirm must be "DELETE" or the account's email address.
+        type: string
+    type: object
   domain.EvaluationStatus:
     enum:
     - pending
@@ -802,6 +846,140 @@ definitions:
     - EvaluationPending
     - EvaluationCompleted
     - EvaluationFailed
+  domain.ExportApplication:
+    properties:
+      created_at:
+        type: string
+      cv:
+        $ref: '#/definitions/domain.DownloadLink'
+      id:
+        type: string
+      interview_deadline:
+        type: string
+      job_posting_title:
+        type: string
+      reject_reason:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  domain.ExportInterview:
+    properties:
+      application_id:
+        type: string
+      completed_at:
+        type: string
+      end_reason:
+        type: string
+      feedback:
+        type: string
+      id:
+        type: string
+      overall_score:
+        type: integer
+      recording:
+        $ref: '#/definitions/domain.DownloadLink'
+      scores:
+        items:
+          $ref: '#/definitions/domain.ExportScore'
+        type: array
+      started_at:
+        type: string
+      turns:
+        items:
+          $ref: '#/definitions/domain.ExportTurn'
+        type: array
+      type:
+        enum:
+        - practice
+        - recruitment
+        type: string
+    type: object
+  domain.ExportPosting:
+    properties:
+      created_at:
+        type: string
+      employment_type:
+        type: string
+      id:
+        type: string
+      location:
+        type: string
+      published_at:
+        type: string
+      salary_max:
+        type: integer
+      salary_min:
+        type: integer
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.ExportProfile:
+    properties:
+      company_name:
+        type: string
+      company_website:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      image:
+        type: string
+      role:
+        enum:
+        - candidate
+        - recruiter
+        type: string
+    type: object
+  domain.ExportRoleProfile:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  domain.ExportScore:
+    properties:
+      evidence:
+        type: string
+      metric:
+        type: string
+      score:
+        type: integer
+    type: object
+  domain.ExportTurn:
+    properties:
+      answer:
+        type: string
+      answered_at:
+        type: string
+      asked_at:
+        type: string
+      feedback:
+        type: string
+      kind:
+        enum:
+        - core
+        - follow_up
+        type: string
+      position:
+        type: integer
+      question:
+        type: string
+    type: object
   domain.FeatureCoinItem:
     properties:
       coins_spent:
@@ -2327,6 +2505,11 @@ definitions:
     required:
     - package_id
     type: object
+  handler.ErasureResult:
+    properties:
+      deleted:
+        type: boolean
+    type: object
   handler.EvaluationWeightEntry:
     properties:
       metric_id:
@@ -2573,6 +2756,112 @@ info:
   title: AI Interview Practice API
   version: 1.0.0
 paths:
+  /account:
+    delete:
+      consumes:
+      - application/json
+      description: Requires {"confirm":"DELETE"} (or your email address). A Recruiter
+        with open job postings or applications in progress is refused with ACCOUNT_HAS_ACTIVE_WORK
+        (409, counts only); an Administrator with ADMIN_CANNOT_SELF_DELETE. Stored
+        files are deleted first and the database rows last in one transaction, so
+        a failed call can be repeated. Trusted Origin required; unknown fields reject
+        the whole request.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Confirmation; body limit 1 KiB
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.ErasureRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.ErasureResult'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Permanently delete your own account and data
+      tags:
+      - account
+  /account/export:
+    get:
+      description: A Candidate gets their profile, role profiles, applications, interview
+        questions and answers, practice reports and scores, and 15-minute links to
+        their own CV and recording. A Recruiter gets their profile and job postings.
+        Each export writes one audit log line (user id and time only).
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.DataExport'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Download your own data
+      tags:
+      - account
   /admin/access-audit:
     get:
       description: 'Admin only. One row per successful Recruiter read of a recording

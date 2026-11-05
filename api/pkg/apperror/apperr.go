@@ -110,6 +110,10 @@ const (
 	CodeRecordingUploadLimit       Code = "RECORDING_UPLOAD_LIMIT"
 	CodeRecordingIntegrity         Code = "RECORDING_INTEGRITY"
 	CodeRecordingConsentRequired   Code = "RECORDING_CONSENT_REQUIRED"
+
+	// Account erasure (KAN-280).
+	CodeAccountHasActiveWork  Code = "ACCOUNT_HAS_ACTIVE_WORK"
+	CodeAdminCannotSelfDelete Code = "ADMIN_CANNOT_SELF_DELETE"
 )
 
 type AppError struct {

@@ -93,6 +93,8 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeRecordingUploadLimit:            http.StatusConflict,
 	apperror.CodeRecordingIntegrity:              http.StatusConflict,
 	apperror.CodeRecordingConsentRequired:        http.StatusConflict,
+	apperror.CodeAccountHasActiveWork:            http.StatusConflict,
+	apperror.CodeAdminCannotSelfDelete:           http.StatusForbidden,
 	apperror.CodeInvalidCredentials:              http.StatusUnauthorized,
 	apperror.CodeAccountNotFound:                 http.StatusNotFound,
 	apperror.CodeAccountLocked:                   http.StatusForbidden,

@@ -9,6 +9,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
+	accounthandler "github.com/cog-forge/rolecue/api/internal/features/account/handler"
 	"github.com/cog-forge/rolecue/api/internal/handler"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
 	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
@@ -39,6 +40,15 @@ type Router struct {
 	adminOverviewHandler   *handler.AdminOverviewHandler
 	interviewHandlers      *handler.InterviewHandlers
 	llmBudget              llmbudget.Guard
+	// accountHandler is set with WithAccountHandler, not through NewRouter, so adding it did not change
+	// the constructor every router test calls. Without it the /account routes are not registered.
+	accountHandler *accounthandler.Handler
+}
+
+// WithAccountHandler enables DELETE /account and GET /account/export (KAN-280, KAN-282).
+func (r *Router) WithAccountHandler(h *accounthandler.Handler) *Router {
+	r.accountHandler = h
+	return r
 }
 
 func NewRouter(
@@ -133,6 +143,13 @@ func (r *Router) Setup() *gin.Engine {
 	profiles := router.Group("/profile", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
 	profiles.GET("", r.profileHandler.Get)
 	profiles.PATCH("", r.profileHandler.Update)
+
+	// Auth only, so a user who has not finished onboarding can still leave and take their data.
+	if r.accountHandler != nil {
+		account := router.Group("/account", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+		account.GET("/export", r.accountHandler.Export)
+		account.DELETE("", r.accountHandler.Erase)
+	}
 
 	router.POST("/onboarding/role", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), r.onboardingHandler.SelectRole)
 
