@@ -13,6 +13,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 )
 
 // followUpInstruction takes only trusted values. The core question, the answers and the requirements come
@@ -44,6 +45,9 @@ these names; an empty array is fine. When follow_up is false, cues is [].`
 
 // maxReplyBytes bounds the reply the adapter decodes; a valid one is far smaller.
 const maxReplyBytes = 64 << 10
+
+// maxExchangeQuestionRunes caps an earlier question that goes back into the decider input.
+const maxExchangeQuestionRunes = 600
 
 // EinoFollowUpDecider decides follow-ups with one Generate call. The service owns the timeout, the
 // validation of the proposal and the fallback.
@@ -106,7 +110,12 @@ func (c cueCandidate) cue() domain.PerformanceCue {
 func (d *EinoFollowUpDecider) Decide(ctx context.Context, in domain.FollowUpContext) (domain.FollowUpProposal, error) {
 	exchanges := make([]exchange, 0, len(in.Exchanges))
 	for _, e := range in.Exchanges {
-		exchanges = append(exchanges, exchange{Question: e.Question, Answer: e.Answer})
+		// Answers are redacted of identifiers (KAN-298); earlier questions may be model-written follow-ups
+		// built from answers, so they are cleaned and capped like any untrusted text (KAN-279).
+		exchanges = append(exchanges, exchange{
+			Question: textsafe.Truncate(textsafe.Clean(e.Question), maxExchangeQuestionRunes),
+			Answer:   textsafe.Redact(textsafe.Clean(e.Answer)),
+		})
 	}
 	requirements := make([]requirement, 0, len(in.Requirements))
 	for _, r := range in.Requirements {

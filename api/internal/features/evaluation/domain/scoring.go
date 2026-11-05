@@ -62,6 +62,9 @@ type ScoreInput struct {
 	Type        string
 	Turns       []ScoreTurn
 	Metrics     []ScoredMetric
+	// RedactNames are the Candidate's own names. The scorer replaces them, with e-mail addresses, phone
+	// numbers and URLs, before text goes to an LLM provider (KAN-298). Optional.
+	RedactNames []string
 }
 
 // ScoreTurn is one answered question as it was asked and answered. A follow-up (Kind TurnFollowUp) is

@@ -67,13 +67,12 @@ func TestBankBatchesAndDeduplicates(t *testing.T) {
 		t.Fatal(calls, len(bank.Questions), err)
 	}
 }
-func TestLegacyLeavesDomainValidationAndRetriesToService(t *testing.T) {
+func TestLegacyAppliesTheSameDomainValidators(t *testing.T) {
 	m := replyModel{generate: func([]*schema.Message) (*schema.Message, error) {
 		return schema.AssistantMessage(`{"questions":["duplicate","duplicate"]}`, nil), nil
 	}}
 	a := &TaskAdapter{route: &Route{legacy: true, entries: []routeEntry{{model: m}}}}
-	bank, err := a.Generate(context.Background(), qd.GenerationInput{}, 50)
-	if err != nil || len(bank.Questions) != 2 {
-		t.Fatal("legacy proposal changed", err)
+	if _, err := a.Generate(context.Background(), qd.GenerationInput{}, 50); err == nil {
+		t.Fatal("legacy route accepted a bank the validators reject")
 	}
 }

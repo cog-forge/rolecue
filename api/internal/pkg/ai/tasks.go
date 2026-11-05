@@ -47,7 +47,7 @@ func (a *TaskAdapter) Extract(ctx context.Context, jd string) (rd.ExtractionCand
 			return rd.ExtractionCandidate{}, err
 		}
 		c, err := e.Extract(ctx, jd)
-		if err == nil && !a.route.legacy {
+		if err == nil {
 			var structured rd.StructuredJD
 			structured, err = rs.ValidateCandidate(c)
 			if err == nil {
@@ -71,7 +71,7 @@ func (a *TaskAdapter) Decide(ctx context.Context, in id.FollowUpContext) (id.Fol
 			return id.FollowUpProposal{}, err
 		}
 		p, err := d.Decide(ctx, in)
-		if err == nil && !a.route.legacy {
+		if err == nil {
 			err = is.ValidateFollowUp(&p, in)
 		}
 		if a.route.legacy {
@@ -87,7 +87,7 @@ func (a *TaskAdapter) Score(ctx context.Context, in ed.ScoreInput) (ed.ScoreOutp
 			return ed.ScoreOutput{}, err
 		}
 		out, err := s.Score(ctx, in)
-		if err == nil && !a.route.legacy {
+		if err == nil {
 			err = es.ValidateScores(in, out)
 		}
 		if a.route.legacy {
@@ -102,7 +102,8 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 		ctx, cancel = context.WithTimeout(ctx, a.route.budget)
 		defer cancel()
 	}
-	// Legacy Gemini-only routing keeps the original single-call behavior.
+	// Legacy Gemini-only routing keeps the single-call route, but every output now passes the same domain
+	// validators as the routed path (KAN-300).
 	batchSize := count
 	for _, entry := range a.route.entries {
 		if entry.config.Provider == "groq" && batchSize > 10 {
@@ -118,7 +119,7 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 				return qd.GenerationCandidate{}, err
 			}
 			c, err := g.GenerateBatch(ctx, in, size, merged.Questions)
-			if err == nil && !a.route.legacy {
+			if err == nil {
 				combined := qd.GenerationCandidate{Questions: append(append([]string{}, merged.Questions...), c.Questions...)}
 				var valid []string
 				valid, err = qs.ValidateGenerated(combined, len(merged.Questions)+size)
@@ -135,9 +136,6 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 			return qd.GenerationCandidate{}, err
 		}
 		merged.Questions = append(merged.Questions, batch.Questions...)
-	}
-	if a.route.legacy {
-		return merged, nil
 	}
 	_, err := qs.ValidateGenerated(merged, count)
 	return merged, err

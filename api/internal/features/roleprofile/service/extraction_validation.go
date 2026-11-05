@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
@@ -27,6 +28,9 @@ func NormalizeInput(raw string) (string, error) {
 		return "", apperror.Wrap(apperror.CodeInvalidJDInput, invalidJDInputMessage, fmt.Errorf("input is not valid UTF-8"))
 	}
 	raw = strings.ReplaceAll(strings.ReplaceAll(raw, "\r\n", "\n"), "\r", "\n")
+	// NFKC and invisible characters (zero-width, bidi override, control) go before the JD reaches an LLM
+	// (KAN-300). ValidateEvidence applies the same cleaning to the stored text it compares against.
+	raw = textsafe.Clean(raw)
 	lines := make([]string, 0)
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.Join(strings.Fields(line), " ")
