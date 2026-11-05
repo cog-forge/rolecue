@@ -1,4 +1,8 @@
 FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895
 
 WORKDIR /app
-RUN mkdir -p /app/node_modules && chmod 1777 /app/node_modules
+# compose.local.yaml runs this image as LOCAL_UID:LOCAL_GID and mounts a named volume on
+# node_modules; a new volume copies this directory's mode, so it must stay writable for
+# any uid. The sticky bit (1777) keeps users from deleting each other's files.
+RUN mkdir -p /app/node_modules && chown bun:bun /app /app/node_modules && chmod 1777 /app/node_modules
+USER bun

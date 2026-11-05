@@ -231,3 +231,36 @@ configure them):
   its runner group so a pull-request workflow cannot target it.
 - Note the NEXT_PUBLIC_* build secrets used in `images`/`e2e` are public values by
   design (they are embedded in the browser bundle), so they are not a concern here.
+
+## KAN-307
+
+Low-severity CI and Docker items.
+
+- `claude.yml` allowlist (`git diff/log/show` accept `--output`): fixed by
+  KAN-254, see that section.
+- `claude.yml` checks out the PR head with the OAuth token: fixed by KAN-254
+  (review events are limited to same-repository PRs; the action also restores
+  `.claude/`, `.mcp.json` and `CLAUDE.md` from the base branch).
+- SBOM retention: fixed by KAN-303 (signed attestation on the image plus a 90-day
+  `sbom-release` artifact).
+- Development defaults baked into the API runtime image (`configs/config.yaml`
+  has `environment: development` and `debug: true`): `config.yaml` is not
+  edited here. Production behaviour is selected at run time by
+  `APP_ENVIRONMENT=production`, `APP_DEBUG=false` and the other overrides in
+  `compose.deploy.yaml`; the API lane owns tightening the defaults in code.
+  `ENV APP_ENVIRONMENT=production` was deliberately not added to
+  `api/Dockerfile`: production mode makes configuration validation require
+  `AUTH_SECURE_COOKIES=true` and a cookie domain (`internal/config/config.go`),
+  and `.docker/smoke.sh` runs the image on plain HTTP without them, so the smoke
+  test would fail. Accepted: compose already sets the variable for every real
+  deployment. Revisit once smoke.sh passes production-valid cookie settings.
+- Dev Dockerfiles (`api`, `auth`, `frontend`) ran as root and `api` made the
+  whole `/go` tree world-writable. Now: each image ends with a non-root `USER`
+  (`dev`, `bun`, `node`, all uid 1000), the API tool binaries in `/go/bin`
+  are read-only for non-root users and only the module cache `/go/pkg` stays
+  writable, and `/app` plus `node_modules` are owned by the dev user. Tradeoff:
+  `compose.local.yaml` already runs the containers as `LOCAL_UID:LOCAL_GID`
+  (default 1000) over bind mounts, which overrides `USER`; developers with another
+  uid still need a writable `node_modules` named volume, so that directory
+  keeps mode `1777` (sticky, so users cannot remove each other's files) rather
+  than being tightened to 755. Not verified with a build (no Docker daemon).

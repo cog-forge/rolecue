@@ -3,15 +3,21 @@ FROM golang:1.27.3-trixie@sha256:d9fa6e7ba43678ee1e5d1617007db9a134612032a74e2d8
 ARG AIR_VERSION=v1.67.4
 ARG SQLC_VERSION=v1.31.1
 
+# Tools are installed as root and stay read-only for everyone else. compose.local.yaml
+# overrides the user with LOCAL_UID:LOCAL_GID, which may not match the `dev` user below,
+# so only the module cache (/go/pkg) is left writable for arbitrary uids.
 RUN go install github.com/air-verse/air@${AIR_VERSION} \
     && go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION} \
-    && chmod -R a+rwX /go
+    && chmod -R a+rX /go/bin \
+    && useradd --uid 1000 --user-group --create-home dev \
+    && mkdir /workspace && chown dev:dev /workspace
 
 WORKDIR /workspace
 COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
+RUN go mod download && chmod -R a+rwX /go/pkg
+COPY --chown=dev:dev . .
 
 ENV GOCACHE=/tmp/go-build-cache
+USER dev
 EXPOSE 8080
 CMD ["air", "-c", ".air.toml"]
