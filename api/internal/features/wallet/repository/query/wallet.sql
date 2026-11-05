@@ -49,11 +49,12 @@ FROM public.transactions
 WHERE "from" = @tx_user_id OR "to" = @tx_user_id;
 
 -- name: ListActiveCoinPackages :many
-SELECT id, name, price, description, amount, currency
+SELECT id, name, price, description, amount, currency, is_active
 FROM public.coin_packages
+WHERE is_active
 ORDER BY price ASC;
 
 -- name: GetCoinPackageByID :one
-SELECT id, name, price, description, amount, currency
+SELECT id, name, price, description, amount, currency, is_active
 FROM public.coin_packages
 WHERE id = @id;

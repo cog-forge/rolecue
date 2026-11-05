@@ -40,7 +40,7 @@ func (q *Queries) CreateWallet(ctx context.Context, userID uuid.UUID) (Wallet, e
 }
 
 const getCoinPackageByID = `-- name: GetCoinPackageByID :one
-SELECT id, name, price, description, amount, currency
+SELECT id, name, price, description, amount, currency, is_active
 FROM public.coin_packages
 WHERE id = $1
 `
@@ -55,6 +55,7 @@ func (q *Queries) GetCoinPackageByID(ctx context.Context, id uuid.UUID) (CoinPac
 		&i.Description,
 		&i.Amount,
 		&i.Currency,
+		&i.IsActive,
 	)
 	return i, err
 }
@@ -232,8 +233,9 @@ func (q *Queries) InsertTransaction(ctx context.Context, arg InsertTransactionPa
 }
 
 const listActiveCoinPackages = `-- name: ListActiveCoinPackages :many
-SELECT id, name, price, description, amount, currency
+SELECT id, name, price, description, amount, currency, is_active
 FROM public.coin_packages
+WHERE is_active
 ORDER BY price ASC
 `
 
@@ -253,6 +255,7 @@ func (q *Queries) ListActiveCoinPackages(ctx context.Context) ([]CoinPackage, er
 			&i.Description,
 			&i.Amount,
 			&i.Currency,
+			&i.IsActive,
 		); err != nil {
 			return nil, err
 		}

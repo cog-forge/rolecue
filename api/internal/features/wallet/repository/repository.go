@@ -216,7 +216,7 @@ func (r *Repository) ListCoinPackages(ctx context.Context) ([]domain.CoinPackage
 			Description: desc,
 			CoinAmount:  row.Amount,
 			Currency:    row.Currency,
-			IsActive:    true,
+			IsActive:    row.IsActive,
 		})
 	}
 	return packages, nil
@@ -241,7 +241,7 @@ func (r *Repository) GetCoinPackageByID(ctx context.Context, id uuid.UUID) (doma
 		Description: desc,
 		CoinAmount:  row.Amount,
 		Currency:    row.Currency,
-		IsActive:    true,
+		IsActive:    row.IsActive,
 	}, nil
 }
 
