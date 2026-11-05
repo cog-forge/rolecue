@@ -91,7 +91,7 @@
   "auth": {
     "accountLocked": "Your account has been locked by an administrator. Contact support to request a review. You can sign in again once the lock expires or an administrator unlocks your account.",
     "invalidCredentials": "Email or password is incorrect.",
-    "emailTaken": "An account with this email already exists. Try signing in.",
+    "emailTaken": "We couldn't create an account with those details. If you already have an account, sign in or reset your password.",
     "invalidEmail": "Please enter a valid email address.",
     "weakPassword": "Please choose a password with at least 8 characters.",
     "emailNotVerified": "Please verify your email before signing in.",

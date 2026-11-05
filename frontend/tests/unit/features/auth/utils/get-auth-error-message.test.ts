@@ -41,6 +41,23 @@ describe("getAuthErrorMessage", () => {
     expect(getAuthErrorMessage(error, "fallback", errorsFor("vi"))).toBe(vi);
   });
 
+  it.each(["USER_ALREADY_EXISTS", "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL"])(
+    "does not reveal that an email is registered (%s)",
+    (code) => {
+      for (const locale of ["en", "vi"] as const) {
+        const message = getAuthErrorMessage(
+          { code, message: "User already exists" },
+          "fallback",
+          errorsFor(locale),
+        );
+        expect(message).not.toMatch(
+          /already (exists|registered|taken|in use)|đã (được dùng|tồn tại|được đăng ký)/i,
+        );
+        expect(message).not.toBe("fallback");
+      }
+    },
+  );
+
   it("uses the screen's fallback for an unknown code and never the raw text", () => {
     const error = { code: "SOMETHING_NEW", message: "Raw English" };
     expect(getAuthErrorMessage(error, "fallback", errorsFor("vi"))).toBe(
