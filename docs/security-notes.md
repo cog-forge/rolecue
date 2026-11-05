@@ -308,3 +308,70 @@ Low-severity CI and Docker items.
 - **Company interviewer.** The query already returns only the avatar the posting locked
   (`required_avatar_id`, owned by the posting's recruiter); a regression test now pins that no other
   avatar of the recruiter, and no foreign avatar, is reachable. The grant is the posting's VRM by design.
+
+## KAN-277 / KAN-278
+
+Rate limits and the per-user LLM budget.
+
+### Go API request limits (KAN-277)
+
+`internal/middleware/ratelimit.go` has in-memory token buckets keyed by user
+(`UserRateLimiter`) or client address (`IPRateLimiter`, key `c.ClientIP()`, which only
+believes `X-Forwarded-For` from `server.trusted_proxies`). A refused request answers
+`429 RATE_LIMITED` with a `Retry-After` header (whole seconds, at least 1). Three chains are
+applied per route in `internal/router/limits.go`:
+
+- LLM (per IP, then per user, then the daily LLM budget): `POST /role-profiles/:id/analyze`,
+  `POST /role-profiles/:id/confirm` (generates the practice bank), `POST /job-postings/extract`,
+  `POST /job-postings/:id/questions/generate`, and `POST /interviews/:id/complete` (starts the
+  evaluation; it keeps its own stricter per-user bucket from KAN-259, so it gets per IP and the budget).
+- Expensive, no LLM (per IP, then per user): `POST /wallet/deposit/checkout`,
+  `POST /wallet/deposit/sync`, role-profile PDF upload and completion, `POST /job-postings/documents`,
+  `POST /inventory/avatars`, interview recording create and complete.
+- Not limited here: the PayOS webhook (its signature is the guard and PayOS retries), the live
+  interview socket (it has its own per-socket bucket) and plain reads.
+
+Config (YAML `rate_limit.*`, env `RATE_LIMIT_*`; `per_minute` 0 turns that limiter off,
+`RATE_LIMIT_ENABLED=false` turns all off):
+
+| env | default | meaning |
+| --- | --- | --- |
+| `RATE_LIMIT_LLM_PER_MINUTE` / `_BURST` | 10 / 5 | per user, LLM routes |
+| `RATE_LIMIT_EXPENSIVE_PER_MINUTE` / `_BURST` | 20 / 10 | per user, wallet and upload routes |
+| `RATE_LIMIT_IP_PER_MINUTE` / `_BURST` | 120 / 40 | per client address, same routes |
+
+Limits: the buckets are per API instance (with N replicas the effective limit is N times
+higher) and idle buckets are dropped after 10 minutes. The IP limit assumes `server.trusted_proxies`
+lists Caddy; if it is left at loopback behind Caddy every request shares Caddy's address and the
+IP bucket becomes one global bucket, so check that before production.
+
+### Per-user LLM budget (KAN-278)
+
+`internal/pkg/llmbudget` counts LLM-backed operations per user and UTC day in the
+`llm_usage` table (migration 000027) with one atomic upsert that refuses to pass the limit.
+`LLM_USER_DAILY_CALL_BUDGET` (`llm.user_daily_call_budget`, default 200, 0 = unlimited). Over it:
+`429 LLM_BUDGET_EXCEEDED`. It is charged once per request on the routes above and once per live
+follow-up decision (a spent budget skips the follow-up; it never fails the interview). A request
+that fails validation after the charge still counted. Logs and the table hold counts only.
+`LLM_MAX_OUTPUT_TOKENS` (default 4096) reaches every provider path: Gemini `MaxTokens`, Groq
+`max_completion_tokens`, task fallbacks and the legacy route all build their model from
+`Config.TaskLLM`, which copies it (covered by `TestMaxOutputTokensReachesEveryRoute`).
+
+### Better Auth (verified, not rebuilt)
+
+`auth/src/rate-limit.ts`: limits are enabled in every environment with `storage: "database"`
+(table `rate_limits`, shared by all replicas and restarts). Custom rules per client IP and path:
+`/sign-in/email` 5 per 60 s, `/request-password-reset` and `/send-verification-email` 3 per 60 s,
+`/two-factor/verify-totp` and `/verify-backup-code` 5 per 60 s; `/get-session` is unlimited because
+the Go API calls it server-to-server without a client IP. The IP comes from `X-Forwarded-For`
+only (a spoofed multi-value header falls into one shared bucket rather than bypassing).
+
+### Caddy-level limit (skipped)
+
+Caddy has no built-in rate limiter; it needs the third-party `caddy-ratelimit` module, which means a
+custom image built with `xcaddy build --with` that module instead of the stock `caddy` image, plus
+tracking its releases. Not done here. If edge limiting becomes necessary, add to the `/api/*` handler
+in `.caddy/Caddyfile.deploy`:
+`rate_limit { zone api { key {remote_host} events 300 window 1m } }` (directive order set with
+`order rate_limit before reverse_proxy`). The application-level limits above already cover the
+expensive routes and need no extra image.

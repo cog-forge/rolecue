@@ -36,6 +36,7 @@ type Config struct {
 	AvatarConversion AvatarConversionConfig `mapstructure:"avatar_conversion"`
 	Jobs             JobsConfig             `mapstructure:"jobs"`
 	Profile          ProfileConfig          `mapstructure:"profile"`
+	RateLimit        RateLimitConfig        `mapstructure:"rate_limit"`
 }
 
 // ProfileConfig holds profile settings. ImageHosts lists the hosts a profile image URL may point to
@@ -170,6 +171,9 @@ type LLMConfig struct {
 	// MaxOutputTokens caps one completion, which bounds the cost of a single call. Zero leaves the
 	// provider default.
 	MaxOutputTokens int `mapstructure:"max_output_tokens"`
+	// UserDailyCallBudget is the most LLM-backed operations one user may start per UTC day (KAN-278); 0 is
+	// unlimited. See internal/pkg/llmbudget.
+	UserDailyCallBudget int `mapstructure:"user_daily_call_budget"`
 }
 
 type PayOSConfig struct {
@@ -442,6 +446,9 @@ func Load(configPath string) (*Config, error) {
 		}
 	}
 
+	if err := bindRateLimitEnv(v); err != nil {
+		return nil, err
+	}
 	if err := bindJobEnv(v); err != nil {
 		return nil, err
 	}
@@ -571,6 +578,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("interview.live_message_rate", 20)
 	v.SetDefault("interview.live_message_burst", 60)
 	setJobDefaults(v)
+	setRateLimitDefaults(v)
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
 	v.SetDefault("avatar_conversion.timeout", "120s")
@@ -660,6 +668,12 @@ func (c *Config) Validate() error {
 	}
 	if err := c.Interview.Validate(); err != nil {
 		return err
+	}
+	if err := c.RateLimit.Validate(); err != nil {
+		return err
+	}
+	if c.LLM.UserDailyCallBudget < 0 || c.LLM.UserDailyCallBudget > MaxLLMUserDailyCallBudget {
+		return fmt.Errorf("llm.user_daily_call_budget must be between 0 and %d", MaxLLMUserDailyCallBudget)
 	}
 	if err := c.Jobs.Validate(); err != nil {
 		return err

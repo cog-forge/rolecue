@@ -85,6 +85,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeInterviewNotCompleted:           http.StatusConflict,
 	apperror.CodeEvaluationAttemptsExceeded:      http.StatusConflict,
 	apperror.CodeRateLimited:                     http.StatusTooManyRequests,
+	apperror.CodeLLMBudgetExceeded:               http.StatusTooManyRequests,
 	apperror.CodeFinalReviewLocked:               http.StatusConflict,
 	apperror.CodeApplicationNotInterviewed:       http.StatusConflict,
 	apperror.CodeRecordingNotFound:               http.StatusNotFound,

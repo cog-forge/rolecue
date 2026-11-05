@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -73,6 +74,7 @@ type Service struct {
 	settings   Settings
 	evaluator  Evaluator
 	decider    FollowUpDecider
+	llmBudget  llmbudget.Guard
 	notifier   EndNotifier
 }
 

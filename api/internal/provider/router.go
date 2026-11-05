@@ -5,6 +5,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/handler"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/router"
 	"github.com/cog-forge/rolecue/api/internal/server"
@@ -33,8 +34,9 @@ func ProvideRouter(
 	adminInterviewsHandler *handler.AdminInterviewsHandler,
 	adminOverviewHandler *handler.AdminOverviewHandler,
 	interviewHandlers *handler.InterviewHandlers,
+	llmBudget llmbudget.Guard,
 ) *gin.Engine {
-	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers)
+	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers).WithLLMBudget(llmBudget)
 	return appRouter.Setup()
 }
 

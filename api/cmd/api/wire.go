@@ -105,6 +105,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideAdminOverviewRepository,
 		provider.ProvideAdminOverviewService,
 		provider.ProvideAdminOverviewHandler,
+		provider.ProvideLLMBudget,
 		provider.ProvideInterviewRepository,
 		provider.ProvideInterviewScorer,
 		provider.ProvideInterviewEvaluationService,

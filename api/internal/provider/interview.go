@@ -9,6 +9,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ai"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -20,7 +21,7 @@ func ProvideInterviewRepository(pool *pgxpool.Pool) *repository.Repository {
 // ProvideInterviewService takes the question and follow-up limits from the interview config, hands
 // completed sessions to the evaluation engine and decides follow-ups with the configured LLM. Without a
 // usable LLM the API still starts and the interview asks core questions only.
-func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, scoring *evaluationservice.Scoring) (*service.Service, error) {
+func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, scoring *evaluationservice.Scoring, budget llmbudget.Guard) (*service.Service, error) {
 	svc, err := service.New(repo, service.Settings{
 		QuestionLimit:          int32(cfg.Interview.QuestionLimit),
 		DefaultProviderVoiceID: cfg.Interview.DefaultProviderVoiceID,
@@ -32,6 +33,7 @@ func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, sc
 		return nil, err
 	}
 	svc.SetEvaluator(scoring)
+	svc.SetLLMBudget(budget)
 	if cfg.Interview.FollowUpLimit > 0 {
 		decider, err := provideFollowUpDecider(cfg)
 		if err != nil {

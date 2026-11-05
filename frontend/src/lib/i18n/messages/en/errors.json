@@ -87,6 +87,7 @@
     "RECORDING_UPLOAD_LIMIT": "Too many upload attempts for this recording.",
     "RECORDING_INTEGRITY": "This recording changed after it was saved, so it can't be played.",
     "EVALUATION_ATTEMPTS_EXCEEDED": "This interview can't be re-scored again. Please contact support.",
+    "LLM_BUDGET_EXCEEDED": "You've reached today's limit for AI-powered actions. It resets at midnight UTC.",
     "RATE_LIMITED": "Too many requests. Please wait a moment before trying again."
   },
   "auth": {
