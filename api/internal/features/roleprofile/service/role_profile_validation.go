@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
@@ -15,7 +16,7 @@ func ValidateRoleReview(in domain.RoleReview, confirming bool) (domain.RoleRevie
 		return domain.RoleReview{}, apperror.New(apperror.CodeValidation, message)
 	}
 	in.Title = strings.TrimSpace(in.Title)
-	in.RefinementNote = strings.TrimSpace(in.RefinementNote)
+	in.RefinementNote = strings.TrimSpace(textsafe.Clean(in.RefinementNote))
 	if !boundedText(in.Title, 1, 200) {
 		return invalid("Role title must contain 1–200 characters.")
 	}
@@ -166,12 +167,13 @@ func targetHasExplicitEvidence(target, name string, evidence *string) bool {
 
 // Evidence is a quote from source data, not a second source of AI-authored facts.
 func ValidateEvidence(review domain.RoleReview, raw string) error {
-	source := strings.Join(strings.Fields(raw), " ")
+	// Compare against the cleaned JD: the LLM only ever saw the cleaned text (NormalizeInput).
+	source := strings.Join(strings.Fields(textsafe.Clean(raw)), " ")
 	for index, item := range review.Requirements {
 		if item.EvidenceText == nil || strings.TrimSpace(*item.EvidenceText) == "" {
 			continue
 		}
-		excerpt := strings.Join(strings.Fields(*item.EvidenceText), " ")
+		excerpt := strings.Join(strings.Fields(textsafe.Clean(*item.EvidenceText)), " ")
 		if !strings.Contains(source, excerpt) {
 			// The cause names the requirement position, never the excerpt itself.
 			return apperror.Wrap(apperror.CodeValidation, "Requirement evidence must be an excerpt of the original job description.",
