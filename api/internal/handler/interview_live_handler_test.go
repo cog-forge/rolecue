@@ -114,7 +114,8 @@ func TestLiveHandshakeBindsTheSocketToTheCandidatesSession(t *testing.T) {
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	want := runtime.Participant{CandidateID: user.ID, Role: "candidate", SessionID: sessionID}
-	if len(engine.served) != 1 || engine.served[0] != want || sessions.candidate != user.ID || sessions.role != "candidate" {
+	// Participant holds a func (the login re-check, tested separately), so it is compared field by field.
+	if len(engine.served) != 1 || engine.served[0].CandidateID != want.CandidateID || engine.served[0].Role != want.Role || engine.served[0].SessionID != want.SessionID || sessions.candidate != user.ID || sessions.role != "candidate" {
 		t.Fatalf("served %+v, sessions read by %s/%s", engine.served, sessions.candidate, sessions.role)
 	}
 }

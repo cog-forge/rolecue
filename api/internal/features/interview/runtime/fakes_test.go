@@ -188,6 +188,16 @@ type harnessConfig struct {
 	synthesizer tts.Synthesizer
 	transcriber Transcriber
 	cache       int
+	settings    Settings
+	verify      func(context.Context) error
+}
+
+func withGuards(s Settings) harnessOption {
+	return func(c *harnessConfig) { c.settings = s }
+}
+
+func withVerify(f func(context.Context) error) harnessOption {
+	return func(c *harnessConfig) { c.verify = f }
 }
 
 func withSynthesizer(s tts.Synthesizer) harnessOption {
@@ -216,7 +226,9 @@ func serve(t *testing.T, sessions Sessions, opts ...harnessOption) *harness {
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	engine, err := NewEngine(sessions, cfg.synthesizer, cfg.transcriber, NewHub(), Settings{STTTimeout: 5 * time.Second, CacheEntries: cfg.cache})
+	settings := cfg.settings
+	settings.STTTimeout, settings.CacheEntries = 5*time.Second, cfg.cache
+	engine, err := NewEngine(sessions, cfg.synthesizer, cfg.transcriber, NewHub(), settings)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +238,7 @@ func serve(t *testing.T, sessions Sessions, opts ...harnessOption) *harness {
 		if err != nil {
 			return
 		}
-		engine.Serve(r.Context(), ws, Participant{CandidateID: testCandidate, Role: "candidate", SessionID: testSession})
+		engine.Serve(r.Context(), ws, Participant{CandidateID: testCandidate, Role: "candidate", SessionID: testSession, Verify: cfg.verify})
 	}))
 	t.Cleanup(server.Close)
 	return &harness{t: t, engine: engine, server: server}

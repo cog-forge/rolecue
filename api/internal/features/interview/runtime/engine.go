@@ -40,13 +40,21 @@ type Participant struct {
 	CandidateID uuid.UUID
 	Role        string
 	SessionID   uuid.UUID
+	// Verify re-checks the login behind the socket. The engine calls it every RevalidateInterval and
+	// closes the socket when it returns ErrSessionInvalid. Nil turns the re-check off.
+	Verify func(ctx context.Context) error
 }
 
 // Settings tune the engine. STTTimeout bounds one transcription (zero uses 30s); CacheEntries is the
-// size of the synthesis cache (zero disables it).
+// size of the synthesis cache (zero disables it). RevalidateInterval is how often an open socket's login
+// is re-verified (zero uses 60s). MessageRate and MessageBurst are the per-socket token bucket for
+// incoming messages, per second and at once (zero uses 20 and 60).
 type Settings struct {
-	STTTimeout   time.Duration
-	CacheEntries int
+	STTTimeout         time.Duration
+	CacheEntries       int
+	RevalidateInterval time.Duration
+	MessageRate        float64
+	MessageBurst       int
 }
 
 // Engine runs live interview sockets. One Engine serves every session of the process.
@@ -57,6 +65,11 @@ type Engine struct {
 	hub         *Hub
 	cache       *synthesisCache
 	sttTimeout  time.Duration
+
+	revalidateEvery time.Duration
+	messageRate     float64
+	messageBurst    int
+	now             func() time.Time
 }
 
 // NewEngine wires the engine. Every dependency is required.
@@ -68,9 +81,21 @@ func NewEngine(sessions Sessions, synthesizer tts.Synthesizer, transcriber Trans
 	if timeout <= 0 {
 		timeout = defaultSTTTimeout
 	}
+	revalidate := settings.RevalidateInterval
+	if revalidate <= 0 {
+		revalidate = defaultRevalidateInterval
+	}
+	rate, burst := settings.MessageRate, settings.MessageBurst
+	if rate <= 0 {
+		rate = defaultMessageRate
+	}
+	if burst <= 0 {
+		burst = defaultMessageBurst
+	}
 	return &Engine{
 		sessions: sessions, synthesizer: synthesizer, transcriber: transcriber, hub: hub,
 		cache: newSynthesisCache(settings.CacheEntries), sttTimeout: timeout,
+		revalidateEvery: revalidate, messageRate: rate, messageBurst: burst, now: time.Now,
 	}, nil
 }
 
@@ -99,7 +124,9 @@ func (e *Engine) Serve(ctx context.Context, ws *websocket.Conn, p Participant) {
 
 	c := &conn{
 		engine: e, ws: ws, p: p, lease: l, stream: l.stream,
-		log: slog.With("interview_id", p.SessionID.String()),
+		log:     slog.With("interview_id", p.SessionID.String()),
+		revoked: make(chan struct{}),
+		limiter: newTokenBucket(e.messageRate, e.messageBurst, e.now),
 	}
 	ws.SetReadLimit(MaxMessageBytes)
 	incoming := make(chan inbound)
@@ -142,6 +169,12 @@ type conn struct {
 	buffer         *answerBuffer
 	protocolErrors int
 	broken         bool
+
+	// revoked closes when the keep-alive goroutine finds the login invalid; the run loop then closes.
+	revoked     chan struct{}
+	revokedOnce sync.Once
+	limiter     *tokenBucket
+	throttled   int
 }
 
 func (c *conn) read(ctx context.Context, out chan<- inbound) {
@@ -163,9 +196,18 @@ func (c *conn) read(ctx context.Context, out chan<- inbound) {
 	}
 }
 
+// keepAlive pings the peer and, when the participant can be verified, re-checks its login on a timer.
+// Authentication happens once at the upgrade, so without this a logout, ban or password reset would
+// leave an open socket working until it dropped.
 func (c *conn) keepAlive(ctx context.Context) {
 	ticker := time.NewTicker(pingInterval)
 	defer ticker.Stop()
+	var recheck <-chan time.Time
+	if c.p.Verify != nil {
+		t := time.NewTicker(c.engine.revalidateEvery)
+		defer t.Stop()
+		recheck = t.C
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -174,8 +216,47 @@ func (c *conn) keepAlive(ctx context.Context) {
 			if err := c.ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeTimeout)); err != nil {
 				return
 			}
+		case <-recheck:
+			if c.loginRevoked(ctx) {
+				c.revokedOnce.Do(func() { close(c.revoked) })
+				return
+			}
 		}
 	}
+}
+
+// loginRevoked reports whether the verifier says the login is gone. A failure of the check itself (the
+// auth service is unreachable) keeps the socket: it is retried at the next interval.
+func (c *conn) loginRevoked(ctx context.Context) bool {
+	vctx, cancel := context.WithTimeout(ctx, verifyTimeout)
+	defer cancel()
+	err := c.p.Verify(vctx)
+	switch {
+	case err == nil:
+		return false
+	case errors.Is(err, ErrSessionInvalid):
+		return true
+	default:
+		if ctx.Err() == nil {
+			c.log.Warn("live interview login re-check failed; keeping the socket", "error", err)
+		}
+		return false
+	}
+}
+
+// throttle handles a message the token bucket refused. It tells a flooding client now and then, and
+// closes the socket when the flood does not stop. It reports whether the socket was closed.
+func (c *conn) throttle() bool {
+	c.throttled++
+	if c.throttled >= maxThrottled {
+		c.sendError("", CodeRateLimited, "too many messages; the connection is closed", false, true)
+		c.close(websocket.ClosePolicyViolation, "message rate exceeded")
+		return true
+	}
+	if c.throttled%throttleNoticeEvery == 1 {
+		c.sendError("", CodeRateLimited, "too many messages; slow down", true, false)
+	}
+	return false
 }
 
 func (c *conn) run(ctx context.Context, incoming <-chan inbound) {
@@ -194,7 +275,17 @@ func (c *conn) run(ctx context.Context, incoming <-chan inbound) {
 			// The session ended elsewhere (the Candidate left, or it was abandoned): report it and close.
 			c.endedElsewhere(ctx)
 			return
+		case <-c.revoked:
+			c.close(CloseSessionInvalid, "the login is no longer valid")
+			return
 		case in := <-incoming:
+			if in.err == nil && !c.limiter.allow() {
+				if c.throttle() {
+					return
+				}
+				continue
+			}
+			c.throttled = 0
 			if in.err != nil {
 				// A drop keeps everything already stored; a partial recording is discarded and the
 				// reconnect asks the same question again.

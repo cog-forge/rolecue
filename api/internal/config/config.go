@@ -241,6 +241,12 @@ type InterviewConfig struct {
 	TTSCacheEntries        int           `mapstructure:"tts_cache_entries"`
 	FollowUpLimit          int           `mapstructure:"follow_up_limit"`
 	FollowUpTimeout        time.Duration `mapstructure:"follow_up_timeout"`
+	// LiveRecheckInterval is how often an open live socket's login is re-verified (0 uses 60s);
+	// LiveMessageRate and LiveMessageBurst size the per-socket incoming-message token bucket (0 uses 20/s
+	// and 60). A socket whose login is gone is closed; a socket that keeps flooding is closed too.
+	LiveRecheckInterval time.Duration `mapstructure:"live_recheck_interval"`
+	LiveMessageRate     float64       `mapstructure:"live_message_rate"`
+	LiveMessageBurst    int           `mapstructure:"live_message_burst"`
 }
 
 // MaxInterviewQuestionLimit bounds INTERVIEW_QUESTION_LIMIT to a sane technical range.
@@ -258,6 +264,10 @@ const (
 	MaxInterviewFollowUpLimit   = 3
 	MinInterviewFollowUpTimeout = time.Second
 	MaxInterviewFollowUpTimeout = 15 * time.Second
+	MinLiveRecheckInterval      = 5 * time.Second
+	MaxLiveRecheckInterval      = 10 * time.Minute
+	MaxLiveMessageRate          = 1000
+	MaxLiveMessageBurst         = 10000
 )
 
 // Validate checks the live interview settings.
@@ -279,6 +289,15 @@ func (c InterviewConfig) Validate() error {
 	}
 	if c.FollowUpLimit < 0 || c.FollowUpLimit > MaxInterviewFollowUpLimit {
 		return fmt.Errorf("interview.follow_up_limit must be between 0 and %d", MaxInterviewFollowUpLimit)
+	}
+	if c.LiveRecheckInterval != 0 && (c.LiveRecheckInterval < MinLiveRecheckInterval || c.LiveRecheckInterval > MaxLiveRecheckInterval) {
+		return fmt.Errorf("interview.live_recheck_interval must be between %s and %s", MinLiveRecheckInterval, MaxLiveRecheckInterval)
+	}
+	if math.IsNaN(c.LiveMessageRate) || c.LiveMessageRate < 0 || c.LiveMessageRate > MaxLiveMessageRate {
+		return fmt.Errorf("interview.live_message_rate must be between 0 and %d", MaxLiveMessageRate)
+	}
+	if c.LiveMessageBurst < 0 || c.LiveMessageBurst > MaxLiveMessageBurst {
+		return fmt.Errorf("interview.live_message_burst must be between 0 and %d", MaxLiveMessageBurst)
 	}
 	if c.FollowUpTimeout != 0 && (c.FollowUpTimeout < MinInterviewFollowUpTimeout || c.FollowUpTimeout > MaxInterviewFollowUpTimeout) {
 		return fmt.Errorf("interview.follow_up_timeout must be between %s and %s", MinInterviewFollowUpTimeout, MaxInterviewFollowUpTimeout)
@@ -396,6 +415,9 @@ func Load(configPath string) (*Config, error) {
 		"avatar_conversion.max_output_bytes":              "AVATAR_MAX_OUTPUT_BYTES",
 		"avatar_conversion.commercial_usage":              "AVATAR_VRM_COMMERCIAL_USAGE",
 		"avatar_conversion.license_url":                   "AVATAR_VRM_LICENSE_URL",
+		"interview.live_recheck_interval":                 "INTERVIEW_LIVE_RECHECK_INTERVAL",
+		"interview.live_message_rate":                     "INTERVIEW_LIVE_MESSAGE_RATE",
+		"interview.live_message_burst":                    "INTERVIEW_LIVE_MESSAGE_BURST",
 	} {
 		if err := v.BindEnv(key, env); err != nil {
 			return nil, fmt.Errorf("bind %s: %w", key, err)
@@ -525,6 +547,9 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("interview.tts_cache_entries", 128)
 	v.SetDefault("interview.follow_up_limit", 1)
 	v.SetDefault("interview.follow_up_timeout", "5s")
+	v.SetDefault("interview.live_recheck_interval", "60s")
+	v.SetDefault("interview.live_message_rate", 20)
+	v.SetDefault("interview.live_message_burst", 60)
 	setJobDefaults(v)
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
