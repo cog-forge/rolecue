@@ -26,7 +26,7 @@ RUN /opt/blender/5.2/python/bin/python3.13 -m pip install --no-cache-dir --no-de
     --require-hashes -r /tmp/blender-requirements.txt \
     && rm /tmp/blender-requirements.txt
 
-FROM cgr.dev/chainguard/wolfi-base:latest@sha256:360896efb0753a5701c48f860e17130c205eae5a264797aa3e7ea126ee2923a7 AS runtime
+FROM cgr.dev/chainguard/wolfi-base:latest@sha256:771146c2dfc880902a185f060c3db5571473c46b267edd98c3119c83068dfb61 AS runtime
 RUN apk add --no-cache --upgrade \
     ca-certificates poppler-utils libglvnd libx11 libxxf86vm libxfixes libxi \
     libxrender libxkbcommon libsm libice libgomp dbus-libs wayland libgcc libstdc++ expat \
