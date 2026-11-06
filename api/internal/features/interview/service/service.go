@@ -36,6 +36,7 @@ type Repository interface {
 	End(ctx context.Context, params domain.EndParams) (domain.EndResult, error)
 	ListAbandoned(ctx context.Context, now, idleBefore time.Time, limit int32) ([]domain.SessionRef, error)
 	MarkEvaluationFailed(ctx context.Context, id uuid.UUID) error
+	ReleaseEvaluationClaim(ctx context.Context, id uuid.UUID) error
 	Deliver(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string) (domain.Delivery, error)
 	FollowUpContext(ctx context.Context, candidateID, id uuid.UUID, defaultProviderVoiceID string, followUpLimit int32) (domain.Delivery, *domain.FollowUpContext, error)
 	AppendFollowUp(ctx context.Context, candidateID, id uuid.UUID, followUp domain.AskedQuestion, answer string, followUpLimit int32) (domain.Session, error)
@@ -130,9 +131,19 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 			params.StartKey = &key
 		}
 	}
-	session, created, err := s.repository.Create(ctx, params)
+	// Reserve the session's AI budget before anything is charged: an accepted session is always scored, so
+	// the user hears about a spent budget now, not after answering every question. A start that creates
+	// nothing (a retry, a resume of the same session) gives the reservation back.
+	reserved, err := s.reserveBudget(ctx, candidateID)
 	if err != nil {
 		return domain.Session{}, false, err
+	}
+	session, created, err := s.repository.Create(ctx, params)
+	if err != nil || !created {
+		s.releaseBudget(ctx, candidateID, reserved)
+		if err != nil {
+			return domain.Session{}, false, err
+		}
 	}
 	if created {
 		logger.FromContext(ctx).Info("interview started",
@@ -144,6 +155,28 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 		)
 	}
 	return presentSession(session), created, nil
+}
+
+// reserveBudget takes one call of the user's daily AI budget for the session about to start. It is a no-op
+// without a configured budget. The bool says whether a call was taken, so it can be given back.
+func (s *Service) reserveBudget(ctx context.Context, userID uuid.UUID) (bool, error) {
+	if s.llmBudget == nil {
+		return false, nil
+	}
+	if err := s.llmBudget.Consume(ctx, userID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (s *Service) releaseBudget(ctx context.Context, userID uuid.UUID, reserved bool) {
+	if !reserved {
+		return
+	}
+	if err := s.llmBudget.Release(ctx, userID); err != nil {
+		logger.FromContext(ctx).Warn("llm budget reservation could not be released",
+			logger.Op("interview.budget_release"), logger.String("user_id", userID.String()), logger.Cause(err))
+	}
 }
 
 // Get reads one of the Candidate's sessions.
@@ -315,6 +348,18 @@ func (s *Service) end(ctx context.Context, params domain.EndParams) (domain.EndR
 	// The repository claims the evaluation for one caller: the first ending, a failed evaluation
 	// retried by a repeat, or a pending one whose run died. A live or finished one is never run twice.
 	if result.StartEvaluation {
+		// The first run was paid for when the session started. A retry (a failed run, or one whose process
+		// died) is new LLM spend, so it takes a call of the owner's budget; when none is left the claim is
+		// given back and the evaluation stays failed, to be retried later without losing an attempt.
+		if result.EvaluationAttempt > 1 && s.llmBudget != nil {
+			if err := s.llmBudget.Consume(ctx, params.CandidateID); err != nil {
+				if relErr := s.repository.ReleaseEvaluationClaim(ctx, session.ID); relErr != nil {
+					logger.FromContext(ctx).Warn("interview evaluation claim could not be released",
+						logger.Op("interview.evaluate"), logger.String("interview_id", session.ID.String()), logger.Cause(relErr))
+				}
+				return domain.EndResult{}, err
+			}
+		}
 		s.startEvaluation(ctx, session.ID)
 	}
 	return result, nil

@@ -39,3 +39,8 @@ func (s *PostgresStore) Consume(ctx context.Context, userID uuid.UUID, day time.
 	}
 	return int(calls), true, nil
 }
+
+// Release implements Store.
+func (s *PostgresStore) Release(ctx context.Context, userID uuid.UUID, day time.Time) error {
+	return s.queries.ReleaseLLMCall(ctx, repository.ReleaseLLMCallParams{UserID: userID, Day: pgtype.Date{Time: day, Valid: true}})
+}

@@ -104,6 +104,8 @@ type budgetStub struct {
 	err   error
 }
 
+func (b *budgetStub) Release(context.Context, uuid.UUID) error { return nil }
+
 func (b *budgetStub) Consume(context.Context, uuid.UUID) error {
 	b.calls++
 	return b.err

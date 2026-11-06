@@ -52,3 +52,20 @@ func (q *Queries) GetLLMUsage(ctx context.Context, arg GetLLMUsageParams) (int32
 	err := row.Scan(&calls)
 	return calls, err
 }
+
+const releaseLLMCall = `-- name: ReleaseLLMCall :exec
+UPDATE public.llm_usage
+SET calls = GREATEST(calls - 1, 0), updated_at = CURRENT_TIMESTAMP
+WHERE user_id = $1 AND day = $2
+`
+
+type ReleaseLLMCallParams struct {
+	UserID uuid.UUID
+	Day    pgtype.Date
+}
+
+// Gives back one call that was reserved for a start that did not go ahead. The count never goes below 0.
+func (q *Queries) ReleaseLLMCall(ctx context.Context, arg ReleaseLLMCallParams) error {
+	_, err := q.db.Exec(ctx, releaseLLMCall, arg.UserID, arg.Day)
+	return err
+}

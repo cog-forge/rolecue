@@ -180,6 +180,13 @@ UNION SELECT jp.jd_id FROM public.job_postings jp WHERE jp.recruiter_id = $1`, i
 		sql  string
 		args []any
 	}{
+		// An interview the Candidate used stays counted as a used slot of the Recruiter's posting: the
+		// number is kept on the posting (no personal data) before the rows that carried it are deleted.
+		{`UPDATE public.job_postings jp SET erased_interviews = jp.erased_interviews + used.n
+		  FROM (SELECT a.job_posting_id, count(*)::int AS n
+		          FROM public.interviews i JOIN public.applications a ON a.id = i.application_id
+		         WHERE a.candidate_id = $1 GROUP BY a.job_posting_id) used
+		  WHERE jp.id = used.job_posting_id AND jp.recruiter_id <> $1`, []any{id}},
 		// The turns are tombstoned before they are deleted so the text is gone from any copy of the
 		// rows that outlives the delete (replicas read at the snapshot, long-running readers).
 		{`UPDATE public.conversation_turns SET question = $2,

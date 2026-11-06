@@ -21,6 +21,8 @@ type countingBudget struct {
 	calls int
 }
 
+func (b *countingBudget) Release(context.Context, uuid.UUID) error { return nil }
+
 func (b *countingBudget) Consume(context.Context, uuid.UUID) error {
 	b.calls++
 	if b.left <= 0 {

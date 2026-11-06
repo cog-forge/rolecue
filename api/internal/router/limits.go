@@ -21,7 +21,10 @@ func (r *Router) WithLLMBudget(guard llmbudget.Guard) *Router {
 type requestLimits struct {
 	// llm is for routes that start an LLM call: per-IP and per-user rate limits, then the daily budget.
 	llm []gin.HandlerFunc
-	// llmOwnLimiter is for LLM routes that already carry their own per-user limiter: per-IP, then the budget.
+	// llmOwnLimiter is for the LLM route that carries its own per-user limiter and pays for its LLM work
+	// elsewhere: per-IP only. Completing an interview is paid by the budget reserved when the session
+	// started (and by the service for a retried evaluation), so the live socket and the abandoned-session
+	// job are covered the same way as this HTTP route.
 	llmOwnLimiter []gin.HandlerFunc
 	// expensive is for routes that cost money or heavy work without an LLM call: per-IP and per-user.
 	expensive []gin.HandlerFunc
@@ -55,7 +58,6 @@ func buildRequestLimits(cfg config.RateLimitConfig, ipFor, userFor func(perMinut
 	if budget != nil {
 		charge := middleware.LLMBudgetMiddleware(budget)
 		limits.llm = append(limits.llm, charge)
-		limits.llmOwnLimiter = append(limits.llmOwnLimiter, charge)
 	}
 	return limits
 }

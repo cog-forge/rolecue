@@ -51,16 +51,17 @@ func (q *Queries) ApproveCV(ctx context.Context, arg ApproveCVParams) (ApproveCV
 }
 
 const countCVApprovals = `-- name: CountCVApprovals :one
-SELECT count(*) FROM public.applications
+SELECT (count(*) + (SELECT jp.erased_interviews FROM public.job_postings jp WHERE jp.id = $1))::bigint
+FROM public.applications
 WHERE job_posting_id = $1 AND interview_deadline IS NOT NULL
 `
 
 // interview_deadline is set only by CV approval, so it marks every Application ever approved.
 func (q *Queries) CountCVApprovals(ctx context.Context, jobPostingID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countCVApprovals, jobPostingID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const countLiveApplications = `-- name: CountLiveApplications :one

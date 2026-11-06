@@ -21,6 +21,8 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+
+	apprepo "github.com/cog-forge/rolecue/api/internal/features/application/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -341,5 +343,36 @@ func TestExportIsOwnerScopedAndHidesRecruitmentScores(t *testing.T) {
 	}
 	if len(rout.Postings) != 1 || len(rout.Applications) != 0 || len(rout.Interviews) != 0 {
 		t.Fatalf("recruiter export = %+v", rout)
+	}
+}
+
+// An erased Candidate's interview was a used slot: the posting must keep counting it, so the capacity does
+// not grow back and the terminal-close refund does not pay for a slot that was used.
+func TestEraseKeepsTheUsedInterviewSlotOfThePosting(t *testing.T) {
+	f := newFixture(t)
+	recruiter, alice := f.user("recruiter"), f.user("candidate")
+	posting := f.posting(recruiter.ID, "open", uuid.NewString())
+	f.exec(`UPDATE public.job_postings SET interview_slot = 3 WHERE id = $1`, posting)
+	app, _ := f.application(alice.ID, posting, "interviewed", uuid.NewString(), uuid.NewString())
+	f.exec(`UPDATE public.applications SET interview_deadline = now() + interval '1 day' WHERE id = $1`, app)
+
+	capacity := apprepo.NewRepository(f.pool)
+	before, err := capacity.GetCapacity(f.ctx, recruiter.ID, posting)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Consumed != 1 || before.CVApprovals != 1 || before.Refundable != 2 {
+		t.Fatalf("seed capacity = %+v, want consumed 1, approvals 1, refundable 2", before)
+	}
+
+	if err := f.svc.Erase(f.ctx, alice, "DELETE"); err != nil {
+		t.Fatal(err)
+	}
+	after, err := capacity.GetCapacity(f.ctx, recruiter.ID, posting)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Consumed != 1 || after.CVApprovals != 1 || after.Refundable != 2 || after.AvailableToApprove != before.AvailableToApprove {
+		t.Fatalf("capacity after erasure = %+v, want it unchanged from %+v", after, before)
 	}
 }

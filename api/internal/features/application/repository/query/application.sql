@@ -13,7 +13,8 @@ FOR NO KEY UPDATE;
 
 -- interview_deadline is set only by CV approval, so it marks every Application ever approved.
 -- name: CountCVApprovals :one
-SELECT count(*) FROM public.applications
+SELECT (count(*) + (SELECT jp.erased_interviews FROM public.job_postings jp WHERE jp.id = @job_posting_id))::bigint
+FROM public.applications
 WHERE job_posting_id = @job_posting_id AND interview_deadline IS NOT NULL;
 
 -- statement_timestamp(), not now(): now() is the transaction start, before any wait for the posting

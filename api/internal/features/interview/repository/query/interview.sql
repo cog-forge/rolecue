@@ -125,7 +125,7 @@ WHERE application_id = @application_id;
 -- consumed counts the interviews that used a slot of the posting. It is the same query as the capacity
 -- count in the application feature (capacity.sql), copied here so this feature does not import it.
 -- name: CountConsumedInterviews :one
-SELECT count(*)::bigint AS consumed
+SELECT (count(*) + (SELECT jp.erased_interviews FROM public.job_postings jp WHERE jp.id = @job_posting_id))::bigint AS consumed
 FROM public.interviews i
 JOIN public.applications a ON a.id = i.application_id
 WHERE a.job_posting_id = @job_posting_id;
@@ -236,7 +236,8 @@ FOR SHARE;
 -- with its process). Exactly one concurrent caller gets a row back and starts the evaluation. Each claim
 -- counts as an attempt and none is granted once @max_attempts have been used (KAN-259), so a poison
 -- interview cannot burn LLM calls forever.
--- name: ClaimInterviewEvaluation :execrows
+-- It returns the attempt number the claim used (1 for the first run), and no row when nothing was claimed.
+-- name: ClaimInterviewEvaluation :one
 UPDATE public.interviews
 SET evaluation_status = 'pending', evaluation_claimed_at = statement_timestamp(),
     evaluation_attempts = evaluation_attempts + 1
@@ -246,7 +247,15 @@ WHERE id = @id
   AND (evaluation_status = 'failed'
        OR (evaluation_status = 'pending'
            AND (evaluation_claimed_at IS NULL
-                OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8))));
+                OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8))))
+RETURNING evaluation_attempts;
+
+-- Gives a claim back when its run was refused before it started (the daily budget did not cover a retry),
+-- so the refusal does not use up one of the allowed attempts. Only an unfinished pending claim is undone.
+-- name: ReleaseInterviewEvaluationClaim :exec
+UPDATE public.interviews
+SET evaluation_status = 'failed', evaluation_attempts = GREATEST(evaluation_attempts - 1, 0)
+WHERE id = @id AND evaluation_status = 'pending';
 
 -- True when a completed interview needs another evaluation run (failed, or pending past its stale claim)
 -- but has used all @max_attempts. A completed or in-flight evaluation is not blocked.

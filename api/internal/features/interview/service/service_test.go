@@ -39,6 +39,9 @@ type fakeRepository struct {
 	completeAttempts  int32
 	completeCap       int32
 	completeExhausted bool
+	// completeAttemptNo is the attempt number a scripted claim reports; 0 means the first.
+	completeAttemptNo int32
+	released          []uuid.UUID
 	completeErr       error
 	completeCalls     int
 	endParams         []domain.EndParams
@@ -103,9 +106,13 @@ func (r *fakeRepository) End(_ context.Context, params domain.EndParams) (domain
 			return domain.EndResult{Session: r.completeSession, EvaluationExhausted: true}, nil
 		}
 		r.completeAttempts++
-		return domain.EndResult{Session: r.completeSession, Ended: ended, StartEvaluation: true}, nil
+		return domain.EndResult{Session: r.completeSession, Ended: ended, StartEvaluation: true, EvaluationAttempt: r.completeAttempts}, nil
 	}
-	return domain.EndResult{Session: r.completeSession, Ended: ended, StartEvaluation: r.completeFirst, EvaluationExhausted: r.completeExhausted}, nil
+	attempt := int32(0)
+	if r.completeFirst {
+		attempt = max(r.completeAttemptNo, 1)
+	}
+	return domain.EndResult{Session: r.completeSession, Ended: ended, StartEvaluation: r.completeFirst, EvaluationAttempt: attempt, EvaluationExhausted: r.completeExhausted}, nil
 }
 
 func (r *fakeRepository) ListAbandoned(_ context.Context, now, idleBefore time.Time, _ int32) ([]domain.SessionRef, error) {
@@ -129,6 +136,11 @@ func (r *fakeRepository) AppendFollowUp(_ context.Context, candidateID, _ uuid.U
 	r.appendCalls++
 	r.appendCandidate, r.appendedFollowUp, r.appendAnswer, r.appendLimit = candidateID, followUp, answer, followUpLimit
 	return r.appendSession, r.appendErr
+}
+
+func (r *fakeRepository) ReleaseEvaluationClaim(_ context.Context, id uuid.UUID) error {
+	r.released = append(r.released, id)
+	return nil
 }
 
 func (r *fakeRepository) MarkEvaluationFailed(_ context.Context, id uuid.UUID) error {

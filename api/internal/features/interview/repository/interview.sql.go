@@ -50,7 +50,7 @@ func (q *Queries) AvatarOwnedBy(ctx context.Context, arg AvatarOwnedByParams) (b
 	return found, err
 }
 
-const claimInterviewEvaluation = `-- name: ClaimInterviewEvaluation :execrows
+const claimInterviewEvaluation = `-- name: ClaimInterviewEvaluation :one
 UPDATE public.interviews
 SET evaluation_status = 'pending', evaluation_claimed_at = statement_timestamp(),
     evaluation_attempts = evaluation_attempts + 1
@@ -61,6 +61,7 @@ WHERE id = $1
        OR (evaluation_status = 'pending'
            AND (evaluation_claimed_at IS NULL
                 OR evaluation_claimed_at < statement_timestamp() - make_interval(secs => $3::float8))))
+RETURNING evaluation_attempts
 `
 
 type ClaimInterviewEvaluationParams struct {
@@ -74,16 +75,16 @@ type ClaimInterviewEvaluationParams struct {
 // with its process). Exactly one concurrent caller gets a row back and starts the evaluation. Each claim
 // counts as an attempt and none is granted once @max_attempts have been used (KAN-259), so a poison
 // interview cannot burn LLM calls forever.
-func (q *Queries) ClaimInterviewEvaluation(ctx context.Context, arg ClaimInterviewEvaluationParams) (int64, error) {
-	result, err := q.db.Exec(ctx, claimInterviewEvaluation, arg.ID, arg.MaxAttempts, arg.StaleSeconds)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// It returns the attempt number the claim used (1 for the first run), and no row when nothing was claimed.
+func (q *Queries) ClaimInterviewEvaluation(ctx context.Context, arg ClaimInterviewEvaluationParams) (int32, error) {
+	row := q.db.QueryRow(ctx, claimInterviewEvaluation, arg.ID, arg.MaxAttempts, arg.StaleSeconds)
+	var evaluation_attempts int32
+	err := row.Scan(&evaluation_attempts)
+	return evaluation_attempts, err
 }
 
 const countConsumedInterviews = `-- name: CountConsumedInterviews :one
-SELECT count(*)::bigint AS consumed
+SELECT (count(*) + (SELECT jp.erased_interviews FROM public.job_postings jp WHERE jp.id = $1))::bigint AS consumed
 FROM public.interviews i
 JOIN public.applications a ON a.id = i.application_id
 WHERE a.job_posting_id = $1
@@ -767,6 +768,19 @@ func (q *Queries) MarkInterviewQuestionAsked(ctx context.Context, arg MarkInterv
 	var i MarkInterviewQuestionAskedRow
 	err := row.Scan(&i.SpokenText, &i.AskedAt)
 	return i, err
+}
+
+const releaseInterviewEvaluationClaim = `-- name: ReleaseInterviewEvaluationClaim :exec
+UPDATE public.interviews
+SET evaluation_status = 'failed', evaluation_attempts = GREATEST(evaluation_attempts - 1, 0)
+WHERE id = $1 AND evaluation_status = 'pending'
+`
+
+// Gives a claim back when its run was refused before it started (the daily budget did not cover a retry),
+// so the refusal does not use up one of the allowed attempts. Only an unfinished pending claim is undone.
+func (q *Queries) ReleaseInterviewEvaluationClaim(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, releaseInterviewEvaluationClaim, id)
+	return err
 }
 
 const setInterviewEnded = `-- name: SetInterviewEnded :exec

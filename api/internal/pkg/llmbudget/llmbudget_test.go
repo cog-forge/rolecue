@@ -35,6 +35,16 @@ func (m *memStore) Consume(_ context.Context, userID uuid.UUID, day time.Time, l
 	return m.rows[key], true, nil
 }
 
+func (m *memStore) Release(_ context.Context, userID uuid.UUID, day time.Time) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := userID.String() + day.Format("2006-01-02")
+	if m.rows[key] > 0 {
+		m.rows[key]--
+	}
+	return nil
+}
+
 func budgetAt(store Store, limit int, clock *time.Time) *Budget {
 	b := New(store, limit)
 	b.now = func() time.Time { return *clock }

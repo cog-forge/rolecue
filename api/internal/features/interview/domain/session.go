@@ -169,6 +169,9 @@ type EndResult struct {
 	Session         Session
 	Ended           bool
 	StartEvaluation bool
+	// EvaluationAttempt is the attempt number the claim used (1 for the first run); 0 when nothing was
+	// claimed. The first run is paid by the budget reserved when the session started, a retry is not.
+	EvaluationAttempt int32
 	// EvaluationExhausted is true when the evaluation needs another run but used all
 	// EvaluationMaxAttempts. Only a Candidate completing the session reports it; the live socket and the
 	// System Handler just do not start another evaluation.

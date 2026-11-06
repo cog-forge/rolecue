@@ -24,6 +24,9 @@ type Guard interface {
 	// Consume counts one LLM call for the user. It returns an LLM_BUDGET_EXCEEDED error when today's budget
 	// is spent, in which case nothing is counted.
 	Consume(ctx context.Context, userID uuid.UUID) error
+	// Release gives back one call taken by Consume whose work did not go ahead (a start that created
+	// nothing). It never goes below zero.
+	Release(ctx context.Context, userID uuid.UUID) error
 }
 
 // Store counts a user's calls per UTC day.
@@ -31,6 +34,8 @@ type Store interface {
 	// Consume adds one call to the user's count for the day unless the count already reached limit (0 means
 	// unlimited). ok is false when the budget was already spent; calls is the count after the call.
 	Consume(ctx context.Context, userID uuid.UUID, day time.Time, limit int) (calls int, ok bool, err error)
+	// Release takes one call back from the user's count for the day.
+	Release(ctx context.Context, userID uuid.UUID, day time.Time) error
 }
 
 // Budget implements Guard on top of a Store.
@@ -69,6 +74,14 @@ func (b *Budget) Consume(ctx context.Context, userID uuid.UUID) error {
 	if b.limit > 0 && calls == b.limit {
 		logger.FromContext(ctx).Info("llm daily budget reached",
 			logger.Op("llmbudget.consume"), logger.String("user_id", userID.String()), logger.Int("calls", calls))
+	}
+	return nil
+}
+
+// Release implements Guard.
+func (b *Budget) Release(ctx context.Context, userID uuid.UUID) error {
+	if err := b.store.Release(ctx, userID, b.now().UTC().Truncate(24*time.Hour)); err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "Could not update your AI usage.", err)
 	}
 	return nil
 }

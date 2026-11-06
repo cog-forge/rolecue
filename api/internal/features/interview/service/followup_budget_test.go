@@ -10,9 +10,16 @@ import (
 )
 
 type stubBudget struct {
-	left  int
-	calls int
-	user  uuid.UUID
+	left     int
+	calls    int
+	released int
+	user     uuid.UUID
+}
+
+func (b *stubBudget) Release(context.Context, uuid.UUID) error {
+	b.released++
+	b.left++
+	return nil
 }
 
 func (b *stubBudget) Consume(_ context.Context, user uuid.UUID) error {

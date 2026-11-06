@@ -323,8 +323,9 @@ applied per route in `internal/router/limits.go`:
 
 - LLM (per IP, then per user, then the daily LLM budget): `POST /role-profiles/:id/analyze`,
   `POST /role-profiles/:id/confirm` (generates the practice bank), `POST /job-postings/extract`,
-  `POST /job-postings/:id/questions/generate`, and `POST /interviews/:id/complete` (starts the
-  evaluation; it keeps its own stricter per-user bucket from KAN-259, so it gets per IP and the budget).
+  `POST /job-postings/:id/questions/generate`. `POST /interviews/:id/complete` keeps its own stricter
+  per-user bucket from KAN-259 and gets the per-IP limit only; its LLM work is paid when the session
+  starts (see the budget section).
 - Expensive, no LLM (per IP, then per user): `POST /wallet/deposit/checkout`,
   `POST /wallet/deposit/sync`, role-profile PDF upload and completion, `POST /job-postings/documents`,
   `POST /inventory/avatars`, interview recording create and complete.
@@ -350,8 +351,12 @@ IP bucket becomes one global bucket, so check that before production.
 `internal/pkg/llmbudget` counts LLM-backed operations per user and UTC day in the
 `llm_usage` table (migration 000027) with one atomic upsert that refuses to pass the limit.
 `LLM_USER_DAILY_CALL_BUDGET` (`llm.user_daily_call_budget`, default 200, 0 = unlimited). Over it:
-`429 LLM_BUDGET_EXCEEDED`. It is charged once per request on the routes above and once per live
-follow-up decision (a spent budget skips the follow-up; it never fails the interview). A request
+`429 LLM_BUDGET_EXCEEDED`. It is charged once per request on the routes above, once per live
+follow-up decision, and once per interview session when it starts (practice and recruitment, before any
+coin or slot is taken; a start that creates nothing, such as a retry or a resume, gives the call back).
+The session is then always scored, whether it ends over HTTP, the live socket or the abandoned-session
+job; only a retried evaluation takes another call, and when none is left the retry is refused without
+using up one of its three attempts. Follow-up decisions (a spent budget skips the follow-up; it never fails the interview). A request
 that fails validation after the charge still counted. Logs and the table hold counts only.
 `LLM_MAX_OUTPUT_TOKENS` (default 4096) reaches every provider path: Gemini `MaxTokens`, Groq
 `max_completion_tokens`, task fallbacks and the legacy route all build their model from

@@ -344,14 +344,18 @@ func (r *Repository) End(ctx context.Context, params domain.EndParams) (result d
 			}
 			result.Ended = true
 		}
-		claimed, err := q.ClaimInterviewEvaluation(ctx, ClaimInterviewEvaluationParams{
+		attempt, err := q.ClaimInterviewEvaluation(ctx, ClaimInterviewEvaluationParams{
 			ID: params.ID, StaleSeconds: evaluationStaleAfter.Seconds(), MaxAttempts: domain.EvaluationMaxAttempts,
 		})
-		if err != nil {
+		claimed := err == nil
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return internal(err)
 		}
-		result.StartEvaluation = claimed == 1
-		if claimed == 0 {
+		if claimed {
+			result.StartEvaluation = true
+			result.EvaluationAttempt = attempt
+		}
+		if !claimed {
 			// The last allowed claim may have gone stale mid-run: nothing can ever finish it, so persist
 			// a terminal state before reporting the exhaustion.
 			if _, err := q.FailExhaustedStaleEvaluation(ctx, FailExhaustedStaleEvaluationParams{
@@ -393,6 +397,15 @@ func (r *Repository) ListAbandoned(ctx context.Context, now, idleBefore time.Tim
 		refs = append(refs, domain.SessionRef{ID: row.ID, CandidateID: row.CandidateID})
 	}
 	return refs, nil
+}
+
+// ReleaseEvaluationClaim undoes a claim whose run was refused before it started, so the refusal does not
+// use up one of the allowed attempts.
+func (r *Repository) ReleaseEvaluationClaim(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.ReleaseInterviewEvaluationClaim(ctx, id); err != nil {
+		return internal(err)
+	}
+	return nil
 }
 
 // MarkEvaluationFailed sets the evaluation status to failed unless it is already completed. The service

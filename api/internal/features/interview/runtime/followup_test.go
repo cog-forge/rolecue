@@ -109,6 +109,8 @@ func (r *memoryRepository) ListAbandoned(context.Context, time.Time, time.Time, 
 	return nil, nil
 }
 
+func (r *memoryRepository) ReleaseEvaluationClaim(context.Context, uuid.UUID) error { return nil }
+
 func (r *memoryRepository) MarkEvaluationFailed(context.Context, uuid.UUID) error { return nil }
 
 func (r *memoryRepository) boundary() (domain.Delivery, error) {

@@ -9,5 +9,11 @@ ON CONFLICT (user_id, day) DO UPDATE
     WHERE @call_limit::int = 0 OR u.calls < @call_limit::int
 RETURNING u.calls;
 
+-- name: ReleaseLLMCall :exec
+-- Gives back one call that was reserved for a start that did not go ahead. The count never goes below 0.
+UPDATE public.llm_usage
+SET calls = GREATEST(calls - 1, 0), updated_at = CURRENT_TIMESTAMP
+WHERE user_id = @user_id AND day = @day;
+
 -- name: GetLLMUsage :one
 SELECT calls FROM public.llm_usage WHERE user_id = @user_id AND day = @day;
