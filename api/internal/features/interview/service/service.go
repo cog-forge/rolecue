@@ -173,7 +173,8 @@ func (s *Service) releaseBudget(ctx context.Context, userID uuid.UUID, reserved 
 	if !reserved {
 		return
 	}
-	if err := s.llmBudget.Release(ctx, userID); err != nil {
+	// Detached: a client that hung up must not leave the reservation taken.
+	if err := s.llmBudget.Release(context.WithoutCancel(ctx), userID); err != nil {
 		logger.FromContext(ctx).Warn("llm budget reservation could not be released",
 			logger.Op("interview.budget_release"), logger.String("user_id", userID.String()), logger.Cause(err))
 	}
@@ -350,10 +351,10 @@ func (s *Service) end(ctx context.Context, params domain.EndParams) (domain.EndR
 	if result.StartEvaluation {
 		// The first run was paid for when the session started. A retry (a failed run, or one whose process
 		// died) is new LLM spend, so it takes a call of the owner's budget; when none is left the claim is
-		// given back and the evaluation stays failed, to be retried later without losing an attempt.
+		// given back and the evaluation stays failed; the owner can complete again later without losing an attempt.
 		if result.EvaluationAttempt > 1 && s.llmBudget != nil {
 			if err := s.llmBudget.Consume(ctx, params.CandidateID); err != nil {
-				if relErr := s.repository.ReleaseEvaluationClaim(ctx, session.ID); relErr != nil {
+				if relErr := s.repository.ReleaseEvaluationClaim(context.WithoutCancel(ctx), session.ID); relErr != nil {
 					logger.FromContext(ctx).Warn("interview evaluation claim could not be released",
 						logger.Op("interview.evaluate"), logger.String("interview_id", session.ID.String()), logger.Cause(relErr))
 				}
