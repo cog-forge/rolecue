@@ -61,6 +61,48 @@ func (r *Repository) Create(ctx context.Context, params domain.CreateParams) (do
 	return session, created, nil
 }
 
+// Existing resolves a start replay without creating a session. It is used when the daily budget is
+// exhausted: a session already accepted must remain reachable. Every lookup checks Candidate ownership.
+func (r *Repository) Existing(ctx context.Context, p domain.CreateParams) (domain.Session, bool, error) {
+	var id uuid.UUID
+	var err error
+	if p.Type == domain.TypePractice {
+		if p.StartKey != nil {
+			id, err = r.queries.FindInterviewByStartKey(ctx, p.StartKey)
+			if err == nil {
+				session, readErr := r.Get(ctx, p.CandidateID, id)
+				return session, readErr == nil, readErr
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return domain.Session{}, false, internal(err)
+			}
+		}
+		if _, err = r.queries.GetOwnedRoleProfile(ctx, GetOwnedRoleProfileParams{ID: *p.RoleProfileID, CandidateID: p.CandidateID}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return domain.Session{}, false, domain.ErrRoleProfileNotFound
+			}
+			return domain.Session{}, false, internal(err)
+		}
+		id, err = r.queries.FindUnfinishedPractice(ctx, p.RoleProfileID)
+	} else {
+		if _, err = r.queries.GetApplicationPosting(ctx, GetApplicationPostingParams{ID: *p.ApplicationID, CandidateID: p.CandidateID}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return domain.Session{}, false, domain.ErrApplicationNotFound
+			}
+			return domain.Session{}, false, internal(err)
+		}
+		id, err = r.queries.FindInterviewByApplication(ctx, p.ApplicationID)
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Session{}, false, nil
+	}
+	if err != nil {
+		return domain.Session{}, false, internal(err)
+	}
+	session, err := r.Get(ctx, p.CandidateID, id)
+	return session, err == nil, err
+}
+
 // sessionOfStartKey returns the session a practice start key created, after losing the insert race.
 func (r *Repository) sessionOfStartKey(ctx context.Context, params domain.CreateParams) (domain.Session, bool, error) {
 	var session domain.Session
@@ -344,14 +386,18 @@ func (r *Repository) End(ctx context.Context, params domain.EndParams) (result d
 			}
 			result.Ended = true
 		}
-		claimed, err := q.ClaimInterviewEvaluation(ctx, ClaimInterviewEvaluationParams{
+		attempt, err := q.ClaimInterviewEvaluation(ctx, ClaimInterviewEvaluationParams{
 			ID: params.ID, StaleSeconds: evaluationStaleAfter.Seconds(), MaxAttempts: domain.EvaluationMaxAttempts,
 		})
-		if err != nil {
+		claimed := err == nil
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return internal(err)
 		}
-		result.StartEvaluation = claimed == 1
-		if claimed == 0 {
+		if claimed {
+			result.StartEvaluation = true
+			result.EvaluationAttempt = attempt
+		}
+		if !claimed {
 			// The last allowed claim may have gone stale mid-run: nothing can ever finish it, so persist
 			// a terminal state before reporting the exhaustion.
 			if _, err := q.FailExhaustedStaleEvaluation(ctx, FailExhaustedStaleEvaluationParams{
@@ -393,6 +439,15 @@ func (r *Repository) ListAbandoned(ctx context.Context, now, idleBefore time.Tim
 		refs = append(refs, domain.SessionRef{ID: row.ID, CandidateID: row.CandidateID})
 	}
 	return refs, nil
+}
+
+// ReleaseEvaluationClaim undoes a claim whose run was refused before it started, so the refusal does not
+// use up one of the allowed attempts.
+func (r *Repository) ReleaseEvaluationClaim(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.ReleaseInterviewEvaluationClaim(ctx, id); err != nil {
+		return internal(err)
+	}
+	return nil
 }
 
 // MarkEvaluationFailed sets the evaluation status to failed unless it is already completed. The service

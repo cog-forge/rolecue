@@ -40,6 +40,7 @@ describe("workspace navigation", () => {
       "Accounts -> /admin/users",
       "Job Posting Moderation -> /admin/job-postings",
       "Interview Sessions -> /admin/interviews",
+      "Access Audit -> /admin/access-audit",
       "Voice Profiles -> /admin/voices",
       "Payment Transactions -> /admin/billing",
       "Revenue Reports -> /admin/revenue",

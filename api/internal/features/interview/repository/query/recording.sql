@@ -4,7 +4,8 @@
 
 -- name: GetCandidateRecordingState :one
 SELECT i.id, i.type::text AS type, i.record_status, i.record_path,
-       (i.completed_at IS NOT NULL)::boolean AS completed, i.record_etag, i.record_grant_count
+       (i.completed_at IS NOT NULL)::boolean AS completed, i.record_etag, i.record_grant_count,
+       i.recording_consent_version
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -12,11 +13,16 @@ WHERE i.id = @id AND COALESCE(rp.candidate_id, a.candidate_id) = @candidate_id;
 
 -- The upload grant is one conditional UPDATE. A recording that is processing or ready is never replaced
 -- by a new upload, so the status checked in the service cannot change under the write. Each grant counts
--- against max_grants, and a new grant clears the ETag of the object it replaces.
+-- against max_grants, and a new grant clears the ETag of the object it replaces. A consent version, when
+-- the Candidate sent one (KAN-297), is stored with its time in the same statement; a grant without one
+-- keeps the consent already stored.
 -- name: SetRecordingUpload :execrows
 UPDATE public.interviews i
 SET record_path = @record_path, record_status = 'uploading', record_etag = NULL,
-    record_grant_count = i.record_grant_count + 1
+    record_grant_count = i.record_grant_count + 1,
+    recording_consent_version = COALESCE(sqlc.narg(consent_version)::text, i.recording_consent_version),
+    recording_consented_at = CASE WHEN sqlc.narg(consent_version)::text IS NULL THEN i.recording_consented_at
+                                  ELSE statement_timestamp() END
 WHERE i.id = @id
   AND i.type = 'recruitment'
   AND i.record_status IN ('none', 'uploading', 'failed')
@@ -92,8 +98,8 @@ WHERE i.id = stale.id AND i.record_status = stale.record_status
 RETURNING i.id, stale.record_status AS previous_status;
 
 -- Recordings past retention: a stored object of a recruitment interview whose Application reached its
--- final decision before @decided_before. applications has no decision timestamp; updated_at is the time
--- of the final decision because a terminal Application (approved or rejected) is never updated again.
+-- final decision before @decided_before. decided_at is the time
+-- of the final decision, set once when the Application became approved or rejected (KAN-305).
 -- Undecided Applications are never listed.
 -- name: ListExpiredRecordings :many
 SELECT i.id, i.record_path::text AS record_path
@@ -102,8 +108,8 @@ JOIN public.applications a ON a.id = i.application_id
 WHERE i.type = 'recruitment'
   AND i.record_path IS NOT NULL
   AND a.status IN ('approved', 'rejected')
-  AND a.updated_at < @decided_before::timestamptz
-ORDER BY a.updated_at, i.id
+  AND a.decided_at < @decided_before::timestamptz
+ORDER BY a.decided_at, i.id
 LIMIT @batch_size;
 
 -- Clears a purged recording: the key is gone and the status says it was deleted after retention. The key

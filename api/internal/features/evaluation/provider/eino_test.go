@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/cloudwego/eino/components/model"
@@ -20,13 +21,23 @@ var (
 
 type fakeChatModel struct {
 	model.BaseChatModel
+	mu       sync.Mutex
 	messages []*schema.Message
+	calls    [][]*schema.Message
 	reply    *schema.Message
 	err      error
+	// respond, when set, builds the reply from the user message of each call.
+	respond func(user string) string
 }
 
 func (f *fakeChatModel) Generate(_ context.Context, messages []*schema.Message, _ ...model.Option) (*schema.Message, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.messages = messages
+	f.calls = append(f.calls, messages)
+	if f.respond != nil {
+		return schema.AssistantMessage(f.respond(messages[1].Content), nil), nil
+	}
 	return f.reply, f.err
 }
 
@@ -147,20 +158,5 @@ func TestUnavailableScorerFailsWithTheReason(t *testing.T) {
 	var appErr *apperror.AppError
 	if !errors.As(err, &appErr) || appErr.Code != apperror.CodeInternal || !errors.Is(err, cause) {
 		t.Fatalf("error = %v, want an internal error that names the cause", err)
-	}
-}
-
-func TestScoreSendsFollowUpsWithTheirCoreQuestion(t *testing.T) {
-	chat := replying(`{"scores":[]}`)
-	input := scoringInput()
-	input.Turns = append(input.Turns, domain.ScoreTurn{Position: 2, QuestionNumber: 1, Kind: domain.TurnFollowUp, Question: "Which index type?", Answer: "B-tree."})
-	_, _ = adapterFor(t, chat).Score(context.Background(), input)
-
-	user := chat.messages[1].Content
-	if !strings.Contains(user, `{"position":2,"question_number":1,"kind":"follow_up","question":"Which index type?","answer":"B-tree."}`) {
-		t.Fatalf("user message = %s, want the follow-up with its core question number", user)
-	}
-	if !strings.Contains(chat.messages[0].Content, "score a follow-up answer as part of the answer to that core question") {
-		t.Fatal("the instruction does not say how follow-ups are scored")
 	}
 }

@@ -3,3 +3,17 @@
 //   sqlc v1.31.1
 
 package repository
+
+import (
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+type RecruiterAccessAudit struct {
+	ID            uuid.UUID
+	RecruiterID   uuid.UUID
+	ApplicationID uuid.UUID
+	InterviewID   uuid.UUID
+	Action        string
+	CreatedAt     pgtype.Timestamptz
+}

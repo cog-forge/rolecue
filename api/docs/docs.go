@@ -15,6 +15,258 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/account": {
+            "delete": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Requires {\"confirm\":\"DELETE\"} (or your email address). A Recruiter with open job postings or applications in progress is refused with ACCOUNT_HAS_ACTIVE_WORK (409, counts only); an Administrator with ADMIN_CANNOT_SELF_DELETE. Stored files are deleted first and the database rows last in one transaction, so a failed call can be repeated. Trusted Origin required; unknown fields reject the whole request.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "account"
+                ],
+                "summary": "Permanently delete your own account and data",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Confirmation; body limit 1 KiB",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.ErasureRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.ErasureResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/account/export": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "A Candidate gets their profile, role profiles, applications, interview questions and answers, practice reports and scores, and 15-minute links to their own CV and recording. A Recruiter gets their profile and job postings. Each export writes one audit log line (user id and time only).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "account"
+                ],
+                "summary": "Download your own data",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.DataExport"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/access-audit": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. One row per successful Recruiter read of a recording link or a transcript, newest first, with IDs and times only. Filter by recruiter_id or application_id; page starts at 1, page_size is 1 to 100 (default 20). Errors: VALIDATION_ERROR, FORBIDDEN.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List Recruiter reads of recordings and transcripts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Only reads by this Recruiter",
+                        "name": "recruiter_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Only reads of this Application",
+                        "name": "application_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page, from 1",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size, 1 to 100",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.AccessAuditPage"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/billing/export": {
             "get": {
                 "security": [
@@ -2879,7 +3131,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only, owner of the recruitment interview. Returns a one-time upload to send the recording to, valid 15 minutes, with the headers to send. The grant carries no storage key and no read link. A practice interview is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be replaced (RECORDING_NOT_ALLOWED). Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED.",
+                "description": "Candidate only, owner of the recruitment interview. Returns a one-time upload to send the recording to, valid 15 minutes, with the headers to send. The grant carries no storage key and no read link. A practice interview is RECORDING_NOT_ALLOWED. A recording that is processing or ready cannot be replaced (RECORDING_NOT_ALLOWED). With consent_version the API stores that version and the time with the grant. When the API enforces consent (RECORDING_CONSENT_REQUIRED), a grant without a stored or sent consent is RECORDING_CONSENT_REQUIRED. Errors: VALIDATION_ERROR, FORBIDDEN, INTERVIEW_NOT_FOUND, RECORDING_NOT_ALLOWED, RECORDING_CONSENT_REQUIRED.",
                 "consumes": [
                     "application/json"
                 ],
@@ -8364,12 +8616,16 @@ const docTemplate = `{
                 "INTERVIEW_NOT_COMPLETED",
                 "EVALUATION_ATTEMPTS_EXCEEDED",
                 "RATE_LIMITED",
+                "LLM_BUDGET_EXCEEDED",
                 "FINAL_REVIEW_LOCKED",
                 "APPLICATION_NOT_INTERVIEWED",
                 "RECORDING_NOT_FOUND",
                 "RECORDING_NOT_ALLOWED",
                 "RECORDING_UPLOAD_LIMIT",
-                "RECORDING_INTEGRITY"
+                "RECORDING_INTEGRITY",
+                "RECORDING_CONSENT_REQUIRED",
+                "ACCOUNT_HAS_ACTIVE_WORK",
+                "ADMIN_CANNOT_SELF_DELETE"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -8451,13 +8707,64 @@ const docTemplate = `{
                 "CodeInterviewNotCompleted",
                 "CodeEvaluationAttemptsExceeded",
                 "CodeRateLimited",
+                "CodeLLMBudgetExceeded",
                 "CodeFinalReviewLocked",
                 "CodeApplicationNotInterviewed",
                 "CodeRecordingNotFound",
                 "CodeRecordingNotAllowed",
                 "CodeRecordingUploadLimit",
-                "CodeRecordingIntegrity"
+                "CodeRecordingIntegrity",
+                "CodeRecordingConsentRequired",
+                "CodeAccountHasActiveWork",
+                "CodeAdminCannotSelfDelete"
             ]
+        },
+        "domain.AccessAuditEntry": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "recording_view",
+                        "transcript_view"
+                    ]
+                },
+                "application_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_id": {
+                    "type": "string"
+                },
+                "recruiter_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.AccessAuditPage": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.AccessAuditEntry"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
         },
         "domain.Account": {
             "type": "object",
@@ -9102,6 +9409,45 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.DataExport": {
+            "type": "object",
+            "properties": {
+                "applications": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportApplication"
+                    }
+                },
+                "generated_at": {
+                    "type": "string"
+                },
+                "interviews": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportInterview"
+                    }
+                },
+                "job_postings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportPosting"
+                    }
+                },
+                "link_ttl_seconds": {
+                    "description": "LinkTTLSeconds is the lifetime of every download link in the package.",
+                    "type": "integer"
+                },
+                "profile": {
+                    "$ref": "#/definitions/domain.ExportProfile"
+                },
+                "role_profiles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportRoleProfile"
+                    }
+                }
+            }
+        },
         "domain.DepositCheckoutResponse": {
             "type": "object",
             "properties": {
@@ -9228,6 +9574,17 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.DownloadLink": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.Edit": {
             "type": "object",
             "properties": {
@@ -9300,6 +9657,15 @@ const docTemplate = `{
                 "EndAbandoned"
             ]
         },
+        "domain.ErasureRequest": {
+            "type": "object",
+            "properties": {
+                "confirm": {
+                    "description": "Confirm must be \"DELETE\" or the account's email address.",
+                    "type": "string"
+                }
+            }
+        },
         "domain.EvaluationStatus": {
             "type": "string",
             "enum": [
@@ -9312,6 +9678,209 @@ const docTemplate = `{
                 "EvaluationCompleted",
                 "EvaluationFailed"
             ]
+        },
+        "domain.ExportApplication": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "cv": {
+                    "$ref": "#/definitions/domain.DownloadLink"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "interview_deadline": {
+                    "type": "string"
+                },
+                "job_posting_title": {
+                    "type": "string"
+                },
+                "reject_reason": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ExportInterview": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "end_reason": {
+                    "type": "string"
+                },
+                "feedback": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "overall_score": {
+                    "type": "integer"
+                },
+                "recording": {
+                    "$ref": "#/definitions/domain.DownloadLink"
+                },
+                "scores": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportScore"
+                    }
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "turns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportTurn"
+                    }
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "practice",
+                        "recruitment"
+                    ]
+                }
+            }
+        },
+        "domain.ExportPosting": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "employment_type": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "salary_max": {
+                    "type": "integer"
+                },
+                "salary_min": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ExportProfile": {
+            "type": "object",
+            "properties": {
+                "company_name": {
+                    "type": "string"
+                },
+                "company_website": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "image": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "candidate",
+                        "recruiter"
+                    ]
+                }
+            }
+        },
+        "domain.ExportRoleProfile": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ExportScore": {
+            "type": "object",
+            "properties": {
+                "evidence": {
+                    "type": "string"
+                },
+                "metric": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ExportTurn": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "answered_at": {
+                    "type": "string"
+                },
+                "asked_at": {
+                    "type": "string"
+                },
+                "feedback": {
+                    "type": "string"
+                },
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "core",
+                        "follow_up"
+                    ]
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "question": {
+                    "type": "string"
+                }
+            }
         },
         "domain.FeatureCoinItem": {
             "type": "object",
@@ -11434,6 +12003,11 @@ const docTemplate = `{
         "handler.CreateRecordingRequest": {
             "type": "object",
             "properties": {
+                "consent_version": {
+                    "description": "ConsentVersion is the version of the recording consent text the Candidate accepted, for example\n2026-11-v1. It is stored with the time of the grant. Required when the API enforces consent.",
+                    "type": "string",
+                    "example": "2026-11-v1"
+                },
                 "content_type": {
                     "description": "ContentType is the media type of the recording.",
                     "type": "string",
@@ -11494,6 +12068,14 @@ const docTemplate = `{
                 "return_url": {
                     "type": "string",
                     "example": "https://app.example.com/billing?status=success"
+                }
+            }
+        },
+        "handler.ErasureResult": {
+            "type": "object",
+            "properties": {
+                "deleted": {
+                    "type": "boolean"
                 }
             }
         },

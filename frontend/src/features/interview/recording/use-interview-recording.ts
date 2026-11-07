@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { completeRecordingUploadOnExit } from "./recording-api";
+import { acceptedConsentVersion } from "./recording-consent";
 import {
   createIndexedDbRecordingStore,
   type RecordingBufferStore,
@@ -72,7 +73,11 @@ export function useInterviewRecording({
     const buffer = (store ?? browserStore()).open(ownerId, interviewId);
     const current = {
       recorder: createSessionRecorder({ buffer }),
-      uploader: createRecordingUploader({ interviewId, buffer }),
+      uploader: createRecordingUploader({
+        interviewId,
+        buffer,
+        consentVersion: () => acceptedConsentVersion(ownerId),
+      }),
     };
     controllers.current = current;
     const unsubscribe = [

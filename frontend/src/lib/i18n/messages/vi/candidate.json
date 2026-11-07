@@ -491,7 +491,13 @@
         "idle": "Camera đang tắt.",
         "previewLabel": "Xem trước camera",
         "startHint": "Bật camera để bắt đầu. Buổi phỏng vấn này được ghi hình.",
-        "releaseNote": "Dừng kiểm tra hoặc rời trang này để giải phóng micrô và camera."
+        "releaseNote": "Dừng kiểm tra hoặc rời trang này để giải phóng micrô và camera.",
+        "consent": {
+          "label": "Tôi đồng ý cho buổi phỏng vấn này được ghi hình bằng camera và micrô của tôi, và cho nhà tuyển dụng của tin tuyển dụng này xem bản ghi làm bằng chứng cho hồ sơ của tôi. Tôi hiểu bản ghi sẽ bị xóa sau 90 ngày kể từ quyết định tuyển dụng.",
+          "version": "Phiên bản nội dung đồng ý {version}",
+          "declined": "Phỏng vấn tuyển dụng luôn được ghi hình. Nếu bạn không đồng ý, buổi phỏng vấn sẽ không bắt đầu và không có gì được ghi lại.",
+          "startHint": "Hãy tích vào ô đồng ý ghi hình để bắt đầu. Nếu không, buổi phỏng vấn sẽ không bắt đầu và không có gì được ghi lại."
+        }
       },
       "camera": {
         "recording": "Camera đang bật để ghi hình",

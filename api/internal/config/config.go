@@ -35,6 +35,16 @@ type Config struct {
 	Evaluation       EvaluationConfig       `mapstructure:"evaluation"`
 	AvatarConversion AvatarConversionConfig `mapstructure:"avatar_conversion"`
 	Jobs             JobsConfig             `mapstructure:"jobs"`
+	Profile          ProfileConfig          `mapstructure:"profile"`
+	RateLimit        RateLimitConfig        `mapstructure:"rate_limit"`
+	Retention        RetentionConfig        `mapstructure:"retention"`
+	RecordingConsent RecordingConsentConfig `mapstructure:"recording_consent"`
+}
+
+// ProfileConfig holds profile settings. ImageHosts lists the hosts a profile image URL may point to
+// (exact host names, or "*.example.com" for subdomains); empty means the built-in defaults.
+type ProfileConfig struct {
+	ImageHosts []string `mapstructure:"image_hosts"`
 }
 
 type AppConfig struct {
@@ -163,6 +173,9 @@ type LLMConfig struct {
 	// MaxOutputTokens caps one completion, which bounds the cost of a single call. Zero leaves the
 	// provider default.
 	MaxOutputTokens int `mapstructure:"max_output_tokens"`
+	// UserDailyCallBudget is the most LLM-backed operations one user may start per UTC day (KAN-278); 0 is
+	// unlimited. See internal/pkg/llmbudget.
+	UserDailyCallBudget int `mapstructure:"user_daily_call_budget"`
 }
 
 type PayOSConfig struct {
@@ -356,6 +369,9 @@ func Load(configPath string) (*Config, error) {
 		"storage.access_key_id":                   "S3_ACCESS_KEY_ID",
 		"storage.secret_access_key":               "S3_SECRET_ACCESS_KEY",
 		"storage.session_token":                   "S3_SESSION_TOKEN",
+		"profile.image_hosts":                     "PROFILE_IMAGE_HOSTS",
+		"storage.sse":                             "STORAGE_SSE",
+		"storage.sse_kms_key_id":                  "STORAGE_SSE_KMS_KEY_ID",
 		"database.url":                            "DATABASE_URL",
 		"database.name":                           "DB_DATABASE",
 		"database.user":                           "DB_USERNAME",
@@ -432,7 +448,13 @@ func Load(configPath string) (*Config, error) {
 		}
 	}
 
+	if err := bindRateLimitEnv(v); err != nil {
+		return nil, err
+	}
 	if err := bindJobEnv(v); err != nil {
+		return nil, err
+	}
+	if err := bindPrivacyEnv(v); err != nil {
 		return nil, err
 	}
 
@@ -561,6 +583,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("interview.live_message_rate", 20)
 	v.SetDefault("interview.live_message_burst", 60)
 	setJobDefaults(v)
+	setRateLimitDefaults(v)
+	setPrivacyDefaults(v)
 	v.SetDefault("avatar_conversion.enabled", false)
 	v.SetDefault("avatar_conversion.blender_binary", "blender")
 	v.SetDefault("avatar_conversion.timeout", "120s")
@@ -651,7 +675,16 @@ func (c *Config) Validate() error {
 	if err := c.Interview.Validate(); err != nil {
 		return err
 	}
+	if err := c.RateLimit.Validate(); err != nil {
+		return err
+	}
+	if c.LLM.UserDailyCallBudget < 0 || c.LLM.UserDailyCallBudget > MaxLLMUserDailyCallBudget {
+		return fmt.Errorf("llm.user_daily_call_budget must be between 0 and %d", MaxLLMUserDailyCallBudget)
+	}
 	if err := c.Jobs.Validate(); err != nil {
+		return err
+	}
+	if err := c.Retention.Validate(); err != nil {
 		return err
 	}
 	if math.IsNaN(c.Evaluation.WeightTotal) || c.Evaluation.WeightTotal < 0 || c.Evaluation.WeightTotal > MaxEvaluationWeightTotal {

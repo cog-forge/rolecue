@@ -83,7 +83,7 @@ export interface UploadApi {
   status(interviewId: string): Promise<RecordStatus>;
   grant(
     interviewId: string,
-    upload: { contentType: string; size: number },
+    upload: { contentType: string; size: number; consentVersion?: string },
   ): Promise<RecordingUploadGrant>;
   put(
     grant: RecordingUploadGrant,
@@ -128,9 +128,12 @@ export function createRecordingUploader({
   buffer,
   api = defaultApi,
   delay = wait,
+  consentVersion,
 }: {
   interviewId: string;
   buffer: RecordingBuffer;
+  /** The consent version the Candidate accepted, sent with every upload grant (KAN-297). */
+  consentVersion?: () => string | undefined;
   api?: UploadApi;
   delay?: (ms: number, signal: AbortSignal) => Promise<void>;
 }) {
@@ -159,6 +162,7 @@ export function createRecordingUploader({
       grant = await api.grant(interviewId, {
         contentType: recording.contentType,
         size: recording.blob.size,
+        consentVersion: consentVersion?.(),
       });
     } catch (error) {
       const { code, status } = readApiError(error);
@@ -172,6 +176,7 @@ export function createRecordingUploader({
       }
       if (
         code === "VALIDATION_ERROR" ||
+        code === "RECORDING_CONSENT_REQUIRED" ||
         code === "INTERVIEW_NOT_FOUND" ||
         status === 401 ||
         status === 403
@@ -295,6 +300,7 @@ export function createRecordingUploader({
           await api.grant(interviewId, {
             contentType: lastType,
             size: lastSize,
+            consentVersion: consentVersion?.(),
           });
           status = "uploading";
         }

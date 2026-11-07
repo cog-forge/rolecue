@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
@@ -17,7 +18,9 @@ func normalizeAnswer(answer string) (string, error) {
 	if !utf8.ValidString(answer) {
 		return "", apperror.New(apperror.CodeValidation, "answer must be valid UTF-8")
 	}
-	trimmed := strings.TrimSpace(answer)
+	// NFKC and invisible characters (zero-width, bidi, control) go first, so a hidden instruction cannot ride
+	// in an answer and the stored text is the text that is scored (KAN-300).
+	trimmed := strings.TrimSpace(textsafe.Clean(answer))
 	if trimmed == "" {
 		return "", apperror.New(apperror.CodeValidation, "answer is required")
 	}

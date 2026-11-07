@@ -71,7 +71,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	roleProfileDocumentApplication := provider.ProvideRoleProfileDocumentApplication(roleProfileRepository, store)
 	roleProfileHandler := provider.ProvideRoleProfileHandler(roleProfileApplication, roleProfileDocumentApplication)
 	repository2 := provider.ProvideProfileRepository(pool)
-	serviceService := provider.ProvideProfileService(repository2)
+	serviceService := provider.ProvideProfileService(config, repository2)
 	profileHandler := provider.ProvideProfileHandler(serviceService)
 	repository3 := provider.ProvideWalletRepository(pool)
 	client := provider.ProvidePayOSClient(config)
@@ -191,7 +191,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	service13, err := provider.ProvideInterviewService(repository14, config, scoring)
+	guard := provider.ProvideLLMBudget(config, pool)
+	service13, err := provider.ProvideInterviewService(repository14, config, scoring, guard)
 	if err != nil {
 		cleanup3()
 		cleanup2()
@@ -201,7 +202,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	interviewHandler := provider.ProvideInterviewHandler(service13)
 	interviewHistoryHandler := provider.ProvideInterviewHistoryHandler(service13)
 	interviewReportHandler := provider.ProvideInterviewReportHandler(scoring)
-	recordingService, err := provider.ProvideInterviewRecordingService(repository14, store)
+	recordingService, err := provider.ProvideInterviewRecordingService(repository14, store, config)
 	if err != nil {
 		cleanup3()
 		cleanup2()
@@ -226,7 +227,10 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	}
 	interviewLiveHandler := provider.ProvideInterviewLiveHandler(service13, engine, config, authService)
 	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler, interviewLiveHandler)
-	ginEngine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers)
+	repository15 := provider.ProvideAccountRepository(pool)
+	service14 := provider.ProvideAccountService(repository15, store)
+	handler := provider.ProvideAccountHandler(service14)
+	ginEngine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers, guard, handler)
 	server := provider.ProvideHTTPServer(config, ginEngine, logger)
 	tracer, cleanup4, err := provider.ProvideTracer(config, logger)
 	if err != nil {

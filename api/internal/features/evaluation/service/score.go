@@ -146,7 +146,7 @@ func buildScoreInput(record domain.InterviewRecord, turns []domain.TurnRecord, s
 			continue
 		}
 		answered = append(answered, domain.ScoreTurn{
-			Position: turn.Position, QuestionNumber: turn.QuestionNumber, Kind: turn.Kind, Question: turn.Question, Answer: *turn.Answer,
+			Position: turn.Position, QuestionNumber: turn.QuestionNumber, Kind: turn.Kind, Question: scorerQuestion(turn), Answer: *turn.Answer,
 		})
 	}
 	if len(answered) == 0 {
@@ -206,7 +206,8 @@ func buildEvaluation(input domain.ScoreInput, output domain.ScoreOutput) (domain
 	scored := make(map[uuid.UUID]bool, len(output.Scores))
 	weighted := 0.0
 	answers := normalizedAnswers(input.Turns)
-	flagged := output.InjectionSuspected
+	// The model's own report, or a known injection pattern in an answer or a generated follow-up question.
+	flagged := output.InjectionSuspected || screenInjection(input.Turns)
 	scores := make([]domain.MetricScore, 0, len(output.Scores))
 	for _, score := range output.Scores {
 		weight, ok := weights[score.MetricID]
@@ -238,9 +239,13 @@ func buildEvaluation(input domain.ScoreInput, output domain.ScoreOutput) (domain
 	if !utf8.ValidString(summary) || utf8.RuneCountInString(summary) > maxSummaryRunes {
 		return domain.Evaluation{}, errors.New("scorer summary is invalid or too long")
 	}
-	questions, err := feedbackFor(input.Turns, output.Questions)
+	summary, echoed := moderateText(summary)
+	questions, feedbackEchoed, err := feedbackFor(input.Turns, output.Questions)
 	if err != nil {
 		return domain.Evaluation{}, err
+	}
+	if echoed || feedbackEchoed {
+		flagged = true
 	}
 	evaluation := domain.Evaluation{
 		OverallScore:     int32(math.Round(weighted / totalWeight)),
@@ -254,32 +259,36 @@ func buildEvaluation(input domain.ScoreInput, output domain.ScoreOutput) (domain
 	return evaluation, nil
 }
 
-// feedbackFor keeps the feedback of answered positions only. Empty feedback is skipped.
-func feedbackFor(turns []domain.ScoreTurn, feedback []domain.QuestionFeedback) ([]domain.QuestionFeedback, error) {
+// feedbackFor keeps the feedback of answered positions only. Empty feedback is skipped. Feedback is
+// sanitised; feedback that echoes an instruction-like pattern is dropped and reported through echoed.
+func feedbackFor(turns []domain.ScoreTurn, feedback []domain.QuestionFeedback) (kept []domain.QuestionFeedback, echoed bool, err error) {
 	answered := make(map[int32]bool, len(turns))
 	for _, turn := range turns {
 		answered[turn.Position] = true
 	}
 	seen := make(map[int32]bool, len(feedback))
-	kept := make([]domain.QuestionFeedback, 0, len(feedback))
+	kept = make([]domain.QuestionFeedback, 0, len(feedback))
 	for _, item := range feedback {
 		if !answered[item.Position] {
-			return nil, fmt.Errorf("feedback for unanswered position %d", item.Position)
+			return nil, false, fmt.Errorf("feedback for unanswered position %d", item.Position)
 		}
 		if seen[item.Position] {
-			return nil, fmt.Errorf("feedback for position %d given twice", item.Position)
+			return nil, false, fmt.Errorf("feedback for position %d given twice", item.Position)
 		}
 		seen[item.Position] = true
 		text := strings.TrimSpace(item.Feedback)
 		if !utf8.ValidString(text) || utf8.RuneCountInString(text) > maxFeedbackRunes {
-			return nil, fmt.Errorf("feedback for position %d is invalid or too long", item.Position)
+			return nil, false, fmt.Errorf("feedback for position %d is invalid or too long", item.Position)
 		}
+		var hit bool
+		text, hit = moderateText(text)
+		echoed = echoed || hit
 		if text == "" {
 			continue
 		}
 		kept = append(kept, domain.QuestionFeedback{Position: item.Position, Feedback: text})
 	}
-	return kept, nil
+	return kept, echoed, nil
 }
 
 // score calls the scorer and turns a panic in it (or its LLM client) into an error, so the evaluation is

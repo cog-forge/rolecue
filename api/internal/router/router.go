@@ -9,8 +9,10 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
+	accounthandler "github.com/cog-forge/rolecue/api/internal/features/account/handler"
 	"github.com/cog-forge/rolecue/api/internal/handler"
 	"github.com/cog-forge/rolecue/api/internal/middleware"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 )
 
@@ -37,6 +39,16 @@ type Router struct {
 	adminInterviewsHandler *handler.AdminInterviewsHandler
 	adminOverviewHandler   *handler.AdminOverviewHandler
 	interviewHandlers      *handler.InterviewHandlers
+	llmBudget              llmbudget.Guard
+	// accountHandler is set with WithAccountHandler, not through NewRouter, so adding it did not change
+	// the constructor every router test calls. Without it the /account routes are not registered.
+	accountHandler *accounthandler.Handler
+}
+
+// WithAccountHandler enables DELETE /account and GET /account/export (KAN-280, KAN-282).
+func (r *Router) WithAccountHandler(h *accounthandler.Handler) *Router {
+	r.accountHandler = h
+	return r
 }
 
 func NewRouter(
@@ -115,6 +127,8 @@ func (r *Router) Setup() *gin.Engine {
 	router.Use(middleware.LoggingMiddleware(r.logger))
 	router.Use(middleware.CORSMiddleware(r.cfg.CORS))
 
+	limits := r.requestLimits()
+
 	router.GET("/health", r.healthHandler.Health)
 	// The API reference is a map of every route, so production does not serve it (404).
 	if !r.cfg.IsProduction() {
@@ -130,6 +144,13 @@ func (r *Router) Setup() *gin.Engine {
 	profiles.GET("", r.profileHandler.Get)
 	profiles.PATCH("", r.profileHandler.Update)
 
+	// Auth only, so a user who has not finished onboarding can still leave and take their data.
+	if r.accountHandler != nil {
+		account := router.Group("/account", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
+		account.GET("/export", r.accountHandler.Export)
+		account.DELETE("", r.accountHandler.Erase)
+	}
+
 	router.POST("/onboarding/role", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), r.onboardingHandler.SelectRole)
 
 	inventory := router.Group("/inventory", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate", "recruiter"))
@@ -138,35 +159,35 @@ func (r *Router) Setup() *gin.Engine {
 	inventory.GET("/avatars", r.inventoryHandler.List)
 	inventory.GET("/avatars/:id", r.inventoryHandler.Get)
 	inventory.DELETE("/avatars/:id", r.inventoryHandler.Delete)
-	inventory.POST("/avatars", r.avatarCreateHandler.Create)
+	inventory.POST("/avatars", with(limits.expensive, r.avatarCreateHandler.Create)...)
 
 	profilesJD := router.Group("/role-profiles", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	profilesJD.POST("", r.roleProfileHandler.Create)
-	profilesJD.POST("/uploads", r.roleProfileHandler.CreateUpload)
-	profilesJD.POST("/uploads/:id/complete", r.roleProfileHandler.CompleteUpload)
+	profilesJD.POST("/uploads", with(limits.expensive, r.roleProfileHandler.CreateUpload)...)
+	profilesJD.POST("/uploads/:id/complete", with(limits.expensive, r.roleProfileHandler.CompleteUpload)...)
 	profilesJD.GET("", r.roleProfileHandler.List)
 	profilesJD.GET("/:id", r.roleProfileHandler.Get)
 	profilesJD.GET("/:id/document", r.roleProfileHandler.Document)
 	profilesJD.PUT("/:id", r.roleProfileHandler.Save)
 	profilesJD.DELETE("/:id", r.roleProfileHandler.Delete)
-	profilesJD.POST("/:id/analyze", r.roleProfileHandler.Analyze)
-	profilesJD.POST("/:id/confirm", r.roleProfileHandler.Confirm)
+	profilesJD.POST("/:id/analyze", with(limits.llm, r.roleProfileHandler.Analyze)...)
+	profilesJD.POST("/:id/confirm", with(limits.llm, r.roleProfileHandler.Confirm)...)
 
 	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	{
 		wallet.GET("", r.walletHandler.GetWallet)
 		wallet.GET("/transactions", r.walletHandler.ListTransactions)
 		wallet.GET("/packages", r.walletHandler.ListPackages)
-		wallet.POST("/deposit/checkout", r.walletHandler.CreateDepositCheckout)
-		wallet.POST("/deposit/sync", r.walletHandler.SyncDepositStatus)
+		wallet.POST("/deposit/checkout", with(limits.expensive, r.walletHandler.CreateDepositCheckout)...)
+		wallet.POST("/deposit/sync", with(limits.expensive, r.walletHandler.SyncDepositStatus)...)
 	}
 
 	router.POST("/wallet/webhook/payos", r.walletHandler.HandlePayOSWebhook)
 
 	jobPostings := router.Group("/job-postings", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	jobPostings.POST("", r.jobPostingHandler.Create)
-	jobPostings.POST("/extract", r.jobPostingHandler.Extract)
-	jobPostings.POST("/documents", r.jobPostingHandler.UploadDocument)
+	jobPostings.POST("/extract", with(limits.llm, r.jobPostingHandler.Extract)...)
+	jobPostings.POST("/documents", with(limits.expensive, r.jobPostingHandler.UploadDocument)...)
 	jobPostings.GET("", r.jobPostingHandler.List)
 	jobPostings.GET("/:id", r.jobPostingHandler.Get)
 	jobPostings.PATCH("/:id", r.jobPostingHandler.Update)
@@ -174,7 +195,7 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.POST("/:id/resubmit", r.jobPostingHandler.Resubmit)
 	jobPostings.GET("/:id/document", r.jobPostingHandler.Document)
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
-	jobPostings.POST("/:id/questions/generate", r.questionBankHandler.Generate)
+	jobPostings.POST("/:id/questions/generate", with(limits.llm, r.questionBankHandler.Generate)...)
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
 	jobPostings.PATCH("/:id/questions/:questionId", r.questionBankHandler.Update)
 	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)
@@ -229,14 +250,14 @@ func (r *Router) Setup() *gin.Engine {
 	interviews.GET("/:id/interviewer", r.applicationHandler.SessionCompanyInterviewer)
 	interviews.POST("/:id/resume", r.interviewHandlers.Sessions.Resume)
 	interviews.POST("/:id/turns", r.interviewHandlers.Sessions.AppendTurn)
-	interviews.POST("/:id/complete", completeLimiter.Middleware(), r.interviewHandlers.Sessions.Complete)
+	interviews.POST("/:id/complete", with(append([]gin.HandlerFunc{completeLimiter.Middleware()}, limits.llmOwnLimiter...), r.interviewHandlers.Sessions.Complete)...)
 	// The live interview socket (docs/interview-ws-protocol.md). It checks Origin itself, because
 	// RequireAuth checks it only for writes and a WebSocket handshake is a GET.
 	interviews.GET("/:id/live", r.interviewHandlers.Live.Live)
 	interviews.GET("/:id/report", r.interviewHandlers.Report.Get)
 	interviews.GET("/:id/recording", r.interviewHandlers.Recording.Status)
-	interviews.POST("/:id/recording", r.interviewHandlers.Recording.CreateUpload)
-	interviews.POST("/:id/recording/complete", r.interviewHandlers.Recording.CompleteUpload)
+	interviews.POST("/:id/recording", with(limits.expensive, r.interviewHandlers.Recording.CreateUpload)...)
+	interviews.POST("/:id/recording/complete", with(limits.expensive, r.interviewHandlers.Recording.CompleteUpload)...)
 
 	// Every admin route sits under /admin so one role check guards the whole group.
 	admin := router.Group("/admin", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireRole("admin"))
@@ -249,6 +270,7 @@ func (r *Router) Setup() *gin.Engine {
 	admin.POST("/job-postings/:id/approve", r.moderationHandler.Approve)
 	admin.POST("/job-postings/:id/reject", r.moderationHandler.Reject)
 	admin.GET("/overview", r.adminOverviewHandler.Get)
+	admin.GET("/access-audit", r.interviewHandlers.Recording.AccessAudit)
 	admin.GET("/interviews", r.adminInterviewsHandler.List)
 	admin.GET("/interviews/:id", r.adminInterviewsHandler.Get)
 	admin.GET("/voices", r.voiceCatalogHandler.List)

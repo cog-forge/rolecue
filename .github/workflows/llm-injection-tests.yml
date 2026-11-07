@@ -1,0 +1,71 @@
+name: LLM injection tests (opt-in)
+
+# Manual only: this calls a real model with a repository secret, so it never runs on pull requests, pushes or
+# forks. See docs/security-notes.md ("LLM injection tests").
+on:
+  workflow_dispatch:
+    inputs:
+      promptfoo_version:
+        description: promptfoo npm version to run (pinned, no ranges)
+        required: true
+        default: '0.118.0'
+        type: string
+      gemini_model:
+        description: Gemini model id used by the suite
+        required: true
+        default: gemini-2.5-flash
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: llm-injection-tests
+  cancel-in-progress: false
+
+jobs:
+  promptfoo:
+    name: promptfoo scoring-prompt suite
+    # A fork has no secrets, and its runs must never be given any.
+    if: github.event.repository.fork == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NODE_VERSION: 24.20.0
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Check the version input
+        env:
+          PROMPTFOO_VERSION: ${{ inputs.promptfoo_version }}
+        run: |
+          if ! printf '%s' "$PROMPTFOO_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "promptfoo_version must be an exact x.y.z version" >&2
+            exit 1
+          fi
+      - name: Run the adversarial scoring cases
+        working-directory: api/tests/promptfoo
+        env:
+          GEMINI_API_KEY: ${{ secrets.LLM_PROMPTFOO_GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.LLM_PROMPTFOO_GEMINI_API_KEY }}
+          PROMPTFOO_GEMINI_MODEL: ${{ inputs.gemini_model }}
+          PROMPTFOO_DISABLE_TELEMETRY: '1'
+          PROMPTFOO_DISABLE_UPDATE: '1'
+          PROMPTFOO_VERSION: ${{ inputs.promptfoo_version }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "Set the LLM_PROMPTFOO_GEMINI_API_KEY repository secret first." >&2
+            exit 1
+          fi
+          npx --yes "promptfoo@${PROMPTFOO_VERSION}" eval -c promptfooconfig.yaml --no-cache --output results.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: promptfoo-results
+          path: api/tests/promptfoo/results.json
+          if-no-files-found: ignore
+          retention-days: 7

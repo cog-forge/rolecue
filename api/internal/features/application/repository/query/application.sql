@@ -13,7 +13,8 @@ FOR NO KEY UPDATE;
 
 -- interview_deadline is set only by CV approval, so it marks every Application ever approved.
 -- name: CountCVApprovals :one
-SELECT count(*) FROM public.applications
+SELECT (count(*) + (SELECT jp.erased_interviews FROM public.job_postings jp WHERE jp.id = @job_posting_id))::bigint
+FROM public.applications
 WHERE job_posting_id = @job_posting_id AND interview_deadline IS NOT NULL;
 
 -- statement_timestamp(), not now(): now() is the transaction start, before any wait for the posting
@@ -27,7 +28,7 @@ RETURNING id, job_posting_id, status::text AS status, interview_deadline, reject
 
 -- name: RejectCV :one
 UPDATE public.applications
-SET status = 'rejected', reject_reason = sqlc.narg(reject_reason), updated_at = statement_timestamp()
+SET status = 'rejected', reject_reason = sqlc.narg(reject_reason), updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE id = @id AND job_posting_id = @job_posting_id AND status = 'pending'
 RETURNING id, job_posting_id, status::text AS status, interview_deadline, reject_reason, updated_at;
 
@@ -113,7 +114,7 @@ WHERE a.id = @id AND a.job_posting_id = @job_posting_id AND jp.recruiter_id = @r
 -- name: SetApplicationDecision :execrows
 UPDATE public.applications
 SET status = sqlc.arg(status)::text::public.application_status,
-    reject_reason = sqlc.narg(reject_reason), updated_at = statement_timestamp()
+    reject_reason = sqlc.narg(reject_reason), updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE id = @id AND job_posting_id = @job_posting_id AND status = 'interviewed';
 
 -- The moment the final decision opens: the latest interview deadline of the posting's Applications.
@@ -141,7 +142,7 @@ WHERE id = @id AND status = 'open';
 -- as the posting status change. statement_timestamp() for the same reason as ApproveCV.
 -- name: RejectPendingApplications :many
 UPDATE public.applications
-SET status = 'rejected', reject_reason = @reject_reason, updated_at = statement_timestamp()
+SET status = 'rejected', reject_reason = @reject_reason, updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE job_posting_id = @job_posting_id AND status = 'pending'
 RETURNING id;
 

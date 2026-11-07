@@ -6,7 +6,7 @@
 -- (interviews.application_id is UNIQUE, so a resumed session counts once). Submitted Applications
 -- never count.
 -- name: CountConsumedInterviews :one
-SELECT count(*)::bigint AS consumed
+SELECT (count(*) + (SELECT jp.erased_interviews FROM public.job_postings jp WHERE jp.id = @job_posting_id))::bigint AS consumed
 FROM public.interviews i
 JOIN public.applications a ON a.id = i.application_id
 WHERE a.job_posting_id = @job_posting_id;

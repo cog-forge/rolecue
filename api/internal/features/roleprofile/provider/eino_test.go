@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
@@ -56,7 +57,7 @@ func TestMessagesAndDecode(t *testing.T) {
 			}
 		}
 		var data map[string]string
-		if err := json.Unmarshal([]byte(messages[1].Content), &data); err != nil || len(data) != 1 || data["untrusted_jd"] != jd {
+		if err := json.Unmarshal([]byte(messages[1].Content), &data); err != nil || len(data) != 1 || data["untrusted_jd"] != textsafe.Fence("UNTRUSTED_JD", jd, 0) || !strings.Contains(data["untrusted_jd"], jd) {
 			t.Fatal("untrusted JD changed or escaped its data field")
 		}
 		if len(opts) != 0 {

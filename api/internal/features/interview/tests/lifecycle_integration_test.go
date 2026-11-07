@@ -521,6 +521,9 @@ func TestRecordingRetentionPurgesNinetyDaysAfterTheFinalDecision(t *testing.T) {
 	decide := func(application uuid.UUID, status string, ago string) {
 		s.exec(`UPDATE public.applications SET status = $2::public.application_status, updated_at = now() - $3::interval WHERE id = $1`,
 			application, status, ago)
+		if status == "approved" || status == "rejected" {
+			s.exec(`UPDATE public.applications SET decided_at = now() - $2::interval WHERE id = $1`, application, ago)
+		}
 	}
 	decide(oldApp, "approved", "91 days")
 	decide(youngApp, "rejected", "89 days")

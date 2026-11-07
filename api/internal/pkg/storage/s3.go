@@ -17,6 +17,7 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
@@ -28,6 +29,16 @@ type s3Store struct {
 	client    *s3.Client
 	bucket    string
 	presigner *s3.PresignClient
+	sse       types.ServerSideEncryption
+	kmsKeyID  string
+}
+
+// kmsKeyIDPtr returns the KMS key id to send, or nil so the bucket's default KMS key applies.
+func (s *s3Store) kmsKeyIDPtr() *string {
+	if s.kmsKeyID == "" {
+		return nil
+	}
+	return aws.String(s.kmsKeyID)
 }
 
 func New(cfg config.StorageConfig) (Store, error) {
@@ -35,7 +46,14 @@ func New(cfg config.StorageConfig) (Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &s3Store{client: client, bucket: cfg.Bucket, presigner: s3.NewPresignClient(client)}, nil
+	store := &s3Store{client: client, bucket: cfg.Bucket, presigner: s3.NewPresignClient(client)}
+	if mode := cfg.EffectiveSSE(); mode != config.SSENone {
+		store.sse = types.ServerSideEncryption(mode)
+		if mode == config.SSEKMS {
+			store.kmsKeyID = cfg.SSEKMSKeyID
+		}
+	}
+	return store, nil
 }
 
 func newClient(cfg config.StorageConfig) (*s3.Client, error) {
@@ -68,8 +86,8 @@ func (s *s3Store) Upload(ctx context.Context, body io.ReadSeeker, contentType st
 		return "", fmt.Errorf("%w: upload body must be seekable and positioned at its start", ErrInvalidInput)
 	}
 	key := uuid.NewString()
-	done := logger.Start(ctx, "storage.upload", logger.String("key", key), logger.String("content_class", contentTypeClass(contentType)))
-	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key), Body: body, ContentType: aws.String(contentType)})
+	done := logger.Start(ctx, "storage.upload", logger.String("content_class", contentTypeClass(contentType)))
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key), Body: body, ContentType: aws.String(contentType), ServerSideEncryption: s.sse, SSEKMSKeyId: s.kmsKeyIDPtr()})
 	if err != nil {
 		err = fmt.Errorf("upload object: %w", err)
 		done(err, failureFields(err)...)
@@ -83,7 +101,7 @@ func (s *s3Store) Download(ctx context.Context, key string) (Object, error) {
 	if err := validateKey(key); err != nil {
 		return Object{}, err
 	}
-	done := logger.Start(ctx, "storage.download", logger.String("key", key))
+	done := logger.Start(ctx, "storage.download")
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
 	if err != nil {
 		err = notFoundAware("download object", err)
@@ -100,7 +118,7 @@ func (s *s3Store) Head(ctx context.Context, key string) (ObjectInfo, error) {
 	if err := validateKey(key); err != nil {
 		return ObjectInfo{}, err
 	}
-	done := logger.Start(ctx, "storage.head", logger.String("key", key))
+	done := logger.Start(ctx, "storage.head")
 	out, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
 	if err != nil {
 		err = notFoundAware("head object", err)
@@ -122,7 +140,7 @@ func (s *s3Store) ReadPrefix(ctx context.Context, key string, n int64) ([]byte, 
 	if n < 1 || n > maxPrefixBytes {
 		return nil, fmt.Errorf("%w: prefix length must be between 1 and %d bytes", ErrInvalidInput, maxPrefixBytes)
 	}
-	done := logger.Start(ctx, "storage.read_prefix", logger.String("key", key), zap.Int64("max_bytes", n))
+	done := logger.Start(ctx, "storage.read_prefix", zap.Int64("max_bytes", n))
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket), Key: aws.String(key), Range: aws.String(fmt.Sprintf("bytes=0-%d", n-1)),
 	})
@@ -193,7 +211,7 @@ func (s *s3Store) Delete(ctx context.Context, key string) error {
 	if err := validateKey(key); err != nil {
 		return err
 	}
-	done := logger.Start(ctx, "storage.delete", logger.String("key", key))
+	done := logger.Start(ctx, "storage.delete")
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key)})
 	if err != nil {
 		err = fmt.Errorf("delete object: %w", err)
@@ -247,7 +265,7 @@ func (s *s3Store) presignGet(ctx context.Context, key string, ttl time.Duration,
 	if overrides.ContentDisposition != "" {
 		input.ResponseContentDisposition = aws.String(overrides.ContentDisposition)
 	}
-	done := logger.Start(ctx, "storage.presign_get", logger.String("key", key), zap.Duration("ttl", ttl))
+	done := logger.Start(ctx, "storage.presign_get", zap.Duration("ttl", ttl))
 	out, err := s.presigner.PresignGetObject(ctx, input, func(o *s3.PresignOptions) { o.Expires = ttl })
 	if err != nil {
 		err = fmt.Errorf("presign GET: %w", err)
@@ -275,8 +293,8 @@ func (s *s3Store) PresignPut(ctx context.Context, contentType string, size int64
 		return UploadGrant{}, fmt.Errorf("%w: upload grant TTL must not exceed 15 minutes", ErrInvalidInput)
 	}
 	key := uuid.NewString()
-	done := logger.Start(ctx, "storage.presign_put", logger.String("key", key), zap.Int64("bytes", size), logger.String("content_class", contentTypeClass(contentType)), zap.Duration("ttl", ttl))
-	out, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key), ContentType: aws.String(contentType), ContentLength: aws.Int64(size)}, func(o *s3.PresignOptions) { o.Expires = ttl })
+	done := logger.Start(ctx, "storage.presign_put", zap.Int64("bytes", size), logger.String("content_class", contentTypeClass(contentType)), zap.Duration("ttl", ttl))
+	out, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(key), ContentType: aws.String(contentType), ContentLength: aws.Int64(size), ServerSideEncryption: s.sse, SSEKMSKeyId: s.kmsKeyIDPtr()}, func(o *s3.PresignOptions) { o.Expires = ttl })
 	if err != nil {
 		err = fmt.Errorf("presign PUT: %w", err)
 		done(err, failureFields(err)...)

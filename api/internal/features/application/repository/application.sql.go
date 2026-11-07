@@ -51,16 +51,17 @@ func (q *Queries) ApproveCV(ctx context.Context, arg ApproveCVParams) (ApproveCV
 }
 
 const countCVApprovals = `-- name: CountCVApprovals :one
-SELECT count(*) FROM public.applications
+SELECT (count(*) + (SELECT jp.erased_interviews FROM public.job_postings jp WHERE jp.id = $1))::bigint
+FROM public.applications
 WHERE job_posting_id = $1 AND interview_deadline IS NOT NULL
 `
 
 // interview_deadline is set only by CV approval, so it marks every Application ever approved.
 func (q *Queries) CountCVApprovals(ctx context.Context, jobPostingID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countCVApprovals, jobPostingID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const countLiveApplications = `-- name: CountLiveApplications :one
@@ -490,7 +491,7 @@ func (q *Queries) LockPostingByID(ctx context.Context, id uuid.UUID) (string, er
 
 const rejectCV = `-- name: RejectCV :one
 UPDATE public.applications
-SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
+SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE id = $2 AND job_posting_id = $3 AND status = 'pending'
 RETURNING id, job_posting_id, status::text AS status, interview_deadline, reject_reason, updated_at
 `
@@ -526,7 +527,7 @@ func (q *Queries) RejectCV(ctx context.Context, arg RejectCVParams) (RejectCVRow
 
 const rejectPendingApplications = `-- name: RejectPendingApplications :many
 UPDATE public.applications
-SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp()
+SET status = 'rejected', reject_reason = $1, updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE job_posting_id = $2 AND status = 'pending'
 RETURNING id
 `
@@ -561,7 +562,7 @@ func (q *Queries) RejectPendingApplications(ctx context.Context, arg RejectPendi
 const setApplicationDecision = `-- name: SetApplicationDecision :execrows
 UPDATE public.applications
 SET status = $1::text::public.application_status,
-    reject_reason = $2, updated_at = statement_timestamp()
+    reject_reason = $2, updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE id = $3 AND job_posting_id = $4 AND status = 'interviewed'
 `
 

@@ -91,7 +91,7 @@ func TestMessagesKeepUntrustedDataInsideItsFields(t *testing.T) {
 		if data.Seniority.Name != "Senior" || data.Seniority.Description == nil || *data.Seniority.Description != *in.Seniority.Description {
 			t.Fatalf("seniority level changed or escaped its data field: %+v", data.Seniority)
 		}
-		if data.Note != in.RefinementNote || len(data.Requirements) != 1 || data.Requirements[0].Name != "Go" {
+		if !strings.Contains(data.Note, in.RefinementNote) || !strings.Contains(data.Note, "<<<BEGIN UNTRUSTED_REFINEMENT_NOTE") || len(data.Requirements) != 1 || data.Requirements[0].Name != "Go" {
 			t.Fatalf("untrusted data changed or escaped its field: %+v", data)
 		}
 		return schema.AssistantMessage(`{"questions":["What is a goroutine?"]}`, nil), nil

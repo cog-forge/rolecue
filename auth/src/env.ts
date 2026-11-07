@@ -64,6 +64,16 @@ export function readEnv(env: Environment = process.env) {
   const cookiePrefix = env.BETTER_AUTH_COOKIE_PREFIX || "rolecue";
   if (!/^[a-zA-Z0-9_-]+$/.test(cookiePrefix))
     throw new Error("Invalid cookie prefix");
+  // Sliding session lifetime: a session expires this many days after its last refresh (daily).
+  const sessionMaxAgeDays = Number(env.AUTH_SESSION_MAX_AGE_DAYS || 14);
+  if (
+    !Number.isInteger(sessionMaxAgeDays) ||
+    sessionMaxAgeDays < 1 ||
+    sessionMaxAgeDays > 90
+  )
+    throw new Error(
+      "AUTH_SESSION_MAX_AGE_DAYS must be an integer from 1 to 90",
+    );
   const port = Number(env.PORT || 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error("Invalid auth PORT");
@@ -106,6 +116,7 @@ export function readEnv(env: Environment = process.env) {
     domain,
     secure,
     cookiePrefix,
+    sessionMaxAgeDays,
     port,
     hostname: env.HOST || "0.0.0.0",
     socialProviders,

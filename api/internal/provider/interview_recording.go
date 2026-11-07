@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
@@ -14,8 +15,13 @@ var (
 	_ handler.InterviewRecordingService = (*service.RecordingService)(nil)
 )
 
-func ProvideInterviewRecordingService(repo *repository.Repository, store storage.Store) (*service.RecordingService, error) {
-	return service.NewRecordingService(repo, store)
+func ProvideInterviewRecordingService(repo *repository.Repository, store storage.Store, cfg *config.Config) (*service.RecordingService, error) {
+	svc, err := service.NewRecordingService(repo, store)
+	if err != nil {
+		return nil, err
+	}
+	svc.SetConsentRequired(cfg.RecordingConsent.Required)
+	return svc, nil
 }
 
 func ProvideInterviewRecordingHandler(svc *service.RecordingService) *handler.InterviewRecordingHandler {

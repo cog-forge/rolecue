@@ -264,3 +264,159 @@ Low-severity CI and Docker items.
   uid still need a writable `node_modules` named volume, so that directory
   keeps mode `1777` (sticky, so users cannot remove each other's files) rather
   than being tightened to 755. Not verified with a build (no Docker daemon).
+
+## KAN-295 Object storage
+
+- `S3_ENDPOINT` must be `https://`; plain `http://` is accepted only for loopback hosts (`localhost`,
+  `*.localhost`, `127.0.0.0/8`, `::1`). Startup fails otherwise.
+- Every object the API writes (`PutObject`) and every presigned upload carries
+  `x-amz-server-side-encryption`. `STORAGE_SSE` is `AES256` (default), `aws:kms` (optional
+  `STORAGE_SSE_KMS_KEY_ID`; empty uses the bucket default key) or `none` (loopback development only).
+  The presigned grant returns the header in `headers`, signed into the URL, and both browser uploaders
+  (`putRecording`, `uploadPDF`) already send the grant's headers unchanged.
+- **Bucket-default verification (manual, per environment).** The header only covers writes through the
+  API. Confirm the bucket itself also encrypts, so a stray write cannot land in clear text:
+  `aws s3api get-bucket-encryption --bucket "$S3_BUCKET" --endpoint-url "$S3_ENDPOINT"` must show a
+  `ServerSideEncryptionConfiguration` rule (AES256 or aws:kms). If the provider has no bucket default
+  (some S3-compatible stores return `ServerSideEncryptionConfigurationNotFoundError`), enable it in the
+  provider console or accept that only API writes are encrypted. Then upload one object through the app
+  and check `aws s3api head-object` reports `ServerSideEncryption`. A provider that rejects the header
+  needs `STORAGE_SSE=none`, which is refused for non-loopback endpoints, so raise it with the provider
+  instead. Not verified against the real provider from this machine.
+
+## KAN-305 backend cleanups
+
+- **Session cookie `__Host-` prefix: not adopted.** `__Host-` forbids a `Domain` attribute, but
+  production requires `BETTER_AUTH_COOKIE_DOMAIN` (the app and auth origins are different subdomains,
+  see `auth/src/env.ts`), so the prefix would never apply where it matters. Without a cookie domain
+  (local, single-origin HTTPS) Better Auth already names the cookie `__Secure-<prefix>.session_token`.
+  Switching the name would also break the Go side, which recognises the session cookie by name
+  (`internal/pkg/authcookie`, the session verifier and the admin account transport). The cookie stays
+  `HttpOnly`, `Secure` under HTTPS and `SameSite=Lax`. Revisit if the app and auth move to one origin.
+- **Sessions.** Password change revokes every other session on the server
+  (`forceRevokeOtherSessions`, PR #99), so the client no longer sends `revokeOtherSessions`; the
+  dialog only informs. The 14-day sliding lifetime is now `AUTH_SESSION_MAX_AGE_DAYS` (1 to 90,
+  default 14); sessions still refresh at most once a day.
+- **Profile image.** `PROFILE_IMAGE_HOSTS` (comma separated, `*.example.com` allowed) limits where a
+  profile image URL may point. Empty means Google and GitHub avatar hosts plus the storage endpoint host.
+  Existing stored images are not rewritten.
+- **Recording retention clock.** `applications.decided_at` (migration 000028) is set once when an
+  Application becomes approved or rejected and drives the recording purge. Rows decided earlier were
+  backfilled from `updated_at`.
+- **Practice start ownership oracle.** Already fixed on main (ownership is checked before
+  `FindUnfinishedPractice`; covered by `practice_ownership_oracle_integration_test.go`).
+- **Company interviewer.** The query already returns only the avatar the posting locked
+  (`required_avatar_id`, owned by the posting's recruiter); a regression test now pins that no other
+  avatar of the recruiter, and no foreign avatar, is reachable. The grant is the posting's VRM by design.
+
+## KAN-277 / KAN-278
+
+Rate limits and the per-user LLM budget.
+
+### Go API request limits (KAN-277)
+
+`internal/middleware/ratelimit.go` has in-memory token buckets keyed by user
+(`UserRateLimiter`) or client address (`IPRateLimiter`, key `c.ClientIP()`, which only
+believes `X-Forwarded-For` from `server.trusted_proxies`). A refused request answers
+`429 RATE_LIMITED` with a `Retry-After` header (whole seconds, at least 1). Three chains are
+applied per route in `internal/router/limits.go`:
+
+- LLM (per IP, then per user, then the daily LLM budget): `POST /role-profiles/:id/analyze`,
+  `POST /role-profiles/:id/confirm` (generates the practice bank), `POST /job-postings/extract`,
+  `POST /job-postings/:id/questions/generate`. `POST /interviews/:id/complete` keeps its own stricter
+  per-user bucket from KAN-259 and gets the per-IP limit only; its LLM work is paid when the session
+  starts (see the budget section).
+- Expensive, no LLM (per IP, then per user): `POST /wallet/deposit/checkout`,
+  `POST /wallet/deposit/sync`, role-profile PDF upload and completion, `POST /job-postings/documents`,
+  `POST /inventory/avatars`, interview recording create and complete.
+- Not limited here: the PayOS webhook (its signature is the guard and PayOS retries), the live
+  interview socket (it has its own per-socket bucket) and plain reads.
+
+Config (YAML `rate_limit.*`, env `RATE_LIMIT_*`; `per_minute` 0 turns that limiter off,
+`RATE_LIMIT_ENABLED=false` turns all off):
+
+| env | default | meaning |
+| --- | --- | --- |
+| `RATE_LIMIT_LLM_PER_MINUTE` / `_BURST` | 10 / 5 | per user, LLM routes |
+| `RATE_LIMIT_EXPENSIVE_PER_MINUTE` / `_BURST` | 20 / 10 | per user, wallet and upload routes |
+| `RATE_LIMIT_IP_PER_MINUTE` / `_BURST` | 120 / 40 | per client address, same routes |
+
+Limits: the buckets are per API instance (with N replicas the effective limit is N times
+higher) and idle buckets are dropped after 10 minutes. The IP limit assumes `server.trusted_proxies`
+lists Caddy; if it is left at loopback behind Caddy every request shares Caddy's address and the
+IP bucket becomes one global bucket, so check that before production.
+
+### Per-user LLM budget (KAN-278)
+
+`internal/pkg/llmbudget` counts LLM-backed operations per user and UTC day in the
+`llm_usage` table (migration 000027) with one atomic upsert that refuses to pass the limit.
+`LLM_USER_DAILY_CALL_BUDGET` (`llm.user_daily_call_budget`, default 200, 0 = unlimited). Over it:
+`429 LLM_BUDGET_EXCEEDED`. It is charged once per request on the routes above, once per live
+follow-up decision, and once per interview session when it starts (practice and recruitment, before any
+coin or slot is taken; a start that creates nothing, such as a retry or a resume, gives the call back).
+When the daily budget is exhausted, a start replay can still return its existing owned session without
+reserving another call; it cannot create a new session or charge coins.
+The session is then always scored, whether it ends over HTTP, the live socket or the abandoned-session
+job; only a retried evaluation takes another call, and when none is left the retry is refused without
+using up one of its three attempts. Follow-up decisions (a spent budget skips the follow-up; it never fails the interview). A request
+that fails validation after the charge still counted. Logs and the table hold counts only.
+`LLM_MAX_OUTPUT_TOKENS` (default 4096) reaches every provider path: Gemini `MaxTokens`, Groq
+`max_completion_tokens`, task fallbacks and the legacy route all build their model from
+`Config.TaskLLM`, which copies it (covered by `TestMaxOutputTokensReachesEveryRoute`).
+
+### Better Auth (verified, not rebuilt)
+
+`auth/src/rate-limit.ts`: limits are enabled in every environment with `storage: "database"`
+(table `rate_limits`, shared by all replicas and restarts). Custom rules per client IP and path:
+`/sign-in/email` 5 per 60 s, `/request-password-reset` and `/send-verification-email` 3 per 60 s,
+`/two-factor/verify-totp` and `/verify-backup-code` 5 per 60 s; `/get-session` is unlimited because
+the Go API calls it server-to-server without a client IP. The IP comes from `X-Forwarded-For`
+only (a spoofed multi-value header falls into one shared bucket rather than bypassing).
+
+### Caddy-level limit (skipped)
+
+Caddy has no built-in rate limiter; it needs the third-party `caddy-ratelimit` module, which means a
+custom image built with `xcaddy build --with` that module instead of the stock `caddy` image, plus
+tracking its releases. Not done here. If edge limiting becomes necessary, add to the `/api/*` handler
+in `.caddy/Caddyfile.deploy`:
+`rate_limit { zone api { key {remote_host} events 300 window 1m } }` (directive order set with
+`order rate_limit before reverse_proxy`). The application-level limits above already cover the
+expensive routes and need no extra image.
+
+## LLM guardrails (KAN-279, KAN-300, KAN-298)
+
+- **One shared text helper.** `api/internal/pkg/textsafe` holds `Clean` (NFKC; strips control, zero-width,
+  bidi-override and other invisible format characters), `LooksLikeInjection`, `Fence`, `Redact` and
+  `SanitizeOutput`. `normalizeAnswer` (interview) and `NormalizeInput` (job description) both call `Clean`.
+- **Per-question scoring.** `EinoScorer.Score` makes one model call per core question (the question plus its
+  follow-ups, at most 4 calls in parallel). An injected answer can only move the scores of its own question;
+  each metric is the mean over the questions. Raise `ai.evaluation.timeout` if a long interview times out.
+- **Flag, never drop.** A pattern hit in an answer or in a generated follow-up question sets
+  `injection_flagged`; the evaluation still completes. The existing evidence-quote check and the validators
+  are unchanged.
+- **Output moderation.** Scorer summary and feedback are stripped of markup, links and invisible characters.
+  Text that echoes an instruction-like pattern is not stored and flags the evaluation.
+- **JD is untrusted.** The JD, evidence excerpts and the refinement note are fenced as data in the extraction and
+  question bank prompts. The legacy single-provider route now runs the same domain validators as the routed one.
+- **Prompt minimisation (KAN-298).** E-mail addresses, phone numbers, URLs and given names are replaced by
+  placeholders in answer text sent to the follow-up and scoring prompts. See
+  `docs/compliance/llm-processors.md` (draft, pending product-owner approval).
+
+### LLM injection tests (opt-in)
+
+The suite lives in `api/tests/promptfoo/` (`promptfooconfig.yaml`, `prompts/`). It sends the real scoring
+instruction and six cases (override request, forged output JSON, fake system message, zero-width obfuscation,
+instruction in a generated follow-up, honest control) to a Gemini model and fails when an injected answer
+scores high or is not flagged. It uses a real model and a paid key, so it never runs in the normal CI.
+
+- **Locally:** `cd api/tests/promptfoo`, then `GEMINI_API_KEY=... PROMPTFOO_GEMINI_MODEL=gemini-2.5-flash npx promptfoo@<exact version> eval -c promptfooconfig.yaml`.
+  The `<exact version>` is any released promptfoo version; the workflow input defaults to one that has not been
+  run yet (see "Not verified" below).
+- **In GitHub:** Actions, "LLM injection tests (opt-in)", Run workflow. Needs the repository secret
+  `LLM_PROMPTFOO_GEMINI_API_KEY`. The workflow is `workflow_dispatch` only, has `contents: read`, passes the key
+  only to the eval step and is skipped on forks.
+- **Keeping the prompt in sync:** `api/tests/promptfoo/prompts/scoring-system.txt` is a copy of the scoring
+  instruction. A Go test fails when it drifts; refresh with
+  `UPDATE_PROMPTFOO=1 go test ./internal/features/evaluation/provider` from `api/`.
+- **Not verified:** the suite and the workflow were not run (no API key, no network eval). The promptfoo
+  version default, the Gemini provider id and the variable templating were written from documentation.

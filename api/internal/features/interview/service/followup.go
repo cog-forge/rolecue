@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -48,6 +49,13 @@ func (s *Service) SetFollowUpDecider(decider FollowUpDecider) {
 	s.decider = decider
 }
 
+// SetLLMBudget sets the per-user daily LLM budget (KAN-278) charged for each follow-up decision. Nil
+// leaves follow-ups unbudgeted. A spent budget never fails the interview: the follow-up is skipped and the
+// interview moves on to the next core question. Set it before the service serves requests.
+func (s *Service) SetLLMBudget(guard llmbudget.Guard) {
+	s.llmBudget = guard
+}
+
 // followUpLimit is the limit the turn rules apply: zero when follow-ups are off.
 func (s *Service) followUpLimit() int32 {
 	if s.decider == nil {
@@ -73,6 +81,15 @@ func (s *Service) FollowUp(ctx context.Context, candidateID uuid.UUID, role stri
 	if err != nil || pending == nil {
 		return delivery, err
 	}
+	if s.llmBudget != nil {
+		if err := s.llmBudget.Consume(ctx, candidateID); err != nil {
+			// Counts only: no answer, prompt or user text is logged.
+			logger.FromContext(ctx).Warn("interview follow-up skipped",
+				logger.Op("interview.follow_up"), logger.String("interview_id", id.String()),
+				logger.String("outcome", followUpSkipped), logger.String("reason", followUpSkipReason(err)))
+			return delivery, nil
+		}
+	}
 	text, cues, ok := s.decideFollowUp(ctx, id, *pending)
 	if !ok {
 		return delivery, nil
@@ -82,6 +99,14 @@ func (s *Service) FollowUp(ctx context.Context, candidateID uuid.UUID, role stri
 		Text: text, AskedAt: time.Now().UTC(), Cues: cues,
 	}
 	return delivery, nil
+}
+
+// followUpSkipReason names why the budget check let no follow-up through: a spent budget, or a failed check.
+func followUpSkipReason(err error) string {
+	if llmbudget.IsExceeded(err) {
+		return "llm_budget"
+	}
+	return "llm_budget_check_failed"
 }
 
 // AppendFollowUp stores the Candidate's answer to a follow-up the live interviewer asked, together with

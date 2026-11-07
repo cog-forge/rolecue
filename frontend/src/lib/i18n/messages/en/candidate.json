@@ -491,7 +491,13 @@
         "idle": "Your camera is off.",
         "previewLabel": "Camera preview",
         "startHint": "Turn on your camera to start. This interview is recorded.",
-        "releaseNote": "Stop the checks or leave this page to release your microphone and camera."
+        "releaseNote": "Stop the checks or leave this page to release your microphone and camera.",
+        "consent": {
+          "label": "I consent to this interview being recorded with my camera and microphone, and to the recruiter of this job posting watching the recording as evidence for my application. I understand it is deleted 90 days after the hiring decision.",
+          "version": "Consent text version {version}",
+          "declined": "Recruitment interviews are always recorded. Without your consent the interview cannot start, and nothing is recorded.",
+          "startHint": "Tick the recording consent to start. Without it the interview is not started and nothing is recorded."
+        }
       },
       "camera": {
         "recording": "Camera on for the recording",

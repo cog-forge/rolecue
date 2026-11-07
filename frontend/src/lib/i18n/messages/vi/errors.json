@@ -85,8 +85,12 @@
     "RECORDING_NOT_FOUND": "Buổi phỏng vấn này không có bản ghi.",
     "RECORDING_NOT_ALLOWED": "Bạn không có quyền xem bản ghi này.",
     "RECORDING_UPLOAD_LIMIT": "Bạn đã tải bản ghi lên quá nhiều lần.",
+    "RECORDING_CONSENT_REQUIRED": "Không thể lưu bản ghi này khi chưa có sự đồng ý ghi hình của bạn.",
     "RECORDING_INTEGRITY": "Bản ghi đã thay đổi sau khi lưu nên không thể phát.",
+    "ACCOUNT_HAS_ACTIVE_WORK": "Bạn không thể xóa tài khoản khi còn tin tuyển dụng đang mở hoặc còn đơn ứng tuyển trong các tin của bạn. Hãy đóng tin tuyển dụng và liên hệ hỗ trợ để xử lý lịch sử ứng viên.",
+    "ADMIN_CANNOT_SELF_DELETE": "Không thể xóa tài khoản quản trị viên tại đây.",
     "EVALUATION_ATTEMPTS_EXCEEDED": "Buổi phỏng vấn này không thể chấm lại nữa. Vui lòng liên hệ hỗ trợ.",
+    "LLM_BUDGET_EXCEEDED": "Bạn đã dùng hết lượt thao tác AI trong hôm nay. Lượt dùng được làm mới lúc 0 giờ UTC.",
     "RATE_LIMITED": "Bạn thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại."
   },
   "auth": {

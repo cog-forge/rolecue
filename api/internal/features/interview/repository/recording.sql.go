@@ -148,7 +148,8 @@ func (q *Queries) GetApplicationRecordingState(ctx context.Context, applicationI
 const getCandidateRecordingState = `-- name: GetCandidateRecordingState :one
 
 SELECT i.id, i.type::text AS type, i.record_status, i.record_path,
-       (i.completed_at IS NOT NULL)::boolean AS completed, i.record_etag, i.record_grant_count
+       (i.completed_at IS NOT NULL)::boolean AS completed, i.record_etag, i.record_grant_count,
+       i.recording_consent_version
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -161,13 +162,14 @@ type GetCandidateRecordingStateParams struct {
 }
 
 type GetCandidateRecordingStateRow struct {
-	ID               uuid.UUID
-	Type             string
-	RecordStatus     string
-	RecordPath       *string
-	Completed        bool
-	RecordEtag       *string
-	RecordGrantCount int32
+	ID                      uuid.UUID
+	Type                    string
+	RecordStatus            string
+	RecordPath              *string
+	Completed               bool
+	RecordEtag              *string
+	RecordGrantCount        int32
+	RecordingConsentVersion *string
 }
 
 // Recruitment recordings and the Recruiter's evidence reads. A Candidate owns an interview through
@@ -184,6 +186,7 @@ func (q *Queries) GetCandidateRecordingState(ctx context.Context, arg GetCandida
 		&i.Completed,
 		&i.RecordEtag,
 		&i.RecordGrantCount,
+		&i.RecordingConsentVersion,
 	)
 	return i, err
 }
@@ -195,8 +198,8 @@ JOIN public.applications a ON a.id = i.application_id
 WHERE i.type = 'recruitment'
   AND i.record_path IS NOT NULL
   AND a.status IN ('approved', 'rejected')
-  AND a.updated_at < $1::timestamptz
-ORDER BY a.updated_at, i.id
+  AND a.decided_at < $1::timestamptz
+ORDER BY a.decided_at, i.id
 LIMIT $2
 `
 
@@ -211,8 +214,8 @@ type ListExpiredRecordingsRow struct {
 }
 
 // Recordings past retention: a stored object of a recruitment interview whose Application reached its
-// final decision before @decided_before. applications has no decision timestamp; updated_at is the time
-// of the final decision because a terminal Application (approved or rejected) is never updated again.
+// final decision before @decided_before. decided_at is the time
+// of the final decision, set once when the Application became approved or rejected (KAN-305).
 // Undecided Applications are never listed.
 func (q *Queries) ListExpiredRecordings(ctx context.Context, arg ListExpiredRecordingsParams) ([]ListExpiredRecordingsRow, error) {
 	rows, err := q.db.Query(ctx, listExpiredRecordings, arg.DecidedBefore, arg.BatchSize)
@@ -336,27 +339,34 @@ func (q *Queries) SetRecordingResult(ctx context.Context, arg SetRecordingResult
 const setRecordingUpload = `-- name: SetRecordingUpload :execrows
 UPDATE public.interviews i
 SET record_path = $1, record_status = 'uploading', record_etag = NULL,
-    record_grant_count = i.record_grant_count + 1
-WHERE i.id = $2
+    record_grant_count = i.record_grant_count + 1,
+    recording_consent_version = COALESCE($2::text, i.recording_consent_version),
+    recording_consented_at = CASE WHEN $2::text IS NULL THEN i.recording_consented_at
+                                  ELSE statement_timestamp() END
+WHERE i.id = $3
   AND i.type = 'recruitment'
   AND i.record_status IN ('none', 'uploading', 'failed')
-  AND i.record_grant_count < $3
-  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = $4)
+  AND i.record_grant_count < $4
+  AND i.application_id IN (SELECT a.id FROM public.applications a WHERE a.candidate_id = $5)
 `
 
 type SetRecordingUploadParams struct {
-	RecordPath  *string
-	ID          uuid.UUID
-	MaxGrants   int32
-	CandidateID uuid.UUID
+	RecordPath     *string
+	ConsentVersion *string
+	ID             uuid.UUID
+	MaxGrants      int32
+	CandidateID    uuid.UUID
 }
 
 // The upload grant is one conditional UPDATE. A recording that is processing or ready is never replaced
 // by a new upload, so the status checked in the service cannot change under the write. Each grant counts
-// against max_grants, and a new grant clears the ETag of the object it replaces.
+// against max_grants, and a new grant clears the ETag of the object it replaces. A consent version, when
+// the Candidate sent one (KAN-297), is stored with its time in the same statement; a grant without one
+// keeps the consent already stored.
 func (q *Queries) SetRecordingUpload(ctx context.Context, arg SetRecordingUploadParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setRecordingUpload,
 		arg.RecordPath,
+		arg.ConsentVersion,
 		arg.ID,
 		arg.MaxGrants,
 		arg.CandidateID,

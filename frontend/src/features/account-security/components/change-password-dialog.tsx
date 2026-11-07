@@ -126,11 +126,10 @@ function ChangePasswordForm({
     setMessage("");
     onBusyChange(true);
     try {
-      // The server always signs out other devices on password change (KAN-256).
+      // The server signs out every other device on password change whatever the client sends (KAN-256).
       const result = await authClient.changePassword({
         currentPassword,
         newPassword,
-        revokeOtherSessions: true,
       });
       if (result.error) {
         // Map known codes only; the server message is never shown.

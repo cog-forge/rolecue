@@ -43,7 +43,7 @@ FOR UPDATE OF i;
 -- holds the posting lock.
 -- name: RejectExpiredApplications :many
 UPDATE public.applications a
-SET status = 'rejected', reject_reason = sqlc.narg(reject_reason), updated_at = statement_timestamp()
+SET status = 'rejected', reject_reason = sqlc.narg(reject_reason), updated_at = statement_timestamp(), decided_at = statement_timestamp()
 WHERE a.job_posting_id = sqlc.arg(job_posting_id)
   AND a.status = 'interview_eligible'
   AND a.interview_deadline < sqlc.arg(now)::timestamptz

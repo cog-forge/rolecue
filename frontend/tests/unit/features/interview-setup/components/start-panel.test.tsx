@@ -360,6 +360,30 @@ describe("a recruitment interview", () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
+  it("cannot start until the recording consent is ticked, and says why", () => {
+    const client = new QueryClient();
+    const panel = (consentGiven: boolean) => (
+      <QueryClientProvider client={client}>
+        <StartPanel
+          plan={recruitment}
+          readiness="ready"
+          cameraReady
+          consentGiven={consentGiven}
+          links={{ applicationId }}
+          returnPath="/interviews/new/preflight"
+        />
+      </QueryClientProvider>
+    );
+    const view = renderWithIntl(panel(false));
+    expect(startButton()).toBeDisabled();
+    expect(
+      screen.getByText(/Tick the recording consent to start/),
+    ).toBeInTheDocument();
+    view.rerender(panel(true));
+    expect(startButton()).toBeEnabled();
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
   it("explains a full posting and leads back to the application", async () => {
     mocks.post.mockRejectedValue(apiFailure(409, "INTERVIEW_CAPACITY_FULL"));
     renderPanel(recruitment);

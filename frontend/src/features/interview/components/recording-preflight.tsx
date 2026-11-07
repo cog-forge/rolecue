@@ -1,8 +1,10 @@
 "use client";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CONSENT_VERSION } from "../recording/recording-consent";
 import { useCamera } from "../video/use-camera";
 import { RecordingDisclosure } from "./recording-disclosure";
 
@@ -12,11 +14,19 @@ import { RecordingDisclosure } from "./recording-disclosure";
  */
 export function RecordingPreflight({
   onReadyChange,
+  onConsentChange,
 }: {
   onReadyChange?: (ready: boolean) => void;
+  /** The recording consent box (KAN-297). Start stays off until it is ticked. */
+  onConsentChange?: (accepted: boolean) => void;
 }) {
   const t = useTranslations("candidate.interviewRoom.recording");
   const ids = useId();
+  const [consented, setConsented] = useState(false);
+  const changeConsent = (checked: boolean) => {
+    setConsented(checked);
+    onConsentChange?.(checked);
+  };
   const camera = useCamera();
   const state = camera.snapshot;
   const ready = state.status === "active";
@@ -55,6 +65,31 @@ export function RecordingPreflight({
         </div>
       </div>
       <RecordingDisclosure className="rounded-lg border bg-muted/30 p-4 text-sm" />
+      <div className="space-y-2 rounded-lg border p-4 text-sm">
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id={`${ids}-consent`}
+            checked={consented}
+            onCheckedChange={(checked) => changeConsent(checked === true)}
+            aria-describedby={`${ids}-consent-version`}
+            className="mt-0.5"
+          />
+          <label htmlFor={`${ids}-consent`} className="min-h-6">
+            {t("preflight.consent.label")}
+          </label>
+        </div>
+        <p
+          id={`${ids}-consent-version`}
+          className="pl-7 text-xs text-muted-foreground"
+        >
+          {t("preflight.consent.version", { version: CONSENT_VERSION })}
+        </p>
+        {!consented && (
+          <p role="status" className="pl-7 text-xs text-muted-foreground">
+            {t("preflight.consent.declined")}
+          </p>
+        )}
+      </div>
       <div className="aspect-video w-full max-w-sm overflow-hidden rounded-lg border bg-muted">
         {state.stream ? (
           <video
