@@ -42,7 +42,7 @@ func (d *refundDB) QueryRow(_ context.Context, sql string, _ ...any) pgx.Row {
 			*(dest[2].(*string)) = "Go\nBackend  Engineer"
 			return nil
 		})
-	case strings.Contains(sql, "count(*)::bigint AS consumed"):
+	case strings.Contains(sql, "-- name: CountConsumedInterviews :one"):
 		return rowFunc(func(dest ...any) error {
 			*(dest[0].(*int64)) = d.consumed
 			return nil
