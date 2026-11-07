@@ -354,6 +354,8 @@ IP bucket becomes one global bucket, so check that before production.
 `429 LLM_BUDGET_EXCEEDED`. It is charged once per request on the routes above, once per live
 follow-up decision, and once per interview session when it starts (practice and recruitment, before any
 coin or slot is taken; a start that creates nothing, such as a retry or a resume, gives the call back).
+When the daily budget is exhausted, a start replay can still return its existing owned session without
+reserving another call; it cannot create a new session or charge coins.
 The session is then always scored, whether it ends over HTTP, the live socket or the abandoned-session
 job; only a retried evaluation takes another call, and when none is left the retry is refused without
 using up one of its three attempts. Follow-up decisions (a spent budget skips the follow-up; it never fails the interview). A request

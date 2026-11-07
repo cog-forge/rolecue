@@ -74,6 +74,10 @@ type fakeRepository struct {
 	failed chan uuid.UUID
 }
 
+func (r *fakeRepository) Existing(context.Context, domain.CreateParams) (domain.Session, bool, error) {
+	return domain.Session{}, false, nil
+}
+
 func (r *fakeRepository) Create(_ context.Context, params domain.CreateParams) (domain.Session, bool, error) {
 	r.createCalls++
 	r.createParams = params

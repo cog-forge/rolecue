@@ -61,6 +61,48 @@ func (r *Repository) Create(ctx context.Context, params domain.CreateParams) (do
 	return session, created, nil
 }
 
+// Existing resolves a start replay without creating a session. It is used when the daily budget is
+// exhausted: a session already accepted must remain reachable. Every lookup checks Candidate ownership.
+func (r *Repository) Existing(ctx context.Context, p domain.CreateParams) (domain.Session, bool, error) {
+	var id uuid.UUID
+	var err error
+	if p.Type == domain.TypePractice {
+		if p.StartKey != nil {
+			id, err = r.queries.FindInterviewByStartKey(ctx, p.StartKey)
+			if err == nil {
+				session, readErr := r.Get(ctx, p.CandidateID, id)
+				return session, readErr == nil, readErr
+			}
+			if !errors.Is(err, pgx.ErrNoRows) {
+				return domain.Session{}, false, internal(err)
+			}
+		}
+		if _, err = r.queries.GetOwnedRoleProfile(ctx, GetOwnedRoleProfileParams{ID: *p.RoleProfileID, CandidateID: p.CandidateID}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return domain.Session{}, false, domain.ErrRoleProfileNotFound
+			}
+			return domain.Session{}, false, internal(err)
+		}
+		id, err = r.queries.FindUnfinishedPractice(ctx, p.RoleProfileID)
+	} else {
+		if _, err = r.queries.GetApplicationPosting(ctx, GetApplicationPostingParams{ID: *p.ApplicationID, CandidateID: p.CandidateID}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return domain.Session{}, false, domain.ErrApplicationNotFound
+			}
+			return domain.Session{}, false, internal(err)
+		}
+		id, err = r.queries.FindInterviewByApplication(ctx, p.ApplicationID)
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Session{}, false, nil
+	}
+	if err != nil {
+		return domain.Session{}, false, internal(err)
+	}
+	session, err := r.Get(ctx, p.CandidateID, id)
+	return session, err == nil, err
+}
+
 // sessionOfStartKey returns the session a practice start key created, after losing the insert race.
 func (r *Repository) sessionOfStartKey(ctx context.Context, params domain.CreateParams) (domain.Session, bool, error) {
 	var session domain.Session

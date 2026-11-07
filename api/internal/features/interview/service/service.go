@@ -31,6 +31,7 @@ const (
 // takes the locks the rules need; the service decides what may be asked and what the Candidate sees.
 type Repository interface {
 	Create(ctx context.Context, params domain.CreateParams) (domain.Session, bool, error)
+	Existing(ctx context.Context, params domain.CreateParams) (domain.Session, bool, error)
 	Get(ctx context.Context, candidateID, id uuid.UUID) (domain.Session, error)
 	AppendTurn(ctx context.Context, candidateID, id uuid.UUID, position int32, answer string) (domain.Session, error)
 	End(ctx context.Context, params domain.EndParams) (domain.EndResult, error)
@@ -136,6 +137,14 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 	// nothing (a retry, a resume of the same session) gives the reservation back.
 	reserved, err := s.reserveBudget(ctx, candidateID)
 	if err != nil {
+		// A replay needs no new reservation. This lookup cannot create a session or charge coins.
+		if llmbudget.IsExceeded(err) {
+			if existing, found, lookupErr := s.repository.Existing(ctx, params); lookupErr != nil {
+				return domain.Session{}, false, lookupErr
+			} else if found {
+				return presentSession(existing), false, nil
+			}
+		}
 		return domain.Session{}, false, err
 	}
 	session, created, err := s.repository.Create(ctx, params)
