@@ -375,4 +375,13 @@ func TestEraseKeepsTheUsedInterviewSlotOfThePosting(t *testing.T) {
 	if after.Consumed != 1 || after.CVApprovals != 1 || after.Refundable != 2 || after.AvailableToApprove != before.AvailableToApprove {
 		t.Fatalf("capacity after erasure = %+v, want it unchanged from %+v", after, before)
 	}
+	for range 2 {
+		closed, err := capacity.CloseIntake(f.ctx, recruiter.ID, posting)
+		if err != nil || closed.Status != "closed" {
+			t.Fatalf("terminal close: status=%s err=%v", closed.Status, err)
+		}
+		if balance := f.count(`SELECT balance FROM public.wallets WHERE user_id = $1`, recruiter.ID); balance != 2 {
+			t.Fatalf("refund balance = %d, want exactly 2 unused slots refunded once", balance)
+		}
+	}
 }
