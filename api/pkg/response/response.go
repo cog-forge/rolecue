@@ -60,6 +60,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeInvalidQuestionGenerationOutput: http.StatusBadGateway,
 	apperror.CodeQuestionBankUnavailable:         http.StatusServiceUnavailable,
 	apperror.CodeJobPostingNotPending:            http.StatusConflict,
+	apperror.CodeGuidelineVersionConflict:        http.StatusConflict,
 	apperror.CodeQuestionBankNotReady:            http.StatusConflict,
 	apperror.CodeJobPostingRequirementsLocked:    http.StatusConflict,
 	apperror.CodeJobPostingNotEditable:           http.StatusConflict,

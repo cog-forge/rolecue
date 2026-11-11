@@ -53,6 +53,7 @@ func TestError(t *testing.T) {
 		{"invalid question output", apperror.CodeInvalidQuestionGenerationOutput, http.StatusBadGateway},
 		{"question bank unavailable", apperror.CodeQuestionBankUnavailable, http.StatusServiceUnavailable},
 		{"posting not pending", apperror.CodeJobPostingNotPending, http.StatusConflict},
+		{"guideline version conflict", apperror.CodeGuidelineVersionConflict, http.StatusConflict},
 		{"bank not ready", apperror.CodeQuestionBankNotReady, http.StatusConflict},
 		{"requirements locked", apperror.CodeJobPostingRequirementsLocked, http.StatusConflict},
 		{"posting not editable", apperror.CodeJobPostingNotEditable, http.StatusConflict},
