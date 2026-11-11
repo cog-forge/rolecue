@@ -13,6 +13,7 @@ import {
   ChartNoAxesCombined,
   Wallet,
   ScrollText,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import type { ProductRole } from "./permissions";
@@ -157,6 +158,11 @@ export const workspaceNavigation: Record<
           label: "Voice Profiles",
           href: routes.admin.voices,
           icon: AudioLines,
+        },
+        {
+          label: "Interview Guidelines",
+          href: routes.admin.interviewGuidelines,
+          icon: SlidersHorizontal,
         },
       ],
     },

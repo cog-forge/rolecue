@@ -247,8 +247,8 @@ func validateProposal(p *domain.FollowUpProposal, in domain.FollowUpContext) err
 		p.Cues = nil
 	}
 	switch {
-	case p.Question == "" || utf8.RuneCountInString(p.Question) > maxFollowUpRunes:
-		return invalidProposal("question must have 1 to 300 characters")
+	case p.Question == "" || utf8.RuneCountInString(p.Question) > questionCap(in):
+		return invalidProposal(fmt.Sprintf("question must have 1 to %d characters", questionCap(in)))
 	case !singleLine(p.Question):
 		return invalidProposal("question must be one line")
 	case !englishText(p.Question):
@@ -265,6 +265,12 @@ func validateProposal(p *domain.FollowUpProposal, in domain.FollowUpContext) err
 		}
 	}
 	return nil
+}
+
+// questionCap is the longest follow-up this session accepts: maxFollowUpRunes, or less when the Interview
+// Behavior Guideline it started under asks for concise questions. A guideline only tightens the cap.
+func questionCap(in domain.FollowUpContext) int {
+	return min(maxFollowUpRunes, in.Guideline.MaxQuestionRunes())
 }
 
 // singleLine reports valid UTF-8 without control characters (newlines included).

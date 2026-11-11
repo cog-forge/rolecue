@@ -95,7 +95,8 @@
     "ADMIN_CANNOT_SELF_DELETE": "Không thể xóa tài khoản quản trị viên tại đây.",
     "EVALUATION_ATTEMPTS_EXCEEDED": "Buổi phỏng vấn này không thể chấm lại nữa. Vui lòng liên hệ hỗ trợ.",
     "LLM_BUDGET_EXCEEDED": "Bạn đã dùng hết lượt thao tác AI trong hôm nay. Lượt dùng được làm mới lúc 0 giờ UTC.",
-    "RATE_LIMITED": "Bạn thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại."
+    "RATE_LIMITED": "Bạn thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại.",
+    "GUIDELINE_VERSION_CONFLICT": "Hướng dẫn đã thay đổi kể từ khi bạn tải trang. Hãy tải lại và thử lại."
   },
   "auth": {
     "accountLocked": "Tài khoản của bạn đã bị quản trị viên khóa. Hãy liên hệ bộ phận hỗ trợ để được xem xét. Bạn có thể đăng nhập lại khi khóa hết hạn hoặc khi quản trị viên mở khóa tài khoản.",

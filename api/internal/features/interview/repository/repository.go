@@ -172,7 +172,12 @@ func (r *Repository) AppendTurn(ctx context.Context, candidateID, id uuid.UUID, 
 // the limit, and a retry of a stored answer changes nothing.
 func (r *Repository) AppendFollowUp(ctx context.Context, candidateID, id uuid.UUID, followUp domain.AskedQuestion, answer string, followUpLimit int32) (domain.Session, error) {
 	return r.appendAnswer(ctx, candidateID, id, func(q *Queries, turns []domain.Turn, _ int32) error {
-		_, unchanged, err := domain.AcceptFollowUp(turns, followUpLimit, followUp.Position, answer)
+		guideline, err := sessionGuideline(ctx, q, id)
+		if err != nil {
+			return err
+		}
+		// The same limit FollowUpContext applied: a follow-up asked under the session's guideline is stored under it.
+		_, unchanged, err := domain.AcceptFollowUp(turns, guideline.EffectiveFollowUpLimit(followUpLimit), followUp.Position, answer)
 		if err != nil || unchanged {
 			return err
 		}
@@ -261,7 +266,11 @@ func (r *Repository) FollowUpContext(ctx context.Context, candidateID, id uuid.U
 	var pending *domain.FollowUpContext
 	err := r.atTurnBoundary(ctx, candidateID, id, defaultProviderVoiceID, func(q *Queries, turns []domain.Turn, _ int32, d *domain.Delivery) error {
 		delivery = *d
-		slot, ok := domain.FollowUpSlot(turns, followUpLimit)
+		guideline, err := sessionGuideline(ctx, q, id)
+		if err != nil {
+			return err
+		}
+		slot, ok := domain.FollowUpSlot(turns, guideline.EffectiveFollowUpLimit(followUpLimit))
 		if !ok {
 			return nil
 		}
@@ -271,7 +280,7 @@ func (r *Repository) FollowUpContext(ctx context.Context, candidateID, id uuid.U
 		}
 		pending = &domain.FollowUpContext{
 			Position: slot.Position, QuestionNumber: slot.QuestionNumber, Ordinal: slot.Ordinal, CoreQuestion: core.Content,
-			Exchanges: []domain.Exchange{}, Requirements: []domain.Requirement{},
+			Exchanges: []domain.Exchange{}, Requirements: []domain.Requirement{}, Guideline: guideline,
 		}
 		for _, turn := range turns {
 			if turn.QuestionNumber == slot.QuestionNumber {
@@ -291,6 +300,26 @@ func (r *Repository) FollowUpContext(ctx context.Context, candidateID, id uuid.U
 		return domain.Delivery{}, nil, err
 	}
 	return delivery, pending, nil
+}
+
+// sessionGuideline reads the Interview Behavior Guideline the session started under (KAN-276). A session that
+// recorded none, or an interview that started before guidelines existed, runs under the defaults. A stored
+// value outside the vocabulary (the CHECK constraints make that impossible) falls back to its default.
+func sessionGuideline(ctx context.Context, q *Queries, interviewID uuid.UUID) (domain.BehaviorGuideline, error) {
+	row, err := q.GetInterviewGuideline(ctx, interviewID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.DefaultBehaviorGuideline(), nil
+	}
+	if err != nil {
+		return domain.BehaviorGuideline{}, internal(err)
+	}
+	guideline := domain.BehaviorGuideline{Tone: row.Tone, QuestionLength: row.QuestionLength, FollowUpFocus: row.FollowUpFocus, AvoidTopics: row.AvoidTopics}
+	if row.FollowUpMax != nil {
+		limit := int32(*row.FollowUpMax)
+		guideline.FollowUpMax = &limit
+	}
+	clean, _ := guideline.Sanitized()
+	return clean, nil
 }
 
 // atTurnBoundary runs read under the session lock with the session's position and frozen provider voice:

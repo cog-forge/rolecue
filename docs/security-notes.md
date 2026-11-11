@@ -398,6 +398,15 @@ expensive routes and need no extra image.
   Text that echoes an instruction-like pattern is not stored and flags the evaluation.
 - **JD is untrusted.** The JD, evidence excerpts and the refinement note are fenced as data in the extraction and
   question bank prompts. The legacy single-provider route now runs the same domain validators as the routed one.
+- **Interview Behavior Guidelines (KAN-276).** The Admin guideline is a closed vocabulary: enums, a bounded
+  integer and a subset of a fixed topic catalog, CHECK-constrained in the database. No Admin-typed text exists,
+  so none can reach a prompt. The follow-up prompt adds fixed sentences looked up by value
+  (`interview/provider/guideline_prompt.go`), in one block between the "ask only when" paragraph and the output
+  schema, never in the user message or the `untrusted_*` fields. The precedence preamble stays first, the schema
+  stays last, and the block ends with a sentence saying the rules always win. An unknown value falls back to the
+  default of its field and is never interpolated. With every value at its default the system message is
+  byte-identical to the pre-guideline prompt (golden test). `question_length: concise` and `follow_up_max` are
+  enforced in code (`validateProposal`, the turn rules), not only in the prompt. Scoring never reads guidelines.
 - **Prompt minimisation (KAN-298).** E-mail addresses, phone numbers, URLs and given names are replaced by
   placeholders in answer text sent to the follow-up and scoring prompts. See
   `docs/compliance/llm-processors.md` (draft, pending product-owner approval).

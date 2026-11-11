@@ -162,9 +162,9 @@ func TestAutoRejectExpiredIDsReturnsExpiredIDs(t *testing.T) {
 	expiredStarted := lcEligibleExpired(s, postingID)
 	s.interview(expiredStarted) // started, never completed: still expired
 	future := s.application(postingID, s.user("candidate"))
-	setStatusAndDeadline(s, future, "interview_eligible", lcTime(lcAt(time.Hour)))
+	setStatusAndDeadline(s, future, "interview_eligible", lcTime(lcEpochAt(time.Hour)))
 
-	got, err := repo.AutoRejectExpiredIDs(ctx, time.Now())
+	got, err := repo.AutoRejectExpiredIDs(ctx, lcEpoch)
 	if err != nil {
 		t.Fatal(err)
 	}

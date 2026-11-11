@@ -26,6 +26,7 @@ const itemKeys = {
   "Interview Sessions": "interviewSessions",
   "Access Audit": "accessAudit",
   "Voice Profiles": "voiceProfiles",
+  "Interview Guidelines": "interviewGuidelines",
   "Payment Transactions": "paymentTransactions",
   "Revenue Reports": "revenueReports",
 } as const;

@@ -847,5 +847,145 @@
         "coinPack": "Gói xu"
       }
     }
+  },
+  "interviewGuidelines": {
+    "title": "Hướng dẫn hành vi phỏng vấn",
+    "description": "Thiết lập phong cách và giới hạn cho buổi phỏng vấn mới.",
+    "status": {
+      "version": "Phiên bản {version}",
+      "notSaved": "Chưa lưu lần nào",
+      "notSavedHint": "Đang dùng giá trị mặc định có sẵn.",
+      "savedBy": "Lưu bởi {name} vào {date}",
+      "savedAt": "Lưu vào {date}",
+      "dirty": "Có thay đổi chưa lưu",
+      "clean": "Không có thay đổi chưa lưu"
+    },
+    "promptNote": {
+      "title": "Các thiết lập hoạt động thế nào?",
+      "body": "Giọng điệu, trọng tâm và chủ đề cần tránh định hướng AI, không phải cam kết tuyệt đối. Máy chủ bắt buộc giới hạn độ dài và số câu đào sâu. Phỏng vấn vẫn bằng tiếng Anh."
+    },
+    "loading": "Đang tải hướng dẫn phỏng vấn…",
+    "denied": {
+      "title": "Bạn không có quyền truy cập hướng dẫn phỏng vấn",
+      "description": "Đang kiểm tra quyền truy cập của tài khoản… Nếu tình trạng này kéo dài, hãy đăng nhập lại bằng tài khoản quản trị viên."
+    },
+    "loadFailed": {
+      "title": "Không thể tải hướng dẫn phỏng vấn"
+    },
+    "fields": {
+      "tone": {
+        "label": "Giọng điệu",
+        "options": {
+          "neutral": {
+            "label": "Trung tính",
+            "description": "Cân bằng, không thêm chỉ dẫn về giọng điệu."
+          },
+          "friendly": {
+            "label": "Thân thiện",
+            "description": "Diễn đạt ấm áp, khích lệ."
+          },
+          "formal": {
+            "label": "Trang trọng",
+            "description": "Chuyên nghiệp, không tiếng lóng hay viết tắt."
+          },
+          "challenging": {
+            "label": "Thử thách",
+            "description": "Thẳng thắn, đào sâu và luôn tôn trọng."
+          }
+        }
+      },
+      "followUpFocus": {
+        "label": "Trọng tâm đào sâu",
+        "options": {
+          "standard": {
+            "label": "Tiêu chuẩn",
+            "description": "Làm rõ câu trả lời và nhận định cần kiểm tra."
+          },
+          "vague_only": {
+            "label": "Chỉ khi trả lời mơ hồ",
+            "description": "Chỉ hỏi khi câu trả lời mơ hồ hoặc chưa đủ."
+          },
+          "thorough": {
+            "label": "Kỹ lưỡng",
+            "description": "Hỏi thêm chi tiết, ví dụ và đánh đổi."
+          }
+        }
+      },
+      "questionLength": {
+        "label": "Độ dài câu đào sâu",
+        "options": {
+          "standard": {
+            "label": "Tiêu chuẩn",
+            "description": "Tối đa 300 ký tự."
+          },
+          "concise": {
+            "label": "Ngắn gọn",
+            "description": "Tối đa 150 ký tự."
+          }
+        }
+      },
+      "followUpMax": {
+        "label": "Số câu đào sâu cho mỗi câu hỏi",
+        "options": {
+          "default": "Mặc định",
+          "0": "0 (không có)",
+          "1": "1",
+          "2": "2",
+          "3": "3"
+        },
+        "effective": "Người phỏng vấn sẽ hỏi đào sâu tối đa {count, plural, other {# câu}} cho mỗi câu hỏi.",
+        "capped": "Mức trần của máy chủ là {ceiling}, nên {chosen} vẫn chỉ tối đa {ceiling}."
+      },
+      "avoidTopics": {
+        "label": "Chủ đề cần tránh",
+        "help": "Chọn chủ đề AI cần tránh khi hỏi đào sâu.",
+        "options": {
+          "compensation": "Mức lương và kỳ vọng thu nhập",
+          "personal_life": "Gia đình, tình trạng hôn nhân, tuổi và sức khỏe",
+          "politics_religion": "Chính trị và tôn giáo",
+          "former_employers": "Thông tin mật của các nhà tuyển dụng cũ",
+          "location_nationality": "Quốc tịch, tình trạng visa và địa chỉ nhà"
+        }
+      }
+    },
+    "actions": {
+      "save": "Lưu thay đổi",
+      "saving": "Đang lưu…",
+      "discard": "Bỏ thay đổi",
+      "reset": "Đặt lại mặc định"
+    },
+    "reset": {
+      "title": "Đặt lại về mặc định?",
+      "description": "Thao tác này lưu một phiên bản mới chứa các giá trị mặc định, nên việc đặt lại cũng được ghi nhận như mọi lần lưu khác. Các buổi phỏng vấn đang chạy hoặc đã xong vẫn giữ hướng dẫn lúc bắt đầu.",
+      "confirm": "Lưu mặc định thành phiên bản mới",
+      "pending": "Đang lưu…",
+      "cancel": "Giữ hướng dẫn hiện tại"
+    },
+    "feedback": {
+      "saved": "Đã lưu thành phiên bản {version}. Phiên bản này áp dụng cho các buổi phỏng vấn bắt đầu từ bây giờ.",
+      "resetDone": "Đã lưu mặc định thành phiên bản {version}. Áp dụng cho các buổi phỏng vấn bắt đầu từ bây giờ.",
+      "conflict": "Có người khác đã lưu phiên bản {version} trong lúc bạn chỉnh sửa. Chúng tôi đã tải phiên bản đó và thay đổi của bạn chưa được lưu. Hãy xem lại giá trị hiện tại và áp dụng lại thay đổi nếu vẫn cần.",
+      "saveFailed": "Không thể lưu hướng dẫn. Chưa có gì bị thay đổi. Hãy thử lại.",
+      "dismiss": "Đóng"
+    },
+    "sections": {
+      "style": {
+        "title": "Phong cách phỏng vấn",
+        "description": "Chọn giọng điệu và cách đào sâu câu trả lời."
+      },
+      "limits": {
+        "title": "Mức đào sâu & độ dài",
+        "description": "Đặt giới hạn rõ ràng cho câu hỏi đào sâu."
+      }
+    },
+    "summary": {
+      "title": "Tóm tắt thiết lập",
+      "perQuestion": "câu đào sâu / câu hỏi",
+      "ceiling": "Giới hạn máy chủ: {count} câu mỗi câu hỏi",
+      "characters": "{count} ký tự",
+      "topics": "Đã chọn {count}",
+      "appliesTo": "Áp dụng cho buổi phỏng vấn mới sau khi lưu.",
+      "protected": "Phiên đang chạy, điểm số và báo cáo giữ nguyên."
+    }
   }
 }

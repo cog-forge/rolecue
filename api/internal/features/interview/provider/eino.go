@@ -130,7 +130,7 @@ func (d *EinoFollowUpDecider) Decide(ctx context.Context, in domain.FollowUpCont
 		return domain.FollowUpProposal{}, fmt.Errorf("encode follow-up input: %w", err)
 	}
 	response, err := d.model.Generate(ctx, []*schema.Message{
-		schema.SystemMessage(followUpInstruction),
+		schema.SystemMessage(followUpSystemMessage(in.Guideline)),
 		schema.UserMessage(string(data)),
 	})
 	if err != nil {

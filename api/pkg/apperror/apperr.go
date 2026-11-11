@@ -67,7 +67,10 @@ const (
 	CodeWebhookSignatureInvalid Code = "WEBHOOK_SIGNATURE_INVALID"
 
 	CodeJobPostingNotPending Code = "JOB_POSTING_NOT_PENDING"
-	CodeQuestionBankNotReady Code = "QUESTION_BANK_NOT_READY"
+	// CodeGuidelineVersionConflict is an Interview Behavior Guidelines save made against a version that is no
+	// longer the current one.
+	CodeGuidelineVersionConflict Code = "GUIDELINE_VERSION_CONFLICT"
+	CodeQuestionBankNotReady     Code = "QUESTION_BANK_NOT_READY"
 
 	// Job Posting domain codes.
 	CodeJobPostingRequirementsLocked Code = "JOB_POSTING_REQUIREMENTS_LOCKED"

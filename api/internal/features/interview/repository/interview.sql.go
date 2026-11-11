@@ -279,6 +279,35 @@ func (q *Queries) GetApplicationPosting(ctx context.Context, arg GetApplicationP
 	return job_posting_id, err
 }
 
+const getInterviewGuideline = `-- name: GetInterviewGuideline :one
+SELECT g.tone, g.question_length, g.follow_up_max, g.follow_up_focus, g.avoid_topics
+FROM public.interviews i
+JOIN public.interview_behavior_guidelines g ON g.id = i.behavior_guideline_id
+WHERE i.id = $1
+`
+
+type GetInterviewGuidelineRow struct {
+	Tone           string
+	QuestionLength string
+	FollowUpMax    *int16
+	FollowUpFocus  string
+	AvoidTopics    []string
+}
+
+// The guideline the session started under. No row means the session has none: the defaults apply.
+func (q *Queries) GetInterviewGuideline(ctx context.Context, interviewID uuid.UUID) (GetInterviewGuidelineRow, error) {
+	row := q.db.QueryRow(ctx, getInterviewGuideline, interviewID)
+	var i GetInterviewGuidelineRow
+	err := row.Scan(
+		&i.Tone,
+		&i.QuestionLength,
+		&i.FollowUpMax,
+		&i.FollowUpFocus,
+		&i.AvoidTopics,
+	)
+	return i, err
+}
+
 const getInterviewQuestion = `-- name: GetInterviewQuestion :one
 SELECT iq.position, COALESCE(iq.spoken_text, cq.content)::text AS content, iq.asked_at
 FROM public.interview_questions iq
@@ -381,9 +410,10 @@ func (q *Queries) GetOwnedRoleProfile(ctx context.Context, arg GetOwnedRoleProfi
 }
 
 const insertInterview = `-- name: InsertInterview :one
-INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key)
+INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key, behavior_guideline_id)
 VALUES ($1, $2::text::public.interview_type,
-        $3, $4, $5, $6)
+        $3, $4, $5, $6,
+        (SELECT g.id FROM public.interview_behavior_guidelines g ORDER BY g.version DESC LIMIT 1))
 RETURNING id
 `
 
@@ -396,6 +426,8 @@ type InsertInterviewParams struct {
 	StartKey      *string
 }
 
+// The session records the Interview Behavior Guideline version current when it starts (KAN-276); NULL when
+// none was ever saved, which means the defaults. A later save never changes it.
 func (q *Queries) InsertInterview(ctx context.Context, arg InsertInterviewParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, insertInterview,
 		arg.RoleProfileID,

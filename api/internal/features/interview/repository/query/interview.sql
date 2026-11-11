@@ -44,11 +44,21 @@ WHERE i.type = 'practice' AND i.role_profile_id = @role_profile_id AND i.complet
 ORDER BY i.started_at DESC, i.id DESC
 LIMIT 1;
 
+-- The session records the Interview Behavior Guideline version current when it starts (KAN-276); NULL when
+-- none was ever saved, which means the defaults. A later save never changes it.
 -- name: InsertInterview :one
-INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key)
+INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key, behavior_guideline_id)
 VALUES (@role_profile_id, sqlc.arg(interview_type)::text::public.interview_type,
-        sqlc.narg(application_id), sqlc.narg(avatar_id), sqlc.narg(voice_id), sqlc.narg(start_key))
+        sqlc.narg(application_id), sqlc.narg(avatar_id), sqlc.narg(voice_id), sqlc.narg(start_key),
+        (SELECT g.id FROM public.interview_behavior_guidelines g ORDER BY g.version DESC LIMIT 1))
 RETURNING id;
+
+-- The guideline the session started under. No row means the session has none: the defaults apply.
+-- name: GetInterviewGuideline :one
+SELECT g.tone, g.question_length, g.follow_up_max, g.follow_up_focus, g.avoid_topics
+FROM public.interviews i
+JOIN public.interview_behavior_guidelines g ON g.id = i.behavior_guideline_id
+WHERE i.id = @interview_id;
 
 -- The session a practice start key already created, if any.
 -- name: FindInterviewByStartKey :one

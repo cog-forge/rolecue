@@ -9,6 +9,9 @@ type InterviewHandlers struct {
 	Report    *InterviewReportHandler
 	Recording *InterviewRecordingHandler
 	Live      *InterviewLiveHandler
+	// Guidelines is the Admin side of the interview behavior (KAN-276): it shapes the interviewer, so it
+	// travels with the interview handlers and is routed under /admin.
+	Guidelines *AdminGuidelinesHandler
 }
 
 // NewInterviewHandlers bundles the interview handlers.
@@ -18,6 +21,7 @@ func NewInterviewHandlers(
 	report *InterviewReportHandler,
 	recording *InterviewRecordingHandler,
 	live *InterviewLiveHandler,
+	guidelines *AdminGuidelinesHandler,
 ) *InterviewHandlers {
-	return &InterviewHandlers{Sessions: sessions, History: history, Report: report, Recording: recording, Live: live}
+	return &InterviewHandlers{Sessions: sessions, History: history, Report: report, Recording: recording, Live: live, Guidelines: guidelines}
 }

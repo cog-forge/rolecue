@@ -259,7 +259,7 @@ func (h *InventoryHandler) PurchaseSlot(c *gin.Context) {
 
 // Delete godoc
 // @Summary Delete an unused personal avatar
-// @Description Rejects avatars referenced by any posting or interview with AVATAR_IN_USE. Frees an inventory slot without changing capacity; does not physically purge the VRM object. Repeated deletion returns 404.
+// @Description Rejects avatars referenced by any posting or interview with AVATAR_IN_USE. Deletes the stored VRM model together with the row and frees an inventory slot without changing capacity. A failed object delete is retried, then refused with AVATAR_ASSET_UNAVAILABLE (503) and the avatar is kept, so deleting again is safe. Repeated deletion returns 404.
 // @Tags inventory
 // @Security SessionCookie
 // @Param Origin header string true "Trusted frontend origin"
