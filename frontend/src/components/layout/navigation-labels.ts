@@ -12,6 +12,7 @@ const groupKeys = {
 } as const;
 
 const itemKeys = {
+  "Scoring rubrics": "scoringRubrics",
   Dashboard: "dashboard",
   "Role Profiles": "roleProfiles",
   "Interview History": "interviewHistory",
