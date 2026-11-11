@@ -76,7 +76,7 @@ func TestGenerateLogsStepOutcomeWithCount(t *testing.T) {
 func TestGenerateLogsNeverContainQuestionText(t *testing.T) {
 	ctx, logs := observedBankContext()
 	gen := &fakeGenerator{fn: func(int) (domain.GenerationCandidate, error) {
-		return domain.GenerationCandidate{Questions: []string{questionSentinel + " how do you design it?", ""}}, nil
+		return domain.CandidateOf(questionSentinel+" how do you design it?", ""), nil
 	}}
 
 	_, err := newService(t, readyRepo(), gen, 0, 2).Generate(ctx, uuid.New(), "recruiter", uuid.New())
@@ -84,5 +84,31 @@ func TestGenerateLogsNeverContainQuestionText(t *testing.T) {
 
 	if rendered := renderBankLogs(logs); strings.Contains(rendered, questionSentinel) {
 		t.Fatalf("question text reached the logs:\n%s", rendered)
+	}
+}
+
+// Grading data is as private as the bank itself: neither an expected answer nor a rubric id from a rejected
+// proposal may reach a log line or the returned error.
+func TestGenerateLogsAndErrorsNeverContainGradingData(t *testing.T) {
+	ctx, logs := observedBankContext()
+	repo := readyRepo()
+	repo.catalog = []domain.RubricOption{{ID: uuid.New(), Name: "mine"}}
+	stray := uuid.New()
+	secret := "EXPECTED-ANSWER-SENTINEL " + strings.Repeat("x", domain.MaxExpectedAnswerRunes)
+	gen := &fakeGenerator{fn: func(int) (domain.GenerationCandidate, error) {
+		return domain.GenerationCandidate{Questions: []domain.GeneratedQuestion{
+			{Content: "A?", RubricID: &stray, ExpectedAnswer: &secret},
+			{Content: "B?", ExpectedAnswer: &secret},
+		}}, nil
+	}}
+
+	_, err := newService(t, repo, gen, 1, 2).Generate(ctx, uuid.New(), "recruiter", uuid.New())
+	assertCode(t, err, apperror.CodeInvalidQuestionGenerationOutput)
+
+	rendered := renderBankLogs(logs) + fmt.Sprintf("%+v", err)
+	for _, leaked := range []string{"EXPECTED-ANSWER-SENTINEL", stray.String()} {
+		if strings.Contains(rendered, leaked) {
+			t.Fatalf("%q reached the logs or the error:\n%s", leaked, rendered)
+		}
 	}
 }

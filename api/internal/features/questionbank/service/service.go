@@ -17,11 +17,15 @@ type Repository interface {
 	Posting(ctx context.Context, recruiterID, postingID uuid.UUID) (domain.Posting, error)
 	CandidateOwnsJD(ctx context.Context, candidateID, jdID uuid.UUID) error
 	List(ctx context.Context, jdID uuid.UUID) ([]domain.CoreQuestion, error)
+	ListBank(ctx context.Context, jdID, recruiterID uuid.UUID) ([]domain.BankQuestion, error)
+	// RubricCatalog is the allowed set for generation: the active system rubrics and the Recruiter's own
+	// active rubrics, bounded and in a stable order.
+	RubricCatalog(ctx context.Context, recruiterID uuid.UUID) ([]domain.RubricOption, error)
 	GenerationInput(ctx context.Context, jdID uuid.UUID) (domain.GenerationInput, error)
-	Add(ctx context.Context, recruiterID, postingID uuid.UUID, content string) (domain.CoreQuestion, error)
-	Update(ctx context.Context, recruiterID, postingID, questionID uuid.UUID, content string) (domain.CoreQuestion, error)
+	Add(ctx context.Context, recruiterID, postingID uuid.UUID, content string) (domain.BankQuestion, error)
+	Update(ctx context.Context, recruiterID, postingID, questionID uuid.UUID, content string) (domain.BankQuestion, error)
 	Delete(ctx context.Context, recruiterID, postingID, questionID uuid.UUID) error
-	SaveForPosting(ctx context.Context, recruiterID, postingID uuid.UUID, contents []string) ([]domain.CoreQuestion, error)
+	SaveForPosting(ctx context.Context, recruiterID, postingID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.BankQuestion, error)
 	SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, contents []string) ([]domain.CoreQuestion, error)
 }
 
@@ -71,12 +75,18 @@ func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, 
 	if err != nil {
 		return domain.Bank{}, err
 	}
-	questions, err := s.repository.List(ctx, posting.JDID)
+	questions, err := s.repository.ListBank(ctx, posting.JDID, recruiterID)
 	if err != nil {
 		return domain.Bank{}, err
 	}
 	if questions == nil {
-		questions = []domain.CoreQuestion{}
+		questions = []domain.BankQuestion{}
+	}
+	incomplete := 0
+	for _, q := range questions {
+		if q.GradingIncomplete {
+			incomplete++
+		}
 	}
 	return domain.Bank{
 		Questions:     questions,
@@ -86,11 +96,14 @@ func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, 
 		MaxQuestionLength: domain.MaxQuestionRunes,
 		GenerationSize:    s.size,
 		ReviewSubmitted:   posting.ReviewSubmitted,
+		// An empty bank is never ready: there is nothing to interview from.
+		GradingReady:           len(questions) > 0 && incomplete == 0,
+		GradingIncompleteCount: incomplete,
 	}, nil
 }
 
 // Generate writes the bank of an owned posting being prepared (pending or rejected) once.
-func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.CoreQuestion, error) {
+func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.BankQuestion, error) {
 	if err := requireRecruiter(role); err != nil {
 		return nil, err
 	}
@@ -104,11 +117,11 @@ func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role stri
 	if !posting.Editable() {
 		return nil, apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending or rejected")
 	}
-	contents, err := s.draft(ctx, posting.JDID)
+	questions, err := s.draft(ctx, posting.JDID, &recruiterID)
 	if err != nil {
 		return nil, err
 	}
-	return s.repository.SaveForPosting(ctx, recruiterID, postingID, contents)
+	return s.repository.SaveForPosting(ctx, recruiterID, postingID, questions)
 }
 
 // GenerateForPractice writes the bank of a Candidate's own practice JD. There is deliberately no
@@ -120,9 +133,13 @@ func (s *Service) GenerateForPractice(ctx context.Context, candidateID, jdID uui
 	if err := s.repository.CandidateOwnsJD(ctx, candidateID, jdID); err != nil {
 		return nil, err
 	}
-	contents, err := s.draft(ctx, jdID)
+	questions, err := s.draft(ctx, jdID, nil)
 	if err != nil {
 		return nil, err
+	}
+	contents := make([]string, 0, len(questions))
+	for _, q := range questions {
+		contents = append(contents, q.Content)
 	}
 	return s.repository.SaveForPractice(ctx, candidateID, jdID, contents)
 }
@@ -133,24 +150,24 @@ func (s *Service) CurrentBank(ctx context.Context, jdID uuid.UUID) ([]domain.Cor
 	return s.repository.List(ctx, jdID)
 }
 
-func (s *Service) Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.CoreQuestion, error) {
+func (s *Service) Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.BankQuestion, error) {
 	if err := requireRecruiter(role); err != nil {
-		return domain.CoreQuestion{}, err
+		return domain.BankQuestion{}, err
 	}
 	content, err := normalizeContent(content)
 	if err != nil {
-		return domain.CoreQuestion{}, err
+		return domain.BankQuestion{}, err
 	}
 	return s.repository.Add(ctx, recruiterID, postingID, content)
 }
 
-func (s *Service) Update(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID, content string) (domain.CoreQuestion, error) {
+func (s *Service) Update(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID, content string) (domain.BankQuestion, error) {
 	if err := requireRecruiter(role); err != nil {
-		return domain.CoreQuestion{}, err
+		return domain.BankQuestion{}, err
 	}
 	content, err := normalizeContent(content)
 	if err != nil {
-		return domain.CoreQuestion{}, err
+		return domain.BankQuestion{}, err
 	}
 	return s.repository.Update(ctx, recruiterID, postingID, questionID, content)
 }
@@ -169,8 +186,10 @@ func (s *Service) requireEnabled() error {
 	return nil
 }
 
-// draft checks the cheap preconditions before spending an LLM call, then asks the model.
-func (s *Service) draft(ctx context.Context, jdID uuid.UUID) ([]string, error) {
+// draft checks the cheap preconditions before spending an LLM call, then asks the model. A Recruiter's
+// draft (recruiterID set) also carries the rubric catalog and asks for grading data in the same single call;
+// a Candidate's practice draft keeps the question-only contract.
+func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID *uuid.UUID) ([]domain.GeneratedQuestion, error) {
 	existing, err := s.repository.List(ctx, jdID)
 	if err != nil {
 		return nil, err
@@ -185,9 +204,15 @@ func (s *Service) draft(ctx context.Context, jdID uuid.UUID) ([]string, error) {
 	if len(input.Requirements) == 0 {
 		return nil, apperror.New(apperror.CodeRequirementsNotConfirmed, "confirm the job description requirements before generating questions")
 	}
+	if recruiterID != nil {
+		input.Grading = true
+		if input.Rubrics, err = s.repository.RubricCatalog(ctx, *recruiterID); err != nil {
+			return nil, err
+		}
+	}
 	done := logger.Start(ctx, "questionbank.generate", logger.String("jd_id", jdID.String()),
-		logger.Int("requested", s.size), logger.Int("requirements", len(input.Requirements)))
-	contents, err := s.generateWithRetry(ctx, input)
-	done(err, logger.Int("count", len(contents)))
-	return contents, err
+		logger.Int("requested", s.size), logger.Int("requirements", len(input.Requirements)), logger.Int("rubrics", len(input.Rubrics)))
+	questions, err := s.generateWithRetry(ctx, input)
+	done(err, logger.Int("count", len(questions)))
+	return questions, err
 }

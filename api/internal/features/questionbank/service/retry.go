@@ -15,7 +15,7 @@ const generationFailedMessage = "Question generation failed."
 
 // generateWithRetry mirrors the JD extraction retry: one shared budget that includes proposals that
 // fail validation, a retry only for invalid output, and invalid output is never fed back to the model.
-func (s *Service) generateWithRetry(ctx context.Context, in domain.GenerationInput) ([]string, error) {
+func (s *Service) generateWithRetry(ctx context.Context, in domain.GenerationInput) ([]domain.GeneratedQuestion, error) {
 	fail := func(cause error) error {
 		return apperror.Wrap(apperror.CodeQuestionGenerationFailed, generationFailedMessage, cause)
 	}
@@ -28,8 +28,8 @@ func (s *Service) generateWithRetry(ctx context.Context, in domain.GenerationInp
 			return nil, fail(ctx.Err())
 		}
 		if err == nil {
-			var questions []string
-			questions, err = validateCandidate(candidate, s.size)
+			var questions []domain.GeneratedQuestion
+			questions, err = validateCandidate(in, candidate, s.size)
 			if err == nil {
 				logger.FromContext(ctx).Debug("question generation attempt accepted", logger.Op("questionbank.generate"), logger.Int("attempt", attempt+1))
 				return questions, nil

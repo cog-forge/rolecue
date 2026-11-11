@@ -170,3 +170,19 @@ func TestEditPassesRepositoryErrorsThrough(t *testing.T) {
 		t.Fatalf("delete error = %v", err)
 	}
 }
+
+// The bank view says whether the posting can be submitted: an empty bank is never ready, and every question
+// without grading counts.
+func TestListReportsGradingReadiness(t *testing.T) {
+	repo := readyRepo()
+	svc := newService(t, repo, &fakeGenerator{}, 0, 3)
+	got, err := svc.List(context.Background(), uuid.New(), "recruiter", uuid.New())
+	if err != nil || got.GradingReady || got.GradingIncompleteCount != 0 {
+		t.Fatalf("empty bank: %+v, %v", got, err)
+	}
+	repo.existing = []domain.CoreQuestion{{ID: uuid.New(), Content: "a"}, {ID: uuid.New(), Content: "b"}}
+	got, err = svc.List(context.Background(), uuid.New(), "recruiter", uuid.New())
+	if err != nil || got.GradingReady || got.GradingIncompleteCount != 2 {
+		t.Fatalf("ungraded bank: %+v, %v", got, err)
+	}
+}

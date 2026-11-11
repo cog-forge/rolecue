@@ -20,6 +20,11 @@ type fakeRepository struct {
 	saveErr     error
 	opErr       error
 	saved       []string
+	savedGraded []domain.GeneratedQuestion
+	catalog     []domain.RubricOption
+	catalogErr  error
+	catalogCall int
+	catalogFor  uuid.UUID
 	savedFor    string
 	listCalls   int
 	inputCalls  int
@@ -44,21 +49,36 @@ func (f *fakeRepository) List(context.Context, uuid.UUID) ([]domain.CoreQuestion
 	return f.existing, nil
 }
 
+func (f *fakeRepository) ListBank(context.Context, uuid.UUID, uuid.UUID) ([]domain.BankQuestion, error) {
+	f.listCalls++
+	out := make([]domain.BankQuestion, 0, len(f.existing))
+	for _, q := range f.existing {
+		out = append(out, domain.NewBankQuestion(q.ID, q.Content, nil, domain.RubricState{}, nil))
+	}
+	return out, nil
+}
+
+func (f *fakeRepository) RubricCatalog(_ context.Context, recruiterID uuid.UUID) ([]domain.RubricOption, error) {
+	f.catalogCall++
+	f.catalogFor = recruiterID
+	return f.catalog, f.catalogErr
+}
+
 func (f *fakeRepository) GenerationInput(context.Context, uuid.UUID) (domain.GenerationInput, error) {
 	f.inputCalls++
 	return f.input, nil
 }
 
-func (f *fakeRepository) Add(_ context.Context, recruiterID, _ uuid.UUID, content string) (domain.CoreQuestion, error) {
+func (f *fakeRepository) Add(_ context.Context, recruiterID, _ uuid.UUID, content string) (domain.BankQuestion, error) {
 	f.opCalls++
 	f.gotRecruit, f.gotContent = recruiterID, content
-	return domain.CoreQuestion{ID: uuid.New(), Content: content}, f.opErr
+	return domain.NewBankQuestion(uuid.New(), content, nil, domain.RubricState{}, nil), f.opErr
 }
 
-func (f *fakeRepository) Update(_ context.Context, recruiterID, _, questionID uuid.UUID, content string) (domain.CoreQuestion, error) {
+func (f *fakeRepository) Update(_ context.Context, recruiterID, _, questionID uuid.UUID, content string) (domain.BankQuestion, error) {
 	f.opCalls++
 	f.gotRecruit, f.gotQuestion, f.gotContent = recruiterID, questionID, content
-	return domain.CoreQuestion{ID: questionID, Content: content}, f.opErr
+	return domain.NewBankQuestion(questionID, content, nil, domain.RubricState{}, nil), f.opErr
 }
 
 func (f *fakeRepository) Delete(_ context.Context, recruiterID, _, questionID uuid.UUID) error {
@@ -67,10 +87,16 @@ func (f *fakeRepository) Delete(_ context.Context, recruiterID, _, questionID uu
 	return f.opErr
 }
 
-func (f *fakeRepository) SaveForPosting(_ context.Context, recruiterID, _ uuid.UUID, contents []string) ([]domain.CoreQuestion, error) {
+func (f *fakeRepository) SaveForPosting(_ context.Context, recruiterID, _ uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.BankQuestion, error) {
 	f.saveCalls++
-	f.gotRecruit, f.saved, f.savedFor = recruiterID, contents, "posting"
-	return toQuestions(contents), f.saveErr
+	contents := make([]string, 0, len(questions))
+	out := make([]domain.BankQuestion, 0, len(questions))
+	for _, q := range questions {
+		contents = append(contents, q.Content)
+		out = append(out, domain.NewBankQuestion(uuid.New(), q.Content, q.RubricID, domain.RubricState{Active: true, Permitted: true}, q.ExpectedAnswer))
+	}
+	f.gotRecruit, f.saved, f.savedGraded, f.savedFor = recruiterID, contents, questions, "posting"
+	return out, f.saveErr
 }
 
 func (f *fakeRepository) SaveForPractice(_ context.Context, _, _ uuid.UUID, contents []string) ([]domain.CoreQuestion, error) {
@@ -101,9 +127,9 @@ func (g *fakeGenerator) Generate(_ context.Context, in domain.GenerationInput, c
 }
 
 func questionsOf(n int) domain.GenerationCandidate {
-	c := domain.GenerationCandidate{Questions: []string{}}
+	c := domain.GenerationCandidate{Questions: []domain.GeneratedQuestion{}}
 	for i := 0; i < n; i++ {
-		c.Questions = append(c.Questions, fmt.Sprintf("Question number %d?", i+1))
+		c.Questions = append(c.Questions, domain.GeneratedQuestion{Content: fmt.Sprintf("Question number %d?", i+1)})
 	}
 	return c
 }
