@@ -25,6 +25,17 @@ func lcAt(offset time.Duration) time.Time {
 	return time.Now().Add(offset).Truncate(time.Microsecond)
 }
 
+// The expiry pass rejects every expired Application in the database, whoever seeded it, and the other
+// integration packages seed expired Applications of their own near the real time (the interview lifecycle
+// tests set a deadline "in the past" and then assert the Application is untouched). A sweep at the real
+// time would therefore reject their rows, and their sweeps would reject ours. The auto-reject tests below
+// keep to a fixed epoch long before any other test's data: their deadlines sit around lcEpoch and every
+// sweep passes a time that only reaches them, so the two sides cannot see each other.
+var lcEpoch = time.Date(2001, time.January, 1, 0, 0, 0, 0, time.UTC)
+
+// lcEpochAt returns the time at offset from lcEpoch.
+func lcEpochAt(offset time.Duration) time.Time { return lcEpoch.Add(offset) }
+
 func lcTime(value time.Time) *time.Time { return &value }
 
 // lcStatus reads the stored status of an Application.
@@ -43,7 +54,7 @@ func lcCompleteInterview(s *seed, interviewID uuid.UUID, score int32) {
 // lcEligibleExpired adds an interview_eligible Application whose deadline has passed and returns it.
 func lcEligibleExpired(s *seed, postingID uuid.UUID) uuid.UUID {
 	appID := s.application(postingID, s.user("candidate"))
-	setStatusAndDeadline(s, appID, "interview_eligible", lcTime(lcAt(-time.Hour)))
+	setStatusAndDeadline(s, appID, "interview_eligible", lcTime(lcEpochAt(-time.Hour)))
 	return appID
 }
 
@@ -265,11 +276,11 @@ func TestAutoRejectRejectsExpiredWithoutACompletedInterview(t *testing.T) {
 	completed := lcEligibleExpired(s, postingID)
 	lcCompleteInterview(s, s.interview(completed), 70)
 	future := s.application(postingID, s.user("candidate"))
-	setStatusAndDeadline(s, future, "interview_eligible", lcTime(lcAt(time.Hour)))
+	setStatusAndDeadline(s, future, "interview_eligible", lcTime(lcEpochAt(time.Hour)))
 	interviewed := s.application(postingID, s.user("candidate"))
-	setStatusAndDeadline(s, interviewed, "interviewed", lcTime(lcAt(-time.Hour)))
+	setStatusAndDeadline(s, interviewed, "interviewed", lcTime(lcEpochAt(-time.Hour)))
 
-	rejected, err := svc.AutoRejectExpired(ctx, time.Now())
+	rejected, err := svc.AutoRejectExpired(ctx, lcEpoch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +310,7 @@ func TestAutoRejectDeadlineBoundaryIsStrict(t *testing.T) {
 	svc := newService(t, pool)
 	owner := s.user("recruiter")
 	postingID := s.posting(owner, "open", slot(5))
-	deadline := lcAt(time.Hour)
+	deadline := lcEpochAt(time.Hour)
 	appID := s.application(postingID, s.user("candidate"))
 	setStatusAndDeadline(s, appID, "interview_eligible", lcTime(deadline))
 
@@ -327,11 +338,11 @@ func TestAutoRejectSecondRunIsNoOp(t *testing.T) {
 	postingID := s.posting(owner, "open", slot(5))
 	appID := lcEligibleExpired(s, postingID)
 
-	if _, err := svc.AutoRejectExpired(ctx, time.Now()); err != nil {
+	if _, err := svc.AutoRejectExpired(ctx, lcEpoch); err != nil {
 		t.Fatal(err)
 	}
 	before := updatedAt(t, s, appID)
-	rejected, err := svc.AutoRejectExpired(ctx, time.Now())
+	rejected, err := svc.AutoRejectExpired(ctx, lcEpoch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -351,7 +362,7 @@ func TestAutoRejectConcurrentRunsRejectEachOnce(t *testing.T) {
 	postingID := s.posting(owner, "open", slot(5))
 	expired := []uuid.UUID{lcEligibleExpired(s, postingID), lcEligibleExpired(s, postingID)}
 
-	now := time.Now()
+	now := lcEpoch
 	const runs = 2
 	counts := make([]int, runs)
 	errs := make([]error, runs)
@@ -393,9 +404,9 @@ func TestAutoRejectClosesPostingAndRefundsOnce(t *testing.T) {
 	if _, err := svc.CloseIntake(ctx, owner, "recruiter", postingID); err != nil {
 		t.Fatal(err)
 	}
-	setStatusAndDeadline(s, appID, "interview_eligible", lcTime(lcAt(-time.Hour)))
+	setStatusAndDeadline(s, appID, "interview_eligible", lcTime(lcEpochAt(-time.Hour)))
 
-	if _, err := svc.AutoRejectExpired(ctx, time.Now()); err != nil {
+	if _, err := svc.AutoRejectExpired(ctx, lcEpoch); err != nil {
 		t.Fatal(err)
 	}
 	if row := s.stored(appID); row.status != "rejected" {
@@ -412,7 +423,7 @@ func TestAutoRejectClosesPostingAndRefundsOnce(t *testing.T) {
 		t.Fatalf("balance = %d, want 100 (2 funded, 2 refunded)", b)
 	}
 
-	if rejected, err := svc.AutoRejectExpired(ctx, time.Now()); err != nil || rejected != 0 {
+	if rejected, err := svc.AutoRejectExpired(ctx, lcEpoch); err != nil || rejected != 0 {
 		t.Fatalf("second AutoRejectExpired() = %d, %v, want 0", rejected, err)
 	}
 	if n := len(s.postingRows(postingID)); n != 2 || s.balance(owner) != 100 {
@@ -432,7 +443,7 @@ func TestRecruiterDetailShowsInterviewAndFinalReview(t *testing.T) {
 	withoutInterview := s.application(postingID, s.user("candidate"))
 	setStatusAndDeadline(s, withoutInterview, "interview_eligible", lcTime(latest))
 	interviewed := s.application(postingID, s.user("candidate"))
-	setStatusAndDeadline(s, interviewed, "interviewed", lcTime(lcAt(-time.Hour)))
+	setStatusAndDeadline(s, interviewed, "interviewed", lcTime(lcEpochAt(-time.Hour)))
 	interviewID := s.interview(interviewed)
 
 	detail, err := svc.GetDetail(ctx, owner, "recruiter", postingID, withoutInterview)
@@ -481,7 +492,7 @@ func TestCandidateApplicationInterviewBlockNeverCarriesTheScore(t *testing.T) {
 	owner, candidate := s.user("recruiter"), s.user("candidate")
 	postingID := s.posting(owner, "open", slot(3))
 	appID := s.application(postingID, candidate)
-	setStatusAndDeadline(s, appID, "interviewed", lcTime(lcAt(-time.Hour)))
+	setStatusAndDeadline(s, appID, "interviewed", lcTime(lcEpochAt(-time.Hour)))
 	interviewID := s.interview(appID)
 	lcCompleteInterview(s, interviewID, 81)
 
