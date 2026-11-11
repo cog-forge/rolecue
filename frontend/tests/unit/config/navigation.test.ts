@@ -42,6 +42,7 @@ describe("workspace navigation", () => {
       "Interview Sessions -> /admin/interviews",
       "Access Audit -> /admin/access-audit",
       "Voice Profiles -> /admin/voices",
+      "Interview Guidelines -> /admin/interview-guidelines",
       "Payment Transactions -> /admin/billing",
       "Revenue Reports -> /admin/revenue",
     ]);
