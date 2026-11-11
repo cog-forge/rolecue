@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	authdomain "github.com/cog-forge/rolecue/api/internal/features/auth/domain"
@@ -17,20 +18,28 @@ type Repository interface {
 	List(context.Context, uuid.UUID, int32, int32) ([]domain.Avatar, int64, error)
 	Get(context.Context, uuid.UUID, uuid.UUID) (domain.StoredAvatar, error)
 	PurchaseSlot(ctx context.Context, owner uuid.UUID, amount int32, idempotencyKey string) (domain.SlotPurchase, error)
-	Delete(context.Context, uuid.UUID, uuid.UUID) error
+	// Delete removes the owner's avatar row and calls purge with its stored model key before the
+	// transaction commits; a purge error keeps the row.
+	Delete(ctx context.Context, owner, id uuid.UUID, purge func(context.Context, string) error) error
 }
 
-type ModelSigner interface {
+// ModelStore is the object storage of the avatar models: signed reads and deletion. storage.Store satisfies it.
+type ModelStore interface {
 	PresignGet(context.Context, string, time.Duration) (storage.SignedRequest, error)
+	Delete(context.Context, string) error
 }
+
+const modelDeleteTimeout = 10 * time.Second
 
 type Service struct {
 	repository Repository
-	signer     ModelSigner
+	signer     ModelStore
+	// retryDelays are the waits between attempts to delete a model object: one more attempt than delays.
+	retryDelays []time.Duration
 }
 
-func NewService(repository Repository, signer ModelSigner) *Service {
-	return &Service{repository: repository, signer: signer}
+func NewService(repository Repository, signer ModelStore) *Service {
+	return &Service{repository: repository, signer: signer, retryDelays: []time.Duration{200 * time.Millisecond, 600 * time.Millisecond}}
 }
 
 func authorize(user authdomain.User) error {
@@ -105,7 +114,9 @@ func (s *Service) Delete(ctx context.Context, user authdomain.User, id uuid.UUID
 	if err := authorize(user); err != nil {
 		return err
 	}
-	if err := s.repository.Delete(ctx, user.ID, id); err != nil {
+	// The object goes in the same transaction as the row: when storage keeps failing the avatar stays and
+	// the owner can delete again, so a row and its personal-data object never disagree silently.
+	if err := s.repository.Delete(ctx, user.ID, id, s.deleteModel); err != nil {
 		return err
 	}
 	logger.FromContext(ctx).Info("avatar deleted",
@@ -114,4 +125,33 @@ func (s *Service) Delete(ctx context.Context, user authdomain.User, id uuid.UUID
 		logger.String("user_id", user.ID.String()),
 	)
 	return nil
+}
+
+// deleteModel removes the stored model object, trying again after each of retryDelays. A missing object
+// counts as deleted. Logs never carry the object key.
+func (s *Service) deleteModel(ctx context.Context, key string) error {
+	if s.signer == nil {
+		return apperror.New(apperror.CodeAvatarAssetUnavailable, "avatar storage is temporarily unavailable")
+	}
+	var last error
+	for attempt := 0; ; attempt++ {
+		attemptCtx, cancel := context.WithTimeout(ctx, modelDeleteTimeout)
+		last = s.signer.Delete(attemptCtx, key)
+		cancel()
+		if last == nil || errors.Is(last, storage.ErrNotFound) {
+			return nil
+		}
+		if attempt >= len(s.retryDelays) || ctx.Err() != nil {
+			break
+		}
+		logger.FromContext(ctx).Warn("avatar model delete failed; retrying",
+			logger.Op("inventory.avatar_model_delete"), logger.Int("attempt", attempt+1), logger.Cause(last))
+		timer := time.NewTimer(s.retryDelays[attempt])
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+		case <-timer.C:
+		}
+	}
+	return apperror.Wrap(apperror.CodeAvatarAssetUnavailable, "the avatar model could not be deleted; the avatar was kept, try again", last)
 }

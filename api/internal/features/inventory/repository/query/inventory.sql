@@ -48,10 +48,12 @@ SELECT a.id, a.name, a.personality, a.model_path, a.created_at, a.updated_at
 FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id
 WHERE i.user_id = sqlc.arg(owner_id) AND a.id = sqlc.arg(avatar_id);
 
--- name: DeleteInventoryAvatar :execrows
+-- The stored model key comes back so the service can delete the object before the transaction commits.
+-- name: DeleteInventoryAvatar :one
 DELETE FROM public.avatars a USING public.inventories i
 WHERE a.inventory_id = i.id AND i.user_id = sqlc.arg(owner_id)
-  AND a.id = sqlc.arg(avatar_id);
+  AND a.id = sqlc.arg(avatar_id)
+RETURNING a.model_path;
 
 -- Zero rows means the purchase would pass max_slots.
 -- name: UpdateInventorySlot :execrows

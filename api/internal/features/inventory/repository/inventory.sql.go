@@ -44,10 +44,11 @@ func (q *Queries) CountRecentInventoryAvatars(ctx context.Context, arg CountRece
 	return column_1, err
 }
 
-const deleteInventoryAvatar = `-- name: DeleteInventoryAvatar :execrows
+const deleteInventoryAvatar = `-- name: DeleteInventoryAvatar :one
 DELETE FROM public.avatars a USING public.inventories i
 WHERE a.inventory_id = i.id AND i.user_id = $1
   AND a.id = $2
+RETURNING a.model_path
 `
 
 type DeleteInventoryAvatarParams struct {
@@ -55,12 +56,12 @@ type DeleteInventoryAvatarParams struct {
 	AvatarID uuid.UUID
 }
 
-func (q *Queries) DeleteInventoryAvatar(ctx context.Context, arg DeleteInventoryAvatarParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteInventoryAvatar, arg.OwnerID, arg.AvatarID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// The stored model key comes back so the service can delete the object before the transaction commits.
+func (q *Queries) DeleteInventoryAvatar(ctx context.Context, arg DeleteInventoryAvatarParams) (string, error) {
+	row := q.db.QueryRow(ctx, deleteInventoryAvatar, arg.OwnerID, arg.AvatarID)
+	var model_path string
+	err := row.Scan(&model_path)
+	return model_path, err
 }
 
 const ensureInventory = `-- name: EnsureInventory :exec

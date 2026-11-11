@@ -219,22 +219,29 @@ func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, amount i
 	return domain.SlotPurchase{Capacity: capacityOf(row), Balance: balance}, nil
 }
 
-func (r *Repository) Delete(ctx context.Context, owner, id uuid.UUID) error {
+// Delete removes the owner's avatar row and hands its stored model key to purge before the transaction
+// commits. purge deletes the object: when it fails the transaction rolls back, so the row and the object
+// never disagree silently and the owner can simply delete again. A crash between purge and commit leaves
+// a row without an object; the next delete tolerates the missing object and removes the row.
+func (r *Repository) Delete(ctx context.Context, owner, id uuid.UUID, purge func(context.Context, string) error) error {
 	tx, queries, err := r.beginOwner(ctx, owner)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
-	count, err := queries.DeleteInventoryAvatar(ctx, DeleteInventoryAvatarParams{OwnerID: owner, AvatarID: id})
+	modelPath, err := queries.DeleteInventoryAvatar(ctx, DeleteInventoryAvatarParams{OwnerID: owner, AvatarID: id})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return avatarNotFound()
+		}
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
 			return apperror.New(apperror.CodeAvatarInUse, "avatar is used by a job posting or interview")
 		}
 		return persistenceError(err)
 	}
-	if count == 0 {
-		return avatarNotFound()
+	if err := purge(ctx, modelPath); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return persistenceError(err)

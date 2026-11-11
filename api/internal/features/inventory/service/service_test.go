@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -26,6 +27,7 @@ type fakeRepository struct {
 	purchaseOwner  uuid.UUID
 	purchaseAmount int32
 	purchaseKey    string
+	deleted        bool
 	err            error
 }
 
@@ -44,10 +46,20 @@ func (r *fakeRepository) Get(_ context.Context, owner, id uuid.UUID) (domain.Sto
 	r.owner, r.id = owner, id
 	return r.avatar, r.err
 }
-func (r *fakeRepository) Delete(_ context.Context, owner, id uuid.UUID) error {
+
+// Delete mirrors the transaction: a repository error means nothing was removed, otherwise the stored
+// model key goes to purge, and a purge error rolls the removal back.
+func (r *fakeRepository) Delete(ctx context.Context, owner, id uuid.UUID, purge func(context.Context, string) error) error {
 	r.calls++
 	r.owner, r.id = owner, id
-	return r.err
+	if r.err != nil {
+		return r.err
+	}
+	if err := purge(ctx, r.avatar.ModelPath); err != nil {
+		return err
+	}
+	r.deleted = true
+	return nil
 }
 func (r *fakeRepository) PurchaseSlot(_ context.Context, owner uuid.UUID, amount int32, key string) (domain.SlotPurchase, error) {
 	r.purchaseKey = key
@@ -57,17 +69,31 @@ func (r *fakeRepository) PurchaseSlot(_ context.Context, owner uuid.UUID, amount
 }
 
 type fakeSigner struct {
-	calls int
-	key   string
-	ttl   time.Duration
-	grant storage.SignedRequest
-	err   error
+	deleteCalls  int
+	deleteKeys   []string
+	deleteErrors []error // consumed one per Delete call; an empty list means success
+	calls        int
+	key          string
+	ttl          time.Duration
+	grant        storage.SignedRequest
+	err          error
 }
 
 func (s *fakeSigner) PresignGet(_ context.Context, key string, ttl time.Duration) (storage.SignedRequest, error) {
 	s.calls++
 	s.key, s.ttl = key, ttl
 	return s.grant, s.err
+}
+
+func (s *fakeSigner) Delete(_ context.Context, key string) error {
+	s.deleteCalls++
+	s.deleteKeys = append(s.deleteKeys, key)
+	if len(s.deleteErrors) == 0 {
+		return nil
+	}
+	err := s.deleteErrors[0]
+	s.deleteErrors = s.deleteErrors[1:]
+	return err
 }
 
 func inventoryUser() authdomain.User {
@@ -203,7 +229,7 @@ func TestServiceGetAssetUnavailable(t *testing.T) {
 	cause := errors.New("storage unavailable")
 	for _, tc := range []struct {
 		name   string
-		signer ModelSigner
+		signer ModelStore
 		cause  error
 	}{
 		{"missing signer", nil, nil},
@@ -258,14 +284,102 @@ func TestServiceGetFiveMinuteReadGrant(t *testing.T) {
 	}
 }
 
-func TestServiceDeleteOwnedAvatar(t *testing.T) {
-	repo := &fakeRepository{}
+func deleteService(repo *fakeRepository, store *fakeSigner) *Service {
+	s := NewService(repo, store)
+	s.retryDelays = []time.Duration{0, 0} // three attempts without waiting
+	return s
+}
+
+func TestServiceDeleteRemovesTheStoredModel(t *testing.T) {
+	repo := &fakeRepository{avatar: domain.StoredAvatar{ModelPath: "avatars/model.vrm"}}
+	store := &fakeSigner{}
 	user, id := inventoryUser(), uuid.New()
-	if err := NewService(repo, nil).Delete(context.Background(), user, id); err != nil {
+	if err := deleteService(repo, store).Delete(context.Background(), user, id); err != nil {
 		t.Fatal(err)
 	}
-	if repo.calls != 1 || repo.owner != user.ID || repo.id != id {
+	if repo.calls != 1 || repo.owner != user.ID || repo.id != id || !repo.deleted {
 		t.Fatalf("wrong deletion scope: %+v", repo)
+	}
+	if store.deleteCalls != 1 || store.deleteKeys[0] != "avatars/model.vrm" {
+		t.Fatalf("object deletes = %v", store.deleteKeys)
+	}
+}
+
+func TestServiceDeleteToleratesAMissingObject(t *testing.T) {
+	repo := &fakeRepository{avatar: domain.StoredAvatar{ModelPath: "avatars/gone.vrm"}}
+	store := &fakeSigner{deleteErrors: []error{fmt.Errorf("delete object: %w", storage.ErrNotFound)}}
+	if err := deleteService(repo, store).Delete(context.Background(), inventoryUser(), uuid.New()); err != nil {
+		t.Fatalf("a missing object is already deleted, got %v", err)
+	}
+	if !repo.deleted || store.deleteCalls != 1 {
+		t.Fatalf("deleted = %v after %d object deletes, want the row removed after one", repo.deleted, store.deleteCalls)
+	}
+}
+
+func TestServiceDeleteRetriesAStorageFailure(t *testing.T) {
+	repo := &fakeRepository{avatar: domain.StoredAvatar{ModelPath: "avatars/model.vrm"}}
+	store := &fakeSigner{deleteErrors: []error{errors.New("storage unavailable"), errors.New("storage unavailable")}}
+	if err := deleteService(repo, store).Delete(context.Background(), inventoryUser(), uuid.New()); err != nil {
+		t.Fatalf("the third attempt succeeds, got %v", err)
+	}
+	if !repo.deleted || store.deleteCalls != 3 {
+		t.Fatalf("deleted = %v after %d object deletes, want true after 3", repo.deleted, store.deleteCalls)
+	}
+}
+
+func TestServiceDeleteKeepsTheAvatarWhenStorageStaysDown(t *testing.T) {
+	repo := &fakeRepository{avatar: domain.StoredAvatar{ModelPath: "avatars/model.vrm"}}
+	down := errors.New("storage unavailable")
+	store := &fakeSigner{deleteErrors: []error{down, down, down, down}}
+	err := deleteService(repo, store).Delete(context.Background(), inventoryUser(), uuid.New())
+	var appErr *apperror.AppError
+	if !errors.As(err, &appErr) || appErr.Code != apperror.CodeAvatarAssetUnavailable {
+		t.Fatalf("err = %v, want AVATAR_ASSET_UNAVAILABLE", err)
+	}
+	if repo.deleted {
+		t.Fatal("the row must stay when the object could not be deleted")
+	}
+	if store.deleteCalls != 3 {
+		t.Fatalf("object deletes = %d, want 3 attempts", store.deleteCalls)
+	}
+}
+
+func TestServiceDeleteStopsRetryingWhenTheRequestIsCancelled(t *testing.T) {
+	repo := &fakeRepository{avatar: domain.StoredAvatar{ModelPath: "avatars/model.vrm"}}
+	store := &fakeSigner{deleteErrors: []error{errors.New("storage unavailable"), errors.New("storage unavailable")}}
+	s := NewService(repo, store)
+	s.retryDelays = []time.Duration{time.Hour, time.Hour}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := s.Delete(ctx, inventoryUser(), uuid.New()); err == nil || repo.deleted {
+		t.Fatalf("err = %v, deleted = %v, want a failure that keeps the row", err, repo.deleted)
+	}
+	if store.deleteCalls > 1 {
+		t.Fatalf("object deletes = %d, want no retry after cancellation", store.deleteCalls)
+	}
+}
+
+func TestServiceDeleteWithoutStorageKeepsTheAvatar(t *testing.T) {
+	repo := &fakeRepository{}
+	err := NewService(repo, nil).Delete(context.Background(), inventoryUser(), uuid.New())
+	var appErr *apperror.AppError
+	if !errors.As(err, &appErr) || appErr.Code != apperror.CodeAvatarAssetUnavailable || repo.deleted {
+		t.Fatalf("err = %v, deleted = %v, want AVATAR_ASSET_UNAVAILABLE and the row kept", err, repo.deleted)
+	}
+}
+
+func TestServiceDeleteDoesNotTouchStorageWhenTheAvatarIsNotTheCallers(t *testing.T) {
+	for _, code := range []apperror.Code{apperror.CodeAvatarNotFound, apperror.CodeAvatarInUse} {
+		repo := &fakeRepository{err: apperror.New(code, "refused")}
+		store := &fakeSigner{}
+		err := deleteService(repo, store).Delete(context.Background(), inventoryUser(), uuid.New())
+		var appErr *apperror.AppError
+		if !errors.As(err, &appErr) || appErr.Code != code {
+			t.Fatalf("err = %v, want %s", err, code)
+		}
+		if store.deleteCalls != 0 {
+			t.Fatalf("%s: object deletes = %d, want 0", code, store.deleteCalls)
+		}
 	}
 }
 
