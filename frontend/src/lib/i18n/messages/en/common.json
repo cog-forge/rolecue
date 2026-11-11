@@ -118,7 +118,8 @@
         "voiceProfiles": "Voice Profiles",
         "paymentTransactions": "Payment Transactions",
         "revenueReports": "Revenue Reports",
-        "interviewGuidelines": "Interview Guidelines"
+        "interviewGuidelines": "Interview Guidelines",
+        "scoringRubrics": "Scoring rubrics"
       }
     },
     "badges": {

@@ -14,6 +14,7 @@ import {
   Wallet,
   ScrollText,
   SlidersHorizontal,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 import type { ProductRole } from "./permissions";
@@ -107,6 +108,11 @@ export const workspaceNavigation: Record<
           icon: ClipboardList,
         },
         {
+          label: "Scoring rubrics",
+          href: routes.recruiter.rubrics,
+          icon: ListChecks,
+        },
+        {
           label: "Personal Avatar Studio",
           href: routes.avatarStudio,
           icon: UserRound,
@@ -163,6 +169,11 @@ export const workspaceNavigation: Record<
           label: "Interview Guidelines",
           href: routes.admin.interviewGuidelines,
           icon: SlidersHorizontal,
+        },
+        {
+          label: "Scoring rubrics",
+          href: routes.admin.rubrics,
+          icon: ListChecks,
         },
       ],
     },

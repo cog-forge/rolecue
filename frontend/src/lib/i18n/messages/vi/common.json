@@ -118,7 +118,8 @@
         "voiceProfiles": "Hồ sơ giọng nói",
         "paymentTransactions": "Giao dịch thanh toán",
         "revenueReports": "Báo cáo doanh thu",
-        "interviewGuidelines": "Hướng dẫn phỏng vấn"
+        "interviewGuidelines": "Hướng dẫn phỏng vấn",
+        "scoringRubrics": "Barem chấm điểm"
       }
     },
     "badges": {

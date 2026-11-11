@@ -43,6 +43,7 @@ export const routes = {
   reports: { detail: (id: string) => `/reports/${segment(id)}` },
   recruiter: {
     root: "/recruiter",
+    rubrics: "/recruiter/rubrics",
     dashboard: "/recruiter/dashboard",
     jobPostings: "/recruiter/job-postings",
     jobPostingNew: "/recruiter/job-postings/new",
@@ -58,6 +59,7 @@ export const routes = {
   },
   admin: {
     root: "/admin",
+    rubrics: "/admin/rubrics",
     dashboard: "/admin/dashboard",
     users: "/admin/users",
     interviews: "/admin/interviews",

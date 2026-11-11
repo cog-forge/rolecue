@@ -29,7 +29,7 @@ import {
   resetWeights,
   saveWeights,
 } from "../api/evaluation";
-import { useUnsavedChangesGuard } from "../hooks/use-unsaved-changes-guard";
+import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
 import type { Metric, PostingWeights } from "../schemas/evaluation-schema";
 import { ConfirmDialog } from "./confirm-dialog";
 import {
