@@ -133,7 +133,7 @@ it does not deploy, SSH to servers or roll out containers.
 ## Recruiter Question Bank delivery
 
 Apply migration `000013_posting_question_bank_delivery` before running the updated API.
-`QUESTION_BANK_SIZE` controls generation (50 in `.env.example`); the frontend uses the
+`QUESTION_BANK_SIZE` controls generation (20 in `.env.example`); the frontend uses the
 server's value. There is one shared question-generation service for posting and practice JDs.
 
 The Recruiter flow is: save the reviewed requirements and optional `refinement_note` →
