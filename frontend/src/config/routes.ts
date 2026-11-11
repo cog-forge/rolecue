@@ -63,6 +63,7 @@ export const routes = {
     interviews: "/admin/interviews",
     interview: (id: string) => `/admin/interviews/${segment(id)}`,
     accessAudit: "/admin/access-audit",
+    interviewGuidelines: "/admin/interview-guidelines",
     voices: "/admin/voices",
     billing: "/admin/billing",
     jobPostings: "/admin/job-postings",

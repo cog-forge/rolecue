@@ -117,7 +117,8 @@
         "accessAudit": "Access Audit",
         "voiceProfiles": "Voice Profiles",
         "paymentTransactions": "Payment Transactions",
-        "revenueReports": "Revenue Reports"
+        "revenueReports": "Revenue Reports",
+        "interviewGuidelines": "Interview Guidelines"
       }
     },
     "badges": {

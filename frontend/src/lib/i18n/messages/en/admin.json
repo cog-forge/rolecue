@@ -847,5 +847,145 @@
         "coinPack": "Coin pack"
       }
     }
+  },
+  "interviewGuidelines": {
+    "title": "Interview Behavior Guidelines",
+    "description": "Set the style and boundaries for new interviews.",
+    "status": {
+      "version": "Version {version}",
+      "notSaved": "Nothing saved yet",
+      "notSavedHint": "The built-in defaults are in use.",
+      "savedBy": "Saved by {name} on {date}",
+      "savedAt": "Saved on {date}",
+      "dirty": "Unsaved changes",
+      "clean": "No unsaved changes"
+    },
+    "promptNote": {
+      "title": "How these settings work",
+      "body": "Tone, follow-up focus and avoided topics steer the AI; they are not guaranteed. Length and follow-up limits are enforced by the server. Interviews stay in English."
+    },
+    "loading": "Loading the interview guidelines…",
+    "denied": {
+      "title": "You don't have access to interview guidelines",
+      "description": "Checking your account access… If this stays, sign in again with an administrator account."
+    },
+    "loadFailed": {
+      "title": "We couldn't load the interview guidelines"
+    },
+    "fields": {
+      "tone": {
+        "label": "Tone",
+        "options": {
+          "neutral": {
+            "label": "Neutral",
+            "description": "Balanced, with no extra tone instruction."
+          },
+          "friendly": {
+            "label": "Friendly",
+            "description": "Warm and encouraging wording."
+          },
+          "formal": {
+            "label": "Formal",
+            "description": "Professional, without slang or contractions."
+          },
+          "challenging": {
+            "label": "Challenging",
+            "description": "Direct and probing, always respectful."
+          }
+        }
+      },
+      "followUpFocus": {
+        "label": "Follow-up focus",
+        "options": {
+          "standard": {
+            "label": "Standard",
+            "description": "Probe unclear answers and claims worth checking."
+          },
+          "vague_only": {
+            "label": "Vague answers only",
+            "description": "Only probe vague or incomplete answers."
+          },
+          "thorough": {
+            "label": "Thorough",
+            "description": "Ask for specifics, examples and trade-offs."
+          }
+        }
+      },
+      "questionLength": {
+        "label": "Follow-up length",
+        "options": {
+          "standard": {
+            "label": "Standard",
+            "description": "Up to 300 characters."
+          },
+          "concise": {
+            "label": "Concise",
+            "description": "Up to 150 characters."
+          }
+        }
+      },
+      "followUpMax": {
+        "label": "Follow-ups per question",
+        "options": {
+          "default": "Default",
+          "0": "0 (none)",
+          "1": "1",
+          "2": "2",
+          "3": "3"
+        },
+        "effective": "The interviewer will ask at most {count, plural, one {# follow-up} other {# follow-ups}} per question.",
+        "capped": "The server's ceiling is {ceiling}, so {chosen} still means at most {ceiling}."
+      },
+      "avoidTopics": {
+        "label": "Topics to avoid",
+        "help": "Select topics the AI should avoid in follow-ups.",
+        "options": {
+          "compensation": "Salary and compensation expectations",
+          "personal_life": "Family, relationship status, age and health",
+          "politics_religion": "Politics and religion",
+          "former_employers": "Confidential details of former employers",
+          "location_nationality": "Nationality, visa status and home address"
+        }
+      }
+    },
+    "actions": {
+      "save": "Save changes",
+      "saving": "Saving…",
+      "discard": "Discard",
+      "reset": "Reset defaults"
+    },
+    "reset": {
+      "title": "Reset to the defaults?",
+      "description": "This saves a new version that holds the default values, so the reset is recorded like any other save. Interviews already running or finished keep the guidelines they started with.",
+      "confirm": "Save defaults as a new version",
+      "pending": "Saving…",
+      "cancel": "Keep current guidelines"
+    },
+    "feedback": {
+      "saved": "Saved as version {version}. It applies to interviews that start from now on.",
+      "resetDone": "Defaults saved as version {version}. They apply to interviews that start from now on.",
+      "conflict": "Someone else saved version {version} while you were editing. We loaded it and your changes were not saved. Review the current values and apply your changes again if they still apply.",
+      "saveFailed": "We couldn't save the guidelines. Nothing was changed. Try again.",
+      "dismiss": "Dismiss"
+    },
+    "sections": {
+      "style": {
+        "title": "Interviewer style",
+        "description": "Choose the tone and when to dig deeper."
+      },
+      "limits": {
+        "title": "Depth & length",
+        "description": "Keep follow-up questions within clear limits."
+      }
+    },
+    "summary": {
+      "title": "At a glance",
+      "perQuestion": "follow-ups / question",
+      "ceiling": "Server limit: {count} per question",
+      "characters": "{count} characters",
+      "topics": "{count} selected",
+      "appliesTo": "Applies to new interviews after saving.",
+      "protected": "Existing sessions, scoring and reports stay unchanged."
+    }
   }
 }

@@ -117,7 +117,8 @@
         "accessAudit": "Nhật ký truy cập",
         "voiceProfiles": "Hồ sơ giọng nói",
         "paymentTransactions": "Giao dịch thanh toán",
-        "revenueReports": "Báo cáo doanh thu"
+        "revenueReports": "Báo cáo doanh thu",
+        "interviewGuidelines": "Hướng dẫn phỏng vấn"
       }
     },
     "badges": {
