@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -136,4 +137,43 @@ func wantCode(t *testing.T, err error, want apperror.Code) {
 	if got := codeOf(err); got != want {
 		t.Fatalf("error = %v (code %q), want code %q", err, got, want)
 	}
+}
+
+func plain(contents ...string) []domain.GeneratedQuestion {
+	out := make([]domain.GeneratedQuestion, 0, len(contents))
+	for _, content := range contents {
+		out = append(out, domain.GeneratedQuestion{Content: content})
+	}
+	return out
+}
+
+// technicalAccuracy is the catalog metric seeded by migration 000011.
+const technicalAccuracy = "00000000-0000-4000-8000-000000000101"
+
+// rubric seeds a rubric with one criterion. owner nil makes it a system rubric; inactive archives it.
+func (s *seed) rubric(name string, owner *uuid.UUID, active bool) uuid.UUID {
+	id := uuid.New()
+	scope := "system"
+	if owner != nil {
+		scope = "recruiter"
+	}
+	s.exec(`INSERT INTO public.rubrics (id, name, description, question_type, scope, owner_id, is_active)
+		VALUES ($1, $2, 'qb rubric', 'concept_explanation', $3, $4, $5)`, id, name, scope, owner, active)
+	s.later(`DELETE FROM public.rubrics WHERE id = $1`, id)
+	s.exec(`INSERT INTO public.rubric_criteria (rubric_id, metric_id, name, max_points, scoring_guide, position)
+		VALUES ($1, $2, 'Explains it', 3, '0 = no; 3 = yes', 1)`, id, technicalAccuracy)
+	return id
+}
+
+// presentation gives a posting the avatar and voice a submitted posting needs.
+func (s *seed) presentation(ownerID, postingID uuid.UUID) {
+	inventory, avatar, voice := uuid.New(), uuid.New(), uuid.New()
+	s.exec(`INSERT INTO public.inventories (id, user_id, slot) VALUES ($1, $2, 3)`, inventory, ownerID)
+	s.later(`DELETE FROM public.inventories WHERE id = $1`, inventory)
+	s.exec(`INSERT INTO public.avatars (id, inventory_id, name, model_path, personality) VALUES ($1, $2, 'Ava', 'm.vrm', 'calm')`, avatar, inventory)
+	s.later(`DELETE FROM public.avatars WHERE id = $1`, avatar)
+	s.exec(`INSERT INTO public.voices (id, name, is_active) VALUES ($1, 'Voice '||$2::text, true)`, voice, s.tag)
+	s.later(`DELETE FROM public.voices WHERE id = $1`, voice)
+	s.exec(`UPDATE public.job_postings SET required_avatar_id = $2, required_voice_id = $3 WHERE id = $1`, postingID, avatar, voice)
+	s.later(`UPDATE public.job_postings SET required_avatar_id = NULL, required_voice_id = NULL WHERE id = $1`, postingID)
 }
