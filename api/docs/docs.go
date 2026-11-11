@@ -22,7 +22,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Requires {\"confirm\":\"DELETE\"} (or your email address). A Recruiter with open job postings or applications in progress is refused with ACCOUNT_HAS_ACTIVE_WORK (409, counts only); an Administrator with ADMIN_CANNOT_SELF_DELETE. Stored files are deleted first and the database rows last in one transaction, so a failed call can be repeated. Trusted Origin required; unknown fields reject the whole request.",
+                "description": "Requires {\"confirm\":\"DELETE\"} (or your email address). A Recruiter with open job postings or any applications on their postings is refused with ACCOUNT_HAS_ACTIVE_WORK (409, counts only); an Administrator with ADMIN_CANNOT_SELF_DELETE. Stored files are deleted first and the database rows last in one transaction, so a failed call can be repeated. Trusted Origin required; unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -788,6 +788,147 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/interview-guidelines": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Returns the current guideline values, the defaults, the allowed values of every field and the configured follow-up ceiling that follow_up_max can only lower. Version 0 with the defaults means nothing was saved yet. The guidelines shape how the live interviewer words and decides follow-ups for sessions that start after a save; running and completed interviews are not affected.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-interview-guidelines"
+                ],
+                "summary": "Get the Interview Behavior Guidelines",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.GuidelinesView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Trusted Origin required. Appends the next version (versions are never rewritten or deleted, and the saving Administrator is recorded). expected_version is the version the Admin loaded, 0 before the first save; any other current version is 409 GUIDELINE_VERSION_CONFLICT and nothing is written. Every field is an enum, a bounded integer or a subset of a closed catalog; there is no free text. follow_up_max is null (use the configured limit) or 0 to 3 and can only lower the configured interview.follow_up_limit. The new version applies to interviews that start after the save; running and completed interviews keep the version they started under. Unknown fields reject the whole request. Body limit 16 KiB.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-interview-guidelines"
+                ],
+                "summary": "Save the Interview Behavior Guidelines",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Guideline values and the version they replace",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SaveGuidelinesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.GuidelinesView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -3929,7 +4070,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Rejects avatars referenced by any posting or interview with AVATAR_IN_USE. Frees an inventory slot without changing capacity; does not physically purge the VRM object. Repeated deletion returns 404.",
+                "description": "Rejects avatars referenced by any posting or interview with AVATAR_IN_USE. Deletes the stored VRM model together with the row and frees an inventory slot without changing capacity. A failed object delete is retried, then refused with AVATAR_ASSET_UNAVAILABLE (503) and the avatar is kept, so deleting again is safe. Repeated deletion returns 404.",
                 "tags": [
                     "inventory"
                 ],
@@ -8591,6 +8732,7 @@ const docTemplate = `{
                 "PAYOS_ERROR",
                 "WEBHOOK_SIGNATURE_INVALID",
                 "JOB_POSTING_NOT_PENDING",
+                "GUIDELINE_VERSION_CONFLICT",
                 "QUESTION_BANK_NOT_READY",
                 "JOB_POSTING_REQUIREMENTS_LOCKED",
                 "JOB_POSTING_NOT_EDITABLE",
@@ -8682,6 +8824,7 @@ const docTemplate = `{
                 "CodePayOSError",
                 "CodeWebhookSignatureInvalid",
                 "CodeJobPostingNotPending",
+                "CodeGuidelineVersionConflict",
                 "CodeQuestionBankNotReady",
                 "CodeJobPostingRequirementsLocked",
                 "CodeJobPostingNotEditable",
@@ -8973,6 +9116,29 @@ const docTemplate = `{
                 "review_submitted": {
                     "description": "ReviewSubmitted is true once the Recruiter sent the posting to the Admin queue.",
                     "type": "boolean"
+                }
+            }
+        },
+        "domain.BehaviorGuideline": {
+            "type": "object",
+            "properties": {
+                "avoid_topics": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "follow_up_focus": {
+                    "type": "string"
+                },
+                "follow_up_max": {
+                    "type": "integer"
+                },
+                "question_length": {
+                    "type": "string"
+                },
+                "tone": {
+                    "type": "string"
                 }
             }
         },
@@ -12131,6 +12297,67 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GuidelinesAllowedView": {
+            "type": "object",
+            "properties": {
+                "avoid_topics": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "follow_up_focus": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "follow_up_max": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "question_length": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "tone": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handler.GuidelinesView": {
+            "type": "object",
+            "properties": {
+                "allowed": {
+                    "$ref": "#/definitions/handler.GuidelinesAllowedView"
+                },
+                "defaults": {
+                    "$ref": "#/definitions/domain.BehaviorGuideline"
+                },
+                "effective_follow_up_ceiling": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by_name": {
+                    "type": "string"
+                },
+                "values": {
+                    "$ref": "#/definitions/domain.BehaviorGuideline"
+                },
+                "version": {
+                    "type": "integer"
+                }
+            }
+        },
         "handler.PayOSWebhookAck": {
             "type": "object",
             "properties": {
@@ -12214,6 +12441,17 @@ const docTemplate = `{
             "properties": {
                 "role": {
                     "type": "string"
+                }
+            }
+        },
+        "handler.SaveGuidelinesRequest": {
+            "type": "object",
+            "properties": {
+                "expected_version": {
+                    "type": "integer"
+                },
+                "values": {
+                    "$ref": "#/definitions/domain.BehaviorGuideline"
                 }
             }
         },

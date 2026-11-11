@@ -226,10 +226,19 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	interviewLiveHandler := provider.ProvideInterviewLiveHandler(service13, engine, config, authService)
-	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler, interviewLiveHandler)
-	repository15 := provider.ProvideAccountRepository(pool)
-	service14 := provider.ProvideAccountService(repository15, store)
-	handler := provider.ProvideAccountHandler(service14)
+	repository15 := provider.ProvideAdminGuidelinesRepository(pool)
+	service14, err := provider.ProvideAdminGuidelinesService(repository15, config)
+	if err != nil {
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	adminGuidelinesHandler := provider.ProvideAdminGuidelinesHandler(service14)
+	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler, interviewLiveHandler, adminGuidelinesHandler)
+	repository16 := provider.ProvideAccountRepository(pool)
+	service15 := provider.ProvideAccountService(repository16, store)
+	handler := provider.ProvideAccountHandler(service15)
 	ginEngine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers, guard, handler)
 	server := provider.ProvideHTTPServer(config, ginEngine, logger)
 	tracer, cleanup4, err := provider.ProvideTracer(config, logger)

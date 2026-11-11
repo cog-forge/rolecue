@@ -66,6 +66,7 @@ func ProvideInterviewHandlers(
 	report *handler.InterviewReportHandler,
 	recording *handler.InterviewRecordingHandler,
 	live *handler.InterviewLiveHandler,
+	guidelines *handler.AdminGuidelinesHandler,
 ) *handler.InterviewHandlers {
-	return handler.NewInterviewHandlers(sessions, history, report, recording, live)
+	return handler.NewInterviewHandlers(sessions, history, report, recording, live, guidelines)
 }
