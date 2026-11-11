@@ -1,6 +1,6 @@
 module github.com/cog-forge/rolecue/api
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/Microsoft/cognitive-services-speech-sdk-go v1.53.0
