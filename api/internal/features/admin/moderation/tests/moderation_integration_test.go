@@ -101,7 +101,7 @@ func (s *seed) submittedPosting(recruiterID uuid.UUID, contentPath, rawText *str
 	s.exec(`INSERT INTO public.job_descriptions (id, content_path, raw_text, level_id) VALUES ($1, $2, $3, $4)`,
 		jdID, contentPath, rawText, levelID)
 	s.later(`DELETE FROM public.job_descriptions WHERE id = $1`, jdID)
-	s.exec(`INSERT INTO public.core_questions (jd_id, content) VALUES ($1, 'question')`, jdID)
+	s.exec(`INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer) VALUES ($1, 'question', $2, 'Key points of a strong answer.')`, jdID, s.rubric(recruiterID))
 	s.later(`DELETE FROM public.core_questions WHERE jd_id = $1`, jdID)
 	s.exec(`INSERT INTO public.job_postings (id, status, jd_id, recruiter_id, title, review_submitted)
 		VALUES ($1, 'pending', $2, $3, 'moderation posting', true)`, id, jdID, recruiterID)
@@ -261,4 +261,15 @@ func TestModerationNoticeAfterCommit(t *testing.T) {
 			}
 		})
 	}
+}
+
+// rubric seeds a rubric owned by ownerID with one criterion. Tests use their own rubric, never the seeded
+// system templates, which other packages' tests archive and restore while they run in parallel.
+func (s *seed) rubric(ownerID uuid.UUID) uuid.UUID {
+	s.t.Helper()
+	id := uuid.New()
+	s.exec(`INSERT INTO public.rubrics (id, name, description, question_type, scope, owner_id) VALUES ($1, 'test rubric', 'd', 'concept_explanation', 'recruiter', $2)`, id, ownerID)
+	s.later(`DELETE FROM public.rubrics WHERE id = $1`, id)
+	s.exec(`INSERT INTO public.rubric_criteria (rubric_id, metric_id, name, max_points, scoring_guide, position) VALUES ($1, '00000000-0000-4000-8000-000000000101', 'c', 3, '0 = no; 3 = yes', 1)`, id)
+	return id
 }

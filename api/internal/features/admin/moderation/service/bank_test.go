@@ -77,3 +77,19 @@ func TestDecisionRequiresSubmission(t *testing.T) {
 		})
 	}
 }
+
+// Approval needs every question graded (KAN-331); rejecting does not.
+func TestApproveNeedsCompleteGrading(t *testing.T) {
+	repo := postingIn(domain.PostingStatusPending)
+	repo.posting.CoreQuestionCount = 3
+	repo.posting.GradingIncompleteCount = 1
+	s, logs := newObservedService(t, repo)
+	_, err := s.Approve(context.Background(), uuid.New(), "admin", repo.posting.ID)
+	assertCode(t, err, apperror.CodeGradingConfigIncomplete)
+	if repo.posting.Status != domain.PostingStatusPending || logs.Len() != 0 {
+		t.Fatal("a posting with incomplete grading was approved or audited")
+	}
+	if _, err := newService(t, repo).Reject(context.Background(), uuid.New(), "admin", repo.posting.ID, "needs work"); err != nil {
+		t.Fatalf("rejecting must not depend on grading: %v", err)
+	}
+}

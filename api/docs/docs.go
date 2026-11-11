@@ -1240,7 +1240,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Read-only: the Admin cannot edit posting content, the 3D interviewer or the voice. content_path is the URL of the JD content the Admin reviews; core_question_count shows whether the posting can be approved (it needs at least one).",
+                "description": "Admin only. Read-only: the Admin cannot edit posting content, the 3D interviewer or the voice. content_path is the URL of the JD content the Admin reviews; core_question_count and grading_incomplete_count show whether the posting can be approved (it needs at least one).",
                 "consumes": [
                     "application/json"
                 ],
@@ -1326,7 +1326,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Admin only. Trusted Origin required. Moves pending to open. The posting reaches Candidates on the job board only once its Recruiter funds interview slots. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.",
+                "description": "Admin only. Trusted Origin required. Moves pending to open. The posting reaches Candidates on the job board only once its Recruiter funds interview slots. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), every question needs an active rubric of the Recruiter and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE; grading_incomplete_count in the review shows how many), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.",
                 "consumes": [
                     "application/json"
                 ],
@@ -6346,7 +6346,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (while a confirmed bank is pending or rejected) and the server limits.",
+                "description": "Recruiter only. Candidates never receive the bank. Each question carries its rubric_id, expected_answer (both null until set) and grading_incomplete, which is true until the question has both. Also returns whether the bank can still change (while a confirmed bank is pending or rejected) and the server limits.",
                 "produces": [
                     "application/json"
                 ],
@@ -6474,7 +6474,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/domain.CoreQuestion"
+                                            "$ref": "#/definitions/domain.BankQuestion"
                                         }
                                     }
                                 }
@@ -6533,7 +6533,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. Generating never submits the posting for review. Trusted Origin required.",
+                "description": "Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. One generation call also picks, for each question, an allowed rubric (an active system template or one of your own active rubrics) and writes its expected answer; a question without a suitable rubric is saved with rubric_id null and grading_incomplete true. Generating never submits the posting for review. Trusted Origin required.",
                 "produces": [
                     "application/json"
                 ],
@@ -6771,7 +6771,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/domain.CoreQuestion"
+                                            "$ref": "#/definitions/domain.BankQuestion"
                                         }
                                     }
                                 }
@@ -6830,7 +6830,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Moves a rejected posting back to pending review and clears the rejection reason. Needs a non-empty question bank. Repeating it once the posting is pending review changes nothing; open or closed postings return 409. Trusted Origin required.",
+                "description": "Recruiter only. Moves a rejected posting back to pending review and clears the rejection reason. Needs a non-empty question bank whose questions all have an active rubric and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE otherwise). Repeating it once the posting is pending review changes nothing; open or closed postings return 409. Trusted Origin required.",
                 "produces": [
                     "application/json"
                 ],
@@ -6926,7 +6926,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Recruiter only. Puts a pending posting in the Admin review queue. Needs a non-empty question bank; generating the bank never submits on its own. Repeating it changes nothing; a rejected posting uses resubmit. Trusted Origin required.",
+                "description": "Recruiter only. Puts a pending posting in the Admin review queue. Needs a non-empty question bank in which every question has an active rubric you may use and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE otherwise; GET /job-postings/{id}/questions lists what is missing). Generating the bank never submits on its own, and changing a question afterwards withdraws the submission. Repeating it changes nothing; a rejected posting uses resubmit. Trusted Origin required.",
                 "produces": [
                     "application/json"
                 ],
@@ -9220,6 +9220,7 @@ const docTemplate = `{
                 "JOB_POSTING_NOT_PENDING",
                 "GUIDELINE_VERSION_CONFLICT",
                 "QUESTION_BANK_NOT_READY",
+                "GRADING_CONFIG_INCOMPLETE",
                 "JOB_POSTING_REQUIREMENTS_LOCKED",
                 "JOB_POSTING_NOT_EDITABLE",
                 "JOB_POSTING_TEXT_LOCKED",
@@ -9316,6 +9317,7 @@ const docTemplate = `{
                 "CodeJobPostingNotPending",
                 "CodeGuidelineVersionConflict",
                 "CodeQuestionBankNotReady",
+                "CodeGradingConfigIncomplete",
                 "CodeJobPostingRequirementsLocked",
                 "CodeJobPostingNotEditable",
                 "CodeJobPostingTextLocked",
@@ -9595,6 +9597,13 @@ const docTemplate = `{
                     "description": "GenerationSize is how many questions Generate writes; 0 means generation is not configured.",
                     "type": "integer"
                 },
+                "grading_incomplete_count": {
+                    "type": "integer"
+                },
+                "grading_ready": {
+                    "description": "GradingReady is true when the bank is not empty and every question is complete; only then can the posting\nbe submitted. GradingIncompleteCount is how many questions are not.",
+                    "type": "boolean"
+                },
                 "max_question_length": {
                     "type": "integer"
                 },
@@ -9604,12 +9613,40 @@ const docTemplate = `{
                 "questions": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.CoreQuestion"
+                        "$ref": "#/definitions/domain.BankQuestion"
                     }
                 },
                 "review_submitted": {
-                    "description": "ReviewSubmitted is true once the Recruiter sent the posting to the Admin queue.",
+                    "description": "ReviewSubmitted is true once the Recruiter sent the posting to the Admin queue. Changing a question after\nthat withdraws the submission, so the Recruiter submits again (KAN-331).",
                     "type": "boolean"
+                }
+            }
+        },
+        "domain.BankQuestion": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "expected_answer": {
+                    "type": "string"
+                },
+                "grading_incomplete": {
+                    "type": "boolean"
+                },
+                "grading_issues": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "rubric_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -10040,17 +10077,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "voice_name": {
-                    "type": "string"
-                }
-            }
-        },
-        "domain.CoreQuestion": {
-            "type": "object",
-            "properties": {
-                "content": {
-                    "type": "string"
-                },
-                "id": {
                     "type": "string"
                 }
             }
@@ -11804,6 +11830,10 @@ const docTemplate = `{
                 "evaluation": {
                     "$ref": "#/definitions/domain.PostingWeights"
                 },
+                "grading_incomplete_count": {
+                    "description": "GradingIncompleteCount is how many questions lack an active rubric or a valid expected answer; the\nposting cannot be approved while it is above zero (KAN-331). Counts only: the Admin does not see\nexpected answers here.",
+                    "type": "integer"
+                },
                 "id": {
                     "type": "string"
                 },
@@ -12959,7 +12989,7 @@ const docTemplate = `{
                 "questions": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/domain.CoreQuestion"
+                        "$ref": "#/definitions/domain.BankQuestion"
                     }
                 }
             }
