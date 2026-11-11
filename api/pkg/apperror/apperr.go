@@ -85,6 +85,13 @@ const (
 	CodeEvaluationWeightTotalMismatch Code = "EVALUATION_WEIGHT_TOTAL_MISMATCH"
 	CodeEvaluationWeightsLocked       Code = "EVALUATION_WEIGHTS_LOCKED"
 
+	// Scoring rubric (Barem) management codes (KAN-326). A rubric the caller may not see is reported as not
+	// found, exactly like a missing one, so a guessed UUID reveals nothing.
+	CodeRubricNotFound Code = "RUBRIC_NOT_FOUND"
+	CodeRubricLocked   Code = "RUBRIC_LOCKED"
+	CodeRubricInUse    Code = "RUBRIC_IN_USE"
+	CodeRubricStale    Code = "RUBRIC_STALE"
+
 	// Application screening codes.
 	CodeApplicationNotFound        Code = "APPLICATION_NOT_FOUND"
 	CodeApplicationNotPending      Code = "APPLICATION_NOT_PENDING"

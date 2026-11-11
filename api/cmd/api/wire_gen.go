@@ -239,7 +239,15 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	repository16 := provider.ProvideAccountRepository(pool)
 	service15 := provider.ProvideAccountService(repository16, store)
 	handler := provider.ProvideAccountHandler(service15)
-	ginEngine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers, guard, handler)
+	rubrics, err := provider.ProvideRubricService(repository5)
+	if err != nil {
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	rubricHandler := provider.ProvideRubricHandler(rubrics)
+	ginEngine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers, guard, handler, rubricHandler)
 	server := provider.ProvideHTTPServer(config, ginEngine, logger)
 	tracer, cleanup4, err := provider.ProvideTracer(config, logger)
 	if err != nil {

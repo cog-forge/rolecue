@@ -67,6 +67,10 @@ definitions:
     - EVALUATION_WEIGHT_INVALID
     - EVALUATION_WEIGHT_TOTAL_MISMATCH
     - EVALUATION_WEIGHTS_LOCKED
+    - RUBRIC_NOT_FOUND
+    - RUBRIC_LOCKED
+    - RUBRIC_IN_USE
+    - RUBRIC_STALE
     - APPLICATION_NOT_FOUND
     - APPLICATION_NOT_PENDING
     - APPLICATION_NOT_ELIGIBLE
@@ -159,6 +163,10 @@ definitions:
     - CodeEvaluationWeightInvalid
     - CodeEvaluationWeightTotalMismatch
     - CodeEvaluationWeightsLocked
+    - CodeRubricNotFound
+    - CodeRubricLocked
+    - CodeRubricInUse
+    - CodeRubricStale
     - CodeApplicationNotFound
     - CodeApplicationNotPending
     - CodeApplicationNotEligible
@@ -1969,6 +1977,70 @@ definitions:
       type:
         $ref: '#/definitions/github_com_cog-forge_rolecue_api_internal_features_roleprofile_domain.Requirement'
     type: object
+  domain.Rubric:
+    properties:
+      can_manage:
+        type: boolean
+      created_at:
+        type: string
+      criteria:
+        items:
+          $ref: '#/definitions/domain.RubricCriterion'
+        type: array
+      criteria_count:
+        type: integer
+      description:
+        type: string
+      id:
+        format: uuid
+        type: string
+      is_active:
+        type: boolean
+      is_own:
+        description: |-
+          IsOwn is true for the caller's private rubrics. CanManage tells whether the caller may change,
+          archive, delete this rubric at all (an Admin for system rubrics, the owner for private ones).
+        type: boolean
+      locked:
+        description: |-
+          Locked and ReferenceCount are shown to whoever can manage the rubric: how many questions use it and
+          whether that freezes its content. ReferenceCount is omitted for rubrics the caller cannot manage.
+        type: boolean
+      max_points:
+        type: integer
+      name:
+        type: string
+      question_type:
+        type: string
+      reference_count:
+        type: integer
+      scope:
+        enum:
+        - system
+        - recruiter
+        type: string
+      updated_at:
+        type: string
+    type: object
+  domain.RubricCriterion:
+    properties:
+      id:
+        format: uuid
+        type: string
+      max_points:
+        type: integer
+      metric_id:
+        format: uuid
+        type: string
+      metric_name:
+        type: string
+      name:
+        type: string
+      position:
+        type: integer
+      scoring_guide:
+        type: string
+    type: object
   domain.SaveRoleProfile:
     properties:
       refinementNote:
@@ -2659,6 +2731,57 @@ definitions:
     required:
     - role
     type: object
+  handler.RubricCopyRequest:
+    properties:
+      name:
+        type: string
+    type: object
+  handler.RubricCreateRequest:
+    properties:
+      criteria:
+        items:
+          $ref: '#/definitions/handler.RubricCriterionRequest'
+        type: array
+      description:
+        type: string
+      name:
+        type: string
+      question_type:
+        type: string
+    type: object
+  handler.RubricCriterionRequest:
+    properties:
+      id:
+        format: uuid
+        type: string
+      max_points:
+        type: integer
+      metric_id:
+        format: uuid
+        type: string
+      name:
+        type: string
+      scoring_guide:
+        type: string
+    type: object
+  handler.RubricUpdateRequest:
+    properties:
+      criteria:
+        items:
+          $ref: '#/definitions/handler.RubricCriterionRequest'
+        type: array
+      description:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      question_type:
+        type: string
+      updated_at:
+        format: date-time
+        type: string
+    type: object
   handler.SaveGuidelinesRequest:
     properties:
       expected_version:
@@ -2733,6 +2856,15 @@ definitions:
       items:
         items:
           $ref: '#/definitions/domain.PostingSummary'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
+  response.Page-domain_Rubric:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/domain.Rubric'
         type: array
       pagination:
         $ref: '#/definitions/response.Pagination'
@@ -8214,6 +8346,331 @@ paths:
       summary: Verify a PDF upload and create its Role Profile draft
       tags:
       - role-profiles
+  /rubrics:
+    get:
+      description: 'Admin: the system rubrics, any status. Recruiter: the active system
+        rubrics and their own (private) ones. Candidates get 403. The list leaves
+        out criteria (see criteria_count and max_points); open one rubric for them.
+        locked and reference_count are shown only for rubrics the caller can manage.'
+      parameters:
+      - description: system or own
+        enum:
+        - system
+        - own
+        in: query
+        name: scope
+        type: string
+      - description: Question type slug, for example concept_explanation
+        in: query
+        name: question_type
+        type: string
+      - description: Default active
+        enum:
+        - active
+        - archived
+        - all
+        in: query
+        name: status
+        type: string
+      - default: 20
+        description: Page size (1-100)
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Items to skip
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-domain_Rubric'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List scoring rubrics
+      tags:
+      - rubrics
+    post:
+      consumes:
+      - application/json
+      description: 'A Recruiter creates a private rubric, an Admin a system rubric;
+        the scope is not part of the request. At least 1 and at most 10 criteria,
+        each on one metric of the catalog (GET /evaluation-metrics) with max_points
+        1-10 and a scoring_guide that describes every whole score from 0 to max_points.
+        Errors: VALIDATION_ERROR, EVALUATION_METRIC_UNKNOWN.'
+      parameters:
+      - description: The rubric
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RubricCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Rubric'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Create a scoring rubric
+      tags:
+      - rubrics
+  /rubrics/{id}:
+    delete:
+      description: 'Hard-deletes a rubric the caller manages, with its criteria. A
+        rubric that questions still use is 409 RUBRIC_IN_USE: archive it instead (PATCH
+        is_active false).'
+      parameters:
+      - description: Rubric ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Delete a scoring rubric
+      tags:
+      - rubrics
+    get:
+      description: A rubric the caller may not see (another Recruiter's private rubric,
+        an archived system rubric for a Recruiter, an Admin asking for a private one)
+        is RUBRIC_NOT_FOUND, exactly like an unknown id. updated_at is the token to
+        send back when changing the rubric.
+      parameters:
+      - description: Rubric ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Rubric'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get a scoring rubric with its criteria
+      tags:
+      - rubrics
+    patch:
+      consumes:
+      - application/json
+      description: 'Admin for system rubrics, the owner for private ones; anyone else
+        gets 403 (system rubric read by a Recruiter) or 404 (not visible). Send updated_at
+        exactly as read: if the rubric changed since, the answer is 409 RUBRIC_STALE
+        and nothing is written, so reload and retry. criteria, when present, is the
+        whole new set in order: criteria with an id keep their row, ids left out are
+        removed, entries without an id are added. is_active false archives (no new
+        assignments; existing references stay), true restores. Content changes are
+        refused with 409 RUBRIC_LOCKED while questions use the rubric (copy it instead);
+        archiving is always allowed.'
+      parameters:
+      - description: Rubric ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The fields to change
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RubricUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Rubric'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Change or archive a scoring rubric
+      tags:
+      - rubrics
+  /rubrics/{id}/copies:
+    post:
+      consumes:
+      - application/json
+      description: 'Creates a new, independent rubric (own criteria rows) from a rubric
+        the caller may read: a Recruiter''s copy is private, an Admin''s copy is a
+        system rubric. Changing the copy never changes the source. The body is optional;
+        name defaults to "Copy of <source name>".'
+      parameters:
+      - description: Source rubric ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Optional name of the copy
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/handler.RubricCopyRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Rubric'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Copy a scoring rubric
+      tags:
+      - rubrics
   /voices:
     get:
       description: Candidates and Recruiters. Only active voices, sorted by name,

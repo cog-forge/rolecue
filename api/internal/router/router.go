@@ -35,6 +35,7 @@ type Router struct {
 	voiceHandler           *handler.VoiceHandler
 	jobBoardHandler        *handler.JobBoardHandler
 	evaluationHandler      *handler.EvaluationHandler
+	rubricHandler          *handler.RubricHandler
 	applicationHandler     *handler.ApplicationHandler
 	adminInterviewsHandler *handler.AdminInterviewsHandler
 	adminOverviewHandler   *handler.AdminOverviewHandler
@@ -46,6 +47,12 @@ type Router struct {
 }
 
 // WithAccountHandler enables DELETE /account and GET /account/export (KAN-280, KAN-282).
+// WithRubricHandler adds the scoring rubric routes (KAN-326). Without it they are not registered.
+func (r *Router) WithRubricHandler(h *handler.RubricHandler) *Router {
+	r.rubricHandler = h
+	return r
+}
+
 func (r *Router) WithAccountHandler(h *accounthandler.Handler) *Router {
 	r.accountHandler = h
 	return r
@@ -220,6 +227,18 @@ func (r *Router) Setup() *gin.Engine {
 	// Candidate's own list.
 	recruiter := router.Group("/recruiter", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("recruiter"))
 	recruiter.GET("/applications", r.applicationHandler.ListOwn)
+
+	// Scoring rubrics (KAN-326). Admins manage the system rubrics and Recruiters their own; the service applies
+	// the ownership rules, this group only keeps Candidates out.
+	if r.rubricHandler != nil {
+		rubrics := router.Group("/rubrics", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("admin", "recruiter"))
+		rubrics.GET("", r.rubricHandler.List)
+		rubrics.POST("", r.rubricHandler.Create)
+		rubrics.GET("/:id", r.rubricHandler.Get)
+		rubrics.PATCH("/:id", r.rubricHandler.Update)
+		rubrics.DELETE("/:id", r.rubricHandler.Delete)
+		rubrics.POST("/:id/copies", r.rubricHandler.Copy)
+	}
 
 	router.GET("/evaluation-metrics", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), r.evaluationHandler.Metrics)
 
