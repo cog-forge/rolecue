@@ -53,6 +53,9 @@ type FollowUpContext struct {
 	// Exchanges is the core question's answer, then each earlier follow-up and its answer, in order.
 	Exchanges    []Exchange
 	Requirements []Requirement
+	// Guideline is the Interview Behavior Guideline the session started under (KAN-276); the defaults when
+	// the session has none. The decider words and decides the follow-up within it.
+	Guideline BehaviorGuideline
 }
 
 // Exchange is one question the interviewer asked and the Candidate's answer.

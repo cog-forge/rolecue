@@ -229,6 +229,46 @@ func TestValidateProposal(t *testing.T) {
 	}
 }
 
+// A concise guideline lowers the follow-up cap to 150 characters in code, so the effect holds even when the
+// model ignores the prompt; the standard cap stays 300 and a guideline never raises it.
+func TestValidateProposalHonoursTheGuidelineQuestionLength(t *testing.T) {
+	// 200 characters of one-line English ending with its only question mark.
+	question := strings.TrimSpace(strings.Repeat("why ", 49)) + " because?"
+	if n := len([]rune(question)); n < 160 || n > 250 {
+		t.Fatalf("fixture is %d characters, want between the two caps", n)
+	}
+	cases := []struct {
+		name   string
+		length string
+		valid  bool
+	}{
+		{"no guideline", "", true},
+		{"standard", domain.LengthStandard, true},
+		{"concise", domain.LengthConcise, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := pendingSlot()
+			in.Guideline.QuestionLength = tc.length
+			proposal := domain.FollowUpProposal{FollowUp: true, Question: question, Reason: "r"}
+			err := validateProposal(&proposal, in)
+			if tc.valid != (err == nil) {
+				t.Fatalf("valid = %v, err = %v", tc.valid, err)
+			}
+			if err != nil && !errors.Is(err, ErrInvalidFollowUp) {
+				t.Fatalf("error %v is not an invalid proposal", err)
+			}
+		})
+	}
+	// A reply of 150 characters or fewer stays valid under concise.
+	in := pendingSlot()
+	in.Guideline.QuestionLength = domain.LengthConcise
+	short := domain.FollowUpProposal{FollowUp: true, Question: "What happens under bursty traffic?", Reason: "r"}
+	if err := validateProposal(&short, in); err != nil {
+		t.Fatalf("a short question must stay valid under concise: %v", err)
+	}
+}
+
 // Cues never decide a proposal's validity: a usable list is kept, anything else is dropped as a whole so
 // the live engine falls back to its rules, and a declined proposal keeps none.
 func TestValidateProposalKeepsOnlyAPerformableCueList(t *testing.T) {
