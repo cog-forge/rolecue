@@ -110,6 +110,19 @@ WHERE jd.id = @id;
 -- name: CountCoreQuestions :one
 SELECT count(*) FROM public.core_questions WHERE jd_id = @jd_id;
 
+-- The readiness rule (KAN-331): every question needs a rubric that is active and permitted for the posting's
+-- owner, and an expected answer that is not blank and within the bounds. Keep identical to
+-- questionbank/repository/query/questionbank.sql and the moderation copy.
+-- name: CountIncompleteGrading :one
+SELECT count(*)::int
+FROM public.core_questions cq
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE cq.jd_id = @jd_id
+  AND NOT (r.id IS NOT NULL AND r.is_active AND (r.scope = 'system' OR r.owner_id = @recruiter_id::uuid)
+           AND cq.expected_answer IS NOT NULL AND cq.expected_answer ~ '\S'
+           AND char_length(cq.expected_answer) <= @max_runes::int
+           AND cardinality(regexp_split_to_array(btrim(cq.expected_answer), '\s+')) <= @max_words::int);
+
 -- A rejected posting never opened, so no interview references its questions.
 -- name: DeleteCoreQuestions :exec
 DELETE FROM public.core_questions WHERE jd_id = @jd_id;

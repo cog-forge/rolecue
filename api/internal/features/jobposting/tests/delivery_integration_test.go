@@ -27,12 +27,17 @@ func (g deliveryGenerator) Generate(ctx context.Context, input bankdomain.Genera
 	return g(ctx, input, count)
 }
 
-func generatedQuestions(count int) bankdomain.GenerationCandidate {
-	questions := make([]string, count)
-	for i := range questions {
-		questions[i] = fmt.Sprintf("Explain technical topic %d.", i)
+func generatedQuestions(in bankdomain.GenerationInput, count int) bankdomain.GenerationCandidate {
+	// Every question carries the last rubric of the catalog (the Recruiter's own, listed after the system
+	// templates) and an expected answer, so the posting is ready to submit.
+	rubric := in.Rubrics[len(in.Rubrics)-1].ID
+	answer := "Key points of a strong answer."
+	candidate := bankdomain.GenerationCandidate{Questions: make([]bankdomain.GeneratedQuestion, 0, count)}
+	for i := 0; i < count; i++ {
+		candidate.Questions = append(candidate.Questions, bankdomain.GeneratedQuestion{
+			Content: fmt.Sprintf("Explain technical topic %d.", i), RubricID: &rubric, ExpectedAnswer: &answer})
 	}
-	return bankdomain.GenerationCandidate{Questions: questions}
+	return candidate
 }
 
 func deliveryService(t *testing.T, f fixture, size int, generator deliveryGenerator) *bankservice.Service {
@@ -44,8 +49,8 @@ func deliveryService(t *testing.T, f fixture, size int, generator deliveryGenera
 	return svc
 }
 
-func alwaysGenerate(_ context.Context, _ bankdomain.GenerationInput, count int) (bankdomain.GenerationCandidate, error) {
-	return generatedQuestions(count), nil
+func alwaysGenerate(_ context.Context, in bankdomain.GenerationInput, count int) (bankdomain.GenerationCandidate, error) {
+	return generatedQuestions(in, count), nil
 }
 
 // A new posting is prepared first: generating its bank does not submit it, and only a submitted
@@ -86,6 +91,13 @@ func TestDeliveryGenerateReviewThenSubmit(t *testing.T) {
 	if err := moderation.Decide(ctx, id, moderationdomain.PostingStatusOpen, nil); !errors.Is(err, moderationdomain.ErrNotPending) {
 		t.Fatalf("unsubmitted posting was decided: %v", err)
 	}
+	// A hand-added question has no rubric or expected answer yet, so the posting cannot be submitted until
+	// its grading is set (KAN-331). The RB-06 screens do that; here the row is completed directly.
+	if err := f.repo.Submit(ctx, f.recruiter, id); codeOf(err) != apperror.CodeGradingConfigIncomplete {
+		t.Fatalf("submit with an ungraded question: %v", err)
+	}
+	f.seed.exec(`UPDATE public.core_questions SET rubric_id = $2, expected_answer = 'Key points.'
+		WHERE content = 'What is a goroutine leak?' AND jd_id = (SELECT jd_id FROM public.job_postings WHERE id = $1)`, id, f.rubric)
 	for i := 0; i < 2; i++ {
 		if err := f.repo.Submit(ctx, f.recruiter, id); err != nil {
 			t.Fatalf("submission %d: %v", i, err)

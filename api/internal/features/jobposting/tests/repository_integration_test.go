@@ -143,6 +143,8 @@ type fixture struct {
 	recruiter uuid.UUID
 	avatar    uuid.UUID
 	voice     uuid.UUID
+	// rubric is the Recruiter's own rubric, used by questions that must be gradable.
+	rubric uuid.UUID
 }
 
 func newFixture(t *testing.T) (context.Context, fixture) {
@@ -150,7 +152,7 @@ func newFixture(t *testing.T) (context.Context, fixture) {
 	s := newSeed(t, ctx, pool)
 	s.levels()
 	recruiter := s.user("recruiter")
-	return ctx, fixture{repo: repository.NewRepository(pool), seed: s, recruiter: recruiter, avatar: s.avatar(recruiter), voice: s.voice(true)}
+	return ctx, fixture{repo: repository.NewRepository(pool), seed: s, recruiter: recruiter, avatar: s.avatar(recruiter), voice: s.voice(true), rubric: s.rubric(recruiter)}
 }
 
 // grant records a fresh upload key for owner, as the document upload endpoint does. Grants are
@@ -339,7 +341,7 @@ func TestUpdateGuards(t *testing.T) {
 	})
 	t.Run("requirements locked by question bank", func(t *testing.T) {
 		id := f.create(t, ctx, "Locked")
-		f.seed.exec(`INSERT INTO public.core_questions (jd_id, content) SELECT jd_id, 'Explain goroutines.' FROM public.job_postings WHERE id = $1`, id)
+		f.seed.exec(`INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer) SELECT jd_id, 'Explain goroutines.', $2, 'Key points of a strong answer.' FROM public.job_postings WHERE id = $1`, id, f.rubric)
 		err := f.repo.Update(ctx, f.recruiter, id, domain.Edit{SeniorityLevel: domain.StringChange{Present: true, Value: ptr("junior")}}, nil)
 		if !errors.Is(err, domain.ErrRequirementsLocked) {
 			t.Fatalf("seniority edit: %v", err)
@@ -520,7 +522,7 @@ func TestRejectedPostingCorrectionAndResubmit(t *testing.T) {
 	id := f.create(t, ctx, "Rejected")
 	f.seed.exec(`UPDATE public.job_postings SET status = 'rejected', reject_reason = 'Too vague' WHERE id = $1`, id)
 	question := func() {
-		f.seed.exec(`INSERT INTO public.core_questions (jd_id, content) SELECT jd_id, 'Explain goroutines.' FROM public.job_postings WHERE id = $1`, id)
+		f.seed.exec(`INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer) SELECT jd_id, 'Explain goroutines.', $2, 'Key points of a strong answer.' FROM public.job_postings WHERE id = $1`, id, f.rubric)
 	}
 	get := func() domain.Record {
 		got, err := f.repo.Get(ctx, f.recruiter, id)
@@ -595,4 +597,15 @@ func TestResubmitOnlyFromRejected(t *testing.T) {
 	if err := f.repo.Resubmit(ctx, f.recruiter, uuid.New()); codeOf(err) != apperror.CodeJobPostingNotFound {
 		t.Fatalf("missing posting: %v", err)
 	}
+}
+
+// rubric seeds a rubric owned by ownerID with one criterion. Tests use their own rubric, never the seeded
+// system templates, which other packages' tests archive and restore while they run in parallel.
+func (s *seed) rubric(ownerID uuid.UUID) uuid.UUID {
+	s.t.Helper()
+	id := uuid.New()
+	s.exec(`INSERT INTO public.rubrics (id, name, description, question_type, scope, owner_id) VALUES ($1, 'test rubric', 'd', 'concept_explanation', 'recruiter', $2)`, id, ownerID)
+	s.later(`DELETE FROM public.rubrics WHERE id = $1`, id)
+	s.exec(`INSERT INTO public.rubric_criteria (rubric_id, metric_id, name, max_points, scoring_guide, position) VALUES ($1, '00000000-0000-4000-8000-000000000101', 'c', 3, '0 = no; 3 = yes', 1)`, id)
+	return id
 }

@@ -37,6 +37,39 @@ func (q *Queries) CountCoreQuestions(ctx context.Context, jdID uuid.UUID) (int64
 	return count, err
 }
 
+const countIncompleteGrading = `-- name: CountIncompleteGrading :one
+SELECT count(*)::int
+FROM public.core_questions cq
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE cq.jd_id = $1
+  AND NOT (r.id IS NOT NULL AND r.is_active AND (r.scope = 'system' OR r.owner_id = $2::uuid)
+           AND cq.expected_answer IS NOT NULL AND cq.expected_answer ~ '\S'
+           AND char_length(cq.expected_answer) <= $3::int
+           AND cardinality(regexp_split_to_array(btrim(cq.expected_answer), '\s+')) <= $4::int)
+`
+
+type CountIncompleteGradingParams struct {
+	JdID        uuid.UUID
+	RecruiterID uuid.UUID
+	MaxRunes    int32
+	MaxWords    int32
+}
+
+// The readiness rule (KAN-331): every question needs a rubric that is active and permitted for the posting's
+// owner, and an expected answer that is not blank and within the bounds. Keep identical to
+// questionbank/repository/query/questionbank.sql and the moderation copy.
+func (q *Queries) CountIncompleteGrading(ctx context.Context, arg CountIncompleteGradingParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countIncompleteGrading,
+		arg.JdID,
+		arg.RecruiterID,
+		arg.MaxRunes,
+		arg.MaxWords,
+	)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countOwnedPostings = `-- name: CountOwnedPostings :one
 SELECT count(*)
 FROM public.job_postings jp

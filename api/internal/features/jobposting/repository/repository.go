@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	qbdomain "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 
 	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/uploadgrant"
@@ -236,6 +237,14 @@ func (r *Repository) submit(ctx context.Context, recruiterID, id uuid.UUID, from
 		}
 		if count == 0 {
 			return domain.ErrBankNotReady
+		}
+		incomplete, err := q.CountIncompleteGrading(ctx, CountIncompleteGradingParams{
+			JdID: current.JdID, RecruiterID: recruiterID, MaxRunes: qbdomain.MaxExpectedAnswerRunes, MaxWords: qbdomain.MaxExpectedAnswerWords})
+		if err != nil {
+			return err
+		}
+		if incomplete > 0 {
+			return domain.ErrGradingIncomplete
 		}
 		if _, _, err := checkReferences(ctx, q, recruiterID, &current.RequiredAvatarID, &current.RequiredVoiceID); err != nil {
 			return err
