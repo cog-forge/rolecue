@@ -17,3 +17,10 @@ func ProvideEvaluationService(cfg *config.Config, repo *repository.Repository) (
 func ProvideEvaluationHandler(svc *service.Service) *handler.EvaluationHandler {
 	return handler.NewEvaluationHandler(svc)
 }
+
+func ProvideRubricService(repo *repository.Repository) (*service.Rubrics, error) {
+	return service.NewRubrics(repo)
+}
+func ProvideRubricHandler(svc *service.Rubrics) *handler.RubricHandler {
+	return handler.NewRubricHandler(svc)
+}

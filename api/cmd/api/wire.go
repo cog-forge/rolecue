@@ -99,6 +99,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideEvaluationRepository,
 		provider.ProvideEvaluationService,
 		provider.ProvideEvaluationHandler,
+		provider.ProvideRubricService,
+		provider.ProvideRubricHandler,
 		provider.ProvideApplicationRepository,
 		provider.ProvideApplicationService,
 		provider.ProvideApplicationHandler,
