@@ -59,9 +59,16 @@ func (f *fakeRepository) Decide(_ context.Context, _ uuid.UUID, status domain.Po
 	if f.posting == nil || f.posting.Status != domain.PostingStatusPending {
 		return domain.ErrNotPending
 	}
-	// Mirrors DecidePosting: only a submitted posting is decided, and approval needs a ready bank.
-	if !f.posting.ReviewSubmitted || (status == domain.PostingStatusOpen && f.posting.CoreQuestionCount == 0) {
+	// Mirrors the repository: only a submitted posting is decided, and approval needs a ready bank whose
+	// questions are all graded.
+	if !f.posting.ReviewSubmitted {
 		return domain.ErrNotPending
+	}
+	if status == domain.PostingStatusOpen && f.posting.CoreQuestionCount == 0 {
+		return domain.ErrQuestionBankNotReady
+	}
+	if status == domain.PostingStatusOpen && f.posting.GradingIncompleteCount > 0 {
+		return domain.ErrGradingIncomplete
 	}
 	f.decidedStatus, f.decidedReason = status, reason
 	f.posting.Status, f.posting.RejectReason = status, reason

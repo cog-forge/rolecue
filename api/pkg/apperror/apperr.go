@@ -71,6 +71,8 @@ const (
 	// longer the current one.
 	CodeGuidelineVersionConflict Code = "GUIDELINE_VERSION_CONFLICT"
 	CodeQuestionBankNotReady     Code = "QUESTION_BANK_NOT_READY"
+	// CodeGradingConfigIncomplete means a question lacks a usable rubric or a valid expected answer (KAN-331).
+	CodeGradingConfigIncomplete Code = "GRADING_CONFIG_INCOMPLETE"
 
 	// Job Posting domain codes.
 	CodeJobPostingRequirementsLocked Code = "JOB_POSTING_REQUIREMENTS_LOCKED"

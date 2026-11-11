@@ -17,7 +17,7 @@ SELECT jp.jd_id, $1::text
 FROM public.job_postings jp
 WHERE jp.id = $2 AND jp.recruiter_id = $3 AND jp.status IN ('pending', 'rejected')
   AND EXISTS (SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id)
-RETURNING id, content
+RETURNING id, content, rubric_id, expected_answer
 `
 
 type AddCoreQuestionParams struct {
@@ -27,15 +27,22 @@ type AddCoreQuestionParams struct {
 }
 
 type AddCoreQuestionRow struct {
-	ID      uuid.UUID
-	Content string
+	ID             uuid.UUID
+	Content        string
+	RubricID       *uuid.UUID
+	ExpectedAnswer *string
 }
 
 // A question is added only to a generated bank, so manual questions cannot skip generation.
 func (q *Queries) AddCoreQuestion(ctx context.Context, arg AddCoreQuestionParams) (AddCoreQuestionRow, error) {
 	row := q.db.QueryRow(ctx, addCoreQuestion, arg.Content, arg.PostingID, arg.RecruiterID)
 	var i AddCoreQuestionRow
-	err := row.Scan(&i.ID, &i.Content)
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.RubricID,
+		&i.ExpectedAnswer,
+	)
 	return i, err
 }
 
@@ -58,17 +65,6 @@ func (q *Queries) CandidateOwnsJD(ctx context.Context, arg CandidateOwnsJDParams
 	return exists, err
 }
 
-const clearEmptyBankSubmission = `-- name: ClearEmptyBankSubmission :exec
-UPDATE public.job_postings SET review_submitted = false
-WHERE job_postings.id = $1 AND NOT EXISTS (SELECT 1 FROM public.core_questions cq WHERE cq.jd_id = job_postings.jd_id)
-`
-
-// Removing the last question takes the posting out of the Admin queue.
-func (q *Queries) ClearEmptyBankSubmission(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, clearEmptyBankSubmission, id)
-	return err
-}
-
 const countCoreQuestions = `-- name: CountCoreQuestions :one
 SELECT count(*) FROM public.core_questions WHERE jd_id = $1
 `
@@ -78,6 +74,40 @@ func (q *Queries) CountCoreQuestions(ctx context.Context, jdID uuid.UUID) (int64
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countIncompleteGrading = `-- name: CountIncompleteGrading :one
+SELECT count(*)::int
+FROM public.core_questions cq
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE cq.jd_id = $1
+  AND NOT (r.id IS NOT NULL AND r.is_active AND (r.scope = 'system' OR r.owner_id = $2::uuid)
+           AND cq.expected_answer IS NOT NULL AND cq.expected_answer ~ '\S'
+           AND char_length(cq.expected_answer) <= $3::int
+           AND cardinality(regexp_split_to_array(btrim(cq.expected_answer), '\s+')) <= $4::int)
+`
+
+type CountIncompleteGradingParams struct {
+	JdID        uuid.UUID
+	RecruiterID uuid.UUID
+	MaxRunes    int32
+	MaxWords    int32
+}
+
+// The readiness rule (KAN-331): every question needs a rubric that is active and permitted for the posting's
+// owner, and an expected answer that is not blank and within the bounds. The same predicate is repeated in
+// jobposting/repository/query/jobposting.sql and admin/moderation/repository/query/moderation.sql (sqlc has no
+// shared fragments); keep the three identical.
+func (q *Queries) CountIncompleteGrading(ctx context.Context, arg CountIncompleteGradingParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countIncompleteGrading,
+		arg.JdID,
+		arg.RecruiterID,
+		arg.MaxRunes,
+		arg.MaxWords,
+	)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const deleteCoreQuestion = `-- name: DeleteCoreQuestion :execrows
@@ -102,6 +132,43 @@ func (q *Queries) DeleteCoreQuestion(ctx context.Context, arg DeleteCoreQuestion
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getBankQuestion = `-- name: GetBankQuestion :one
+SELECT cq.id, cq.content, cq.rubric_id, cq.expected_answer,
+       COALESCE(r.is_active, false)::boolean AS rubric_active,
+       (r.id IS NOT NULL AND (r.scope = 'system' OR r.owner_id = $1::uuid))::boolean AS rubric_permitted
+FROM public.core_questions cq
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE cq.id = $2
+`
+
+type GetBankQuestionParams struct {
+	RecruiterID uuid.UUID
+	ID          uuid.UUID
+}
+
+type GetBankQuestionRow struct {
+	ID              uuid.UUID
+	Content         string
+	RubricID        *uuid.UUID
+	ExpectedAnswer  *string
+	RubricActive    bool
+	RubricPermitted bool
+}
+
+func (q *Queries) GetBankQuestion(ctx context.Context, arg GetBankQuestionParams) (GetBankQuestionRow, error) {
+	row := q.db.QueryRow(ctx, getBankQuestion, arg.RecruiterID, arg.ID)
+	var i GetBankQuestionRow
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.RubricID,
+		&i.ExpectedAnswer,
+		&i.RubricActive,
+		&i.RubricPermitted,
+	)
+	return i, err
 }
 
 const getJDGenerationContext = `-- name: GetJDGenerationContext :one
@@ -184,6 +251,119 @@ func (q *Queries) InsertCoreQuestions(ctx context.Context, arg InsertCoreQuestio
 	return items, nil
 }
 
+const insertGradedCoreQuestions = `-- name: InsertGradedCoreQuestions :many
+INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer)
+SELECT $1::uuid, ($2::text[])[i],
+       (SELECT r.id FROM public.rubrics r
+        WHERE r.id = NULLIF(($3::text[])[i], '')::uuid AND r.is_active AND (r.scope = 'system' OR r.owner_id = $4::uuid)),
+       NULLIF(($5::text[])[i], '')
+FROM generate_series(1, cardinality($2::text[])) AS i
+ORDER BY i
+RETURNING id, content, rubric_id, expected_answer
+`
+
+type InsertGradedCoreQuestionsParams struct {
+	JdID            uuid.UUID
+	Contents        []string
+	RubricIds       []string
+	RecruiterID     uuid.UUID
+	ExpectedAnswers []string
+}
+
+type InsertGradedCoreQuestionsRow struct {
+	ID             uuid.UUID
+	Content        string
+	RubricID       *uuid.UUID
+	ExpectedAnswer *string
+}
+
+// A generated Recruiter bank: each question with its rubric (NULL when none was chosen or it stopped being
+// usable) and expected answer (NULL when none). The arrays are parallel; an empty rubric id means none.
+func (q *Queries) InsertGradedCoreQuestions(ctx context.Context, arg InsertGradedCoreQuestionsParams) ([]InsertGradedCoreQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, insertGradedCoreQuestions,
+		arg.JdID,
+		arg.Contents,
+		arg.RubricIds,
+		arg.RecruiterID,
+		arg.ExpectedAnswers,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InsertGradedCoreQuestionsRow
+	for rows.Next() {
+		var i InsertGradedCoreQuestionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Content,
+			&i.RubricID,
+			&i.ExpectedAnswer,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBankQuestions = `-- name: ListBankQuestions :many
+SELECT cq.id, cq.content, cq.rubric_id, cq.expected_answer,
+       COALESCE(r.is_active, false)::boolean AS rubric_active,
+       (r.id IS NOT NULL AND (r.scope = 'system' OR r.owner_id = $1::uuid))::boolean AS rubric_permitted
+FROM public.core_questions cq
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE cq.jd_id = $2
+ORDER BY cq.id
+`
+
+type ListBankQuestionsParams struct {
+	RecruiterID uuid.UUID
+	JdID        uuid.UUID
+}
+
+type ListBankQuestionsRow struct {
+	ID              uuid.UUID
+	Content         string
+	RubricID        *uuid.UUID
+	ExpectedAnswer  *string
+	RubricActive    bool
+	RubricPermitted bool
+}
+
+// The Recruiter's view of the same bank, with each question's grading setup and whether its rubric can still
+// be used (KAN-329, KAN-331). The interview runtime keeps using ListCoreQuestions, which never selects
+// rubric_id or expected_answer. A rubric is permitted when it is a system rubric or one the Recruiter owns.
+func (q *Queries) ListBankQuestions(ctx context.Context, arg ListBankQuestionsParams) ([]ListBankQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, listBankQuestions, arg.RecruiterID, arg.JdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBankQuestionsRow
+	for rows.Next() {
+		var i ListBankQuestionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Content,
+			&i.RubricID,
+			&i.ExpectedAnswer,
+			&i.RubricActive,
+			&i.RubricPermitted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCoreQuestions = `-- name: ListCoreQuestions :many
 SELECT id, content
 FROM public.core_questions
@@ -208,6 +388,94 @@ func (q *Queries) ListCoreQuestions(ctx context.Context, jdID uuid.UUID) ([]List
 	for rows.Next() {
 		var i ListCoreQuestionsRow
 		if err := rows.Scan(&i.ID, &i.Content); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGenerationRubricCriteria = `-- name: ListGenerationRubricCriteria :many
+SELECT c.rubric_id, c.name, m.name AS metric_name, c.max_points
+FROM public.rubric_criteria c
+JOIN public.metrics m ON m.id = c.metric_id
+WHERE c.rubric_id = ANY($1::uuid[])
+ORDER BY c.rubric_id, c.position
+`
+
+type ListGenerationRubricCriteriaRow struct {
+	RubricID   uuid.UUID
+	Name       string
+	MetricName string
+	MaxPoints  int32
+}
+
+func (q *Queries) ListGenerationRubricCriteria(ctx context.Context, rubricIds []uuid.UUID) ([]ListGenerationRubricCriteriaRow, error) {
+	rows, err := q.db.Query(ctx, listGenerationRubricCriteria, rubricIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGenerationRubricCriteriaRow
+	for rows.Next() {
+		var i ListGenerationRubricCriteriaRow
+		if err := rows.Scan(
+			&i.RubricID,
+			&i.Name,
+			&i.MetricName,
+			&i.MaxPoints,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGenerationRubrics = `-- name: ListGenerationRubrics :many
+SELECT r.id, r.name, r.description, r.question_type
+FROM public.rubrics r
+WHERE r.is_active AND (r.scope = 'system' OR r.owner_id = $1::uuid)
+ORDER BY (r.scope = 'system') DESC, CASE WHEN r.scope = 'system' THEN r.name END, r.updated_at DESC, r.id
+LIMIT $2
+`
+
+type ListGenerationRubricsParams struct {
+	RecruiterID uuid.UUID
+	PageLimit   int32
+}
+
+type ListGenerationRubricsRow struct {
+	ID           uuid.UUID
+	Name         string
+	Description  string
+	QuestionType string
+}
+
+// The rubrics a generation may choose from: active system templates first, then the Recruiter's own active
+// rubrics, newest change first, bounded by page_limit. The visibility rule is the one of the /rubrics API
+// (evaluation/repository/query/rubric.sql): system AND active, or owned. An archived rubric is never offered.
+func (q *Queries) ListGenerationRubrics(ctx context.Context, arg ListGenerationRubricsParams) ([]ListGenerationRubricsRow, error) {
+	rows, err := q.db.Query(ctx, listGenerationRubrics, arg.RecruiterID, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGenerationRubricsRow
+	for rows.Next() {
+		var i ListGenerationRubricsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.QuestionType,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -295,6 +563,61 @@ func (q *Queries) LockEditablePosting(ctx context.Context, arg LockEditablePosti
 	return jd_id, err
 }
 
+const lockQuestionContent = `-- name: LockQuestionContent :one
+SELECT cq.content
+FROM public.core_questions cq
+JOIN public.job_postings jp ON jp.jd_id = cq.jd_id
+WHERE cq.id = $1 AND jp.id = $2
+FOR UPDATE OF cq
+`
+
+type LockQuestionContentParams struct {
+	ID        uuid.UUID
+	PostingID uuid.UUID
+}
+
+func (q *Queries) LockQuestionContent(ctx context.Context, arg LockQuestionContentParams) (string, error) {
+	row := q.db.QueryRow(ctx, lockQuestionContent, arg.ID, arg.PostingID)
+	var content string
+	err := row.Scan(&content)
+	return content, err
+}
+
+const lockUsableRubrics = `-- name: LockUsableRubrics :many
+SELECT r.id
+FROM public.rubrics r
+WHERE r.id = ANY($1::uuid[]) AND r.is_active AND (r.scope = 'system' OR r.owner_id = $2::uuid)
+ORDER BY r.id
+FOR SHARE
+`
+
+type LockUsableRubricsParams struct {
+	RubricIds   []uuid.UUID
+	RecruiterID uuid.UUID
+}
+
+// Locks the generated rubric bindings that are still usable by this Recruiter (active, system or owned), so an
+// archive (which takes FOR UPDATE on the rubric) cannot land between this check and the insert.
+func (q *Queries) LockUsableRubrics(ctx context.Context, arg LockUsableRubricsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockUsableRubrics, arg.RubricIds, arg.RecruiterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateCoreQuestion = `-- name: UpdateCoreQuestion :one
 UPDATE public.core_questions cq
 SET content = $1::text
@@ -304,7 +627,7 @@ WHERE cq.id = $2
   AND jp.id = $3
   AND jp.recruiter_id = $4
   AND jp.status IN ('pending', 'rejected')
-RETURNING cq.id, cq.content
+RETURNING cq.id, cq.content, cq.rubric_id, cq.expected_answer
 `
 
 type UpdateCoreQuestionParams struct {
@@ -315,8 +638,10 @@ type UpdateCoreQuestionParams struct {
 }
 
 type UpdateCoreQuestionRow struct {
-	ID      uuid.UUID
-	Content string
+	ID             uuid.UUID
+	Content        string
+	RubricID       *uuid.UUID
+	ExpectedAnswer *string
 }
 
 func (q *Queries) UpdateCoreQuestion(ctx context.Context, arg UpdateCoreQuestionParams) (UpdateCoreQuestionRow, error) {
@@ -327,6 +652,23 @@ func (q *Queries) UpdateCoreQuestion(ctx context.Context, arg UpdateCoreQuestion
 		arg.RecruiterID,
 	)
 	var i UpdateCoreQuestionRow
-	err := row.Scan(&i.ID, &i.Content)
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.RubricID,
+		&i.ExpectedAnswer,
+	)
 	return i, err
+}
+
+const withdrawSubmission = `-- name: WithdrawSubmission :exec
+UPDATE public.job_postings SET review_submitted = false WHERE id = $1 AND review_submitted
+`
+
+// A change to any question after the posting went to the Admin queue withdraws the submission, so the Admin
+// cannot approve content that changed after the Recruiter submitted it (the Admin's decision waits for the
+// posting lock these writes hold and then finds the posting no longer submitted).
+func (q *Queries) WithdrawSubmission(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, withdrawSubmission, id)
+	return err
 }

@@ -53,6 +53,64 @@ func (r *Repository) List(ctx context.Context, jdID uuid.UUID) ([]domain.CoreQue
 	return out, nil
 }
 
+// ListBank is the Recruiter's view of a bank: each question with its grading setup. The interview runtime
+// reads List instead, which never selects grading data.
+func (r *Repository) ListBank(ctx context.Context, jdID, recruiterID uuid.UUID) ([]domain.BankQuestion, error) {
+	return listBank(ctx, r.queries, jdID, recruiterID)
+}
+
+func listBank(ctx context.Context, q *Queries, jdID, recruiterID uuid.UUID) ([]domain.BankQuestion, error) {
+	rows, err := q.ListBankQuestions(ctx, ListBankQuestionsParams{JdID: jdID, RecruiterID: recruiterID})
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+	out := make([]domain.BankQuestion, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, domain.NewBankQuestion(row.ID, row.Content, row.RubricID,
+			domain.RubricState{Active: row.RubricActive, Permitted: row.RubricPermitted}, row.ExpectedAnswer))
+	}
+	return out, nil
+}
+
+func bankQuestion(ctx context.Context, q *Queries, recruiterID, id uuid.UUID) (domain.BankQuestion, error) {
+	row, err := q.GetBankQuestion(ctx, GetBankQuestionParams{ID: id, RecruiterID: recruiterID})
+	if err != nil {
+		return domain.BankQuestion{}, persistenceError(err)
+	}
+	return domain.NewBankQuestion(row.ID, row.Content, row.RubricID,
+		domain.RubricState{Active: row.RubricActive, Permitted: row.RubricPermitted}, row.ExpectedAnswer), nil
+}
+
+// RubricCatalog returns the rubrics a generation for this Recruiter may choose from, capped at
+// domain.MaxPromptRubrics, with their criteria. Whether a rubric is offered is decided in SQL: an active
+// system template or the Recruiter's own active rubric, never someone else's private rubric.
+func (r *Repository) RubricCatalog(ctx context.Context, recruiterID uuid.UUID) ([]domain.RubricOption, error) {
+	rows, err := r.queries.ListGenerationRubrics(ctx, ListGenerationRubricsParams{RecruiterID: recruiterID, PageLimit: domain.MaxPromptRubrics})
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+	options := make([]domain.RubricOption, 0, len(rows))
+	ids := make([]uuid.UUID, 0, len(rows))
+	index := make(map[uuid.UUID]int, len(rows))
+	for _, row := range rows {
+		index[row.ID] = len(options)
+		ids = append(ids, row.ID)
+		options = append(options, domain.RubricOption{ID: row.ID, Name: row.Name, Description: row.Description, QuestionType: row.QuestionType})
+	}
+	if len(ids) == 0 {
+		return options, nil
+	}
+	criteria, err := r.queries.ListGenerationRubricCriteria(ctx, ids)
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+	for _, row := range criteria {
+		option := &options[index[row.RubricID]]
+		option.Criteria = append(option.Criteria, domain.RubricOptionCriterion{Name: row.Name, Metric: row.MetricName, MaxPoints: row.MaxPoints})
+	}
+	return options, nil
+}
+
 func (r *Repository) GenerationInput(ctx context.Context, jdID uuid.UUID) (domain.GenerationInput, error) {
 	rows, err := r.queries.ListRequirementsForJD(ctx, jdID)
 	if err != nil {
@@ -81,8 +139,8 @@ func (r *Repository) GenerationInput(ctx context.Context, jdID uuid.UUID) (domai
 // edit that wins makes the approval recheck review_submitted and the bank, and an approval that wins
 // makes the edit see a posting that is no longer editable (KAN-211). When the guarded statement
 // affects no row, a cheap follow-up query tells "not found" from "locked".
-func (r *Repository) Add(ctx context.Context, recruiterID, postingID uuid.UUID, content string) (domain.CoreQuestion, error) {
-	var added domain.CoreQuestion
+func (r *Repository) Add(ctx context.Context, recruiterID, postingID uuid.UUID, content string) (domain.BankQuestion, error) {
+	var added domain.BankQuestion
 	err := r.withEditablePosting(ctx, recruiterID, postingID, false, func(q *Queries) error {
 		row, err := q.AddCoreQuestion(ctx, AddCoreQuestionParams{Content: content, PostingID: postingID, RecruiterID: recruiterID})
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -91,15 +149,26 @@ func (r *Repository) Add(ctx context.Context, recruiterID, postingID uuid.UUID, 
 		if err != nil {
 			return persistenceError(err)
 		}
-		added = domain.CoreQuestion{ID: row.ID, Content: row.Content}
-		return nil
+		if err := q.WithdrawSubmission(ctx, postingID); err != nil {
+			return persistenceError(err)
+		}
+		added, err = bankQuestion(ctx, q, recruiterID, row.ID)
+		return err
 	})
 	return added, err
 }
 
-func (r *Repository) Update(ctx context.Context, recruiterID, postingID, questionID uuid.UUID, content string) (domain.CoreQuestion, error) {
-	var updated domain.CoreQuestion
+func (r *Repository) Update(ctx context.Context, recruiterID, postingID, questionID uuid.UUID, content string) (domain.BankQuestion, error) {
+	var updated domain.BankQuestion
 	err := r.withEditablePosting(ctx, recruiterID, postingID, true, func(q *Queries) error {
+		// A text change withdraws a submission; saving the same text again changes nothing.
+		before, err := q.LockQuestionContent(ctx, LockQuestionContentParams{ID: questionID, PostingID: postingID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return r.postingRefusal(ctx, q, recruiterID, postingID, true)
+		}
+		if err != nil {
+			return persistenceError(err)
+		}
 		row, err := q.UpdateCoreQuestion(ctx, UpdateCoreQuestionParams{
 			Content: content, ID: questionID, PostingID: postingID, RecruiterID: recruiterID})
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -108,13 +177,18 @@ func (r *Repository) Update(ctx context.Context, recruiterID, postingID, questio
 		if err != nil {
 			return persistenceError(err)
 		}
-		updated = domain.CoreQuestion{ID: row.ID, Content: row.Content}
-		return nil
+		if before != content {
+			if err := q.WithdrawSubmission(ctx, postingID); err != nil {
+				return persistenceError(err)
+			}
+		}
+		updated, err = bankQuestion(ctx, q, recruiterID, row.ID)
+		return err
 	})
 	return updated, err
 }
 
-// Delete also withdraws the posting from the Admin queue when it removes the last question.
+// Delete withdraws the posting from the Admin queue, like any other change to the bank.
 func (r *Repository) Delete(ctx context.Context, recruiterID, postingID, questionID uuid.UUID) error {
 	return r.withEditablePosting(ctx, recruiterID, postingID, true, func(q *Queries) error {
 		n, err := q.DeleteCoreQuestion(ctx, DeleteCoreQuestionParams{ID: questionID, PostingID: postingID, RecruiterID: recruiterID})
@@ -128,7 +202,7 @@ func (r *Repository) Delete(ctx context.Context, recruiterID, postingID, questio
 		if n == 0 {
 			return r.postingRefusal(ctx, q, recruiterID, postingID, true)
 		}
-		return persistenceError(q.ClearEmptyBankSubmission(ctx, postingID))
+		return persistenceError(q.WithdrawSubmission(ctx, postingID))
 	})
 }
 
@@ -149,8 +223,8 @@ func (r *Repository) withEditablePosting(ctx context.Context, recruiterID, posti
 
 // SaveForPosting stores a freshly generated bank. Locking the posting row serializes concurrent
 // generate calls, so the second one sees the first one's questions and fails with "exists".
-func (r *Repository) SaveForPosting(ctx context.Context, recruiterID, postingID uuid.UUID, contents []string) ([]domain.CoreQuestion, error) {
-	var saved []domain.CoreQuestion
+func (r *Repository) SaveForPosting(ctx context.Context, recruiterID, postingID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.BankQuestion, error) {
+	var saved []domain.BankQuestion
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
 		jdID, err := q.LockEditablePosting(ctx, LockEditablePostingParams{ID: postingID, RecruiterID: recruiterID})
@@ -160,13 +234,53 @@ func (r *Repository) SaveForPosting(ctx context.Context, recruiterID, postingID 
 		if err != nil {
 			return persistenceError(err)
 		}
-		saved, err = insertIfEmpty(ctx, q, jdID, contents)
+		saved, err = insertGradedIfEmpty(ctx, q, jdID, recruiterID, questions)
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	return saved, nil
+}
+
+// insertGradedIfEmpty stores the questions with their rubric and expected answer. A rubric that is no longer
+// usable by the Recruiter (archived or removed since generation started) is stored as no rubric, so the
+// question shows as needing grading configuration instead of pointing at a rubric nobody may assign.
+func insertGradedIfEmpty(ctx context.Context, q *Queries, jdID, recruiterID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.BankQuestion, error) {
+	count, err := q.CountCoreQuestions(ctx, jdID)
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+	if count > 0 {
+		return nil, apperror.New(apperror.CodeQuestionBankExists, "this job description already has a question bank")
+	}
+	contents := make([]string, 0, len(questions))
+	rubricIDs := make([]string, 0, len(questions))
+	answers := make([]string, 0, len(questions))
+	chosen := make([]uuid.UUID, 0, len(questions))
+	for _, question := range questions {
+		contents = append(contents, question.Content)
+		rubricID, answer := "", ""
+		if question.RubricID != nil {
+			rubricID = question.RubricID.String()
+			chosen = append(chosen, *question.RubricID)
+		}
+		if question.ExpectedAnswer != nil {
+			answer = *question.ExpectedAnswer
+		}
+		rubricIDs = append(rubricIDs, rubricID)
+		answers = append(answers, answer)
+	}
+	if len(chosen) > 0 {
+		if _, err := q.LockUsableRubrics(ctx, LockUsableRubricsParams{RubricIds: chosen, RecruiterID: recruiterID}); err != nil {
+			return nil, persistenceError(err)
+		}
+	}
+	if _, err := q.InsertGradedCoreQuestions(ctx, InsertGradedCoreQuestionsParams{
+		JdID: jdID, Contents: contents, RubricIds: rubricIDs, RecruiterID: recruiterID, ExpectedAnswers: answers}); err != nil {
+		return nil, persistenceError(err)
+	}
+	return listBank(ctx, q, jdID, recruiterID)
 }
 
 // SaveForPractice does the same for a Candidate's own practice JD.

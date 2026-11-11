@@ -155,8 +155,9 @@ func (s *Service) decide(ctx context.Context, adminID, id uuid.UUID, status doma
 		if !posting.ReviewSubmitted {
 			return domain.ReviewPosting{}, domain.ErrNotSubmitted
 		}
-		// Submitted and still pending, so the only guard that failed is the non-empty bank.
-		return domain.ReviewPosting{}, domain.ErrQuestionBankNotReady
+		// Submitted and still pending: the repository decides under the posting lock and reports the bank
+		// problems itself, so this is only a decision that was withdrawn between the two reads.
+		return domain.ReviewPosting{}, domain.ErrNotPending
 	default:
 		return domain.ReviewPosting{}, domain.ErrNotPending
 	}

@@ -54,11 +54,11 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 	})
 
 	t.Run("save once, then exists", func(t *testing.T) {
-		saved, err := repo.SaveForPosting(ctx, recruiter, postingID, []string{"Q1?", "Q2?", "Q3?"})
+		saved, err := repo.SaveForPosting(ctx, recruiter, postingID, plain("Q1?", "Q2?", "Q3?"))
 		if err != nil || len(saved) != 3 {
 			t.Fatalf("got %v, %v", saved, err)
 		}
-		_, err = repo.SaveForPosting(ctx, recruiter, postingID, []string{"Other?"})
+		_, err = repo.SaveForPosting(ctx, recruiter, postingID, plain("Other?"))
 		wantCode(t, err, apperror.CodeQuestionBankExists)
 		listed, err := repo.List(ctx, jd)
 		if err != nil || len(listed) != 3 {
@@ -67,7 +67,7 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 	})
 
 	t.Run("another recruiter cannot save or edit", func(t *testing.T) {
-		_, err := repo.SaveForPosting(ctx, otherRecruiter, postingID, []string{"X?"})
+		_, err := repo.SaveForPosting(ctx, otherRecruiter, postingID, plain("X?"))
 		wantCode(t, err, apperror.CodeJobPostingNotFound)
 		_, err = repo.Add(ctx, otherRecruiter, postingID, "X?")
 		wantCode(t, err, apperror.CodeJobPostingNotFound)
@@ -96,7 +96,7 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 		otherJD := s.jd(levelID, "")
 		otherPosting := s.posting(otherJD, recruiter)
 		s.later(`DELETE FROM public.core_questions WHERE jd_id = $1`, otherJD)
-		saved, err := repo.SaveForPosting(ctx, recruiter, otherPosting, []string{"Belongs to the other posting?"})
+		saved, err := repo.SaveForPosting(ctx, recruiter, otherPosting, plain("Belongs to the other posting?"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -137,7 +137,7 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 		_, err = repo.Update(ctx, recruiter, postingID, listed[0].ID, "Late?")
 		wantCode(t, err, apperror.CodeQuestionBankLocked)
 		wantCode(t, repo.Delete(ctx, recruiter, postingID, listed[0].ID), apperror.CodeQuestionBankLocked)
-		_, err = repo.SaveForPosting(ctx, recruiter, postingID, []string{"Late?"})
+		_, err = repo.SaveForPosting(ctx, recruiter, postingID, plain("Late?"))
 		wantCode(t, err, apperror.CodeQuestionBankLocked)
 		after, _ := repo.List(ctx, jd)
 		if len(after) != len(listed) {
@@ -156,7 +156,7 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 			wg.Add(1)
 			go func(i int) {
 				defer wg.Done()
-				_, err := repo.SaveForPosting(ctx, recruiter, posting2, []string{fmt.Sprintf("A%d?", i), fmt.Sprintf("B%d?", i)})
+				_, err := repo.SaveForPosting(ctx, recruiter, posting2, plain(fmt.Sprintf("A%d?", i), fmt.Sprintf("B%d?", i)))
 				results <- err
 			}(i)
 		}

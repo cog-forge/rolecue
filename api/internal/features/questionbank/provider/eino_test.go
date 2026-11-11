@@ -100,7 +100,7 @@ func TestMessagesKeepUntrustedDataInsideItsFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Questions) != 1 || got.Questions[0] != "What is a goroutine?" {
+	if len(got.Questions) != 1 || got.Questions[0].Content != "What is a goroutine?" {
 		t.Fatalf("got %+v", got)
 	}
 	if f.calls != 1 {

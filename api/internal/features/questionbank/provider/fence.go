@@ -1,6 +1,9 @@
 package provider
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 )
@@ -23,4 +26,43 @@ func fencedRequirements(in []domain.ConfirmedRequirement) []domain.ConfirmedRequ
 		out = append(out, requirement)
 	}
 	return out
+}
+
+// promptRubric is one catalog entry as the model sees it. The id and the question type (a slug the database
+// restricts) are plain; every other word, all written by Admins or Recruiters, sits in Summary, which is
+// cleaned, capped and fenced as untrusted data.
+type promptRubric struct {
+	ID           string `json:"id"`
+	QuestionType string `json:"question_type"`
+	Summary      string `json:"summary"`
+}
+
+// promptCatalog turns the allowed rubrics into prompt entries, bounded in count, criteria and text size
+// even if the caller passed more. It never returns nil, so an empty catalog serializes as [].
+func promptCatalog(rubrics []domain.RubricOption) []promptRubric {
+	out := make([]promptRubric, 0, min(len(rubrics), domain.MaxPromptRubrics))
+	for _, rubric := range rubrics {
+		if len(out) == domain.MaxPromptRubrics {
+			break
+		}
+		var summary strings.Builder
+		fmt.Fprintf(&summary, "Name: %s\nDescription: %s\nCriteria:", oneLine(rubric.Name), oneLine(rubric.Description))
+		for i, criterion := range rubric.Criteria {
+			if i == domain.MaxPromptRubricCriteria {
+				fmt.Fprintf(&summary, "\n- (%d more criteria)", len(rubric.Criteria)-i)
+				break
+			}
+			fmt.Fprintf(&summary, "\n- %s [%s, %d points]", oneLine(criterion.Name), oneLine(criterion.Metric), criterion.MaxPoints)
+		}
+		out = append(out, promptRubric{
+			ID:           rubric.ID.String(),
+			QuestionType: oneLine(rubric.QuestionType),
+			Summary:      textsafe.Fence("UNTRUSTED_RUBRIC", summary.String(), domain.MaxPromptRubricTextRunes),
+		})
+	}
+	return out
+}
+
+func oneLine(text string) string {
+	return strings.Join(strings.Fields(textsafe.Clean(text)), " ")
 }

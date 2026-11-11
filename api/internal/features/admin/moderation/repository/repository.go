@@ -6,15 +6,23 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/moderation/domain"
+	qbdomain "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Repository struct{ queries *Queries }
+// Repository takes the pool, not just DBTX, because a decision runs in one transaction.
+type Repository struct {
+	pool    *pgxpool.Pool
+	queries *Queries
+}
 
-func NewRepository(db DBTX) *Repository { return &Repository{queries: New(db)} }
+func NewRepository(pool *pgxpool.Pool) *Repository {
+	return &Repository{pool: pool, queries: New(pool)}
+}
 
 func (r *Repository) List(ctx context.Context, filter domain.ListFilter) ([]domain.PostingSummary, int64, error) {
 	status := statusArg(filter.Status)
@@ -43,7 +51,7 @@ func (r *Repository) List(ctx context.Context, filter domain.ListFilter) ([]doma
 }
 
 func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.ReviewPosting, error) {
-	row, err := r.queries.GetPosting(ctx, id)
+	row, err := r.queries.GetPosting(ctx, GetPostingParams{ID: id, MaxRunes: qbdomain.MaxExpectedAnswerRunes, MaxWords: qbdomain.MaxExpectedAnswerWords})
 	if err != nil {
 		return domain.ReviewPosting{}, persistenceError(err)
 	}
@@ -62,28 +70,72 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.ReviewPostin
 		Recruiter: domain.Recruiter{ID: row.RecruiterID, Name: row.RecruiterName, Email: row.RecruiterEmail},
 		Location:  row.Location, EmploymentType: row.EmploymentType, SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax,
 		InterviewSlot: row.InterviewSlot, InterviewDuration: row.InterviewDuration,
-		RequiredAvatar:    namedRef(row.RequiredAvatarID, row.AvatarName),
-		RequiredVoice:     namedRef(row.RequiredVoiceID, row.VoiceName),
-		CreatedAt:         row.CreatedAt.Time,
-		ContentPath:       row.ContentPath,
-		StoredText:        row.RawText,
-		CoreQuestionCount: row.CoreQuestionCount,
-		ReviewSubmitted:   row.ReviewSubmitted,
-		WeightsConfigured: row.WeightsConfigured,
+		RequiredAvatar:         namedRef(row.RequiredAvatarID, row.AvatarName),
+		RequiredVoice:          namedRef(row.RequiredVoiceID, row.VoiceName),
+		CreatedAt:              row.CreatedAt.Time,
+		ContentPath:            row.ContentPath,
+		StoredText:             row.RawText,
+		CoreQuestionCount:      row.CoreQuestionCount,
+		GradingIncompleteCount: row.GradingIncompleteCount,
+		ReviewSubmitted:        row.ReviewSubmitted,
+		WeightsConfigured:      row.WeightsConfigured,
 	}, nil
 }
 
-// Decide returns domain.ErrNotPending when no row matched the guards (pending and submitted, and a
-// non-empty bank for approval); the service then reads the posting to tell the cases apart.
+// Decide returns domain.ErrNotPending when the posting is not pending and submitted (the service then reads
+// it to tell the cases apart). Approval also needs a non-empty bank (ErrQuestionBankNotReady) in which every
+// question has an active permitted rubric and a valid expected answer (ErrGradingIncomplete, KAN-331).
+// Rejection needs neither. The checks run after the posting row is locked, in statements of their own, so
+// they see any bank change that committed before the lock was granted; every bank change also withdraws
+// the submission, which the guard on the locked row then catches.
 func (r *Repository) Decide(ctx context.Context, id uuid.UUID, status domain.PostingStatus, rejectReason *string) error {
-	n, err := r.queries.DecidePosting(ctx, DecidePostingParams{ID: id, NewStatus: string(status), RejectReason: rejectReason})
-	if err != nil {
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		q := r.queries.WithTx(tx)
+		locked, err := q.LockPostingForDecision(ctx, id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.ErrNotPending
+		}
+		if err != nil {
+			return err
+		}
+		if locked.Status != string(domain.PostingStatusPending) || !locked.ReviewSubmitted {
+			return domain.ErrNotPending
+		}
+		if status == domain.PostingStatusOpen {
+			count, err := q.CountCoreQuestions(ctx, locked.JdID)
+			if err != nil {
+				return err
+			}
+			if count == 0 {
+				return domain.ErrQuestionBankNotReady
+			}
+			incomplete, err := q.CountIncompleteGrading(ctx, CountIncompleteGradingParams{
+				JdID: locked.JdID, RecruiterID: locked.RecruiterID, MaxRunes: qbdomain.MaxExpectedAnswerRunes, MaxWords: qbdomain.MaxExpectedAnswerWords})
+			if err != nil {
+				return err
+			}
+			if incomplete > 0 {
+				return domain.ErrGradingIncomplete
+			}
+		}
+		n, err := q.DecidePosting(ctx, DecidePostingParams{ID: id, NewStatus: string(status), RejectReason: rejectReason})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return domain.ErrNotPending
+		}
+		return nil
+	})
+	if err != nil && !isDomainError(err) {
 		return persistenceError(err)
 	}
-	if n == 0 {
-		return domain.ErrNotPending
-	}
-	return nil
+	return err
+}
+
+func isDomainError(err error) bool {
+	var appErr *apperror.AppError
+	return errors.As(err, &appErr)
 }
 
 func statusArg(status *domain.PostingStatus) *string {

@@ -60,8 +60,8 @@ func TestLLMSmoke(t *testing.T) {
 	distinct := map[string]struct{}{}
 	longest := 0
 	for _, q := range got.Questions {
-		distinct[strings.ToLower(strings.TrimSpace(q))] = struct{}{}
-		if n := utf8.RuneCountInString(q); n > longest {
+		distinct[strings.ToLower(strings.TrimSpace(q.Content))] = struct{}{}
+		if n := utf8.RuneCountInString(q.Content); n > longest {
 			longest = n
 		}
 	}
@@ -71,7 +71,7 @@ func TestLLMSmoke(t *testing.T) {
 		if i >= 5 {
 			break
 		}
-		t.Logf("  sample %d: %s", i+1, strings.ReplaceAll(q, cfg.LLM.APIKey, "[REDACTED]"))
+		t.Logf("  sample %d: %s", i+1, strings.ReplaceAll(q.Content, cfg.LLM.APIKey, "[REDACTED]"))
 	}
 	if len(distinct) != size {
 		t.Errorf("service validation would reject this: need exactly %d distinct questions, got %d distinct of %d", size, len(distinct), len(got.Questions))

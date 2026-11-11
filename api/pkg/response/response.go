@@ -62,6 +62,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeJobPostingNotPending:            http.StatusConflict,
 	apperror.CodeGuidelineVersionConflict:        http.StatusConflict,
 	apperror.CodeQuestionBankNotReady:            http.StatusConflict,
+	apperror.CodeGradingConfigIncomplete:         http.StatusConflict,
 	apperror.CodeJobPostingRequirementsLocked:    http.StatusConflict,
 	apperror.CodeJobPostingNotEditable:           http.StatusConflict,
 	apperror.CodeJobPostingTextLocked:            http.StatusConflict,

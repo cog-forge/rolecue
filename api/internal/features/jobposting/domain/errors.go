@@ -16,6 +16,10 @@ var (
 	// ErrBankNotReady: the Admin interviews from the bank, so it must not be empty when submitted.
 	ErrBankNotReady = apperror.New(apperror.CodeQuestionBankNotReady, "generate the question bank before submitting for review")
 
+	// ErrGradingIncomplete: every question needs a usable rubric and a valid expected answer before review
+	// (KAN-331). The bank view says which questions and why.
+	ErrGradingIncomplete = apperror.New(apperror.CodeGradingConfigIncomplete, "every question needs an active rubric and an expected answer before the posting can be submitted for review")
+
 	// ErrRequirementsLocked keeps the question bank in step with what it was generated from.
 	ErrRequirementsLocked = apperror.New(apperror.CodeJobPostingRequirementsLocked,
 		"seniority, requirements and refinement note cannot change while the posting is pending and its question bank exists; delete its questions first")

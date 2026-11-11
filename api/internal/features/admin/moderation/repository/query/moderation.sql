@@ -32,6 +32,11 @@ SELECT jp.id, jp.jd_id, jp.title, jp.status::text AS status, jp.reject_reason, j
        jd.raw_text, jp.review_submitted, u.company_name, u.company_website, lower(l.name)::text AS seniority_level,
        COALESCE(jd.refinement_note, '')::text AS refinement_note,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count,
+       (SELECT count(*) FROM public.core_questions cq LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+        WHERE cq.jd_id = jp.jd_id AND NOT (r.id IS NOT NULL AND r.is_active AND (r.scope = 'system' OR r.owner_id = jp.recruiter_id)
+           AND cq.expected_answer IS NOT NULL AND cq.expected_answer ~ '\S'
+           AND char_length(cq.expected_answer) <= @max_runes::int
+           AND cardinality(regexp_split_to_array(btrim(cq.expected_answer), '\s+')) <= @max_words::int)) AS grading_incomplete_count,
        EXISTS (SELECT 1 FROM public.metrics_percentage mp WHERE mp.job_posting_id = jp.id) AS weights_configured
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
@@ -40,6 +45,26 @@ JOIN public.levels l ON l.id = jd.level_id
 LEFT JOIN public.avatars a ON a.id = jp.required_avatar_id
 LEFT JOIN public.voices v ON v.id = jp.required_voice_id
 WHERE jp.id = @id;
+
+-- Approval (KAN-331): the decision runs in one transaction that first locks the posting row, the lock a
+-- Recruiter's bank edit holds, so an edit and an approval run one after the other. Everything the decision
+-- reads from other tables is read by the statements after the lock.
+-- name: LockPostingForDecision :one
+SELECT jd_id, recruiter_id, status::text AS status, review_submitted
+FROM public.job_postings
+WHERE id = @id
+FOR UPDATE;
+
+-- The readiness rule: keep identical to the copies in questionbank and jobposting.
+-- name: CountIncompleteGrading :one
+SELECT count(*)::int
+FROM public.core_questions cq
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE cq.jd_id = @jd_id
+  AND NOT (r.id IS NOT NULL AND r.is_active AND (r.scope = 'system' OR r.owner_id = @recruiter_id::uuid)
+           AND cq.expected_answer IS NOT NULL AND cq.expected_answer ~ '\S'
+           AND char_length(cq.expected_answer) <= @max_runes::int
+           AND cardinality(regexp_split_to_array(btrim(cq.expected_answer), '\s+')) <= @max_words::int);
 
 -- The status guard sits in the same statement, so two admins deciding at once cannot both win.
 -- Only a submitted posting can be decided. Approval also needs a non-empty core-question bank: the
@@ -56,3 +81,6 @@ WHERE job_postings.id = @id AND job_postings.status = 'pending' AND review_submi
 
 -- name: ListReviewRequirements :many
 SELECT name, target, type::text AS type FROM public.requirements WHERE jd_id = @jd_id ORDER BY name, id;
+
+-- name: CountCoreQuestions :one
+SELECT count(*) FROM public.core_questions WHERE jd_id = @jd_id;

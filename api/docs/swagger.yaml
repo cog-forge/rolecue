@@ -58,6 +58,7 @@ definitions:
     - JOB_POSTING_NOT_PENDING
     - GUIDELINE_VERSION_CONFLICT
     - QUESTION_BANK_NOT_READY
+    - GRADING_CONFIG_INCOMPLETE
     - JOB_POSTING_REQUIREMENTS_LOCKED
     - JOB_POSTING_NOT_EDITABLE
     - JOB_POSTING_TEXT_LOCKED
@@ -154,6 +155,7 @@ definitions:
     - CodeJobPostingNotPending
     - CodeGuidelineVersionConflict
     - CodeQuestionBankNotReady
+    - CodeGradingConfigIncomplete
     - CodeJobPostingRequirementsLocked
     - CodeJobPostingNotEditable
     - CodeJobPostingTextLocked
@@ -353,18 +355,45 @@ definitions:
         description: GenerationSize is how many questions Generate writes; 0 means
           generation is not configured.
         type: integer
+      grading_incomplete_count:
+        type: integer
+      grading_ready:
+        description: |-
+          GradingReady is true when the bank is not empty and every question is complete; only then can the posting
+          be submitted. GradingIncompleteCount is how many questions are not.
+        type: boolean
       max_question_length:
         type: integer
       posting_status:
         type: string
       questions:
         items:
-          $ref: '#/definitions/domain.CoreQuestion'
+          $ref: '#/definitions/domain.BankQuestion'
         type: array
       review_submitted:
-        description: ReviewSubmitted is true once the Recruiter sent the posting to
-          the Admin queue.
+        description: |-
+          ReviewSubmitted is true once the Recruiter sent the posting to the Admin queue. Changing a question after
+          that withdraws the submission, so the Recruiter submits again (KAN-331).
         type: boolean
+    type: object
+  domain.BankQuestion:
+    properties:
+      content:
+        type: string
+      expected_answer:
+        type: string
+      grading_incomplete:
+        type: boolean
+      grading_issues:
+        items:
+          type: string
+        type: array
+      id:
+        format: uuid
+        type: string
+      rubric_id:
+        format: uuid
+        type: string
     type: object
   domain.BehaviorGuideline:
     properties:
@@ -667,13 +696,6 @@ definitions:
       name:
         type: string
       voice_name:
-        type: string
-    type: object
-  domain.CoreQuestion:
-    properties:
-      content:
-        type: string
-      id:
         type: string
     type: object
   domain.CurrentQuestion:
@@ -1884,6 +1906,12 @@ definitions:
         type: string
       evaluation:
         $ref: '#/definitions/domain.PostingWeights'
+      grading_incomplete_count:
+        description: |-
+          GradingIncompleteCount is how many questions lack an active rubric or a valid expected answer; the
+          posting cannot be approved while it is above zero (KAN-331). Counts only: the Admin does not see
+          expected answers here.
+        type: integer
       id:
         type: string
       interview_duration:
@@ -2688,7 +2716,7 @@ definitions:
     properties:
       questions:
         items:
-          $ref: '#/definitions/domain.CoreQuestion'
+          $ref: '#/definitions/domain.BankQuestion'
         type: array
     type: object
   handler.QuestionRequest:
@@ -3769,8 +3797,8 @@ paths:
       - application/json
       description: 'Admin only. Read-only: the Admin cannot edit posting content,
         the 3D interviewer or the voice. content_path is the URL of the JD content
-        the Admin reviews; core_question_count shows whether the posting can be approved
-        (it needs at least one).'
+        the Admin reviews; core_question_count and grading_incomplete_count show whether
+        the posting can be approved (it needs at least one).'
       parameters:
       - description: Job posting ID
         format: uuid
@@ -3826,9 +3854,11 @@ paths:
       description: Admin only. Trusted Origin required. Moves pending to open. The
         posting reaches Candidates on the job board only once its Recruiter funds
         interview slots. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY
-        otherwise), because its question bank is locked once it leaves pending. Approving
-        an already open posting returns it unchanged; any other non-pending state
-        is 409 JOB_POSTING_NOT_PENDING.
+        otherwise), every question needs an active rubric of the Recruiter and a valid
+        expected answer (409 GRADING_CONFIG_INCOMPLETE; grading_incomplete_count in
+        the review shows how many), because its question bank is locked once it leaves
+        pending. Approving an already open posting returns it unchanged; any other
+        non-pending state is 409 JOB_POSTING_NOT_PENDING.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -7057,9 +7087,11 @@ paths:
       - applications
   /job-postings/{id}/questions:
     get:
-      description: Recruiter only. Candidates never receive the bank. Also returns
-        whether the bank can still change (while a confirmed bank is pending or rejected)
-        and the server limits.
+      description: Recruiter only. Candidates never receive the bank. Each question
+        carries its rubric_id, expected_answer (both null until set) and grading_incomplete,
+        which is true until the question has both. Also returns whether the bank can
+        still change (while a confirmed bank is pending or rejected) and the server
+        limits.
       parameters:
       - description: Job posting ID
         in: path
@@ -7140,7 +7172,7 @@ paths:
             - $ref: '#/definitions/response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.CoreQuestion'
+                  $ref: '#/definitions/domain.BankQuestion'
               type: object
         "400":
           description: Bad Request
@@ -7270,7 +7302,7 @@ paths:
             - $ref: '#/definitions/response.Envelope'
             - properties:
                 data:
-                  $ref: '#/definitions/domain.CoreQuestion'
+                  $ref: '#/definitions/domain.BankQuestion'
               type: object
         "400":
           description: Bad Request
@@ -7310,8 +7342,11 @@ paths:
       description: 'Recruiter only. Runs only while the bank is empty: a posting that
         already has questions returns 409 (a bank emptied by deleting every question
         can be generated again). Only while the posting is pending or rejected. Requires
-        confirmed requirements. Generating never submits the posting for review. Trusted
-        Origin required.'
+        confirmed requirements. One generation call also picks, for each question,
+        an allowed rubric (an active system template or one of your own active rubrics)
+        and writes its expected answer; a question without a suitable rubric is saved
+        with rubric_id null and grading_incomplete true. Generating never submits
+        the posting for review. Trusted Origin required.'
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -7375,9 +7410,10 @@ paths:
   /job-postings/{id}/resubmit:
     post:
       description: Recruiter only. Moves a rejected posting back to pending review
-        and clears the rejection reason. Needs a non-empty question bank. Repeating
-        it once the posting is pending review changes nothing; open or closed postings
-        return 409. Trusted Origin required.
+        and clears the rejection reason. Needs a non-empty question bank whose questions
+        all have an active rubric and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE
+        otherwise). Repeating it once the posting is pending review changes nothing;
+        open or closed postings return 409. Trusted Origin required.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -7438,9 +7474,12 @@ paths:
   /job-postings/{id}/submit:
     post:
       description: Recruiter only. Puts a pending posting in the Admin review queue.
-        Needs a non-empty question bank; generating the bank never submits on its
-        own. Repeating it changes nothing; a rejected posting uses resubmit. Trusted
-        Origin required.
+        Needs a non-empty question bank in which every question has an active rubric
+        you may use and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE otherwise;
+        GET /job-postings/{id}/questions lists what is missing). Generating the bank
+        never submits on its own, and changing a question afterwards withdraws the
+        submission. Repeating it changes nothing; a rejected posting uses resubmit.
+        Trusted Origin required.
       parameters:
       - description: Trusted frontend origin
         in: header

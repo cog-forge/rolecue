@@ -93,6 +93,10 @@ type ReviewPosting struct {
 	StoredText *string `json:"-"`
 	// CoreQuestionCount tells the Admin whether the posting can be approved (it needs at least one).
 	CoreQuestionCount int64 `json:"core_question_count"`
+	// GradingIncompleteCount is how many questions lack an active rubric or a valid expected answer; the
+	// posting cannot be approved while it is above zero (KAN-331). Counts only: the Admin does not see
+	// expected answers here.
+	GradingIncompleteCount int64 `json:"grading_incomplete_count"`
 	// ReviewSubmitted is false while the Recruiter is still preparing a pending posting.
 	ReviewSubmitted bool `json:"review_submitted"`
 	// WeightsConfigured is false when the Recruiter set no evaluation weights, so the posting will

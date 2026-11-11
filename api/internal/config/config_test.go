@@ -59,7 +59,7 @@ func TestQuestionBankSizeLoading(t *testing.T) {
 	t.Setenv("PAYOS_API_KEY", "test-api-key")
 	t.Setenv("PAYOS_CHECKSUM_KEY", "test-checksum-key")
 
-	t.Run("defaults to the team's 50 questions", func(t *testing.T) {
+	t.Run("defaults to 20 questions", func(t *testing.T) {
 		t.Setenv("QUESTION_BANK_SIZE", "")
 		if err := os.Unsetenv("QUESTION_BANK_SIZE"); err != nil {
 			t.Fatal(err)
@@ -68,8 +68,8 @@ func TestQuestionBankSizeLoading(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if cfg.QuestionBank.Size != 50 {
-			t.Fatalf("default size = %d, want 50", cfg.QuestionBank.Size)
+		if cfg.QuestionBank.Size != 20 {
+			t.Fatalf("default size = %d, want 20", cfg.QuestionBank.Size)
 		}
 	})
 	t.Run("environment overrides the file", func(t *testing.T) {

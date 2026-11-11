@@ -227,8 +227,9 @@ type EmailConfig struct {
 }
 
 // QuestionBankConfig holds the core-question bank settings. Size is the number of questions
-// generated per bank. The team chose a large bank (50) so any interview duration is covered,
-// because one interview only asks fewer than ten core questions. 0 disables generation.
+// generated per bank. The default is 20 questions per generation: enough for one interview (fewer than ten core
+// questions) and small enough for one LLM call budget now that each question also carries a rubric
+// choice and an expected answer (KAN-329). 0 disables generation.
 type QuestionBankConfig struct {
 	Size int `mapstructure:"size"`
 }
@@ -569,8 +570,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("payos.timeout", "30s")
 	v.SetDefault("payos.max_retries", 2)
 
-	// Question bank defaults: 50 questions per bank, as agreed by the team.
-	v.SetDefault("question_bank.size", 50)
+	// Question bank default: 20 questions per generation (KAN-329 follow-up).
+	v.SetDefault("question_bank.size", 20)
 	v.SetDefault("evaluation.weight_total", 100)
 	v.SetDefault("interview.question_limit", 8)
 	v.SetDefault("interview.stt_provider", STTProviderFake)

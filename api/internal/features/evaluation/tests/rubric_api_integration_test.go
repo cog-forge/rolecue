@@ -626,3 +626,51 @@ func TestRubricRepositoryCreateAndCopyAreAtomic(t *testing.T) {
 		t.Fatalf("rubrics owned after a failed copy = %d, before %d, %v", after, before, err)
 	}
 }
+
+// KAN-331: a rubric used by an approved posting is frozen for everyone, an Admin on a system rubric included.
+// Archiving still works and the question keeps its rubric; a copy is the way to change it for a new draft.
+func TestRubricAPIRubricOfAnApprovedPostingIsFrozenEvenForAnAdmin(t *testing.T) {
+	ctx, pool := openPool(t)
+	api, s := newRubricAPI(t, ctx, pool)
+	admin := user(uuid.New(), "admin")
+	recruiterID := s.recruiter()
+	recruiter := user(recruiterID, "recruiter")
+
+	// A system rubric made for this test, so the seeded templates stay untouched.
+	body := rubricBody("Frozen system template")
+	created := api.mustCall(admin, http.MethodPost, "/rubrics", body, http.StatusCreated)
+	id := api.track(created)
+	path := "/rubrics/" + id
+	_, jdID := s.posting(recruiterID, "open")
+	questionID := uuid.New()
+	s.exec(`INSERT INTO public.core_questions (id, jd_id, content, rubric_id, expected_answer) VALUES ($1, $2, 'approved question', $3::uuid, 'Key points.')`, questionID, jdID, id)
+	s.later(`DELETE FROM public.core_questions WHERE id = $1`, questionID)
+
+	view := api.mustCall(admin, http.MethodGet, path, nil, http.StatusOK)
+	if view.data()["locked"] != true {
+		t.Fatalf("view = %v, want locked", view.data())
+	}
+	token := view.data()["updated_at"]
+	if res := api.call(admin, http.MethodPatch, path, map[string]any{"updated_at": token, "name": "changed after approval"}); res.status != http.StatusConflict || res.code() != string(apperror.CodeRubricLocked) {
+		t.Fatalf("admin edit = %d %q, want 409 RUBRIC_LOCKED", res.status, res.code())
+	}
+	if res := api.call(admin, http.MethodPatch, path, map[string]any{"updated_at": token, "criteria": []map[string]any{{"metric_id": accuracyID.String(), "name": "x", "max_points": 9, "scoring_guide": "0 = a"}}}); res.code() != string(apperror.CodeRubricLocked) {
+		t.Fatalf("admin criteria edit = %d %q, want RUBRIC_LOCKED", res.status, res.code())
+	}
+	if res := api.call(admin, http.MethodDelete, path, nil); res.status != http.StatusConflict || res.code() != string(apperror.CodeRubricInUse) {
+		t.Fatalf("admin delete = %d %q, want 409 RUBRIC_IN_USE", res.status, res.code())
+	}
+	// Archive keeps the reference; the recruiter's copy of a visible rubric is independent and editable.
+	archived := api.mustCall(admin, http.MethodPatch, path, map[string]any{"updated_at": token, "is_active": false}, http.StatusOK)
+	if archived.data()["is_active"] != false {
+		t.Fatalf("archived = %v", archived.data())
+	}
+	var stored uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT rubric_id FROM public.core_questions WHERE id = $1`, questionID).Scan(&stored); err != nil || stored.String() != id {
+		t.Fatalf("the approved question lost its rubric after archiving: %v, %v", stored, err)
+	}
+	api.mustCall(admin, http.MethodPatch, path, map[string]any{"updated_at": archived.data()["updated_at"], "is_active": true}, http.StatusOK)
+	copied := api.mustCall(recruiter, http.MethodPost, path+"/copies", nil, http.StatusCreated)
+	api.track(copied)
+	api.mustCall(recruiter, http.MethodPatch, "/rubrics/"+copied.data()["id"].(string), map[string]any{"updated_at": copied.data()["updated_at"], "name": "Edited copy"}, http.StatusOK)
+}

@@ -33,7 +33,7 @@ func (fixtureQuestionGenerator) Generate(_ context.Context, _ qbdomain.Generatio
 	for i := range questions {
 		questions[i] = "How do you use Go concurrency in a production service?"
 	}
-	return qbdomain.GenerationCandidate{Questions: questions}, nil
+	return qbdomain.CandidateOf(questions...), nil
 }
 
 func TestRoleProfileLifecycle(t *testing.T) {

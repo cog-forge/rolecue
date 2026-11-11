@@ -178,7 +178,7 @@ func (h *ModerationHandler) List(c *gin.Context) {
 
 // Get godoc
 // @Summary Get a Job Posting for review
-// @Description Admin only. Read-only: the Admin cannot edit posting content, the 3D interviewer or the voice. content_path is the URL of the JD content the Admin reviews; core_question_count shows whether the posting can be approved (it needs at least one).
+// @Description Admin only. Read-only: the Admin cannot edit posting content, the 3D interviewer or the voice. content_path is the URL of the JD content the Admin reviews; core_question_count and grading_incomplete_count show whether the posting can be approved (it needs at least one).
 // @Tags admin-job-postings
 // @Accept json
 // @Produce json
@@ -211,7 +211,7 @@ func (h *ModerationHandler) Get(c *gin.Context) {
 
 // Approve godoc
 // @Summary Approve a pending Job Posting
-// @Description Admin only. Trusted Origin required. Moves pending to open. The posting reaches Candidates on the job board only once its Recruiter funds interview slots. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.
+// @Description Admin only. Trusted Origin required. Moves pending to open. The posting reaches Candidates on the job board only once its Recruiter funds interview slots. The posting needs at least one core question (409 QUESTION_BANK_NOT_READY otherwise), every question needs an active rubric of the Recruiter and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE; grading_incomplete_count in the review shows how many), because its question bank is locked once it leaves pending. Approving an already open posting returns it unchanged; any other non-pending state is 409 JOB_POSTING_NOT_PENDING.
 // @Tags admin-job-postings
 // @Accept json
 // @Produce json

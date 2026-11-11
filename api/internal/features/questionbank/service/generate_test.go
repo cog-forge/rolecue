@@ -76,7 +76,7 @@ func TestGeneratePreconditions(t *testing.T) {
 }
 
 func TestGenerateRetriesOnlyInvalidOutput(t *testing.T) {
-	bad := domain.GenerationCandidate{Questions: []string{"only one"}}
+	bad := domain.CandidateOf("only one")
 	for _, tc := range []struct {
 		name      string
 		retries   int
@@ -128,7 +128,7 @@ func TestGenerateStopsWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	gen := &fakeGenerator{fn: func(int) (domain.GenerationCandidate, error) {
 		cancel()
-		return domain.GenerationCandidate{Questions: []string{"x"}}, nil
+		return domain.CandidateOf("x"), nil
 	}}
 	_, err := newService(t, repo, gen, 1, 3).Generate(ctx, uuid.New(), "recruiter", uuid.New())
 	assertCode(t, err, apperror.CodeQuestionGenerationFailed)
@@ -175,7 +175,7 @@ func TestGenerateStopsWhenCancelledDuringBackoff(t *testing.T) {
 	gen := &fakeGenerator{fn: func(int) (domain.GenerationCandidate, error) {
 		// Invalid output schedules a retry after a short pause; cancel while the service waits.
 		time.AfterFunc(20*time.Millisecond, cancel)
-		return domain.GenerationCandidate{Questions: []string{"only one"}}, nil
+		return domain.CandidateOf("only one"), nil
 	}}
 	_, err := newService(t, repo, gen, 1, 3).Generate(ctx, uuid.New(), "recruiter", uuid.New())
 	assertCode(t, err, apperror.CodeQuestionGenerationFailed)

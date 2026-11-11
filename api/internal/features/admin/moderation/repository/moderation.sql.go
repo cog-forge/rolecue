@@ -12,6 +12,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCoreQuestions = `-- name: CountCoreQuestions :one
+SELECT count(*) FROM public.core_questions WHERE jd_id = $1
+`
+
+func (q *Queries) CountCoreQuestions(ctx context.Context, jdID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCoreQuestions, jdID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countIncompleteGrading = `-- name: CountIncompleteGrading :one
+SELECT count(*)::int
+FROM public.core_questions cq
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE cq.jd_id = $1
+  AND NOT (r.id IS NOT NULL AND r.is_active AND (r.scope = 'system' OR r.owner_id = $2::uuid)
+           AND cq.expected_answer IS NOT NULL AND cq.expected_answer ~ '\S'
+           AND char_length(cq.expected_answer) <= $3::int
+           AND cardinality(regexp_split_to_array(btrim(cq.expected_answer), '\s+')) <= $4::int)
+`
+
+type CountIncompleteGradingParams struct {
+	JdID        uuid.UUID
+	RecruiterID uuid.UUID
+	MaxRunes    int32
+	MaxWords    int32
+}
+
+// The readiness rule: keep identical to the copies in questionbank and jobposting.
+func (q *Queries) CountIncompleteGrading(ctx context.Context, arg CountIncompleteGradingParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countIncompleteGrading,
+		arg.JdID,
+		arg.RecruiterID,
+		arg.MaxRunes,
+		arg.MaxWords,
+	)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countPostings = `-- name: CountPostings :one
 SELECT count(*)
 FROM public.job_postings jp
@@ -78,6 +120,11 @@ SELECT jp.id, jp.jd_id, jp.title, jp.status::text AS status, jp.reject_reason, j
        jd.raw_text, jp.review_submitted, u.company_name, u.company_website, lower(l.name)::text AS seniority_level,
        COALESCE(jd.refinement_note, '')::text AS refinement_note,
        (SELECT count(*) FROM public.core_questions cq WHERE cq.jd_id = jp.jd_id) AS core_question_count,
+       (SELECT count(*) FROM public.core_questions cq LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+        WHERE cq.jd_id = jp.jd_id AND NOT (r.id IS NOT NULL AND r.is_active AND (r.scope = 'system' OR r.owner_id = jp.recruiter_id)
+           AND cq.expected_answer IS NOT NULL AND cq.expected_answer ~ '\S'
+           AND char_length(cq.expected_answer) <= $1::int
+           AND cardinality(regexp_split_to_array(btrim(cq.expected_answer), '\s+')) <= $2::int)) AS grading_incomplete_count,
        EXISTS (SELECT 1 FROM public.metrics_percentage mp WHERE mp.job_posting_id = jp.id) AS weights_configured
 FROM public.job_postings jp
 JOIN public.users u ON u.id = jp.recruiter_id
@@ -85,42 +132,49 @@ JOIN public.job_descriptions jd ON jd.id = jp.jd_id
 JOIN public.levels l ON l.id = jd.level_id
 LEFT JOIN public.avatars a ON a.id = jp.required_avatar_id
 LEFT JOIN public.voices v ON v.id = jp.required_voice_id
-WHERE jp.id = $1
+WHERE jp.id = $3
 `
 
-type GetPostingRow struct {
-	ID                uuid.UUID
-	JdID              uuid.UUID
-	Title             string
-	Status            string
-	RejectReason      *string
-	Location          *string
-	EmploymentType    *string
-	SalaryMin         *int32
-	SalaryMax         *int32
-	InterviewSlot     *int32
-	InterviewDuration *int32
-	CreatedAt         pgtype.Timestamptz
-	RecruiterID       uuid.UUID
-	RecruiterName     string
-	RecruiterEmail    string
-	RequiredAvatarID  *uuid.UUID
-	AvatarName        *string
-	RequiredVoiceID   *uuid.UUID
-	VoiceName         *string
-	ContentPath       string
-	RawText           *string
-	ReviewSubmitted   bool
-	CompanyName       *string
-	CompanyWebsite    *string
-	SeniorityLevel    string
-	RefinementNote    string
-	CoreQuestionCount int64
-	WeightsConfigured bool
+type GetPostingParams struct {
+	MaxRunes int32
+	MaxWords int32
+	ID       uuid.UUID
 }
 
-func (q *Queries) GetPosting(ctx context.Context, id uuid.UUID) (GetPostingRow, error) {
-	row := q.db.QueryRow(ctx, getPosting, id)
+type GetPostingRow struct {
+	ID                     uuid.UUID
+	JdID                   uuid.UUID
+	Title                  string
+	Status                 string
+	RejectReason           *string
+	Location               *string
+	EmploymentType         *string
+	SalaryMin              *int32
+	SalaryMax              *int32
+	InterviewSlot          *int32
+	InterviewDuration      *int32
+	CreatedAt              pgtype.Timestamptz
+	RecruiterID            uuid.UUID
+	RecruiterName          string
+	RecruiterEmail         string
+	RequiredAvatarID       *uuid.UUID
+	AvatarName             *string
+	RequiredVoiceID        *uuid.UUID
+	VoiceName              *string
+	ContentPath            string
+	RawText                *string
+	ReviewSubmitted        bool
+	CompanyName            *string
+	CompanyWebsite         *string
+	SeniorityLevel         string
+	RefinementNote         string
+	CoreQuestionCount      int64
+	GradingIncompleteCount int64
+	WeightsConfigured      bool
+}
+
+func (q *Queries) GetPosting(ctx context.Context, arg GetPostingParams) (GetPostingRow, error) {
+	row := q.db.QueryRow(ctx, getPosting, arg.MaxRunes, arg.MaxWords, arg.ID)
 	var i GetPostingRow
 	err := row.Scan(
 		&i.ID,
@@ -150,6 +204,7 @@ func (q *Queries) GetPosting(ctx context.Context, id uuid.UUID) (GetPostingRow, 
 		&i.SeniorityLevel,
 		&i.RefinementNote,
 		&i.CoreQuestionCount,
+		&i.GradingIncompleteCount,
 		&i.WeightsConfigured,
 	)
 	return i, err
@@ -254,4 +309,33 @@ func (q *Queries) ListReviewRequirements(ctx context.Context, jdID uuid.UUID) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockPostingForDecision = `-- name: LockPostingForDecision :one
+SELECT jd_id, recruiter_id, status::text AS status, review_submitted
+FROM public.job_postings
+WHERE id = $1
+FOR UPDATE
+`
+
+type LockPostingForDecisionRow struct {
+	JdID            uuid.UUID
+	RecruiterID     uuid.UUID
+	Status          string
+	ReviewSubmitted bool
+}
+
+// Approval (KAN-331): the decision runs in one transaction that first locks the posting row, the lock a
+// Recruiter's bank edit holds, so an edit and an approval run one after the other. Everything the decision
+// reads from other tables is read by the statements after the lock.
+func (q *Queries) LockPostingForDecision(ctx context.Context, id uuid.UUID) (LockPostingForDecisionRow, error) {
+	row := q.db.QueryRow(ctx, lockPostingForDecision, id)
+	var i LockPostingForDecisionRow
+	err := row.Scan(
+		&i.JdID,
+		&i.RecruiterID,
+		&i.Status,
+		&i.ReviewSubmitted,
+	)
+	return i, err
 }

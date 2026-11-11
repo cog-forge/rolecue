@@ -17,9 +17,9 @@ import (
 
 type QuestionBankService interface {
 	List(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.Bank, error)
-	Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.CoreQuestion, error)
-	Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.CoreQuestion, error)
-	Update(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID, content string) (domain.CoreQuestion, error)
+	Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.BankQuestion, error)
+	Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.BankQuestion, error)
+	Update(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID, content string) (domain.BankQuestion, error)
 	Delete(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID) error
 }
 type QuestionBankHandler struct {
@@ -38,12 +38,12 @@ type QuestionRequest struct {
 
 // QuestionBankResponse wraps the list so an empty bank is `{"questions": []}`.
 type QuestionBankResponse struct {
-	Questions []domain.CoreQuestion `json:"questions"`
+	Questions []domain.BankQuestion `json:"questions"`
 }
 
-func questionBankResponse(questions []domain.CoreQuestion) QuestionBankResponse {
+func questionBankResponse(questions []domain.BankQuestion) QuestionBankResponse {
 	if questions == nil {
-		questions = []domain.CoreQuestion{}
+		questions = []domain.BankQuestion{}
 	}
 	return QuestionBankResponse{Questions: questions}
 }
@@ -96,7 +96,7 @@ func questionBankContent(c *gin.Context) (string, bool) {
 
 // List godoc
 // @Summary List the core-question bank of your own job posting
-// @Description Recruiter only. Candidates never receive the bank. Also returns whether the bank can still change (while a confirmed bank is pending or rejected) and the server limits.
+// @Description Recruiter only. Candidates never receive the bank. Each question carries its rubric_id, expected_answer (both null until set) and grading_incomplete, which is true until the question has both. Also returns whether the bank can still change (while a confirmed bank is pending or rejected) and the server limits.
 // @Tags job-posting-questions
 // @Produce json
 // @Security SessionCookie
@@ -128,7 +128,7 @@ func (h *QuestionBankHandler) List(c *gin.Context) {
 
 // Generate godoc
 // @Summary Generate the core-question bank of your own job posting
-// @Description Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. Generating never submits the posting for review. Trusted Origin required.
+// @Description Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. One generation call also picks, for each question, an allowed rubric (an active system template or one of your own active rubrics) and writes its expected answer; a question without a suitable rubric is saved with rubric_id null and grading_incomplete true. Generating never submits the posting for review. Trusted Origin required.
 // @Tags job-posting-questions
 // @Produce json
 // @Security SessionCookie
@@ -176,7 +176,7 @@ func (h *QuestionBankHandler) Generate(c *gin.Context) {
 // @Param Origin header string true "Trusted frontend origin"
 // @Param id path string true "Job posting ID"
 // @Param request body QuestionRequest true "Question; body limit 16 KiB"
-// @Success 201 {object} response.Envelope{data=domain.CoreQuestion}
+// @Success 201 {object} response.Envelope{data=domain.BankQuestion}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
@@ -217,7 +217,7 @@ func (h *QuestionBankHandler) Add(c *gin.Context) {
 // @Param id path string true "Job posting ID"
 // @Param questionId path string true "Question ID"
 // @Param request body QuestionRequest true "Question; body limit 16 KiB"
-// @Success 200 {object} response.Envelope{data=domain.CoreQuestion}
+// @Success 200 {object} response.Envelope{data=domain.BankQuestion}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
