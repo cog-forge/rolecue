@@ -18,6 +18,8 @@ import (
 	rd "github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	rp "github.com/cog-forge/rolecue/api/internal/features/roleprofile/provider"
 	rs "github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
 type TaskAdapter struct{ route *Route }
@@ -110,7 +112,7 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 			batchSize = 10
 		}
 	}
-	merged := qd.GenerationCandidate{Questions: []string{}}
+	merged := qd.GenerationCandidate{Questions: []qd.GeneratedQuestion{}}
 	for offset := 0; offset < count; offset += batchSize {
 		size := min(batchSize, count-offset)
 		batch, err := Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (qd.GenerationCandidate, error) {
@@ -118,15 +120,16 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 			if err != nil {
 				return qd.GenerationCandidate{}, err
 			}
-			c, err := g.GenerateBatch(ctx, in, size, merged.Questions)
+			c, err := g.GenerateBatch(ctx, in, size, merged.Contents())
 			if err == nil {
-				combined := qd.GenerationCandidate{Questions: append(append([]string{}, merged.Questions...), c.Questions...)}
-				var valid []string
-				valid, err = qs.ValidateGenerated(combined, len(merged.Questions)+size)
+				combined := qd.GenerationCandidate{Questions: append(append([]qd.GeneratedQuestion{}, merged.Questions...), c.Questions...)}
+				var valid []qd.GeneratedQuestion
+				valid, err = qs.ValidateGenerated(in, combined, len(merged.Questions)+size)
 				if err == nil {
 					c.Questions = valid[len(merged.Questions):]
 				}
 			}
+			logRejectedBankOutput(ctx, err, len(merged.Questions), size, len(c.Questions))
 			if a.route.legacy {
 				return c, err
 			}
@@ -137,6 +140,18 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 		}
 		merged.Questions = append(merged.Questions, batch.Questions...)
 	}
-	_, err := qs.ValidateGenerated(merged, count)
+	_, err := qs.ValidateGenerated(in, merged, count)
 	return merged, err
+}
+
+// logRejectedBankOutput records why a batch of generated questions was refused: the rule that failed and the
+// counts, so an invalid_output from a provider can be diagnosed. The causes built by the decoder and the
+// validators name rules and positions only; they never contain question or answer text.
+func logRejectedBankOutput(ctx context.Context, err error, accepted, requested, proposed int) {
+	var appErr *apperror.AppError
+	if !errors.As(err, &appErr) || appErr == nil || appErr.Code != apperror.CodeInvalidQuestionGenerationOutput {
+		return
+	}
+	logger.FromContext(ctx).Warn("question bank batch rejected", logger.Op("ai.question_bank.validate"),
+		logger.Int("accepted", accepted), logger.Int("requested", requested), logger.Int("proposed", proposed), logger.Cause(err))
 }
