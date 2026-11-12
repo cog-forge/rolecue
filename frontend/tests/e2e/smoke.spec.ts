@@ -25,7 +25,7 @@ test("public navigation and protected routes enforce login", async ({
   ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Can I start for free?" }).click();
   await expect(
-    page.getByText(/you can create an account and start practicing for free/i),
+    page.getByText(/starting a practice session costs 5 coins/i),
   ).toBeVisible();
   await page.route("**/auth/me", (route) =>
     route.fulfill({
@@ -63,7 +63,7 @@ test("FAQ honors reduced-motion preferences", async ({ page }) => {
   await page.getByRole("button", { name: "Can I start for free?" }).click();
 
   const content = page.locator('[data-slot="accordion-content"]').filter({
-    hasText: /you can create an account and start practicing for free/i,
+    hasText: /starting a practice session costs 5 coins/i,
   });
 
   await expect(content).toBeVisible();

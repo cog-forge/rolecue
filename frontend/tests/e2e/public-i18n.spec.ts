@@ -35,9 +35,11 @@ test.describe("public pages language", () => {
         { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
       ]);
     await page.goto("/pricing");
-    await expect(page.getByRole("heading", { name: "Bảng giá" })).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Trang chủ", exact: true }),
+      page.getByRole("heading", { name: "Coin cho từng nhu cầu." }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "RoleCue", exact: true }),
     ).toBeVisible();
   });
 });

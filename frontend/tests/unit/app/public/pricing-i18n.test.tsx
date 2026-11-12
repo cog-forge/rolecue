@@ -1,63 +1,34 @@
-import { isValidElement } from "react";
 import { createTranslator } from "next-intl";
 import { renderWithIntl, messagesFor } from "@tests/helpers/intl";
 import { screen } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { expect, it, vi } from "vitest";
 
-let activeLocale: "en" | "vi" = "vi";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 vi.mock("next-intl/server", () => ({
   getTranslations: async (namespace: string) =>
     createTranslator({
-      locale: activeLocale,
-      messages: messagesFor(activeLocale),
-      namespace: namespace as "public.pricing",
+      locale: "vi",
+      messages: messagesFor("vi"),
+      namespace: namespace as "public.pages",
     }),
 }));
 
-beforeEach(() => {
-  activeLocale = "vi";
-});
-
-it("renders the pricing placeholder in Vietnamese", async () => {
-  const { default: PricingPage } = await import("@/app/(public)/pricing/page");
-  renderWithIntl(await PricingPage(), { locale: "vi" });
+it("renders translated public navigation to all information pages", async () => {
+  const { PublicPageShell } =
+    await import("@/features/marketing/components/public-page-shell");
+  renderWithIntl(await PublicPageShell({ children: <h1>Test</h1> }), {
+    locale: "vi",
+  });
+  expect(screen.getAllByRole("link", { name: "Bảng giá" })[0]).toHaveAttribute(
+    "href",
+    "/pricing",
+  );
+  expect(screen.getAllByRole("link", { name: "Bảo mật" })[0]).toHaveAttribute(
+    "href",
+    "/privacy",
+  );
   expect(
-    screen.getByRole("heading", { level: 1, name: "Bảng giá" }),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText(/Các gói xu phỏng vấn và thông tin gói dịch vụ/),
-  ).toBeInTheDocument();
-});
-
-it("gives the pricing shell translated navigation and label", async () => {
-  const { default: PricingLayout } =
-    await import("@/app/(public)/pricing/layout");
-  const element = await PricingLayout({ children: null });
-  expect(isValidElement(element)).toBe(true);
-  const props = (
-    element as {
-      props: { label: string; navigation: { label: string; href: string }[] };
-    }
-  ).props;
-  expect(props.label).toBe("Công khai");
-  expect(props.navigation).toEqual([
-    { label: "Trang chủ", href: "/" },
-    { label: "Bảng giá", href: "/pricing" },
-    { label: "Đăng nhập", href: "/login" },
-  ]);
-});
-
-it("keeps the English pricing copy unchanged", async () => {
-  activeLocale = "en";
-  const { default: PricingPage } = await import("@/app/(public)/pricing/page");
-  renderWithIntl(await PricingPage());
-  expect(
-    screen.getByRole("heading", { level: 1, name: "Pricing" }),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText(
-      "Interview credit packages and plan information will be available once pricing is defined.",
-    ),
-  ).toBeInTheDocument();
+    screen.getAllByRole("link", { name: "Điều khoản" })[0],
+  ).toHaveAttribute("href", "/terms");
 });

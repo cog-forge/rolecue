@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
-
+import { InformationPage } from "@/features/marketing/components/information-page";
 export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("public.privacy");
-  return { title: t("title"), description: t("metadataDescription") };
+  const t = await getTranslations("public.pages");
+  return { title: t("privacy"), description: t("privacyIntro") };
 }
-
-export default async function PrivacyPage() {
-  const t = await getTranslations("public.privacy");
-  return <RoutePlaceholder title={t("title")} description={t("description")} />;
+export default function Page() {
+  return <InformationPage kind="privacy" />;
 }

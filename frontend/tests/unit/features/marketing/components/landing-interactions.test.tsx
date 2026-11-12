@@ -111,9 +111,7 @@ it("opens and closes an FAQ response with shadcn Accordion state", async () => {
   expect(question).toHaveAttribute("aria-expanded", "true");
   await waitFor(() =>
     expect(
-      screen.getByText(
-        /you can create an account and start practicing for free/i,
-      ),
+      screen.getByText(/starting a practice session costs 5 coins/i),
     ).toBeVisible(),
   );
 
