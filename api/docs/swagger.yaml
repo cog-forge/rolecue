@@ -73,6 +73,8 @@ definitions:
     - RUBRIC_LOCKED
     - RUBRIC_IN_USE
     - RUBRIC_STALE
+    - QUESTION_STALE
+    - EXPECTED_ANSWER_REVIEW_REQUIRED
     - APPLICATION_NOT_FOUND
     - APPLICATION_NOT_PENDING
     - APPLICATION_NOT_ELIGIBLE
@@ -171,6 +173,8 @@ definitions:
     - CodeRubricLocked
     - CodeRubricInUse
     - CodeRubricStale
+    - CodeQuestionStale
+    - CodeExpectedAnswerReviewRequired
     - CodeApplicationNotFound
     - CodeApplicationNotPending
     - CodeApplicationNotEligible
@@ -353,6 +357,8 @@ definitions:
     properties:
       editable:
         type: boolean
+      expected_answer_guidance_words:
+        type: integer
       generation_size:
         description: GenerationSize is how many questions Generate writes; 0 means
           generation is not configured.
@@ -364,6 +370,12 @@ definitions:
           GradingReady is true when the bank is not empty and every question is complete; only then can the posting
           be submitted. GradingIncompleteCount is how many questions are not.
         type: boolean
+      max_bulk_questions:
+        type: integer
+      max_expected_answer_length:
+        type: integer
+      max_expected_answer_words:
+        type: integer
       max_question_length:
         type: integer
       posting_status:
@@ -392,6 +404,8 @@ definitions:
         type: array
       id:
         format: uuid
+        type: string
+      revision:
         type: string
       rubric_id:
         format: uuid
@@ -554,6 +568,19 @@ definitions:
         enum:
         - required
         - preferred
+        type: string
+    type: object
+  domain.BulkRubricRequest:
+    properties:
+      previous_revisions:
+        additionalProperties:
+          type: string
+        type: object
+      question_ids:
+        items:
+          type: string
+        type: array
+      rubric_id:
         type: string
     type: object
   domain.CandidateApplication:
@@ -2725,8 +2752,13 @@ definitions:
     properties:
       content:
         type: string
-    required:
-    - content
+      expected_answer:
+        type: string
+      previous_revision:
+        type: string
+      rubric_id:
+        format: uuid
+        type: string
     type: object
   handler.RejectCVRequest:
     properties:
@@ -7160,7 +7192,9 @@ paths:
         name: id
         required: true
         type: string
-      - description: Question; body limit 16 KiB
+      - description: Fields to set (at least one on PATCH); null clears grading fields;
+          changing rubric requires expected_answer; previous_revision detects stale
+          edits; body limit 16 KiB
         in: body
         name: request
         required: true
@@ -7290,7 +7324,9 @@ paths:
         name: questionId
         required: true
         type: string
-      - description: Question; body limit 16 KiB
+      - description: Fields to set (at least one on PATCH); null clears grading fields;
+          changing rubric requires expected_answer; previous_revision detects stale
+          edits; body limit 16 KiB
         in: body
         name: request
         required: true
@@ -7338,7 +7374,73 @@ paths:
             $ref: '#/definitions/response.Envelope'
       security:
       - SessionCookie: []
-      summary: Edit a question in the bank of your own job posting
+      summary: Edit question content, rubric or expected answer in your own bank
+      tags:
+      - job-posting-questions
+  /job-postings/{id}/questions/apply-rubric:
+    post:
+      consumes:
+      - application/json
+      description: Recruiter only. Pending/rejected posting only. Clears expected_answer
+        only when the rubric changes, requiring a new review. Previous revisions are
+        mandatory for every selected question. Foreign, missing and archived rubrics
+        all return RUBRIC_NOT_FOUND. Trusted Origin required; body limit 16 KiB.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Job posting ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 1 to 100 distinct question IDs and previous revisions
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.BulkRubricRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.QuestionBankResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Apply an active system or own rubric to selected questions atomically
       tags:
       - job-posting-questions
   /job-postings/{id}/questions/generate:

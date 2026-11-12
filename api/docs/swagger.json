@@ -6446,7 +6446,7 @@
                         "required": true
                     },
                     {
-                        "description": "Question; body limit 16 KiB",
+                        "description": "Fields to set (at least one on PATCH); null clears grading fields; changing rubric requires expected_answer; previous_revision detects stale edits; body limit 16 KiB",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -6512,6 +6512,107 @@
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/job-postings/{id}/questions/apply-rubric": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Recruiter only. Pending/rejected posting only. Clears expected_answer only when the rubric changes, requiring a new review. Previous revisions are mandatory for every selected question. Foreign, missing and archived rubrics all return RUBRIC_NOT_FOUND. Trusted Origin required; body limit 16 KiB.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "job-posting-questions"
+                ],
+                "summary": "Apply an active system or own rubric to selected questions atomically",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Job posting ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "1 to 100 distinct question IDs and previous revisions",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.BulkRubricRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.QuestionBankResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -6719,7 +6820,7 @@
                 "tags": [
                     "job-posting-questions"
                 ],
-                "summary": "Edit a question in the bank of your own job posting",
+                "summary": "Edit question content, rubric or expected answer in your own bank",
                 "parameters": [
                     {
                         "type": "string",
@@ -6743,7 +6844,7 @@
                         "required": true
                     },
                     {
-                        "description": "Question; body limit 16 KiB",
+                        "description": "Fields to set (at least one on PATCH); null clears grading fields; changing rubric requires expected_answer; previous_revision detects stale edits; body limit 16 KiB",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -9228,6 +9329,8 @@
                 "RUBRIC_LOCKED",
                 "RUBRIC_IN_USE",
                 "RUBRIC_STALE",
+                "QUESTION_STALE",
+                "EXPECTED_ANSWER_REVIEW_REQUIRED",
                 "APPLICATION_NOT_FOUND",
                 "APPLICATION_NOT_PENDING",
                 "APPLICATION_NOT_ELIGIBLE",
@@ -9326,6 +9429,8 @@
                 "CodeRubricLocked",
                 "CodeRubricInUse",
                 "CodeRubricStale",
+                "CodeQuestionStale",
+                "CodeExpectedAnswerReviewRequired",
                 "CodeApplicationNotFound",
                 "CodeApplicationNotPending",
                 "CodeApplicationNotEligible",
@@ -9588,6 +9693,9 @@
                 "editable": {
                     "type": "boolean"
                 },
+                "expected_answer_guidance_words": {
+                    "type": "integer"
+                },
                 "generation_size": {
                     "description": "GenerationSize is how many questions Generate writes; 0 means generation is not configured.",
                     "type": "integer"
@@ -9598,6 +9706,15 @@
                 "grading_ready": {
                     "description": "GradingReady is true when the bank is not empty and every question is complete; only then can the posting\nbe submitted. GradingIncompleteCount is how many questions are not.",
                     "type": "boolean"
+                },
+                "max_bulk_questions": {
+                    "type": "integer"
+                },
+                "max_expected_answer_length": {
+                    "type": "integer"
+                },
+                "max_expected_answer_words": {
+                    "type": "integer"
                 },
                 "max_question_length": {
                     "type": "integer"
@@ -9638,6 +9755,9 @@
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "revision": {
+                    "type": "string"
                 },
                 "rubric_id": {
                     "type": "string",
@@ -9871,6 +9991,26 @@
                         "required",
                         "preferred"
                     ]
+                }
+            }
+        },
+        "domain.BulkRubricRequest": {
+            "type": "object",
+            "properties": {
+                "previous_revisions": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "question_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rubric_id": {
+                    "type": "string"
                 }
             }
         },
@@ -12991,12 +13131,19 @@
         },
         "handler.QuestionRequest": {
             "type": "object",
-            "required": [
-                "content"
-            ],
             "properties": {
                 "content": {
                     "type": "string"
+                },
+                "expected_answer": {
+                    "type": "string"
+                },
+                "previous_revision": {
+                    "type": "string"
+                },
+                "rubric_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

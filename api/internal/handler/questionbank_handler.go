@@ -16,6 +16,8 @@ import (
 )
 
 type QuestionBankService interface {
+	WriteQuestion(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, questionID *uuid.UUID, patch domain.QuestionPatch) (domain.BankQuestion, error)
+	ApplyRubric(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, request domain.BulkRubricRequest) ([]domain.BankQuestion, error)
 	List(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.Bank, error)
 	Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.BankQuestion, error)
 	Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.BankQuestion, error)
@@ -33,7 +35,10 @@ func NewQuestionBankHandler(service QuestionBankService, generationBudget time.D
 
 // QuestionRequest is the body of add and edit. Content is a pointer so a missing field differs from "".
 type QuestionRequest struct {
-	Content *string `json:"content" binding:"required"`
+	Content          *string         `json:"content"`
+	RubricID         json.RawMessage `json:"rubric_id" swaggertype:"string" format:"uuid"`
+	ExpectedAnswer   json.RawMessage `json:"expected_answer" swaggertype:"string"`
+	PreviousRevision string          `json:"previous_revision,omitempty"`
 }
 
 // QuestionBankResponse wraps the list so an empty bank is `{"questions": []}`.
@@ -82,16 +87,17 @@ func questionBankJSON(c *gin.Context, target any) bool {
 	return true
 }
 
-func questionBankContent(c *gin.Context) (string, bool) {
+func questionBankPatch(c *gin.Context) (domain.QuestionPatch, bool) {
 	var req QuestionRequest
 	if !questionBankJSON(c, &req) {
-		return "", false
+		return domain.QuestionPatch{}, false
 	}
-	if req.Content == nil {
-		response.Error(c, apperror.New(apperror.CodeValidation, "invalid request body"))
-		return "", false
+	p := domain.QuestionPatch{Content: req.Content, SetRubric: req.RubricID != nil, SetExpectedAnswer: req.ExpectedAnswer != nil, PreviousRevision: req.PreviousRevision}
+	if (p.SetRubric && json.Unmarshal(req.RubricID, &p.RubricID) != nil) || (p.SetExpectedAnswer && json.Unmarshal(req.ExpectedAnswer, &p.ExpectedAnswer) != nil) {
+		response.Error(c, apperror.New(apperror.CodeValidation, "invalid grading fields"))
+		return p, false
 	}
-	return *req.Content, true
+	return p, true
 }
 
 // List godoc
@@ -175,7 +181,7 @@ func (h *QuestionBankHandler) Generate(c *gin.Context) {
 // @Security SessionCookie
 // @Param Origin header string true "Trusted frontend origin"
 // @Param id path string true "Job posting ID"
-// @Param request body QuestionRequest true "Question; body limit 16 KiB"
+// @Param request body QuestionRequest true "Fields to set (at least one on PATCH); null clears grading fields; changing rubric requires expected_answer; previous_revision detects stale edits; body limit 16 KiB"
 // @Success 201 {object} response.Envelope{data=domain.BankQuestion}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
@@ -194,11 +200,11 @@ func (h *QuestionBankHandler) Add(c *gin.Context) {
 	if !ok {
 		return
 	}
-	content, ok := questionBankContent(c)
+	patch, ok := questionBankPatch(c)
 	if !ok {
 		return
 	}
-	question, err := h.service.Add(c.Request.Context(), userID, role, postingID, content)
+	question, err := h.service.WriteQuestion(c.Request.Context(), userID, role, postingID, nil, patch)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -207,7 +213,7 @@ func (h *QuestionBankHandler) Add(c *gin.Context) {
 }
 
 // Update godoc
-// @Summary Edit a question in the bank of your own job posting
+// @Summary Edit question content, rubric or expected answer in your own bank
 // @Description Recruiter only, while the posting is pending or rejected and its current bank has been delivered. Trusted Origin required. Unknown fields reject the whole request.
 // @Tags job-posting-questions
 // @Accept json
@@ -216,7 +222,7 @@ func (h *QuestionBankHandler) Add(c *gin.Context) {
 // @Param Origin header string true "Trusted frontend origin"
 // @Param id path string true "Job posting ID"
 // @Param questionId path string true "Question ID"
-// @Param request body QuestionRequest true "Question; body limit 16 KiB"
+// @Param request body QuestionRequest true "Fields to set (at least one on PATCH); null clears grading fields; changing rubric requires expected_answer; previous_revision detects stale edits; body limit 16 KiB"
 // @Success 200 {object} response.Envelope{data=domain.BankQuestion}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
@@ -239,11 +245,11 @@ func (h *QuestionBankHandler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	content, ok := questionBankContent(c)
+	patch, ok := questionBankPatch(c)
 	if !ok {
 		return
 	}
-	question, err := h.service.Update(c.Request.Context(), userID, role, postingID, questionID, content)
+	question, err := h.service.WriteQuestion(c.Request.Context(), userID, role, postingID, &questionID, patch)
 	if err != nil {
 		response.Error(c, err)
 		return
@@ -297,4 +303,43 @@ func generationDeadline(c *gin.Context, budget time.Duration) (context.CancelFun
 	ctx, cancel := context.WithTimeout(c.Request.Context(), budget)
 	c.Request = c.Request.WithContext(ctx)
 	return cancel, true
+}
+
+// ApplyRubric godoc
+// @Summary Apply an active system or own rubric to selected questions atomically
+// @Description Recruiter only. Pending/rejected posting only. Clears expected_answer only when the rubric changes, requiring a new review. Previous revisions are mandatory for every selected question. Foreign, missing and archived rubrics all return RUBRIC_NOT_FOUND. Trusted Origin required; body limit 16 KiB.
+// @Tags job-posting-questions
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param Origin header string true "Trusted frontend origin"
+// @Param id path string true "Job posting ID"
+// @Param request body domain.BulkRubricRequest true "1 to 100 distinct question IDs and previous revisions"
+// @Success 200 {object} response.Envelope{data=QuestionBankResponse}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /job-postings/{id}/questions/apply-rubric [post]
+func (h *QuestionBankHandler) ApplyRubric(c *gin.Context) {
+	userID, role, ok := questionBankUser(c)
+	if !ok {
+		return
+	}
+	postingID, ok := questionBankID(c, "id", "job posting")
+	if !ok {
+		return
+	}
+	var req domain.BulkRubricRequest
+	if !questionBankJSON(c, &req) {
+		return
+	}
+	questions, err := h.service.ApplyRubric(c.Request.Context(), userID, role, postingID, req)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, questionBankResponse(questions))
 }
