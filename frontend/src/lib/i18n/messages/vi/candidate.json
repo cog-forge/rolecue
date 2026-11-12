@@ -34,7 +34,9 @@
         "pending": "Đang chuẩn bị phản hồi",
         "completed": "Đã có phản hồi",
         "failed": "Không có phản hồi"
-      }
+      },
+      "scoreValue": "{score}/100",
+      "scoreWithheld": "Chưa có điểm tổng"
     },
     "profiles": {
       "title": "JD mục tiêu",
@@ -101,7 +103,9 @@
       "failed": "Đánh giá không thành công"
     },
     "application": "Xem đơn ứng tuyển",
-    "noScore": "Chưa có điểm"
+    "noScore": "Chưa có điểm",
+    "scoreValue": "{score} / 100",
+    "scoreWithheld": "Chưa có điểm tổng"
   },
   "setupNavigation": {
     "stepsLabel": "Các bước tạo cuộc phỏng vấn",

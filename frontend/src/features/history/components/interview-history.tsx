@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { formatInterviewTime } from "@/features/report/utils/report-text";
+import { formatScore } from "@/features/report/utils/scoring";
 import { historyKeys, listInterviewHistory } from "../api/history";
 import { HISTORY_PAGE_SIZE, type HistoryItem } from "../schemas/history-schema";
 import { isAccessDenied } from "../utils/api-status";
@@ -256,7 +257,11 @@ function HistoryRow({ item }: { item: HistoryItem }) {
         <p className="font-medium">{t(`status.${item.status}`)}</p>
         {item.type === "practice" && (
           <p className="text-muted-foreground tabular-nums">
-            {item.score === null ? t("noScore") : `${item.score} / 100`}
+            {item.score !== null
+              ? t("scoreValue", { score: formatScore(item.score, fmt.number) })
+              : item.score_outcome === "withheld"
+                ? t("scoreWithheld")
+                : t("noScore")}
           </p>
         )}
       </div>

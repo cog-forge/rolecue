@@ -34,7 +34,9 @@
         "pending": "Feedback being prepared",
         "completed": "Feedback ready",
         "failed": "Feedback unavailable"
-      }
+      },
+      "scoreValue": "{score}/100",
+      "scoreWithheld": "No overall score"
     },
     "profiles": {
       "title": "Target JDs",
@@ -101,7 +103,9 @@
       "failed": "Evaluation failed"
     },
     "application": "View application",
-    "noScore": "No score yet"
+    "noScore": "No score yet",
+    "scoreValue": "{score} / 100",
+    "scoreWithheld": "No overall score"
   },
   "setupNavigation": {
     "stepsLabel": "Interview creation steps",

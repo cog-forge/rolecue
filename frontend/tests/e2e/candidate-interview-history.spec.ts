@@ -105,7 +105,7 @@ test("history lists practice and recruitment interviews with their scores", asyn
     .getByRole("listitem")
     .filter({ hasText: "Frontend Developer" });
   await expect(practice).toContainText("Practice interview");
-  await expect(practice).toContainText("82 / 100");
+  await expect(practice).toContainText("82.00 / 100");
   const recruitment = list
     .getByRole("listitem")
     .filter({ hasText: "Backend Engineer" });

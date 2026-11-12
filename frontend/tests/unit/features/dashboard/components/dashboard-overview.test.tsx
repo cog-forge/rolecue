@@ -146,7 +146,7 @@ describe("DashboardOverview", () => {
     expect(
       screen.getByRole("link", { name: "Platform Engineer" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("78/100")).toBeInTheDocument();
+    expect(screen.getByText("78,00/100")).toBeInTheDocument();
     expect(screen.getByText("1.250")).toBeInTheDocument();
   });
   it("shows a loading state per card, then each card's data", async () => {
@@ -176,7 +176,7 @@ describe("DashboardOverview", () => {
     );
     expect(practiceRow).toHaveAttribute("href", `/reports/${INTERVIEW_ID}`);
     expect(
-      within(practiceSection as HTMLElement).getByText("78/100"),
+      within(practiceSection as HTMLElement).getByText("78.00/100"),
     ).toBeInTheDocument();
 
     expect(

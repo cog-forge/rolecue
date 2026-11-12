@@ -89,7 +89,7 @@ describe("InterviewHistory", () => {
     });
     expect(list).toHaveTextContent("Practice role 1");
     expect(list).toHaveTextContent("Đã hoàn thành");
-    expect(list).toHaveTextContent("72 / 100");
+    expect(list).toHaveTextContent("72,00 / 100");
   });
   it("shows a loading state, then each interview with its status and score", async () => {
     mocks.get.mockResolvedValue(
@@ -101,6 +101,8 @@ describe("InterviewHistory", () => {
           completed_at: null,
           score: null,
         }),
+        practice(3, { score: 62.5, score_outcome: "partial" }),
+        practice(4, { score: null, score_outcome: "withheld" }),
       ]),
     );
     renderHistory();
@@ -110,9 +112,12 @@ describe("InterviewHistory", () => {
 
     const list = await screen.findByRole("list", { name: "Your interviews" });
     const rows = within(list).getAllByRole("listitem");
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(4);
+    // Two decimals (KAN-335), and a withheld overall says so instead of "no score yet".
+    expect(rows[2]).toHaveTextContent("62.50 / 100");
+    expect(rows[3]).toHaveTextContent("No overall score");
     expect(rows[0]).toHaveTextContent("Completed");
-    expect(rows[0]).toHaveTextContent("72 / 100");
+    expect(rows[0]).toHaveTextContent("72.00 / 100");
     expect(rows[1]).toHaveTextContent("In progress");
     expect(rows[1]).toHaveTextContent("No score yet");
     expect(
@@ -167,7 +172,7 @@ describe("InterviewHistory", () => {
     ).toHaveAttribute("href", `/applications/${APPLICATION}`);
     expect(screen.getByText("Recruitment interview")).toBeInTheDocument();
     // practice(1) carries score 72: a recruitment score must not reach the screen.
-    expect(screen.queryByText("72 / 100")).not.toBeInTheDocument();
+    expect(screen.queryByText("72.00 / 100")).not.toBeInTheDocument();
     expect(screen.queryByText("No score yet")).not.toBeInTheDocument();
   });
 

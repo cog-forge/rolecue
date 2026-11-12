@@ -154,7 +154,7 @@ test("the dashboard shows the Target JDs, practice, application and coin cards f
   const practice = page.getByRole("region", { name: "Practice activity" });
   await expect(practice).toContainText("1 session");
   await expect(practice).toContainText("Frontend Developer");
-  await expect(practice).toContainText("82/100");
+  await expect(practice).toContainText("82.00/100");
 
   const applications = page.getByRole("region", { name: "Applications" });
   await expect(applications).toContainText("1 application");
@@ -185,7 +185,7 @@ test("when the applications request fails, that card shows its error and the oth
   );
   await expect(
     page.getByRole("region", { name: "Practice activity" }),
-  ).toContainText("82/100");
+  ).toContainText("82.00/100");
   await expect(
     page.getByRole("region", { name: "Coin balance" }),
   ).toContainText("250 coins");

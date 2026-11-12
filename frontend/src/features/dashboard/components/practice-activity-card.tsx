@@ -12,6 +12,7 @@ import type { InterviewHistoryItem } from "../schemas/dashboard-schema";
 import { formatDate } from "../utils/dashboard-text";
 import { CardError, CardLoading, DashboardCard } from "./dashboard-card";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import { formatScore } from "@/features/report/utils/scoring";
 
 const PREVIEW_COUNT = 3;
 
@@ -85,7 +86,11 @@ function PracticeRow({ item }: { item: InterviewHistoryItem }) {
       </div>
       {item.score !== null ? (
         <span className="shrink-0 text-sm font-semibold tabular-nums">
-          {item.score}/100
+          {t("scoreValue", { score: formatScore(item.score, fmt.number) })}
+        </span>
+      ) : item.score_outcome === "withheld" ? (
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {t("scoreWithheld")}
         </span>
       ) : null}
     </li>
