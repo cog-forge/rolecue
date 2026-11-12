@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/cog-forge/rolecue/api/internal/features/account/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/dbnum"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -16,94 +17,66 @@ func readFailed(err error) error {
 
 // ExportProfile reads the account's own profile row.
 func (r *Repository) ExportProfile(ctx context.Context, id uuid.UUID) (domain.ExportProfile, error) {
-	var p domain.ExportProfile
-	err := r.pool.QueryRow(ctx, `
-SELECT id, email, name, COALESCE(role, 'candidate'), image, company_name, company_website, created_at
-FROM public.users WHERE id = $1`, id).Scan(&p.ID, &p.Email, &p.FullName, &p.Role, &p.Image, &p.CompanyName, &p.CompanyWebsite, &p.CreatedAt)
+	row, err := r.queries.ExportProfile(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.ExportProfile{}, apperror.New(apperror.CodeAccountNotFound, "account not found")
 	}
 	if err != nil {
 		return domain.ExportProfile{}, readFailed(err)
 	}
-	return p, nil
+	return domain.ExportProfile{
+		ID: row.ID, Email: row.Email, FullName: row.Name, Role: row.Role, Image: row.Image,
+		CompanyName: row.CompanyName, CompanyWebsite: row.CompanyWebsite, CreatedAt: row.CreatedAt.Time,
+	}, nil
 }
 
 // ExportRoleProfiles lists the account's own Role Profiles, oldest first.
 func (r *Repository) ExportRoleProfiles(ctx context.Context, id uuid.UUID) ([]domain.ExportRoleProfile, error) {
-	rows, err := r.pool.Query(ctx, `SELECT id, title, status, created_at FROM public.role_profiles WHERE candidate_id = $1 ORDER BY created_at, id`, id)
+	rows, err := r.queries.ExportRoleProfiles(ctx, id)
 	if err != nil {
 		return nil, readFailed(err)
 	}
-	defer rows.Close()
 	var out []domain.ExportRoleProfile
-	for rows.Next() {
-		var p domain.ExportRoleProfile
-		if err := rows.Scan(&p.ID, &p.Title, &p.Status, &p.CreatedAt); err != nil {
-			return nil, readFailed(err)
-		}
-		out = append(out, p)
+	for _, row := range rows {
+		out = append(out, domain.ExportRoleProfile{ID: row.ID, Title: row.Title, Status: row.Status, CreatedAt: row.CreatedAt.Time})
 	}
-	return out, readFailedIf(rows.Err())
-}
-
-func readFailedIf(err error) error {
-	if err != nil {
-		return readFailed(err)
-	}
-	return nil
+	return out, nil
 }
 
 // ExportApplications lists the Candidate's own Applications, oldest first.
 func (r *Repository) ExportApplications(ctx context.Context, id uuid.UUID) ([]domain.ExportApplication, error) {
-	rows, err := r.pool.Query(ctx, `
-SELECT a.id, jp.title, a.status::text, a.reject_reason, a.interview_deadline, a.created_at, a.updated_at, a.cv_path
-FROM public.applications a JOIN public.job_postings jp ON jp.id = a.job_posting_id
-WHERE a.candidate_id = $1 ORDER BY a.created_at, a.id`, id)
+	rows, err := r.queries.ExportApplications(ctx, id)
 	if err != nil {
 		return nil, readFailed(err)
 	}
-	defer rows.Close()
 	var out []domain.ExportApplication
-	for rows.Next() {
-		var a domain.ExportApplication
-		if err := rows.Scan(&a.ID, &a.JobPostingTitle, &a.Status, &a.RejectReason, &a.InterviewDeadline, &a.CreatedAt, &a.UpdatedAt, &a.CVKey); err != nil {
-			return nil, readFailed(err)
-		}
-		out = append(out, a)
+	for _, row := range rows {
+		out = append(out, domain.ExportApplication{
+			ID: row.ID, JobPostingTitle: row.Title, Status: row.Status, RejectReason: row.RejectReason,
+			InterviewDeadline: timePtr(row.InterviewDeadline), CreatedAt: row.CreatedAt.Time,
+			UpdatedAt: row.UpdatedAt.Time, CVKey: row.CvPath,
+		})
 	}
-	return out, readFailedIf(rows.Err())
+	return out, nil
 }
 
 // ExportInterviews lists the Candidate's own interviews with turns and, for practice interviews,
 // scores. A recruitment interview carries the questions and the Candidate's answers only. A recording
 // key is set only for a recording whose upload finished (record_status ready).
 func (r *Repository) ExportInterviews(ctx context.Context, id uuid.UUID) ([]domain.ExportInterview, error) {
-	rows, err := r.pool.Query(ctx, `
-SELECT i.id, i.type::text, i.application_id, i.started_at, i.completed_at, i.end_reason, i.score::float8, i.score_outcome, i.feedback,
-       CASE WHEN i.record_status = 'ready' THEN i.record_path END
-FROM public.interviews i
-LEFT JOIN public.applications a ON a.id = i.application_id
-LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
-WHERE a.candidate_id = $1 OR rp.candidate_id = $1
-ORDER BY i.started_at, i.id`, id)
+	rows, err := r.queries.ExportInterviews(ctx, id)
 	if err != nil {
 		return nil, readFailed(err)
 	}
-	defer rows.Close()
 	var out []domain.ExportInterview
-	for rows.Next() {
-		var i domain.ExportInterview
-		if err := rows.Scan(&i.ID, &i.Type, &i.ApplicationID, &i.StartedAt, &i.CompletedAt, &i.EndReason, &i.Score, &i.ScoreOutcome, &i.Feedback, &i.RecordKey); err != nil {
-			return nil, readFailed(err)
-		}
-		i.Turns = []domain.ExportTurn{}
-		out = append(out, i)
+	for _, row := range rows {
+		out = append(out, domain.ExportInterview{
+			ID: row.ID, Type: row.Type, ApplicationID: row.ApplicationID, StartedAt: row.StartedAt.Time,
+			CompletedAt: timePtr(row.CompletedAt), EndReason: row.EndReason, Score: dbnum.Float(row.Score),
+			ScoreOutcome: row.ScoreOutcome, Feedback: row.Feedback, RecordKey: recordKey(row.RecordKey),
+			Turns: []domain.ExportTurn{},
+		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, readFailed(err)
-	}
-	rows.Close()
 	for n := range out {
 		item := &out[n]
 		if item.Type != "practice" {
@@ -122,46 +95,42 @@ ORDER BY i.started_at, i.id`, id)
 	return out, nil
 }
 
+// recordKey reads the CASE expression of ExportInterviews, which sqlc types as interface{}: the key of a
+// ready recording, or NULL.
+func recordKey(value interface{}) *string {
+	key, ok := value.(string)
+	if !ok {
+		return nil
+	}
+	return &key
+}
+
 func (r *Repository) loadTurns(ctx context.Context, item *domain.ExportInterview) error {
-	rows, err := r.pool.Query(ctx, `
-SELECT position, kind, question, answer, feedback, asked_at, answered_at
-FROM public.conversation_turns WHERE interview_id = $1 ORDER BY position`, item.ID)
+	rows, err := r.queries.ExportTurns(ctx, item.ID)
 	if err != nil {
 		return readFailed(err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var t domain.ExportTurn
-		if err := rows.Scan(&t.Position, &t.Kind, &t.Question, &t.Answer, &t.Feedback, &t.AskedAt, &t.AnsweredAt); err != nil {
-			return readFailed(err)
+	for _, row := range rows {
+		t := domain.ExportTurn{
+			Position: row.Position, Kind: row.Kind, Question: row.Question, Answer: row.Answer,
+			Feedback: row.Feedback, AskedAt: timePtr(row.AskedAt), AnsweredAt: timePtr(row.AnsweredAt),
 		}
 		if item.Type != "practice" {
 			t.Feedback = nil
 		}
 		item.Turns = append(item.Turns, t)
 	}
-	return readFailedIf(rows.Err())
+	return nil
 }
 
 func (r *Repository) loadScores(ctx context.Context, item *domain.ExportInterview) error {
-	rows, err := r.pool.Query(ctx, `
-SELECT m.name, s.score::float8, s.weight, s.evidence FROM public.score_details s JOIN public.metrics m ON m.id = s.metric_id
-WHERE s.interview_id = $1 ORDER BY m.name`, item.ID)
+	rows, err := r.queries.ExportScores(ctx, item.ID)
 	if err != nil {
 		return readFailed(err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var s domain.ExportScore
-		if err := rows.Scan(&s.Metric, &s.Score, &s.Weight, &s.Evidence); err != nil {
-			return readFailed(err)
-		}
-		item.Scores = append(item.Scores, s)
+	for _, row := range rows {
+		item.Scores = append(item.Scores, domain.ExportScore{Metric: row.Metric, Score: dbnum.Float(row.Score), Weight: row.Weight, Evidence: row.Evidence})
 	}
-	if err := readFailedIf(rows.Err()); err != nil {
-		return err
-	}
-	rows.Close()
 	return r.loadCriteria(ctx, item)
 }
 
@@ -169,42 +138,32 @@ WHERE s.interview_id = $1 ORDER BY m.name`, item.ID)
 // a system template, so its criterion names are not anyone's private text; expected answers and scoring
 // guides are never exported.
 func (r *Repository) loadCriteria(ctx context.Context, item *domain.ExportInterview) error {
-	rows, err := r.pool.Query(ctx, `
-SELECT s.question_position, c.name, m.name, s.points, c.max_points, s.evidence, s.feedback
-FROM public.interview_criterion_scores s
-JOIN public.rubric_criteria c ON c.id = s.rubric_criterion_id
-JOIN public.metrics m ON m.id = c.metric_id
-WHERE s.interview_id = $1 ORDER BY s.question_position, c.position`, item.ID)
+	rows, err := r.queries.ExportCriteria(ctx, item.ID)
 	if err != nil {
 		return readFailed(err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var c domain.ExportCriterion
-		if err := rows.Scan(&c.QuestionPosition, &c.Criterion, &c.Metric, &c.Points, &c.MaxPoints, &c.Evidence, &c.Feedback); err != nil {
-			return readFailed(err)
-		}
-		item.Criteria = append(item.Criteria, c)
+	for _, row := range rows {
+		item.Criteria = append(item.Criteria, domain.ExportCriterion{
+			QuestionPosition: row.QuestionPosition, Criterion: row.Criterion, Metric: row.Metric,
+			Points: row.Points, MaxPoints: row.MaxPoints, Evidence: row.Evidence, Feedback: row.Feedback,
+		})
 	}
-	return readFailedIf(rows.Err())
+	return nil
 }
 
 // ExportPostings lists a Recruiter's own Job Postings, oldest first.
 func (r *Repository) ExportPostings(ctx context.Context, id uuid.UUID) ([]domain.ExportPosting, error) {
-	rows, err := r.pool.Query(ctx, `
-SELECT id, title, status::text, location, employment_type, salary_min, salary_max, created_at, published_at
-FROM public.job_postings WHERE recruiter_id = $1 ORDER BY created_at, id`, id)
+	rows, err := r.queries.ExportPostings(ctx, id)
 	if err != nil {
 		return nil, readFailed(err)
 	}
-	defer rows.Close()
 	var out []domain.ExportPosting
-	for rows.Next() {
-		var p domain.ExportPosting
-		if err := rows.Scan(&p.ID, &p.Title, &p.Status, &p.Location, &p.EmploymentType, &p.SalaryMin, &p.SalaryMax, &p.CreatedAt, &p.PublishedAt); err != nil {
-			return nil, readFailed(err)
-		}
-		out = append(out, p)
+	for _, row := range rows {
+		out = append(out, domain.ExportPosting{
+			ID: row.ID, Title: row.Title, Status: row.Status, Location: row.Location,
+			EmploymentType: row.EmploymentType, SalaryMin: row.SalaryMin, SalaryMax: row.SalaryMax,
+			CreatedAt: row.CreatedAt.Time, PublishedAt: timePtr(row.PublishedAt),
+		})
 	}
-	return out, readFailedIf(rows.Err())
+	return out, nil
 }
