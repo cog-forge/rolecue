@@ -28,8 +28,21 @@ function report(status: "pending" | "completed") {
     started_at: "2026-11-02T08:00:00Z",
     completed_at: "2026-11-02T08:20:00Z",
     summary: status === "completed" ? "Clear and structured." : null,
+    scoring:
+      status === "completed"
+        ? {
+            method: "rubric",
+            outcome: "complete",
+            withheld_reason: null,
+            assigned_questions: 1,
+            graded_questions: 1,
+            weight_total: 1,
+            decimals: 2,
+          }
+        : null,
     breakdown: null,
     questions: null,
+    graded_questions: null,
   };
 }
 

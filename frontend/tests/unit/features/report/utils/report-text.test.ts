@@ -25,15 +25,16 @@ describe("report text", () => {
   it("shows the score out of 100, or says none exists yet", () => {
     const t = tFor("en");
     const fmt = formattersFor("en");
-    expect(scoreText(72, fmt, t)).toBe("72 / 100");
-    expect(scoreText(0, fmt, t)).toBe("0 / 100");
+    expect(scoreText(72, fmt, t)).toBe("72.00 / 100");
+    expect(scoreText(0, fmt, t)).toBe("0.00 / 100");
+    expect(scoreText(62.5, fmt, t)).toBe("62.50 / 100");
     expect(scoreText(null, fmt, t)).toBe("No score yet");
   });
 
   it("says the same in Vietnamese", () => {
     const t = tFor("vi");
     const fmt = formattersFor("vi");
-    expect(scoreText(72, fmt, t)).toBe("72 / 100");
+    expect(scoreText(72, fmt, t)).toBe("72,00 / 100");
     expect(scoreText(null, fmt, t)).toBe("Chưa có điểm");
     expect(t("status.pending")).toBe("Đang đánh giá");
   });

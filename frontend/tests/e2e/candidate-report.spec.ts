@@ -29,27 +29,104 @@ const forbidden = "aaaaaaaa-aaaa-4aaa-8aaa-000000000007";
 const started = "2026-10-10T08:00:00Z";
 const finished = "2026-10-10T08:30:00Z";
 
-// The candidate's view of GET /interviews/:id/report. Recruitment reports carry only the score and
-// status: summary, breakdown and questions are null.
+// The candidate's view of GET /interviews/:id/report (KAN-336). A practice report explains its overall:
+// question 1 is graded with a rubric (Communication 4/5 = 80, Technical depth 3/5 = 60), question 2 was not
+// answered, so the session is partial and the overall is 0.6 x 80 + 0.4 x 60 = 72.00 (weights 60/40).
+// Recruitment reports carry only the status: no score, summary, breakdown or questions.
+const communication = "dddddddd-dddd-4ddd-8ddd-000000000001";
+const depth = "dddddddd-dddd-4ddd-8ddd-000000000002";
 function report(over: Record<string, unknown>) {
   return {
     interview_id: practiceDone,
     type: "practice",
     status: "completed",
-    overall_score: 82,
+    overall_score: 72,
     started_at: started,
     completed_at: finished,
     summary: "Clear answers with one gap in system design.",
+    scoring: {
+      method: "rubric",
+      outcome: "partial",
+      withheld_reason: null,
+      assigned_questions: 2,
+      graded_questions: 1,
+      weight_total: 100,
+      decimals: 2,
+    },
     breakdown: [
       {
-        metric_id: "dddddddd-dddd-4ddd-8ddd-000000000001",
+        metric_id: communication,
         name: "Communication",
         score: 80,
+        weight: 60,
+        question_count: 1,
       },
       {
-        metric_id: "dddddddd-dddd-4ddd-8ddd-000000000002",
+        metric_id: depth,
         name: "Technical depth",
-        score: 70,
+        score: 60,
+        weight: 40,
+        question_count: 1,
+      },
+    ],
+    graded_questions: [
+      {
+        question_number: 1,
+        status: "graded",
+        rubric_name: "Diagnose and resolve a scenario",
+        total: 70,
+        earned: 7,
+        max: 10,
+        metrics: [
+          {
+            metric_id: communication,
+            name: "Communication",
+            earned: 4,
+            max: 5,
+            score: 80,
+          },
+          {
+            metric_id: depth,
+            name: "Technical depth",
+            earned: 3,
+            max: 5,
+            score: 60,
+          },
+        ],
+        criteria: [
+          {
+            criterion_id: "eeeeeeee-eeee-4eee-8eee-000000000001",
+            name: "Identifies a correct cause and fix",
+            metric_id: depth,
+            metric_name: "Technical depth",
+            points: 3,
+            max_points: 5,
+            evidence: "A race in the cache invalidation.",
+            evidence_position: 1,
+            feedback: "Names the race but not how to prevent it.",
+          },
+          {
+            criterion_id: "eeeeeeee-eeee-4eee-8eee-000000000002",
+            name: "Explains the diagnosis clearly",
+            metric_id: communication,
+            metric_name: "Communication",
+            points: 4,
+            max_points: 5,
+            evidence: "cache invalidation",
+            evidence_position: 1,
+            feedback: "Clear and short.",
+          },
+        ],
+      },
+      {
+        question_number: 2,
+        status: "not_answered",
+        rubric_name: null,
+        total: null,
+        earned: 0,
+        max: 0,
+        metrics: [],
+        criteria: [],
       },
     ],
     questions: [
@@ -135,7 +212,11 @@ test("a completed practice report shows the score, the breakdown and each questi
   await expect(
     page.getByRole("heading", { name: "Overall score" }),
   ).toBeVisible();
-  await expect(page.getByText("82 / 100")).toBeVisible();
+  await expect(page.getByTestId("overall-score")).toHaveText("72.00 / 100");
+  await expect(page.getByTestId("scoring-outcome")).toHaveText("Partial");
+  await expect(page.getByTestId("overall-formula")).toHaveText(
+    "(80.00 × 60 + 60.00 × 40) ÷ 100 = 72.00",
+  );
   await expect(
     page.getByText("Clear answers with one gap in system design."),
   ).toBeVisible();
@@ -144,7 +225,25 @@ test("a completed practice report shows the score, the breakdown and each questi
   ).toHaveAttribute("aria-valuenow", "80");
   await expect(
     page.getByRole("progressbar", { name: "Technical depth" }),
-  ).toHaveAttribute("aria-valuenow", "70");
+  ).toHaveAttribute("aria-valuenow", "60");
+  await expect(page.getByTestId("metric-list")).toContainText("Weight 60.0%");
+  await expect(
+    page.getByText(/Question totals are for reference only/),
+  ).toBeVisible();
+  // The criteria of question 1 open from the keyboard (native disclosure), with points, quote and why.
+  const grading = page.getByTestId("question-grading");
+  await expect(grading).toContainText("7 / 10 points");
+  await expect(grading).toContainText("Question total 70.00 (reference)");
+  await grading.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    grading.getByText("Identifies a correct cause and fix"),
+  ).toBeVisible();
+  await expect(grading).toContainText("3 / 5 points");
+  await expect(grading).toContainText("Technical depth: 3/5 = 60.00");
+  await expect(
+    grading.getByText("Names the race but not how to prevent it."),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: /Describe a hard bug you fixed/ }),
   ).toBeVisible();
@@ -165,8 +264,10 @@ test("a pending practice report says it is being evaluated and Check again shows
           overall_score: null,
           completed_at: finished,
           summary: null,
+          scoring: null,
           breakdown: null,
           questions: null,
+          graded_questions: null,
         }),
       },
       {
@@ -188,7 +289,7 @@ test("a pending practice report says it is being evaluated and Check again shows
   await expect(
     page.getByRole("heading", { name: "Overall score" }),
   ).toBeVisible();
-  await expect(page.getByText("82 / 100")).toBeVisible();
+  await expect(page.getByTestId("overall-score")).toHaveText("72.00 / 100");
   await expect.poll(() => calls[practicePending]).toBeGreaterThanOrEqual(2);
 });
 
@@ -205,7 +306,9 @@ test("an interview still in progress has no score and no report content", async 
           overall_score: null,
           completed_at: null,
           summary: null,
+          scoring: null,
           breakdown: null,
+          graded_questions: null,
           questions: null,
         }),
       },
@@ -235,7 +338,9 @@ test("a failed evaluation says no scores were saved instead of showing a score",
           status: "failed",
           overall_score: null,
           summary: null,
+          scoring: null,
           breakdown: null,
+          graded_questions: null,
           questions: null,
         }),
       },
@@ -257,7 +362,7 @@ test("a failed evaluation says no scores were saved instead of showing a score",
   );
 });
 
-test("a recruitment report shows only the score and status, with no transcript or recording", async ({
+test("a recruitment report shows only the status, with no score, transcript or recording", async ({
   page,
 }) => {
   await mockReports(page, {
@@ -267,10 +372,12 @@ test("a recruitment report shows only the score and status, with no transcript o
         body: report({
           interview_id: recruitmentDone,
           type: "recruitment",
-          overall_score: 74,
+          overall_score: undefined,
           summary: null,
+          scoring: null,
           breakdown: null,
           questions: null,
+          graded_questions: null,
         }),
       },
     ],
@@ -281,7 +388,9 @@ test("a recruitment report shows only the score and status, with no transcript o
     page.getByRole("heading", { level: 1, name: "Recruitment interview" }),
   ).toBeVisible();
   await expect(page.getByText("Completed", { exact: true })).toBeVisible();
-  await expect(page.getByText("74 / 100")).toBeVisible();
+  // The Recruiter announces a recruitment result: the Candidate sees no score at all.
+  await expect(page.getByText(/\/ 100/)).toHaveCount(0);
+  await expect(page.getByTestId("scoring-summary")).toHaveCount(0);
   await expect(
     page.getByText(
       "Detailed feedback for recruitment interviews is not shown here.",
@@ -355,7 +464,9 @@ test("in Vietnamese the report chrome is translated while the AI feedback stays 
   await expect(
     page.getByRole("heading", { name: "Điểm tổng thể" }),
   ).toBeVisible();
-  await expect(page.getByText("82 / 100")).toBeVisible();
+  await expect(page.getByTestId("overall-score")).toHaveText("72,00 / 100");
+  await expect(page.getByTestId("scoring-outcome")).toHaveText("Một phần");
+  await expect(page.getByText(/Điểm từng câu chỉ để tham khảo/)).toBeVisible();
   await expect(
     page.getByText("Clear answers with one gap in system design."),
   ).toBeVisible();
@@ -376,17 +487,38 @@ test("PDF export is offered only for a completed own practice report", async ({
         status: 200,
         body: report({
           type: "recruitment",
+          overall_score: undefined,
           summary: null,
+          scoring: null,
           breakdown: null,
           questions: null,
+          graded_questions: null,
         }),
       },
     ],
     [practicePending]: [
-      { status: 200, body: report({ status: "pending", overall_score: null }) },
+      {
+        status: 200,
+        body: report({
+          status: "pending",
+          overall_score: null,
+          scoring: null,
+          breakdown: null,
+          graded_questions: null,
+        }),
+      },
     ],
     [practiceFailed]: [
-      { status: 200, body: report({ status: "failed", overall_score: null }) },
+      {
+        status: 200,
+        body: report({
+          status: "failed",
+          overall_score: null,
+          scoring: null,
+          breakdown: null,
+          graded_questions: null,
+        }),
+      },
     ],
   });
   await page.goto(`/reports/${practiceDone}`);
@@ -427,6 +559,20 @@ test("PDF rechecks access and prints only the authorized report", async ({
     popup.getByRole("heading", { name: "RoleCue — Practice interview" }),
   ).toBeVisible();
   await expect(popup.getByText("Good root-cause analysis.")).toBeVisible();
+  await expect(
+    popup.getByText("(80.00 × 60 + 60.00 × 40) ÷ 100 = 72.00"),
+  ).toBeVisible();
+  await expect(
+    popup.getByText(
+      /Identifies a correct cause and fix \(Technical depth\): 3 \/ 5 points/,
+    ),
+  ).toBeVisible();
+  // The question's score per metric (the step between the criteria and the session metric) is exported too.
+  await expect(
+    popup.getByText(
+      /Metrics in this question: .*Technical depth: 3\/5 = 60\.00/,
+    ),
+  ).toBeVisible();
   expect(calls[practiceDone]).toBe(2);
   await popup.evaluate(() => document.fonts.ready);
   await popup.pdf({
@@ -488,3 +634,67 @@ test("Vietnamese PDF embeds the font and preserves English feedback", async ({
   });
   await popup.close();
 });
+
+const practiceWithheld = "aaaaaaaa-aaaa-4aaa-8aaa-000000000008";
+
+// KAN-337: a withheld overall says why and never shows a made-up number; the layout holds on a phone.
+for (const locale of ["en", "vi"] as const) {
+  test(`a withheld overall explains the missing metric on a phone (${locale})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    if (locale === "vi")
+      await page
+        .context()
+        .addCookies([
+          { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
+        ]);
+    const base = report({});
+    await mockReports(page, {
+      [practiceWithheld]: [
+        {
+          status: 200,
+          body: {
+            ...base,
+            interview_id: practiceWithheld,
+            overall_score: null,
+            scoring: {
+              ...base.scoring,
+              outcome: "withheld",
+              withheld_reason: "missing_metric_coverage",
+            },
+            breakdown: [
+              base.breakdown[0],
+              base.breakdown[1],
+              {
+                metric_id: "dddddddd-dddd-4ddd-8ddd-000000000003",
+                name: "Answer Relevance",
+                score: null,
+                weight: 20,
+                question_count: 0,
+              },
+            ],
+          },
+        },
+      ],
+    });
+    await page.goto(`/reports/${practiceWithheld}`);
+    await expect(page.getByTestId("overall-withheld")).toHaveText(
+      locale === "en" ? "No overall score" : "Chưa có điểm tổng",
+    );
+    await expect(page.getByText(/Answer Relevance/).first()).toBeVisible();
+    await expect(page.getByTestId("overall-score")).toHaveCount(0);
+    await expect(page.getByTestId("overall-formula")).toHaveCount(0);
+    await expect(page.getByTestId("metric-list")).toContainText(
+      locale === "en" ? "No evidence" : "Chưa có bằng chứng",
+    );
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await page.screenshot({
+      path: test.info().outputPath(`report-withheld-mobile-${locale}.png`),
+      fullPage: true,
+    });
+  });
+}

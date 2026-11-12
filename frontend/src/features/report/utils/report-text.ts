@@ -1,5 +1,6 @@
 import type { useTranslations } from "next-intl";
 import type { Formatters } from "@/lib/i18n/formatters";
+import { formatScore } from "./scoring";
 
 export type ReportTranslator = ReturnType<
   typeof useTranslations<"candidate.report">
@@ -16,5 +17,5 @@ export function scoreText(
 ) {
   return score === null
     ? t("noScore")
-    : t("score", { score: fmt.number(score) });
+    : t("score", { score: formatScore(score, fmt.number) });
 }

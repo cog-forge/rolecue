@@ -292,7 +292,50 @@
     "exportPdf": "Xuất PDF",
     "exporting": "Đang chuẩn bị PDF…",
     "exportHint": "Chọn “Lưu dưới dạng PDF” trong hộp thoại in. Tắt đầu trang và chân trang để báo cáo gọn gàng.",
-    "exportError": "Không thể xuất báo cáo. Hãy cho phép cửa sổ bật lên và thử lại."
+    "exportError": "Không thể xuất báo cáo. Hãy cho phép cửa sổ bật lên và thử lại.",
+    "scoring": {
+      "overall": "Điểm tổng thể",
+      "outOf100": "{score} / 100",
+      "outcome": {
+        "complete": "Đầy đủ",
+        "partial": "Một phần",
+        "withheld": "Chưa có điểm tổng"
+      },
+      "withheld": {
+        "title": "Chưa có điểm tổng",
+        "missing_metric_coverage": "Không câu nào được chấm có đánh giá {metrics}. Tiêu chí đo không có bằng chứng không bao giờ bị tính là 0, và trọng số còn lại không được chia lại để che khoảng trống đó.",
+        "no_answers": "Không có câu nào được trả lời nên không có gì để chấm.",
+        "no_gradable_questions": "Các câu đã trả lời không có barem chấm điểm nên không thể chấm.",
+        "partial_session": "Không phải câu nào cũng được chấm nên chưa có điểm tổng."
+      },
+      "partial": "Dựa trên {graded}/{assigned} câu. Câu chưa trả lời hoặc không chấm được sẽ được bỏ qua, không tính là 0.",
+      "legacy": "Buổi phỏng vấn này được chấm trước khi có chấm theo barem nên không có chi tiết từng tiêu chí.",
+      "formulaTitle": "Cách tính điểm tổng",
+      "formulaRule": "Trung bình có trọng số của điểm các tiêu chí đo: tổng (điểm × trọng số) chia cho tổng trọng số.",
+      "metrics": "Điểm theo tiêu chí",
+      "metricsRule": "Mỗi tiêu chí đo là trung bình, trên các câu được chấm có đánh giá nó, của số điểm đạt ở các tiêu chí con thuộc nó.",
+      "noEvidence": "Chưa có bằng chứng",
+      "weight": "Trọng số {share}",
+      "notWeighted": "Không tính trọng số",
+      "questionCount": "{count, plural, =0 {không câu nào} other {# câu}}",
+      "evidence": "Bằng chứng",
+      "graded": "Đã chấm {graded}/{assigned} câu.",
+      "questionTotalNote": "Điểm từng câu chỉ để tham khảo: điểm tổng tính từ điểm các tiêu chí đo và trọng số, không phải trung bình điểm các câu.",
+      "uncalibrated": "Điểm do AI chấm theo barem và chưa được hiệu chỉnh với chuyên gia.",
+      "grading": "Chấm điểm",
+      "points": "{points} / {max} điểm",
+      "questionTotal": "Điểm câu {total} (tham khảo)",
+      "rubric": "Barem: {name}",
+      "questionMetrics": "Tiêu chí đo trong câu này",
+      "questionMetric": "{name}: {earned}/{max} = {score}",
+      "criterionFallback": "Tiêu chí thuộc {metric}",
+      "noQuote": "Không có trích dẫn: không câu trả lời nào liên quan đến tiêu chí này.",
+      "why": "Lý do",
+      "notAnswered": "Chưa trả lời: không được chấm và không tính là 0.",
+      "notGradable": "Câu này không có barem chấm điểm nên chưa được chấm.",
+      "byQuestion": "Chấm điểm theo từng câu",
+      "questionLabel": "Câu {number}."
+    }
   },
   "interviewRoom": {
     "label": "Phòng phỏng vấn",

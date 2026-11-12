@@ -292,7 +292,50 @@
     "exportPdf": "Export PDF",
     "exporting": "Preparing PDF…",
     "exportHint": "Choose “Save as PDF” in the print dialog. Turn off headers and footers for a clean report.",
-    "exportError": "Unable to export. Allow popups and try again."
+    "exportError": "Unable to export. Allow popups and try again.",
+    "scoring": {
+      "overall": "Overall score",
+      "outOf100": "{score} / 100",
+      "outcome": {
+        "complete": "Complete",
+        "partial": "Partial",
+        "withheld": "Withheld"
+      },
+      "withheld": {
+        "title": "No overall score",
+        "missing_metric_coverage": "No graded question assessed {metrics}. A metric without evidence is never counted as zero, and the other weights are not rescaled to hide it.",
+        "no_answers": "No question was answered, so there was nothing to grade.",
+        "no_gradable_questions": "The answered questions have no grading rubric, so they could not be graded.",
+        "partial_session": "Not every question was graded, so no overall score is given."
+      },
+      "partial": "Based on {graded} of {assigned} questions. Questions that were not answered or could not be graded are left out, never counted as zero.",
+      "legacy": "This interview was scored before rubric grading, so there is no per-criterion detail.",
+      "formulaTitle": "How the overall is calculated",
+      "formulaRule": "Weighted average of the metric scores: sum of (metric score × weight) divided by the sum of the weights.",
+      "metrics": "Metric scores",
+      "metricsRule": "Each metric is the average, over the graded questions that assess it, of the points earned on its criteria.",
+      "noEvidence": "No evidence",
+      "weight": "Weight {share}",
+      "notWeighted": "Not weighted",
+      "questionCount": "{count, plural, =0 {no question} one {# question} other {# questions}}",
+      "evidence": "Evidence",
+      "graded": "{graded} of {assigned} questions graded.",
+      "questionTotalNote": "Question totals are for reference only: the overall comes from the metric scores and their weights, not from the average of question totals.",
+      "uncalibrated": "Scores are produced by AI against the rubric. They have not yet been calibrated against human experts.",
+      "grading": "Grading",
+      "points": "{points} / {max} points",
+      "questionTotal": "Question total {total} (reference)",
+      "rubric": "Rubric: {name}",
+      "questionMetrics": "Metrics in this question",
+      "questionMetric": "{name}: {earned}/{max} = {score}",
+      "criterionFallback": "{metric} criterion",
+      "noQuote": "No quote: no answer related to this criterion.",
+      "why": "Why",
+      "notAnswered": "Not answered: not graded and not counted as zero.",
+      "notGradable": "This question has no grading rubric, so it was not graded.",
+      "byQuestion": "Grading by question",
+      "questionLabel": "Question {number}."
+    }
   },
   "interviewRoom": {
     "label": "Interview room",
