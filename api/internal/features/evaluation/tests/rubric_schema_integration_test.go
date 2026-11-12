@@ -67,14 +67,15 @@ func tableExists(t *testing.T, ctx context.Context, pool *pgxpool.Pool, name str
 	return exists
 }
 
-func TestRubricSchemaAddsOnlyTheTwoConfigurationTables(t *testing.T) {
+func TestRubricSchemaHasTwoConfigurationTablesAndOneResultTable(t *testing.T) {
 	ctx, pool := openPool(t)
 	for _, name := range []string{"rubrics", "rubric_criteria"} {
 		if !tableExists(t, ctx, pool, name) {
 			t.Fatalf("table %s is missing", name)
 		}
 	}
-	// The spec rules out snapshot/version tables, an expected-points table and result tables in this task.
+	// The spec rules out snapshot/version tables and an expected-points table. KAN-325 added the two
+	// configuration tables; KAN-335 (migration 000034) adds the one result table, interview_criterion_scores.
 	rows, err := pool.Query(ctx, `SELECT table_name FROM information_schema.tables
 		WHERE table_schema = 'public' AND (table_name LIKE 'rubric%' OR table_name LIKE '%expected%'
 		   OR table_name LIKE '%snapshot%' OR table_name LIKE '%version%' OR table_name = 'interview_criterion_scores')
@@ -83,14 +84,14 @@ func TestRubricSchemaAddsOnlyTheTwoConfigurationTables(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rows.Close()
-	allowed := map[string]bool{"rubrics": true, "rubric_criteria": true}
+	allowed := map[string]bool{"rubrics": true, "rubric_criteria": true, "interview_criterion_scores": true}
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
 			t.Fatal(err)
 		}
 		if !allowed[name] {
-			t.Errorf("unexpected table %s: KAN-325 adds exactly rubrics and rubric_criteria", name)
+			t.Errorf("unexpected table %s: only rubrics, rubric_criteria and interview_criterion_scores are allowed", name)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -303,11 +304,11 @@ func TestSystemRubricTemplatesAreSeeded(t *testing.T) {
 	}
 
 	// The canonical example of the spec: R01 has C01/C02 on Technical Accuracy (2 and 3) and C03 on
-	// Problem-Solving (5), 10 points in total.
+	// Problem-Solving (5), 10 points. Migration 000034 added Answer Relevance (2) and Clarity (2): 14 in total.
 	var total int
 	if err := pool.QueryRow(ctx, `SELECT COALESCE(SUM(c.max_points), 0) FROM public.rubric_criteria c
-		JOIN public.rubrics r ON r.id = c.rubric_id WHERE r.question_type = 'concept_explanation' AND r.scope = 'system'`).Scan(&total); err != nil || total != 10 {
-		t.Fatalf("concept_explanation template total = %d, %v, want 10", total, err)
+		JOIN public.rubrics r ON r.id = c.rubric_id WHERE r.question_type = 'concept_explanation' AND r.scope = 'system'`).Scan(&total); err != nil || total != 14 {
+		t.Fatalf("concept_explanation template total = %d, %v, want 14", total, err)
 	}
 }
 
@@ -344,5 +345,41 @@ func checkSeededCriteria(t *testing.T, ctx context.Context, pool *pgxpool.Pool, 
 	}
 	if n < 3 {
 		t.Errorf("%s has %d criteria, want at least 3", name, n)
+	}
+}
+
+// Product owner decision (2026-11-12, migration 000034): every system template measures Answer Relevance
+// (104) and Communication Clarity (105), so an equally weighted practice session can cover both.
+func TestEverySystemTemplateMeasuresRelevanceAndClarity(t *testing.T) {
+	ctx, pool := openPool(t)
+	rows, err := pool.Query(ctx, `SELECT r.name,
+		bool_or(c.metric_id = '00000000-0000-4000-8000-000000000104'),
+		bool_or(c.metric_id = '00000000-0000-4000-8000-000000000105'),
+		count(*), max(c.max_points)
+		FROM public.rubrics r JOIN public.rubric_criteria c ON c.rubric_id = r.id
+		WHERE r.scope = 'system' AND r.id::text LIKE '00000000-0000-4000-8000-00000000020_'
+		GROUP BY r.name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	seen := 0
+	for rows.Next() {
+		var name string
+		var relevance, clarity bool
+		var count, maxPoints int
+		if err := rows.Scan(&name, &relevance, &clarity, &count, &maxPoints); err != nil {
+			t.Fatal(err)
+		}
+		seen++
+		if !relevance || !clarity || count > 10 || maxPoints > 10 {
+			t.Errorf("%s: relevance %v, clarity %v, %d criteria, max %d; want both metrics within the RB-02 limits", name, relevance, clarity, count, maxPoints)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if seen != 4 {
+		t.Fatalf("system templates = %d, want 4", seen)
 	}
 }
