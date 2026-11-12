@@ -33,7 +33,7 @@ func interviewedDetail() domain.DetailRecord {
 	record.Item.InterviewEligible = false
 	opens := time.Now().Add(-time.Hour)
 	record.OpensAt = &opens
-	score := int32(81)
+	score := 81.25
 	record.Interview = &domain.InterviewSummary{
 		ID: uuid.New(), StartedAt: time.Now().Add(-2 * time.Hour), Status: "completed", Score: &score, RecordStatus: "none",
 	}
@@ -105,8 +105,8 @@ func TestDecideReturnsTheDetailAfterTheDecision(t *testing.T) {
 	if repo.detailCalls != 1 {
 		t.Fatalf("detail read %d times, want once after the decision", repo.detailCalls)
 	}
-	if got.Interview == nil || got.Interview.Status != "completed" || got.Interview.Score == nil || *got.Interview.Score != 81 {
-		t.Fatalf("interview = %+v, want completed with score 81", got.Interview)
+	if got.Interview == nil || got.Interview.Status != "completed" || got.Interview.Score == nil || *got.Interview.Score != 81.25 {
+		t.Fatalf("interview = %+v, want completed with score 81.25", got.Interview)
 	}
 	if got.FinalReview.OpensAt == nil || !got.FinalReview.CanDecide {
 		t.Fatalf("final review = %+v, want the window open", got.FinalReview)

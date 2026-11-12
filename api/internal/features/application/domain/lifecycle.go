@@ -39,9 +39,13 @@ type InterviewSummary struct {
 	StartedAt   time.Time  `json:"started_at"`
 	CompletedAt *time.Time `json:"completed_at"`
 	// Status is in_progress until the session completes, then the evaluation status.
-	Status       string `json:"status" enums:"in_progress,pending,completed,failed"`
-	Score        *int32 `json:"score"`
-	RecordStatus string `json:"record_status" enums:"none,uploading,processing,ready,failed,deleted"`
+	Status string `json:"status" enums:"in_progress,pending,completed,failed"`
+	// Score is the weighted overall with two decimals; null until evaluated and when withheld.
+	Score *float64 `json:"score"`
+	// ScoreOutcome is complete, partial or withheld for a rubric-graded interview; null before it is evaluated
+	// and for interviews evaluated before rubric grading.
+	ScoreOutcome *string `json:"score_outcome" enums:"complete,partial,withheld"`
+	RecordStatus string  `json:"record_status" enums:"none,uploading,processing,ready,failed,deleted"`
 	// EndReason is how the interview ended: completed, left early by the Candidate, or abandoned. Null
 	// while it runs and for interviews ended before the reason was recorded.
 	EndReason *string `json:"end_reason" enums:"completed,left,abandoned"`
