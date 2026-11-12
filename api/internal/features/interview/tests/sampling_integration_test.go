@@ -382,9 +382,11 @@ func TestRecruitmentStartRefusedWhenTheBankCannotCover(t *testing.T) {
 	}
 }
 
-// TestPracticeStartRefusedWhenTheBankCannotCoverChargesNothing proves a refused practice start writes no
-// session, stores no question and charges no coin.
-func TestPracticeStartRefusedWhenTheBankCannotCoverChargesNothing(t *testing.T) {
+// TestPracticeStartsOnABankThatCannotCoverAndChargesOnce proves the practice sampler never refuses for
+// coverage (KAN-378): a Candidate cannot fix the bank, so a bank that assesses only two of the five catalog
+// metrics still starts, covers as many metrics as it can, charges the practice price once, and a retry or a
+// resume gives back the same session without charging again.
+func TestPracticeStartsOnABankThatCannotCoverAndChargesOnce(t *testing.T) {
 	ctx, pool := openPool(t)
 	s := newSeed(t, ctx, pool)
 	m := s.catalogMetrics()
@@ -393,29 +395,45 @@ func TestPracticeStartRefusedWhenTheBankCannotCoverChargesNothing(t *testing.T) 
 	candidate := s.user("candidate")
 	s.wallet(candidate, 20)
 	jdID := s.jobDescription()
-	s.bankOf(jdID, rubricPtrs(rA, rB, rA, rB))
+	bank := s.bankOf(jdID, rubricPtrs(rA, rB, rA, rB))
 	profile := uuid.New()
 	s.exec(`INSERT INTO public.role_profiles (id, jd_id, candidate_id, title, status)
 		VALUES ($1, $2, $3, 'sampling', 'confirmed')`, profile, jdID, candidate)
-	svc := newService(t, pool, 8)
+	svc := newService(t, pool, 3)
 
 	input := practiceInput(profile)
-	input.IdempotencyKey = "refused"
-	_, created, err := svc.Create(ctx, candidate, "candidate", input)
-	if created || !apperror.IsCode(err, apperror.CodeQuestionBankCoverageInsufficient) {
-		t.Fatalf("Create() = created %v, %v, want %s", created, err, apperror.CodeQuestionBankCoverageInsufficient)
+	input.IdempotencyKey = "best-effort"
+	session, created, err := svc.Create(ctx, candidate, "candidate", input)
+	if err != nil || !created {
+		t.Fatalf("Create() = created %v, %v, want a practice session on the bank that cannot cover", created, err)
 	}
-	if got := s.interviewRows(profile); got != 0 {
-		t.Fatalf("%d interviews written", got)
+	snap := s.snapshot(session.ID)
+	if len(snap) != 3 {
+		t.Fatalf("snapshot %v, want 3 questions (the limit)", snap)
 	}
-	if got := s.questionRows(profile); got != 0 {
-		t.Fatalf("%d questions stored", got)
+	assertSampleOf(t, snap, bank)
+	s.assertCovered(session.ID, m[:2])
+	if got := s.balance(candidate); got != 20-domain.PracticeInterviewCoins {
+		t.Fatalf("balance = %d, want one practice price charged", got)
 	}
-	if got := s.balance(candidate); got != 20 {
-		t.Fatalf("balance = %d, want 20: nothing charged", got)
+
+	// A retry with the same key and a resume without a key both return the stored session for free.
+	for _, key := range []string{"best-effort", ""} {
+		again := practiceInput(profile)
+		again.IdempotencyKey = key
+		got, created, err := svc.Create(ctx, candidate, "candidate", again)
+		if err != nil || created || got.ID != session.ID {
+			t.Fatalf("Create(key %q) = %v created %v, %v; want the same session, not created", key, got.ID, created, err)
+		}
+		if !slices.Equal(s.snapshot(got.ID), snap) {
+			t.Fatalf("snapshot changed on a retry or resume")
+		}
 	}
-	if got := len(s.coinRows(candidate)); got != 0 {
-		t.Fatalf("%d ledger rows, want 0", got)
+	if got := s.balance(candidate); got != 20-domain.PracticeInterviewCoins {
+		t.Fatalf("balance = %d after retry and resume, want still one charge", got)
+	}
+	if got := len(s.coinRows(candidate)); got != 1 {
+		t.Fatalf("%d ledger rows, want 1", got)
 	}
 }
 

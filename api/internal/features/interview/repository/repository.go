@@ -564,7 +564,9 @@ func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, random domain.Ran
 	if err != nil {
 		return uuid.Nil, internal(err)
 	}
-	questions, err := startQuestions(ctx, q, random, profile.JdID, active, p.QuestionLimit)
+	// Practice sampling never refuses for coverage (KAN-378): the Candidate cannot edit the bank, so a refusal
+	// would be a dead end. It covers as many metrics as the bank allows; grading withholds the rest.
+	questions, err := startQuestions(ctx, q, random, profile.JdID, active, p.QuestionLimit, domain.SampleQuestionsBestEffort)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -629,7 +631,7 @@ func startRecruitment(ctx context.Context, q *Queries, random domain.RandomSourc
 	if err != nil {
 		return uuid.Nil, false, internal(err)
 	}
-	questions, err := startQuestions(ctx, q, random, posting.JdID, active, p.QuestionLimit)
+	questions, err := startQuestions(ctx, q, random, posting.JdID, active, p.QuestionLimit, domain.SampleQuestions)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
@@ -645,12 +647,13 @@ func startRecruitment(ctx context.Context, q *Queries, random domain.RandomSourc
 	return interviewID, true, nil
 }
 
-// startQuestions samples the core questions of a new session from the bank of the Job Description
-// (domain.SampleQuestions): at most limit of them, covering every active metric. An empty bank is not
-// ready, and a bank that cannot cover the active metrics within the limit is refused. It returns the
-// chosen bank question ids in the order the session asks them. It only reads; the caller has not written
-// anything yet, and a refusal rolls the whole start back.
-func startQuestions(ctx context.Context, q *Queries, random domain.RandomSource, jdID uuid.UUID, active []uuid.UUID, limit int32) ([]uuid.UUID, error) {
+// startQuestions samples the core questions of a new session from the bank of the Job Description with the
+// given sampler: at most limit of them. Recruitment passes domain.SampleQuestions, which refuses a bank that
+// cannot cover every active metric within the limit; practice passes domain.SampleQuestionsBestEffort, which
+// covers as many as it can and never refuses for coverage. An empty bank is not ready either way. It
+// returns the chosen bank question ids in the order the session asks them. It only reads; the caller has not
+// written anything yet, and a refusal rolls the whole start back.
+func startQuestions(ctx context.Context, q *Queries, random domain.RandomSource, jdID uuid.UUID, active []uuid.UUID, limit int32, sampler domain.Sampler) ([]uuid.UUID, error) {
 	rows, err := q.ListBankQuestions(ctx, jdID)
 	if err != nil {
 		return nil, internal(err)
@@ -659,7 +662,7 @@ func startQuestions(ctx context.Context, q *Queries, random domain.RandomSource,
 	for _, row := range rows {
 		bank = append(bank, domain.SamplingQuestion{ID: row.ID, Metrics: row.MetricIds})
 	}
-	return domain.SampleQuestions(bank, active, int(limit), random)
+	return sampler(bank, active, int(limit), random)
 }
 
 // checkReferences checks that a chosen avatar and voice exist. Defaults from the posting go through the
