@@ -193,6 +193,13 @@ UNION SELECT jp.jd_id FROM public.job_postings jp WHERE jp.recruiter_id = $1`, i
 		    answer = CASE WHEN answer IS NULL THEN NULL ELSE $2 END,
 		    feedback = CASE WHEN feedback IS NULL THEN NULL ELSE $2 END
 		  WHERE interview_id = ANY($1::text[]::uuid[])`, []any{interviews, domain.Tombstone}},
+		// Criterion results quote the answers too (KAN-335): tombstoned, then deleted before the interview's
+		// questions and turns they reference.
+		{`UPDATE public.interview_criterion_scores SET
+		    evidence = CASE WHEN evidence IS NULL THEN NULL ELSE $2 END,
+		    feedback = CASE WHEN feedback IS NULL THEN NULL ELSE $2 END
+		  WHERE interview_id = ANY($1::text[]::uuid[])`, []any{interviews, domain.Tombstone}},
+		{`DELETE FROM public.interview_criterion_scores WHERE interview_id = ANY($1::text[]::uuid[])`, []any{interviews}},
 		{`DELETE FROM public.score_details WHERE interview_id = ANY($1::text[]::uuid[])`, []any{interviews}},
 		{`DELETE FROM public.interview_questions WHERE interview_id = ANY($1::text[]::uuid[])`, []any{interviews}},
 		{`DELETE FROM public.conversation_turns WHERE interview_id = ANY($1::text[]::uuid[])`, []any{interviews}},

@@ -74,11 +74,13 @@ type fixture struct {
 	store *recordingStore
 	svc   *service.Service
 	users []uuid.UUID
+	// jdOf is the Job Description of each seeded posting.
+	jdOf map[uuid.UUID]uuid.UUID
 }
 
 func newFixture(t *testing.T) *fixture {
 	ctx, pool := openPool(t)
-	f := &fixture{t: t, ctx: ctx, pool: pool, repo: repository.NewRepository(pool), store: &recordingStore{}}
+	f := &fixture{t: t, ctx: ctx, pool: pool, repo: repository.NewRepository(pool), store: &recordingStore{}, jdOf: map[uuid.UUID]uuid.UUID{}}
 	f.svc = service.NewService(f.repo, f.store)
 	t.Cleanup(f.cleanup)
 	return f
@@ -135,6 +137,7 @@ func (f *fixture) user(role string) authdomain.User {
 func (f *fixture) posting(recruiter uuid.UUID, status, jdKey string) uuid.UUID {
 	jd, posting := uuid.New(), uuid.New()
 	f.exec(`INSERT INTO public.job_descriptions (id, content_path) VALUES ($1, $2)`, jd, jdKey)
+	f.jdOf[posting] = jd
 	f.exec(`INSERT INTO public.job_postings (id, status, jd_id, recruiter_id, title) VALUES ($1, $2::public.job_posting_status, $3, $4, 'Go developer')`, posting, status, jd, recruiter)
 	return posting
 }
@@ -146,6 +149,7 @@ func (f *fixture) application(candidate, posting uuid.UUID, status, cvKey, recor
 	f.exec(`INSERT INTO public.interviews (id, type, application_id, record_path, record_status, score, feedback)
  VALUES ($1, 'recruitment', $2, $3, 'ready', 77, 'recruiter-only feedback')`, interview, app, recordKey)
 	f.exec(`INSERT INTO public.conversation_turns (interview_id, position, question, answer, feedback) VALUES ($1, 1, 'Tell me about Go', 'secret answer', 'turn feedback')`, interview)
+	f.graded(interview, f.jdOf[posting], "secret answer")
 	return app, interview
 }
 
@@ -157,7 +161,19 @@ func (f *fixture) practice(candidate uuid.UUID, jdKey string) uuid.UUID {
 	f.exec(`INSERT INTO public.interviews (id, type, role_profile_id, score, feedback) VALUES ($1, 'practice', $2, 81, 'practice feedback')`, interview, rp)
 	f.exec(`INSERT INTO public.conversation_turns (interview_id, position, question, answer, feedback) VALUES ($1, 1, 'Q', 'practice answer', 'F')`, interview)
 	f.exec(`INSERT INTO public.score_details (interview_id, metric_id, score, evidence) SELECT $1, id, 80, 'quote' FROM public.metrics LIMIT 1`, interview)
+	f.graded(interview, jd, "practice answer")
 	return interview
+}
+
+// graded gives the interview a rubric-graded core question (system rubric 201) with one criterion result
+// quoting the answer of turn 1 (KAN-335), so erasure and export meet the new tables.
+func (f *fixture) graded(interview, jd uuid.UUID, quote string) {
+	question := uuid.New()
+	f.exec(`INSERT INTO public.core_questions (id, jd_id, content, rubric_id, expected_answer)
+		VALUES ($1, $2, 'Graded question', '00000000-0000-4000-8000-000000000201', 'EXPECTED-SECRET')`, question, jd)
+	f.exec(`INSERT INTO public.interview_questions (interview_id, position, core_question_id, score) VALUES ($1, 1, $2, 40)`, interview, question)
+	f.exec(`INSERT INTO public.interview_criterion_scores (interview_id, question_position, rubric_criterion_id, points, evidence, evidence_turn_position, feedback)
+		VALUES ($1, 1, '00000000-0000-4000-8000-000000000301', 1, $2, 1, 'criterion feedback')`, interview, quote)
 }
 
 // belongings gives the candidate an avatar, a wallet and an issued upload grant, returning the object keys.
@@ -171,7 +187,7 @@ func (f *fixture) belongings(user uuid.UUID, modelKey string) (grantKey string) 
 	return grant.String()
 }
 
-type owned struct{ apps, interviews, turns, scores, profiles, avatars, wallets, grants, users int }
+type owned struct{ apps, interviews, turns, scores, criteria, profiles, avatars, wallets, grants, users int }
 
 func (f *fixture) owned(user uuid.UUID) owned {
 	return owned{
@@ -179,6 +195,7 @@ func (f *fixture) owned(user uuid.UUID) owned {
 		interviews: f.count(`SELECT count(*) FROM public.interviews i LEFT JOIN public.applications a ON a.id = i.application_id LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id WHERE a.candidate_id = $1 OR rp.candidate_id = $1`, user),
 		turns:      f.count(`SELECT count(*) FROM public.conversation_turns t JOIN public.interviews i ON i.id = t.interview_id LEFT JOIN public.applications a ON a.id = i.application_id LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id WHERE a.candidate_id = $1 OR rp.candidate_id = $1`, user),
 		scores:     f.count(`SELECT count(*) FROM public.score_details s JOIN public.interviews i ON i.id = s.interview_id LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id WHERE rp.candidate_id = $1`, user),
+		criteria:   f.count(`SELECT count(*) FROM public.interview_criterion_scores s JOIN public.interviews i ON i.id = s.interview_id LEFT JOIN public.applications a ON a.id = i.application_id LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id WHERE a.candidate_id = $1 OR rp.candidate_id = $1`, user),
 		profiles:   f.count(`SELECT count(*) FROM public.role_profiles WHERE candidate_id = $1`, user),
 		avatars:    f.count(`SELECT count(*) FROM public.avatars av JOIN public.inventories inv ON inv.id = av.inventory_id WHERE inv.user_id = $1`, user),
 		wallets:    f.count(`SELECT count(*) FROM public.wallets WHERE user_id = $1`, user),
@@ -207,7 +224,7 @@ func TestEraseCandidateCascadesAndLeavesOthersUntouched(t *testing.T) {
 	f.practice(bob.ID, uuid.NewString())
 	f.belongings(bob.ID, uuid.NewString())
 	bobBefore := f.owned(bob.ID)
-	if bobBefore.apps != 1 || bobBefore.interviews != 2 || bobBefore.turns != 2 || bobBefore.scores != 1 {
+	if bobBefore.apps != 1 || bobBefore.interviews != 2 || bobBefore.turns != 2 || bobBefore.scores != 1 || bobBefore.criteria != 2 {
 		t.Fatalf("seed is wrong: %+v", bobBefore)
 	}
 
@@ -313,14 +330,15 @@ func TestExportIsOwnerScopedAndHidesRecruitmentScores(t *testing.T) {
 		}
 		switch i.ID {
 		case aliceInterview:
-			if i.Score != nil || i.Feedback != nil || len(i.Scores) != 0 || i.Turns[0].Feedback != nil {
+			if i.Score != nil || i.Feedback != nil || len(i.Scores) != 0 || len(i.Criteria) != 0 || i.Turns[0].Feedback != nil {
 				t.Fatalf("recruitment interview exposes recruiter-side results: %+v", i)
 			}
 			if i.Turns[0].Answer == nil || *i.Turns[0].Answer != "secret answer" || i.Recording == nil {
 				t.Fatalf("recruitment interview = %+v", i)
 			}
 		case practice:
-			if i.Score == nil || *i.Score != 81 || len(i.Scores) != 1 || i.Turns[0].Feedback == nil || i.Recording != nil {
+			if i.Score == nil || *i.Score != 81 || len(i.Scores) != 1 || i.Turns[0].Feedback == nil || i.Recording != nil ||
+				len(i.Criteria) != 1 || i.Criteria[0].Points != 1 || i.Criteria[0].MaxPoints != 2 || i.Criteria[0].Evidence == nil {
 				t.Fatalf("practice interview = %+v", i)
 			}
 		default:

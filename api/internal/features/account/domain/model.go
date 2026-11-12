@@ -91,21 +91,25 @@ type ExportApplication struct {
 	CVKey *string `json:"-"`
 }
 
-// ExportInterview is one interview of the Candidate. Score, Feedback and Scores are filled only for
-// practice interviews: a recruitment Candidate's result is the Recruiter's to announce, so the export
+// ExportInterview is one interview of the Candidate. Score, ScoreOutcome, Feedback, Scores and Criteria are
+// filled only for practice interviews: a recruitment Candidate's result is the Recruiter's to announce, so the export
 // shows what the report view shows and no more.
 type ExportInterview struct {
-	ID            uuid.UUID     `json:"id"`
-	Type          string        `json:"type" enums:"practice,recruitment"`
-	ApplicationID *uuid.UUID    `json:"application_id"`
-	StartedAt     time.Time     `json:"started_at"`
-	CompletedAt   *time.Time    `json:"completed_at"`
-	EndReason     *string       `json:"end_reason"`
-	Score         *int32        `json:"overall_score,omitempty"`
-	Feedback      *string       `json:"feedback,omitempty"`
-	Turns         []ExportTurn  `json:"turns"`
-	Scores        []ExportScore `json:"scores,omitempty"`
-	Recording     *DownloadLink `json:"recording"`
+	ID            uuid.UUID  `json:"id"`
+	Type          string     `json:"type" enums:"practice,recruitment"`
+	ApplicationID *uuid.UUID `json:"application_id"`
+	StartedAt     time.Time  `json:"started_at"`
+	CompletedAt   *time.Time `json:"completed_at"`
+	EndReason     *string    `json:"end_reason"`
+	// Score is the weighted overall with two decimals; omitted when withheld (see ScoreOutcome).
+	Score *float64 `json:"overall_score,omitempty"`
+	// ScoreOutcome is complete, partial or withheld for a rubric-graded practice interview.
+	ScoreOutcome *string           `json:"score_outcome,omitempty"`
+	Feedback     *string           `json:"feedback,omitempty"`
+	Turns        []ExportTurn      `json:"turns"`
+	Scores       []ExportScore     `json:"scores,omitempty"`
+	Criteria     []ExportCriterion `json:"criteria,omitempty"`
+	Recording    *DownloadLink     `json:"recording"`
 	// RecordKey is the storage key of a ready recording; the service turns it into Recording.
 	RecordKey *string `json:"-"`
 }
@@ -121,11 +125,26 @@ type ExportTurn struct {
 	AnsweredAt *time.Time `json:"answered_at"`
 }
 
-// ExportScore is one metric score of a practice interview.
+// ExportScore is one session metric of a practice interview. Score is null for a weighted metric no graded
+// question assessed; Weight is the weight the overall used (null for an evaluation made before rubric
+// grading, whose Evidence is the legacy metric quote).
 type ExportScore struct {
-	Metric   string  `json:"metric"`
-	Score    int32   `json:"score"`
-	Evidence *string `json:"evidence"`
+	Metric   string   `json:"metric"`
+	Score    *float64 `json:"score"`
+	Weight   *float64 `json:"weight"`
+	Evidence *string  `json:"evidence"`
+}
+
+// ExportCriterion is one graded rubric criterion of a practice interview (KAN-335): the points the
+// Candidate's answer to one core question earned, the quote they rest on and the feedback.
+type ExportCriterion struct {
+	QuestionPosition int32   `json:"question_position"`
+	Criterion        string  `json:"criterion"`
+	Metric           string  `json:"metric"`
+	Points           int32   `json:"points"`
+	MaxPoints        int32   `json:"max_points"`
+	Evidence         *string `json:"evidence"`
+	Feedback         *string `json:"feedback"`
 }
 
 // ExportPosting is one of a Recruiter's own Job Postings.
