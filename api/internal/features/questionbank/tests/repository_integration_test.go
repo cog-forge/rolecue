@@ -124,6 +124,8 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 		s.exec(`INSERT INTO public.interview_questions (interview_id, position, core_question_id) VALUES ($1, 1, $2)`, interviewID, listed[0].ID)
 		s.later(`DELETE FROM public.interview_questions WHERE interview_id = $1`, interviewID)
 		wantCode(t, repo.Delete(ctx, recruiter, postingID, listed[0].ID), apperror.CodeCoreQuestionInUse)
+		_, err = repo.WriteQuestion(ctx, recruiter, postingID, &listed[0].ID, domain.QuestionPatch{SetExpectedAnswer: true, ExpectedAnswer: answer("Key points.")})
+		wantCode(t, err, apperror.CodeCoreQuestionInUse)
 	})
 
 	t.Run("a locked posting refuses every change", func(t *testing.T) {

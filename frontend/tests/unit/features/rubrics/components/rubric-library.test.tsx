@@ -1,10 +1,10 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderWithIntl } from "../../../helpers/intl";
+import { renderWithIntl } from "@tests/helpers/intl";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { RubricLibrary } from "@/features/rubrics/rubric-library";
-import type { Rubric } from "@/features/rubrics/rubric-schema";
+import { RubricLibrary } from "@/features/rubrics/components/rubric-library";
+import type { Rubric } from "@/features/rubrics/schemas/rubric-schema";
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   get: vi.fn(),
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   copy: vi.fn(),
   remove: vi.fn(),
 }));
-vi.mock("@/features/rubrics/rubric-api", () => ({
+vi.mock("@/features/rubrics/api/rubrics", () => ({
   rubricKeys: { all: (id: string) => ["rubrics", id] },
   listRubrics: mocks.list,
   getRubric: mocks.get,

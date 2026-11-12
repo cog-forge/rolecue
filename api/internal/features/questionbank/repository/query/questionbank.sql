@@ -162,3 +162,18 @@ SELECT @jd_id::uuid, (@contents::text[])[i],
 FROM generate_series(1, cardinality(@contents::text[])) AS i
 ORDER BY i
 RETURNING id, content, rubric_id, expected_answer;
+
+-- name: LockQuestionForEdit :one
+SELECT cq.id
+FROM public.core_questions cq
+JOIN public.job_postings jp ON jp.jd_id = cq.jd_id
+WHERE cq.id = @id AND jp.id = @posting_id
+FOR UPDATE OF cq;
+
+-- name: QuestionInUse :one
+SELECT EXISTS (SELECT 1 FROM public.interview_questions WHERE core_question_id = @id);
+
+-- name: WriteQuestionGrading :exec
+UPDATE public.core_questions
+SET content = @content::text, rubric_id = sqlc.narg(rubric_id)::uuid, expected_answer = sqlc.narg(expected_answer)::text
+WHERE id = @id;

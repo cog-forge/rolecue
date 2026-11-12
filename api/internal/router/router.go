@@ -203,6 +203,7 @@ func (r *Router) Setup() *gin.Engine {
 	jobPostings.GET("/:id/document", r.jobPostingHandler.Document)
 	jobPostings.GET("/:id/questions", r.questionBankHandler.List)
 	jobPostings.POST("/:id/questions/generate", with(limits.llm, r.questionBankHandler.Generate)...)
+	jobPostings.POST("/:id/questions/apply-rubric", r.questionBankHandler.ApplyRubric)
 	jobPostings.POST("/:id/questions", r.questionBankHandler.Add)
 	jobPostings.PATCH("/:id/questions/:questionId", r.questionBankHandler.Update)
 	jobPostings.DELETE("/:id/questions/:questionId", r.questionBankHandler.Delete)

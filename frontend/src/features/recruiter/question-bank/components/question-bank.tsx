@@ -1,7 +1,10 @@
 "use client";
 
+import { GradingBank } from "./grading-bank";
+import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
+import { ConfirmDialog } from "@/features/recruiter/evaluation/components/confirm-dialog";
 import { ReviewSubmissionDialog } from "./review-submission-dialog";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListPlus, LoaderCircle, Pencil, Trash2 } from "lucide-react";
@@ -19,7 +22,6 @@ import {
 } from "@/features/recruiter/job-postings/api/job-postings";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
 import { PageHeader, pillClass } from "@/components/layout/page-header";
-import { PostingProgress } from "@/features/recruiter/job-postings/components/posting-progress";
 import { PostingTabs } from "@/features/recruiter/job-postings/components/posting-tabs";
 import { PostingStatus } from "@/features/recruiter/job-postings/components/posting-status";
 import {
@@ -42,6 +44,7 @@ const staleCodes = new Set([
   "QUESTION_BANK_NOT_READY",
   "QUESTION_BANK_LOCKED",
   "QUESTION_BANK_EXISTS",
+  "GRADING_CONFIG_INCOMPLETE",
   "JOB_POSTING_NOT_FOUND",
   "CORE_QUESTION_NOT_FOUND",
   // The Admin decided the posting meanwhile (for example a reject while this page was open): reload
@@ -63,11 +66,16 @@ export function QuestionBank({ postingId }: { postingId: string }) {
   const user = useSessionUser();
   const cache = useQueryClient();
   const key = questionBankKeys.detail(user.id, postingId);
+  const [gradingDirty, setGradingDirty] = useState(false);
+  const [gradingPending, setGradingPending] = useState(false);
+  const [editDirty, setEditDirty] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<CoreQuestion | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const guard = useUnsavedChangesGuard(addDirty || editDirty || gradingDirty);
 
   const query = useQuery({
     queryKey: key,
@@ -82,12 +90,52 @@ export function QuestionBank({ postingId }: { postingId: string }) {
     retry: false,
   });
   const patch = (update: (bank: Bank) => Bank) =>
-    cache.setQueryData<Bank>(key, (bank) => (bank ? update(bank) : bank));
+    cache.setQueryData<Bank>(key, (bank) => {
+      if (!bank) return bank;
+      const next = update(bank);
+      const count = next.questions.filter((q) => q.grading_incomplete).length;
+      return {
+        ...next,
+        grading_incomplete_count: count,
+        grading_ready: next.questions.length > 0 && count === 0,
+      };
+    });
+  const savedGrading = useCallback(
+    (questions: Bank["questions"]) => {
+      cache.setQueryData<Bank>(
+        questionBankKeys.detail(user.id, postingId),
+        (bank) => {
+          if (!bank) return bank;
+          const next = bank.questions.map(
+            (q) => questions.find((saved) => saved.id === q.id) ?? q,
+          );
+          const count = next.filter((q) => q.grading_incomplete).length;
+          const changed = questions.some(
+            (saved) =>
+              bank.questions.find((q) => q.id === saved.id)?.revision !==
+              saved.revision,
+          );
+          return {
+            ...bank,
+            questions: next,
+            grading_incomplete_count: count,
+            grading_ready: count === 0 && next.length > 0,
+            review_submitted: changed ? false : bank.review_submitted,
+          };
+        },
+      );
+      void cache.invalidateQueries({
+        queryKey: jobPostingKeys.detail(user.id, postingId),
+      });
+    },
+    [cache, user.id, postingId],
+  );
   const onStale = (error: unknown) => {
     const { code } = apiError(error);
     if (!code || !staleCodes.has(code)) return false;
     setNotice(errorMessage(error, t("changed")));
     setEditingId(null);
+    setEditDirty(false);
     setDeleting(null);
     void cache.invalidateQueries({ queryKey: key });
     return true;
@@ -135,23 +183,39 @@ export function QuestionBank({ postingId }: { postingId: string }) {
     mutationFn: (content: string) => addQuestion(postingId, content),
     retry: false,
     onSuccess: (question) => {
-      patch((bank) => ({ ...bank, questions: [...bank.questions, question] }));
+      patch((bank) => ({
+        ...bank,
+        questions: [...bank.questions, question],
+        review_submitted: false,
+      }));
+      setAddDirty(false);
       refreshPosting();
     },
     onError: onStale,
   });
   const update = useMutation({
     mutationFn: (input: { id: string; content: string }) =>
-      updateQuestion(postingId, input.id, input.content),
+      updateQuestion(
+        postingId,
+        input.id,
+        input.content,
+        query.data?.questions.find((q) => q.id === input.id)?.revision,
+      ),
     retry: false,
     onSuccess: (question) => {
       patch((bank) => ({
         ...bank,
+        review_submitted:
+          bank.questions.find((q) => q.id === question.id)?.content ===
+          question.content
+            ? bank.review_submitted
+            : false,
         questions: bank.questions.map((q) =>
           q.id === question.id ? question : q,
         ),
       }));
       setEditingId(null);
+      setEditDirty(false);
     },
     onError: onStale,
   });
@@ -166,7 +230,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       patch((bank) => {
         const questions = bank.questions.filter((q) => q.id !== id);
         return questions.length > 0
-          ? { ...bank, questions }
+          ? { ...bank, questions, review_submitted: false }
           : { ...bank, questions, editable: false, review_submitted: false };
       });
       setDeleting(null);
@@ -215,20 +279,32 @@ export function QuestionBank({ postingId }: { postingId: string }) {
   // progress that would be lost, then saves still running.
   const submitBlock = !query.data
     ? null
-    : query.data.questions.length === 0
-      ? t("blocked.empty")
-      : editingId !== null
-        ? t("blocked.editing")
-        : addDirty
-          ? t("blocked.adding")
-          : add.isPending || update.isPending || remove.isPending
-            ? t("blocked.saving")
-            : generate.isPending
-              ? t("blocked.generating")
-              : null;
+    : gradingPending
+      ? t("blocked.saving")
+      : gradingDirty
+        ? t("grading.saveFirst")
+        : query.data.questions.length === 0
+          ? t("blocked.empty")
+          : editingId !== null
+            ? t("blocked.editing")
+            : addDirty
+              ? t("blocked.adding")
+              : add.isPending || update.isPending || remove.isPending
+                ? t("blocked.saving")
+                : generate.isPending
+                  ? t("blocked.generating")
+                  : !query.data.grading_ready
+                    ? t("grading.incomplete", {
+                        count:
+                          query.data.grading_incomplete_count ??
+                          query.data.questions.filter(
+                            (q) => q.grading_incomplete,
+                          ).length,
+                      })
+                    : null;
 
   return (
-    <section className="mx-auto w-full max-w-5xl space-y-8">
+    <section data-question-bank className="mx-auto w-full max-w-5xl space-y-6">
       {query.isPending ? (
         <>
           <PageHeader back={back} title={t("title")} />
@@ -285,7 +361,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
               <>
                 <PostingStatus
                   status={query.data.posting_status}
-                  questionBankReady={query.data.questions.length > 0}
+                  questionBankReady={query.data.grading_ready}
                   reviewSubmitted={query.data.review_submitted}
                   interviewSlot={posting.data?.interview_slot}
                 />
@@ -366,16 +442,6 @@ export function QuestionBank({ postingId }: { postingId: string }) {
             </p>
           )}
 
-          <PostingProgress
-            posting={{
-              status: query.data.posting_status,
-              review_submitted: query.data.review_submitted,
-              core_question_count: query.data.questions.length,
-              interview_slot: posting.data?.interview_slot,
-            }}
-            generating={generate.isPending}
-          />
-
           <PostingTabs
             postingId={postingId}
             active="questions"
@@ -422,17 +488,42 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                 onGenerate={() => generate.mutate()}
               />
             ) : (
-              <ol className="divide-y rounded-xl border">
-                {query.data.questions.map((question, index) => (
-                  <li
-                    key={question.id}
+              <GradingBank
+                bank={query.data}
+                adding={add.isPending}
+                addError={
+                  add.isError ? errorMessage(add.error, t("add.failed")) : null
+                }
+                newQuestionDirty={addDirty}
+                onNewQuestionDirtyChange={setAddDirty}
+                onAddQuestion={async (content) => {
+                  try {
+                    return await add.mutateAsync(content);
+                  } catch {
+                    return null;
+                  }
+                }}
+                postingId={postingId}
+                onSaved={savedGrading}
+                onDirtyChange={setGradingDirty}
+                onPendingChange={setGradingPending}
+                disabled={
+                  add.isPending ||
+                  update.isPending ||
+                  remove.isPending ||
+                  editDirty ||
+                  addDirty
+                }
+                renderQuestion={(question, index) => (
+                  <div
                     className={cn(
-                      "px-4 py-4 sm:px-5",
+                      "min-w-0",
                       editingId === question.id && "bg-muted/40",
                     )}
                   >
                     {editingId === question.id ? (
                       <QuestionEditor
+                        onDirtyChange={setEditDirty}
                         id={`edit-${question.id}`}
                         label={t("list.editLabel", { number: index + 1 })}
                         initial={question.content}
@@ -444,6 +535,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                         onCancel={() => {
                           update.reset();
                           setEditingId(null);
+                          setEditDirty(false);
                         }}
                         onSubmit={(content) =>
                           submit(() =>
@@ -464,11 +556,15 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="size-10 rounded-full text-muted-foreground hover:text-foreground"
+                              className="size-11 rounded-full text-rolecue-brand hover:bg-rolecue-brand/10 hover:text-rolecue-brand"
                               aria-label={t("list.editLabel", {
                                 number: index + 1,
                               })}
-                              disabled={editingId !== null}
+                              disabled={
+                                editingId !== null ||
+                                gradingDirty ||
+                                gradingPending
+                              }
                               onClick={() => {
                                 update.reset();
                                 setEditingId(question.id);
@@ -479,7 +575,13 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="size-10 rounded-full text-muted-foreground hover:text-destructive"
+                              className="size-11 rounded-full text-destructive/80 hover:bg-destructive/8 hover:text-destructive"
+                              disabled={
+                                gradingDirty ||
+                                gradingPending ||
+                                editingId !== null ||
+                                addDirty
+                              }
                               aria-label={t("list.deleteLabel", {
                                 number: index + 1,
                               })}
@@ -494,25 +596,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                         )}
                       </div>
                     )}
-                  </li>
-                ))}
-              </ol>
-            )}
-
-            {query.data.editable && (
-              <div className="rounded-xl bg-muted/60 p-4 sm:p-5">
-                <QuestionEditor
-                  onDirtyChange={setAddDirty}
-                  id="new-question"
-                  label={t("add.label")}
-                  maxLength={query.data.max_question_length}
-                  pending={add.isPending}
-                  error={formError(add, t("add.failed"))}
-                  submitLabel={t("add.submit")}
-                  pendingLabel={t("add.pending")}
-                  onSubmit={(content) => submit(() => add.mutateAsync(content))}
-                />
-              </div>
+                  </div>
+                )}
+              />
             )}
           </section>
 
@@ -525,6 +611,15 @@ export function QuestionBank({ postingId }: { postingId: string }) {
           />
         </>
       )}
+      <ConfirmDialog
+        open={guard.leaving}
+        title={t("grading.leaveTitle")}
+        description={t("grading.leaveHint")}
+        cancelLabel={t("grading.stay")}
+        confirmLabel={t("grading.leave")}
+        onCancel={guard.stay}
+        onConfirm={guard.leave}
+      />
     </section>
   );
 }

@@ -51,6 +51,14 @@ describe("PostingProgress", () => {
     expect(evaluation.text).toContain("Optional: defaults apply");
   });
 
+  it("keeps the questions step current while grading is incomplete", () => {
+    const all = steps(posting({ grading_ready: false }));
+    expect(all[1].current).toBe(true);
+    expect(all[1].text).toContain("Review grading configuration");
+    expect(all[2].current).toBe(false);
+    expect(all[3].text).toContain("Not submitted");
+  });
+
   it("waits on the administrator once submitted", () => {
     const all = steps(posting({ review_submitted: true }));
     expect(all[3]).toMatchObject({ current: true });

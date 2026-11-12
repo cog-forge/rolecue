@@ -98,7 +98,9 @@
     "EVALUATION_ATTEMPTS_EXCEEDED": "This interview can't be re-scored again. Please contact support.",
     "LLM_BUDGET_EXCEEDED": "You've reached today's limit for AI-powered actions. It resets at midnight UTC.",
     "RATE_LIMITED": "Too many requests. Please wait a moment before trying again.",
-    "GUIDELINE_VERSION_CONFLICT": "The guidelines changed since you loaded them. Reload and try again."
+    "GUIDELINE_VERSION_CONFLICT": "The guidelines changed since you loaded them. Reload and try again.",
+    "QUESTION_STALE": "This question changed. Reload it and review your draft before saving.",
+    "EXPECTED_ANSWER_REVIEW_REQUIRED": "Review or clear the expected answer when changing the rubric."
   },
   "auth": {
     "accountLocked": "Your account has been locked by an administrator. Contact support to request a review. You can sign in again once the lock expires or an administrator unlocks your account.",

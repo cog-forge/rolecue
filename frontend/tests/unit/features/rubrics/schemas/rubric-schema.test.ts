@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRubricFormSchema } from "@/features/rubrics/rubric-schema";
+import { createRubricFormSchema } from "@/features/rubrics/schemas/rubric-schema";
 const metric = "11111111-1111-4111-8111-111111111111";
 const schema = createRubricFormSchema("required", "invalid", [metric]);
 const valid = {

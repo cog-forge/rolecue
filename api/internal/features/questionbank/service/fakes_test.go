@@ -161,3 +161,12 @@ func newService(t *testing.T, repo Repository, gen Generator, retries, size int)
 	}
 	return s
 }
+
+func (f *fakeRepository) WriteQuestion(_ context.Context, _, _ uuid.UUID, _ *uuid.UUID, _ domain.QuestionPatch) (domain.BankQuestion, error) {
+	f.opCalls++
+	return domain.BankQuestion{}, f.opErr
+}
+func (f *fakeRepository) ApplyRubric(_ context.Context, _, _ uuid.UUID, _ domain.BulkRubricRequest) ([]domain.BankQuestion, error) {
+	f.opCalls++
+	return nil, f.opErr
+}

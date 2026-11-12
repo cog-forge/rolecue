@@ -42,12 +42,25 @@ vi.mock("@/features/auth/components/session-gate", () => ({
 }));
 vi.mock("goey-toast", () => ({ gooeyToast: { success: mocks.toast } }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+}));
+
+const grading = {
+  rubric_id: null,
+  expected_answer: "Key points.",
+  grading_incomplete: false,
+  grading_issues: [],
+  revision: "a".repeat(64),
+};
 const postingId = "33333333-3333-4333-8333-333333333333";
 const q1 = {
+  ...grading,
   id: "44444444-4444-4444-8444-444444444441",
   content: "Explain Go channels.",
 };
 const q2 = {
+  ...grading,
   id: "44444444-4444-4444-8444-444444444442",
   content: "How do you index a table?",
 };
@@ -58,6 +71,8 @@ const bank = (overrides: Record<string, unknown> = {}) => ({
   max_question_length: 1000,
   review_submitted: false,
   generation_size: 10,
+  grading_ready: true,
+  grading_incomplete_count: 0,
   ...overrides,
 });
 const posting = {
@@ -109,6 +124,13 @@ function mount(locale: "en" | "vi" = "en") {
   return client;
 }
 const path = `/job-postings/${postingId}/questions`;
+
+async function openAddForm() {
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add a question" }),
+  );
+  return screen.findByRole("form", { name: "Add a question" });
+}
 
 async function confirmReview(
   review: HTMLElement,
@@ -162,7 +184,7 @@ describe("QuestionBank", () => {
       screen.getByRole("button", { name: "Edit question 1" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("form", { name: "Add a question" }),
+      screen.getByRole("button", { name: "Add a question" }),
     ).toBeInTheDocument();
   });
 
@@ -251,7 +273,7 @@ describe("QuestionBank", () => {
     };
     mocks.post.mockResolvedValue(envelope(added));
     mount();
-    const form = await screen.findByRole("form", { name: "Add a question" });
+    const form = await openAddForm();
     fireEvent.change(within(form).getByLabelText("Add a question"), {
       target: { value: "  What is a goroutine leak?  " },
     });
@@ -262,6 +284,14 @@ describe("QuestionBank", () => {
       expect(mocks.post).toHaveBeenCalledWith(path, {
         content: "What is a goroutine leak?",
       }),
+    );
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Review grading for question 3",
+      }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "View in rubric group" }),
     );
     expect(
       await screen.findByText("What is a goroutine leak?"),
@@ -276,7 +306,7 @@ describe("QuestionBank", () => {
   it("uses the server limit for the length check", async () => {
     mocks.get.mockResolvedValue(envelope(bank({ max_question_length: 10 })));
     mount();
-    const form = await screen.findByRole("form", { name: "Add a question" });
+    const form = await openAddForm();
     fireEvent.change(within(form).getByLabelText("Add a question"), {
       target: { value: "This question is too long" },
     });
@@ -306,6 +336,7 @@ describe("QuestionBank", () => {
     );
     await waitFor(() =>
       expect(mocks.patch).toHaveBeenCalledWith(`${path}/${q1.id}`, {
+        previous_revision: q1.revision,
         content: "Explain buffered channels.",
       }),
     );
@@ -377,7 +408,7 @@ describe("QuestionBank", () => {
       ),
     );
     mount();
-    const form = await screen.findByRole("form", { name: "Add a question" });
+    const form = await openAddForm();
     fireEvent.change(within(form).getByLabelText("Add a question"), {
       target: { value: "New one?" },
     });
@@ -385,7 +416,7 @@ describe("QuestionBank", () => {
       await within(form).findByRole("button", { name: "Add question" }),
     );
     expect(
-      await screen.findByText(
+      await within(screen.getByRole("dialog")).findByText(
         "The question bank can't be changed at this stage.",
       ),
     ).toBeInTheDocument();
@@ -476,7 +507,7 @@ describe("why submission is unavailable", () => {
     mocks.get.mockResolvedValue(envelope(bank()));
     mount();
     const button = await submit();
-    const form = await screen.findByRole("form", { name: "Add a question" });
+    const form = await openAddForm();
     fireEvent.change(within(form).getByLabelText("Add a question"), {
       target: { value: "Describe a hard bug you fixed." },
     });
@@ -630,12 +661,9 @@ describe("submission follows question review", () => {
     const send = await screen.findByRole("button", {
       name: "Submit for approval",
     });
-    fireEvent.change(
-      within(screen.getByRole("form", { name: "Add a question" })).getByRole(
-        "textbox",
-      ),
-      { target: { value: "Unsaved question" } },
-    );
+    fireEvent.change(within(await openAddForm()).getByRole("textbox"), {
+      target: { value: "Unsaved question" },
+    });
     await waitFor(() => expect(send).toBeDisabled());
     expect(mocks.post).not.toHaveBeenCalled();
   });
@@ -680,12 +708,12 @@ describe("submission follows question review", () => {
     expect(
       await screen.findByText("Ứng viên không bao giờ thấy các câu hỏi này."),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("Sẵn sàng gửi duyệt")).toHaveLength(2);
-    expect(screen.getAllByText("2 câu hỏi")).toHaveLength(2);
+    expect(screen.getAllByText("Sẵn sàng gửi duyệt")).toHaveLength(1);
+    expect(screen.getAllByText("2 câu hỏi")).toHaveLength(1);
     // The questions themselves are content and stay as stored.
     expect(screen.getByText("How do you index a table?")).toBeInTheDocument();
     expect(
-      screen.getByRole("form", { name: "Thêm câu hỏi" }),
+      screen.getByRole("button", { name: "Thêm câu hỏi" }),
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Xóa câu hỏi 2" }));

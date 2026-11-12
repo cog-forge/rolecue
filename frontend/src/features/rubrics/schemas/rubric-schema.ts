@@ -24,6 +24,23 @@ export const rubricSchema = z.object({
   reference_count: z.number().optional(),
   criteria: z.array(criterionSchema).optional(),
 });
+export const rubricEnvelopeSchema = z.object({
+  success: z.literal(true),
+  data: rubricSchema,
+});
+export const rubricPageEnvelopeSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    items: z.array(rubricSchema).nullable(),
+    pagination: z.object({ total: z.number() }),
+  }),
+});
+export const rubricMetricsEnvelopeSchema = z.object({
+  success: z.literal(true),
+  data: z.object({
+    items: z.array(z.object({ id: z.uuid(), name: z.string() })),
+  }),
+});
 export type Rubric = z.infer<typeof rubricSchema>;
 export type RubricValues = {
   name: string;

@@ -872,3 +872,146 @@ html[data-theme-reveal]::view-transition-new(root) {
   --glass-foreground: oklch(0.98 0 0);
   --glass-highlight: oklch(1 0 0 / 16%);
 }
+
+/* transitions.dev: criteria disclosure; shared with rubric review. */
+:root {
+  --acc-expand: 250ms;
+  --acc-collapse: 250ms;
+  --acc-chevron: 250ms;
+  --acc-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* grid-template-rows 0fr → 1fr gives a clean height animation
+   with no JS measurement; the inner element clips overflow. */
+.t-acc-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--acc-collapse) var(--acc-ease);
+}
+.t-acc[data-open="true"] .t-acc-panel {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--acc-expand) var(--acc-ease);
+}
+.t-acc-panel-inner {
+  overflow: hidden;
+  opacity: 0;
+  filter: blur(2px);
+  transition:
+    opacity var(--acc-collapse) var(--acc-ease),
+    filter var(--acc-collapse) var(--acc-ease);
+}
+.t-acc[data-open="true"] .t-acc-panel-inner {
+  opacity: 1;
+  filter: blur(0);
+  transition:
+    opacity var(--acc-expand) var(--acc-ease),
+    filter var(--acc-expand) var(--acc-ease);
+}
+/* Flip the chevron vertically to turn the "v" into a "^".
+   scaleY(-1) about the centre passes through a flat line at
+   the midpoint (same look as a `d:` path morph) but animates
+   in every browser, unlike CSS `d:` morphing (Chromium only).
+   The chevron path is symmetric about the 16x16 viewBox
+   centre, so the flip lands exactly on the "^"; non-scaling
+   -stroke keeps the stroke width constant through the flip. */
+.t-acc-chevron {
+  display: inline-flex;
+  transform: scaleY(1);
+  transform-origin: center;
+  transition: transform var(--acc-chevron) var(--acc-ease);
+}
+.t-acc-chevron path {
+  vector-effect: non-scaling-stroke;
+}
+.t-acc[data-open="true"] .t-acc-chevron {
+  transform: scaleY(-1);
+}
+
+/* transitions.dev sliding indicator; its underline shape uses RoleCue utilities. */
+:root {
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tabs-pill-bg: var(--foreground);
+}
+.t-tabs-pill {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: 30px;
+  width: 0;
+  background: var(--tabs-pill-bg);
+  border-radius: 48px;
+  transform: translateX(0);
+  transition:
+    transform var(--tabs-dur) var(--tabs-ease),
+    width var(--tabs-dur) var(--tabs-ease);
+  will-change: transform, width;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Only posting-tab navigation participates; the workspace shell stays still. */
+html[data-posting-transition] [data-posting-panel] {
+  view-transition-name: posting-panel;
+}
+html[data-posting-transition] [data-posting-tabs] {
+  view-transition-name: posting-tabs;
+}
+html[data-posting-transition] [data-posting-indicator] {
+  view-transition-name: posting-tab-indicator;
+}
+html[data-posting-transition]::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+html[data-posting-transition]::view-transition-new(root) {
+  animation: none;
+}
+html[data-posting-transition]::view-transition-group(posting-panel) {
+  animation: none;
+}
+html[data-posting-transition]::view-transition-old(posting-panel) {
+  animation: posting-content-out 140ms ease-out both;
+}
+html[data-posting-transition]::view-transition-new(posting-panel) {
+  animation: posting-content-in 180ms ease-out both;
+}
+html[data-posting-transition]::view-transition-group(posting-tabs),
+html[data-posting-transition]::view-transition-group(posting-tab-indicator) {
+  animation-duration: var(--tabs-dur);
+  animation-timing-function: var(--tabs-ease);
+}
+html[data-posting-transition]::view-transition-old(posting-tabs) {
+  animation: none;
+  opacity: 0;
+}
+html[data-posting-transition]::view-transition-new(posting-tabs) {
+  animation: none;
+}
+@keyframes posting-content-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes posting-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-acc-panel,
+  .t-acc-panel-inner,
+  .t-acc-chevron {
+    transition: none !important;
+  }
+  .t-tabs-pill {
+    transition: none !important;
+  }
+}

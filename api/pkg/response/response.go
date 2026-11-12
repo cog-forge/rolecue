@@ -76,6 +76,8 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeRubricNotFound:                   http.StatusNotFound,
 	apperror.CodeRubricLocked:                     http.StatusConflict,
 	apperror.CodeRubricInUse:                      http.StatusConflict,
+	apperror.CodeQuestionStale:                    http.StatusConflict,
+	apperror.CodeExpectedAnswerReviewRequired:     http.StatusConflict,
 	apperror.CodeRubricStale:                      http.StatusConflict,
 	apperror.CodeApplicationNotFound:              http.StatusNotFound,
 	apperror.CodeApplicationNotPending:            http.StatusConflict,

@@ -4,7 +4,7 @@ import {
   listRubrics,
   rubricKeys,
   writeRubric,
-} from "@/features/rubrics/rubric-api";
+} from "@/features/rubrics/api/rubrics";
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   patch: vi.fn(),

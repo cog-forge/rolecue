@@ -12,6 +12,13 @@ const recruiter = {
   onboarding_completed: true,
 };
 const postingId = "33333333-3333-4333-8333-333333333333";
+const grading = {
+  rubric_id: null,
+  expected_answer: "Key points.",
+  grading_incomplete: false,
+  grading_issues: [],
+  revision: "a".repeat(64),
+};
 const bankPath = `/job-postings/${postingId}/questions`;
 
 async function mockBank(
@@ -43,7 +50,9 @@ async function mockBank(
   const id = () =>
     `44444444-4444-4444-8444-${String(next++).padStart(12, "0")}`;
   const bank = () => ({
-    questions,
+    questions: questions.map((q) => ({ ...grading, ...q })),
+    grading_ready: true,
+    grading_incomplete_count: 0,
     posting_status: editable ? "pending" : "open",
     // Like the server: an empty bank is generated, not edited.
     editable: editable && questions.length > 0,
@@ -151,7 +160,10 @@ async function mockBank(
       return route.fulfill({
         status: 201,
         headers,
-        json: { success: true, data: { questions } },
+        json: {
+          success: true,
+          data: { questions: questions.map((q) => ({ ...grading, ...q })) },
+        },
       });
     }
     if (url.pathname === bankPath && method === "POST") {
@@ -162,7 +174,7 @@ async function mockBank(
       return route.fulfill({
         status: 201,
         headers,
-        json: { success: true, data: question },
+        json: { success: true, data: { ...grading, ...question } },
       });
     }
     const match = url.pathname.match(new RegExp(`^${bankPath}/(.+)$`));
@@ -204,14 +216,21 @@ test("recruiter reviews generated questions, edits and explicitly submits", asyn
       .getByText("2 questions", { exact: true }),
   ).toBeVisible();
 
+  const submit = page
+    .locator("button")
+    .filter({ hasText: /^Submit for approval$/ });
+  await page
+    .getByRole("button", { name: "Add a question", exact: true })
+    .click();
   const form = page.getByRole("form", { name: "Add a question" });
   await form.getByLabel("Add a question").fill("What is a goroutine leak?");
-  await expect(
-    page.getByRole("button", { name: "Submit for approval" }),
-  ).toBeDisabled();
+  await expect(submit).toBeDisabled();
   await form.getByRole("button", { name: "Add question" }).click();
+  await page.getByRole("button", { name: "View in rubric group" }).click();
   await expect(
-    page.getByRole("region", { name: "Questions" }).getByText("3 questions"),
+    page
+      .getByRole("region", { name: "Questions" })
+      .getByText("3 questions", { exact: true }),
   ).toBeVisible();
   expect(api.bodies).toEqual([{ content: "What is a goroutine leak?" }]);
 

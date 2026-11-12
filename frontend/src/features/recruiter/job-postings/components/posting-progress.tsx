@@ -15,6 +15,7 @@ export type ProgressPosting = {
   status: PostingStatus;
   review_submitted: boolean;
   core_question_count: number;
+  grading_ready?: boolean;
   interview_slot?: number | null;
 } | null;
 
@@ -31,6 +32,7 @@ function steps(
   const inReview = posting?.status === "pending" && posting.review_submitted;
   const rejected = posting?.status === "rejected";
   const hasBank = count > 0;
+  const gradingReady = posting?.grading_ready ?? hasBank;
 
   const requirements: Step = posting
     ? {
@@ -48,8 +50,10 @@ function steps(
     : hasBank
       ? {
           id: "bank",
-          detail: t("detail.questionCount", { count }),
-          state: "done",
+          detail: gradingReady
+            ? t("detail.questionCount", { count })
+            : t("detail.gradingIncomplete"),
+          state: gradingReady ? "done" : "current",
         }
       : {
           id: "bank",
@@ -70,7 +74,7 @@ function steps(
           }
         : {
             id: "review",
-            detail: hasBank
+            detail: gradingReady
               ? t("detail.readyToSubmit")
               : t("detail.notSubmitted"),
             state: "upcoming",
@@ -85,7 +89,7 @@ function steps(
     state:
       live || inReview
         ? "done"
-        : hasBank && !generating
+        : hasBank && gradingReady && !generating
           ? "current"
           : "upcoming",
   };

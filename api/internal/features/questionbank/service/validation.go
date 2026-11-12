@@ -55,6 +55,33 @@ func normalizeExpectedAnswer(raw string) (answer *string, err error) {
 	return &text, nil
 }
 
+func normalizeQuestionPatch(p domain.QuestionPatch) (domain.QuestionPatch, error) {
+	if p.Content == nil && !p.SetRubric && !p.SetExpectedAnswer {
+		return p, invalid("at least one field is required")
+	}
+	var err error
+	if p.Content != nil {
+		text, e := normalizeContent(*p.Content)
+		if e != nil {
+			return p, e
+		}
+		p.Content = &text
+	}
+	if p.SetExpectedAnswer && p.ExpectedAnswer != nil {
+		p.ExpectedAnswer, err = normalizeExpectedAnswer(*p.ExpectedAnswer)
+		if err != nil {
+			return p, err
+		}
+		if p.ExpectedAnswer == nil {
+			return p, invalid("expected answer contains unsafe instructions")
+		}
+	}
+	if p.PreviousRevision != "" && len(p.PreviousRevision) != 64 {
+		return p, invalid("invalid previous revision")
+	}
+	return p, nil
+}
+
 // validateCandidate turns an untrusted model proposal into the questions to store: at least size
 // distinct valid questions, of which the first size are kept. In grading mode every question also needs a
 // rubric id taken from the allowed set (or none) and an expected answer within bounds. Every failure is an

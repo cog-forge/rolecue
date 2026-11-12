@@ -45,7 +45,7 @@ import {
   emptyCriterion,
   type Rubric,
   type RubricValues,
-} from "./rubric-schema";
+} from "../schemas/rubric-schema";
 
 export function RubricForm({
   rubric,

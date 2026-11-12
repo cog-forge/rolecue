@@ -583,6 +583,26 @@ func (q *Queries) LockQuestionContent(ctx context.Context, arg LockQuestionConte
 	return content, err
 }
 
+const lockQuestionForEdit = `-- name: LockQuestionForEdit :one
+SELECT cq.id
+FROM public.core_questions cq
+JOIN public.job_postings jp ON jp.jd_id = cq.jd_id
+WHERE cq.id = $1 AND jp.id = $2
+FOR UPDATE OF cq
+`
+
+type LockQuestionForEditParams struct {
+	ID        uuid.UUID
+	PostingID uuid.UUID
+}
+
+func (q *Queries) LockQuestionForEdit(ctx context.Context, arg LockQuestionForEditParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockQuestionForEdit, arg.ID, arg.PostingID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const lockUsableRubrics = `-- name: LockUsableRubrics :many
 SELECT r.id
 FROM public.rubrics r
@@ -616,6 +636,17 @@ func (q *Queries) LockUsableRubrics(ctx context.Context, arg LockUsableRubricsPa
 		return nil, err
 	}
 	return items, nil
+}
+
+const questionInUse = `-- name: QuestionInUse :one
+SELECT EXISTS (SELECT 1 FROM public.interview_questions WHERE core_question_id = $1)
+`
+
+func (q *Queries) QuestionInUse(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, questionInUse, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const updateCoreQuestion = `-- name: UpdateCoreQuestion :one
@@ -670,5 +701,28 @@ UPDATE public.job_postings SET review_submitted = false WHERE id = $1 AND review
 // posting lock these writes hold and then finds the posting no longer submitted).
 func (q *Queries) WithdrawSubmission(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, withdrawSubmission, id)
+	return err
+}
+
+const writeQuestionGrading = `-- name: WriteQuestionGrading :exec
+UPDATE public.core_questions
+SET content = $1::text, rubric_id = $2::uuid, expected_answer = $3::text
+WHERE id = $4
+`
+
+type WriteQuestionGradingParams struct {
+	Content        string
+	RubricID       *uuid.UUID
+	ExpectedAnswer *string
+	ID             uuid.UUID
+}
+
+func (q *Queries) WriteQuestionGrading(ctx context.Context, arg WriteQuestionGradingParams) error {
+	_, err := q.db.Exec(ctx, writeQuestionGrading,
+		arg.Content,
+		arg.RubricID,
+		arg.ExpectedAnswer,
+		arg.ID,
+	)
 	return err
 }
