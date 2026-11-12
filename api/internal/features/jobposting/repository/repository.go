@@ -3,9 +3,11 @@ package repository
 import (
 	"context"
 	"errors"
-	qbdomain "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 
+	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
+	evaluationrepository "github.com/cog-forge/rolecue/api/internal/features/evaluation/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/jobposting/domain"
+	qbdomain "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/uploadgrant"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -17,12 +19,27 @@ import (
 // Repository stores a Job Posting across job_descriptions, requirements and job_postings.
 // Writes touch several tables, so they run in one transaction.
 type Repository struct {
-	pool    *pgxpool.Pool
-	queries *Queries
+	pool          *pgxpool.Pool
+	queries       *Queries
+	questionLimit int
 }
 
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool, queries: New(pool)}
+// Option configures a Repository.
+type Option func(*Repository)
+
+// WithQuestionLimit sets how many core questions one interview session asks, the limit the submission's
+// metric-coverage check uses. It must be the value the interview start uses (the default applies when it is
+// not set or not positive).
+func WithQuestionLimit(limit int) Option {
+	return func(r *Repository) { r.questionLimit = evaluationdomain.ResolveQuestionLimit(limit) }
+}
+
+func NewRepository(pool *pgxpool.Pool, options ...Option) *Repository {
+	r := &Repository{pool: pool, queries: New(pool), questionLimit: evaluationdomain.DefaultQuestionLimit}
+	for _, option := range options {
+		option(r)
+	}
+	return r
 }
 
 // RecordUpload binds a newly stored JD PDF key to the Recruiter who uploaded it.
@@ -245,6 +262,16 @@ func (r *Repository) submit(ctx context.Context, recruiterID, id uuid.UUID, from
 		}
 		if incomplete > 0 {
 			return domain.ErrGradingIncomplete
+		}
+		// Metric coverage (KAN-377): the bank must be able to cover every active metric within the session's
+		// question limit, or no Candidate could start. Read under the posting lock taken above, so a bank or
+		// weight change cannot slip in between this check and the submission.
+		coverage, err := evaluationrepository.BankCoverage(ctx, tx, id, current.JdID, r.questionLimit)
+		if err != nil {
+			return err
+		}
+		if !coverage.Passes {
+			return domain.ErrMetricCoverageIncomplete
 		}
 		if _, _, err := checkReferences(ctx, q, recruiterID, &current.RequiredAvatarID, &current.RequiredVoiceID); err != nil {
 			return err

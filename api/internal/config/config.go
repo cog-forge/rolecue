@@ -238,7 +238,13 @@ type QuestionBankConfig struct {
 const MaxQuestionBankSize = 100
 
 // InterviewConfig holds the interview session settings. QuestionLimit is the most core questions one
-// session asks (0 uses the default of 8). The practice price is a fixed team decision, not configuration
+// session asks (0 uses the default of 8). The question bank's metric-coverage checks (generation, edits,
+// weights, submission and Admin approval, KAN-377) read the same value, so they judge a bank by the number of
+// questions a session will really ask. Operating note: a bank is checked against the limit in force when it
+// is checked; raising or lowering INTERVIEW_QUESTION_LIMIT after a posting was approved can leave an old bank
+// that no longer covers every active metric, and an approved bank is locked, so that cannot be pre-blocked:
+// the interview start still refuses such a bank (QUESTION_BANK_COVERAGE_INSUFFICIENT) for recruitment and
+// covers as much as it can for practice. The practice price is a fixed team decision, not configuration
 // (interview/domain.PracticeInterviewCoins).
 //
 // The live interview engine (docs/interview-ws-protocol.md §10) adds: STTProvider, the speech-to-text

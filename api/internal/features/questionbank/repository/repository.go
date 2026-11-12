@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
+	evaluationrepository "github.com/cog-forge/rolecue/api/internal/features/evaluation/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -14,12 +16,48 @@ import (
 
 // Repository takes the pool, not just DBTX, because generation commits several statements together.
 type Repository struct {
-	pool    *pgxpool.Pool
-	queries *Queries
+	pool          *pgxpool.Pool
+	queries       *Queries
+	questionLimit int
 }
 
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool, queries: New(pool)}
+// Option configures a Repository.
+type Option func(*Repository)
+
+// WithQuestionLimit sets how many core questions one interview session asks, the limit the metric-coverage
+// reads use. It must be the value the interview start uses (the default applies when it is not set or not
+// positive).
+func WithQuestionLimit(limit int) Option {
+	return func(r *Repository) { r.questionLimit = evaluationdomain.ResolveQuestionLimit(limit) }
+}
+
+func NewRepository(pool *pgxpool.Pool, options ...Option) *Repository {
+	r := &Repository{pool: pool, queries: New(pool), questionLimit: evaluationdomain.DefaultQuestionLimit}
+	for _, option := range options {
+		option(r)
+	}
+	return r
+}
+
+// Coverage reports whether the posting's bank can cover every metric active under the posting's weights
+// within the session question limit, by the shared rule of evaluation/domain (KAN-377). The caller has
+// already checked the posting is the Recruiter's own.
+func (r *Repository) Coverage(ctx context.Context, postingID uuid.UUID) (evaluationdomain.CoverageReport, error) {
+	report, err := evaluationrepository.PostingCoverage(ctx, r.pool, postingID, r.questionLimit)
+	if err != nil {
+		return evaluationdomain.CoverageReport{}, persistenceError(err)
+	}
+	return report, nil
+}
+
+// ActiveMetrics returns the metrics a generated bank must be able to cover: the posting's active metrics, or
+// the whole catalog for a practice bank (postingID nil).
+func (r *Repository) ActiveMetrics(ctx context.Context, postingID *uuid.UUID) ([]uuid.UUID, error) {
+	ids, err := evaluationrepository.ActiveMetricIDs(ctx, r.pool, postingID)
+	if err != nil {
+		return nil, persistenceError(err)
+	}
+	return ids, nil
 }
 
 func (r *Repository) Posting(ctx context.Context, recruiterID, postingID uuid.UUID) (domain.Posting, error) {
@@ -106,7 +144,7 @@ func (r *Repository) RubricCatalog(ctx context.Context, recruiterID uuid.UUID) (
 	}
 	for _, row := range criteria {
 		option := &options[index[row.RubricID]]
-		option.Criteria = append(option.Criteria, domain.RubricOptionCriterion{Name: row.Name, Metric: row.MetricName, MaxPoints: row.MaxPoints})
+		option.Criteria = append(option.Criteria, domain.RubricOptionCriterion{Name: row.Name, Metric: row.MetricName, MaxPoints: row.MaxPoints, MetricID: row.MetricID})
 	}
 	return options, nil
 }

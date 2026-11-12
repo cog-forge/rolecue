@@ -233,5 +233,18 @@
     "retry": "Retry",
     "metricUnavailable": "Metric unavailable",
     "points": "{count, plural, one {# point} other {# points}}"
+  },
+  "coverage": {
+    "title": "Metric coverage",
+    "summary": "{covered} of {total} metrics covered",
+    "count": "{covered}/{total}",
+    "ok": "All metrics covered",
+    "missing": "Not measured:",
+    "hintRecruiter": "Assign a rubric that covers {count, plural, one {it} other {them}}, for example {rubrics}.",
+    "hintRecruiterNoRubric": "Add a question whose rubric covers them.",
+    "hintAdmin": "The Recruiter must fix the question bank before approval.",
+    "exceeds": "An interview asks {limit, plural, one {# question} other {# questions}}; this bank needs {min} to cover every metric.",
+    "blockedRecruiter": "Cover every metric to submit.",
+    "blockedAdmin": "The question bank doesn't cover every metric yet."
   }
 }

@@ -119,7 +119,7 @@ func (q *Queries) ListPostingWeights(ctx context.Context, jobPostingID uuid.UUID
 }
 
 const lockEditablePosting = `-- name: LockEditablePosting :one
-SELECT status::text AS status
+SELECT status::text AS status, review_submitted
 FROM public.job_postings
 WHERE id = $1 AND recruiter_id = $2
 FOR UPDATE
@@ -130,11 +130,31 @@ type LockEditablePostingParams struct {
 	RecruiterID uuid.UUID
 }
 
+type LockEditablePostingRow struct {
+	Status          string
+	ReviewSubmitted bool
+}
+
 // Locks the posting so its status cannot change while the weights are replaced; the repository
-// then applies domain.EditableStatus to the locked status.
-func (q *Queries) LockEditablePosting(ctx context.Context, arg LockEditablePostingParams) (string, error) {
+// then applies domain.EditableStatus to the locked status. review_submitted tells whether the posting is in
+// the Admin queue, which a weight change that uncovers the bank must leave (KAN-377).
+func (q *Queries) LockEditablePosting(ctx context.Context, arg LockEditablePostingParams) (LockEditablePostingRow, error) {
 	row := q.db.QueryRow(ctx, lockEditablePosting, arg.ID, arg.RecruiterID)
-	var status string
-	err := row.Scan(&status)
-	return status, err
+	var i LockEditablePostingRow
+	err := row.Scan(&i.Status, &i.ReviewSubmitted)
+	return i, err
+}
+
+const withdrawSubmission = `-- name: WithdrawSubmission :execrows
+UPDATE public.job_postings SET review_submitted = false WHERE id = $1 AND review_submitted
+`
+
+// A weight change that leaves the bank unable to cover the active metrics takes the posting out of the Admin
+// queue, like a change to a question does (questionbank WithdrawSubmission). Called under the posting lock.
+func (q *Queries) WithdrawSubmission(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, withdrawSubmission, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

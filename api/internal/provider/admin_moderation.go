@@ -14,8 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func ProvideModerationRepository(pool *pgxpool.Pool) *repository.Repository {
-	return repository.NewRepository(pool)
+// ProvideModerationRepository gives the approval's metric-coverage check the session question limit of the
+// interview config, the same value the interview start uses.
+func ProvideModerationRepository(pool *pgxpool.Pool, cfg *config.Config) *repository.Repository {
+	return repository.NewRepository(pool, repository.WithQuestionLimit(cfg.Interview.QuestionLimit))
 }
 func ProvideModerationService(repo *repository.Repository, store storage.Store, log *logger.Logger, evaluation *evaluationservice.Service, dispatcher *email.Dispatcher, cfg *config.Config) (*service.Service, error) {
 	svc, err := service.New(repo, store, log)

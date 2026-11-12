@@ -745,3 +745,168 @@ describe("submission follows question review", () => {
     ).toBeInTheDocument();
   });
 });
+
+// KAN-377: the bank screen says which metrics no question measures, keeps Submit off until they are
+// covered, and takes the new verdict from the server after every change.
+const metricA = "88888888-8888-4888-8888-888888888881";
+const failingCoverage = {
+  passes: false,
+  assessed: true,
+  covered: 4,
+  total: 5,
+  question_limit: 8,
+  missing_metrics: [
+    {
+      id: metricA,
+      name: "Depth of Understanding",
+      suggested_rubrics: [
+        {
+          id: "99999999-9999-4999-8999-999999999991",
+          name: "Explain a mechanism",
+        },
+      ],
+    },
+  ],
+  exceeds_limit: false,
+  min_questions: 0,
+};
+const passingCoverage = {
+  ...failingCoverage,
+  passes: true,
+  covered: 5,
+  missing_metrics: [],
+};
+
+describe("metric coverage of the bank", () => {
+  it("warns about the missing metric, blocks Submit, and clears both once a change covers it", async () => {
+    mocks.get
+      .mockResolvedValueOnce(envelope(bank({ coverage: failingCoverage })))
+      .mockResolvedValue(envelope(bank({ coverage: passingCoverage })));
+    mocks.patch.mockResolvedValue(
+      envelope({ ...q1, content: "Explain buffered channels." }),
+    );
+    mount();
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Metric coverage",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "4");
+    expect(screen.getByText("Not measured:")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Assign a rubric that covers it, for example Explain a mechanism.",
+      ),
+    ).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "Submit for approval" });
+    expect(submit).toBeDisabled();
+    expect(
+      screen.getByText("Cover every metric to submit."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit question 1" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Edit question 1" }), {
+      target: { value: "Explain buffered channels." },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save question" }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("Not measured:")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "5");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Submit for approval" }),
+      ).toBeEnabled(),
+    );
+    // The question the Recruiter just saved is still the local one: only the coverage was reread.
+    expect(screen.getByText("Explain buffered channels.")).toBeInTheDocument();
+  });
+
+  it("shows no coverage line for a bank the server did not assess", async () => {
+    mocks.get.mockResolvedValue(
+      envelope(bank({ coverage: { ...passingCoverage, assessed: false } })),
+    );
+    mount();
+    expect(
+      await screen.findByRole("button", { name: "Submit for approval" }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("meter")).not.toBeInTheDocument();
+  });
+
+  it("stops the review dialog when the weights changed meanwhile and the bank no longer covers", async () => {
+    mocks.get.mockResolvedValue(envelope(bank({ coverage: passingCoverage })));
+    mocks.getWeights.mockResolvedValue(
+      envelope({
+        configured: true,
+        using_defaults: false,
+        editable: true,
+        posting_status: "pending",
+        total: 100,
+        weights: [
+          {
+            metric_id: metricA,
+            name: "Depth of Understanding",
+            percentage: 100,
+          },
+        ],
+        coverage: failingCoverage,
+      }),
+    );
+    mount();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Submit for approval" }),
+    );
+    const review = await screen.findByRole("dialog", {
+      name: "Review & submit",
+    });
+
+    expect(
+      await within(review).findByText("Not measured:"),
+    ).toBeInTheDocument();
+    expect(
+      within(review).getByRole("button", { name: "Submit for approval" }),
+    ).toBeDisabled();
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("explains a refused submission with the coverage code and rereads the bank", async () => {
+    mocks.get.mockResolvedValue(envelope(bank({ coverage: passingCoverage })));
+    mocks.post.mockRejectedValue(
+      failure(409, "METRIC_COVERAGE_INCOMPLETE", "backend english"),
+    );
+    mount();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Submit for approval" }),
+    );
+    await confirmReview(
+      await screen.findByRole("dialog", { name: "Review & submit" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "This posting's questions don't cover every evaluation metric yet. Fix the coverage and try again.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("backend english")).not.toBeInTheDocument();
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+  });
+
+  it("renders the warning in Vietnamese", async () => {
+    mocks.get.mockResolvedValue(envelope(bank({ coverage: failingCoverage })));
+    mount("vi");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Độ phủ tiêu chí",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Chưa có câu đo:")).toBeInTheDocument();
+    expect(
+      screen.getByText("Hãy phủ đủ tiêu chí để gửi duyệt."),
+    ).toBeInTheDocument();
+  });
+});

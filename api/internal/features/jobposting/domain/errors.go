@@ -20,6 +20,11 @@ var (
 	// (KAN-331). The bank view says which questions and why.
 	ErrGradingIncomplete = apperror.New(apperror.CodeGradingConfigIncomplete, "every question needs an active rubric and an expected answer before the posting can be submitted for review")
 
+	// ErrMetricCoverageIncomplete: the bank cannot cover every active metric within the session question
+	// limit (KAN-377). The bank view carries the coverage report that names the missing metrics; this error
+	// stays generic so a log line never holds metric or bank details.
+	ErrMetricCoverageIncomplete = apperror.New(apperror.CodeMetricCoverageIncomplete, "the question bank must cover every active evaluation metric before the posting can be submitted for review")
+
 	// ErrRequirementsLocked keeps the question bank in step with what it was generated from.
 	ErrRequirementsLocked = apperror.New(apperror.CodeJobPostingRequirementsLocked,
 		"seniority, requirements and refinement note cannot change while the posting is pending and its question bank exists; delete its questions first")

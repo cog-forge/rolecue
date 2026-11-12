@@ -8,7 +8,9 @@ import { ArrowLeft, CircleAlert } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCoverage } from "@/components/feedback/metric-coverage";
 import { Skeleton } from "@/components/ui/skeleton";
+import { coverageBlocks } from "@/lib/api/coverage-schema";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import {
@@ -192,6 +194,7 @@ export function PostingReview({
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
             <div className="space-y-6">
               <PostingDossier posting={query.data} />
+              <MetricCoverage coverage={query.data.coverage} audience="admin" />
               <Card>
                 <CardContent className="pt-6">
                   <JdViewer
@@ -237,11 +240,14 @@ function DecisionPanel({
   onDecide: (decision: Decision) => void;
 }) {
   const t = useTranslations("admin.moderation.review.decision");
+  const tCoverage = useTranslations("common.coverage");
   const fmt = useFormatters();
   const count = posting.core_question_count;
-  // A posting still being prepared cannot be decided; approval also needs questions.
+  // A posting still being prepared cannot be decided; approval also needs questions, and a bank that
+  // measures every metric the posting is scored on (the server refuses it otherwise, KAN-377).
   const notSubmitted = !posting.review_submitted;
-  const approveBlocked = notSubmitted || count === 0;
+  const uncovered = coverageBlocks(posting.coverage);
+  const approveBlocked = notSubmitted || count === 0 || uncovered;
   return (
     <section
       aria-labelledby="decision-heading"
@@ -276,7 +282,11 @@ function DecisionPanel({
         <>
           {approveBlocked && (
             <p id="approve-blocked" className="text-sm text-muted-foreground">
-              {notSubmitted ? t("notSubmitted") : t("noQuestions")}
+              {notSubmitted
+                ? t("notSubmitted")
+                : count === 0
+                  ? t("noQuestions")
+                  : tCoverage("blockedAdmin")}
             </p>
           )}
           <div className="flex flex-col gap-2">

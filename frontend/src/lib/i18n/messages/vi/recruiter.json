@@ -765,6 +765,7 @@
         "title": "Không thể tải tiêu chí đánh giá"
       }
     },
+    "withdrawnNotice": "Thay đổi của bạn khiến bộ câu hỏi không còn phủ hết các tiêu chí đánh giá nên tin đã rời hàng chờ duyệt. Hãy chỉnh câu hỏi hoặc trọng số rồi gửi duyệt lại.",
     "staleNotice": "Tin tuyển dụng này đã thay đổi nên chúng tôi đã làm mới tiêu chí và bỏ các thay đổi chưa lưu của bạn.",
     "leaveDialog": {
       "title": "Rời đi mà chưa lưu?",

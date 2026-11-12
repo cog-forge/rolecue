@@ -77,7 +77,8 @@ func TestDeliveryGenerateReviewThenSubmit(t *testing.T) {
 	if _, err := svc.Generate(ctx, f.recruiter, "recruiter", id); codeOf(err) != apperror.CodeQuestionGenerationFailed {
 		t.Fatalf("generation failure: %v", err)
 	}
-	questions, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	generated, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	questions := generated.Questions
 	if err != nil || len(questions) != 5 {
 		t.Fatalf("retry: questions=%d err=%v", len(questions), err)
 	}
@@ -116,7 +117,8 @@ func TestDeliveryLastDeleteWithdrawsSubmission(t *testing.T) {
 	ctx, f := newFixture(t)
 	id := f.create(t, ctx, "Last question")
 	svc := deliveryService(t, f, 1, alwaysGenerate)
-	questions, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	generated, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	questions := generated.Questions
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +171,8 @@ func TestDeliveryRejectedCorrectionAndResubmission(t *testing.T) {
 	if err := f.repo.Resubmit(ctx, f.recruiter, id); codeOf(err) != apperror.CodeQuestionBankNotReady {
 		t.Fatalf("resubmitted without a bank: %v", err)
 	}
-	questions, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	generated, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	questions := generated.Questions
 	if err != nil {
 		t.Fatalf("generate while rejected: %v", err)
 	}
@@ -291,7 +294,8 @@ func TestDeliveryDeleteWaitsForApprovalAndIsRefused(t *testing.T) {
 	ctx, f := newFixture(t)
 	id := f.create(t, ctx, "Approval first")
 	svc := deliveryService(t, f, 1, alwaysGenerate)
-	questions, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	generated, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	questions := generated.Questions
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +333,8 @@ func TestDeliveryApprovalWaitsForLastDeleteAndIsRefused(t *testing.T) {
 	ctx, f := newFixture(t)
 	id := f.create(t, ctx, "Delete first")
 	svc := deliveryService(t, f, 1, alwaysGenerate)
-	questions, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	generated, err := svc.Generate(ctx, f.recruiter, "recruiter", id)
+	questions := generated.Questions
 	if err != nil {
 		t.Fatal(err)
 	}

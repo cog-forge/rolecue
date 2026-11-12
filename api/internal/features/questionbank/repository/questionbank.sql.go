@@ -399,7 +399,7 @@ func (q *Queries) ListCoreQuestions(ctx context.Context, jdID uuid.UUID) ([]List
 }
 
 const listGenerationRubricCriteria = `-- name: ListGenerationRubricCriteria :many
-SELECT c.rubric_id, c.name, m.name AS metric_name, c.max_points
+SELECT c.rubric_id, c.name, c.metric_id, m.name AS metric_name, c.max_points
 FROM public.rubric_criteria c
 JOIN public.metrics m ON m.id = c.metric_id
 WHERE c.rubric_id = ANY($1::uuid[])
@@ -409,6 +409,7 @@ ORDER BY c.rubric_id, c.position
 type ListGenerationRubricCriteriaRow struct {
 	RubricID   uuid.UUID
 	Name       string
+	MetricID   uuid.UUID
 	MetricName string
 	MaxPoints  int32
 }
@@ -425,6 +426,7 @@ func (q *Queries) ListGenerationRubricCriteria(ctx context.Context, rubricIds []
 		if err := rows.Scan(
 			&i.RubricID,
 			&i.Name,
+			&i.MetricID,
 			&i.MetricName,
 			&i.MaxPoints,
 		); err != nil {

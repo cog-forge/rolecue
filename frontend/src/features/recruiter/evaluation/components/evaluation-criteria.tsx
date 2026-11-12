@@ -10,7 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MetricCoverage } from "@/components/feedback/metric-coverage";
 import { routes } from "@/config/routes";
+import { questionBankKeys } from "@/features/recruiter/question-bank/api/question-bank";
+import { jobPostingKeys } from "@/features/recruiter/job-postings/api/job-postings";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
 import { PostingTabs } from "@/features/recruiter/job-postings/components/posting-tabs";
@@ -136,6 +139,14 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
   }
 
   const saved = weights.data;
+  // A change that left the bank unable to cover every active metric took the posting out of the Admin queue
+  // (KAN-377): say so, and reread the screens that show whether it is submitted.
+  const afterChange = (next: typeof saved) => {
+    setNotice(next.submission_withdrawn ? t("withdrawnNotice") : null);
+    if (!next.submission_withdrawn) return;
+    void cache.invalidateQueries({ queryKey: questionBankKeys.all(user.id) });
+    void cache.invalidateQueries({ queryKey: jobPostingKeys.all(user.id) });
+  };
   // Reloads the saved weights and the metrics catalog, then rebuilds the form on them.
   const refresh = () =>
     void Promise.all([
@@ -169,12 +180,12 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
             onDirtyChange={setDirty}
             onSaved={(next) => {
               cache.setQueryData(weightsKey, next);
-              setNotice(null);
+              afterChange(next);
               setVersion((value) => value + 1);
             }}
             onReset={(next) => {
               cache.setQueryData(weightsKey, next);
-              setNotice(null);
+              afterChange(next);
               refresh();
             }}
             onStale={() => {
@@ -310,6 +321,7 @@ function WeightsForm({
         save.mutate(evaluation.body);
       })}
     >
+      <MetricCoverage coverage={saved.coverage} audience="recruiter" />
       {saved.using_defaults && (
         <Notice tone="info" title={t("defaults.title")}>
           <p>{t("defaults.body", { mode: splitMode, total: splitTotal })}</p>

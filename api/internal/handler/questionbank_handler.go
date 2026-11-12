@@ -16,10 +16,10 @@ import (
 )
 
 type QuestionBankService interface {
-	WriteQuestion(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, questionID *uuid.UUID, patch domain.QuestionPatch) (domain.BankQuestion, error)
-	ApplyRubric(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, request domain.BulkRubricRequest) ([]domain.BankQuestion, error)
+	WriteQuestion(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, questionID *uuid.UUID, patch domain.QuestionPatch) (domain.QuestionMutation, error)
+	ApplyRubric(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, request domain.BulkRubricRequest) (domain.BankMutation, error)
 	List(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.Bank, error)
-	Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.BankQuestion, error)
+	Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.BankMutation, error)
 	Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.BankQuestion, error)
 	Update(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID, content string) (domain.BankQuestion, error)
 	Delete(ctx context.Context, recruiterID uuid.UUID, role string, postingID, questionID uuid.UUID) error
@@ -41,16 +41,12 @@ type QuestionRequest struct {
 	PreviousRevision string          `json:"previous_revision,omitempty"`
 }
 
-// QuestionBankResponse wraps the list so an empty bank is `{"questions": []}`.
-type QuestionBankResponse struct {
-	Questions []domain.BankQuestion `json:"questions"`
-}
-
-func questionBankResponse(questions []domain.BankQuestion) QuestionBankResponse {
-	if questions == nil {
-		questions = []domain.BankQuestion{}
+// questionBankResponse makes sure an empty bank is `{"questions": []}`, never null.
+func questionBankResponse(result domain.BankMutation) domain.BankMutation {
+	if result.Questions == nil {
+		result.Questions = []domain.BankQuestion{}
 	}
-	return QuestionBankResponse{Questions: questions}
+	return result
 }
 
 func questionBankUser(c *gin.Context) (uuid.UUID, string, bool) {
@@ -102,7 +98,7 @@ func questionBankPatch(c *gin.Context) (domain.QuestionPatch, bool) {
 
 // List godoc
 // @Summary List the core-question bank of your own job posting
-// @Description Recruiter only. Candidates never receive the bank. Each question carries its rubric_id, expected_answer (both null until set) and grading_incomplete, which is true until the question has both. Also returns whether the bank can still change (while a confirmed bank is pending or rejected) and the server limits.
+// @Description Recruiter only. Candidates never receive the bank. Each question carries its rubric_id, expected_answer (both null until set) and grading_incomplete, which is true until the question has both. Also returns whether the bank can still change (while a confirmed bank is pending or rejected), the server limits and the metric coverage of the bank (passes, covered of total, missing metrics with the system rubrics that would cover them): a posting is submitted and approved only when it passes.
 // @Tags job-posting-questions
 // @Produce json
 // @Security SessionCookie
@@ -134,13 +130,13 @@ func (h *QuestionBankHandler) List(c *gin.Context) {
 
 // Generate godoc
 // @Summary Generate the core-question bank of your own job posting
-// @Description Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. One generation call also picks, for each question, an allowed rubric (an active system template or one of your own active rubrics) and writes its expected answer; a question without a suitable rubric is saved with rubric_id null and grading_incomplete true. Generating never submits the posting for review. Trusted Origin required.
+// @Description Recruiter only. Runs only while the bank is empty: a posting that already has questions returns 409 (a bank emptied by deleting every question can be generated again). Only while the posting is pending or rejected. Requires confirmed requirements. One generation call also picks, for each question, an allowed rubric (an active system template or one of your own active rubrics) and writes its expected answer; a question without a suitable rubric is saved with rubric_id null and grading_incomplete true. If the generated bank cannot cover every active metric within the interview question limit the model is asked again within its retry budget, and the best bank is saved anyway: the response carries a coverage report (passes, covered of total, missing metrics) that the Recruiter must fix before submitting. Generating never submits the posting for review. Trusted Origin required.
 // @Tags job-posting-questions
 // @Produce json
 // @Security SessionCookie
 // @Param Origin header string true "Trusted frontend origin"
 // @Param id path string true "Job posting ID"
-// @Success 201 {object} response.Envelope{data=QuestionBankResponse}
+// @Success 201 {object} response.Envelope{data=domain.BankMutation}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
@@ -164,12 +160,12 @@ func (h *QuestionBankHandler) Generate(c *gin.Context) {
 		return
 	}
 	defer cancel()
-	questions, err := h.service.Generate(c.Request.Context(), userID, role, postingID)
+	result, err := h.service.Generate(c.Request.Context(), userID, role, postingID)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-	response.Created(c, questionBankResponse(questions))
+	response.Created(c, questionBankResponse(result))
 }
 
 // Add godoc
@@ -182,7 +178,7 @@ func (h *QuestionBankHandler) Generate(c *gin.Context) {
 // @Param Origin header string true "Trusted frontend origin"
 // @Param id path string true "Job posting ID"
 // @Param request body QuestionRequest true "Fields to set (at least one on PATCH); null clears grading fields; changing rubric requires expected_answer; previous_revision detects stale edits; body limit 16 KiB"
-// @Success 201 {object} response.Envelope{data=domain.BankQuestion}
+// @Success 201 {object} response.Envelope{data=domain.QuestionMutation}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
@@ -223,7 +219,7 @@ func (h *QuestionBankHandler) Add(c *gin.Context) {
 // @Param id path string true "Job posting ID"
 // @Param questionId path string true "Question ID"
 // @Param request body QuestionRequest true "Fields to set (at least one on PATCH); null clears grading fields; changing rubric requires expected_answer; previous_revision detects stale edits; body limit 16 KiB"
-// @Success 200 {object} response.Envelope{data=domain.BankQuestion}
+// @Success 200 {object} response.Envelope{data=domain.QuestionMutation}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
@@ -315,7 +311,7 @@ func generationDeadline(c *gin.Context, budget time.Duration) (context.CancelFun
 // @Param Origin header string true "Trusted frontend origin"
 // @Param id path string true "Job posting ID"
 // @Param request body domain.BulkRubricRequest true "1 to 100 distinct question IDs and previous revisions"
-// @Success 200 {object} response.Envelope{data=QuestionBankResponse}
+// @Success 200 {object} response.Envelope{data=domain.BankMutation}
 // @Failure 400 {object} response.Envelope
 // @Failure 401 {object} response.Envelope
 // @Failure 403 {object} response.Envelope
@@ -336,10 +332,10 @@ func (h *QuestionBankHandler) ApplyRubric(c *gin.Context) {
 	if !questionBankJSON(c, &req) {
 		return
 	}
-	questions, err := h.service.ApplyRubric(c.Request.Context(), userID, role, postingID, req)
+	result, err := h.service.ApplyRubric(c.Request.Context(), userID, role, postingID, req)
 	if err != nil {
 		response.Error(c, err)
 		return
 	}
-	response.OK(c, questionBankResponse(questions))
+	response.OK(c, questionBankResponse(result))
 }

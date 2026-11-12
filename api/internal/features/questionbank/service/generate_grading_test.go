@@ -37,7 +37,7 @@ func TestRecruiterGenerationAsksOnceWithTheOwnersCatalog(t *testing.T) {
 	if !gen.gotIn.Grading || len(gen.gotIn.Rubrics) != 1 || gen.gotIn.Rubrics[0].ID != allowed {
 		t.Fatalf("generator input = %+v, want grading mode with the owner's catalog", gen.gotIn)
 	}
-	for _, q := range got {
+	for _, q := range got.Questions {
 		if q.RubricID == nil || *q.RubricID != allowed || q.ExpectedAnswer == nil || q.GradingIncomplete {
 			t.Fatalf("stored question = %+v, want rubric and expected answer, complete", q)
 		}
@@ -66,7 +66,7 @@ func TestNoSuitableRubricIsStoredAsIncomplete(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, q := range got {
+	for _, q := range got.Questions {
 		if q.RubricID != nil || !q.GradingIncomplete {
 			t.Fatalf("question without a suitable rubric = %+v, want no rubric and grading_incomplete", q)
 		}

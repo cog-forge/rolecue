@@ -40,6 +40,14 @@ type PostingWeights struct {
 	PostingStatus string   `json:"posting_status"`
 	Total         float64  `json:"total"`
 	Weights       []Weight `json:"weights"`
+	// Coverage tells the Recruiter whether the posting's bank still covers every active metric under
+	// these weights (KAN-377). It is set on the Recruiter's views only and is absent when the server
+	// cannot read the bank.
+	Coverage *CoverageReport `json:"coverage,omitempty"`
+	// SubmissionWithdrawn is true on the answer to a weight change that took the posting out of the Admin
+	// queue because the bank no longer covers every active metric (KAN-377): the Recruiter fixes the bank or
+	// the weights and submits again. It is absent on reads.
+	SubmissionWithdrawn bool `json:"submission_withdrawn,omitempty"`
 }
 
 const (

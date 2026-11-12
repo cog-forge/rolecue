@@ -129,7 +129,7 @@ func (h *EvaluationHandler) Weights(c *gin.Context) {
 
 // ReplaceWeights godoc
 // @Summary Replace a Job Posting's evaluation weights
-// @Description Recruiter only, own postings that are pending or rejected. The list replaces the whole set in one write. Errors: EVALUATION_METRIC_UNKNOWN, EVALUATION_METRIC_DUPLICATE, EVALUATION_WEIGHT_INVALID (negative or above the total), EVALUATION_WEIGHT_TOTAL_MISMATCH, EVALUATION_WEIGHTS_LOCKED (posting open, intake_closed or closed).
+// @Description Recruiter only, own postings that are pending or rejected. The list replaces the whole set in one write. Errors: EVALUATION_METRIC_UNKNOWN, EVALUATION_METRIC_DUPLICATE, EVALUATION_WEIGHT_INVALID (negative or above the total), EVALUATION_WEIGHT_TOTAL_MISMATCH, EVALUATION_WEIGHTS_LOCKED (posting open, intake_closed or closed). If the posting is pending and submitted and, after the change, its question bank no longer covers every active metric within the interview question limit, the submission is withdrawn in the same transaction and the answer carries submission_withdrawn true; a change the bank still covers leaves the submission alone. The answer also carries coverage.
 // @Tags evaluation
 // @Accept json
 // @Produce json
@@ -175,7 +175,7 @@ func (h *EvaluationHandler) ReplaceWeights(c *gin.Context) {
 
 // ResetWeights godoc
 // @Summary Reset a Job Posting's evaluation weights to the defaults
-// @Description Recruiter only, own postings that are pending or rejected. Deletes the saved weights, so the posting is scored with the defaults again (the total split equally across all metrics); the response is the same view as GET with configured false and using_defaults true. Resetting a posting that already uses the defaults changes nothing. Errors: EVALUATION_WEIGHTS_LOCKED (posting open, intake_closed or closed).
+// @Description Recruiter only, own postings that are pending or rejected. Deletes the saved weights, so the posting is scored with the defaults again (the total split equally across all metrics); the response is the same view as GET with configured false and using_defaults true. Resetting a posting that already uses the defaults changes nothing. Errors: EVALUATION_WEIGHTS_LOCKED (posting open, intake_closed or closed). If the posting is pending and submitted and, after the change, its question bank no longer covers every active metric within the interview question limit, the submission is withdrawn in the same transaction and the answer carries submission_withdrawn true; a change the bank still covers leaves the submission alone. The answer also carries coverage.
 // @Tags evaluation
 // @Produce json
 // @Security SessionCookie

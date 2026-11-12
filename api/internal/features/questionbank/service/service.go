@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -29,6 +30,10 @@ type Repository interface {
 	Delete(ctx context.Context, recruiterID, postingID, questionID uuid.UUID) error
 	SaveForPosting(ctx context.Context, recruiterID, postingID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.BankQuestion, error)
 	SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.CoreQuestion, error)
+	// Coverage is the shared metric-coverage verdict of a posting's bank under its weights (KAN-377).
+	Coverage(ctx context.Context, postingID uuid.UUID) (evaluationdomain.CoverageReport, error)
+	// ActiveMetrics are the metrics a generated bank must cover: the posting's, or the catalog (nil posting).
+	ActiveMetrics(ctx context.Context, postingID *uuid.UUID) ([]uuid.UUID, error)
 }
 
 // Generator performs one attempt and must not retry internally. The input is untrusted data.
@@ -37,10 +42,11 @@ type Generator interface {
 }
 
 type Service struct {
-	repository Repository
-	generator  Generator
-	maxRetries int
-	size       int
+	repository    Repository
+	generator     Generator
+	maxRetries    int
+	size          int
+	questionLimit int
 }
 
 // New builds the service. size is the number of questions to generate; 0 disables generation
@@ -58,7 +64,15 @@ func New(repository Repository, generator Generator, maxRetries, size int) (*Ser
 	if size < 0 {
 		return nil, fmt.Errorf("question bank size must not be negative")
 	}
-	return &Service{repository: repository, generator: generator, maxRetries: maxRetries, size: size}, nil
+	return &Service{repository: repository, generator: generator, maxRetries: maxRetries, size: size,
+		questionLimit: evaluationdomain.DefaultQuestionLimit}, nil
+}
+
+// SetQuestionLimit sets how many core questions one interview session asks, the limit a generated bank is
+// checked against (KAN-377, KAN-378). It must be the value the interview start uses; a value below 1 keeps
+// the default.
+func (s *Service) SetQuestionLimit(limit int) {
+	s.questionLimit = evaluationdomain.ResolveQuestionLimit(limit)
 }
 
 func requireRecruiter(role string) error {
@@ -90,7 +104,12 @@ func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, 
 			incomplete++
 		}
 	}
+	coverage, err := s.repository.Coverage(ctx, postingID)
+	if err != nil {
+		return domain.Bank{}, err
+	}
 	return domain.Bank{
+		Coverage:                &coverage,
 		MaxExpectedAnswerLength: domain.MaxExpectedAnswerRunes, MaxExpectedAnswerWords: domain.MaxExpectedAnswerWords, ExpectedAnswerGuidanceWords: domain.ExpectedAnswerPromptWords, MaxBulkQuestions: domain.MaxBulkQuestions,
 		Questions:     questions,
 		PostingStatus: posting.Status,
@@ -106,25 +125,32 @@ func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, 
 }
 
 // Generate writes the bank of an owned posting being prepared (pending or rejected) once.
-func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) ([]domain.BankQuestion, error) {
+//
+// The model is asked again (within the retry budget) when its bank cannot cover every active metric; if the
+// attempts run out the best bank is still saved, and the coverage in the result is the warning (KAN-377).
+func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID) (domain.BankMutation, error) {
 	if err := requireRecruiter(role); err != nil {
-		return nil, err
+		return domain.BankMutation{}, err
 	}
 	if err := s.requireEnabled(); err != nil {
-		return nil, err
+		return domain.BankMutation{}, err
 	}
 	posting, err := s.repository.Posting(ctx, recruiterID, postingID)
 	if err != nil {
-		return nil, err
+		return domain.BankMutation{}, err
 	}
 	if !posting.Editable() {
-		return nil, apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending or rejected")
+		return domain.BankMutation{}, apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending or rejected")
 	}
-	questions, err := s.draft(ctx, posting.JDID, &recruiterID)
+	questions, err := s.draft(ctx, posting.JDID, &recruiterID, &postingID)
 	if err != nil {
-		return nil, err
+		return domain.BankMutation{}, err
 	}
-	return s.repository.SaveForPosting(ctx, recruiterID, postingID, questions)
+	saved, err := s.repository.SaveForPosting(ctx, recruiterID, postingID, questions)
+	if err != nil {
+		return domain.BankMutation{}, err
+	}
+	return domain.BankMutation{Questions: saved, Coverage: s.coverageAfterWrite(ctx, postingID)}, nil
 }
 
 // GenerateForPractice writes the bank of a Candidate's own practice JD. There is deliberately no
@@ -136,7 +162,7 @@ func (s *Service) GenerateForPractice(ctx context.Context, candidateID, jdID uui
 	if err := s.repository.CandidateOwnsJD(ctx, candidateID, jdID); err != nil {
 		return nil, err
 	}
-	questions, err := s.draft(ctx, jdID, nil)
+	questions, err := s.draft(ctx, jdID, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -150,35 +176,55 @@ func (s *Service) CurrentBank(ctx context.Context, jdID uuid.UUID) ([]domain.Cor
 }
 
 // WriteQuestion creates or edits an owned bank question. Legacy content-only requests remain valid.
-func (s *Service) WriteQuestion(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, questionID *uuid.UUID, patch domain.QuestionPatch) (domain.BankQuestion, error) {
+func (s *Service) WriteQuestion(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, questionID *uuid.UUID, patch domain.QuestionPatch) (domain.QuestionMutation, error) {
 	if err := requireRecruiter(role); err != nil {
-		return domain.BankQuestion{}, err
+		return domain.QuestionMutation{}, err
 	}
 	patch, err := normalizeQuestionPatch(patch)
 	if err != nil {
-		return domain.BankQuestion{}, err
+		return domain.QuestionMutation{}, err
 	}
 	if questionID == nil && patch.Content == nil {
-		return domain.BankQuestion{}, invalid("content is required")
+		return domain.QuestionMutation{}, invalid("content is required")
 	}
-	return s.repository.WriteQuestion(ctx, recruiterID, postingID, questionID, patch)
+	question, err := s.repository.WriteQuestion(ctx, recruiterID, postingID, questionID, patch)
+	if err != nil {
+		return domain.QuestionMutation{}, err
+	}
+	return domain.QuestionMutation{BankQuestion: question, Coverage: s.coverageAfterWrite(ctx, postingID)}, nil
 }
 
-func (s *Service) ApplyRubric(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, request domain.BulkRubricRequest) ([]domain.BankQuestion, error) {
+func (s *Service) ApplyRubric(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, request domain.BulkRubricRequest) (domain.BankMutation, error) {
 	if err := requireRecruiter(role); err != nil {
-		return nil, err
+		return domain.BankMutation{}, err
 	}
 	if len(request.QuestionIDs) == 0 || len(request.QuestionIDs) > domain.MaxBulkQuestions || request.RubricID == uuid.Nil {
-		return nil, invalid("select 1 to 100 questions and a rubric")
+		return domain.BankMutation{}, invalid("select 1 to 100 questions and a rubric")
 	}
 	seen := map[uuid.UUID]bool{}
 	for _, id := range request.QuestionIDs {
 		if id == uuid.Nil || seen[id] || len(request.PreviousRevisions[id]) != 64 {
-			return nil, invalid("unique questions and their previous revisions are required")
+			return domain.BankMutation{}, invalid("unique questions and their previous revisions are required")
 		}
 		seen[id] = true
 	}
-	return s.repository.ApplyRubric(ctx, recruiterID, postingID, request)
+	questions, err := s.repository.ApplyRubric(ctx, recruiterID, postingID, request)
+	if err != nil {
+		return domain.BankMutation{}, err
+	}
+	return domain.BankMutation{Questions: questions, Coverage: s.coverageAfterWrite(ctx, postingID)}, nil
+}
+
+// coverageAfterWrite is the coverage of the bank right after a write that already committed. A failed read
+// leaves it null rather than failing a write that succeeded: the bank view reads the coverage on its own.
+func (s *Service) coverageAfterWrite(ctx context.Context, postingID uuid.UUID) *evaluationdomain.CoverageReport {
+	report, err := s.repository.Coverage(ctx, postingID)
+	if err != nil {
+		logger.FromContext(ctx).Warn("bank coverage unavailable after a write", logger.Op("questionbank.coverage"),
+			logger.String("posting_id", postingID.String()), logger.Cause(err))
+		return nil
+	}
+	return &report
 }
 
 func (s *Service) Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.BankQuestion, error) {
@@ -222,7 +268,7 @@ func (s *Service) requireEnabled() error {
 // every session can be graded (KAN-334). A Recruiter's draft may use the active system templates and the
 // Recruiter's own rubrics; a Candidate's practice draft (recruiterID nil) only the active system templates,
 // because a Candidate has no rubrics of their own. The rubric and the expected answer stay server-side.
-func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID *uuid.UUID) ([]domain.GeneratedQuestion, error) {
+func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID, postingID *uuid.UUID) ([]domain.GeneratedQuestion, error) {
 	existing, err := s.repository.List(ctx, jdID)
 	if err != nil {
 		return nil, err
@@ -241,9 +287,14 @@ func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID *uuid.U
 	if input.Rubrics, err = s.repository.RubricCatalog(ctx, rubricOwner(recruiterID)); err != nil {
 		return nil, err
 	}
+	// The metrics the bank must be able to cover, read before the model call like the catalog is: a posting's
+	// active metrics, or the whole catalog for a practice bank (nil posting).
+	if input.ActiveMetrics, err = s.repository.ActiveMetrics(ctx, postingID); err != nil {
+		return nil, err
+	}
 	done := logger.Start(ctx, "questionbank.generate", logger.String("jd_id", jdID.String()),
 		logger.Int("requested", s.size), logger.Int("requirements", len(input.Requirements)), logger.Int("rubrics", len(input.Rubrics)))
-	questions, err := s.generateWithRetry(ctx, input)
+	questions, err := s.generateWithRetry(ctx, input, recruiterID != nil)
 	done(err, logger.Int("count", len(questions)))
 	return questions, err
 }
