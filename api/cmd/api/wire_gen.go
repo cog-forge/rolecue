@@ -49,7 +49,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	roleProfileRepository := provider.ProvideRoleProfileRepository(pool)
-	repositoryRepository := provider.ProvideQuestionBankRepository(pool)
+	repositoryRepository := provider.ProvideQuestionBankRepository(pool, config)
 	service, err := provider.ProvideQuestionBankService(config, repositoryRepository)
 	if err != nil {
 		cleanup2()
@@ -78,8 +78,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	service2 := provider.ProvideWalletService(repository3, client)
 	walletHandler := provider.ProvideWalletHandler(service2)
 	questionBankHandler := provider.ProvideQuestionBankHandler(config, service)
-	repository4 := provider.ProvideModerationRepository(pool)
-	repository5 := provider.ProvideEvaluationRepository(pool)
+	repository4 := provider.ProvideModerationRepository(pool, config)
+	repository5 := provider.ProvideEvaluationRepository(pool, config)
 	service3, err := provider.ProvideEvaluationService(config, repository5)
 	if err != nil {
 		cleanup2()
@@ -120,7 +120,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		return nil, nil, err
 	}
 	voiceCatalogHandler := provider.ProvideVoiceCatalogHandler(service6)
-	repository8 := provider.ProvideJobPostingRepository(pool)
+	repository8 := provider.ProvideJobPostingRepository(pool, config)
 	service7, err := provider.ProvideJobPostingService(repository8, store)
 	if err != nil {
 		cleanup3()

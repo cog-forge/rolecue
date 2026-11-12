@@ -8,11 +8,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func ProvideEvaluationRepository(pool *pgxpool.Pool) *repository.Repository {
-	return repository.NewRepository(pool)
+// ProvideEvaluationRepository reads the session question limit from the interview config, the same value
+// the interview start uses, so the coverage view of a weight change agrees with the sampler.
+func ProvideEvaluationRepository(pool *pgxpool.Pool, cfg *config.Config) *repository.Repository {
+	return repository.NewRepository(pool, repository.WithQuestionLimit(cfg.Interview.QuestionLimit))
 }
 func ProvideEvaluationService(cfg *config.Config, repo *repository.Repository) (*service.Service, error) {
-	return service.New(repo, cfg.Evaluation.WeightTotal)
+	svc, err := service.New(repo, cfg.Evaluation.WeightTotal)
+	if err != nil {
+		return nil, err
+	}
+	svc.SetCoverageReader(repo)
+	return svc, nil
 }
 func ProvideEvaluationHandler(svc *service.Service) *handler.EvaluationHandler {
 	return handler.NewEvaluationHandler(svc)

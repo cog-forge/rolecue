@@ -19,9 +19,10 @@ WHERE mp.job_posting_id = @job_posting_id
 ORDER BY m.name, m.id;
 
 -- Locks the posting so its status cannot change while the weights are replaced; the repository
--- then applies domain.EditableStatus to the locked status.
+-- then applies domain.EditableStatus to the locked status. review_submitted tells whether the posting is in
+-- the Admin queue, which a weight change that uncovers the bank must leave (KAN-377).
 -- name: LockEditablePosting :one
-SELECT status::text AS status
+SELECT status::text AS status, review_submitted
 FROM public.job_postings
 WHERE id = @id AND recruiter_id = @recruiter_id
 FOR UPDATE;
@@ -33,3 +34,8 @@ WHERE job_posting_id = @job_posting_id;
 -- name: InsertPostingWeight :exec
 INSERT INTO public.metrics_percentage (job_posting_id, metric_id, percentage)
 VALUES (@job_posting_id, @metric_id, @percentage);
+
+-- A weight change that leaves the bank unable to cover the active metrics takes the posting out of the Admin
+-- queue, like a change to a question does (questionbank WithdrawSubmission). Called under the posting lock.
+-- name: WithdrawSubmission :execrows
+UPDATE public.job_postings SET review_submitted = false WHERE id = @id AND review_submitted;

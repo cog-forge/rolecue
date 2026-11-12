@@ -9,6 +9,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const (
@@ -25,13 +26,42 @@ type Repository interface {
 	ListMetrics(ctx context.Context) ([]domain.Metric, error)
 	PostingStatus(ctx context.Context, recruiterID, postingID uuid.UUID) (string, error)
 	ListWeights(ctx context.Context, postingID uuid.UUID) ([]domain.Weight, error)
-	ReplaceWeights(ctx context.Context, recruiterID, postingID uuid.UUID, weights []domain.Weight) ([]domain.Weight, error)
-	ClearWeights(ctx context.Context, recruiterID, postingID uuid.UUID) error
+	// ReplaceWeights and ClearWeights also report whether the change took a submitted posting out of the Admin
+	// queue because its bank no longer covers every active metric (KAN-377).
+	ReplaceWeights(ctx context.Context, recruiterID, postingID uuid.UUID, weights []domain.Weight) ([]domain.Weight, bool, error)
+	ClearWeights(ctx context.Context, recruiterID, postingID uuid.UUID) (bool, error)
+}
+
+// CoverageReader reads the metric coverage of a posting's bank under its current weights (KAN-377). It is
+// optional: without it the weight views simply carry no coverage.
+type CoverageReader interface {
+	Coverage(ctx context.Context, postingID uuid.UUID) (domain.CoverageReport, error)
 }
 
 type Service struct {
 	repository Repository
 	total      float64
+	coverage   CoverageReader
+}
+
+// SetCoverageReader supplies the reader that adds the bank's metric coverage to the Recruiter's weight
+// views, so a weight change shows at once whether the bank still covers every active metric.
+func (s *Service) SetCoverageReader(reader CoverageReader) { s.coverage = reader }
+
+// withCoverage adds the bank's coverage to a Recruiter's weight view. A failed read leaves the view without
+// it: the weights themselves are already saved and the bank screen reads the coverage on its own.
+func (s *Service) withCoverage(ctx context.Context, postingID uuid.UUID, view domain.PostingWeights) domain.PostingWeights {
+	if s.coverage == nil {
+		return view
+	}
+	report, err := s.coverage.Coverage(ctx, postingID)
+	if err != nil {
+		logger.FromContext(ctx).Warn("posting coverage unavailable", logger.Op("evaluation.coverage"),
+			logger.String("posting_id", postingID.String()), logger.Cause(err))
+		return view
+	}
+	view.Coverage = &report
+	return view
 }
 
 // New builds the service. total is the sum the weights of a posting must reach; 0 turns the sum
@@ -80,9 +110,13 @@ func (s *Service) Weights(ctx context.Context, recruiterID uuid.UUID, role strin
 		return domain.PostingWeights{}, err
 	}
 	if len(weights) > 0 {
-		return s.view(status, weights), nil
+		return s.withCoverage(ctx, postingID, s.view(status, weights)), nil
 	}
-	return s.defaultView(ctx, status)
+	view, err := s.defaultView(ctx, status)
+	if err != nil {
+		return domain.PostingWeights{}, err
+	}
+	return s.withCoverage(ctx, postingID, view), nil
 }
 
 // defaultView is the view of a posting without saved weights: the equal-split defaults, computed
@@ -136,7 +170,7 @@ func (s *Service) ReplaceWeights(ctx context.Context, recruiterID uuid.UUID, rol
 	if err != nil {
 		return domain.PostingWeights{}, err
 	}
-	saved, err := s.repository.ReplaceWeights(ctx, recruiterID, postingID, weights)
+	saved, withdrawn, err := s.repository.ReplaceWeights(ctx, recruiterID, postingID, weights)
 	if err != nil {
 		return domain.PostingWeights{}, err
 	}
@@ -146,8 +180,11 @@ func (s *Service) ReplaceWeights(ctx context.Context, recruiterID uuid.UUID, rol
 		logger.String("posting_id", postingID.String()),
 		logger.String("status", status),
 		logger.Int("count", len(saved)),
+		zap.Bool("submission_withdrawn", withdrawn),
 	)
-	return s.view(status, saved), nil
+	view := s.view(status, saved)
+	view.SubmissionWithdrawn = withdrawn
+	return s.withCoverage(ctx, postingID, view), nil
 }
 
 // ResetWeights deletes the posting's saved weights, so it is scored with the equal-split defaults
@@ -164,7 +201,8 @@ func (s *Service) ResetWeights(ctx context.Context, recruiterID uuid.UUID, role 
 	if !domain.EditableStatus(status) {
 		return domain.PostingWeights{}, domain.ErrWeightsLocked
 	}
-	if err := s.repository.ClearWeights(ctx, recruiterID, postingID); err != nil {
+	withdrawn, err := s.repository.ClearWeights(ctx, recruiterID, postingID)
+	if err != nil {
 		return domain.PostingWeights{}, err
 	}
 	logger.FromContext(ctx).Info("evaluation weights reset",
@@ -172,8 +210,14 @@ func (s *Service) ResetWeights(ctx context.Context, recruiterID uuid.UUID, role 
 		logger.String("user_id", recruiterID.String()),
 		logger.String("posting_id", postingID.String()),
 		logger.String("status", status),
+		zap.Bool("submission_withdrawn", withdrawn),
 	)
-	return s.defaultView(ctx, status)
+	view, err := s.defaultView(ctx, status)
+	if err != nil {
+		return domain.PostingWeights{}, err
+	}
+	view.SubmissionWithdrawn = withdrawn
+	return s.withCoverage(ctx, postingID, view), nil
 }
 
 func (s *Service) view(status string, weights []domain.Weight) domain.PostingWeights {

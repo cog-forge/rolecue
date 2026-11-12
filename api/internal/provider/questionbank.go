@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func ProvideQuestionBankRepository(pool *pgxpool.Pool) *repository.Repository {
-	return repository.NewRepository(pool)
+// ProvideQuestionBankRepository gives the bank's coverage reads the session question limit of the interview
+// config, the same value the interview start uses.
+func ProvideQuestionBankRepository(pool *pgxpool.Pool, cfg *config.Config) *repository.Repository {
+	return repository.NewRepository(pool, repository.WithQuestionLimit(cfg.Interview.QuestionLimit))
 }
 func ProvideQuestionBankService(cfg *config.Config, repo *repository.Repository) (*service.Service, error) {
 	model, err := ai.NewTaskAdapter(context.Background(), cfg, config.TaskBank)
@@ -24,7 +26,12 @@ func ProvideQuestionBankService(cfg *config.Config, repo *repository.Repository)
 	if cfg.AI.Route(config.TaskBank) == (config.TaskRoute{}) {
 		retries = cfg.LLM.MaxRetries
 	}
-	return service.New(repo, model, retries, cfg.QuestionBank.Size)
+	svc, err := service.New(repo, model, retries, cfg.QuestionBank.Size)
+	if err != nil {
+		return nil, err
+	}
+	svc.SetQuestionLimit(cfg.Interview.QuestionLimit)
+	return svc, nil
 }
 func ProvideQuestionBankHandler(cfg *config.Config, svc *service.Service) *handler.QuestionBankHandler {
 	return handler.NewQuestionBankHandler(svc, generationBudget(cfg))

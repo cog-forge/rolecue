@@ -102,6 +102,10 @@ type ReviewPosting struct {
 	// WeightsConfigured is false when the Recruiter set no evaluation weights, so the posting will
 	// be scored with the default weights. It is informational and does not block approval.
 	WeightsConfigured bool `json:"weights_configured"`
+	// Coverage says whether the bank can cover every active metric within the session question limit
+	// (KAN-377). The posting cannot be approved while it does not pass; the report names the missing
+	// metrics. Always present on a posting read.
+	Coverage *evaluationdomain.CoverageReport `json:"coverage"`
 }
 
 // ListFilter narrows the queue. A nil field means "no filter"; the date window is [From, To).

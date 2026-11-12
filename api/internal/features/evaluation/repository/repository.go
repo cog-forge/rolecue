@@ -14,12 +14,34 @@ import (
 
 // Repository reads the metrics catalog and reads, replaces or clears a Recruiter's posting weights.
 type Repository struct {
-	pool    *pgxpool.Pool
-	queries *Queries
+	pool          *pgxpool.Pool
+	queries       *Queries
+	questionLimit int
 }
 
-func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool, queries: New(pool)}
+// Option configures a Repository.
+type Option func(*Repository)
+
+// WithQuestionLimit sets how many core questions one interview session asks, the limit the coverage view of
+// a weight change uses. It must be the value the interview start uses (the default applies when it is not
+// set or not positive).
+func WithQuestionLimit(limit int) Option {
+	return func(r *Repository) { r.questionLimit = domain.ResolveQuestionLimit(limit) }
+}
+
+func NewRepository(pool *pgxpool.Pool, options ...Option) *Repository {
+	r := &Repository{pool: pool, queries: New(pool), questionLimit: domain.DefaultQuestionLimit}
+	for _, option := range options {
+		option(r)
+	}
+	return r
+}
+
+// Coverage reports whether the bank of the posting can cover every metric active under its saved weights
+// within the session question limit (KAN-377). The caller has already checked the posting is the
+// Recruiter's own.
+func (r *Repository) Coverage(ctx context.Context, postingID uuid.UUID) (domain.CoverageReport, error) {
+	return PostingCoverage(ctx, r.pool, postingID, r.questionLimit)
 }
 
 func (r *Repository) ListMetrics(ctx context.Context) ([]domain.Metric, error) {
@@ -49,16 +71,19 @@ func (r *Repository) ListWeights(ctx context.Context, postingID uuid.UUID) ([]do
 }
 
 // ReplaceWeights swaps the whole weight set in one transaction, so a failure leaves the previous
-// set untouched.
-func (r *Repository) ReplaceWeights(ctx context.Context, recruiterID, postingID uuid.UUID, weights []domain.Weight) ([]domain.Weight, error) {
+// set untouched. It also reports whether the change took the posting out of the Admin queue: when the posting
+// is pending and submitted and the new weights leave its bank unable to cover every active metric, the
+// submission is withdrawn in the same transaction, under the same posting lock (KAN-377).
+func (r *Repository) ReplaceWeights(ctx context.Context, recruiterID, postingID uuid.UUID, weights []domain.Weight) ([]domain.Weight, bool, error) {
 	var saved []domain.Weight
+	withdrawn := false
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
-		status, err := q.LockEditablePosting(ctx, LockEditablePostingParams{ID: postingID, RecruiterID: recruiterID})
+		locked, err := q.LockEditablePosting(ctx, LockEditablePostingParams{ID: postingID, RecruiterID: recruiterID})
 		if err != nil {
 			return persistenceError(err)
 		}
-		if !domain.EditableStatus(status) {
+		if !domain.EditableStatus(locked.Status) {
 			return domain.ErrWeightsLocked
 		}
 		if err := q.DeletePostingWeights(ctx, postingID); err != nil {
@@ -71,38 +96,66 @@ func (r *Repository) ReplaceWeights(ctx context.Context, recruiterID, postingID 
 				return persistenceError(err)
 			}
 		}
+		if withdrawn, err = r.withdrawIfUncovered(ctx, tx, q, postingID, locked); err != nil {
+			return err
+		}
 		saved, err = listWeights(ctx, q, postingID)
 		return err
 	})
 	if err != nil {
 		// Errors from inside are already AppErrors; this maps a failed begin or commit.
-		return nil, persistenceError(err)
+		return nil, false, persistenceError(err)
 	}
-	return saved, nil
+	return saved, withdrawn, nil
 }
 
 // ClearWeights deletes the posting's whole weight set under the posting's row lock, so the posting
-// falls back to the equal-split defaults.
-func (r *Repository) ClearWeights(ctx context.Context, recruiterID, postingID uuid.UUID) error {
+// falls back to the equal-split defaults. Like ReplaceWeights it reports whether the posting left the Admin
+// queue because the whole catalog is active again and the bank no longer covers it.
+func (r *Repository) ClearWeights(ctx context.Context, recruiterID, postingID uuid.UUID) (bool, error) {
+	withdrawn := false
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
-		status, err := q.LockEditablePosting(ctx, LockEditablePostingParams{ID: postingID, RecruiterID: recruiterID})
+		locked, err := q.LockEditablePosting(ctx, LockEditablePostingParams{ID: postingID, RecruiterID: recruiterID})
 		if err != nil {
 			return persistenceError(err)
 		}
-		if !domain.EditableStatus(status) {
+		if !domain.EditableStatus(locked.Status) {
 			return domain.ErrWeightsLocked
 		}
 		if err := q.DeletePostingWeights(ctx, postingID); err != nil {
 			return persistenceError(err)
 		}
-		return nil
+		withdrawn, err = r.withdrawIfUncovered(ctx, tx, q, postingID, locked)
+		return err
 	})
 	if err != nil {
 		// Errors from inside are already AppErrors; this maps a failed begin or commit.
-		return persistenceError(err)
+		return false, persistenceError(err)
 	}
-	return nil
+	return withdrawn, nil
+}
+
+// withdrawIfUncovered takes a submitted pending posting out of the Admin queue when its bank no longer covers
+// every metric active under the weights just written. A bank that still covers keeps its submission: not
+// every weight change is a change of what the Admin reviewed. Called under the posting lock, after the
+// weights were written, in the transaction of the change.
+func (r *Repository) withdrawIfUncovered(ctx context.Context, tx pgx.Tx, q *Queries, postingID uuid.UUID, locked LockEditablePostingRow) (bool, error) {
+	if locked.Status != "pending" || !locked.ReviewSubmitted {
+		return false, nil
+	}
+	report, err := PostingCoverage(ctx, tx, postingID, r.questionLimit)
+	if err != nil {
+		return false, err
+	}
+	if report.Passes {
+		return false, nil
+	}
+	n, err := q.WithdrawSubmission(ctx, postingID)
+	if err != nil {
+		return false, persistenceError(err)
+	}
+	return n > 0, nil
 }
 
 func listWeights(ctx context.Context, q *Queries, postingID uuid.UUID) ([]domain.Weight, error) {

@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func ProvideJobPostingRepository(pool *pgxpool.Pool) *repository.Repository {
-	return repository.NewRepository(pool)
+// ProvideJobPostingRepository gives the submission's metric-coverage check the session question limit of the
+// interview config, the same value the interview start uses.
+func ProvideJobPostingRepository(pool *pgxpool.Pool, cfg *config.Config) *repository.Repository {
+	return repository.NewRepository(pool, repository.WithQuestionLimit(cfg.Interview.QuestionLimit))
 }
 
 // ProvideJobPostingService reads JD PDFs with the same Poppler parser as Role Profiles.

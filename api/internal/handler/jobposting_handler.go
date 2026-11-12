@@ -369,7 +369,7 @@ func (h *JobPostingHandler) Update(c *gin.Context) {
 
 // Submit godoc
 // @Summary Submit your prepared Job Posting for Admin review
-// @Description Recruiter only. Puts a pending posting in the Admin review queue. Needs a non-empty question bank in which every question has an active rubric you may use and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE otherwise; GET /job-postings/{id}/questions lists what is missing). Generating the bank never submits on its own, and changing a question afterwards withdraws the submission. Repeating it changes nothing; a rejected posting uses resubmit. Trusted Origin required.
+// @Description Recruiter only. Puts a pending posting in the Admin review queue. Needs a non-empty question bank in which every question has an active rubric you may use and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE otherwise; GET /job-postings/{id}/questions lists what is missing), and whose questions can together cover every active evaluation metric within the interview question limit (409 METRIC_COVERAGE_INCOMPLETE otherwise; the same bank response names the missing metrics). Generating the bank never submits on its own, and changing a question afterwards withdraws the submission. Repeating it changes nothing; a rejected posting uses resubmit. Trusted Origin required.
 // @Tags job-postings
 // @Produce json
 // @Security SessionCookie
@@ -403,7 +403,7 @@ func (h *JobPostingHandler) Submit(c *gin.Context) {
 
 // Resubmit godoc
 // @Summary Send your rejected Job Posting for review again
-// @Description Recruiter only. Moves a rejected posting back to pending review and clears the rejection reason. Needs a non-empty question bank whose questions all have an active rubric and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE otherwise). Repeating it once the posting is pending review changes nothing; open or closed postings return 409. Trusted Origin required.
+// @Description Recruiter only. Moves a rejected posting back to pending review and clears the rejection reason. Needs a non-empty question bank whose questions all have an active rubric and a valid expected answer (409 GRADING_CONFIG_INCOMPLETE otherwise) and a bank that covers every active evaluation metric (409 METRIC_COVERAGE_INCOMPLETE otherwise). Repeating it once the posting is pending review changes nothing; open or closed postings return 409. Trusted Origin required.
 // @Tags job-postings
 // @Produce json
 // @Security SessionCookie

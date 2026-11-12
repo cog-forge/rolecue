@@ -25,6 +25,8 @@ type fakeRepository struct {
 	statusErr  error
 	replaceErr error
 	clearErr   error
+	// withdraws is what the repository reports for a change that took the posting out of the Admin queue.
+	withdraws bool
 
 	replaced     []domain.Weight
 	replaceCalls int
@@ -46,23 +48,23 @@ func (f *fakeRepository) ListWeights(context.Context, uuid.UUID) ([]domain.Weigh
 	return f.weights, nil
 }
 
-func (f *fakeRepository) ReplaceWeights(_ context.Context, _, _ uuid.UUID, weights []domain.Weight) ([]domain.Weight, error) {
+func (f *fakeRepository) ReplaceWeights(_ context.Context, _, _ uuid.UUID, weights []domain.Weight) ([]domain.Weight, bool, error) {
 	f.replaceCalls++
 	if f.replaceErr != nil {
-		return nil, f.replaceErr
+		return nil, false, f.replaceErr
 	}
 	f.replaced = weights
-	return weights, nil
+	return weights, f.withdraws, nil
 }
 
-func (f *fakeRepository) ClearWeights(_ context.Context, recruiterID, postingID uuid.UUID) error {
+func (f *fakeRepository) ClearWeights(_ context.Context, recruiterID, postingID uuid.UUID) (bool, error) {
 	f.clearCalls++
 	if f.clearErr != nil {
-		return f.clearErr
+		return false, f.clearErr
 	}
 	f.recruiterID, f.postingID = recruiterID, postingID
 	f.weights = nil
-	return nil
+	return f.withdraws, nil
 }
 
 func newService(t *testing.T, repo *fakeRepository, total float64) *Service {
