@@ -183,8 +183,8 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	}
 	adminOverviewHandler := provider.ProvideAdminOverviewHandler(service12)
 	repository14 := provider.ProvideInterviewRepository(pool)
-	scorer := provider.ProvideInterviewScorer(config)
-	scoring, err := provider.ProvideInterviewEvaluationService(repository5, scorer)
+	grader := provider.ProvideInterviewGrader(config)
+	scoring, err := provider.ProvideInterviewEvaluationService(repository5, grader)
 	if err != nil {
 		cleanup3()
 		cleanup2()

@@ -4,9 +4,6 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
-	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 )
 
 const (
@@ -69,20 +66,6 @@ func verifyEvidence(quote string, answers []string) bool {
 		}
 	}
 	return false
-}
-
-// normalizedAnswers returns the normalised answers of the scored turns.
-func normalizedAnswers(turns []domain.ScoreTurn) []string {
-	answers := make([]string, 0, len(turns))
-	for _, turn := range turns {
-		answers = append(answers, normalizeEvidenceText(turn.Answer))
-		// The scorer sees the cleaned answer with identifiers replaced by placeholders (KAN-298), so a
-		// quote may legitimately contain a placeholder or lack an invisible character.
-		if redacted := normalizeEvidenceText(textsafe.Redact(textsafe.Clean(turn.Answer))); redacted != answers[len(answers)-1] {
-			answers = append(answers, redacted)
-		}
-	}
-	return answers
 }
 
 func boolInt(value bool) int {

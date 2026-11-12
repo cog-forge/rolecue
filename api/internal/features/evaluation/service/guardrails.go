@@ -21,20 +21,6 @@ func scorerQuestion(turn domain.TurnRecord) string {
 	return strings.TrimSpace(textsafe.Truncate(textsafe.Clean(turn.Question), maxFollowUpQuestionRunes))
 }
 
-// screenInjection reports whether an answer, or a follow-up question that was generated from answers,
-// matches a common prompt-injection pattern. A hit only flags the evaluation; nothing is dropped.
-func screenInjection(turns []domain.ScoreTurn) bool {
-	for _, turn := range turns {
-		if textsafe.LooksLikeInjection(turn.Answer) {
-			return true
-		}
-		if turn.Kind == domain.TurnFollowUp && textsafe.LooksLikeInjection(turn.Question) {
-			return true
-		}
-	}
-	return false
-}
-
 // moderateText cleans model-written text before it is stored: markup, links and invisible characters go.
 // Text that echoes an instruction-like pattern is not stored at all and flags the evaluation; the length
 // rules stay with the caller.

@@ -17,18 +17,36 @@ const (
 	EvaluationFailed    = "failed"
 )
 
+// Withheld reasons the evaluation itself decides before the calculator runs. The calculator adds
+// WithheldMissingCoverage and WithheldPartialSession (rubric_score.go). Every reason is stored in
+// interviews.score_withheld_reason and is final: a retry would reach the same result, so the evaluation
+// completes instead of failing.
+const (
+	// WithheldNoAnswers: the session ended before any question was answered.
+	WithheldNoAnswers RubricWithheldReason = "no_answers"
+	// WithheldNoGradableQuestions: answers exist, but none of the answered questions has a rubric with
+	// criteria and an expected answer (a legacy or hand-added question).
+	WithheldNoGradableQuestions RubricWithheldReason = "no_gradable_questions"
+)
+
 // InterviewRecord is one interview with the owners the report visibility rules need. PostingID and
 // RecruiterID are set for recruitment sessions only.
 type InterviewRecord struct {
-	ID               uuid.UUID
-	Type             string
-	StartedAt        time.Time
-	CompletedAt      *time.Time
-	EndReason        *string
+	ID          uuid.UUID
+	Type        string
+	StartedAt   time.Time
+	CompletedAt *time.Time
+	EndReason   *string
+	// QuestionCount is the number of core questions assigned to the session.
 	QuestionCount    int32
 	EvaluationStatus string
-	Score            *int32
-	Feedback         *string
+	// Score is the weighted overall with two decimals; nil until completed and when withheld.
+	Score *float64
+	// ScoreOutcome is complete, partial or withheld once a rubric evaluation completed; nil before, and for an
+	// evaluation completed before rubric grading existed.
+	ScoreOutcome        *string
+	ScoreWithheldReason *string
+	Feedback            *string
 	// InjectionFlagged is set when the evaluation could not fully trust the Candidate's answers (KAN-253).
 	InjectionFlagged bool
 	CandidateID      uuid.UUID
@@ -45,7 +63,8 @@ const (
 
 // TurnRecord is one stored question of an interview with its answer and the feedback once evaluated.
 // Position is its place in the conversation; QuestionNumber is the core question it belongs to, which a
-// follow-up shares with its core question.
+// follow-up shares with its core question. QuestionNumber equals the assigned question's position
+// (interview_questions.position).
 type TurnRecord struct {
 	Position       int32
 	QuestionNumber int32
@@ -55,68 +74,69 @@ type TurnRecord struct {
 	Feedback       *string
 }
 
-// ScoreInput is what the Scorer sees: the answered questions of the session and the metrics to score,
-// each with its weight. Turns are ordered by position.
-type ScoreInput struct {
-	InterviewID uuid.UUID
-	Type        string
-	Turns       []ScoreTurn
-	Metrics     []ScoredMetric
-	// RedactNames are the Candidate's own names. The scorer replaces them, with e-mail addresses, phone
-	// numbers and URLs, before text goes to an LLM provider (KAN-298). Optional.
-	RedactNames []string
+// GradingQuestion is one core question assigned to a session with its grading configuration. RubricID is
+// nil for a question without a rubric; Criteria are in rubric order. ExpectedAnswer is grader input only.
+type GradingQuestion struct {
+	Position          int32
+	RubricID          *uuid.UUID
+	RubricName        string
+	RubricDescription string
+	ExpectedAnswer    string
+	Criteria          []GradingCriterion
 }
 
-// ScoreTurn is one answered question as it was asked and answered. A follow-up (Kind TurnFollowUp) is
-// scored as part of the answer to its core question (the same QuestionNumber) and gets its own feedback.
-type ScoreTurn struct {
-	Position       int32
-	QuestionNumber int32
-	Kind           string
-	Question       string
-	Answer         string
+// GradingCriterion is one criterion of a rubric as the evaluation loads it.
+type GradingCriterion struct {
+	ID           uuid.UUID
+	MetricID     uuid.UUID
+	MetricName   string
+	Name         string
+	MaxPoints    int32
+	ScoringGuide string
 }
 
-// ScoredMetric is one metric the answers are graded on. Weight is relative: the overall score divides
-// by the sum of the weights, so the weights need not add up to 100.
+// ScoredMetric is one metric the overall is weighted over. Weight is relative: the overall divides by the
+// sum of the weights, so the weights need not add up to 100.
 type ScoredMetric struct {
 	MetricID uuid.UUID
 	Name     string
 	Weight   float64
 }
 
-// ScoreOutput is what the Scorer returns: one score per metric, a summary and optional feedback per
-// question. The evaluation service checks it before anything is stored.
-type ScoreOutput struct {
-	Scores    []MetricScore
-	Summary   string
-	Questions []QuestionFeedback
-	// InjectionSuspected is the model's own report that an answer tried to instruct it.
-	InjectionSuspected bool
-}
-
-// MetricScore is the 0..100 score of one metric. Evidence is the verbatim quote from a Candidate answer the
-// score rests on; the service empties it when the quote cannot be found in the stored answers.
-type MetricScore struct {
-	MetricID uuid.UUID
-	Score    int32
-	Evidence string
-}
-
-// QuestionFeedback is the feedback for the answer at one position.
-type QuestionFeedback struct {
+// TurnFeedback is the feedback stored on one conversation turn (the core turn of a graded question).
+type TurnFeedback struct {
 	Position int32
 	Feedback string
 }
 
-// Evaluation is the validated result of a scored interview, written in one transaction. Summary is nil
-// when the Scorer gave none.
+// QuestionResult is one graded core question: its total (display only, never averaged into the overall)
+// and its criterion results.
+type QuestionResult struct {
+	Position int32
+	Total    float64
+	Criteria []CriterionGrade
+}
+
+// MetricResult is one session metric as it is stored: Score is nil for a weighted metric no graded question
+// assessed; Weight is the weight the overall used (0 for an assessed metric the overall does not weigh).
+type MetricResult struct {
+	MetricID  uuid.UUID
+	Score     *float64
+	Weight    float64
+	Questions int32
+}
+
+// Evaluation is the validated result of a graded interview, written in one transaction. Overall is nil when
+// the outcome is withheld; Summary is nil when no question produced one.
 type Evaluation struct {
-	OverallScore int32
+	Outcome      RubricOutcome
+	Reason       RubricWithheldReason
+	Overall      *float64
 	Summary      *string
-	Scores       []MetricScore
-	Questions    []QuestionFeedback
-	// InjectionFlagged is true when the model suspected an injection or a score's evidence quote could not
-	// be verified against the answers. The evaluation still completes.
+	Questions    []QuestionResult
+	Metrics      []MetricResult
+	TurnFeedback []TurnFeedback
+	// InjectionFlagged is true when the model suspected an injection, an answer or a follow-up matched an
+	// injection pattern, or model text echoed an instruction. The evaluation still completes.
 	InjectionFlagged bool
 }
