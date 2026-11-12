@@ -356,7 +356,9 @@ for (const locale of ["en", "vi"] as const)
       ),
     ).toBe(true);
     await page.screenshot({
-      path: `/home/dorriss/.cache/kan330-dev/screens/mock-${locale}-${vi ? "mobile" : "desktop"}.png`,
+      path: test
+        .info()
+        .outputPath(`grading-${locale}-${vi ? "mobile" : "desktop"}.png`),
       fullPage: true,
     });
     await page
