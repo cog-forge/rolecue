@@ -187,13 +187,31 @@ func TestQuestionBankRepositoryAgainstPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 		wantCode(t, repo.CandidateOwnsJD(ctx, otherCandidate, practiceJD), apperror.CodeJDNotFound)
-		_, err := repo.SaveForPractice(ctx, otherCandidate, practiceJD, []string{"X?"})
+		_, err := repo.SaveForPractice(ctx, otherCandidate, practiceJD, plain("X?"))
 		wantCode(t, err, apperror.CodeJDNotFound)
-		saved, err := repo.SaveForPractice(ctx, candidate, practiceJD, []string{"P1?", "P2?"})
+		// A practice question keeps an active system rubric and its expected answer; a Recruiter's private
+		// rubric is never stored on a practice question (stored as no rubric instead).
+		system := uuid.MustParse("00000000-0000-4000-8000-000000000201")
+		private := s.rubric("Private practice rubric", &otherRecruiter, true)
+		answer := "Reference points."
+		questions := []domain.GeneratedQuestion{
+			{Content: "P1?", RubricID: &system, ExpectedAnswer: &answer},
+			{Content: "P2?", RubricID: &private, ExpectedAnswer: &answer},
+		}
+		saved, err := repo.SaveForPractice(ctx, candidate, practiceJD, questions)
 		if err != nil || len(saved) != 2 {
 			t.Fatalf("got %v, %v", saved, err)
 		}
-		_, err = repo.SaveForPractice(ctx, candidate, practiceJD, []string{"P3?"})
+		var withSystem, withPrivate int
+		if err := s.pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE rubric_id = $2 AND expected_answer = $4),
+		        count(*) FILTER (WHERE rubric_id = $3)
+		   FROM public.core_questions WHERE jd_id = $1`, practiceJD, system, private, answer).Scan(&withSystem, &withPrivate); err != nil {
+			t.Fatal(err)
+		}
+		if withSystem != 1 || withPrivate != 0 {
+			t.Fatalf("system-rubric questions = %d, private-rubric questions = %d; want 1 and 0", withSystem, withPrivate)
+		}
+		_, err = repo.SaveForPractice(ctx, candidate, practiceJD, plain("P3?"))
 		wantCode(t, err, apperror.CodeQuestionBankExists)
 	})
 }

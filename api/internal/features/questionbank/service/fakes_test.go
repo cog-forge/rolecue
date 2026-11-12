@@ -99,9 +99,13 @@ func (f *fakeRepository) SaveForPosting(_ context.Context, recruiterID, _ uuid.U
 	return out, f.saveErr
 }
 
-func (f *fakeRepository) SaveForPractice(_ context.Context, _, _ uuid.UUID, contents []string) ([]domain.CoreQuestion, error) {
+func (f *fakeRepository) SaveForPractice(_ context.Context, _, _ uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.CoreQuestion, error) {
 	f.saveCalls++
-	f.saved, f.savedFor = contents, "practice"
+	contents := make([]string, 0, len(questions))
+	for _, q := range questions {
+		contents = append(contents, q.Content)
+	}
+	f.saved, f.savedGraded, f.savedFor = contents, questions, "practice"
 	return toQuestions(contents), f.saveErr
 }
 
