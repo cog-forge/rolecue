@@ -74,6 +74,10 @@ const (
 	// CodeQuestionBankCoverageInsufficient means a session cannot start because the question bank cannot
 	// cover every metric the posting weights within the session's question limit (KAN-333).
 	CodeQuestionBankCoverageInsufficient Code = "QUESTION_BANK_COVERAGE_INSUFFICIENT"
+	// CodeMetricCoverageIncomplete means a job posting's question bank cannot cover every active metric within
+	// the interview's question limit, so it can be neither submitted nor approved (KAN-377). Recruiter and
+	// Admin only; the Candidate-facing refusal at interview start is CodeQuestionBankCoverageInsufficient.
+	CodeMetricCoverageIncomplete Code = "METRIC_COVERAGE_INCOMPLETE"
 	// CodeGradingConfigIncomplete means a question lacks a usable rubric or a valid expected answer (KAN-331).
 	CodeGradingConfigIncomplete Code = "GRADING_CONFIG_INCOMPLETE"
 

@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
@@ -16,8 +17,9 @@ import (
 
 const (
 	candidateRole = "candidate"
-	// defaultQuestionLimit is used when the configured question limit is zero.
-	defaultQuestionLimit = 8
+	// defaultQuestionLimit is used when the configured question limit is zero. It is the one value the
+	// metric-coverage checks of the question bank use too (evaluation/domain.DefaultQuestionLimit).
+	defaultQuestionLimit = int32(evaluationdomain.DefaultQuestionLimit)
 	// defaultFollowUpTimeout bounds one follow-up decision when the setting is zero.
 	defaultFollowUpTimeout = 5 * time.Second
 	// evaluationTimeout bounds one background evaluation, which runs after the request has returned.
