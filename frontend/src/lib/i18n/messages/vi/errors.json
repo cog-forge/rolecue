@@ -98,7 +98,9 @@
     "EVALUATION_ATTEMPTS_EXCEEDED": "Buổi phỏng vấn này không thể chấm lại nữa. Vui lòng liên hệ hỗ trợ.",
     "LLM_BUDGET_EXCEEDED": "Bạn đã dùng hết lượt thao tác AI trong hôm nay. Lượt dùng được làm mới lúc 0 giờ UTC.",
     "RATE_LIMITED": "Bạn thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại.",
-    "GUIDELINE_VERSION_CONFLICT": "Hướng dẫn đã thay đổi kể từ khi bạn tải trang. Hãy tải lại và thử lại."
+    "GUIDELINE_VERSION_CONFLICT": "Hướng dẫn đã thay đổi kể từ khi bạn tải trang. Hãy tải lại và thử lại.",
+    "QUESTION_STALE": "Câu hỏi đã thay đổi. Hãy tải lại và xem lại bản nháp trước khi lưu.",
+    "EXPECTED_ANSWER_REVIEW_REQUIRED": "Khi đổi barem, hãy xem lại hoặc xóa đáp án kỳ vọng."
   },
   "auth": {
     "accountLocked": "Tài khoản của bạn đã bị quản trị viên khóa. Hãy liên hệ bộ phận hỗ trợ để được xem xét. Bạn có thể đăng nhập lại khi khóa hết hạn hoặc khi quản trị viên mở khóa tài khoản.",

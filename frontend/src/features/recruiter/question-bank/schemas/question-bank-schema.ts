@@ -17,8 +17,33 @@ export const coreQuestionSchema = z.object({
 });
 export type CoreQuestion = z.infer<typeof coreQuestionSchema>;
 
+export const bankQuestionSchema = coreQuestionSchema.extend({
+  rubric_id: z.uuid().nullable().default(null),
+  expected_answer: z.string().nullable().default(null),
+  grading_incomplete: z.boolean().default(true),
+  grading_issues: z
+    .array(
+      z.enum([
+        "missing_rubric",
+        "rubric_archived",
+        "rubric_unavailable",
+        "missing_expected_answer",
+        "expected_answer_invalid",
+      ]),
+    )
+    .default(["missing_rubric", "missing_expected_answer"]),
+  revision: z.string().default(""),
+});
+export type BankQuestion = z.infer<typeof bankQuestionSchema>;
+
 export const bankSchema = z.object({
-  questions: z.array(coreQuestionSchema),
+  questions: z.array(bankQuestionSchema),
+  grading_ready: z.boolean().default(false),
+  grading_incomplete_count: z.number().int().nonnegative().optional(),
+  max_expected_answer_length: z.number().int().positive().default(1000),
+  max_expected_answer_words: z.number().int().positive().default(100),
+  expected_answer_guidance_words: z.number().int().positive().default(80),
+  max_bulk_questions: z.number().int().positive().default(100),
   posting_status: postingStatusSchema,
   editable: z.boolean(),
   max_question_length: z.number().int().positive(),
@@ -33,9 +58,9 @@ const envelope = <T extends z.ZodType>(data: T) =>
 
 export const bankEnvelopeSchema = envelope(bankSchema);
 export const generatedEnvelopeSchema = envelope(
-  z.object({ questions: z.array(coreQuestionSchema) }),
+  z.object({ questions: z.array(bankQuestionSchema) }),
 );
-export const questionEnvelopeSchema = envelope(coreQuestionSchema);
+export const questionEnvelopeSchema = envelope(bankQuestionSchema);
 
 // Go counts runes, so the limit counts Unicode code points, after trimming like the server does.
 export const questionLength = (value: string) =>

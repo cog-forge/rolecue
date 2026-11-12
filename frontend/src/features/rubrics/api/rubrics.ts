@@ -50,3 +50,29 @@ export async function copyRubric(id: string) {
 export async function deleteRubric(id: string) {
   await apiClient.delete(`/rubrics/${id}`);
 }
+
+// Page through both permitted scopes so the picker never silently truncates a recruiter's library.
+export async function listActiveRubrics(signal?: AbortSignal) {
+  const results = await Promise.all(
+    (["system", "own"] as const).map(async (scope) => {
+      const items = [];
+      let offset = 0;
+      for (;;) {
+        const page = await listRubrics(scope, "active", offset, signal);
+        const rows = page.items ?? [];
+        items.push(
+          ...rows.filter(
+            (rubric) =>
+              rubric.is_active && (rubric.scope === "system" || rubric.is_own),
+          ),
+        );
+        offset += rows.length;
+        if (offset >= page.pagination.total || rows.length === 0) break;
+      }
+      return items;
+    }),
+  );
+  return [
+    ...new Map(results.flat().map((rubric) => [rubric.id, rubric])).values(),
+  ];
+}

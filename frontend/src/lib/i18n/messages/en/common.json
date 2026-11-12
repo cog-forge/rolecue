@@ -219,5 +219,19 @@
       "website": "Use an HTTPS website URL without credentials, up to 2048 characters."
     },
     "loadingLabel": "Loading your profile"
+  },
+  "rubricReview": {
+    "search": "Search rubrics",
+    "rubric": "Rubric",
+    "choose": "Choose a rubric",
+    "unavailable": "Rubric unavailable",
+    "none": "No rubric",
+    "noMatches": "No matching rubrics.",
+    "viewCriteria": "View rubric criteria",
+    "loading": "Loading criteria…",
+    "failed": "Could not load rubric criteria.",
+    "retry": "Retry",
+    "metricUnavailable": "Metric unavailable",
+    "points": "{count, plural, one {# point} other {# points}}"
   }
 }

@@ -22,6 +22,7 @@ export function QuestionEditor({
   initial = "",
   maxLength,
   pending,
+  disabled = false,
   error,
   submitLabel,
   pendingLabel,
@@ -34,6 +35,7 @@ export function QuestionEditor({
   initial?: string;
   maxLength: number;
   pending: boolean;
+  disabled?: boolean;
   error: string | null;
   submitLabel: string;
   pendingLabel: string;
@@ -83,8 +85,8 @@ export function QuestionEditor({
       <Textarea
         id={id}
         rows={3}
-        className="bg-card"
-        disabled={pending}
+        className="min-h-28 rounded-xl bg-card text-[15px] leading-relaxed"
+        disabled={pending || disabled}
         aria-invalid={!!fieldError}
         aria-describedby={[hintId, fieldError ? errorId : ""]
           .filter(Boolean)
@@ -113,8 +115,8 @@ export function QuestionEditor({
       <div className="flex flex-wrap gap-2">
         <Button
           type="submit"
-          className="h-10 rounded-full px-5"
-          disabled={pending || !isDirty || !isValid}
+          className="min-h-11 rounded-full px-5"
+          disabled={pending || disabled || !isDirty || !isValid}
           aria-busy={pending}
         >
           {pending && (
@@ -129,8 +131,8 @@ export function QuestionEditor({
           <Button
             type="button"
             variant="outline"
-            className="h-10 rounded-full px-5"
-            disabled={pending}
+            className="min-h-11 rounded-full px-5"
+            disabled={pending || disabled}
             onClick={onCancel}
           >
             {tCommon("actions.cancel")}

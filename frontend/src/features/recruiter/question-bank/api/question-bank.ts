@@ -41,14 +41,49 @@ export async function updateQuestion(
   postingId: string,
   questionId: string,
   content: string,
+  previousRevision?: string,
 ) {
   const response = await apiClient.patch<unknown>(
     questionPath(postingId, questionId),
-    { content },
+    {
+      content,
+      ...(previousRevision ? { previous_revision: previousRevision } : {}),
+    },
   );
   return questionEnvelopeSchema.parse(response.data).data;
 }
 
 export async function deleteQuestion(postingId: string, questionId: string) {
   await apiClient.delete(questionPath(postingId, questionId));
+}
+
+export type GradingPatch = {
+  rubric_id: string | null;
+  expected_answer: string | null;
+  previous_revision: string;
+};
+export async function saveGrading(
+  postingId: string,
+  questionId: string,
+  body: GradingPatch,
+) {
+  const response = await apiClient.patch<unknown>(
+    questionPath(postingId, questionId),
+    body,
+  );
+  return questionEnvelopeSchema.parse(response.data).data;
+}
+export async function applyRubric(
+  postingId: string,
+  body: {
+    rubric_id: string;
+    question_ids: string[];
+    previous_revisions: Record<string, string>;
+  },
+) {
+  const response = await apiClient.post<unknown>(
+    `${bankPath(postingId)}/apply-rubric`,
+    body,
+  );
+  return generatedEnvelopeSchema.parse(response.data).data.questions;
 }

@@ -219,5 +219,19 @@
       "website": "Dùng URL website HTTPS không chứa thông tin đăng nhập, tối đa 2048 ký tự."
     },
     "loadingLabel": "Đang tải hồ sơ của bạn"
+  },
+  "rubricReview": {
+    "search": "Tìm barem",
+    "rubric": "Barem",
+    "choose": "Chọn barem",
+    "unavailable": "Barem không còn khả dụng",
+    "none": "Không có barem",
+    "noMatches": "Không có barem phù hợp.",
+    "viewCriteria": "Xem tiêu chí của barem",
+    "loading": "Đang tải tiêu chí…",
+    "failed": "Không tải được tiêu chí barem.",
+    "retry": "Thử lại",
+    "metricUnavailable": "Chỉ số không còn khả dụng",
+    "points": "{count} điểm"
   }
 }
