@@ -48,10 +48,15 @@ type HistoryItem struct {
 	CompletedAt      *time.Time       `json:"completed_at"`
 	EvaluationStatus EvaluationStatus `json:"evaluation_status" enums:"pending,completed,failed"`
 	Status           SessionStatus    `json:"status" enums:"in_progress,pending,completed,failed"`
-	Score            *int32           `json:"score"`
-	RoleProfileTitle *string          `json:"role_profile_title"`
-	JobPostingTitle  *string          `json:"job_posting_title"`
-	ApplicationID    *uuid.UUID       `json:"application_id"`
+	// Score is the weighted overall with two decimals; null for recruitment, until evaluated and when the
+	// overall is withheld (ScoreOutcome withheld).
+	Score *float64 `json:"score"`
+	// ScoreOutcome is complete, partial or withheld for a rubric-graded practice session; null otherwise
+	// (recruitment, not evaluated yet, or evaluated before rubric grading).
+	ScoreOutcome     *string    `json:"score_outcome" enums:"complete,partial,withheld"`
+	RoleProfileTitle *string    `json:"role_profile_title"`
+	JobPostingTitle  *string    `json:"job_posting_title"`
+	ApplicationID    *uuid.UUID `json:"application_id"`
 }
 
 // HistoryPage is one page of the Candidate's session history, newest first.

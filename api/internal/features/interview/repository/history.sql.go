@@ -40,6 +40,7 @@ SELECT i.id,
        i.completed_at,
        i.evaluation_status,
        i.score,
+       i.score_outcome,
        rp.title AS role_profile_title,
        jp.title AS job_posting_title,
        i.application_id
@@ -66,7 +67,8 @@ type ListCandidateInterviewsRow struct {
 	StartedAt        pgtype.Timestamptz
 	CompletedAt      pgtype.Timestamptz
 	EvaluationStatus string
-	Score            *int32
+	Score            pgtype.Numeric
+	ScoreOutcome     *string
 	RoleProfileTitle *string
 	JobPostingTitle  *string
 	ApplicationID    *uuid.UUID
@@ -98,6 +100,7 @@ func (q *Queries) ListCandidateInterviews(ctx context.Context, arg ListCandidate
 			&i.CompletedAt,
 			&i.EvaluationStatus,
 			&i.Score,
+			&i.ScoreOutcome,
 			&i.RoleProfileTitle,
 			&i.JobPostingTitle,
 			&i.ApplicationID,

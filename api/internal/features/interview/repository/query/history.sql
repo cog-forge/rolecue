@@ -10,6 +10,7 @@ SELECT i.id,
        i.completed_at,
        i.evaluation_status,
        i.score,
+       i.score_outcome,
        rp.title AS role_profile_title,
        jp.title AS job_posting_title,
        i.application_id

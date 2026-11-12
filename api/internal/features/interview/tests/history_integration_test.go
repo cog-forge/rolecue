@@ -97,7 +97,7 @@ func TestHistoryFiltersByType(t *testing.T) {
 		t.Fatalf("recruitment item = %+v, want the Application's session with its posting title", item)
 	}
 	if item.Score != nil {
-		t.Fatalf("recruitment item score = %d, want none: a Candidate never sees a recruitment score", *item.Score)
+		t.Fatalf("recruitment item score = %v, want none: a Candidate never sees a recruitment score", *item.Score)
 	}
 	prac := historyPage(t, ctx, svc, candidate, domain.HistoryFilter{Type: domain.TypePractice, Page: 1, PageSize: 20})
 	if prac.Total != 2 {
@@ -187,7 +187,7 @@ func TestHistoryItemsCarryOnlyListFields(t *testing.T) {
 	}
 	allowed := map[string]bool{
 		"id": true, "type": true, "started_at": true, "completed_at": true, "evaluation_status": true,
-		"status": true, "score": true, "role_profile_title": true, "job_posting_title": true, "application_id": true,
+		"status": true, "score": true, "score_outcome": true, "role_profile_title": true, "job_posting_title": true, "application_id": true,
 	}
 	for key := range decoded.Items[0] {
 		if !allowed[key] {

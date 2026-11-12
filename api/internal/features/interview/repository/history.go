@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"github.com/cog-forge/rolecue/api/internal/pkg/dbnum"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
 	"github.com/google/uuid"
@@ -37,9 +38,9 @@ func (r *Repository) ListHistory(ctx context.Context, candidateID uuid.UUID, fil
 		evaluation := domain.EvaluationStatus(row.EvaluationStatus)
 		completedAt := timePtr(row.CompletedAt)
 		// A Candidate never sees a recruitment score; practice scores stay visible.
-		score := row.Score
+		score, outcome := dbnum.Float(row.Score), row.ScoreOutcome
 		if domain.Type(row.Type) == domain.TypeRecruitment {
-			score = nil
+			score, outcome = nil, nil
 		}
 		items = append(items, domain.HistoryItem{
 			ID:               row.ID,
@@ -49,6 +50,7 @@ func (r *Repository) ListHistory(ctx context.Context, candidateID uuid.UUID, fil
 			EvaluationStatus: evaluation,
 			Status:           domain.DeriveSessionStatus(completedAt, evaluation),
 			Score:            score,
+			ScoreOutcome:     outcome,
 			RoleProfileTitle: row.RoleProfileTitle,
 			JobPostingTitle:  row.JobPostingTitle,
 			ApplicationID:    row.ApplicationID,
