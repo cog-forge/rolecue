@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"github.com/cog-forge/rolecue/api/internal/pkg/dbnum"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/admin/interviews/domain"
@@ -56,7 +57,7 @@ func (r *Repository) List(ctx context.Context, filter domain.ListFilter) ([]doma
 				Email: row.OwnerEmail,
 			},
 			JobPosting:   jobPostingRef(row.JobPostingID, row.JobPostingTitle),
-			Score:        row.Score,
+			Score:        dbnum.Float(row.Score),
 			HasReport:    row.HasReport,
 			HasRecording: row.HasRecording,
 		})
@@ -80,7 +81,7 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.InterviewDet
 				Email: row.OwnerEmail,
 			},
 			JobPosting:   jobPostingRef(row.JobPostingID, row.JobPostingTitle),
-			Score:        row.Score,
+			Score:        dbnum.Float(row.Score),
 			HasReport:    row.HasReport,
 			HasRecording: row.HasRecording,
 		},

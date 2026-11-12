@@ -49,13 +49,14 @@ type JobPostingRef struct {
 // audio, video, transcripts, answers and feedback text are never part of it. HasRecording only says
 // that a recording exists.
 type InterviewRow struct {
-	ID           uuid.UUID      `json:"id"`
-	Type         string         `json:"type"`
-	Owner        OwnerRef       `json:"owner"`
-	JobPosting   *JobPostingRef `json:"job_posting"`
-	Score        *int32         `json:"score"`
-	HasReport    bool           `json:"has_report"`
-	HasRecording bool           `json:"has_recording"`
+	ID         uuid.UUID      `json:"id"`
+	Type       string         `json:"type"`
+	Owner      OwnerRef       `json:"owner"`
+	JobPosting *JobPostingRef `json:"job_posting"`
+	// Score is the weighted overall with two decimals; null until evaluated and when withheld.
+	Score        *float64 `json:"score"`
+	HasReport    bool     `json:"has_report"`
+	HasRecording bool     `json:"has_recording"`
 }
 
 // InterviewPage is one page of the Admin interview list.

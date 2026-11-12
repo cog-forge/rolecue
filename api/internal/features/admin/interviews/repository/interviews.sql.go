@@ -39,7 +39,7 @@ const getAdminInterview = `-- name: GetAdminInterview :one
 SELECT i.id,
        i.type::text AS type,
        i.score,
-       (i.feedback IS NOT NULL OR i.score IS NOT NULL)::boolean AS has_report,
+       (i.evaluation_status = 'completed')::boolean AS has_report,
        (i.record_path IS NOT NULL)::boolean AS has_recording,
        u.id AS owner_id,
        u.name AS owner_name,
@@ -70,7 +70,7 @@ WHERE i.id = $1
 type GetAdminInterviewRow struct {
 	ID               uuid.UUID
 	Type             string
-	Score            *int32
+	Score            pgtype.Numeric
 	HasReport        bool
 	HasRecording     bool
 	OwnerID          uuid.UUID
@@ -126,7 +126,7 @@ const listAdminInterviews = `-- name: ListAdminInterviews :many
 SELECT i.id,
        i.type::text AS type,
        i.score,
-       (i.feedback IS NOT NULL OR i.score IS NOT NULL)::boolean AS has_report,
+       (i.evaluation_status = 'completed')::boolean AS has_report,
        (i.record_path IS NOT NULL)::boolean AS has_recording,
        u.id AS owner_id,
        u.name AS owner_name,
@@ -156,7 +156,7 @@ type ListAdminInterviewsParams struct {
 type ListAdminInterviewsRow struct {
 	ID              uuid.UUID
 	Type            string
-	Score           *int32
+	Score           pgtype.Numeric
 	HasReport       bool
 	HasRecording    bool
 	OwnerID         uuid.UUID
