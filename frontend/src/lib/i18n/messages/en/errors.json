@@ -62,6 +62,7 @@
     "WEBHOOK_SIGNATURE_INVALID": "We couldn't verify this payment notification.",
     "JOB_POSTING_NOT_PENDING": "This posting isn't waiting for review.",
     "QUESTION_BANK_NOT_READY": "The question bank isn't ready yet.",
+    "QUESTION_BANK_COVERAGE_INSUFFICIENT": "This interview can't be started right now. Please try again later.",
     "GRADING_CONFIG_INCOMPLETE": "Every question needs a rubric and an expected answer first.",
     "JOB_POSTING_REQUIREMENTS_LOCKED": "The requirements of this posting are locked.",
     "JOB_POSTING_NOT_EDITABLE": "This posting can't be edited right now.",

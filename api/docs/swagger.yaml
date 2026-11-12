@@ -58,6 +58,7 @@ definitions:
     - JOB_POSTING_NOT_PENDING
     - GUIDELINE_VERSION_CONFLICT
     - QUESTION_BANK_NOT_READY
+    - QUESTION_BANK_COVERAGE_INSUFFICIENT
     - GRADING_CONFIG_INCOMPLETE
     - JOB_POSTING_REQUIREMENTS_LOCKED
     - JOB_POSTING_NOT_EDITABLE
@@ -155,6 +156,7 @@ definitions:
     - CodeJobPostingNotPending
     - CodeGuidelineVersionConflict
     - CodeQuestionBankNotReady
+    - CodeQuestionBankCoverageInsufficient
     - CodeGradingConfigIncomplete
     - CodeJobPostingRequirementsLocked
     - CodeJobPostingNotEditable
@@ -4797,7 +4799,9 @@ paths:
         (not a Candidate), JOB_POSTING_NOT_FOUND, APPLICATION_NOT_FOUND (not yours
         or missing), APPLICATION_NOT_ELIGIBLE, INTERVIEW_CAPACITY_NOT_FUNDED, INTERVIEW_CAPACITY_FULL,
         ROLE_PROFILE_REQUIRED (practice only), JD_NOT_FOUND (role profile missing
-        or not yours), QUESTION_BANK_NOT_READY, INSUFFICIENT_BALANCE.'
+        or not yours), QUESTION_BANK_NOT_READY, QUESTION_BANK_COVERAGE_INSUFFICIENT
+        (the bank cannot cover every weighted metric within the question limit; nothing
+        is created or charged), INSUFFICIENT_BALANCE.'
       parameters:
       - description: Trusted frontend origin
         in: header

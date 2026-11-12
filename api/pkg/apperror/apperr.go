@@ -71,6 +71,9 @@ const (
 	// longer the current one.
 	CodeGuidelineVersionConflict Code = "GUIDELINE_VERSION_CONFLICT"
 	CodeQuestionBankNotReady     Code = "QUESTION_BANK_NOT_READY"
+	// CodeQuestionBankCoverageInsufficient means a session cannot start because the question bank cannot
+	// cover every metric the posting weights within the session's question limit (KAN-333).
+	CodeQuestionBankCoverageInsufficient Code = "QUESTION_BANK_COVERAGE_INSUFFICIENT"
 	// CodeGradingConfigIncomplete means a question lacks a usable rubric or a valid expected answer (KAN-331).
 	CodeGradingConfigIncomplete Code = "GRADING_CONFIG_INCOMPLETE"
 

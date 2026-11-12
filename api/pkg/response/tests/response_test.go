@@ -55,6 +55,7 @@ func TestError(t *testing.T) {
 		{"posting not pending", apperror.CodeJobPostingNotPending, http.StatusConflict},
 		{"guideline version conflict", apperror.CodeGuidelineVersionConflict, http.StatusConflict},
 		{"bank not ready", apperror.CodeQuestionBankNotReady, http.StatusConflict},
+		{"bank coverage insufficient", apperror.CodeQuestionBankCoverageInsufficient, http.StatusConflict},
 		{"requirements locked", apperror.CodeJobPostingRequirementsLocked, http.StatusConflict},
 		{"posting not editable", apperror.CodeJobPostingNotEditable, http.StatusConflict},
 		{"posting text locked", apperror.CodeJobPostingTextLocked, http.StatusConflict},
