@@ -927,10 +927,91 @@ html[data-theme-reveal]::view-transition-new(root) {
   transform: scaleY(-1);
 }
 
+/* transitions.dev sliding indicator; its underline shape uses RoleCue utilities. */
+:root {
+  --tabs-dur: 250ms;
+  --tabs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tabs-pill-bg: var(--foreground);
+}
+.t-tabs-pill {
+  position: absolute;
+  top: 3px;
+  left: 0;
+  height: 30px;
+  width: 0;
+  background: var(--tabs-pill-bg);
+  border-radius: 48px;
+  transform: translateX(0);
+  transition:
+    transform var(--tabs-dur) var(--tabs-ease),
+    width var(--tabs-dur) var(--tabs-ease);
+  will-change: transform, width;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Only posting-tab navigation participates; the workspace shell stays still. */
+html[data-posting-transition] [data-posting-panel] {
+  view-transition-name: posting-panel;
+}
+html[data-posting-transition] [data-posting-tabs] {
+  view-transition-name: posting-tabs;
+}
+html[data-posting-transition] [data-posting-indicator] {
+  view-transition-name: posting-tab-indicator;
+}
+html[data-posting-transition]::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+html[data-posting-transition]::view-transition-new(root) {
+  animation: none;
+}
+html[data-posting-transition]::view-transition-group(posting-panel) {
+  animation: none;
+}
+html[data-posting-transition]::view-transition-old(posting-panel) {
+  animation: posting-content-out 140ms ease-out both;
+}
+html[data-posting-transition]::view-transition-new(posting-panel) {
+  animation: posting-content-in 180ms ease-out both;
+}
+html[data-posting-transition]::view-transition-group(posting-tabs),
+html[data-posting-transition]::view-transition-group(posting-tab-indicator) {
+  animation-duration: var(--tabs-dur);
+  animation-timing-function: var(--tabs-ease);
+}
+html[data-posting-transition]::view-transition-old(posting-tabs) {
+  animation: none;
+  opacity: 0;
+}
+html[data-posting-transition]::view-transition-new(posting-tabs) {
+  animation: none;
+}
+@keyframes posting-content-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes posting-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .t-acc-panel,
   .t-acc-panel-inner,
   .t-acc-chevron {
+    transition: none !important;
+  }
+  .t-tabs-pill {
     transition: none !important;
   }
 }

@@ -23,7 +23,10 @@ import {
   postingValues,
   type JobPosting,
 } from "../schemas/job-posting-schema";
-import { generateBank } from "@/features/recruiter/question-bank/api/question-bank";
+import {
+  generateBank,
+  questionBankKeys,
+} from "@/features/recruiter/question-bank/api/question-bank";
 import { apiError, isAccessDenied } from "../utils/api-error";
 import { nextStep, primaryAction, statusLine } from "../utils/posting-guidance";
 import { PostingApplications } from "./posting-applications";
@@ -132,6 +135,11 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
       }
       void cache.invalidateQueries({ queryKey: key });
       void cache.invalidateQueries({ queryKey: jobPostingKeys.lists(user.id) });
+      // Generation replaces the bank; discard any version warmed by the tabs.
+      cache.removeQueries({
+        queryKey: questionBankKeys.detail(user.id, postingId),
+        exact: true,
+      });
       gooeyToast.success(tp("toast.bankGenerated"), {
         description: tp("toast.bankGeneratedHint"),
       });

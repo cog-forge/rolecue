@@ -509,3 +509,157 @@ for (const width of [1440, 390])
         .getByText("Explain bounded worker pools.", { exact: true }),
     ).toBeVisible();
   });
+
+for (const reduced of [false, true])
+  test(`posting tabs prefetch data and preserve drafts with reduced motion ${reduced}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(
+      reduced ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+    );
+    await page.emulateMedia({
+      reducedMotion: reduced ? "reduce" : "no-preference",
+    });
+    await page.addInitScript(() => {
+      if (document.startViewTransition) {
+        document.startViewTransition = new Proxy(document.startViewTransition, {
+          apply(target, receiver, args) {
+            document.documentElement.dataset.testTransitions = String(
+              Number(document.documentElement.dataset.testTransitions ?? 0) + 1,
+            );
+            return Reflect.apply(target, receiver, args);
+          },
+        });
+      }
+    });
+    await mock(page);
+    let prefetched = false;
+    page.on("response", (response) => {
+      if (
+        response
+          .url()
+          .endsWith(`/job-postings/${postingId}/evaluation-weights`) &&
+        response.ok()
+      )
+        prefetched = true;
+    });
+    await page.goto(`/recruiter/job-postings/${postingId}/questions`);
+    await expect(
+      page.getByRole("heading", { name: "Question bank", exact: true }),
+    ).toBeVisible();
+    await expect.poll(() => prefetched).toBe(true);
+    expect(
+      await page
+        .locator("[data-posting-panel]")
+        .evaluate((el) => getComputedStyle(el).viewTransitionName),
+    ).toBe("none");
+    const nav = page.getByRole("navigation", { name: "Posting sections" });
+    await nav.getByRole("link", { name: "Evaluation", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Evaluation criteria", exact: true }),
+    ).toBeVisible();
+    await expect(
+      nav.getByRole("link", { name: "Evaluation", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.dataset.postingTransition ?? "finished",
+        ),
+      )
+      .toBe("finished");
+    expect(
+      await page
+        .locator("[data-posting-panel]")
+        .evaluate((el) => getComputedStyle(el).viewTransitionName),
+    ).toBe("none");
+    expect(
+      await page.evaluate(() =>
+        Number(document.documentElement.dataset.testTransitions ?? 0),
+      ),
+    ).toBe(reduced ? 0 : 1);
+    const indicator = nav.locator(".t-tabs-pill");
+    const line = await indicator.boundingBox();
+    const link = await nav
+      .getByRole("link", { name: "Evaluation", exact: true })
+      .boundingBox();
+    expect(Math.abs(line!.x - link!.x)).toBeLessThan(1);
+    expect(Math.abs(line!.width - link!.width)).toBeLessThan(1);
+    if (reduced)
+      expect(
+        await indicator.evaluate(
+          (el) => getComputedStyle(el).transitionDuration,
+        ),
+      ).toBe("0s");
+    await page.getByLabel("Technical Accuracy", { exact: true }).fill("90");
+    await nav.getByRole("link", { name: "Questions", exact: true }).click();
+    const guard = page.getByRole("dialog", { name: "Leave without saving?" });
+    await expect(guard).toBeVisible();
+    await guard.getByRole("button", { name: "Stay on this page" }).click();
+    await expect(
+      page.getByLabel("Technical Accuracy", { exact: true }),
+    ).toHaveValue("90");
+    await expect(
+      nav.getByRole("link", { name: "Evaluation", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    await page.getByLabel("Technical Accuracy", { exact: true }).fill("100");
+    await expect(
+      page.getByRole("button", { name: "Save criteria", exact: true }),
+    ).toBeDisabled();
+    await nav.getByRole("link", { name: "Overview", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Backend Engineer", exact: true }),
+    ).toBeVisible();
+    await nav.getByRole("link", { name: "Questions", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Question bank", exact: true }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  });
+
+test("a later tab click wins while another tab is still warming", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.route(
+    `http://localhost:8080/job-postings/${postingId}/evaluation-weights`,
+    async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 650));
+      await route.fulfill({
+        headers,
+        json: {
+          success: true,
+          data: {
+            configured: false,
+            using_defaults: true,
+            editable: true,
+            posting_status: "pending",
+            total: 100,
+            weights: [
+              {
+                metric_id: metric,
+                name: "Technical Accuracy",
+                percentage: 100,
+              },
+            ],
+          },
+        },
+      });
+    },
+  );
+  await page.goto(`/recruiter/job-postings/${postingId}/questions`);
+  const nav = page.getByRole("navigation", { name: "Posting sections" });
+  await nav.getByRole("link", { name: "Evaluation", exact: true }).click();
+  await expect(nav).toHaveAttribute("aria-busy", "true");
+  await nav.getByRole("link", { name: "Overview", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Backend Engineer", exact: true }),
+  ).toBeVisible();
+  await expect(nav).not.toHaveAttribute("aria-busy", "true");
+  await expect(page).toHaveURL(new RegExp(`/job-postings/${postingId}$`));
+});
