@@ -599,13 +599,14 @@ func TestResubmitOnlyFromRejected(t *testing.T) {
 	}
 }
 
-// rubric seeds a rubric owned by ownerID with one criterion. Tests use their own rubric, never the seeded
+// rubric seeds a rubric owned by ownerID with one criterion per catalog metric, so a bank of it covers every metric. Tests use their own rubric, never the seeded
 // system templates, which other packages' tests archive and restore while they run in parallel.
 func (s *seed) rubric(ownerID uuid.UUID) uuid.UUID {
 	s.t.Helper()
 	id := uuid.New()
 	s.exec(`INSERT INTO public.rubrics (id, name, description, question_type, scope, owner_id) VALUES ($1, 'test rubric', 'd', 'concept_explanation', 'recruiter', $2)`, id, ownerID)
 	s.later(`DELETE FROM public.rubrics WHERE id = $1`, id)
-	s.exec(`INSERT INTO public.rubric_criteria (rubric_id, metric_id, name, max_points, scoring_guide, position) VALUES ($1, '00000000-0000-4000-8000-000000000101', 'c', 3, '0 = no; 3 = yes', 1)`, id)
+	s.exec(`INSERT INTO public.rubric_criteria (rubric_id, metric_id, name, max_points, scoring_guide, position)
+		SELECT $1, m.id, 'c', 3, '0 = no; 3 = yes', row_number() OVER (ORDER BY m.id) FROM public.metrics m`, id)
 	return id
 }

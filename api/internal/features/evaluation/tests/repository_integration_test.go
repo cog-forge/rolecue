@@ -231,9 +231,10 @@ func TestPublishedPostingIsLockedUnderTheRowLock(t *testing.T) {
 	for _, status := range []string{"open", "intake_closed", "closed"} {
 		postingID, _ := s.posting(owner, status)
 		// Call the repository directly, as if the posting was approved after the service read it.
-		_, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{{MetricID: accuracyID, Percentage: 100}})
+		_, _, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{{MetricID: accuracyID, Percentage: 100}})
 		assertCode(t, err, apperror.CodeEvaluationWeightsLocked)
-		assertCode(t, repo.ClearWeights(ctx, owner, postingID), apperror.CodeEvaluationWeightsLocked)
+		_, clearErr := repo.ClearWeights(ctx, owner, postingID)
+		assertCode(t, clearErr, apperror.CodeEvaluationWeightsLocked)
 	}
 }
 
@@ -243,7 +244,7 @@ func TestRejectedPostingCanBeCorrectedUnderTheRowLock(t *testing.T) {
 	_, repo := newService(t, pool)
 	owner := s.recruiter()
 	postingID, _ := s.posting(owner, "rejected")
-	saved, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{{MetricID: accuracyID, Percentage: 100}})
+	saved, _, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{{MetricID: accuracyID, Percentage: 100}})
 	if err != nil || len(saved) != 1 {
 		t.Fatalf("ReplaceWeights() on a rejected posting = %+v, %v, want it saved", saved, err)
 	}
@@ -259,7 +260,7 @@ func TestFailedReplaceKeepsTheOldSet(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The second metric does not exist, so its insert fails after the delete and the first insert.
-	_, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{
+	_, _, err := repo.ReplaceWeights(ctx, owner, postingID, []domain.Weight{
 		{MetricID: accuracyID, Percentage: 50}, {MetricID: uuid.New(), Percentage: 50},
 	})
 	assertCode(t, err, apperror.CodeEvaluationMetricUnknown)

@@ -37,7 +37,7 @@ func newGradingFixture(t *testing.T, ctx context.Context, s *seed) gradingFixtur
 	t.Helper()
 	level := s.level("qb-"+s.tag, "d")
 	recruiter := s.user("recruiter")
-	rubric := s.rubric("qb readiness "+s.tag, &recruiter, true) // before the questions: cleanup runs in reverse
+	rubric := s.completeRubric("qb readiness "+s.tag, &recruiter, true) // before the questions: cleanup runs in reverse
 	jd, posting := s.jdWithPosting(level, recruiter, true)
 	s.presentation(recruiter, posting)
 	return gradingFixture{s: s, recruiter: recruiter, rubric: rubric, posting: posting, jd: jd,

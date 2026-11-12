@@ -229,8 +229,8 @@ func TestServiceGeneratesGradedBankAgainstPostgres(t *testing.T) {
 			{Content: "B?", ExpectedAnswer: answer("b")}, {Content: "C?", ExpectedAnswer: answer("c")}}}
 	}
 	got, err := svc.Generate(ctx, recruiter, "recruiter", postingID)
-	if err != nil || len(got) != 3 || gen.calls != 1 {
-		t.Fatalf("got %d questions, %d model calls, %v", len(got), gen.calls, err)
+	if err != nil || len(got.Questions) != 3 || gen.calls != 1 {
+		t.Fatalf("got %d questions, %d model calls, %v", len(got.Questions), gen.calls, err)
 	}
 	bank, err := svc.List(ctx, recruiter, "recruiter", postingID)
 	if err != nil || len(bank.Questions) != 3 {

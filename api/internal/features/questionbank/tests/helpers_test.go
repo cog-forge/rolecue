@@ -177,3 +177,14 @@ func (s *seed) presentation(ownerID, postingID uuid.UUID) {
 	s.exec(`UPDATE public.job_postings SET required_avatar_id = $2, required_voice_id = $3 WHERE id = $1`, postingID, avatar, voice)
 	s.later(`UPDATE public.job_postings SET required_avatar_id = NULL, required_voice_id = NULL WHERE id = $1`, postingID)
 }
+
+// completeRubric seeds a rubric with one criterion for every metric of the catalog, so a bank of it covers
+// every active metric and the submit and approval gates for metric coverage (KAN-377) let the readiness and
+// edit tests through. Coverage tests build rubrics with fewer criteria (rubricOn).
+func (s *seed) completeRubric(name string, owner *uuid.UUID, active bool) uuid.UUID {
+	id := s.rubric(name, owner, active)
+	s.exec(`INSERT INTO public.rubric_criteria (rubric_id, metric_id, name, max_points, scoring_guide, position)
+		SELECT $1, m.id, 'Covers it', 3, '0 = no; 3 = yes', 1 + row_number() OVER (ORDER BY m.id)
+		FROM public.metrics m WHERE m.id <> $2`, id, technicalAccuracy)
+	return id
+}
