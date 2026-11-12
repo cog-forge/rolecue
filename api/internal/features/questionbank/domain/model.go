@@ -1,6 +1,9 @@
 package domain
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -66,6 +69,7 @@ type RubricState struct {
 // question is not ready (empty when it is); GradingIncomplete is true while there is any. The server never
 // treats an incomplete question as confirmed. Recruiter-only: never place it in a Candidate response.
 type BankQuestion struct {
+	Revision          string     `json:"revision"`
 	ID                uuid.UUID  `json:"id" format:"uuid"`
 	Content           string     `json:"content"`
 	RubricID          *uuid.UUID `json:"rubric_id" format:"uuid"`
@@ -104,17 +108,24 @@ func GradingIssuesOf(rubricID *uuid.UUID, state RubricState, expectedAnswer *str
 // NewBankQuestion builds the Recruiter's view of a question, deriving its grading issues.
 func NewBankQuestion(id uuid.UUID, content string, rubricID *uuid.UUID, state RubricState, expectedAnswer *string) BankQuestion {
 	issues := GradingIssuesOf(rubricID, state, expectedAnswer)
-	return BankQuestion{ID: id, Content: content, RubricID: rubricID, ExpectedAnswer: expectedAnswer,
+	q := BankQuestion{ID: id, Content: content, RubricID: rubricID, ExpectedAnswer: expectedAnswer,
 		GradingIncomplete: len(issues) > 0, GradingIssues: issues}
+	data, _ := json.Marshal(q)
+	q.Revision = fmt.Sprintf("%x", sha256.Sum256(data))
+	return q
 }
 
 // Bank is a Recruiter's view of a posting's bank. Editable and the limits come from the server, so
 // the screen never guesses whether the bank is locked or how long a question may be.
 type Bank struct {
-	Questions         []BankQuestion `json:"questions"`
-	PostingStatus     string         `json:"posting_status"`
-	Editable          bool           `json:"editable"`
-	MaxQuestionLength int            `json:"max_question_length"`
+	MaxExpectedAnswerLength     int            `json:"max_expected_answer_length"`
+	MaxExpectedAnswerWords      int            `json:"max_expected_answer_words"`
+	ExpectedAnswerGuidanceWords int            `json:"expected_answer_guidance_words"`
+	MaxBulkQuestions            int            `json:"max_bulk_questions"`
+	Questions                   []BankQuestion `json:"questions"`
+	PostingStatus               string         `json:"posting_status"`
+	Editable                    bool           `json:"editable"`
+	MaxQuestionLength           int            `json:"max_question_length"`
 	// GenerationSize is how many questions Generate writes; 0 means generation is not configured.
 	GenerationSize int `json:"generation_size"`
 	// ReviewSubmitted is true once the Recruiter sent the posting to the Admin queue. Changing a question after
@@ -212,4 +223,23 @@ func CandidateOf(contents ...string) GenerationCandidate {
 		c.Questions = append(c.Questions, GeneratedQuestion{Content: content})
 	}
 	return c
+}
+
+// QuestionPatch distinguishes omitted fields from explicit null clears. The revision is a
+// content digest, not a stored version; compare it while holding the posting lock.
+type QuestionPatch struct {
+	Content           *string
+	SetRubric         bool
+	RubricID          *uuid.UUID
+	SetExpectedAnswer bool
+	ExpectedAnswer    *string
+	PreviousRevision  string
+}
+
+const MaxBulkQuestions = 100
+
+type BulkRubricRequest struct {
+	QuestionIDs       []uuid.UUID          `json:"question_ids"`
+	RubricID          uuid.UUID            `json:"rubric_id"`
+	PreviousRevisions map[uuid.UUID]string `json:"previous_revisions"`
 }

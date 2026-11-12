@@ -14,6 +14,8 @@ const recruiterRole = "recruiter"
 
 // Repository is the persistence contract consumed by question-bank operations.
 type Repository interface {
+	WriteQuestion(ctx context.Context, recruiterID, postingID uuid.UUID, questionID *uuid.UUID, patch domain.QuestionPatch) (domain.BankQuestion, error)
+	ApplyRubric(ctx context.Context, recruiterID, postingID uuid.UUID, request domain.BulkRubricRequest) ([]domain.BankQuestion, error)
 	Posting(ctx context.Context, recruiterID, postingID uuid.UUID) (domain.Posting, error)
 	CandidateOwnsJD(ctx context.Context, candidateID, jdID uuid.UUID) error
 	List(ctx context.Context, jdID uuid.UUID) ([]domain.CoreQuestion, error)
@@ -89,6 +91,7 @@ func (s *Service) List(ctx context.Context, recruiterID uuid.UUID, role string, 
 		}
 	}
 	return domain.Bank{
+		MaxExpectedAnswerLength: domain.MaxExpectedAnswerRunes, MaxExpectedAnswerWords: domain.MaxExpectedAnswerWords, ExpectedAnswerGuidanceWords: domain.ExpectedAnswerPromptWords, MaxBulkQuestions: domain.MaxBulkQuestions,
 		Questions:     questions,
 		PostingStatus: posting.Status,
 		// An empty bank is generated, not filled by hand.
@@ -148,6 +151,38 @@ func (s *Service) GenerateForPractice(ctx context.Context, candidateID, jdID uui
 // owner: callers are trusted server code that already authorized the session.
 func (s *Service) CurrentBank(ctx context.Context, jdID uuid.UUID) ([]domain.CoreQuestion, error) {
 	return s.repository.List(ctx, jdID)
+}
+
+// WriteQuestion creates or edits an owned bank question. Legacy content-only requests remain valid.
+func (s *Service) WriteQuestion(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, questionID *uuid.UUID, patch domain.QuestionPatch) (domain.BankQuestion, error) {
+	if err := requireRecruiter(role); err != nil {
+		return domain.BankQuestion{}, err
+	}
+	patch, err := normalizeQuestionPatch(patch)
+	if err != nil {
+		return domain.BankQuestion{}, err
+	}
+	if questionID == nil && patch.Content == nil {
+		return domain.BankQuestion{}, invalid("content is required")
+	}
+	return s.repository.WriteQuestion(ctx, recruiterID, postingID, questionID, patch)
+}
+
+func (s *Service) ApplyRubric(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, request domain.BulkRubricRequest) ([]domain.BankQuestion, error) {
+	if err := requireRecruiter(role); err != nil {
+		return nil, err
+	}
+	if len(request.QuestionIDs) == 0 || len(request.QuestionIDs) > domain.MaxBulkQuestions || request.RubricID == uuid.Nil {
+		return nil, invalid("select 1 to 100 questions and a rubric")
+	}
+	seen := map[uuid.UUID]bool{}
+	for _, id := range request.QuestionIDs {
+		if id == uuid.Nil || seen[id] || len(request.PreviousRevisions[id]) != 64 {
+			return nil, invalid("unique questions and their previous revisions are required")
+		}
+		seen[id] = true
+	}
+	return s.repository.ApplyRubric(ctx, recruiterID, postingID, request)
 }
 
 func (s *Service) Add(ctx context.Context, recruiterID uuid.UUID, role string, postingID uuid.UUID, content string) (domain.BankQuestion, error) {

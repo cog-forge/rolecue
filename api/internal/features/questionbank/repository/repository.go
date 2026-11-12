@@ -159,33 +159,140 @@ func (r *Repository) Add(ctx context.Context, recruiterID, postingID uuid.UUID, 
 }
 
 func (r *Repository) Update(ctx context.Context, recruiterID, postingID, questionID uuid.UUID, content string) (domain.BankQuestion, error) {
-	var updated domain.BankQuestion
-	err := r.withEditablePosting(ctx, recruiterID, postingID, true, func(q *Queries) error {
-		// A text change withdraws a submission; saving the same text again changes nothing.
-		before, err := q.LockQuestionContent(ctx, LockQuestionContentParams{ID: questionID, PostingID: postingID})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return r.postingRefusal(ctx, q, recruiterID, postingID, true)
+	return r.WriteQuestion(ctx, recruiterID, postingID, &questionID, domain.QuestionPatch{Content: &content})
+}
+
+func equalValue[T comparable](a, b *T) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
+}
+
+func usableRubric(ctx context.Context, q *Queries, recruiterID uuid.UUID, id *uuid.UUID) error {
+	if id == nil {
+		return nil
+	}
+	ids, err := q.LockUsableRubrics(ctx, LockUsableRubricsParams{RubricIds: []uuid.UUID{*id}, RecruiterID: recruiterID})
+	if err != nil {
+		return persistenceError(err)
+	}
+	if len(ids) != 1 {
+		return apperror.New(apperror.CodeRubricNotFound, "rubric not available")
+	}
+	return nil
+}
+
+// WriteQuestion takes the same posting lock as submit and approval, before validating or changing rows.
+func (r *Repository) WriteQuestion(ctx context.Context, recruiterID, postingID uuid.UUID, questionID *uuid.UUID, patch domain.QuestionPatch) (domain.BankQuestion, error) {
+	var saved domain.BankQuestion
+	err := r.withEditablePosting(ctx, recruiterID, postingID, questionID != nil, func(q *Queries) error {
+		if err := usableRubric(ctx, q, recruiterID, patch.RubricID); patch.SetRubric && err != nil {
+			return err
 		}
-		if err != nil {
-			return persistenceError(err)
-		}
-		row, err := q.UpdateCoreQuestion(ctx, UpdateCoreQuestionParams{
-			Content: content, ID: questionID, PostingID: postingID, RecruiterID: recruiterID})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return r.postingRefusal(ctx, q, recruiterID, postingID, true)
-		}
-		if err != nil {
-			return persistenceError(err)
-		}
-		if before != content {
-			if err := q.WithdrawSubmission(ctx, postingID); err != nil {
+		id := questionID
+		if id == nil {
+			if patch.Content == nil {
+				return apperror.New(apperror.CodeValidation, "content is required")
+			}
+			row, err := q.AddCoreQuestion(ctx, AddCoreQuestionParams{Content: *patch.Content, PostingID: postingID, RecruiterID: recruiterID})
+			if errors.Is(err, pgx.ErrNoRows) {
+				return r.postingRefusal(ctx, q, recruiterID, postingID, false)
+			}
+			if err != nil {
 				return persistenceError(err)
 			}
+			id = &row.ID
 		}
-		updated, err = bankQuestion(ctx, q, recruiterID, row.ID)
-		return err
+		var err error
+		saved, err = r.writeLockedQuestion(ctx, q, recruiterID, postingID, *id, patch)
+		if err != nil {
+			return err
+		}
+		if questionID == nil {
+			return persistenceError(q.WithdrawSubmission(ctx, postingID))
+		}
+		return nil
 	})
-	return updated, err
+	return saved, err
+}
+
+func (r *Repository) writeLockedQuestion(ctx context.Context, q *Queries, recruiterID, postingID, id uuid.UUID, patch domain.QuestionPatch) (domain.BankQuestion, error) {
+	if _, err := q.LockQuestionForEdit(ctx, LockQuestionForEditParams{ID: id, PostingID: postingID}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.BankQuestion{}, apperror.New(apperror.CodeCoreQuestionNotFound, "question not found")
+		}
+		return domain.BankQuestion{}, persistenceError(err)
+	}
+	before, err := bankQuestion(ctx, q, recruiterID, id)
+	if err != nil {
+		return domain.BankQuestion{}, err
+	}
+	if patch.PreviousRevision != "" && patch.PreviousRevision != before.Revision {
+		return domain.BankQuestion{}, apperror.New(apperror.CodeQuestionStale, "question changed; reload before reapplying your draft")
+	}
+	after := before
+	if patch.Content != nil {
+		after.Content = *patch.Content
+	}
+	if patch.SetRubric {
+		after.RubricID = patch.RubricID
+	}
+	if patch.SetExpectedAnswer {
+		after.ExpectedAnswer = patch.ExpectedAnswer
+	}
+	if !equalValue(before.RubricID, after.RubricID) && !patch.SetExpectedAnswer {
+		return domain.BankQuestion{}, apperror.New(apperror.CodeExpectedAnswerReviewRequired, "review the expected answer or explicitly clear it when changing the rubric")
+	}
+	if before.Content == after.Content && equalValue(before.RubricID, after.RubricID) && equalValue(before.ExpectedAnswer, after.ExpectedAnswer) {
+		return before, nil
+	}
+	inUse, err := q.QuestionInUse(ctx, id)
+	if err != nil {
+		return domain.BankQuestion{}, persistenceError(err)
+	}
+	if inUse {
+		return domain.BankQuestion{}, apperror.New(apperror.CodeCoreQuestionInUse, "question has been used in an interview")
+	}
+	if err := q.WriteQuestionGrading(ctx, WriteQuestionGradingParams{ID: id, Content: after.Content, RubricID: after.RubricID, ExpectedAnswer: after.ExpectedAnswer}); err != nil {
+		return domain.BankQuestion{}, persistenceError(err)
+	}
+	if err := q.WithdrawSubmission(ctx, postingID); err != nil {
+		return domain.BankQuestion{}, persistenceError(err)
+	}
+	return bankQuestion(ctx, q, recruiterID, id)
+}
+
+// ApplyRubric is atomic. Only changed bindings clear the answer; a repeat assignment is a no-op.
+func (r *Repository) ApplyRubric(ctx context.Context, recruiterID, postingID uuid.UUID, request domain.BulkRubricRequest) ([]domain.BankQuestion, error) {
+	saved := make([]domain.BankQuestion, 0, len(request.QuestionIDs))
+	err := r.withEditablePosting(ctx, recruiterID, postingID, true, func(q *Queries) error {
+		if err := usableRubric(ctx, q, recruiterID, &request.RubricID); err != nil {
+			return err
+		}
+		for _, id := range request.QuestionIDs {
+			// Membership is checked by writeLockedQuestion before any field is returned.
+			patch := domain.QuestionPatch{SetRubric: true, RubricID: &request.RubricID, PreviousRevision: request.PreviousRevisions[id]}
+			if _, err := q.LockQuestionForEdit(ctx, LockQuestionForEditParams{ID: id, PostingID: postingID}); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return apperror.New(apperror.CodeCoreQuestionNotFound, "question not found")
+				}
+				return persistenceError(err)
+			}
+			before, err := bankQuestion(ctx, q, recruiterID, id)
+			if err != nil {
+				return err
+			}
+			patch.SetExpectedAnswer = !equalValue(before.RubricID, &request.RubricID)
+			updated, err := r.writeLockedQuestion(ctx, q, recruiterID, postingID, id, patch)
+			if err != nil {
+				return err
+			}
+			saved = append(saved, updated)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return saved, nil
 }
 
 // Delete withdraws the posting from the Admin queue, like any other change to the bank.
