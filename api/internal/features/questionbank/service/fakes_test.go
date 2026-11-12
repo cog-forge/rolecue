@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -33,6 +34,25 @@ type fakeRepository struct {
 	gotRecruit  uuid.UUID
 	gotContent  string
 	gotQuestion uuid.UUID
+	// active are the metrics a generated bank must cover (nil: nothing to assess); coverage and coverageErr
+	// are what Coverage returns after a write or on a read.
+	active        []uuid.UUID
+	activeFor     *uuid.UUID
+	activeCalls   int
+	coverage      evaluationdomain.CoverageReport
+	coverageErr   error
+	coverageCalls int
+}
+
+func (f *fakeRepository) Coverage(context.Context, uuid.UUID) (evaluationdomain.CoverageReport, error) {
+	f.coverageCalls++
+	return f.coverage, f.coverageErr
+}
+
+func (f *fakeRepository) ActiveMetrics(_ context.Context, postingID *uuid.UUID) ([]uuid.UUID, error) {
+	f.activeCalls++
+	f.activeFor = postingID
+	return f.active, nil
 }
 
 func (f *fakeRepository) Posting(_ context.Context, recruiterID, _ uuid.UUID) (domain.Posting, error) {

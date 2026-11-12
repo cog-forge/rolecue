@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
 	"github.com/google/uuid"
 )
 
@@ -135,6 +136,24 @@ type Bank struct {
 	// be submitted. GradingIncompleteCount is how many questions are not.
 	GradingReady           bool `json:"grading_ready"`
 	GradingIncompleteCount int  `json:"grading_incomplete_count"`
+	// Coverage says whether the bank can cover every active metric within the session question limit
+	// (KAN-377); the posting cannot be submitted or approved while it does not pass.
+	Coverage *evaluationdomain.CoverageReport `json:"coverage"`
+}
+
+// BankMutation is what a bank-wide write returns (generate, bulk rubric): the questions it wrote and the
+// coverage of the bank afterwards. Coverage is null only when it could not be read after the write; the
+// write itself succeeded, and the bank view carries the coverage.
+type BankMutation struct {
+	Questions []BankQuestion                   `json:"questions"`
+	Coverage  *evaluationdomain.CoverageReport `json:"coverage"`
+}
+
+// QuestionMutation is what a single-question write returns: the question, flattened as before, plus the
+// coverage of the bank after the write (null when it could not be read).
+type QuestionMutation struct {
+	BankQuestion
+	Coverage *evaluationdomain.CoverageReport `json:"coverage"`
 }
 
 // Posting is the part of a Job Posting the bank needs: its JD and its lifecycle status.
@@ -167,6 +186,8 @@ type RubricOptionCriterion struct {
 	Name      string `json:"name"`
 	Metric    string `json:"metric"`
 	MaxPoints int32  `json:"max_points"`
+	// MetricID backs the coverage check of a generated bank (KAN-377); it is never placed in the prompt.
+	MetricID uuid.UUID `json:"-"`
 }
 
 // RubricOption is one rubric the model may choose for a question: an active system template or an active
@@ -177,6 +198,19 @@ type RubricOption struct {
 	Description  string
 	QuestionType string
 	Criteria     []RubricOptionCriterion
+}
+
+// MetricIDs lists the distinct metrics the rubric has criteria for.
+func (r RubricOption) MetricIDs() []uuid.UUID {
+	out := make([]uuid.UUID, 0, len(r.Criteria))
+	seen := make(map[uuid.UUID]bool, len(r.Criteria))
+	for _, criterion := range r.Criteria {
+		if criterion.MetricID != uuid.Nil && !seen[criterion.MetricID] {
+			seen[criterion.MetricID] = true
+			out = append(out, criterion.MetricID)
+		}
+	}
+	return out
 }
 
 // GenerationInput is everything the generator may use to write the bank. The seniority level and
@@ -190,6 +224,10 @@ type GenerationInput struct {
 	RefinementNote string
 	Grading        bool
 	Rubrics        []RubricOption
+	// ActiveMetrics are the metrics the generated bank must be able to cover (KAN-377, KAN-378): the active
+	// metrics of the posting being generated for, or the whole catalog for a practice bank. The service
+	// reads them; they are not part of the prompt.
+	ActiveMetrics []uuid.UUID
 }
 
 // GeneratedQuestion is one proposed question. RubricID and ExpectedAnswer are set only in grading mode;

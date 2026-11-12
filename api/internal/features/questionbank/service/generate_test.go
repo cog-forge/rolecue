@@ -19,8 +19,8 @@ func TestGenerateSuccessUsesOwnerAndSize(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 3 || repo.savedFor != "posting" || len(repo.saved) != 3 {
-		t.Fatalf("got %d questions, saved %d for %q", len(got), len(repo.saved), repo.savedFor)
+	if len(got.Questions) != 3 || repo.savedFor != "posting" || len(repo.saved) != 3 {
+		t.Fatalf("got %d questions, saved %d for %q", len(got.Questions), len(repo.saved), repo.savedFor)
 	}
 	if repo.gotRecruit != recruiter {
 		t.Fatal("owner did not reach the repository")

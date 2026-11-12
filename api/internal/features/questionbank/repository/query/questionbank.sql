@@ -69,7 +69,7 @@ ORDER BY (r.scope = 'system') DESC, CASE WHEN r.scope = 'system' THEN r.name END
 LIMIT @page_limit;
 
 -- name: ListGenerationRubricCriteria :many
-SELECT c.rubric_id, c.name, m.name AS metric_name, c.max_points
+SELECT c.rubric_id, c.name, c.metric_id, m.name AS metric_name, c.max_points
 FROM public.rubric_criteria c
 JOIN public.metrics m ON m.id = c.metric_id
 WHERE c.rubric_id = ANY(@rubric_ids::uuid[])
