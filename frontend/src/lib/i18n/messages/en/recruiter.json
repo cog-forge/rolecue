@@ -574,15 +574,15 @@
       "noBreakdownYet": "The breakdown is not ready yet.",
       "aiGenerated": "AI-generated summary",
       "flaggedTitle": "Flagged for review",
-      "flaggedText": "The automatic evaluation suspected that some answers tried to influence the scoring, or a supporting quote could not be verified in the transcript. Check the transcript before relying on these scores.",
-      "evidence": "Evidence",
+      "flaggedText": "The automatic evaluation suspected that some answers tried to influence the grading. Check the transcript before relying on these scores.",
       "checkAgain": "Check again",
       "status": {
         "in_progress": "In progress",
         "pending": "Awaiting evaluation",
         "completed": "Evaluated",
         "failed": "Evaluation failed"
-      }
+      },
+      "scoreWithheld": "No overall score"
     },
     "evidence": {
       "recording": "Recording",

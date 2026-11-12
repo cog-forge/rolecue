@@ -142,14 +142,66 @@ async function mockDecision(page: Page, scenario: Scenario = {}) {
         started_at: "2026-10-12T08:00:00Z",
         completed_at: "2026-10-12T08:40:00Z",
         summary: "Solid system design answers with clear tradeoffs.",
+        scoring: {
+          method: "rubric",
+          outcome: "complete",
+          withheld_reason: null,
+          assigned_questions: 1,
+          graded_questions: 1,
+          weight_total: 100,
+          decimals: 2,
+        },
         breakdown: [
           {
             metric_id: "dddddddd-dddd-4ddd-8ddd-000000000001",
             name: "Communication",
-            score: 80,
+            score: 78,
+            weight: 100,
+            question_count: 1,
           },
         ],
-        questions: null,
+        questions: [
+          {
+            position: 1,
+            question_number: 1,
+            kind: "core",
+            question: "Walk me through a service you built.",
+            answer: "I built the payments API in Go.",
+            feedback: null,
+          },
+        ],
+        graded_questions: [
+          {
+            question_number: 1,
+            status: "graded",
+            rubric_name: "Recruiter rubric: service design",
+            total: 78,
+            earned: 7,
+            max: 9,
+            metrics: [
+              {
+                metric_id: "dddddddd-dddd-4ddd-8ddd-000000000001",
+                name: "Communication",
+                earned: 7,
+                max: 9,
+                score: 77.78,
+              },
+            ],
+            criteria: [
+              {
+                criterion_id: "eeeeeeee-eeee-4eee-8eee-000000000001",
+                name: "Explains the service boundaries",
+                metric_id: "dddddddd-dddd-4ddd-8ddd-000000000001",
+                metric_name: "Communication",
+                points: 7,
+                max_points: 9,
+                evidence: "the payments API in Go",
+                evidence_position: 1,
+                feedback: "Clear scope, light on failure modes.",
+              },
+            ],
+          },
+        ],
       });
     }
     if (url.pathname === `${detailPath}/recording`) {
@@ -198,20 +250,35 @@ test("the interview result loads the evaluation, transcript and recording only w
   const result = page.getByRole("heading", { name: "Interview", exact: true });
   await expect(result).toBeVisible();
   await expect(page.getByText("Evaluated", { exact: true })).toBeVisible();
-  await expect(page.getByText("78/100")).toBeVisible();
+  await expect(page.getByText("78.00/100")).toBeVisible();
   expect(evidence).toEqual({ report: 0, recording: 0, transcript: 0 });
 
   await page.getByRole("button", { name: "Show evaluation" }).click();
   await expect(
     page.getByText("Solid system design answers with clear tradeoffs."),
   ).toBeVisible();
-  await expect(page.getByText("Communication", { exact: true })).toBeVisible();
-  await expect(page.getByText("80/100")).toBeVisible();
+  // How the overall was reached: overall, formula, weighted metric, then each criterion of the question.
+  await expect(page.getByTestId("overall-score")).toHaveText("78.00 / 100");
+  await expect(page.getByTestId("overall-formula")).toHaveText(
+    "(78.00 × 100) ÷ 100 = 78.00",
+  );
+  await expect(
+    page.getByTestId("metric-list").getByText("Communication", { exact: true }),
+  ).toBeVisible();
+  const grading = page.getByTestId("question-grading");
+  await grading.locator("summary").click();
+  await expect(
+    grading.getByText("Explains the service boundaries"),
+  ).toBeVisible();
+  await expect(grading).toContainText("7 / 9 points");
+  await expect(grading).toContainText(
+    "Rubric: Recruiter rubric: service design",
+  );
   expect(evidence.report).toBe(1);
 
   await page.getByRole("button", { name: "Show transcript" }).click();
   await expect(
-    page.getByText("Walk me through a service you built."),
+    page.getByText("Walk me through a service you built.", { exact: true }),
   ).toBeVisible();
   expect(evidence.transcript).toBe(1);
   expect(evidence.recording).toBe(0);

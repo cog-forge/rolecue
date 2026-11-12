@@ -14,9 +14,15 @@ import type {
 import { formatDeadline } from "../utils/application-dates";
 import { InterviewEvidence } from "./interview-evidence";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import {
+  GradedQuestionList,
+  ScoringSummary,
+} from "@/features/report/components/report-scoring";
+import { formatScore } from "@/features/report/utils/scoring";
 
-// The Candidate's interview result. The score and status come with the detail; the evaluation
-// breakdown is read from the report only when the Recruiter asks for it.
+// The Candidate's interview result. The score and status come with the detail; the evaluation and how its
+// overall was calculated (rubric criteria per question, session metrics and weights, KAN-337) are read
+// from the report only when the Recruiter asks for it.
 export function InterviewResult({
   postingId,
   applicationId,
@@ -49,9 +55,13 @@ export function InterviewResult({
           <div>
             <dt className="text-muted-foreground">{t("interview.score")}</dt>
             <dd className="mt-1 font-medium tabular-nums">
-              {interview.score === null
-                ? t("interview.notScored")
-                : t("interview.scoreValue", { score: interview.score })}
+              {interview.score !== null
+                ? t("interview.scoreValue", {
+                    score: formatScore(interview.score, fmt.number),
+                  })
+                : interview.score_outcome === "withheld"
+                  ? t("interview.scoreWithheld")
+                  : t("interview.notScored")}
             </dd>
           </div>
           <div>
@@ -169,7 +179,6 @@ function EvaluationBreakdown({
     );
 
   const report = query.data;
-  const breakdown = report.breakdown;
   return (
     <div className="space-y-4 rounded-xl border p-4 text-sm">
       {report.injection_flagged && (
@@ -192,23 +201,14 @@ function EvaluationBreakdown({
           </p>
         </div>
       )}
-      {breakdown && breakdown.length > 0 ? (
-        <dl className="grid gap-3 sm:grid-cols-2">
-          {breakdown.map((metric) => (
-            <div key={metric.metric_id} className="min-w-0">
-              <dt className="text-muted-foreground [overflow-wrap:anywhere]">
-                {metric.name}
-              </dt>
-              <dd className="font-medium tabular-nums">{metric.score}/100</dd>
-              {metric.evidence ? (
-                <dd className="mt-1 text-xs text-muted-foreground [overflow-wrap:anywhere]">
-                  <span className="font-medium">{t("evidence")}: </span>
-                  <q>{metric.evidence}</q>
-                </dd>
-              ) : null}
-            </div>
-          ))}
-        </dl>
+      {report.scoring ? (
+        <>
+          <ScoringSummary report={report} />
+          <GradedQuestionList
+            graded={report.graded_questions ?? []}
+            questions={report.questions}
+          />
+        </>
       ) : (
         <div className="space-y-2">
           <p className="text-muted-foreground">

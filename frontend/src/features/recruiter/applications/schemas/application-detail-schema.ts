@@ -30,7 +30,12 @@ export const applicationInterviewSchema = z.object({
   started_at: z.iso.datetime({ offset: true }),
   completed_at: z.iso.datetime({ offset: true }).nullable(),
   status: interviewStatusSchema,
-  score: z.number().int().nullable(),
+  // The weighted overall with two decimals; null until evaluated and when withheld (score_outcome).
+  score: z.number().min(0).max(100).nullable(),
+  score_outcome: z
+    .enum(["complete", "partial", "withheld"])
+    .nullish()
+    .transform((value) => value ?? null),
   record_status: recordStatusSchema,
   // How the interview ended (KAN-215): completed, left early, or abandoned when inactive. Null while
   // it runs and for interviews ended before it was recorded.
