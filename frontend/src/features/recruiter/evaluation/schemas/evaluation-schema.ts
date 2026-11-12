@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { coverageSchema } from "@/lib/api/coverage-schema";
 import { postingStatusSchema } from "../../job-postings/schemas/job-posting-schema";
 
 // Mirrors the Go KAN-184 evaluation contract (snake_case).
@@ -22,6 +23,11 @@ export const postingWeightsSchema = z.object({
   posting_status: postingStatusSchema,
   total: z.number(),
   weights: z.array(weightSchema),
+  // Whether the posting's question bank still measures every active metric under these weights (KAN-377).
+  coverage: coverageSchema.nullable().optional(),
+  // Only on the answer to a PUT or DELETE: the change took the posting out of the Admin queue because the bank
+  // no longer covers every active metric (KAN-377).
+  submission_withdrawn: z.boolean().optional(),
 });
 export type PostingWeights = z.infer<typeof postingWeightsSchema>;
 

@@ -233,5 +233,18 @@
     "retry": "Thử lại",
     "metricUnavailable": "Chỉ số không còn khả dụng",
     "points": "{count} điểm"
+  },
+  "coverage": {
+    "title": "Độ phủ tiêu chí",
+    "summary": "đã phủ {covered}/{total} tiêu chí",
+    "count": "{covered}/{total}",
+    "ok": "Đã phủ đủ các tiêu chí",
+    "missing": "Chưa có câu đo:",
+    "hintRecruiter": "Hãy gán barem phủ {count, plural, other {tiêu chí này}}, ví dụ {rubrics}.",
+    "hintRecruiterNoRubric": "Hãy thêm câu hỏi có barem phủ tiêu chí này.",
+    "hintAdmin": "Nhà tuyển dụng cần chỉnh bộ câu hỏi trước khi duyệt.",
+    "exceeds": "Mỗi buổi phỏng vấn hỏi {limit} câu; bộ này cần {min} câu để phủ hết.",
+    "blockedRecruiter": "Hãy phủ đủ tiêu chí để gửi duyệt.",
+    "blockedAdmin": "Bộ câu hỏi chưa phủ hết các tiêu chí."
   }
 }

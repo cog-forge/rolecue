@@ -21,6 +21,8 @@ import {
   submitPosting,
 } from "@/features/recruiter/job-postings/api/job-postings";
 import { Notice } from "@/features/recruiter/job-postings/components/notice";
+import { MetricCoverage } from "@/components/feedback/metric-coverage";
+import { coverageBlocks } from "@/lib/api/coverage-schema";
 import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { PostingTabs } from "@/features/recruiter/job-postings/components/posting-tabs";
 import { PostingStatus } from "@/features/recruiter/job-postings/components/posting-status";
@@ -45,6 +47,7 @@ const staleCodes = new Set([
   "QUESTION_BANK_LOCKED",
   "QUESTION_BANK_EXISTS",
   "GRADING_CONFIG_INCOMPLETE",
+  "METRIC_COVERAGE_INCOMPLETE",
   "JOB_POSTING_NOT_FOUND",
   "CORE_QUESTION_NOT_FOUND",
   // The Admin decided the posting meanwhile (for example a reject while this page was open): reload
@@ -62,6 +65,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
   const t = useTranslations("recruiter.questionBank");
   const tp = useTranslations("recruiter.postings");
   const tCommon = useTranslations("common");
+  const tCoverage = useTranslations("common.coverage");
   const errorMessage = useApiErrorMessage();
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -100,6 +104,19 @@ export function QuestionBank({ postingId }: { postingId: string }) {
         grading_ready: next.questions.length > 0 && count === 0,
       };
     });
+  // The server recomputes the bank's metric coverage after every change (KAN-377), so the screen reads it
+  // again instead of guessing it from the local edit. Only the coverage is taken from the answer: the rest
+  // of the cached bank is what the change just wrote locally.
+  const refreshCoverage = useCallback(() => {
+    const detail = questionBankKeys.detail(user.id, postingId);
+    getBank(postingId).then(
+      (fresh) =>
+        cache.setQueryData<Bank>(detail, (bank) =>
+          bank ? { ...bank, coverage: fresh.coverage } : bank,
+        ),
+      () => undefined,
+    );
+  }, [cache, user.id, postingId]);
   const savedGrading = useCallback(
     (questions: Bank["questions"]) => {
       cache.setQueryData<Bank>(
@@ -127,8 +144,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       void cache.invalidateQueries({
         queryKey: jobPostingKeys.detail(user.id, postingId),
       });
+      refreshCoverage();
     },
-    [cache, user.id, postingId],
+    [cache, user.id, postingId, refreshCoverage],
   );
   const onStale = (error: unknown) => {
     const { code } = apiError(error);
@@ -172,6 +190,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
     onSuccess: (questions) => {
       patch((bank) => ({ ...bank, questions, editable: true }));
       refreshPosting();
+      refreshCoverage();
       setNotice(null);
       gooeyToast.success(tp("toast.bankGenerated"), {
         description: t("generate.toast", { count: questions.length }),
@@ -190,6 +209,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       }));
       setAddDirty(false);
       refreshPosting();
+      refreshCoverage();
     },
     onError: onStale,
   });
@@ -216,6 +236,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       }));
       setEditingId(null);
       setEditDirty(false);
+      refreshCoverage();
     },
     onError: onStale,
   });
@@ -235,6 +256,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       });
       setDeleting(null);
       refreshPosting();
+      refreshCoverage();
       gooeyToast.success(
         t("delete.toast"),
         withdrawn ? { description: t("delete.withdrawn") } : undefined,
@@ -301,7 +323,9 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                             (q) => q.grading_incomplete,
                           ).length,
                       })
-                    : null;
+                    : coverageBlocks(query.data.coverage)
+                      ? tCoverage("blockedRecruiter")
+                      : null;
 
   return (
     <section data-question-bank className="mx-auto w-full max-w-5xl space-y-6">
@@ -452,6 +476,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
               ? t("evaluation.preparing")
               : t("evaluation.locked")}
           </p>
+          <MetricCoverage coverage={query.data.coverage} audience="recruiter" />
           {reviewOpen && (
             <ReviewSubmissionDialog
               postingId={postingId}

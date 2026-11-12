@@ -63,6 +63,7 @@
     "JOB_POSTING_NOT_PENDING": "Tin tuyển dụng này hiện không ở trạng thái chờ duyệt.",
     "QUESTION_BANK_NOT_READY": "Bộ câu hỏi chưa sẵn sàng.",
     "QUESTION_BANK_COVERAGE_INSUFFICIENT": "Hiện chưa thể bắt đầu buổi phỏng vấn này. Vui lòng thử lại sau.",
+    "METRIC_COVERAGE_INCOMPLETE": "Các câu hỏi của tin này chưa phủ hết các tiêu chí đánh giá. Hãy chỉnh độ phủ rồi thử lại.",
     "GRADING_CONFIG_INCOMPLETE": "Mỗi câu hỏi cần có barem và đáp án mong đợi trước.",
     "JOB_POSTING_REQUIREMENTS_LOCKED": "Các yêu cầu của tin tuyển dụng này đã bị khóa.",
     "JOB_POSTING_NOT_EDITABLE": "Hiện không thể chỉnh sửa tin tuyển dụng này.",

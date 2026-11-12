@@ -765,6 +765,7 @@
         "title": "We couldn't load the evaluation criteria"
       }
     },
+    "withdrawnNotice": "Your change left the question bank unable to cover every evaluation metric, so the posting left the review queue. Fix the questions or the weights, then submit it again.",
     "staleNotice": "This posting changed, so we refreshed the criteria and your unsaved changes were discarded.",
     "leaveDialog": {
       "title": "Leave without saving?",

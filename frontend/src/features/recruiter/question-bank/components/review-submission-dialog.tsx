@@ -12,7 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MetricCoverage } from "@/components/feedback/metric-coverage";
 import { routes } from "@/config/routes";
+import { coverageBlocks } from "@/lib/api/coverage-schema";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import {
   evaluationKeys,
@@ -149,6 +151,12 @@ export function ReviewSubmissionDialog({
               </dl>
             </>
           )}
+          {weights.isSuccess && (
+            <MetricCoverage
+              coverage={weights.data.coverage}
+              audience="recruiter"
+            />
+          )}
           <Button asChild variant="outline">
             <Link
               href={routes.recruiter.jobPostingEvaluation(postingId)}
@@ -176,6 +184,7 @@ export function ReviewSubmissionDialog({
               !posting ||
               !weights.isSuccess ||
               !weights.data.editable ||
+              coverageBlocks(weights.data.coverage) ||
               questionCount === 0
             }
             onClick={onConfirm}

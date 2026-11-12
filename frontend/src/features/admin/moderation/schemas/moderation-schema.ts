@@ -1,5 +1,6 @@
 import type { useTranslations } from "next-intl";
 import { z } from "zod";
+import { coverageSchema } from "@/lib/api/coverage-schema";
 
 // Mirrors api/internal/features/admin/moderation/domain (snake_case JSON).
 export const postingStatuses = [
@@ -98,6 +99,9 @@ export const reviewPostingEnvelopeSchema = z.object({
     raw_text: z.string().nullable(),
     review_submitted: z.boolean(),
     core_question_count: z.number().int().nonnegative(),
+    // Whether the bank measures every metric the posting is scored on (KAN-377). Approval is refused while it
+    // does not, so the Admin sees the reason before deciding.
+    coverage: coverageSchema.nullable().optional(),
   }),
 });
 export type ReviewPosting = z.infer<typeof reviewPostingEnvelopeSchema>["data"];

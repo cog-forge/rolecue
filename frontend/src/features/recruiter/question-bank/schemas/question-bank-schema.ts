@@ -1,5 +1,6 @@
 import type { useTranslations } from "next-intl";
 import { z } from "zod";
+import { coverageSchema } from "@/lib/api/coverage-schema";
 
 // Mirrors the Go KAN-79 contract (snake_case, like every new feature).
 export const postingStatusSchema = z.enum([
@@ -50,6 +51,9 @@ export const bankSchema = z.object({
   generation_size: z.number().int().nonnegative(),
   // True once the Recruiter sent the posting to the Admin queue.
   review_submitted: z.boolean(),
+  // Whether the bank measures every metric the posting is scored on (KAN-377); the server recomputes it
+  // after every change, and the bank is refetched after each one.
+  coverage: coverageSchema.nullable().optional(),
 });
 export type Bank = z.infer<typeof bankSchema>;
 
