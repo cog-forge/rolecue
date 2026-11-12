@@ -14,20 +14,26 @@ import (
 
 const completeInterviewEvaluation = `-- name: CompleteInterviewEvaluation :exec
 UPDATE public.interviews
-SET score = $1, feedback = $2, injection_flagged = $3, evaluation_status = 'completed'
-WHERE id = $4
+SET score = CAST($1::double precision AS numeric(5,2)), score_outcome = $2,
+    score_withheld_reason = $3, feedback = $4,
+    injection_flagged = $5, evaluation_status = 'completed'
+WHERE id = $6
 `
 
 type CompleteInterviewEvaluationParams struct {
-	OverallScore     *int32
-	Feedback         *string
-	InjectionFlagged bool
-	ID               uuid.UUID
+	OverallScore        *float64
+	ScoreOutcome        *string
+	ScoreWithheldReason *string
+	Feedback            *string
+	InjectionFlagged    bool
+	ID                  uuid.UUID
 }
 
 func (q *Queries) CompleteInterviewEvaluation(ctx context.Context, arg CompleteInterviewEvaluationParams) error {
 	_, err := q.db.Exec(ctx, completeInterviewEvaluation,
 		arg.OverallScore,
+		arg.ScoreOutcome,
+		arg.ScoreWithheldReason,
 		arg.Feedback,
 		arg.InjectionFlagged,
 		arg.ID,
@@ -35,9 +41,30 @@ func (q *Queries) CompleteInterviewEvaluation(ctx context.Context, arg CompleteI
 	return err
 }
 
+const deleteCriterionScores = `-- name: DeleteCriterionScores :exec
+DELETE FROM public.interview_criterion_scores WHERE interview_id = $1
+`
+
+// Clears anything a previous, uncommitted-elsewhere attempt could have left. Results are only ever written
+// inside the completing transaction, so this is a guard, not a repair.
+func (q *Queries) DeleteCriterionScores(ctx context.Context, interviewID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteCriterionScores, interviewID)
+	return err
+}
+
+const deleteScoreDetails = `-- name: DeleteScoreDetails :exec
+DELETE FROM public.score_details WHERE interview_id = $1
+`
+
+func (q *Queries) DeleteScoreDetails(ctx context.Context, interviewID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteScoreDetails, interviewID)
+	return err
+}
+
 const getInterviewRecord = `-- name: GetInterviewRecord :one
 
-SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.score, i.feedback, i.injection_flagged,
+SELECT i.id, i.type::text AS type, i.started_at, i.completed_at, i.end_reason, i.evaluation_status,
+       i.score, i.score_outcome, i.score_withheld_reason, i.feedback, i.injection_flagged,
        COALESCE(rp.candidate_id, a.candidate_id)::uuid AS candidate_id, a.job_posting_id, jp.recruiter_id,
        (SELECT count(*) FROM public.interview_questions iq WHERE iq.interview_id = i.id)::int AS question_count
 FROM public.interviews i
@@ -48,24 +75,29 @@ WHERE i.id = $1
 `
 
 type GetInterviewRecordRow struct {
-	ID               uuid.UUID
-	Type             string
-	StartedAt        pgtype.Timestamptz
-	CompletedAt      pgtype.Timestamptz
-	EndReason        *string
-	EvaluationStatus string
-	Score            *int32
-	Feedback         *string
-	InjectionFlagged bool
-	CandidateID      uuid.UUID
-	JobPostingID     pgtype.UUID
-	RecruiterID      pgtype.UUID
-	QuestionCount    int32
+	ID                  uuid.UUID
+	Type                string
+	StartedAt           pgtype.Timestamptz
+	CompletedAt         pgtype.Timestamptz
+	EndReason           *string
+	EvaluationStatus    string
+	Score               pgtype.Numeric
+	ScoreOutcome        *string
+	ScoreWithheldReason *string
+	Feedback            *string
+	InjectionFlagged    bool
+	CandidateID         uuid.UUID
+	JobPostingID        pgtype.UUID
+	RecruiterID         pgtype.UUID
+	QuestionCount       int32
 }
 
-// Interview evaluation and report. Scores live in score_details, per-question feedback in
-// conversation_turns and the overall score, summary and status in interviews. The posting weights are
-// read with the ListMetrics and ListPostingWeights queries of evaluation.sql.
+// Interview evaluation and report (rubric grading, KAN-334/335/336). Criterion results live in
+// interview_criterion_scores, question totals in interview_questions.score, session metric scores and the
+// weights they were combined with in score_details, the overall, its outcome and the summary in interviews,
+// and per-question feedback on the core turn in conversation_turns. Scores are numeric(5,2) in the database
+// converted to float64 by the repository (dbnum). The posting weights are read with the ListMetrics and ListPostingWeights queries of
+// evaluation.sql.
 // The interview with the owners the report visibility rules need. The Application and its posting are
 // joined for recruitment sessions only, so their columns are null for practice.
 func (q *Queries) GetInterviewRecord(ctx context.Context, id uuid.UUID) (GetInterviewRecordRow, error) {
@@ -79,6 +111,8 @@ func (q *Queries) GetInterviewRecord(ctx context.Context, id uuid.UUID) (GetInte
 		&i.EndReason,
 		&i.EvaluationStatus,
 		&i.Score,
+		&i.ScoreOutcome,
+		&i.ScoreWithheldReason,
 		&i.Feedback,
 		&i.InjectionFlagged,
 		&i.CandidateID,
@@ -87,6 +121,115 @@ func (q *Queries) GetInterviewRecord(ctx context.Context, id uuid.UUID) (GetInte
 		&i.QuestionCount,
 	)
 	return i, err
+}
+
+const insertCriterionScore = `-- name: InsertCriterionScore :exec
+INSERT INTO public.interview_criterion_scores
+    (interview_id, question_position, rubric_criterion_id, points, evidence, evidence_turn_position, feedback)
+VALUES ($1, $2, $3, $4,
+        $5, $6, $7)
+`
+
+type InsertCriterionScoreParams struct {
+	InterviewID          uuid.UUID
+	QuestionPosition     int32
+	RubricCriterionID    uuid.UUID
+	Points               int32
+	Evidence             *string
+	EvidenceTurnPosition *int32
+	Feedback             *string
+}
+
+func (q *Queries) InsertCriterionScore(ctx context.Context, arg InsertCriterionScoreParams) error {
+	_, err := q.db.Exec(ctx, insertCriterionScore,
+		arg.InterviewID,
+		arg.QuestionPosition,
+		arg.RubricCriterionID,
+		arg.Points,
+		arg.Evidence,
+		arg.EvidenceTurnPosition,
+		arg.Feedback,
+	)
+	return err
+}
+
+const insertScoreDetail = `-- name: InsertScoreDetail :exec
+INSERT INTO public.score_details (interview_id, metric_id, score, weight, question_count)
+VALUES ($1, $2, CAST($3::double precision AS numeric(5,2)), $4, $5)
+`
+
+type InsertScoreDetailParams struct {
+	InterviewID   uuid.UUID
+	MetricID      uuid.UUID
+	Score         *float64
+	Weight        *float64
+	QuestionCount *int32
+}
+
+func (q *Queries) InsertScoreDetail(ctx context.Context, arg InsertScoreDetailParams) error {
+	_, err := q.db.Exec(ctx, insertScoreDetail,
+		arg.InterviewID,
+		arg.MetricID,
+		arg.Score,
+		arg.Weight,
+		arg.QuestionCount,
+	)
+	return err
+}
+
+const listCriterionScores = `-- name: ListCriterionScores :many
+SELECT s.question_position, s.rubric_criterion_id, c.name, c.metric_id, m.name AS metric_name, c.max_points,
+       s.points, s.evidence, s.evidence_turn_position, s.feedback
+FROM public.interview_criterion_scores s
+JOIN public.rubric_criteria c ON c.id = s.rubric_criterion_id
+JOIN public.metrics m ON m.id = c.metric_id
+WHERE s.interview_id = $1
+ORDER BY s.question_position, c.position
+`
+
+type ListCriterionScoresRow struct {
+	QuestionPosition     int32
+	RubricCriterionID    uuid.UUID
+	Name                 string
+	MetricID             uuid.UUID
+	MetricName           string
+	MaxPoints            int32
+	Points               int32
+	Evidence             *string
+	EvidenceTurnPosition *int32
+	Feedback             *string
+}
+
+// The criterion results of a session with the criterion as it was graded (criteria are locked once used).
+func (q *Queries) ListCriterionScores(ctx context.Context, interviewID uuid.UUID) ([]ListCriterionScoresRow, error) {
+	rows, err := q.db.Query(ctx, listCriterionScores, interviewID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCriterionScoresRow
+	for rows.Next() {
+		var i ListCriterionScoresRow
+		if err := rows.Scan(
+			&i.QuestionPosition,
+			&i.RubricCriterionID,
+			&i.Name,
+			&i.MetricID,
+			&i.MetricName,
+			&i.MaxPoints,
+			&i.Points,
+			&i.Evidence,
+			&i.EvidenceTurnPosition,
+			&i.Feedback,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listEvaluationTurns = `-- name: ListEvaluationTurns :many
@@ -108,7 +251,8 @@ type ListEvaluationTurnsRow struct {
 }
 
 // question_number is the core question a turn belongs to (a follow-up follows its core question), derived
-// like ListInterviewTurns in the interview feature.
+// like ListInterviewTurns in the interview feature. It equals interview_questions.position of that core
+// question, because the runtime asks the assigned questions in position order and stores one core turn each.
 func (q *Queries) ListEvaluationTurns(ctx context.Context, interviewID uuid.UUID) ([]ListEvaluationTurnsRow, error) {
 	rows, err := q.db.Query(ctx, listEvaluationTurns, interviewID)
 	if err != nil {
@@ -136,8 +280,100 @@ func (q *Queries) ListEvaluationTurns(ctx context.Context, interviewID uuid.UUID
 	return items, nil
 }
 
+const listGradingCriteria = `-- name: ListGradingCriteria :many
+SELECT c.id, c.rubric_id, c.metric_id, m.name AS metric_name, c.name, c.max_points, c.scoring_guide
+FROM public.rubric_criteria c
+JOIN public.metrics m ON m.id = c.metric_id
+WHERE c.rubric_id = ANY($1::uuid[])
+ORDER BY c.rubric_id, c.position
+`
+
+type ListGradingCriteriaRow struct {
+	ID           uuid.UUID
+	RubricID     uuid.UUID
+	MetricID     uuid.UUID
+	MetricName   string
+	Name         string
+	MaxPoints    int32
+	ScoringGuide string
+}
+
+func (q *Queries) ListGradingCriteria(ctx context.Context, rubricIds []uuid.UUID) ([]ListGradingCriteriaRow, error) {
+	rows, err := q.db.Query(ctx, listGradingCriteria, rubricIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGradingCriteriaRow
+	for rows.Next() {
+		var i ListGradingCriteriaRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RubricID,
+			&i.MetricID,
+			&i.MetricName,
+			&i.Name,
+			&i.MaxPoints,
+			&i.ScoringGuide,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGradingQuestions = `-- name: ListGradingQuestions :many
+SELECT iq.position, cq.rubric_id, cq.expected_answer, r.name AS rubric_name, r.description AS rubric_description
+FROM public.interview_questions iq
+JOIN public.core_questions cq ON cq.id = iq.core_question_id
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE iq.interview_id = $1
+ORDER BY iq.position
+`
+
+type ListGradingQuestionsRow struct {
+	Position          int32
+	RubricID          pgtype.UUID
+	ExpectedAnswer    *string
+	RubricName        *string
+	RubricDescription *string
+}
+
+// The core questions assigned to a session with their grading configuration. An archived rubric still
+// grades the questions that already use it (archiving only stops new assignments). The expected answer is
+// read only by the grader and is never returned to a client.
+func (q *Queries) ListGradingQuestions(ctx context.Context, interviewID uuid.UUID) ([]ListGradingQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, listGradingQuestions, interviewID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGradingQuestionsRow
+	for rows.Next() {
+		var i ListGradingQuestionsRow
+		if err := rows.Scan(
+			&i.Position,
+			&i.RubricID,
+			&i.ExpectedAnswer,
+			&i.RubricName,
+			&i.RubricDescription,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInterviewScores = `-- name: ListInterviewScores :many
-SELECT sd.metric_id, m.name, sd.score, sd.evidence
+SELECT sd.metric_id, m.name, sd.score, sd.weight, sd.question_count, sd.evidence
 FROM public.score_details sd
 JOIN public.metrics m ON m.id = sd.metric_id
 WHERE sd.interview_id = $1
@@ -145,12 +381,16 @@ ORDER BY m.name, m.id
 `
 
 type ListInterviewScoresRow struct {
-	MetricID uuid.UUID
-	Name     string
-	Score    int32
-	Evidence *string
+	MetricID      uuid.UUID
+	Name          string
+	Score         pgtype.Numeric
+	Weight        *float64
+	QuestionCount *int32
+	Evidence      *string
 }
 
+// The session metric scores with the weight each was combined with. score is null for a weighted metric no
+// graded question assessed.
 func (q *Queries) ListInterviewScores(ctx context.Context, interviewID uuid.UUID) ([]ListInterviewScoresRow, error) {
 	rows, err := q.db.Query(ctx, listInterviewScores, interviewID)
 	if err != nil {
@@ -164,7 +404,54 @@ func (q *Queries) ListInterviewScores(ctx context.Context, interviewID uuid.UUID
 			&i.MetricID,
 			&i.Name,
 			&i.Score,
+			&i.Weight,
+			&i.QuestionCount,
 			&i.Evidence,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listQuestionScores = `-- name: ListQuestionScores :many
+SELECT iq.position, iq.score, cq.rubric_id, r.name AS rubric_name, r.scope AS rubric_scope
+FROM public.interview_questions iq
+JOIN public.core_questions cq ON cq.id = iq.core_question_id
+LEFT JOIN public.rubrics r ON r.id = cq.rubric_id
+WHERE iq.interview_id = $1
+ORDER BY iq.position
+`
+
+type ListQuestionScoresRow struct {
+	Position    int32
+	Score       pgtype.Numeric
+	RubricID    pgtype.UUID
+	RubricName  *string
+	RubricScope *string
+}
+
+// Every assigned core question with its total (null when it was not graded) and its rubric. rubric_scope tells
+// a system template, whose text any reader may see, from a Recruiter's private rubric.
+func (q *Queries) ListQuestionScores(ctx context.Context, interviewID uuid.UUID) ([]ListQuestionScoresRow, error) {
+	rows, err := q.db.Query(ctx, listQuestionScores, interviewID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListQuestionScoresRow
+	for rows.Next() {
+		var i ListQuestionScoresRow
+		if err := rows.Scan(
+			&i.Position,
+			&i.Score,
+			&i.RubricID,
+			&i.RubricName,
+			&i.RubricScope,
 		); err != nil {
 			return nil, err
 		}
@@ -203,6 +490,23 @@ func (q *Queries) MarkInterviewEvaluationFailed(ctx context.Context, id uuid.UUI
 	return err
 }
 
+const setQuestionScore = `-- name: SetQuestionScore :exec
+UPDATE public.interview_questions
+SET score = CAST($1::double precision AS numeric(5,2))
+WHERE interview_id = $2 AND position = $3
+`
+
+type SetQuestionScoreParams struct {
+	Score       float64
+	InterviewID uuid.UUID
+	Position    int32
+}
+
+func (q *Queries) SetQuestionScore(ctx context.Context, arg SetQuestionScoreParams) error {
+	_, err := q.db.Exec(ctx, setQuestionScore, arg.Score, arg.InterviewID, arg.Position)
+	return err
+}
+
 const setTurnFeedback = `-- name: SetTurnFeedback :exec
 UPDATE public.conversation_turns
 SET feedback = $1
@@ -217,28 +521,5 @@ type SetTurnFeedbackParams struct {
 
 func (q *Queries) SetTurnFeedback(ctx context.Context, arg SetTurnFeedbackParams) error {
 	_, err := q.db.Exec(ctx, setTurnFeedback, arg.Feedback, arg.InterviewID, arg.Position)
-	return err
-}
-
-const upsertScoreDetail = `-- name: UpsertScoreDetail :exec
-INSERT INTO public.score_details (interview_id, metric_id, score, evidence)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (interview_id, metric_id) DO UPDATE SET score = EXCLUDED.score, evidence = EXCLUDED.evidence
-`
-
-type UpsertScoreDetailParams struct {
-	InterviewID uuid.UUID
-	MetricID    uuid.UUID
-	Score       int32
-	Evidence    *string
-}
-
-func (q *Queries) UpsertScoreDetail(ctx context.Context, arg UpsertScoreDetailParams) error {
-	_, err := q.db.Exec(ctx, upsertScoreDetail,
-		arg.InterviewID,
-		arg.MetricID,
-		arg.Score,
-		arg.Evidence,
-	)
 	return err
 }

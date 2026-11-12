@@ -3464,7 +3464,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Visibility: the Candidate who owns a practice interview sees all of it. The Candidate who owns a recruitment interview sees only interview_id, type, status, started_at and completed_at; overall_score is omitted and summary, breakdown, questions, summary_source and injection_flagged are absent or null. The Recruiter of the posting sees a recruitment interview in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until the interview is completed, then the evaluation status (pending, completed or failed). summary and breakdown are null until the evaluation completed. summary_source is always \"ai\": the summary is model output. injection_flagged is true when the evaluation suspected the Candidate answers tried to steer it or a score evidence quote could not be verified; each breakdown item carries the verbatim evidence quote.",
+                "description": "Visibility: the Candidate who owns a practice interview sees all of it (criterion names of a non-system rubric are blanked). The Candidate who owns a recruitment interview sees only interview_id, type, status, started_at, completed_at, end_reason and question_count; overall_score is omitted and summary, scoring, breakdown, questions, graded_questions, summary_source and injection_flagged are absent or null. The Recruiter of the posting sees a recruitment interview in full. Everyone else gets INTERVIEW_NOT_FOUND. status is in_progress until the interview is completed, then the evaluation status (pending, completed or failed). Rubric grading (KAN-336): each graded core question has criterion results (points over max_points, a verbatim evidence quote from an answer to that question, feedback), its question metrics (100 x earned / max of its criteria of each metric) and a total for reading only. breakdown holds the session metrics (the mean over the graded questions that assess each metric) with the weight the overall used; a weighted metric no graded question assessed has a null score. overall_score is the weighted mean of the session metrics (2 decimals). scoring.outcome is complete, partial (fewer questions graded than assigned) or withheld (overall_score null; scoring.withheld_reason says why: missing_metric_coverage, no_answers, no_gradable_questions). scoring.method legacy marks an evaluation made before rubric grading, without criterion results. summary, scoring, breakdown and graded_questions are null until the evaluation completed. summary_source is always \"ai\". injection_flagged is true when the evaluation suspected the Candidate answers tried to steer it. Expected answers and scoring guides are never returned.",
                 "produces": [
                     "application/json"
                 ],
@@ -10536,6 +10536,32 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.ExportCriterion": {
+            "type": "object",
+            "properties": {
+                "criterion": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "type": "string"
+                },
+                "feedback": {
+                    "type": "string"
+                },
+                "max_points": {
+                    "type": "integer"
+                },
+                "metric": {
+                    "type": "string"
+                },
+                "points": {
+                    "type": "integer"
+                },
+                "question_position": {
+                    "type": "integer"
+                }
+            }
+        },
         "domain.ExportInterview": {
             "type": "object",
             "properties": {
@@ -10544,6 +10570,12 @@ const docTemplate = `{
                 },
                 "completed_at": {
                     "type": "string"
+                },
+                "criteria": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportCriterion"
+                    }
                 },
                 "end_reason": {
                     "type": "string"
@@ -10555,10 +10587,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "overall_score": {
-                    "type": "integer"
+                    "description": "Score is the weighted overall with two decimals; omitted when withheld (see ScoreOutcome).",
+                    "type": "number"
                 },
                 "recording": {
                     "$ref": "#/definitions/domain.DownloadLink"
+                },
+                "score_outcome": {
+                    "description": "ScoreOutcome is complete, partial or withheld for a rubric-graded practice interview.",
+                    "type": "string"
                 },
                 "scores": {
                     "type": "array",
@@ -10676,7 +10713,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "score": {
-                    "type": "integer"
+                    "type": "number"
+                },
+                "weight": {
+                    "type": "number"
                 }
             }
         },
@@ -10766,7 +10806,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "score": {
-                    "type": "integer"
+                    "description": "Score is the weighted overall with two decimals; null for recruitment, until evaluated and when the\noverall is withheld (ScoreOutcome withheld).",
+                    "type": "number"
+                },
+                "score_outcome": {
+                    "description": "ScoreOutcome is complete, partial or withheld for a rubric-graded practice session; null otherwise\n(recruitment, not evaluated yet, or evaluated before rubric grading).",
+                    "type": "string",
+                    "enum": [
+                        "complete",
+                        "partial",
+                        "withheld"
+                    ]
                 },
                 "started_at": {
                     "type": "string"
@@ -10874,7 +10924,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/domain.RoleProfileRef"
                 },
                 "score": {
-                    "type": "integer"
+                    "description": "Score is the weighted overall with two decimals; null until evaluated and when withheld.",
+                    "type": "number"
                 },
                 "turn_count": {
                     "type": "integer"
@@ -10926,7 +10977,8 @@ const docTemplate = `{
                     "$ref": "#/definitions/domain.OwnerRef"
                 },
                 "score": {
-                    "type": "integer"
+                    "description": "Score is the weighted overall with two decimals; null until evaluated and when withheld.",
+                    "type": "number"
                 },
                 "type": {
                     "type": "string"
@@ -10963,7 +11015,17 @@ const docTemplate = `{
                     ]
                 },
                 "score": {
-                    "type": "integer"
+                    "description": "Score is the weighted overall with two decimals; null until evaluated and when withheld.",
+                    "type": "number"
+                },
+                "score_outcome": {
+                    "description": "ScoreOutcome is complete, partial or withheld for a rubric-graded interview; null before it is evaluated\nand for interviews evaluated before rubric grading.",
+                    "type": "string",
+                    "enum": [
+                        "complete",
+                        "partial",
+                        "withheld"
+                    ]
                 },
                 "started_at": {
                     "type": "string"
@@ -11672,12 +11734,14 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "breakdown": {
+                    "description": "Breakdown is one entry per session metric: every weighted metric (with a null score when no graded\nquestion assessed it) and every assessed metric. Null in the limited view and until completed.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.ReportBreakdown"
                     }
                 },
                 "completed_at": {
+                    "description": "CompletedAt is when the interview ended. Null while it runs.",
                     "type": "string"
                 },
                 "end_reason": {
@@ -11689,26 +11753,42 @@ const docTemplate = `{
                         "abandoned"
                     ]
                 },
+                "graded_questions": {
+                    "description": "GradedQuestions are the assigned core questions with their criterion results. Null in the limited view\nand until completed.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ReportGradedQuestion"
+                    }
+                },
                 "injection_flagged": {
-                    "description": "InjectionFlagged is true when the evaluation suspected the Candidate's answers tried to steer it or\nits evidence quotes could not be verified; the Recruiter should review the answers. Omitted in the\nlimited view.",
+                    "description": "InjectionFlagged is true when the evaluation suspected the Candidate's answers tried to steer it; the\nRecruiter should review the answers. Omitted in the limited view.",
                     "type": "boolean"
                 },
                 "interview_id": {
                     "type": "string"
                 },
                 "overall_score": {
-                    "description": "OverallScore is left out of the limited view (a recruitment Candidate), whose result is the\nRecruiter's to announce. It is null until the evaluation completed.",
-                    "type": "integer"
+                    "description": "OverallScore is the weighted overall with two decimals (KAN-335). It is left out of the limited view (a\nrecruitment Candidate), whose result is the Recruiter's to announce, and it is null until the evaluation\ncompleted and when the overall is withheld (see Scoring).",
+                    "type": "number"
                 },
                 "question_count": {
-                    "description": "QuestionCount is the number of core questions the session asked from. Questions lists only the\nanswered ones; a core question never answered has no entry.",
+                    "description": "QuestionCount is the number of core questions the session was assigned. Questions lists only the\nanswered turns; GradedQuestions lists every assigned core question.",
                     "type": "integer"
                 },
                 "questions": {
+                    "description": "Questions are the stored conversation turns with the Candidate's answers and the feedback.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.ReportQuestion"
                     }
+                },
+                "scoring": {
+                    "description": "Scoring explains how the overall was reached. Null in the limited view and until completed.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.ReportScoring"
+                        }
+                    ]
                 },
                 "started_at": {
                     "type": "string"
@@ -11745,7 +11825,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "evidence": {
-                    "description": "Evidence is the verbatim quote from a Candidate answer that the score rests on, checked against the\nstored answers. Null when none was given or it could not be verified.",
+                    "description": "Evidence is the legacy verbatim quote of a metric score; always null for rubric grading, whose evidence\nis per criterion.",
                     "type": "string"
                 },
                 "metric_id": {
@@ -11754,8 +11834,94 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "score": {
+                "question_count": {
+                    "description": "QuestionCount is how many graded questions assessed the metric. Null for the legacy method.",
                     "type": "integer"
+                },
+                "score": {
+                    "description": "Score is the session metric with two decimals; null for a weighted metric no graded question assessed.",
+                    "type": "number"
+                },
+                "weight": {
+                    "description": "Weight is the weight the overall used; 0 for an assessed metric the overall does not weigh. Null for\nthe legacy method.",
+                    "type": "number"
+                }
+            }
+        },
+        "domain.ReportCriterion": {
+            "type": "object",
+            "properties": {
+                "criterion_id": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "description": "Evidence is a verbatim quote from an answer to this question, checked against the stored answers;\nEvidencePosition is the conversation position of that answer. Both null for 0 points with nothing to\nquote.",
+                    "type": "string"
+                },
+                "evidence_position": {
+                    "type": "integer"
+                },
+                "feedback": {
+                    "type": "string"
+                },
+                "max_points": {
+                    "type": "integer"
+                },
+                "metric_id": {
+                    "type": "string"
+                },
+                "metric_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the criterion as the rubric states it. Empty for a Candidate when the rubric is not a system\ntemplate.",
+                    "type": "string"
+                },
+                "points": {
+                    "type": "integer"
+                }
+            }
+        },
+        "domain.ReportGradedQuestion": {
+            "type": "object",
+            "properties": {
+                "criteria": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ReportCriterion"
+                    }
+                },
+                "earned": {
+                    "type": "integer"
+                },
+                "max": {
+                    "type": "integer"
+                },
+                "metrics": {
+                    "description": "Metrics are the question metric scores: 100 x earned / max over the question's criteria of the metric.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ReportQuestionMetric"
+                    }
+                },
+                "question_number": {
+                    "type": "integer"
+                },
+                "rubric_name": {
+                    "description": "RubricName is the rubric the question was graded with. Null when it has none, and for a Candidate when\nthe rubric is not a system template.",
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "graded",
+                        "not_answered",
+                        "not_gradable"
+                    ]
+                },
+                "total": {
+                    "description": "Total is 100 x earned / max over all criteria of the question, for reading only. Null unless graded.",
+                    "type": "number"
                 }
             }
         },
@@ -11783,6 +11949,72 @@ const docTemplate = `{
                 },
                 "question_number": {
                     "type": "integer"
+                }
+            }
+        },
+        "domain.ReportQuestionMetric": {
+            "type": "object",
+            "properties": {
+                "earned": {
+                    "type": "integer"
+                },
+                "max": {
+                    "type": "integer"
+                },
+                "metric_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                }
+            }
+        },
+        "domain.ReportScoring": {
+            "type": "object",
+            "properties": {
+                "assigned_questions": {
+                    "description": "AssignedQuestions is the number of core questions of the session; GradedQuestions how many were graded.",
+                    "type": "integer"
+                },
+                "decimals": {
+                    "description": "Decimals is the precision of every score (2).",
+                    "type": "integer"
+                },
+                "graded_questions": {
+                    "type": "integer"
+                },
+                "method": {
+                    "type": "string",
+                    "enum": [
+                        "rubric",
+                        "legacy"
+                    ]
+                },
+                "outcome": {
+                    "description": "Outcome is complete (every assigned question graded, every weighted metric covered), partial (an\noverall resting on fewer questions than assigned) or withheld (no overall; see WithheldReason). Null\nfor the legacy method.",
+                    "type": "string",
+                    "enum": [
+                        "complete",
+                        "partial",
+                        "withheld"
+                    ]
+                },
+                "weight_total": {
+                    "description": "WeightTotal is the sum of the weights the overall divides by (weights are relative).",
+                    "type": "number"
+                },
+                "withheld_reason": {
+                    "description": "WithheldReason: missing_metric_coverage (a weighted metric no graded question assessed; it is never\ncounted as 0 and the other weights are not rescaled), no_answers, no_gradable_questions, or\npartial_session (reserved by the policy, not used by the settled policy).",
+                    "type": "string",
+                    "enum": [
+                        "missing_metric_coverage",
+                        "partial_session",
+                        "no_answers",
+                        "no_gradable_questions"
+                    ]
                 }
             }
         },

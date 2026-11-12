@@ -170,15 +170,17 @@ type interviewSpec struct {
 	applicationID *uuid.UUID
 	avatarID      *uuid.UUID
 	voiceID       *uuid.UUID
-	score         *int32
+	score         *float64
 	feedback      *string
 	recordPath    *string
 }
 
 func (s *seed) interview(spec interviewSpec) uuid.UUID {
 	id := uuid.New()
-	s.exec(`INSERT INTO public.interviews (id, role_profile_id, type, application_id, avatar_id, voice_id, score, feedback, record_path)
-		VALUES ($1, $2, $3::public.interview_type, $4, $5, $6, $7, $8, $9)`,
+	// An interview with a score is an evaluated one: has_report follows the evaluation status (KAN-335).
+	s.exec(`INSERT INTO public.interviews (id, role_profile_id, type, application_id, avatar_id, voice_id, score, feedback, record_path,
+		evaluation_status)
+		VALUES ($1, $2, $3::public.interview_type, $4, $5, $6, $7, $8, $9, CASE WHEN $7::numeric IS NULL THEN 'pending' ELSE 'completed' END)`,
 		id, spec.roleProfileID, spec.interviewType, spec.applicationID, spec.avatarID, spec.voiceID, spec.score, spec.feedback, spec.recordPath)
 	s.later(`DELETE FROM public.interviews WHERE id = $1`, id)
 	return id
@@ -199,8 +201,8 @@ func (s *seed) question(interviewID, coreQuestionID uuid.UUID, position int) {
 	s.later(`DELETE FROM public.interview_questions WHERE interview_id = $1 AND position = $2`, interviewID, position)
 }
 
-func strPtr(v string) *string { return &v }
-func i32Ptr(v int32) *int32   { return &v }
+func strPtr(v string) *string   { return &v }
+func f64Ptr(v float64) *float64 { return &v }
 func uuidPtr(v uuid.UUID) *uuid.UUID {
 	return &v
 }
@@ -408,7 +410,7 @@ func TestHasRecordingIsABooleanAndNoStoredTextLeaks(t *testing.T) {
 
 	withRecording := s.interview(interviewSpec{
 		roleProfileID: rp, interviewType: domain.TypePractice,
-		score: i32Ptr(72), feedback: strPtr(feedbackText), recordPath: strPtr(recordPath),
+		score: f64Ptr(72.5), feedback: strPtr(feedbackText), recordPath: strPtr(recordPath),
 	})
 	s.turn(withRecording, 1, questionText, answerText)
 	withoutRecording := s.interview(interviewSpec{roleProfileID: rp, interviewType: domain.TypePractice})
@@ -420,7 +422,7 @@ func TestHasRecordingIsABooleanAndNoStoredTextLeaks(t *testing.T) {
 	for _, row := range page.Items {
 		switch row.ID {
 		case withRecording:
-			if !row.HasRecording || !row.HasReport || row.Score == nil || *row.Score != 72 {
+			if !row.HasRecording || !row.HasReport || row.Score == nil || *row.Score != 72.5 {
 				t.Fatalf("row with recording = %+v, want has_recording and has_report true", row)
 			}
 		case withoutRecording:
@@ -470,7 +472,7 @@ func TestDetailCountsMatchSeededRows(t *testing.T) {
 	questions := s.coreQuestions(3)
 	id := s.interview(interviewSpec{
 		roleProfileID: rp, interviewType: domain.TypePractice,
-		avatarID: uuidPtr(avatarID), voiceID: uuidPtr(voiceID), score: i32Ptr(60),
+		avatarID: uuidPtr(avatarID), voiceID: uuidPtr(voiceID), score: f64Ptr(60),
 	})
 	for i, q := range questions {
 		s.question(id, q, i+1)

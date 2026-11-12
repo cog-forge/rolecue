@@ -390,8 +390,10 @@ func insertGradedIfEmpty(ctx context.Context, q *Queries, jdID, recruiterID uuid
 	return listBank(ctx, q, jdID, recruiterID)
 }
 
-// SaveForPractice does the same for a Candidate's own practice JD.
-func (r *Repository) SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, contents []string) ([]domain.CoreQuestion, error) {
+// SaveForPractice does the same for a Candidate's own practice JD. The questions keep their rubric (active
+// system templates only: uuid.Nil owns no rubric) and expected answer, which are never returned to the
+// Candidate.
+func (r *Repository) SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.CoreQuestion, error) {
 	var saved []domain.CoreQuestion
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
@@ -402,32 +404,20 @@ func (r *Repository) SaveForPractice(ctx context.Context, candidateID, jdID uuid
 		if err != nil {
 			return persistenceError(err)
 		}
-		saved, err = insertIfEmpty(ctx, q, locked, contents)
+		graded, err := insertGradedIfEmpty(ctx, q, locked, uuid.Nil, questions)
+		if err != nil {
+			return err
+		}
+		saved = make([]domain.CoreQuestion, 0, len(graded))
+		for _, question := range graded {
+			saved = append(saved, domain.CoreQuestion{ID: question.ID, Content: question.Content})
+		}
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	return saved, nil
-}
-
-func insertIfEmpty(ctx context.Context, q *Queries, jdID uuid.UUID, contents []string) ([]domain.CoreQuestion, error) {
-	count, err := q.CountCoreQuestions(ctx, jdID)
-	if err != nil {
-		return nil, persistenceError(err)
-	}
-	if count > 0 {
-		return nil, apperror.New(apperror.CodeQuestionBankExists, "this job description already has a question bank")
-	}
-	rows, err := q.InsertCoreQuestions(ctx, InsertCoreQuestionsParams{JdID: jdID, Contents: contents})
-	if err != nil {
-		return nil, persistenceError(err)
-	}
-	out := make([]domain.CoreQuestion, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, domain.CoreQuestion{ID: row.ID, Content: row.Content})
-	}
-	return out, nil
 }
 
 // postingRefusal explains why a guarded statement affected no row. questionMissing is true for

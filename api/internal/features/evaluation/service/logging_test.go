@@ -33,47 +33,52 @@ func loggedText(logs *observer.ObservedLogs) string {
 	return out.String()
 }
 
-func TestEvaluateLogsScoringStepAndCompletionWithoutText(t *testing.T) {
+func TestEvaluateLogsGradingStepAndCompletionWithoutText(t *testing.T) {
 	ctx, logs := observedContext()
-	repo := &fakeInterviewRepository{record: completedPracticeRecord(), turns: answeredTurns(), metrics: scoringCatalog}
-	scorer := &fakeScorer{output: domain.ScoreOutput{
-		Scores:    scoresFor(80, 70, 60),
-		Summary:   sentinelSummary,
-		Questions: []domain.QuestionFeedback{{Position: 1, Feedback: sentinelFeedback}},
-	}}
-	if err := newScoringForTest(t, repo, scorer).Evaluate(ctx, scoringInterviewID); err != nil {
+	repo := workedExampleRepository()
+	grader := pointsGrader(workedExamplePoints())
+	inner := grader.respond
+	grader.respond = func(in domain.QuestionGradeInput) (domain.QuestionGradeCandidate, error) {
+		out, err := inner(in)
+		out.Summary, out.Feedback = sentinelSummary, sentinelFeedback
+		return out, err
+	}
+	if err := newScoringForTest(t, repo, grader).Evaluate(ctx, scoringInterviewID); err != nil {
 		t.Fatalf("Evaluate: %v", err)
 	}
 	step := logs.FilterMessage("step ok").All()
-	if len(step) != 1 || step[0].ContextMap()["op"] != "evaluation.score" || step[0].ContextMap()["question_count"] != int64(2) {
-		t.Fatalf("scoring step = %v", step)
+	if len(step) != 1 || step[0].ContextMap()["op"] != "evaluation.grade" || step[0].ContextMap()["graded_count"] != int64(2) {
+		t.Fatalf("grading step = %v", step)
 	}
 	fields := logs.FilterMessage("interview evaluation completed").All()
-	if len(fields) != 1 || fields[0].ContextMap()["op"] != "evaluation.complete" || fields[0].ContextMap()["score"] != int64(70) ||
-		fields[0].ContextMap()["feedback_count"] != int64(1) {
+	if len(fields) != 1 || fields[0].ContextMap()["op"] != "evaluation.complete" || fields[0].ContextMap()["score"] != "62.00" ||
+		fields[0].ContextMap()["outcome"] != "complete" {
 		t.Fatalf("completion = %v", fields)
 	}
 	text := loggedText(logs)
-	for _, forbidden := range []string{sentinelSummary, sentinelFeedback, "I would index it.", "How would you index a table?"} {
+	for _, forbidden := range []string{sentinelSummary, sentinelFeedback, "EXPECTED-SECRET-REFERENCE", "B-tree index", "How would you index a table?", "0..5"} {
 		if strings.Contains(text, forbidden) {
 			t.Fatalf("%q reached the log", forbidden)
 		}
 	}
 }
 
-func TestEvaluateScorerFailureLogsStepAndNoCompletion(t *testing.T) {
+func TestEvaluateGraderFailureLogsStepAndNoCompletion(t *testing.T) {
 	ctx, logs := observedContext()
-	repo := &fakeInterviewRepository{record: completedPracticeRecord(), turns: answeredTurns(), metrics: scoringCatalog}
-	scorer := &fakeScorer{err: errors.New("model timeout")}
-	if err := newScoringForTest(t, repo, scorer).Evaluate(ctx, scoringInterviewID); err == nil {
-		t.Fatal("Evaluate must fail when the scorer fails")
+	repo := workedExampleRepository()
+	grader := &fakeGrader{respond: failing(errors.New("model timeout"))}
+	if err := newScoringForTest(t, repo, grader).Evaluate(ctx, scoringInterviewID); err == nil {
+		t.Fatal("Evaluate must fail when the grader fails")
 	}
 	step := logs.FilterMessage("step failed").All()
-	if len(step) != 1 || step[0].Level != zapcore.WarnLevel || step[0].ContextMap()["op"] != "evaluation.score" {
+	if len(step) != 1 || step[0].Level != zapcore.WarnLevel || step[0].ContextMap()["op"] != "evaluation.grade" {
 		t.Fatalf("failed step = %v", step)
 	}
 	if n := logs.FilterMessage("interview evaluation completed").Len(); n != 0 {
 		t.Fatalf("a failed evaluation logged %d completions", n)
+	}
+	if strings.Contains(loggedText(logs), "EXPECTED-SECRET-REFERENCE") {
+		t.Fatal("the expected answer reached the log")
 	}
 }
 

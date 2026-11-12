@@ -44,9 +44,64 @@ const report = (over: Record<string, unknown> = {}) => ({
   started_at: "2026-10-20T08:00:00Z",
   completed_at: "2026-10-20T08:30:00Z",
   summary: "Clear structure, thin examples.",
+  scoring: {
+    method: "rubric",
+    outcome: "partial",
+    withheld_reason: null,
+    assigned_questions: 2,
+    graded_questions: 1,
+    weight_total: 2,
+    decimals: 2,
+  },
   breakdown: [
-    { metric_id: METRIC_A, name: "Communication", score: 80 },
-    { metric_id: METRIC_B, name: "Depth", score: 64 },
+    {
+      metric_id: METRIC_A,
+      name: "Communication",
+      score: 80,
+      weight: 1,
+      question_count: 1,
+    },
+    {
+      metric_id: METRIC_B,
+      name: "Depth",
+      score: 64,
+      weight: 1,
+      question_count: 1,
+    },
+  ],
+  graded_questions: [
+    {
+      question_number: 1,
+      status: "graded",
+      rubric_name: "Describe hands-on technical experience",
+      total: 72,
+      earned: 18,
+      max: 25,
+      metrics: [],
+      criteria: [
+        {
+          criterion_id: "66666666-6666-4666-8666-666666666661",
+          name: "Describes their own contribution",
+          metric_id: METRIC_A,
+          metric_name: "Communication",
+          points: 8,
+          max_points: 10,
+          evidence: "built an API",
+          evidence_position: 1,
+          feedback: "Clear ownership.",
+        },
+      ],
+    },
+    {
+      question_number: 2,
+      status: "not_answered",
+      rubric_name: null,
+      total: null,
+      earned: 0,
+      max: 0,
+      metrics: [],
+      criteria: [],
+    },
   ],
   questions: [
     {
@@ -108,9 +163,22 @@ describe("ReportOverview", () => {
     expect(
       await screen.findByRole("heading", { name: "Practice interview" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("72 / 100")).toBeInTheDocument();
+    expect(screen.getByTestId("overall-score")).toHaveTextContent(
+      "72.00 / 100",
+    );
+    expect(screen.getByTestId("scoring-outcome")).toHaveTextContent("Partial");
+    expect(screen.getByTestId("overall-formula")).toHaveTextContent(
+      "(80.00 × 1 + 64.00 × 1) ÷ 2 = 72.00",
+    );
     expect(
       screen.getByText("Clear structure, thin examples."),
+    ).toBeInTheDocument();
+    // The grading of question 1 sits with its answer; it opens with the keyboard (native disclosure).
+    const grading = screen.getByTestId("question-grading");
+    expect(grading).toHaveTextContent("18 / 25 points");
+    expect(grading).toHaveTextContent("Question total 72.00 (reference)");
+    expect(
+      within(grading).getByText("Describes their own contribution"),
     ).toBeInTheDocument();
 
     const communication = screen.getByRole("progressbar", {
@@ -233,7 +301,15 @@ describe("ReportOverview", () => {
     mocks.get.mockResolvedValue(
       envelope(
         report({
-          breakdown: [{ metric_id: METRIC_A, name: "Ownership", score: 10 }],
+          breakdown: [
+            {
+              metric_id: METRIC_A,
+              name: "Ownership",
+              score: 10,
+              weight: 1,
+              question_count: 1,
+            },
+          ],
         }),
       ),
     );
@@ -321,14 +397,17 @@ describe("ReportOverview", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows only the score for a recruitment report the Candidate may see", async () => {
+  it("shows only the status for a recruitment report the Candidate may see", async () => {
     mocks.get.mockResolvedValue(
       envelope(
         report({
           type: "recruitment",
+          overall_score: undefined,
           summary: null,
+          scoring: null,
           breakdown: null,
           questions: null,
+          graded_questions: null,
         }),
       ),
     );
@@ -336,7 +415,9 @@ describe("ReportOverview", () => {
     expect(
       await screen.findByRole("heading", { name: "Recruitment interview" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("72 / 100")).toBeInTheDocument();
+    // A recruitment Candidate gets no score at all: the Recruiter announces the result.
+    expect(screen.queryByTestId("scoring-summary")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\/ 100/)).not.toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(
       screen.getByText(

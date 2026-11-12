@@ -315,7 +315,7 @@ describe("ApplicationDetail", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "Interview" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("82/100")).toBeInTheDocument();
+    expect(screen.getByText("82.00/100")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: "Final decision" }),
     ).toBeInTheDocument();

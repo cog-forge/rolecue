@@ -115,7 +115,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		provider.ProvideAdminGuidelinesHandler,
 		provider.ProvideLLMBudget,
 		provider.ProvideInterviewRepository,
-		provider.ProvideInterviewScorer,
+		provider.ProvideInterviewGrader,
 		provider.ProvideInterviewEvaluationService,
 		provider.ProvideInterviewService,
 		provider.ProvideInterviewHandler,

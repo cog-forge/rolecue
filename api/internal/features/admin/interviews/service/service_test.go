@@ -135,7 +135,7 @@ func TestListPropagatesRepositoryError(t *testing.T) {
 // The list response is an allow-list. Serialize a row carrying every field the domain has and
 // assert the exact set of keys, so a new field or a leaked path is caught here.
 func TestInterviewRowJSONIsAllowListOnly(t *testing.T) {
-	score := int32(4)
+	score := 4.5
 	row := domain.InterviewRow{
 		ID:           uuid.New(),
 		Type:         domain.TypeRecruitment,
@@ -214,7 +214,7 @@ func TestGetPropagatesNotFound(t *testing.T) {
 // The detail response is an allow-list too. Serialize a fully populated detail and assert the exact
 // key set, including the embedded list fields.
 func TestInterviewDetailJSONIsAllowListOnly(t *testing.T) {
-	score := int32(5)
+	score := 5.25
 	appID := uuid.New()
 	detail := domain.InterviewDetail{
 		InterviewRow: domain.InterviewRow{

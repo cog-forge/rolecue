@@ -150,8 +150,8 @@ func TestQuestionWithoutAMetricDoesNotCountAsZeroForIt(t *testing.T) {
 	if got := metricScore(t, score, rbAccuracy); !closeTo(got.Score, 75) {
 		t.Fatalf("Technical Accuracy = %v, want mean(100, 50) = 75", got.Score)
 	}
-	if score.Overall == nil || *score.Overall != 63 { // (75 + 50) / 2 = 62.5 -> 63 half-up
-		t.Fatalf("overall = %v, want 63", score.Overall)
+	if score.Overall == nil || *score.Overall != 62.5 { // (75 + 50) / 2 = 62.50
+		t.Fatalf("overall = %v, want 62.5", score.Overall)
 	}
 }
 
@@ -199,28 +199,30 @@ func TestRoundingIsHalfUpAndExact(t *testing.T) {
 	}
 }
 
-func TestOverallRoundsHalfUpFromTheRoundedSessionMetrics(t *testing.T) {
-	// Metrics 70 and 55 with equal weights: 62.5 rounds up to 63.
+func TestOverallKeepsTwoDecimalsAndRoundsHalfUpFromTheRoundedSessionMetrics(t *testing.T) {
+	// Metrics 70 and 55 with equal weights: the overall is 62.50, not a whole number (settled 11/11: the overall
+	// keeps two decimals like the metric scores).
 	in := domain.RubricScoreInput{
 		Questions: []domain.QuestionPoints{question(1, crit(1, rbAccuracy, 10, 7), crit(2, rbProblem, 20, 11))},
 		Weights:   weights(rbAccuracy, 1.0, rbProblem, 1.0),
 	}
-	if got := mustCalculate(t, in, domain.DefaultScoringPolicy()).Overall; got == nil || *got != 63 {
-		t.Fatalf("overall = %v, want 63", got)
+	if got := mustCalculate(t, in, domain.DefaultScoringPolicy()).Overall; got == nil || !closeTo(*got, 62.5) {
+		t.Fatalf("overall = %v, want 62.5", got)
 	}
 
-	// The overall is calculated from the stored (rounded) session metric, as settled on 11/11: 12499 / 20000
-	// is 62.495 exactly, stored as 62.50, and 62.50 rounds up to 63. The unrounded 62.495 would give 62.
+	// The overall is calculated from the stored (rounded) session metrics: 12499 / 20000 is 62.495 exactly and
+	// is stored as 62.50; with Problem-Solving at 0 and weights 1:3 the overall is 62.50 / 4 = 15.625 -> 15.63.
+	// The unrounded 62.495 / 4 = 15.62375 would give 15.62.
 	in = domain.RubricScoreInput{
-		Questions: []domain.QuestionPoints{question(1, crit(1, rbAccuracy, 20000, 12499))},
-		Weights:   weights(rbAccuracy, 1.0),
+		Questions: []domain.QuestionPoints{question(1, crit(1, rbAccuracy, 20000, 12499), crit(2, rbProblem, 1, 0))},
+		Weights:   weights(rbAccuracy, 1.0, rbProblem, 3.0),
 	}
 	score := mustCalculate(t, in, domain.DefaultScoringPolicy())
 	if got := metricScore(t, score, rbAccuracy).Score; !closeTo(got, 62.5) {
 		t.Fatalf("stored session metric = %v, want 62.5", got)
 	}
-	if score.Overall == nil || *score.Overall != 63 {
-		t.Fatalf("overall = %v, want 63 (computed from the stored 62.50)", score.Overall)
+	if score.Overall == nil || !closeTo(*score.Overall, 15.63) {
+		t.Fatalf("overall = %v, want 15.63 (computed from the stored 62.50, half-up)", score.Overall)
 	}
 }
 
@@ -442,9 +444,9 @@ func TestScoreProperties(t *testing.T) {
 			}
 			lo, hi = math.Min(lo, metric.Score), math.Max(hi, metric.Score)
 		}
-		// A weighted mean lies between the smallest and largest metric (allow the final whole-number rounding).
+		// A weighted mean lies between the smallest and largest metric (allow the final rounding).
 		if float64(*score.Overall) < math.Floor(lo) || float64(*score.Overall) > math.Ceil(hi) {
-			t.Fatalf("run %d: overall %d outside the metric range [%v, %v]", run, *score.Overall, lo, hi)
+			t.Fatalf("run %d: overall %v outside the metric range [%v, %v]", run, *score.Overall, lo, hi)
 		}
 		for _, q := range score.Questions {
 			if q.Total < 0 || q.Total > 100 {
@@ -452,10 +454,10 @@ func TestScoreProperties(t *testing.T) {
 			}
 		}
 		if allMax && *score.Overall != 100 {
-			t.Fatalf("run %d: every criterion at its maximum gave overall %d, want 100", run, *score.Overall)
+			t.Fatalf("run %d: every criterion at its maximum gave overall %v, want 100", run, *score.Overall)
 		}
 		if allZero && *score.Overall != 0 {
-			t.Fatalf("run %d: every criterion at zero gave overall %d, want 0", run, *score.Overall)
+			t.Fatalf("run %d: every criterion at zero gave overall %v, want 0", run, *score.Overall)
 		}
 	}
 }

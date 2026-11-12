@@ -54,8 +54,11 @@ func TestLiveTasks(t *testing.T) {
 					case config.TaskFollowUp:
 						_, err = adapter.Decide(ctx, id.FollowUpContext{CoreQuestion: "How would you prevent lost updates?", Exchanges: []id.Exchange{{Question: "How would you prevent lost updates?", Answer: "I would use the database."}}})
 					case config.TaskEvaluation:
-						metric := uuid.New()
-						_, err = adapter.Score(ctx, ed.ScoreInput{Metrics: []ed.ScoredMetric{{MetricID: metric, Name: "Technical accuracy", Weight: 100}}, Turns: []ed.ScoreTurn{{Position: 1, QuestionNumber: 1, Kind: "core", Question: "How do transactions help?", Answer: "They group writes atomically."}}})
+						_, err = adapter.GradeQuestion(ctx, ed.QuestionGradeInput{
+							QuestionPosition: 1, RubricName: "Explain a mechanism", ExpectedAnswer: "Transactions group writes so they commit or roll back together.",
+							Criteria: []ed.GradeCriterion{{ID: uuid.New(), Key: "C1", MetricID: uuid.New(), MetricName: "Technical accuracy", Name: "Explains the mechanism", MaxPoints: 2, ScoringGuide: "0 = wrong; 1 = partly correct; 2 = correct and complete."}},
+							Turns:    []ed.GradeTurn{{Position: 1, Kind: "core", Question: "How do transactions help?", Answer: "They group writes atomically, so either all of them commit or none do."}},
+						})
 					}
 					tokens, attempts, fallbacks := 0, 0, 0
 					for _, e := range logs.All() {

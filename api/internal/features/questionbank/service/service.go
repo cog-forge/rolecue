@@ -28,7 +28,7 @@ type Repository interface {
 	Update(ctx context.Context, recruiterID, postingID, questionID uuid.UUID, content string) (domain.BankQuestion, error)
 	Delete(ctx context.Context, recruiterID, postingID, questionID uuid.UUID) error
 	SaveForPosting(ctx context.Context, recruiterID, postingID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.BankQuestion, error)
-	SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, contents []string) ([]domain.CoreQuestion, error)
+	SaveForPractice(ctx context.Context, candidateID, jdID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.CoreQuestion, error)
 }
 
 // Generator performs one attempt and must not retry internally. The input is untrusted data.
@@ -140,11 +140,7 @@ func (s *Service) GenerateForPractice(ctx context.Context, candidateID, jdID uui
 	if err != nil {
 		return nil, err
 	}
-	contents := make([]string, 0, len(questions))
-	for _, q := range questions {
-		contents = append(contents, q.Content)
-	}
-	return s.repository.SaveForPractice(ctx, candidateID, jdID, contents)
+	return s.repository.SaveForPractice(ctx, candidateID, jdID, questions)
 }
 
 // CurrentBank is the stable read contract for the interview runtime (KAN-56). It is not scoped by
@@ -221,9 +217,11 @@ func (s *Service) requireEnabled() error {
 	return nil
 }
 
-// draft checks the cheap preconditions before spending an LLM call, then asks the model. A Recruiter's
-// draft (recruiterID set) also carries the rubric catalog and asks for grading data in the same single call;
-// a Candidate's practice draft keeps the question-only contract.
+// draft checks the cheap preconditions before spending an LLM call, then asks the model. Every draft carries
+// the rubric catalog and asks for a rubric and an expected answer per question in the same single call, so
+// every session can be graded (KAN-334). A Recruiter's draft may use the active system templates and the
+// Recruiter's own rubrics; a Candidate's practice draft (recruiterID nil) only the active system templates,
+// because a Candidate has no rubrics of their own. The rubric and the expected answer stay server-side.
 func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID *uuid.UUID) ([]domain.GeneratedQuestion, error) {
 	existing, err := s.repository.List(ctx, jdID)
 	if err != nil {
@@ -239,15 +237,25 @@ func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID *uuid.U
 	if len(input.Requirements) == 0 {
 		return nil, apperror.New(apperror.CodeRequirementsNotConfirmed, "confirm the job description requirements before generating questions")
 	}
-	if recruiterID != nil {
-		input.Grading = true
-		if input.Rubrics, err = s.repository.RubricCatalog(ctx, *recruiterID); err != nil {
-			return nil, err
-		}
+	input.Grading = true
+	if input.Rubrics, err = s.repository.RubricCatalog(ctx, rubricOwner(recruiterID)); err != nil {
+		return nil, err
 	}
 	done := logger.Start(ctx, "questionbank.generate", logger.String("jd_id", jdID.String()),
 		logger.Int("requested", s.size), logger.Int("requirements", len(input.Requirements)), logger.Int("rubrics", len(input.Rubrics)))
 	questions, err := s.generateWithRetry(ctx, input)
 	done(err, logger.Int("count", len(questions)))
 	return questions, err
+}
+
+// systemRubricsOnly is the owner passed to the rubric queries for a practice bank. No rubric is owned by the
+// nil id, so the "system or owned" rule of those queries leaves the active system templates only.
+var systemRubricsOnly = uuid.Nil
+
+// rubricOwner is the owner whose private rubrics a draft may use: the Recruiter, or nobody for practice.
+func rubricOwner(recruiterID *uuid.UUID) uuid.UUID {
+	if recruiterID == nil {
+		return systemRubricsOnly
+	}
+	return *recruiterID
 }

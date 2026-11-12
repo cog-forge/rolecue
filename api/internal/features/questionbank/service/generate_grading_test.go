@@ -73,15 +73,26 @@ func TestNoSuitableRubricIsStoredAsIncomplete(t *testing.T) {
 	}
 }
 
-func TestPracticeGenerationKeepsTheQuestionOnlyContract(t *testing.T) {
+// A practice bank is rubric-complete too (KAN-334): the same single call asks for a rubric and an expected
+// answer per question, from the active system templates only (the catalog is read for no owner).
+func TestPracticeGenerationAsksForGradingWithSystemRubricsOnly(t *testing.T) {
 	repo := readyRepo()
-	repo.catalog = []domain.RubricOption{{ID: uuid.New(), Name: "system"}}
-	gen := &fakeGenerator{fn: func(int) (domain.GenerationCandidate, error) { return questionsOf(2), nil }}
-	if _, err := newService(t, repo, gen, 0, 2).GenerateForPractice(context.Background(), uuid.New(), uuid.New()); err != nil {
+	system := uuid.New()
+	repo.catalog = []domain.RubricOption{{ID: system, Name: "system"}}
+	gen := &fakeGenerator{fn: func(int) (domain.GenerationCandidate, error) { return gradedBatch(2, &system), nil }}
+	got, err := newService(t, repo, gen, 0, 2).GenerateForPractice(context.Background(), uuid.New(), uuid.New())
+	if err != nil {
 		t.Fatal(err)
 	}
-	if gen.gotIn.Grading || len(gen.gotIn.Rubrics) != 0 || repo.catalogCall != 0 {
-		t.Fatalf("practice generation asked for grading data: %+v (catalog reads %d)", gen.gotIn, repo.catalogCall)
+	if !gen.gotIn.Grading || len(gen.gotIn.Rubrics) != 1 || repo.catalogCall != 1 || repo.catalogFor != uuid.Nil {
+		t.Fatalf("practice generation input = %+v (catalog reads %d for %s), want grading with the system catalog", gen.gotIn, repo.catalogCall, repo.catalogFor)
+	}
+	if len(repo.savedGraded) != 2 || repo.savedGraded[0].RubricID == nil || *repo.savedGraded[0].RubricID != system || repo.savedGraded[0].ExpectedAnswer == nil {
+		t.Fatalf("saved = %+v, want the rubric and expected answer stored with each practice question", repo.savedGraded)
+	}
+	// The Candidate-facing result never carries grading data: CoreQuestion has an id and content only.
+	if len(got) != 2 || got[0].Content == "" {
+		t.Fatalf("got = %+v", got)
 	}
 }
 

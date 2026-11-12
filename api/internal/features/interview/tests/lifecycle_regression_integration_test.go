@@ -4,7 +4,7 @@
 // through the same service methods the HTTP handlers call, against a real PostgreSQL database.
 //
 // It is NOT a substitute for a real realtime run: no HTTP request, no avatar or voice, no LLM and no
-// object storage is involved. The scorer is a deterministic fake and the recording store is a stub. What it
+// object storage is involved. The rubric grader is a deterministic fake and the recording store is a stub. What it
 // proves is the business chain: create and charge or consume a slot, answer turns, complete, evaluate, read
 // the report and transcript, decide after the gate, and refund once at the terminal close, with resume and
 // retry never duplicating a charge or a slot, and the Candidate never seeing the transcript or the recording.
@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -69,15 +70,39 @@ func regOpenPool(t *testing.T) (context.Context, *pgxpool.Pool) {
 	return ctx, pool
 }
 
-// regScorer grades every metric with a fixed score and answers with a fixed summary.
-type regScorer struct {
-	output evaldomain.ScoreOutput
-	calls  int
+// The bank questions are graded with the system rubric 202, "Compare options and choose": it assesses all five
+// catalog metrics (Technical Accuracy 3, Depth 3, Problem-Solving 4, Answer Relevance 2, Clarity 2 points), so
+// the session sampler (KAN-333) can cover every metric and a practice session is scored in full.
+var (
+	regRubric   = uuid.MustParse("00000000-0000-4000-8000-000000000202")
+	regAccuracy = uuid.MustParse("00000000-0000-4000-8000-000000000101")
+	regSolving  = uuid.MustParse("00000000-0000-4000-8000-000000000103")
+)
+
+// regGrader gives every question full points except Problem-Solving, which earns 2 of 4 (Technical Accuracy,
+// Depth, Answer Relevance and Clarity 100; Problem-Solving 50), quoting the core answer, and validates the reply
+// like the routed adapter.
+type regGrader struct {
+	mu    sync.Mutex
+	calls int
 }
 
-func (s *regScorer) Score(_ context.Context, _ evaldomain.ScoreInput) (evaldomain.ScoreOutput, error) {
-	s.calls++
-	return s.output, nil
+func (g *regGrader) GradeQuestion(_ context.Context, in evaldomain.QuestionGradeInput) (evaldomain.QuestionGrade, error) {
+	g.mu.Lock()
+	g.calls++
+	g.mu.Unlock()
+	points := []int32{3, 3, 2, 2, 2}
+	out := evaldomain.QuestionGradeCandidate{Feedback: "regression feedback", Summary: "regression summary."}
+	for i, c := range in.Criteria {
+		out.Criteria = append(out.Criteria, evaldomain.CriterionGradeCandidate{CriterionID: c.ID, Points: points[i], Evidence: in.Turns[0].Answer, Feedback: "why"})
+	}
+	return evalService.ValidateQuestionGrade(in, out)
+}
+
+func (g *regGrader) callCount() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.calls
 }
 
 // regCVLinker and regStore stand in for object storage. The regression never reads an object.
@@ -196,7 +221,8 @@ func (s *regSeed) jd(questions int) uuid.UUID {
 		id, "job-postings/"+id.String()+".pdf", levelID)
 	s.jds = append(s.jds, id.String())
 	for i := 1; i <= questions; i++ {
-		s.exec(`INSERT INTO public.core_questions (jd_id, content) VALUES ($1, $2)`, id, fmt.Sprintf("Regression question %d", i))
+		s.exec(`INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer) VALUES ($1, $2, $3, 'Reference points.')`,
+			id, fmt.Sprintf("Regression question %d", i), regRubric)
 	}
 	return id
 }
@@ -266,6 +292,7 @@ func (s *regSeed) cleanup() {
 		sql  string
 		args []any
 	}{
+		{`DELETE FROM public.interview_criterion_scores WHERE interview_id IN ` + byCandidate, []any{s.users}},
 		{`DELETE FROM public.score_details WHERE interview_id IN ` + byCandidate, []any{s.users}},
 		{`DELETE FROM public.conversation_turns WHERE interview_id IN ` + byCandidate, []any{s.users}},
 		{`DELETE FROM public.interview_questions WHERE interview_id IN ` + byCandidate, []any{s.users}},
@@ -292,7 +319,7 @@ type regServices struct {
 	interview *service.Service
 	recording *service.RecordingService
 	scoring   *evalService.Scoring
-	scorer    *regScorer
+	grader    *regGrader
 	apps      *appService.Service
 	metrics   []evaldomain.Metric
 	pool      *pgxpool.Pool
@@ -317,15 +344,8 @@ func regBuild(t *testing.T, ctx context.Context, pool *pgxpool.Pool) regServices
 	if len(metrics) < 2 {
 		t.Fatalf("metrics catalog has %d entries, want at least 2 (migration 000011)", len(metrics))
 	}
-	scorer := &regScorer{output: evaldomain.ScoreOutput{
-		Scores:  []evaldomain.MetricScore{{MetricID: metrics[0].ID, Score: 90}, {MetricID: metrics[1].ID, Score: 50}},
-		Summary: "regression summary",
-		Questions: []evaldomain.QuestionFeedback{
-			{Position: 1, Feedback: "regression feedback 1"},
-			{Position: 2, Feedback: "regression feedback 2"},
-		},
-	}}
-	scoring, err := evalService.NewScoring(evalRepository, scorer)
+	grader := &regGrader{}
+	scoring, err := evalService.NewScoring(evalRepository, grader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +354,7 @@ func regBuild(t *testing.T, ctx context.Context, pool *pgxpool.Pool) regServices
 		t.Fatal(err)
 	}
 	return regServices{
-		interview: interviewSvc, recording: recording, scoring: scoring, scorer: scorer,
+		interview: interviewSvc, recording: recording, scoring: scoring, grader: grader,
 		apps: apps, metrics: metrics, pool: pool,
 	}
 }
@@ -413,27 +433,23 @@ func TestKAN75PracticeLifecycleAPIRegression(t *testing.T) {
 	if err != nil || completed.CompletedAt == nil {
 		t.Fatalf("Complete() = %+v, %v, want completed", completed, err)
 	}
-	// Practice has no posting weights: every catalog metric counts equally, so a uniform 70 is the overall 70.
-	scores := make([]evaldomain.MetricScore, 0, len(svc.metrics))
-	for _, metric := range svc.metrics {
-		scores = append(scores, evaldomain.MetricScore{MetricID: metric.ID, Score: 70})
-	}
-	svc.scorer.output.Scores = scores
+	// Practice has no posting weights: every catalog metric counts equally. Rubric 202 assesses all five, so the
+	// overall is (100 + 100 + 50 + 100 + 100) / 5 = 90.00 and the session is complete.
 	if err := svc.scoring.Evaluate(ctx, created.ID); err != nil {
 		t.Fatalf("Evaluate() error = %v", err)
 	}
-	if svc.scorer.calls != 1 {
-		t.Fatalf("scorer calls = %d, want 1", svc.scorer.calls)
+	if svc.grader.callCount() != regQuestionLimit {
+		t.Fatalf("grader calls = %d, want one per question (%d)", svc.grader.callCount(), regQuestionLimit)
 	}
 
 	report, err := svc.scoring.Report(ctx, candidate, "candidate", created.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.Status != "completed" || report.OverallScore == nil || *report.OverallScore != 70 ||
-		report.Summary == nil || *report.Summary != "regression summary" || len(report.Breakdown) != len(svc.metrics) ||
-		len(report.Questions) != regQuestionLimit {
-		t.Fatalf("practice report = %+v, want the full evaluation with score 70 over every metric", report)
+	if report.Status != "completed" || report.OverallScore == nil || *report.OverallScore != 90 || report.Scoring == nil || report.Scoring.Outcome == nil ||
+		*report.Scoring.Outcome != "complete" || report.Summary == nil || len(report.Breakdown) != len(svc.metrics) ||
+		len(report.Questions) != regQuestionLimit || len(report.GradedQuestions) != regQuestionLimit {
+		t.Fatalf("practice report = %+v, want the full evaluation with the overall 90", report)
 	}
 
 	history, err := svc.interview.ListHistory(ctx, candidate, "candidate", domain.HistoryFilter{Type: domain.TypePractice, Page: 1, PageSize: 20})
@@ -441,8 +457,9 @@ func TestKAN75PracticeLifecycleAPIRegression(t *testing.T) {
 		t.Fatal(err)
 	}
 	if history.Total != 1 || len(history.Items) != 1 || history.Items[0].ID != created.ID ||
-		history.Items[0].Status != "completed" || history.Items[0].Score == nil || *history.Items[0].Score != 70 {
-		t.Fatalf("history = %+v, want the one completed practice session with score 70", history)
+		history.Items[0].Status != "completed" || history.Items[0].Score == nil || *history.Items[0].Score != 90 || history.Items[0].ScoreOutcome == nil ||
+		*history.Items[0].ScoreOutcome != "complete" {
+		t.Fatalf("history = %+v, want the one completed practice session with its overall 90", history)
 	}
 
 	if _, err := svc.interview.Resume(ctx, candidate, "candidate", created.ID); err == nil {
@@ -475,7 +492,7 @@ func TestKAN75RecruitmentLifecycleAPIRegression(t *testing.T) {
 	weights := []struct {
 		metric uuid.UUID
 		pct    float64
-	}{{svc.metrics[0].ID, 60}, {svc.metrics[1].ID, 40}}
+	}{{regAccuracy, 60}, {regSolving, 40}}
 	for _, w := range weights {
 		s.exec(`INSERT INTO public.metrics_percentage (metric_id, percentage, job_posting_id) VALUES ($1, $2, $3)`,
 			w.metric, w.pct, posting)
@@ -551,14 +568,15 @@ func TestKAN75RecruitmentLifecycleAPIRegression(t *testing.T) {
 	if err := svc.scoring.Evaluate(ctx, created.ID); err != nil {
 		t.Fatalf("Evaluate() error = %v", err)
 	}
-	// (60*90 + 40*50) / 100 = 74.
+	// Technical Accuracy 100, Problem-Solving 50: (60 x 100 + 40 x 50) / 100 = 80. The breakdown also lists the
+	// three metrics rubric 202 assesses that the posting does not weigh, with weight 0.
 	recruiterReport, err := svc.scoring.Report(ctx, recruiter, "recruiter", created.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if recruiterReport.Status != "completed" || recruiterReport.OverallScore == nil || *recruiterReport.OverallScore != 74 ||
-		recruiterReport.Summary == nil || len(recruiterReport.Breakdown) != 2 || len(recruiterReport.Questions) != regQuestionLimit {
-		t.Fatalf("recruiter report = %+v, want the evaluation with score 74", recruiterReport)
+	if recruiterReport.Status != "completed" || recruiterReport.OverallScore == nil || *recruiterReport.OverallScore != 80 ||
+		recruiterReport.Summary == nil || len(recruiterReport.Breakdown) != 5 || len(recruiterReport.Questions) != regQuestionLimit {
+		t.Fatalf("recruiter report = %+v, want the evaluation with score 80", recruiterReport)
 	}
 	candidateReport, err := svc.scoring.Report(ctx, candidate, "candidate", created.ID)
 	if err != nil {

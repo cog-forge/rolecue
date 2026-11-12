@@ -53,7 +53,12 @@ export const interviewHistoryItemSchema = z.object({
   completed_at: z.iso.datetime({ offset: true }).nullable(),
   evaluation_status: z.enum(["pending", "completed", "failed"]),
   status: interviewStatusSchema,
-  score: z.number().int().min(0).max(100).nullable(),
+  // The weighted overall with two decimals; null before evaluation and when withheld.
+  score: z.number().min(0).max(100).nullable(),
+  score_outcome: z
+    .enum(["complete", "partial", "withheld"])
+    .nullish()
+    .transform((value) => value ?? null),
   role_profile_title: z.string(),
   job_posting_title: z.string().nullable(),
   application_id: z.uuid().nullable(),

@@ -17,7 +17,56 @@ const completedPractice: Report = {
   end_reason: "completed",
   question_count: 1,
   summary: "Clear structure, thin examples.",
-  breakdown: [{ metric_id: METRIC, name: "Communication", score: 80 }],
+  scoring: {
+    method: "rubric",
+    outcome: "complete",
+    withheld_reason: null,
+    assigned_questions: 1,
+    graded_questions: 1,
+    weight_total: 1,
+    decimals: 2,
+  },
+  breakdown: [
+    {
+      metric_id: METRIC,
+      name: "Communication",
+      score: 72.5,
+      weight: 1,
+      question_count: 1,
+    },
+  ],
+  graded_questions: [
+    {
+      question_number: 1,
+      status: "graded",
+      rubric_name: null,
+      total: 72.5,
+      earned: 29,
+      max: 40,
+      metrics: [
+        {
+          metric_id: METRIC,
+          name: "Communication",
+          earned: 29,
+          max: 40,
+          score: 72.5,
+        },
+      ],
+      criteria: [
+        {
+          criterion_id: "66666666-6666-4666-8666-666666666666",
+          name: "",
+          metric_id: METRIC,
+          metric_name: "Communication",
+          points: 29,
+          max_points: 40,
+          evidence: "built an API",
+          evidence_position: 1,
+          feedback: null,
+        },
+      ],
+    },
+  ],
   questions: [
     {
       position: 1,
@@ -89,6 +138,49 @@ describe("reportEnvelopeSchema", () => {
         envelope({ ...completedPractice, overall_score: 101 }),
       ).success,
     ).toBe(false);
+  });
+
+  it("keeps two-decimal scores and reads a withheld overall (KAN-335)", () => {
+    const parsed = reportEnvelopeSchema.parse(
+      envelope({
+        ...completedPractice,
+        overall_score: null,
+        scoring: {
+          ...completedPractice.scoring,
+          outcome: "withheld",
+          withheld_reason: "missing_metric_coverage",
+        },
+        breakdown: [{ ...completedPractice.breakdown![0], score: null }],
+      }),
+    );
+    expect(parsed.data.overall_score).toBeNull();
+    expect(parsed.data.scoring?.withheld_reason).toBe(
+      "missing_metric_coverage",
+    );
+    expect(parsed.data.breakdown?.[0].score).toBeNull();
+    expect(
+      reportEnvelopeSchema.parse(envelope(completedPractice)).data
+        .graded_questions?.[0].total,
+    ).toBe(72.5);
+  });
+
+  it("rejects an unknown withheld reason or a criterion without a maximum (contract drift)", () => {
+    const graded = completedPractice.graded_questions![0];
+    for (const data of [
+      {
+        ...completedPractice,
+        scoring: { ...completedPractice.scoring, withheld_reason: "guess" },
+      },
+      {
+        ...completedPractice,
+        graded_questions: [
+          { ...graded, criteria: [{ ...graded.criteria[0], max_points: 0 }] },
+        ],
+      },
+    ])
+      expect(reportEnvelopeSchema.safeParse(envelope(data)).success).toBe(
+        false,
+      );
   });
 
   it("rejects an unknown status (contract drift)", () => {

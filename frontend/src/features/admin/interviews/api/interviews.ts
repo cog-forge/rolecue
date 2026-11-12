@@ -19,7 +19,7 @@ const rowSchema = z.object({
     email: z.email(),
   }),
   job_posting: z.object({ id: z.uuid(), title: z.string() }).nullable(),
-  score: z.number().int().nullable(),
+  score: z.number().min(0).max(100).nullable(),
   has_report: z.boolean(),
   has_recording: z.boolean(),
 });

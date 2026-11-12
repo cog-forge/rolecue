@@ -32,34 +32,110 @@ const completed: ApplicationInterview = {
   started_at: "2026-10-20T08:00:00Z",
   completed_at: "2026-10-20T08:30:00Z",
   status: "completed",
-  score: 82,
+  score: 62.5,
+  score_outcome: "partial",
   record_status: "ready",
   end_reason: "completed",
 };
 
+const goDepth = "77777777-7777-4777-8777-777777777777";
+const communication = "88888888-8888-4888-8888-888888888888";
+
+// The spec's worked example (KAN-337): two graded questions, metrics 70 and 50 weighted 60/40, overall 62.
 const report = {
   success: true,
   data: {
     interview_id: interviewId,
     type: "recruitment",
     status: "completed",
-    overall_score: 82,
+    overall_score: 62,
     started_at: "2026-10-20T08:00:00Z",
     completed_at: "2026-10-20T08:30:00Z",
     summary: "Solid Go answers, weaker on testing.",
+    scoring: {
+      method: "rubric",
+      outcome: "complete",
+      withheld_reason: null,
+      assigned_questions: 2,
+      graded_questions: 2,
+      weight_total: 100,
+      decimals: 2,
+    },
     breakdown: [
       {
-        metric_id: "77777777-7777-4777-8777-777777777777",
+        metric_id: goDepth,
         name: "Go depth",
-        score: 90,
+        score: 70,
+        weight: 60,
+        question_count: 2,
       },
       {
-        metric_id: "88888888-8888-4888-8888-888888888888",
+        metric_id: communication,
         name: "Communication",
-        score: 74,
+        score: 50,
+        weight: 40,
+        question_count: 2,
       },
     ],
-    questions: null,
+    questions: [
+      {
+        position: 1,
+        question_number: 1,
+        kind: "core",
+        question: "Tell us about a service you built.",
+        answer: "I built a queue worker.",
+        feedback: null,
+      },
+    ],
+    graded_questions: [
+      {
+        question_number: 1,
+        status: "graded",
+        rubric_name: "Explain a mechanism",
+        total: 70,
+        earned: 7,
+        max: 10,
+        metrics: [
+          {
+            metric_id: goDepth,
+            name: "Go depth",
+            earned: 4,
+            max: 5,
+            score: 80,
+          },
+          {
+            metric_id: communication,
+            name: "Communication",
+            earned: 3,
+            max: 5,
+            score: 60,
+          },
+        ],
+        criteria: [
+          {
+            criterion_id: "99999999-9999-4999-8999-999999999991",
+            name: "Explains the core mechanism",
+            metric_id: goDepth,
+            metric_name: "Go depth",
+            points: 2,
+            max_points: 3,
+            evidence: "I built a queue worker.",
+            evidence_position: 1,
+            feedback: "Names the worker but not the retry policy.",
+          },
+        ],
+      },
+      {
+        question_number: 2,
+        status: "not_answered",
+        rubric_name: null,
+        total: null,
+        earned: 0,
+        max: 0,
+        metrics: [],
+        criteria: [],
+      },
+    ],
   },
 };
 const recording = {
@@ -145,7 +221,7 @@ beforeEach(() => {
 describe("InterviewResult", () => {
   it("shows the score and status without fetching any evidence", () => {
     mount();
-    expect(screen.getByText("82/100")).toBeInTheDocument();
+    expect(screen.getByText("62.50/100")).toBeInTheDocument();
     expect(screen.getByText("Evaluated")).toBeInTheDocument();
     expect(mocks.get).not.toHaveBeenCalled();
   });
@@ -184,8 +260,29 @@ describe("InterviewResult", () => {
         signal: expect.any(AbortSignal),
       },
     );
-    expect(screen.getByText("Go depth")).toBeInTheDocument();
-    expect(screen.getByText("90/100")).toBeInTheDocument();
+    // The overall, the formula with the stored values, the weighted metrics and each criterion.
+    expect(screen.getByTestId("overall-score")).toHaveTextContent(
+      "62.00 / 100",
+    );
+    expect(screen.getByTestId("overall-formula")).toHaveTextContent(
+      "(70.00 × 60 + 50.00 × 40) ÷ 100 = 62.00",
+    );
+    const metrics = screen.getByTestId("metric-list");
+    expect(within(metrics).getByText("Go depth")).toBeInTheDocument();
+    expect(metrics).toHaveTextContent("Weight 60.0%");
+    expect(
+      screen.getByText(/Question totals are for reference only/),
+    ).toBeInTheDocument();
+    const grading = screen.getByTestId("question-grading");
+    expect(grading).toHaveTextContent("7 / 10 points");
+    expect(grading).toHaveTextContent("Question total 70.00 (reference)");
+    expect(
+      within(grading).getByText("Explains the core mechanism"),
+    ).toBeInTheDocument();
+    expect(grading).toHaveTextContent("2 / 3 points");
+    expect(
+      screen.getByText("Not answered: not graded and not counted as zero."),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Hide evaluation" }),
     ).toHaveAttribute("aria-expanded", "true");
@@ -201,13 +298,6 @@ describe("InterviewResult", () => {
                 ...report.data,
                 summary_source: "ai",
                 injection_flagged: true,
-                breakdown: [
-                  {
-                    ...report.data.breakdown[0],
-                    evidence: "I built a queue worker.",
-                  },
-                  report.data.breakdown[1],
-                ],
               },
             },
           })
@@ -220,7 +310,53 @@ describe("InterviewResult", () => {
     expect(screen.getByTestId("injection-flagged")).toHaveTextContent(
       "Flagged for review",
     );
-    expect(screen.getByText("I built a queue worker.")).toBeInTheDocument();
+    // The criterion quotes the Candidate's answer.
+    expect(
+      within(screen.getByTestId("criterion")).getByText(
+        "I built a queue worker.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("explains a withheld overall without inventing a score", async () => {
+    mocks.get.mockImplementation((path: string) =>
+      path.endsWith("/report")
+        ? Promise.resolve({
+            data: {
+              ...report,
+              data: {
+                ...report.data,
+                overall_score: null,
+                scoring: {
+                  ...report.data.scoring,
+                  outcome: "withheld",
+                  withheld_reason: "missing_metric_coverage",
+                },
+                breakdown: [
+                  report.data.breakdown[0],
+                  {
+                    ...report.data.breakdown[1],
+                    score: null,
+                    question_count: 0,
+                  },
+                ],
+              },
+            },
+          })
+        : routes(path),
+    );
+    mount({ ...completed, score: null, score_outcome: "withheld" });
+    expect(screen.getByText("No overall score")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show evaluation" }));
+    expect(await screen.findByTestId("overall-withheld")).toHaveTextContent(
+      "No overall score",
+    );
+    expect(
+      screen.getByText(/No graded question assessed Communication/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("scoring-outcome")).toHaveTextContent("Withheld");
+    expect(screen.queryByTestId("overall-formula")).not.toBeInTheDocument();
+    expect(screen.getByTestId("metric-list")).toHaveTextContent("No evidence");
   });
 
   it("shows no flag banner for an unflagged evaluation", async () => {

@@ -5,37 +5,37 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
+	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 )
 
 const (
-	maxScore         = 100
-	maxSummaryRunes  = 4000
-	maxFeedbackRunes = 2000
+	// gradingConcurrency bounds the parallel grading calls of one evaluation. With the 30 s route budget and
+	// the default 8 questions a session fits in two waves, well inside the interview service's 2 minute bound.
+	gradingConcurrency = 4
+	// maxSummaryRunes bounds the session summary, which joins the one-sentence summaries of the questions.
+	maxSummaryRunes = 3500
 	// failureWriteTimeout bounds the write that marks an evaluation failed. That write runs even when the
 	// evaluation's own context is done, so a timed out evaluation is not left pending forever.
 	failureWriteTimeout = 10 * time.Second
 )
-
-// Scorer grades the answers of one interview session. It returns one score per metric; the service
-// checks the result before anything is stored.
-type Scorer interface {
-	Score(ctx context.Context, in domain.ScoreInput) (domain.ScoreOutput, error)
-}
 
 // InterviewRepository is the persistence contract of evaluation and reports. SaveInterviewEvaluation runs
 // in one transaction and locks the interview row itself.
 type InterviewRepository interface {
 	InterviewRecord(ctx context.Context, interviewID uuid.UUID) (domain.InterviewRecord, error)
 	InterviewTurns(ctx context.Context, interviewID uuid.UUID) ([]domain.TurnRecord, error)
-	InterviewScores(ctx context.Context, interviewID uuid.UUID) ([]domain.ReportBreakdown, error)
+	GradingQuestions(ctx context.Context, interviewID uuid.UUID) ([]domain.GradingQuestion, error)
+	InterviewResults(ctx context.Context, interviewID uuid.UUID) (domain.StoredResults, error)
 	SaveInterviewEvaluation(ctx context.Context, interviewID uuid.UUID, evaluation domain.Evaluation) error
 	MarkInterviewEvaluationFailed(ctx context.Context, interviewID uuid.UUID) error
 	ListMetrics(ctx context.Context) ([]domain.Metric, error)
@@ -46,24 +46,32 @@ type InterviewRepository interface {
 // manages the posting weights, so the weights contract stays as it is.
 type Scoring struct {
 	repository InterviewRepository
-	scorer     Scorer
+	grader     Grader
+	policy     domain.ScoringPolicy
 }
 
-// NewScoring builds the evaluation service around an interview repository and a scorer.
-func NewScoring(repository InterviewRepository, scorer Scorer) (*Scoring, error) {
+// NewScoring builds the evaluation service around an interview repository and a rubric grader.
+func NewScoring(repository InterviewRepository, grader Grader) (*Scoring, error) {
 	if repository == nil {
 		return nil, fmt.Errorf("interview evaluation repository is required")
 	}
-	if scorer == nil {
-		return nil, fmt.Errorf("interview scorer is required")
+	if grader == nil {
+		return nil, fmt.Errorf("interview grader is required")
 	}
-	return &Scoring{repository: repository, scorer: scorer}, nil
+	return &Scoring{repository: repository, grader: grader, policy: domain.DefaultScoringPolicy()}, nil
 }
 
-// Evaluate scores a completed interview. It is the interview service's Evaluator hook, called once after
-// the first completion. A completed evaluation is a no-op, so no second LLM call is made. Without answered
-// questions, with invalid weights or when the scorer fails, the evaluation is marked failed and nothing
-// else is written. A failed save changes nothing and leaves the status pending, so a later run retries.
+// Evaluate grades a completed interview with its rubrics (KAN-334). It is the interview service's Evaluator
+// hook, called once after the first completion and again by its claim-and-retry path. Each answered core
+// question that has a rubric and an expected answer is graded in its own model call, together with its
+// follow-ups; the pure calculator then turns the criterion points into question, metric and overall scores,
+// and everything is saved in one transaction.
+//
+//   - A completed evaluation is a no-op: no second model call, no rewrite.
+//   - A result a retry could not change (nothing answered, nothing gradable, a metric no question covered)
+//     completes with a withheld overall and a stored reason; it never counts as a failure.
+//   - A grader, calculator or save error marks the evaluation failed and writes nothing else, so the claim and
+//     retry mechanism can run it again.
 func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 	record, err := s.repository.InterviewRecord(ctx, interviewID)
 	if err != nil {
@@ -79,48 +87,60 @@ func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	var saved []domain.Weight
-	if record.PostingID != nil {
-		saved, err = s.repository.ListWeights(ctx, *record.PostingID)
-		if err != nil {
-			return err
-		}
-	}
-	catalog, err := s.repository.ListMetrics(ctx)
+	questions, err := s.repository.GradingQuestions(ctx, interviewID)
 	if err != nil {
 		return err
 	}
-	input, err := buildScoreInput(record, turns, saved, catalog)
+	metrics, err := s.weights(ctx, record)
 	if err != nil {
 		return s.fail(ctx, interviewID, err)
 	}
-	done := logger.Start(ctx, "evaluation.score",
-		logger.String("interview_id", interviewID.String()),
-		logger.Int("question_count", len(input.Turns)),
-		logger.Int("metric_count", len(input.Metrics)),
-	)
-	output, err := s.score(ctx, input)
-	done(err)
+	plan, err := planGrading(turns, questions)
 	if err != nil {
 		return s.fail(ctx, interviewID, err)
 	}
-	evaluation, err := buildEvaluation(input, output)
-	if err != nil {
-		return s.fail(ctx, interviewID, err)
+	var evaluation domain.Evaluation
+	switch {
+	case plan.answered == 0:
+		evaluation = withheldEvaluation(domain.WithheldNoAnswers, metrics)
+	case len(plan.inputs) == 0:
+		evaluation = withheldEvaluation(domain.WithheldNoGradableQuestions, metrics)
+	default:
+		done := logger.Start(ctx, "evaluation.grade",
+			logger.String("interview_id", interviewID.String()),
+			logger.Int("assigned_count", int(record.QuestionCount)),
+			logger.Int("answered_count", plan.answered),
+			logger.Int("graded_count", len(plan.inputs)),
+			logger.Int("metric_count", len(metrics)),
+		)
+		grades, gradeErr := s.gradeAll(ctx, plan.inputs)
+		done(gradeErr)
+		if gradeErr != nil {
+			return s.fail(ctx, interviewID, gradeErr)
+		}
+		evaluation, err = s.buildEvaluation(record, plan, grades, metrics)
+		if err != nil {
+			return s.fail(ctx, interviewID, err)
+		}
 	}
 	if err := s.repository.SaveInterviewEvaluation(ctx, interviewID, evaluation); err != nil {
-		// A failed save is marked failed too, so the report is honest and a repeated Complete can
-		// start the evaluation again (see interview service Complete); left pending it would look
-		// in flight forever.
+		// A failed save is marked failed too, so the report is honest and a repeated Complete can start the
+		// evaluation again (see interview service Complete); left pending it would look in flight forever.
 		return s.fail(ctx, interviewID, err)
+	}
+	overall := ""
+	if evaluation.Overall != nil {
+		overall = strconv.FormatFloat(*evaluation.Overall, 'f', 2, 64)
 	}
 	logger.FromContext(ctx).Info("interview evaluation completed",
 		logger.Op("evaluation.complete"),
 		logger.String("interview_id", interviewID.String()),
-		logger.Int("score", int(evaluation.OverallScore)),
+		logger.String("outcome", string(evaluation.Outcome)),
+		logger.String("withheld_reason", string(evaluation.Reason)),
+		logger.String("score", overall),
 		logger.Int("injection_flagged", boolInt(evaluation.InjectionFlagged)),
-		logger.Int("metric_count", len(evaluation.Scores)),
-		logger.Int("feedback_count", len(evaluation.Questions)),
+		logger.Int("graded_count", len(evaluation.Questions)),
+		logger.Int("metric_count", len(evaluation.Metrics)),
 	)
 	return nil
 }
@@ -137,31 +157,26 @@ func (s *Scoring) fail(ctx context.Context, interviewID uuid.UUID, cause error) 
 	return failure
 }
 
-// buildScoreInput keeps the answered questions and the metrics to score. It fails when the session has no
-// answers or the weights cannot score it.
-func buildScoreInput(record domain.InterviewRecord, turns []domain.TurnRecord, saved []domain.Weight, catalog []domain.Metric) (domain.ScoreInput, error) {
-	answered := make([]domain.ScoreTurn, 0, len(turns))
-	for _, turn := range turns {
-		if turn.Answer == nil || strings.TrimSpace(*turn.Answer) == "" {
-			continue
+// weights returns the metrics the overall is weighted over: the posting's saved weights, or every catalog
+// metric with an equal weight (the defaults, which are never stored) for practice and for a posting without
+// saved weights.
+func (s *Scoring) weights(ctx context.Context, record domain.InterviewRecord) ([]domain.ScoredMetric, error) {
+	var saved []domain.Weight
+	if record.PostingID != nil {
+		var err error
+		if saved, err = s.repository.ListWeights(ctx, *record.PostingID); err != nil {
+			return nil, err
 		}
-		answered = append(answered, domain.ScoreTurn{
-			Position: turn.Position, QuestionNumber: turn.QuestionNumber, Kind: turn.Kind, Question: scorerQuestion(turn), Answer: *turn.Answer,
-		})
 	}
-	if len(answered) == 0 {
-		return domain.ScoreInput{}, errors.New("interview has no answered questions to evaluate")
-	}
-	metrics, err := scoredMetrics(saved, catalog)
+	catalog, err := s.repository.ListMetrics(ctx)
 	if err != nil {
-		return domain.ScoreInput{}, err
+		return nil, err
 	}
-	return domain.ScoreInput{InterviewID: record.ID, Type: record.Type, Turns: answered, Metrics: metrics}, nil
+	return scoredMetrics(saved, catalog)
 }
 
 // scoredMetrics returns the saved posting weights when there are any. Otherwise every catalog metric counts
-// equally (the equal split of the defaults, which are never stored). Weights must be finite, not negative,
-// and add up to more than zero.
+// equally. Weights must be finite, not negative, and add up to more than zero.
 func scoredMetrics(saved []domain.Weight, catalog []domain.Metric) ([]domain.ScoredMetric, error) {
 	if len(saved) > 0 {
 		metrics := make([]domain.ScoredMetric, 0, len(saved))
@@ -188,116 +203,192 @@ func scoredMetrics(saved []domain.Weight, catalog []domain.Metric) ([]domain.Sco
 	return metrics, nil
 }
 
-// buildEvaluation checks the Scorer's output against the input and computes the weighted overall score. The
-// output must score each metric exactly once, within 0..100, and give feedback only for answered questions.
-func buildEvaluation(input domain.ScoreInput, output domain.ScoreOutput) (domain.Evaluation, error) {
-	weights := make(map[uuid.UUID]float64, len(input.Metrics))
-	totalWeight := 0.0
-	for _, metric := range input.Metrics {
-		weights[metric.MetricID] = metric.Weight
-		totalWeight += metric.Weight
+// gradingPlan is what a session gives the grader: one input per gradable answered core question, and the
+// core turn of each question for its feedback.
+type gradingPlan struct {
+	inputs   []domain.QuestionGradeInput
+	coreTurn map[int32]int32
+	// answered counts the assigned questions with at least one non-empty answer (graded or not).
+	answered int
+}
+
+// planGrading groups the turns by the core question they belong to and builds one grading input per answered
+// question that has a rubric with criteria and an expected answer. A question without them (a legacy or
+// hand-added question) is not graded: it counts as an unscored question of a partial session, and the
+// missing-coverage policy decides whether an overall can still be given. A turn that maps to no assigned
+// question means the conversation and the assignment disagree; that is an error, never a guess.
+func planGrading(turns []domain.TurnRecord, questions []domain.GradingQuestion) (gradingPlan, error) {
+	byPosition := make(map[int32]domain.GradingQuestion, len(questions))
+	for _, q := range questions {
+		byPosition[q.Position] = q
 	}
-	if totalWeight <= 0 {
-		return domain.Evaluation{}, errors.New("evaluation weights add up to zero")
-	}
-	if len(output.Scores) != len(input.Metrics) {
-		return domain.Evaluation{}, fmt.Errorf("scorer returned %d scores for %d metrics", len(output.Scores), len(input.Metrics))
-	}
-	scored := make(map[uuid.UUID]bool, len(output.Scores))
-	weighted := 0.0
-	answers := normalizedAnswers(input.Turns)
-	// The model's own report, or a known injection pattern in an answer or a generated follow-up question.
-	flagged := output.InjectionSuspected || screenInjection(input.Turns)
-	scores := make([]domain.MetricScore, 0, len(output.Scores))
-	for _, score := range output.Scores {
-		weight, ok := weights[score.MetricID]
-		if !ok {
-			return domain.Evaluation{}, fmt.Errorf("scorer scored unknown metric %s", score.MetricID)
+	plan := gradingPlan{coreTurn: map[int32]int32{}}
+	answers := make(map[int32][]domain.GradeTurn)
+	for _, turn := range turns {
+		if _, ok := byPosition[turn.QuestionNumber]; !ok {
+			return gradingPlan{}, fmt.Errorf("turn %d belongs to core question %d, which was not assigned", turn.Position, turn.QuestionNumber)
 		}
-		if scored[score.MetricID] {
-			return domain.Evaluation{}, fmt.Errorf("scorer scored metric %s twice", score.MetricID)
+		if turn.Kind == domain.TurnCore {
+			if _, seen := plan.coreTurn[turn.QuestionNumber]; !seen {
+				plan.coreTurn[turn.QuestionNumber] = turn.Position
+			}
 		}
-		if score.Score < 0 || score.Score > maxScore {
-			return domain.Evaluation{}, fmt.Errorf("score %d is out of range", score.Score)
+		if turn.Answer == nil || strings.TrimSpace(*turn.Answer) == "" {
+			continue
 		}
-		scored[score.MetricID] = true
-		weighted += weight * float64(score.Score)
-		// A score rests on a quote the Candidate really said. A quote that is not in the answers is dropped
-		// and flags the interview; a score of 0 may have nothing to quote.
-		evidence := score.Evidence
-		switch {
-		case verifyEvidence(evidence, answers):
-			evidence = strings.TrimSpace(evidence)
-		case evidence == "" && score.Score == 0:
-		default:
-			flagged = true
-			evidence = ""
-		}
-		scores = append(scores, domain.MetricScore{MetricID: score.MetricID, Score: score.Score, Evidence: evidence})
+		answers[turn.QuestionNumber] = append(answers[turn.QuestionNumber], domain.GradeTurn{
+			Position: turn.Position, Kind: turn.Kind, Question: scorerQuestion(turn), Answer: *turn.Answer,
+		})
 	}
-	summary := strings.TrimSpace(output.Summary)
-	if !utf8.ValidString(summary) || utf8.RuneCountInString(summary) > maxSummaryRunes {
-		return domain.Evaluation{}, errors.New("scorer summary is invalid or too long")
+	for _, q := range questions {
+		answered := answers[q.Position]
+		if len(answered) == 0 {
+			continue
+		}
+		plan.answered++
+		if q.RubricID == nil || len(q.Criteria) == 0 || strings.TrimSpace(q.ExpectedAnswer) == "" {
+			continue
+		}
+		criteria := make([]domain.GradeCriterion, 0, len(q.Criteria))
+		for i, c := range q.Criteria {
+			criteria = append(criteria, domain.GradeCriterion{
+				ID: c.ID, Key: "C" + strconv.Itoa(i+1), MetricID: c.MetricID, MetricName: c.MetricName,
+				Name: c.Name, MaxPoints: c.MaxPoints, ScoringGuide: c.ScoringGuide,
+			})
+		}
+		plan.inputs = append(plan.inputs, domain.QuestionGradeInput{
+			QuestionPosition: q.Position, RubricName: q.RubricName, RubricDescription: q.RubricDescription,
+			ExpectedAnswer: q.ExpectedAnswer, Criteria: criteria, Turns: answered,
+		})
 	}
-	summary, echoed := moderateText(summary)
-	questions, feedbackEchoed, err := feedbackFor(input.Turns, output.Questions)
+	return plan, nil
+}
+
+// gradeAll grades every question with at most gradingConcurrency calls in flight. Each call sees one question
+// only, so an injected answer can move the points of its own question and never those of another (KAN-279).
+// The first error cancels the calls still running; nothing is kept from a partly graded session.
+func (s *Scoring) gradeAll(ctx context.Context, inputs []domain.QuestionGradeInput) ([]domain.QuestionGrade, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	grades := make([]domain.QuestionGrade, len(inputs))
+	errs := make([]error, len(inputs))
+	slots := make(chan struct{}, gradingConcurrency)
+	var wg sync.WaitGroup
+	for i, input := range inputs {
+		wg.Add(1)
+		slots <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-slots }()
+			defer func() {
+				// The panic value is not kept: it can carry the answer text the grader was given.
+				if recovered := recover(); recovered != nil {
+					errs[i] = fmt.Errorf("grader panicked (%T)", recovered)
+					cancel()
+				}
+			}()
+			if err := ctx.Err(); err != nil {
+				errs[i] = err
+				return
+			}
+			grades[i], errs[i] = s.grader.GradeQuestion(ctx, input)
+			if errs[i] != nil {
+				cancel()
+			}
+		}()
+	}
+	wg.Wait()
+	// Report the first real failure, not the cancellations it caused.
+	var first error
+	for _, err := range errs {
+		if err == nil {
+			continue
+		}
+		if first == nil || (errors.Is(first, context.Canceled) && !errors.Is(err, context.Canceled)) {
+			first = err
+		}
+	}
+	if first != nil {
+		return nil, first
+	}
+	for i, grade := range grades {
+		if grade.QuestionPosition != inputs[i].QuestionPosition || len(grade.Criteria) != len(inputs[i].Criteria) {
+			return nil, fmt.Errorf("grade of question %d does not match its input", inputs[i].QuestionPosition)
+		}
+	}
+	return grades, nil
+}
+
+// buildEvaluation applies the calculator to the validated grades and assembles what is stored.
+func (s *Scoring) buildEvaluation(record domain.InterviewRecord, plan gradingPlan, grades []domain.QuestionGrade, metrics []domain.ScoredMetric) (domain.Evaluation, error) {
+	input := domain.RubricScoreInput{Weights: metrics, AssignedQuestions: record.QuestionCount}
+	byPosition := make(map[int32]domain.QuestionGrade, len(grades))
+	for _, grade := range grades {
+		points := domain.QuestionPoints{Position: grade.QuestionPosition}
+		for _, c := range grade.Criteria {
+			points.Criteria = append(points.Criteria, domain.CriterionPoints{
+				CriterionID: c.CriterionID, MetricID: c.MetricID, MaxPoints: c.MaxPoints, Points: c.Points,
+			})
+		}
+		input.Questions = append(input.Questions, points)
+		byPosition[grade.QuestionPosition] = grade
+	}
+	score, err := CalculateRubricScore(input, s.policy)
 	if err != nil {
 		return domain.Evaluation{}, err
 	}
-	if echoed || feedbackEchoed {
-		flagged = true
-	}
 	evaluation := domain.Evaluation{
-		OverallScore:     int32(math.Round(weighted / totalWeight)),
-		Scores:           scores,
-		Questions:        questions,
-		InjectionFlagged: flagged,
+		Outcome: score.Outcome, Reason: score.Reason, Overall: score.Overall,
+		Metrics: metricResults(score.Metrics, metrics),
 	}
-	if summary != "" {
+	var summaries []string
+	for _, q := range score.Questions {
+		grade := byPosition[q.Position]
+		evaluation.Questions = append(evaluation.Questions, domain.QuestionResult{Position: q.Position, Total: q.Total, Criteria: grade.Criteria})
+		evaluation.InjectionFlagged = evaluation.InjectionFlagged || grade.InjectionFlagged
+		if position, ok := plan.coreTurn[q.Position]; ok && grade.Feedback != "" {
+			evaluation.TurnFeedback = append(evaluation.TurnFeedback, domain.TurnFeedback{Position: position, Feedback: grade.Feedback})
+		}
+		if grade.Summary != "" {
+			summaries = append(summaries, grade.Summary)
+		}
+	}
+	if summary := textsafe.Truncate(strings.Join(summaries, " "), maxSummaryRunes); summary != "" {
 		evaluation.Summary = &summary
 	}
 	return evaluation, nil
 }
 
-// feedbackFor keeps the feedback of answered positions only. Empty feedback is skipped. Feedback is
-// sanitised; feedback that echoes an instruction-like pattern is dropped and reported through echoed.
-func feedbackFor(turns []domain.ScoreTurn, feedback []domain.QuestionFeedback) (kept []domain.QuestionFeedback, echoed bool, err error) {
-	answered := make(map[int32]bool, len(turns))
-	for _, turn := range turns {
-		answered[turn.Position] = true
-	}
-	seen := make(map[int32]bool, len(feedback))
-	kept = make([]domain.QuestionFeedback, 0, len(feedback))
-	for _, item := range feedback {
-		if !answered[item.Position] {
-			return nil, false, fmt.Errorf("feedback for unanswered position %d", item.Position)
-		}
-		if seen[item.Position] {
-			return nil, false, fmt.Errorf("feedback for position %d given twice", item.Position)
-		}
-		seen[item.Position] = true
-		text := strings.TrimSpace(item.Feedback)
-		if !utf8.ValidString(text) || utf8.RuneCountInString(text) > maxFeedbackRunes {
-			return nil, false, fmt.Errorf("feedback for position %d is invalid or too long", item.Position)
-		}
-		var hit bool
-		text, hit = moderateText(text)
-		echoed = echoed || hit
-		if text == "" {
-			continue
-		}
-		kept = append(kept, domain.QuestionFeedback{Position: item.Position, Feedback: text})
-	}
-	return kept, echoed, nil
+// withheldEvaluation is the stored result of a session nothing could be graded in. It still records every
+// weighted metric with its weight, so the report can say what would have been measured.
+func withheldEvaluation(reason domain.RubricWithheldReason, metrics []domain.ScoredMetric) domain.Evaluation {
+	return domain.Evaluation{Outcome: domain.RubricWithheld, Reason: reason, Metrics: metricResults(nil, metrics)}
 }
 
-// score calls the scorer and turns a panic in it (or its LLM client) into an error, so the evaluation is
-// marked failed and the API keeps running.
-func (s *Scoring) score(ctx context.Context, input domain.ScoreInput) (output domain.ScoreOutput, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("scorer panicked: %v", recovered)
+// metricResults lists every weighted metric with its weight (a nil score when no graded question assessed
+// it) and every assessed metric the weights do not cover (weight 0), in a stable order.
+func metricResults(assessed []domain.RubricMetricScore, weights []domain.ScoredMetric) []domain.MetricResult {
+	results := make([]domain.MetricResult, 0, len(weights)+len(assessed))
+	seen := make(map[uuid.UUID]bool, len(weights))
+	scores := make(map[uuid.UUID]domain.RubricMetricScore, len(assessed))
+	for _, m := range assessed {
+		scores[m.MetricID] = m
+	}
+	for _, w := range weights {
+		result := domain.MetricResult{MetricID: w.MetricID, Weight: w.Weight}
+		if m, ok := scores[w.MetricID]; ok {
+			score := m.Score
+			result.Score, result.Questions = &score, m.Questions
 		}
-	}()
-	return s.scorer.Score(ctx, input)
+		results = append(results, result)
+		seen[w.MetricID] = true
+	}
+	for _, m := range assessed {
+		if !seen[m.MetricID] {
+			score := m.Score
+			results = append(results, domain.MetricResult{MetricID: m.MetricID, Score: &score, Questions: m.Questions})
+		}
+	}
+	sort.SliceStable(results, func(i, j int) bool { return compareIDs(results[i].MetricID, results[j].MetricID) < 0 })
+	return results
 }

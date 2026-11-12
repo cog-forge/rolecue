@@ -9,6 +9,7 @@ import type { Report } from "../schemas/report-schema";
 
 export function ReportExport({ report }: { report: Report }) {
   const t = useTranslations("candidate.report");
+  const ts = useTranslations("candidate.report.scoring");
   const locale = useLocale();
   const fmt = useFormatters();
   const [busy, setBusy] = useState(false);
@@ -16,8 +17,7 @@ export function ReportExport({ report }: { report: Report }) {
   if (
     report.type !== "practice" ||
     report.status !== "completed" ||
-    !report.completed_at ||
-    report.overall_score === null
+    !report.completed_at
   )
     return null;
 
@@ -35,7 +35,10 @@ export function ReportExport({ report }: { report: Report }) {
       // Re-authorize ownership and current state, including when the page has cached data.
       const current = await getInterviewReport(report.interview_id);
       const { printReport } = await import("../utils/report-pdf");
-      await printReport(current, t, locale, target, fmt.number);
+      await printReport(current, t, locale, target, fmt.number, (key, values) =>
+        // The keys come from the report's own scoring catalog (candidate.report.scoring).
+        ts(key as Parameters<typeof ts>[0], values),
+      );
     } catch {
       target.close();
       setFailed(true);

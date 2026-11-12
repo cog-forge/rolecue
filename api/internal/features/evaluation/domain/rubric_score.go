@@ -4,7 +4,7 @@ import "github.com/google/uuid"
 
 // Rubric scoring (KAN-332, RB-08). The model is: criterion points -> metric score inside one core question
 // -> metric score of the session -> weighted overall. The calculator that applies it is pure: it reads these
-// types and does no I/O. Nothing in the live scoring path uses it yet.
+// types and does no I/O. The evaluation service applies it to the validated criterion grades of a session.
 
 // CriterionPoints is the outcome of one rubric criterion for one core question. MaxPoints is the criterion's
 // maximum and Points the whole number the candidate earned, 0..MaxPoints.
@@ -64,16 +64,15 @@ const MaxMetricDecimals = 6
 // ScoringPolicy groups the scoring decisions the spec left open. They were settled on 11/11 and
 // DefaultScoringPolicy holds the settled values. Change a value here, not in the arithmetic.
 type ScoringPolicy struct {
-	// MetricDecimals is the precision of question and session metric scores (settled 11/11: 2, so a numeric(5,2)
-	// column can store them). The overall is calculated from the rounded session metrics and then rounded
-	// half-up to a whole number, because interviews.score is an integer.
+	// MetricDecimals is the precision of question scores, session metric scores and the overall (settled 11/11:
+	// 2, stored in numeric(5,2) columns). The overall is calculated from the rounded session metrics and then
+	// rounded half-up at the same precision.
 	MetricDecimals  int
 	MissingCoverage MissingCoveragePolicy
 	PartialSession  PartialSessionPolicy
 }
 
-// DefaultScoringPolicy is the policy settled on 11/11: two decimals for metric scores and a whole-number
-// overall, withhold the overall when a weighted metric has no evidence, score a partial session (marked
+// DefaultScoringPolicy is the policy settled on 11/11: two decimals for metric scores and the overall, withhold the overall when a weighted metric has no evidence, score a partial session (marked
 // partial) when every weighted metric is still covered.
 func DefaultScoringPolicy() ScoringPolicy {
 	return ScoringPolicy{
@@ -110,7 +109,7 @@ type RubricScore struct {
 	Outcome RubricOutcome
 	Reason  RubricWithheldReason
 	// Overall is nil when the outcome is withheld.
-	Overall *int32
+	Overall *float64
 	// Questions carries the per-question detail. Total is for display only and is never averaged into the
 	// overall.
 	Questions []RubricQuestionScore

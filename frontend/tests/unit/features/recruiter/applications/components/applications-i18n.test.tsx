@@ -425,13 +425,25 @@ describe("ApplicationDetail in Vietnamese", () => {
             started_at: "2026-10-21T08:00:00Z",
             completed_at: "2026-10-21T08:30:00Z",
             summary: "Strong on concurrency.",
+            scoring: {
+              method: "rubric",
+              outcome: "complete",
+              withheld_reason: null,
+              assigned_questions: 1,
+              graded_questions: 1,
+              weight_total: 1,
+              decimals: 2,
+            },
             breakdown: [
               {
                 metric_id: "77777777-7777-4777-8777-000000000001",
                 name: "Communication",
-                score: 80,
+                score: 82,
+                weight: 1,
+                question_count: 1,
               },
             ],
+            graded_questions: [],
             questions: null,
           }),
         );
@@ -454,7 +466,7 @@ describe("ApplicationDetail in Vietnamese", () => {
       screen.getByRole("heading", { name: "Phỏng vấn" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Đã đánh giá")).toBeInTheDocument();
-    expect(screen.getByText("82/100")).toBeInTheDocument();
+    expect(screen.getByText("82,00/100")).toBeInTheDocument();
     expect(screen.getByText("Đã có bản ghi hình.")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Quyết định cuối cùng" }),

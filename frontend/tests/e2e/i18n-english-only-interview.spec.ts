@@ -37,13 +37,25 @@ const report = {
   started_at: "2026-10-10T08:00:00Z",
   completed_at: "2026-10-10T08:30:00Z",
   summary: "Clear answers with one gap in system design.",
+  scoring: {
+    method: "rubric",
+    outcome: "complete",
+    withheld_reason: null,
+    assigned_questions: 1,
+    graded_questions: 1,
+    weight_total: 1,
+    decimals: 2,
+  },
   breakdown: [
     {
       metric_id: "dddddddd-dddd-4ddd-8ddd-000000000001",
       name: "Communication",
-      score: 80,
+      score: 82,
+      weight: 1,
+      question_count: 1,
     },
   ],
+  graded_questions: [],
   questions: [
     {
       position: 1,

@@ -11,7 +11,7 @@ Off by default. The System Handler runs two extra jobs when `RETENTION_ENABLED=t
 | --- | --- | --- |
 | `RETENTION_ENABLED` | `false` | Turns both passes on. |
 | `RETENTION_CV_DAYS` | `180` | CV files of Applications rejected at the CV stage (rejected, no interview ever started) are deleted from storage and `applications.cv_path` is cleared this many days after the decision. |
-| `RETENTION_TRANSCRIPT_DAYS` | `365` | Answers and per-turn feedback of interviews completed this many days ago are cleared. Questions, positions and every score stay. |
+| `RETENTION_TRANSCRIPT_DAYS` | `365` | Answers and per-turn feedback of interviews completed this many days ago are cleared. Questions, positions and every score stay. TODO KAN-338: the evidence quotes and feedback of rubric criterion results (`interview_criterion_scores`) are not cleared by this pass yet. |
 
 Recording retention (90 days after the final decision) is unchanged and not configurable.
 

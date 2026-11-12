@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"github.com/cog-forge/rolecue/api/internal/pkg/dbnum"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/application/domain"
@@ -316,7 +317,7 @@ func (r *Repository) GetApplicationDetail(ctx context.Context, recruiterID, post
 		InterviewSlot: row.InterviewSlot,
 		CVApprovals:   row.CvApprovals,
 		Interview: recruiterInterview(row.InterviewID, row.InterviewStartedAt, row.InterviewCompletedAt,
-			row.InterviewEvaluationStatus, row.InterviewScore, row.InterviewRecordStatus, row.InterviewEndReason),
+			row.InterviewEvaluationStatus, dbnum.Float(row.InterviewScore), row.InterviewScoreOutcome, row.InterviewRecordStatus, row.InterviewEndReason),
 		OpensAt: timePtr(row.FinalOpensAt),
 	}, nil
 }

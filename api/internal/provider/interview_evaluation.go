@@ -18,18 +18,20 @@ var (
 	_ handler.InterviewReportService = (*service.Scoring)(nil)
 )
 
-// ProvideInterviewScorer builds the scorer from the evaluation task route. When no LLM
-// can be built, it returns a scorer that fails each evaluation with the reason instead of stopping the server.
-func ProvideInterviewScorer(cfg *config.Config) service.Scorer {
+// ProvideInterviewGrader builds the rubric grader (KAN-334) from the evaluation task route. When no LLM can be
+// built, it returns a grader that fails each evaluation with the reason instead of stopping the server.
+func ProvideInterviewGrader(cfg *config.Config) service.Grader {
 	model, err := ai.NewTaskAdapter(context.Background(), cfg, config.TaskEvaluation)
 	if err != nil {
-		return evalprovider.NewUnavailableScorer(err)
+		return evalprovider.NewUnavailableGrader(err)
 	}
 	return model
 }
-func ProvideInterviewEvaluationService(repo *repository.Repository, scorer service.Scorer) (*service.Scoring, error) {
-	return service.NewScoring(repo, scorer)
+
+func ProvideInterviewEvaluationService(repo *repository.Repository, grader service.Grader) (*service.Scoring, error) {
+	return service.NewScoring(repo, grader)
 }
+
 func ProvideInterviewReportHandler(svc *service.Scoring) *handler.InterviewReportHandler {
 	return handler.NewInterviewReportHandler(svc)
 }

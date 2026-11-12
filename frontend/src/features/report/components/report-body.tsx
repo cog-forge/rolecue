@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { routes } from "@/config/routes";
 import type { Report, ReportQuestion } from "../schemas/report-schema";
 import { groupByQuestion } from "../utils/question-groups";
-import { formatInterviewTime, scoreText } from "../utils/report-text";
+import { formatInterviewTime } from "../utils/report-text";
+import { QuestionGrading, ScoringSummary } from "./report-scoring";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // The tag name in the message becomes a <time> element carrying the machine-readable instant.
@@ -34,7 +35,7 @@ export function ReportBody({
 }) {
   const t = useTranslations("candidate.report");
   const fmt = useFormatters();
-  const { type, status, overall_score: score } = report;
+  const { type, status } = report;
   const finished = status === "completed";
 
   return (
@@ -75,67 +76,18 @@ export function ReportBody({
         autoRefresh={autoRefresh}
       />
 
-      {finished && (score !== null || type === "practice" || report.summary) ? (
+      {finished && (report.scoring || report.summary) ? (
         <Card>
-          <CardHeader>
-            <CardTitle>
-              <h2 className="text-lg font-semibold">{t("overallScore")}</h2>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-4xl font-semibold tabular-nums">
-              {scoreText(score, fmt, t)}
-            </p>
+          <CardContent className="space-y-6 pt-6">
+            <ScoringSummary report={report} />
             {report.summary ? (
-              <div className="space-y-2">
+              <div className="space-y-2 border-t pt-4">
                 <h3 className="font-medium">{t("summary")}</h3>
                 <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground">
                   {report.summary}
                 </p>
               </div>
             ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {finished && report.breakdown && report.breakdown.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <h2 className="text-lg font-semibold">{t("breakdown")}</h2>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-4">
-              {report.breakdown.map((metric) => (
-                <li key={metric.metric_id} className="space-y-2">
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="font-medium [overflow-wrap:anywhere]">
-                      {metric.name}
-                    </span>
-                    <span className="tabular-nums">
-                      {t("score", { score: fmt.number(metric.score) })}
-                    </span>
-                  </div>
-                  <div
-                    role="progressbar"
-                    aria-label={metric.name}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={metric.score}
-                    aria-valuetext={t("scoreText", {
-                      score: fmt.number(metric.score),
-                    })}
-                    className="h-2 w-full overflow-hidden rounded-full bg-muted"
-                  >
-                    <div
-                      className="h-full rounded-full bg-workspace-accent"
-                      style={{ width: `${metric.score}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
           </CardContent>
         </Card>
       ) : null}
@@ -176,6 +128,10 @@ export function ReportBody({
                       ))}
                     </ol>
                   ) : null}
+                  <GradingOf
+                    graded={report.graded_questions}
+                    questionNumber={core.question_number}
+                  />
                 </li>
               ))}
             </ol>
@@ -196,6 +152,20 @@ export function ReportBody({
       </Button>
     </div>
   );
+}
+
+// The rubric grading of one core question, when the evaluation graded it.
+function GradingOf({
+  graded,
+  questionNumber,
+}: {
+  graded: Report["graded_questions"];
+  questionNumber: number;
+}) {
+  const item = graded?.find(
+    (entry) => entry.question_number === questionNumber,
+  );
+  return item ? <QuestionGrading question={item} /> : null;
 }
 
 // The Candidate's answer to one question and its feedback once evaluated.

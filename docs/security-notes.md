@@ -388,14 +388,21 @@ expensive routes and need no extra image.
 - **One shared text helper.** `api/internal/pkg/textsafe` holds `Clean` (NFKC; strips control, zero-width,
   bidi-override and other invisible format characters), `LooksLikeInjection`, `Fence`, `Redact` and
   `SanitizeOutput`. `normalizeAnswer` (interview) and `NormalizeInput` (job description) both call `Clean`.
-- **Per-question scoring.** `EinoScorer.Score` makes one model call per core question (the question plus its
-  follow-ups, at most 4 calls in parallel). An injected answer can only move the scores of its own question;
-  each metric is the mean over the questions. Raise `ai.evaluation.timeout` if a long interview times out.
+- **Per-question rubric grading (KAN-334).** The evaluation service makes one model call per core question (the
+  question plus its follow-ups, at most 4 calls in parallel), each its own routed AI task attempt. The model grades
+  every criterion of the question's rubric with whole points and a verbatim quote; it never sees weights and never
+  computes a metric or the overall, which the pure calculator does. An injected answer can only move the points of
+  its own question. `evaluation/service/grading.go` refuses a reply that misses, repeats or invents a criterion,
+  gives points outside 0..max, or quotes text that is not in that question's own answers; a refused reply is
+  invalid output, retried or sent to the fallback by the AI route, never repaired. The rubric text, the expected
+  answer, the answers and model-written follow-ups are fenced untrusted data; criteria are sent as short keys
+  (C1, C2...) so no UUID has to be copied. The expected answer never appears in a log, an error or any API
+  response. Raise `ai.evaluation.timeout` if a long interview times out.
 - **Flag, never drop.** A pattern hit in an answer or in a generated follow-up question sets
-  `injection_flagged`; the evaluation still completes. The existing evidence-quote check and the validators
-  are unchanged.
-- **Output moderation.** Scorer summary and feedback are stripped of markup, links and invisible characters.
-  Text that echoes an instruction-like pattern is not stored and flags the evaluation.
+  `injection_flagged`; the evaluation still completes.
+- **Output moderation.** Criterion and question feedback and the summary are stripped of markup, links and
+  invisible characters. Text that echoes an instruction-like pattern is not stored and flags the evaluation.
+- **Not calibrated.** The rubric grader's accuracy has not been calibrated against human experts (KAN-339).
 - **JD is untrusted.** The JD, evidence excerpts and the refinement note are fenced as data in the extraction and
   question bank prompts. The legacy single-provider route now runs the same domain validators as the routed one.
 - **Interview Behavior Guidelines (KAN-276).** The Admin guideline is a closed vocabulary: enums, a bounded
@@ -413,10 +420,10 @@ expensive routes and need no extra image.
 
 ### LLM injection tests (opt-in)
 
-The suite lives in `api/tests/promptfoo/` (`promptfooconfig.yaml`, `prompts/`). It sends the real scoring
-instruction and six cases (override request, forged output JSON, fake system message, zero-width obfuscation,
-instruction in a generated follow-up, honest control) to a Gemini model and fails when an injected answer
-scores high or is not flagged. It uses a real model and a paid key, so it never runs in the normal CI.
+The suite lives in `api/tests/promptfoo/` (`promptfooconfig.yaml`, `prompts/`). It sends the real rubric
+grading instruction and its cases (override request, forged output JSON, fake system message, zero-width
+obfuscation, instruction in a generated follow-up, instruction in the rubric text, honest control) to a Gemini
+model and fails when an injected answer earns high points or is not flagged. It uses a real model and a paid key, so it never runs in the normal CI.
 
 - **Locally:** `cd api/tests/promptfoo`, then `GEMINI_API_KEY=... PROMPTFOO_GEMINI_MODEL=gemini-2.5-flash npx promptfoo@<exact version> eval -c promptfooconfig.yaml`.
   The `<exact version>` is any released promptfoo version; the workflow input defaults to one that has not been
@@ -424,7 +431,7 @@ scores high or is not flagged. It uses a real model and a paid key, so it never 
 - **In GitHub:** Actions, "LLM injection tests (opt-in)", Run workflow. Needs the repository secret
   `LLM_PROMPTFOO_GEMINI_API_KEY`. The workflow is `workflow_dispatch` only, has `contents: read`, passes the key
   only to the eval step and is skipped on forks.
-- **Keeping the prompt in sync:** `api/tests/promptfoo/prompts/scoring-system.txt` is a copy of the scoring
+- **Keeping the prompt in sync:** `api/tests/promptfoo/prompts/grading-system.txt` is a copy of the grading
   instruction. A Go test fails when it drifts; refresh with
   `UPDATE_PROMPTFOO=1 go test ./internal/features/evaluation/provider` from `api/`.
 - **Not verified:** the suite and the workflow were not run (no API key, no network eval). The promptfoo

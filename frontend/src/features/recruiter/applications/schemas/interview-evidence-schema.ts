@@ -1,52 +1,10 @@
 import { z } from "zod";
-import {
-  interviewStatusSchema,
-  recordStatusSchema,
-} from "./application-detail-schema";
+import { reportSchema } from "@/features/report/schemas/report-schema";
+import { recordStatusSchema } from "./application-detail-schema";
 
-// GET /interviews/:id/report for the owning Recruiter (evidence): every field is present. The
-// Candidate's view of the same endpoint carries only the score and status, and is not read here.
-export const interviewReportSchema = z.object({
-  interview_id: z.uuid(),
-  type: z.enum(["practice", "recruitment"]),
-  status: interviewStatusSchema,
-  overall_score: z
-    .number()
-    .int()
-    .min(0)
-    .max(100)
-    .nullish()
-    .transform((value) => value ?? null),
-  started_at: z.iso.datetime({ offset: true }),
-  completed_at: z.iso.datetime({ offset: true }).nullable(),
-  summary: z.string().nullable(),
-  // The summary is model output, never a Recruiter's words. injection_flagged: the evaluation suspected
-  // the answers tried to steer it, or a score's evidence quote could not be verified (KAN-253).
-  summary_source: z.literal("ai").nullish(),
-  injection_flagged: z.boolean().optional(),
-  breakdown: z
-    .array(
-      z.object({
-        metric_id: z.uuid(),
-        name: z.string(),
-        score: z.number().int().min(0).max(100),
-        evidence: z.string().nullish(),
-      }),
-    )
-    .nullable(),
-  questions: z
-    .array(
-      z.object({
-        position: z.number().int(),
-        question_number: z.number().int(),
-        kind: z.enum(["core", "follow_up"]),
-        question: z.string(),
-        answer: z.string().nullable(),
-        feedback: z.string().nullable(),
-      }),
-    )
-    .nullable(),
-});
+// GET /interviews/:id/report for the owning Recruiter (evidence): every field is present, including the
+// rubric score explanation (KAN-336). It is the same contract the Candidate's report reads.
+export const interviewReportSchema = reportSchema;
 export type InterviewReport = z.infer<typeof interviewReportSchema>;
 
 export const interviewReportEnvelopeSchema = z.object({

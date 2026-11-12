@@ -39,7 +39,7 @@ func TestDeriveSessionStatus(t *testing.T) {
 // added here on purpose, so questions, turns, feedback and the recording path cannot leak in by accident.
 func TestHistoryPageAllowList(t *testing.T) {
 	title := "Backend Engineer"
-	score := int32(81)
+	score := 81.25
 	page := HistoryPage{
 		Items: []HistoryItem{{
 			ID: uuid.New(), Type: TypeRecruitment, StartedAt: time.Now(), EvaluationStatus: EvaluationCompleted,
@@ -64,7 +64,7 @@ func TestHistoryPageAllowList(t *testing.T) {
 	wantPage := []string{"items", "page", "page_size", "total"}
 	wantItem := []string{
 		"application_id", "completed_at", "evaluation_status", "id", "job_posting_title",
-		"role_profile_title", "score", "started_at", "status", "type",
+		"role_profile_title", "score", "score_outcome", "started_at", "status", "type",
 	}
 	if got := sortedKeys(envelope); !reflect.DeepEqual(got, wantPage) {
 		t.Fatalf("page keys = %v, want %v", got, wantPage)

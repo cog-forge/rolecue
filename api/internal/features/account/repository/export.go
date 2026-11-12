@@ -80,7 +80,7 @@ WHERE a.candidate_id = $1 ORDER BY a.created_at, a.id`, id)
 // key is set only for a recording whose upload finished (record_status ready).
 func (r *Repository) ExportInterviews(ctx context.Context, id uuid.UUID) ([]domain.ExportInterview, error) {
 	rows, err := r.pool.Query(ctx, `
-SELECT i.id, i.type::text, i.application_id, i.started_at, i.completed_at, i.end_reason, i.score, i.feedback,
+SELECT i.id, i.type::text, i.application_id, i.started_at, i.completed_at, i.end_reason, i.score::float8, i.score_outcome, i.feedback,
        CASE WHEN i.record_status = 'ready' THEN i.record_path END
 FROM public.interviews i
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -94,7 +94,7 @@ ORDER BY i.started_at, i.id`, id)
 	var out []domain.ExportInterview
 	for rows.Next() {
 		var i domain.ExportInterview
-		if err := rows.Scan(&i.ID, &i.Type, &i.ApplicationID, &i.StartedAt, &i.CompletedAt, &i.EndReason, &i.Score, &i.Feedback, &i.RecordKey); err != nil {
+		if err := rows.Scan(&i.ID, &i.Type, &i.ApplicationID, &i.StartedAt, &i.CompletedAt, &i.EndReason, &i.Score, &i.ScoreOutcome, &i.Feedback, &i.RecordKey); err != nil {
 			return nil, readFailed(err)
 		}
 		i.Turns = []domain.ExportTurn{}
@@ -108,7 +108,7 @@ ORDER BY i.started_at, i.id`, id)
 		item := &out[n]
 		if item.Type != "practice" {
 			// The report view hides score, feedback and breakdown from a recruitment Candidate.
-			item.Score, item.Feedback = nil, nil
+			item.Score, item.ScoreOutcome, item.Feedback = nil, nil, nil
 		}
 		if err := r.loadTurns(ctx, item); err != nil {
 			return nil, err
@@ -145,7 +145,7 @@ FROM public.conversation_turns WHERE interview_id = $1 ORDER BY position`, item.
 
 func (r *Repository) loadScores(ctx context.Context, item *domain.ExportInterview) error {
 	rows, err := r.pool.Query(ctx, `
-SELECT m.name, s.score, s.evidence FROM public.score_details s JOIN public.metrics m ON m.id = s.metric_id
+SELECT m.name, s.score::float8, s.weight, s.evidence FROM public.score_details s JOIN public.metrics m ON m.id = s.metric_id
 WHERE s.interview_id = $1 ORDER BY m.name`, item.ID)
 	if err != nil {
 		return readFailed(err)
@@ -153,10 +153,38 @@ WHERE s.interview_id = $1 ORDER BY m.name`, item.ID)
 	defer rows.Close()
 	for rows.Next() {
 		var s domain.ExportScore
-		if err := rows.Scan(&s.Metric, &s.Score, &s.Evidence); err != nil {
+		if err := rows.Scan(&s.Metric, &s.Score, &s.Weight, &s.Evidence); err != nil {
 			return readFailed(err)
 		}
 		item.Scores = append(item.Scores, s)
+	}
+	if err := readFailedIf(rows.Err()); err != nil {
+		return err
+	}
+	rows.Close()
+	return r.loadCriteria(ctx, item)
+}
+
+// loadCriteria adds the graded rubric criteria of a practice interview. The rubric of a practice question is
+// a system template, so its criterion names are not anyone's private text; expected answers and scoring
+// guides are never exported.
+func (r *Repository) loadCriteria(ctx context.Context, item *domain.ExportInterview) error {
+	rows, err := r.pool.Query(ctx, `
+SELECT s.question_position, c.name, m.name, s.points, c.max_points, s.evidence, s.feedback
+FROM public.interview_criterion_scores s
+JOIN public.rubric_criteria c ON c.id = s.rubric_criterion_id
+JOIN public.metrics m ON m.id = c.metric_id
+WHERE s.interview_id = $1 ORDER BY s.question_position, c.position`, item.ID)
+	if err != nil {
+		return readFailed(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c domain.ExportCriterion
+		if err := rows.Scan(&c.QuestionPosition, &c.Criterion, &c.Metric, &c.Points, &c.MaxPoints, &c.Evidence, &c.Feedback); err != nil {
+			return readFailed(err)
+		}
+		item.Criteria = append(item.Criteria, c)
 	}
 	return readFailedIf(rows.Err())
 }

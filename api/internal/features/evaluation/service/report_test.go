@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -16,204 +17,226 @@ var (
 	scoringOtherRecruiter = uuid.MustParse("ffffffff-ffff-4fff-8fff-ffffffffffff")
 )
 
-func evaluatedRecord(record *domain.InterviewRecord, score int32, summary string) *domain.InterviewRecord {
+func ptr[T any](v T) *T { return &v }
+
+// evaluatedRecord marks a record completed by a rubric evaluation with the given overall and outcome.
+func evaluatedRecord(record *domain.InterviewRecord, overall *float64, outcome string, reason *string) *domain.InterviewRecord {
 	record.EvaluationStatus = domain.EvaluationCompleted
-	record.Score = &score
-	record.Feedback = &summary
+	record.Score = overall
+	record.ScoreOutcome = &outcome
+	record.ScoreWithheldReason = reason
+	record.Feedback = ptr("Solid answers.")
+	record.QuestionCount = 3
 	return record
 }
 
-func evaluatedRepository(record *domain.InterviewRecord) *fakeInterviewRepository {
-	first := "I would index it."
-	feedback := "Name the index type."
-	return &fakeInterviewRepository{
-		record: record,
-		turns:  []domain.TurnRecord{{Position: 1, Question: "How would you index a table?", Answer: &first, Feedback: &feedback}},
-		scores: []domain.ReportBreakdown{{MetricID: metricAccuracy.ID, Name: metricAccuracy.Name, Score: 80}},
+// storedWorkedExample is what the worked example stores, plus a third question that was not answered. Q01 is
+// graded with a private rubric (systemRubric false) and Q02 with a system template.
+func storedWorkedExample(systemRubric bool) domain.StoredResults {
+	crit := func(q int32, id uuid.UUID, name string, metric domain.Metric, max, points int32, evidence *string, at *int32) domain.StoredCriterion {
+		return domain.StoredCriterion{QuestionPosition: q, CriterionID: id, Name: name, MetricID: metric.ID, MetricName: metric.Name,
+			MaxPoints: max, Points: points, Evidence: evidence, EvidencePosition: at, Feedback: ptr("Why.")}
 	}
+	return domain.StoredResults{
+		Metrics: []domain.StoredMetric{
+			{MetricID: metricAccuracy.ID, Name: metricAccuracy.Name, Score: ptr(70.0), Weight: ptr(60.0), Questions: ptr(int32(2))},
+			{MetricID: metricSolving.ID, Name: metricSolving.Name, Score: ptr(50.0), Weight: ptr(40.0), Questions: ptr(int32(2))},
+		},
+		Questions: []domain.StoredQuestion{
+			{Position: 1, Score: ptr(70.0), HasRubric: true, RubricName: ptr("Private R01"), SystemRubric: systemRubric},
+			{Position: 2, Score: ptr(50.0), HasRubric: true, RubricName: ptr("System R01"), SystemRubric: true},
+			{Position: 3, HasRubric: true, RubricName: ptr("System R01"), SystemRubric: true},
+		},
+		Criteria: []domain.StoredCriterion{
+			crit(1, critC01, "Mechanism", metricAccuracy, 2, 2, ptr("B-tree index"), ptr(int32(1))),
+			crit(1, critC02, "Limits", metricAccuracy, 3, 2, ptr("Writes get slower."), ptr(int32(2))),
+			crit(1, critC03, "Recommendation", metricSolving, 5, 3, ptr("on the filtered column"), ptr(int32(1))),
+			crit(2, critC01, "Mechanism", metricAccuracy, 2, 1, ptr("read-through cache"), ptr(int32(3))),
+			crit(2, critC02, "Limits", metricAccuracy, 3, 2, ptr("with a TTL"), ptr(int32(3))),
+			crit(2, critC03, "Recommendation", metricSolving, 5, 2, ptr("Use a read-through cache"), ptr(int32(3))),
+		},
+	}
+}
+
+func evaluatedRepository(record *domain.InterviewRecord) *fakeInterviewRepository {
+	turns := answeredTurns()
+	turns[0].Feedback = ptr("Name the index type.")
+	return &fakeInterviewRepository{record: record, turns: turns, results: storedWorkedExample(false)}
 }
 
 func reportFor(t *testing.T, repo *fakeInterviewRepository, userID uuid.UUID, role string) domain.Report {
 	t.Helper()
-	report, err := newScoringForTest(t, repo, &fakeScorer{}).Report(context.Background(), userID, role, scoringInterviewID)
+	report, err := newScoringForTest(t, repo, pointsGrader(nil)).Report(context.Background(), userID, role, scoringInterviewID)
 	if err != nil {
 		t.Fatalf("Report(%s) error = %v", role, err)
 	}
 	return report
 }
 
-func TestReportPracticeCandidateSeesEverything(t *testing.T) {
-	repo := evaluatedRepository(evaluatedRecord(completedPracticeRecord(), 80, "Solid answers."))
+func TestReportRecruiterSeesHowTheOverallWasReached(t *testing.T) {
+	repo := evaluatedRepository(evaluatedRecord(completedRecruitmentRecord(), ptr(62.0), "partial", nil))
+	report := reportFor(t, repo, scoringRecruiterID, recruiterRole)
+
+	if report.OverallScore == nil || *report.OverallScore != 62 || report.Scoring == nil {
+		t.Fatalf("report = %+v, want the overall 62 with its explanation", report)
+	}
+	s := report.Scoring
+	if s.Method != domain.ScoringMethodRubric || s.Outcome == nil || *s.Outcome != "partial" || s.AssignedQuestions != 3 ||
+		s.GradedQuestions != 2 || s.WeightTotal != 100 || s.Decimals != 2 {
+		t.Fatalf("scoring = %+v, want rubric, partial, 2 of 3 graded, weight total 100, 2 decimals", s)
+	}
+	if len(report.Breakdown) != 2 || *report.Breakdown[0].Score != 70 || *report.Breakdown[0].Weight != 60 || *report.Breakdown[0].QuestionCount != 2 {
+		t.Fatalf("breakdown = %+v, want the session metrics with their weights", report.Breakdown)
+	}
+	if len(report.GradedQuestions) != 3 {
+		t.Fatalf("graded questions = %+v, want every assigned question", report.GradedQuestions)
+	}
+	q1 := report.GradedQuestions[0]
+	if q1.Status != domain.QuestionGraded || q1.Total == nil || *q1.Total != 70 || q1.Earned != 7 || q1.Max != 10 ||
+		q1.RubricName == nil || *q1.RubricName != "Private R01" || len(q1.Criteria) != 3 || q1.Criteria[0].Name != "Mechanism" {
+		t.Fatalf("question 1 = %+v, want 7/10 = 70 with the private rubric visible to its owner", q1)
+	}
+	// The question metrics are 100 x earned / max of the question's criteria of each metric: 4/5 and 3/5.
+	if len(q1.Metrics) != 2 || q1.Metrics[0].Score != 80 || q1.Metrics[0].Earned != 4 || q1.Metrics[0].Max != 5 || q1.Metrics[1].Score != 60 {
+		t.Fatalf("question 1 metrics = %+v, want Technical Accuracy 80 (4/5) and Problem-Solving 60 (3/5)", q1.Metrics)
+	}
+	if c := q1.Criteria[1]; c.Points != 2 || c.MaxPoints != 3 || c.Evidence == nil || c.EvidencePosition == nil || *c.EvidencePosition != 2 {
+		t.Fatalf("criterion = %+v, want 2/3 with its quote from the follow-up", c)
+	}
+	if q3 := report.GradedQuestions[2]; q3.Status != domain.QuestionNotAnswered || q3.Total != nil || len(q3.Criteria) != 0 {
+		t.Fatalf("question 3 = %+v, want not answered", q3)
+	}
+	if report.InjectionFlagged == nil || report.SummarySource != domain.SummarySourceAI {
+		t.Fatalf("report = %+v, want the flag and the summary source", report)
+	}
+}
+
+func TestReportPracticeCandidateSeesTheExplanationButNoPrivateRubricText(t *testing.T) {
+	repo := evaluatedRepository(evaluatedRecord(completedPracticeRecord(), ptr(62.0), "complete", nil))
 	report := reportFor(t, repo, scoringCandidateID, candidateRole)
 
-	if report.Status != domain.EvaluationCompleted || report.OverallScore == nil || *report.OverallScore != 80 {
-		t.Fatalf("status = %q, score = %v; want completed with 80", report.Status, report.OverallScore)
+	if report.OverallScore == nil || report.Scoring == nil || len(report.GradedQuestions) != 3 || len(report.Questions) != 3 {
+		t.Fatalf("report = %+v, want the full practice report", report)
 	}
-	if report.Summary == nil || *report.Summary != "Solid answers." {
-		t.Fatalf("Summary = %v, want the summary", report.Summary)
+	q1, q2 := report.GradedQuestions[0], report.GradedQuestions[1]
+	if q1.RubricName != nil || q1.Criteria[0].Name != "" {
+		t.Fatalf("question 1 = %+v, want no text of a non-system rubric for a Candidate", q1)
 	}
-	if len(report.Breakdown) != 1 || report.Breakdown[0].Score != 80 {
-		t.Fatalf("Breakdown = %+v, want the metric scores", report.Breakdown)
-	}
-	if len(report.Questions) != 1 || report.Questions[0].Feedback == nil {
-		t.Fatalf("Questions = %+v, want the question with its feedback", report.Questions)
+	if q2.RubricName == nil || q2.Criteria[0].Name != "Mechanism" {
+		t.Fatalf("question 2 = %+v, want the system rubric text visible", q2)
 	}
 }
 
 func TestReportRecruitmentCandidateSeesOnlyStatus(t *testing.T) {
-	repo := evaluatedRepository(evaluatedRecord(completedRecruitmentRecord(), 80, "Solid answers."))
+	repo := evaluatedRepository(evaluatedRecord(completedRecruitmentRecord(), ptr(62.0), "complete", nil))
 	report := reportFor(t, repo, scoringCandidateID, candidateRole)
-	if report.Status != domain.EvaluationCompleted || report.OverallScore != nil {
-		t.Fatalf("status = %q, score = %v; want completed without the score", report.Status, report.OverallScore)
-		t.Fatalf("status = %q, score = %v; want completed with 80", report.Status, report.OverallScore)
-	}
-	if report.Summary != nil || report.Breakdown != nil || report.Questions != nil || report.InjectionFlagged != nil || report.SummarySource != "" {
-		t.Fatalf("limited view leaked evidence: summary=%v breakdown=%+v questions=%+v", report.Summary, report.Breakdown, report.Questions)
-	}
 
+	if report.Status != domain.EvaluationCompleted || report.OverallScore != nil || report.Scoring != nil || report.Breakdown != nil ||
+		report.GradedQuestions != nil || report.Questions != nil || report.Summary != nil || report.InjectionFlagged != nil {
+		t.Fatalf("report = %+v, want the status only", report)
+	}
 	body, err := json.Marshal(report)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{`"summary":null`, `"breakdown":null`, `"questions":null`} {
-		if !strings.Contains(string(body), key) {
-			t.Fatalf("JSON %s lacks %s", body, key)
-		}
-	}
-	for _, key := range []string{"overall_score", "injection_flagged", "summary_source"} {
-		if strings.Contains(string(body), key) {
-			t.Fatalf("JSON %s leaks %s to the candidate", body, key)
+	for _, leaked := range []string{"overall_score", "injection_flagged", "summary_source", "Mechanism", "B-tree", "62"} {
+		if strings.Contains(string(body), leaked) {
+			t.Fatalf("limited report %s leaks %q", body, leaked)
 		}
 	}
 }
 
-func TestReportRecruitmentRecruiterOfThePostingSeesEverything(t *testing.T) {
-	repo := evaluatedRepository(evaluatedRecord(completedRecruitmentRecord(), 80, "Solid answers."))
-	report := reportFor(t, repo, scoringRecruiterID, recruiterRole)
+func TestReportWithheldOverallExplainsWhy(t *testing.T) {
+	record := evaluatedRecord(completedPracticeRecord(), nil, "withheld", ptr("missing_metric_coverage"))
+	repo := evaluatedRepository(record)
+	repo.results.Metrics = append(repo.results.Metrics, domain.StoredMetric{MetricID: metricClarity.ID, Name: metricClarity.Name, Weight: ptr(1.0), Questions: ptr(int32(0))})
+	report := reportFor(t, repo, scoringCandidateID, candidateRole)
 
-	if report.Summary == nil || len(report.Breakdown) != 1 || len(report.Questions) != 1 {
-		t.Fatalf("recruiter view = %+v, want the full report", report)
+	if report.OverallScore != nil || report.Scoring.Outcome == nil || *report.Scoring.Outcome != "withheld" ||
+		report.Scoring.WithheldReason == nil || *report.Scoring.WithheldReason != "missing_metric_coverage" {
+		t.Fatalf("report = %+v, want a withheld overall with its reason", report)
 	}
-	if report.OverallScore == nil || *report.OverallScore != 80 || report.SummarySource != domain.SummarySourceAI || report.InjectionFlagged == nil || *report.InjectionFlagged {
-		t.Fatalf("recruiter view = %+v, want the score, an ai summary source and an unset flag", report)
+	if last := report.Breakdown[2]; last.Score != nil || last.Weight == nil {
+		t.Fatalf("breakdown = %+v, want the uncovered metric listed without a score", report.Breakdown)
 	}
 }
 
-func TestReportInProgressHasNoEvaluation(t *testing.T) {
+func TestReportMarksAnAnsweredQuestionWithoutRubricNotGradable(t *testing.T) {
+	repo := evaluatedRepository(evaluatedRecord(completedPracticeRecord(), ptr(72.0), "partial", nil))
+	repo.results.Criteria = repo.results.Criteria[:3]
+	repo.results.Questions[1] = domain.StoredQuestion{Position: 2}
+	report := reportFor(t, repo, scoringCandidateID, candidateRole)
+	if q2 := report.GradedQuestions[1]; q2.Status != domain.QuestionNotGradable || q2.RubricName != nil {
+		t.Fatalf("question 2 = %+v, want not gradable", q2)
+	}
+}
+
+func TestReportLegacyEvaluationHasNoCriterionDetail(t *testing.T) {
+	record := completedPracticeRecord()
+	record.EvaluationStatus = domain.EvaluationCompleted
+	record.Score = ptr(80.0)
+	repo := &fakeInterviewRepository{record: record, turns: answeredTurns(), results: domain.StoredResults{
+		Metrics: []domain.StoredMetric{{MetricID: metricAccuracy.ID, Name: metricAccuracy.Name, Score: ptr(80.0), Evidence: ptr("I would add")}},
+	}}
+	report := reportFor(t, repo, scoringCandidateID, candidateRole)
+	if report.Scoring.Method != domain.ScoringMethodLegacy || report.Scoring.Outcome != nil || len(report.GradedQuestions) != 0 ||
+		*report.OverallScore != 80 || report.Breakdown[0].Weight != nil {
+		t.Fatalf("report = %+v, want a legacy report without criterion results", report)
+	}
+}
+
+func TestReportBeforeCompletionHasNoScores(t *testing.T) {
+	for _, status := range []string{domain.EvaluationPending, domain.EvaluationFailed} {
+		record := completedPracticeRecord()
+		record.EvaluationStatus = status
+		repo := evaluatedRepository(record)
+		report := reportFor(t, repo, scoringCandidateID, candidateRole)
+		if report.Status != status || report.OverallScore != nil || report.Scoring != nil || report.Breakdown != nil || report.GradedQuestions != nil {
+			t.Fatalf("%s report = %+v, want no scores", status, report)
+		}
+		if len(report.Questions) != 3 {
+			t.Fatalf("%s report questions = %+v, want the answers", status, report.Questions)
+		}
+	}
 	record := completedPracticeRecord()
 	record.CompletedAt = nil
-	repo := &fakeInterviewRepository{record: record, turns: []domain.TurnRecord{{Position: 1, Question: "Q", Answer: strPtr("A")}}}
-	report := reportFor(t, repo, scoringCandidateID, candidateRole)
-
-	if report.Status != "in_progress" || report.CompletedAt != nil || report.OverallScore != nil {
-		t.Fatalf("report = %+v, want in_progress without a score or completion time", report)
-	}
-	if report.Summary != nil || report.Breakdown != nil {
-		t.Fatalf("summary and breakdown must be null before the evaluation completes, got %v and %+v", report.Summary, report.Breakdown)
-	}
-	if len(report.Questions) != 1 || report.Questions[0].Feedback != nil {
-		t.Fatalf("Questions = %+v, want the answered question without feedback", report.Questions)
-	}
-}
-
-func TestReportPendingEvaluationKeepsStatusHonest(t *testing.T) {
-	repo := &fakeInterviewRepository{record: completedPracticeRecord()}
-	report := reportFor(t, repo, scoringCandidateID, candidateRole)
-
-	if report.Status != domain.EvaluationPending {
-		t.Fatalf("Status = %q, want pending", report.Status)
-	}
-	if report.Breakdown != nil || report.Summary != nil {
-		t.Fatalf("pending report has evaluation fields: summary=%v breakdown=%+v", report.Summary, report.Breakdown)
-	}
-	if report.Questions == nil {
-		t.Fatal("Questions = nil, want an empty list for the full view")
+	if report := reportFor(t, evaluatedRepository(record), scoringCandidateID, candidateRole); report.Status != "in_progress" {
+		t.Fatalf("status = %q, want in_progress", report.Status)
 	}
 }
 
 func TestReportHidesTheInterviewFromEveryOtherViewer(t *testing.T) {
+	practice := evaluatedRepository(evaluatedRecord(completedPracticeRecord(), ptr(62.0), "complete", nil))
+	recruitment := evaluatedRepository(evaluatedRecord(completedRecruitmentRecord(), ptr(62.0), "complete", nil))
 	tests := []struct {
 		name   string
-		record func() *domain.InterviewRecord
-		user   uuid.UUID
+		repo   *fakeInterviewRepository
+		userID uuid.UUID
 		role   string
 	}{
-		{name: "other candidate", record: completedPracticeRecord, user: scoringOtherCandidate, role: candidateRole},
-		{name: "other candidate on a recruitment", record: completedRecruitmentRecord, user: scoringOtherCandidate, role: candidateRole},
-		{name: "other recruiter", record: completedRecruitmentRecord, user: scoringOtherRecruiter, role: recruiterRole},
-		{name: "recruiter of a practice interview", record: completedPracticeRecord, user: scoringRecruiterID, role: recruiterRole},
-		{name: "owner with the wrong role", record: completedPracticeRecord, user: scoringCandidateID, role: recruiterRole},
-		{name: "admin", record: completedRecruitmentRecord, user: scoringRecruiterID, role: "admin"},
+		{"another candidate", practice, scoringOtherCandidate, candidateRole},
+		{"a recruiter on practice", practice, scoringRecruiterID, recruiterRole},
+		{"another recruiter", recruitment, scoringOtherRecruiter, recruiterRole},
+		{"the candidate id with the recruiter role", recruitment, scoringCandidateID, recruiterRole},
+		{"an admin", recruitment, scoringRecruiterID, "admin"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo := evaluatedRepository(evaluatedRecord(tt.record(), 80, "Solid answers."))
-			_, err := newScoringForTest(t, repo, &fakeScorer{}).Report(context.Background(), tt.user, tt.role, scoringInterviewID)
-			if !apperror.IsCode(err, apperror.CodeInterviewNotFound) {
-				t.Fatalf("Report() error = %v, want INTERVIEW_NOT_FOUND", err)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := newScoringForTest(t, tc.repo, pointsGrader(nil)).Report(context.Background(), tc.userID, tc.role, scoringInterviewID)
+			var appErr *apperror.AppError
+			if !errors.As(err, &appErr) || appErr.Code != apperror.CodeInterviewNotFound {
+				t.Fatalf("error = %v, want INTERVIEW_NOT_FOUND", err)
 			}
 		})
 	}
 }
 
-func TestReportMissingInterviewIsNotFound(t *testing.T) {
-	_, err := newScoringForTest(t, &fakeInterviewRepository{}, &fakeScorer{}).Report(context.Background(), scoringCandidateID, candidateRole, scoringInterviewID)
-	if !apperror.IsCode(err, apperror.CodeInterviewNotFound) {
-		t.Fatalf("Report() error = %v, want INTERVIEW_NOT_FOUND", err)
-	}
-}
-
-func TestReportCompletedWithoutScoresHasEmptyBreakdown(t *testing.T) {
-	repo := &fakeInterviewRepository{record: evaluatedRecord(completedPracticeRecord(), 0, "Nothing scored.")}
-	report := reportFor(t, repo, scoringCandidateID, candidateRole)
-	if report.Breakdown == nil || len(report.Breakdown) != 0 {
-		t.Fatalf("Breakdown = %#v, want an empty list for a completed evaluation", report.Breakdown)
-	}
-}
-
-func strPtr(s string) *string { return &s }
-
-func TestReportShowsFollowUpsWithTheirCoreQuestion(t *testing.T) {
-	answer := "Refill tokens at a fixed rate."
-	repo := evaluatedRepository(evaluatedRecord(completedPracticeRecord(), 80, "Solid answers."))
-	repo.turns = append(repo.turns, domain.TurnRecord{
-		Position: 2, QuestionNumber: 1, Kind: domain.TurnFollowUp, Question: "How do bursts refill?", Answer: &answer,
-	})
-	report := reportFor(t, repo, scoringCandidateID, candidateRole)
-	if len(report.Questions) != 2 {
-		t.Fatalf("Questions = %+v", report.Questions)
-	}
-	if got := report.Questions[1]; got.Position != 2 || got.QuestionNumber != 1 || got.Kind != domain.TurnFollowUp || got.Answer == nil {
-		t.Fatalf("follow-up = %+v", got)
-	}
-}
-
-// A session the Candidate left early reports how it ended and how many core questions it had, so the
-// report can show the unanswered ones; a recruitment Candidate's limited view carries both too.
-func TestReportCarriesTheEndReasonAndQuestionCount(t *testing.T) {
-	left := "left"
-	practice := evaluatedRecord(completedPracticeRecord(), 60, "Partial answers.")
-	practice.EndReason, practice.QuestionCount = &left, 8
-	report := reportFor(t, evaluatedRepository(practice), scoringCandidateID, candidateRole)
-	if report.EndReason == nil || *report.EndReason != "left" || report.QuestionCount != 8 || len(report.Questions) != 1 {
-		t.Fatalf("end_reason = %v, question_count = %d, questions = %d", report.EndReason, report.QuestionCount, len(report.Questions))
-	}
-
-	abandoned := "abandoned"
-	recruitment := completedRecruitmentRecord()
-	recruitment.EndReason, recruitment.QuestionCount = &abandoned, 5
-	limited := reportFor(t, &fakeInterviewRepository{record: recruitment}, scoringCandidateID, candidateRole)
-	if limited.EndReason == nil || *limited.EndReason != "abandoned" || limited.QuestionCount != 5 || limited.Questions != nil {
-		t.Fatalf("limited view = %+v", limited)
-	}
-}
-
-func TestReportRecruiterSeesTheInjectionFlag(t *testing.T) {
-	record := evaluatedRecord(completedRecruitmentRecord(), 80, "Solid answers.")
-	record.InjectionFlagged = true
-	report := reportFor(t, evaluatedRepository(record), scoringRecruiterID, recruiterRole)
-
-	if report.InjectionFlagged == nil || !*report.InjectionFlagged {
-		t.Fatalf("InjectionFlagged = %v, want true", report.InjectionFlagged)
+func TestReportNeverCarriesTheExpectedAnswer(t *testing.T) {
+	repo := evaluatedRepository(evaluatedRecord(completedRecruitmentRecord(), ptr(62.0), "complete", nil))
+	repo.questions = gradedQuestions(3)
+	report := reportFor(t, repo, scoringRecruiterID, recruiterRole)
+	body, _ := json.Marshal(report)
+	if strings.Contains(string(body), "EXPECTED-SECRET-REFERENCE") || strings.Contains(string(body), "expected_answer") || strings.Contains(string(body), "scoring_guide") {
+		t.Fatalf("report %s carries grading-only data", body)
 	}
 }

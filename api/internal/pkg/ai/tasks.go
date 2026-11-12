@@ -82,20 +82,26 @@ func (a *TaskAdapter) Decide(ctx context.Context, in id.FollowUpContext) (id.Fol
 		return p, outputError(err)
 	})
 }
-func (a *TaskAdapter) Score(ctx context.Context, in ed.ScoreInput) (ed.ScoreOutput, error) {
-	return Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (ed.ScoreOutput, error) {
-		s, err := ep.New(m)
+
+// GradeQuestion grades one core question against its rubric (KAN-334). Each question is its own routed call:
+// the reply is decoded and validated inside every provider attempt, so an unusable reply is retried or falls
+// back, and one bad question never reruns the others.
+func (a *TaskAdapter) GradeQuestion(ctx context.Context, in ed.QuestionGradeInput) (ed.QuestionGrade, error) {
+	return Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (ed.QuestionGrade, error) {
+		g, err := ep.NewGrader(m)
 		if err != nil {
-			return ed.ScoreOutput{}, err
+			return ed.QuestionGrade{}, err
 		}
-		out, err := s.Score(ctx, in)
+		candidate, err := g.Grade(ctx, in)
+		var grade ed.QuestionGrade
 		if err == nil {
-			err = es.ValidateScores(in, out)
+			grade, err = es.ValidateQuestionGrade(in, candidate)
 		}
+		logRejectedGrade(ctx, err, in.QuestionPosition)
 		if a.route.legacy {
-			return out, err
+			return grade, err
 		}
-		return out, outputError(err)
+		return grade, outputError(err)
 	})
 }
 func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count int) (qd.GenerationCandidate, error) {
@@ -154,4 +160,24 @@ func logRejectedBankOutput(ctx context.Context, err error, accepted, requested, 
 	}
 	logger.FromContext(ctx).Warn("question bank batch rejected", logger.Op("ai.question_bank.validate"),
 		logger.Int("accepted", accepted), logger.Int("requested", requested), logger.Int("proposed", proposed), logger.Cause(err))
+}
+
+// logRejectedGrade records why a grading reply was refused: the rule that failed, never reply, answer, rubric
+// or expected-answer text. The decoder and validator causes name rules and criterion keys only (KAN-334).
+func logRejectedGrade(ctx context.Context, err error, question int32) {
+	if err == nil {
+		return
+	}
+	var appErr *apperror.AppError
+	rule := ""
+	switch {
+	case es.IsInvalidGrade(err):
+		rule = err.Error()
+	case errors.As(err, &appErr) && appErr != nil && appErr.Err != nil && appErr.Message == ep.InvalidGradeMessage:
+		rule = appErr.Err.Error()
+	default:
+		return
+	}
+	logger.FromContext(ctx).Warn("grading reply rejected", logger.Op("ai.evaluation.validate"),
+		logger.Int("question_position", int(question)), logger.String("rule", rule))
 }

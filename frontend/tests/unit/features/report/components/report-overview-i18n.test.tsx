@@ -33,7 +33,25 @@ const report = (over: Record<string, unknown> = {}) => ({
   started_at: "2026-10-20T08:00:00Z",
   completed_at: "2026-10-20T08:30:00Z",
   summary: "Clear structure, thin examples.",
-  breakdown: [{ metric_id: METRIC, name: "Communication", score: 80 }],
+  scoring: {
+    method: "rubric",
+    outcome: "complete",
+    withheld_reason: null,
+    assigned_questions: 2,
+    graded_questions: 2,
+    weight_total: 1,
+    decimals: 2,
+  },
+  breakdown: [
+    {
+      metric_id: METRIC,
+      name: "Communication",
+      score: 72,
+      weight: 1,
+      question_count: 2,
+    },
+  ],
+  graded_questions: [],
   questions: [
     {
       position: 1,
@@ -123,7 +141,13 @@ describe("ReportOverview in Vietnamese", () => {
     expect(
       screen.getByRole("heading", { name: "Điểm tổng thể" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("72 / 100")).toBeInTheDocument();
+    expect(screen.getByTestId("overall-score")).toHaveTextContent(
+      "72,00 / 100",
+    );
+    expect(screen.getByTestId("scoring-outcome")).toHaveTextContent("Đầy đủ");
+    expect(
+      screen.getByText(/Điểm từng câu chỉ để tham khảo/),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Tóm tắt" }),
     ).toBeInTheDocument();
@@ -139,7 +163,7 @@ describe("ReportOverview in Vietnamese", () => {
       screen.getByText("Clear structure, thin examples."),
     ).toBeInTheDocument();
     const bar = screen.getByRole("progressbar", { name: "Communication" });
-    expect(bar).toHaveAttribute("aria-valuetext", "80 trên 100");
+    expect(bar).toHaveAttribute("aria-valuetext", "72,00 / 100");
     expect(
       within(bar.parentElement as HTMLElement).getByText("Communication"),
     ).toBeInTheDocument();
