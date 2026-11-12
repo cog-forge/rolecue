@@ -1,13 +1,10 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { RoutePlaceholder } from "@/components/feedback/route-placeholder";
-
+import { InformationPage } from "@/features/marketing/components/information-page";
 export async function generateMetadata(): Promise<Metadata> {
-  const t = await getTranslations("public.terms");
-  return { title: t("title"), description: t("metadataDescription") };
+  const t = await getTranslations("public.pages");
+  return { title: t("terms"), description: t("termsIntro") };
 }
-
-export default async function TermsPage() {
-  const t = await getTranslations("public.terms");
-  return <RoutePlaceholder title={t("title")} description={t("description")} />;
+export default function Page() {
+  return <InformationPage kind="terms" />;
 }

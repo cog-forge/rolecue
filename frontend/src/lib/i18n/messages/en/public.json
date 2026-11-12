@@ -12,23 +12,8 @@
     "navigationDescription": "Site navigation and account access.",
     "mobileNavigation": "Mobile navigation"
   },
-  "terms": {
-    "title": "Terms of Service",
-    "metadataDescription": "Review the terms that apply to using RoleCue.",
-    "description": "Terms of service documentation will be published before production launch."
-  },
-  "privacy": {
-    "title": "Privacy Policy",
-    "metadataDescription": "Learn how RoleCue handles account and product information.",
-    "description": "Privacy policy documentation will be published before production launch."
-  },
   "landing": {
     "focus": "Role-focused practice",
-    "footerNavigation": "Footer navigation",
-    "features": "Features",
-    "how": "How it works",
-    "questions": "Questions",
-    "start": "Start",
     "madeFor": "Made for clearer technical conversations",
     "meet": "Meet RoleCue",
     "about": "RoleCue combines job context, spoken conversation and interview evaluation in one private practice space.",
@@ -154,7 +139,7 @@
         },
         "free": {
           "question": "Can I start for free?",
-          "answer": "Yes. You can create an account and start practicing for free."
+          "answer": "Creating an account is free. Starting a practice session costs 5 coins."
         }
       }
     },
@@ -162,20 +147,56 @@
       "titleLine1": "Your next interview",
       "titleLine2": "starts here.",
       "text": "A little practice before the real conversation.",
-      "cta": "Start for free"
+      "cta": "Get started"
     }
   },
   "metadata": {
     "description": "Role-focused technical interview practice"
   },
-  "pricing": {
-    "title": "Pricing",
-    "description": "Interview credit packages and plan information will be available once pricing is defined.",
-    "shellLabel": "Public",
-    "nav": {
-      "home": "Home",
-      "pricing": "Pricing",
-      "login": "Log in"
-    }
+  "pages": {
+    "navigation": "Public navigation",
+    "pricing": "Pricing",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "pricingTitle": "Coins for the work you do.",
+    "pricingIntro": "Use a personal wallet for interview practice, recruitment slots and avatar storage. Choose a coin package when you need it.",
+    "privacyTitle": "Your interview information.",
+    "privacyIntro": "How information moves through practice and recruitment in RoleCue.",
+    "termsTitle": "Using RoleCue.",
+    "termsIntro": "A guide to accounts, coins and interview sessions on RoleCue.",
+    "draftNotice": "This information is a draft for project and legal review. The final policy has not yet been published.",
+    "catalogEyebrow": "Coin packages",
+    "catalogTitle": "Add coins to your wallet.",
+    "catalogIntro": "Available packages and prices come from the current RoleCue catalog. Sign in to purchase from your wallet.",
+    "accountCta": "Sign in to your account",
+    "pricingSectionLabel": "How coins are used",
+    "pricingSectionTitle": "A clear cost at each step.",
+    "practiceTitle": "Practice · 5 coins",
+    "practiceBody": "A practice session costs 5 coins when it starts. Returning to the same active session does not incur another charge.",
+    "recruitmentTitle": "Recruitment · 1 coin per slot",
+    "recruitmentBody": "Recruiters fund interview slots at 1 coin each. A candidate uses a prepaid slot when their recruitment interview starts; the candidate is not charged. Eligible unused slots are returned as coins to the recruiter’s wallet when the posting closes completely.",
+    "avatarTitle": "Avatar storage · 1 coin per slot",
+    "avatarBody": "An additional avatar storage slot costs 1 coin. Creating an avatar has no separate generation fee when a storage slot is available.",
+    "privacySectionLabel": "Information and access",
+    "privacySectionTitle": "Different sessions, different context.",
+    "informationTitle": "Information you provide",
+    "informationBody": "RoleCue uses account details and the information you provide for your role profiles, job postings and applications to support the relevant workflows.",
+    "practiceDataTitle": "Practice sessions",
+    "practiceDataBody": "Practice uses your role context and spoken answers to produce an interview report. Practice sessions do not record video.",
+    "recruitmentDataTitle": "Recruitment recordings",
+    "recruitmentDataBody": "Recruitment interviews use camera and microphone recording. Candidates are told before starting. Recording status is visible to the candidate; playback is limited to the owning recruiter under the application review rules.",
+    "accessTitle": "Retention and access",
+    "accessBody": "The product decision specifies deletion of recruitment recordings 90 days after the application’s final decision. The automated deletion job is not yet implemented. Detailed retention, access and privacy rights require confirmation before publication.",
+    "termsSectionLabel": "Using the service",
+    "termsSectionTitle": "The essentials, in context.",
+    "accountTitle": "Your account",
+    "accountBody": "Candidates and recruiters use their own accounts for practice and recruitment. Provide accurate information and use the service responsibly.",
+    "coinsTitle": "Wallets and packages",
+    "coinsBody": "Candidates and recruiters have personal coin wallets. Package prices and coin amounts are shown in the current catalog. Coin spending and eligible unused recruitment-slot returns are internal wallet transactions.",
+    "sessionsTitle": "Starting an interview",
+    "sessionsBody": "Starting practice costs 5 coins. A recruitment interview uses a recruiter-funded slot and requires camera and microphone recording. Resuming the same active session does not incur a second charge or slot.",
+    "responsibilityTitle": "Final terms are pending",
+    "responsibilityBody": "Payment, cancellation, technical disruption and other legal terms require project owner and legal review. This draft does not establish a cash refund policy.",
+    "catalogSignIn": "Sign in and complete your account setup to see current packages and prices in your wallet."
   }
 }

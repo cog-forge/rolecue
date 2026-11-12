@@ -32,9 +32,6 @@ it("renders the landing hero, navigation and footer in Vietnamese", () => {
   expect(
     screen.getByRole("button", { name: "Mở điều hướng" }),
   ).toBeInTheDocument();
-  expect(
-    screen.getByRole("navigation", { name: "Điều hướng cuối trang" }),
-  ).toBeInTheDocument();
 
   // The feature carousel, closing invitation and its accessible names.
   expect(
@@ -49,7 +46,9 @@ it("renders the landing hero, navigation and footer in Vietnamese", () => {
     screen.getByRole("button", { name: "Tính năng tiếp theo" }),
   ).toBeInTheDocument();
   expect(
-    screen.getByRole("link", { name: "Bắt đầu miễn phí" }),
+    screen
+      .getAllByRole("link", { name: "Bắt đầu" })
+      .find((link) => link.getAttribute("href") === "/register"),
   ).toHaveAttribute("href", "/register");
   expect(
     screen.getByRole("img", {
@@ -64,9 +63,7 @@ it("keeps the English landing copy unchanged", () => {
   expect(
     screen.getByRole("heading", { level: 1, name: "Walk in ready." }),
   ).toBeInTheDocument();
-  expect(
-    screen.getByRole("link", { name: "Start for free" }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Get started" })).toBeInTheDocument();
   expect(
     screen.getByRole("heading", {
       name: /Your next interview\s*starts here\./,
@@ -118,9 +115,7 @@ it("renders the FAQ in Vietnamese and opens an answer", async () => {
   fireEvent.click(question);
   await waitFor(() =>
     expect(
-      screen.getByText(
-        /Bạn có thể tạo tài khoản và bắt đầu luyện tập miễn phí/,
-      ),
+      screen.getByText(/Bắt đầu một buổi luyện tập tốn 5 coin/),
     ).toBeVisible(),
   );
 });

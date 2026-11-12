@@ -12,23 +12,8 @@
     "navigationDescription": "Điều hướng trang web và truy cập tài khoản.",
     "mobileNavigation": "Điều hướng trên di động"
   },
-  "terms": {
-    "title": "Điều khoản dịch vụ",
-    "metadataDescription": "Xem các điều khoản áp dụng khi sử dụng RoleCue.",
-    "description": "Điều khoản dịch vụ sẽ được công bố trước khi sản phẩm chính thức ra mắt."
-  },
-  "privacy": {
-    "title": "Chính sách bảo mật",
-    "metadataDescription": "Tìm hiểu cách RoleCue xử lý thông tin tài khoản và sản phẩm.",
-    "description": "Chính sách bảo mật sẽ được công bố trước khi sản phẩm chính thức ra mắt."
-  },
   "landing": {
     "focus": "Luyện tập theo vị trí",
-    "footerNavigation": "Điều hướng cuối trang",
-    "features": "Tính năng",
-    "how": "Cách hoạt động",
-    "questions": "Câu hỏi",
-    "start": "Bắt đầu",
     "madeFor": "Giúp bạn trao đổi kỹ thuật rõ ràng hơn",
     "meet": "Khám phá RoleCue",
     "about": "RoleCue kết hợp bối cảnh công việc, hội thoại trực tiếp và đánh giá phỏng vấn trong một không gian luyện tập riêng tư.",
@@ -154,7 +139,7 @@
         },
         "free": {
           "question": "Tôi có thể bắt đầu miễn phí không?",
-          "answer": "Có. Bạn có thể tạo tài khoản và bắt đầu luyện tập miễn phí."
+          "answer": "Tạo tài khoản miễn phí. Bắt đầu một buổi luyện tập tốn 5 coin."
         }
       }
     },
@@ -162,20 +147,56 @@
       "titleLine1": "Buổi phỏng vấn tới",
       "titleLine2": "bắt đầu từ đây.",
       "text": "Luyện tập một chút trước cuộc trò chuyện thật.",
-      "cta": "Bắt đầu miễn phí"
+      "cta": "Bắt đầu"
     }
   },
   "metadata": {
     "description": "Luyện phỏng vấn kỹ thuật theo đúng vị trí ứng tuyển"
   },
-  "pricing": {
-    "title": "Bảng giá",
-    "description": "Các gói xu phỏng vấn và thông tin gói dịch vụ sẽ có khi bảng giá được xác định.",
-    "shellLabel": "Công khai",
-    "nav": {
-      "home": "Trang chủ",
-      "pricing": "Bảng giá",
-      "login": "Đăng nhập"
-    }
+  "pages": {
+    "navigation": "Điều hướng trang công khai",
+    "pricing": "Bảng giá",
+    "privacy": "Bảo mật",
+    "terms": "Điều khoản",
+    "pricingTitle": "Coin cho từng nhu cầu.",
+    "pricingIntro": "Dùng ví cá nhân để luyện phỏng vấn, cấp lượt tuyển dụng và lưu avatar. Chọn gói coin khi bạn cần.",
+    "privacyTitle": "Thông tin phỏng vấn của bạn.",
+    "privacyIntro": "Cách thông tin được sử dụng trong quá trình luyện tập và tuyển dụng trên RoleCue.",
+    "termsTitle": "Sử dụng RoleCue.",
+    "termsIntro": "Thông tin về tài khoản, coin và các buổi phỏng vấn trên RoleCue.",
+    "draftNotice": "Đây là bản thông tin dự thảo đang chờ chủ dự án và bộ phận pháp lý xem xét. Chính sách chính thức chưa được công bố.",
+    "catalogEyebrow": "Gói coin",
+    "catalogTitle": "Nạp coin vào ví.",
+    "catalogIntro": "Gói và giá hiển thị từ danh mục hiện tại của RoleCue. Đăng nhập để mua coin trong ví của bạn.",
+    "accountCta": "Đăng nhập tài khoản",
+    "pricingSectionLabel": "Cách dùng coin",
+    "pricingSectionTitle": "Chi phí rõ ràng ở từng bước.",
+    "practiceTitle": "Luyện tập · 5 coin",
+    "practiceBody": "Một buổi luyện tập tốn 5 coin khi bắt đầu. Quay lại cùng buổi đang diễn ra không bị trừ thêm.",
+    "recruitmentTitle": "Tuyển dụng · 1 coin mỗi lượt",
+    "recruitmentBody": "Nhà tuyển dụng cấp trước lượt phỏng vấn với giá 1 coin mỗi lượt. Ứng viên sử dụng một lượt khi bắt đầu phỏng vấn tuyển dụng và không bị trừ coin. Các lượt chưa dùng đủ điều kiện được hoàn bằng coin vào ví nhà tuyển dụng khi tin tuyển dụng đóng hoàn toàn.",
+    "avatarTitle": "Lưu avatar · 1 coin mỗi chỗ",
+    "avatarBody": "Mỗi chỗ lưu avatar bổ sung có giá 1 coin. Khi còn chỗ lưu, việc tạo avatar không có phí tạo riêng.",
+    "privacySectionLabel": "Thông tin và quyền truy cập",
+    "privacySectionTitle": "Mỗi loại phỏng vấn có bối cảnh riêng.",
+    "informationTitle": "Thông tin bạn cung cấp",
+    "informationBody": "RoleCue sử dụng thông tin tài khoản và nội dung bạn cung cấp cho hồ sơ vị trí, tin tuyển dụng và hồ sơ ứng tuyển để hỗ trợ các quy trình tương ứng.",
+    "practiceDataTitle": "Buổi luyện tập",
+    "practiceDataBody": "Buổi luyện tập sử dụng bối cảnh vị trí và câu trả lời bằng giọng nói để tạo báo cáo phỏng vấn. Buổi luyện tập không quay video.",
+    "recruitmentDataTitle": "Bản ghi tuyển dụng",
+    "recruitmentDataBody": "Phỏng vấn tuyển dụng sử dụng bản ghi camera và microphone. Ứng viên được thông báo trước khi bắt đầu. Ứng viên xem được trạng thái bản ghi; việc xem lại được giới hạn cho nhà tuyển dụng sở hữu theo quy tắc xem hồ sơ ứng tuyển.",
+    "accessTitle": "Lưu giữ và truy cập",
+    "accessBody": "Quyết định sản phẩm quy định xóa bản ghi tuyển dụng sau 90 ngày kể từ quyết định cuối cùng của hồ sơ ứng tuyển. Tác vụ xóa tự động chưa được triển khai. Chi tiết về lưu giữ, truy cập và quyền riêng tư cần được xác nhận trước khi công bố.",
+    "termsSectionLabel": "Sử dụng dịch vụ",
+    "termsSectionTitle": "Những điều cần biết.",
+    "accountTitle": "Tài khoản của bạn",
+    "accountBody": "Ứng viên và nhà tuyển dụng sử dụng tài khoản riêng cho việc luyện tập và tuyển dụng. Hãy cung cấp thông tin chính xác và sử dụng dịch vụ có trách nhiệm.",
+    "coinsTitle": "Ví và gói coin",
+    "coinsBody": "Ứng viên và nhà tuyển dụng có ví coin cá nhân. Giá và số coin của gói được hiển thị trong danh mục hiện tại. Việc sử dụng coin và hoàn lượt tuyển dụng chưa dùng đủ điều kiện là giao dịch nội bộ trong ví.",
+    "sessionsTitle": "Bắt đầu phỏng vấn",
+    "sessionsBody": "Bắt đầu luyện tập tốn 5 coin. Phỏng vấn tuyển dụng sử dụng lượt do nhà tuyển dụng cấp và yêu cầu ghi hình, ghi âm. Tiếp tục cùng buổi đang diễn ra không bị trừ thêm coin hay lượt.",
+    "responsibilityTitle": "Điều khoản chính thức đang chờ",
+    "responsibilityBody": "Các điều khoản thanh toán, hủy, gián đoạn kỹ thuật và điều khoản pháp lý khác cần chủ dự án và bộ phận pháp lý xem xét. Bản dự thảo này không xác lập chính sách hoàn tiền mặt.",
+    "catalogSignIn": "Đăng nhập và hoàn tất thiết lập tài khoản để xem gói và giá hiện tại trong ví."
   }
 }
