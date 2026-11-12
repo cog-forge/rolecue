@@ -14,8 +14,8 @@ import (
 )
 
 // Pure rubric scoring (KAN-332, RB-08): criterion points -> metric score in each core question -> metric
-// score of the session -> weighted overall. There is no I/O, no AI and no clock here, and nothing in the
-// live scoring path calls it yet (that is RB-10 and RB-11).
+// score of the session -> weighted overall. There is no I/O, no AI and no clock here; the evaluation service
+// calls it with the validated criterion grades (RB-10, RB-11).
 //
 // All arithmetic is exact: points are integers and every score is a rational number (math/big), so a value
 // that is exactly halfway at the last decimal rounds up the same way on every machine; binary floating point
@@ -38,7 +38,7 @@ func invalidScore(format string, args ...any) error {
 //	question_metric(q, m) = 100 x sum earned(q, c) / sum max(c)      over the criteria of metric m in q
 //	question_total(q)     = 100 x sum earned(q, c) / sum max(c)      over all criteria of q (display only)
 //	session_metric(m)     = mean over the scored questions that assess m, each question once
-//	overall               = round(sum session_metric(m) x weight(m) / sum weight(m))
+//	overall               = round(sum session_metric(m) x weight(m) / sum weight(m)), at the same precision
 //
 // A question that does not assess a metric is not a zero for it. The question total is never averaged
 // into the overall. Follow-ups do not appear in the input at all: their evidence changes the points of their
@@ -95,7 +95,7 @@ func CalculateRubricScore(in domain.RubricScoreInput, policy domain.ScoringPolic
 		result.Outcome, result.Reason = domain.RubricWithheld, reason
 		return result, nil
 	}
-	overall := weightedOverall(included, stored, weights, policy.MetricDecimals)
+	overall := float64(weightedOverall(included, stored, weights, policy.MetricDecimals)) / scale
 	result.Overall = &overall
 	result.Outcome = domain.RubricComplete
 	if partialSession || len(missing) > 0 {
@@ -189,18 +189,18 @@ func (w weightSet) cover(stored map[uuid.UUID]int64) (included, missing []uuid.U
 	return included, missing
 }
 
-// weightedOverall is round(sum stored(m) x weight(m) / sum weight(m)) over the included metrics, half-up to a
-// whole number (interviews.score is an integer).
-func weightedOverall(included []uuid.UUID, stored map[uuid.UUID]int64, weights weightSet, decimals int) int32 {
+// weightedOverall is round(sum stored(m) x weight(m) / sum weight(m)) over the included metrics, half-up at the
+// policy precision (settled 11/11: two decimals, like the metric scores). It returns the value x 10^decimals.
+func weightedOverall(included []uuid.UUID, stored map[uuid.UUID]int64, weights weightSet, decimals int) int64 {
 	numerator, denominator := new(big.Rat), new(big.Rat)
 	for _, metric := range included {
 		weight := weights.byMetric[metric].exact
 		numerator.Add(numerator, new(big.Rat).Mul(new(big.Rat).SetInt64(stored[metric]), weight))
 		denominator.Add(denominator, weight)
 	}
-	// stored values carry `decimals` implied decimals.
+	// stored values carry `decimals` implied decimals, and so does the result.
 	denominator.Mul(denominator, new(big.Rat).SetInt(pow10(decimals)))
-	return int32(roundHalfUp(new(big.Rat).Quo(numerator, denominator), 0))
+	return roundHalfUp(new(big.Rat).Quo(numerator, denominator), decimals)
 }
 
 type checkedQuestion struct {
