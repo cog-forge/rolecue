@@ -53,6 +53,7 @@ type seed struct {
 	jds      []string
 	postings []string
 	voices   []string
+	rubrics  []string
 }
 
 func newSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *seed {
@@ -97,10 +98,13 @@ func (s *seed) cleanup() {
 		{"voices", `DELETE FROM public.voices WHERE id = ANY($1::text[]::uuid[])`, []any{s.voices}},
 		{"applications", `DELETE FROM public.applications WHERE candidate_id = ANY($1::text[]::uuid[])
 			OR job_posting_id = ANY($2::text[]::uuid[])`, []any{userIDs, postings}},
+		{"metrics_percentage", `DELETE FROM public.metrics_percentage WHERE job_posting_id = ANY($1::text[]::uuid[])`,
+			[]any{postings}},
 		{"job_postings", `DELETE FROM public.job_postings WHERE id = ANY($1::text[]::uuid[])`,
 			[]any{postings}},
 		{"core_questions", `DELETE FROM public.core_questions WHERE jd_id = ANY($1::text[]::uuid[])`,
 			[]any{jds}},
+		{"rubrics", `DELETE FROM public.rubrics WHERE id = ANY($1::text[]::uuid[])`, []any{s.rubrics}},
 		{"requirements", `DELETE FROM public.requirements WHERE jd_id = ANY($1::text[]::uuid[])`,
 			[]any{jds}},
 		{"role_profiles", `DELETE FROM public.role_profiles WHERE candidate_id = ANY($1::text[]::uuid[])`,

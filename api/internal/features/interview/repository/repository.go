@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
@@ -24,10 +25,28 @@ import (
 type Repository struct {
 	pool    *pgxpool.Pool
 	queries *Queries
+	// randomSource makes the random source of one start. A source is made per start because a seeded
+	// generator is not safe for concurrent use and starts run concurrently.
+	randomSource func() domain.RandomSource
 }
 
 func NewRepository(pool *pgxpool.Pool) *Repository {
-	return &Repository{pool: pool, queries: New(pool)}
+	return &Repository{pool: pool, queries: New(pool), randomSource: func() domain.RandomSource { return globalRandom{} }}
+}
+
+// globalRandom draws from the package-level generator of math/rand/v2, which is randomly seeded and safe
+// for concurrent use.
+type globalRandom struct{}
+
+func (globalRandom) IntN(n int) int { return rand.IntN(n) }
+
+// SetRandomSource replaces the random source of the question sampling; newSource is called once for each
+// start. It exists so a test can make the sample deterministic. Set it before the repository serves
+// requests; nil keeps the default.
+func (r *Repository) SetRandomSource(newSource func() domain.RandomSource) {
+	if newSource != nil {
+		r.randomSource = newSource
+	}
 }
 
 // Create starts a session and reports whether it was created. A recruitment start returns the existing
@@ -36,14 +55,15 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 func (r *Repository) Create(ctx context.Context, params domain.CreateParams) (domain.Session, bool, error) {
 	var session domain.Session
 	created := false
+	random := r.randomSource()
 	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
 		q := r.queries.WithTx(tx)
 		var interviewID uuid.UUID
 		var err error
 		if params.Type == domain.TypeRecruitment {
-			interviewID, created, err = startRecruitment(ctx, q, params)
+			interviewID, created, err = startRecruitment(ctx, q, random, params)
 		} else {
-			interviewID, created, err = startPracticeOnce(ctx, tx, q, params)
+			interviewID, created, err = startPracticeOnce(ctx, tx, q, random, params)
 		}
 		if err != nil {
 			return err
@@ -491,7 +511,7 @@ func (r *Repository) MarkEvaluationFailed(ctx context.Context, id uuid.UUID) err
 // startPracticeOnce is startPractice behind two guards: an idempotency key that already created a session
 // and an unfinished session for the same role profile both return that session, with created false, and
 // charge nothing.
-func startPracticeOnce(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreateParams) (uuid.UUID, bool, error) {
+func startPracticeOnce(ctx context.Context, tx pgx.Tx, q *Queries, random domain.RandomSource, p domain.CreateParams) (uuid.UUID, bool, error) {
 	if p.StartKey != nil {
 		existing, err := q.FindInterviewByStartKey(ctx, p.StartKey)
 		if err == nil {
@@ -522,13 +542,13 @@ func startPracticeOnce(ctx context.Context, tx pgx.Tx, q *Queries, p domain.Crea
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, false, internal(err)
 	}
-	id, err := startPractice(ctx, tx, q, p)
+	id, err := startPractice(ctx, tx, q, random, p)
 	return id, err == nil, err
 }
 
 // startPractice creates a practice session from a confirmed role profile of the Candidate and charges the
 // practice price when it is set. A failed charge rolls back the rows written before it.
-func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreateParams) (uuid.UUID, error) {
+func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, random domain.RandomSource, p domain.CreateParams) (uuid.UUID, error) {
 	profile, err := q.GetOwnedRoleProfile(ctx, GetOwnedRoleProfileParams{ID: *p.RoleProfileID, CandidateID: p.CandidateID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, domain.ErrRoleProfileNotFound
@@ -539,7 +559,12 @@ func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreatePa
 	if profile.Status != domain.RoleProfileConfirmed {
 		return uuid.Nil, domain.ErrRoleProfileRequired
 	}
-	questions, err := startQuestions(ctx, q, profile.JdID, p.QuestionLimit)
+	// A practice session has no posting and so no weights: every metric of the catalog is active.
+	active, err := q.ListCatalogMetrics(ctx)
+	if err != nil {
+		return uuid.Nil, internal(err)
+	}
+	questions, err := startQuestions(ctx, q, random, profile.JdID, active, p.QuestionLimit)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -565,7 +590,7 @@ func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, p domain.CreatePa
 // startRecruitment creates a recruitment session for an interview_eligible Application inside its
 // deadline. It returns the existing session, with created false, when one is already there. The posting
 // lock is taken first, so two starts for one posting queue up and the second finds the first's session.
-func startRecruitment(ctx context.Context, q *Queries, p domain.CreateParams) (uuid.UUID, bool, error) {
+func startRecruitment(ctx context.Context, q *Queries, random domain.RandomSource, p domain.CreateParams) (uuid.UUID, bool, error) {
 	postingID, err := q.GetApplicationPosting(ctx, GetApplicationPostingParams{ID: *p.ApplicationID, CandidateID: p.CandidateID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, false, domain.ErrApplicationNotFound
@@ -600,7 +625,11 @@ func startRecruitment(ctx context.Context, q *Queries, p domain.CreateParams) (u
 	if err := domain.CheckRecruitmentStart(application.Status, application.WithinDeadline, posting.InterviewSlot, consumed); err != nil {
 		return uuid.Nil, false, err
 	}
-	questions, err := startQuestions(ctx, q, posting.JdID, p.QuestionLimit)
+	active, err := q.ListPostingActiveMetrics(ctx, postingID)
+	if err != nil {
+		return uuid.Nil, false, internal(err)
+	}
+	questions, err := startQuestions(ctx, q, random, posting.JdID, active, p.QuestionLimit)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
@@ -616,16 +645,21 @@ func startRecruitment(ctx context.Context, q *Queries, p domain.CreateParams) (u
 	return interviewID, true, nil
 }
 
-// startQuestions reads the question bank a session asks from. An empty bank is not ready.
-func startQuestions(ctx context.Context, q *Queries, jdID uuid.UUID, limit int32) ([]ListStartQuestionsRow, error) {
-	questions, err := q.ListStartQuestions(ctx, ListStartQuestionsParams{JdID: jdID, QuestionLimit: limit})
+// startQuestions samples the core questions of a new session from the bank of the Job Description
+// (domain.SampleQuestions): at most limit of them, covering every active metric. An empty bank is not
+// ready, and a bank that cannot cover the active metrics within the limit is refused. It returns the
+// chosen bank question ids in the order the session asks them. It only reads; the caller has not written
+// anything yet, and a refusal rolls the whole start back.
+func startQuestions(ctx context.Context, q *Queries, random domain.RandomSource, jdID uuid.UUID, active []uuid.UUID, limit int32) ([]uuid.UUID, error) {
+	rows, err := q.ListBankQuestions(ctx, jdID)
 	if err != nil {
 		return nil, internal(err)
 	}
-	if len(questions) == 0 {
-		return nil, domain.ErrQuestionBankNotReady
+	bank := make([]domain.SamplingQuestion, 0, len(rows))
+	for _, row := range rows {
+		bank = append(bank, domain.SamplingQuestion{ID: row.ID, Metrics: row.MetricIds})
 	}
-	return questions, nil
+	return domain.SampleQuestions(bank, active, int(limit), random)
 }
 
 // checkReferences checks that a chosen avatar and voice exist. Defaults from the posting go through the
@@ -663,11 +697,11 @@ func createInterviewRow(ctx context.Context, q *Queries, interviewType domain.Ty
 	return id, nil
 }
 
-// insertQuestions stores the bank questions as positions 1..n in the order they were read.
-func insertQuestions(ctx context.Context, q *Queries, interviewID uuid.UUID, questions []ListStartQuestionsRow) error {
-	for i, question := range questions {
+// insertQuestions stores the sampled questions as positions 1..n in the order the sampler returned them.
+func insertQuestions(ctx context.Context, q *Queries, interviewID uuid.UUID, questions []uuid.UUID) error {
+	for i, id := range questions {
 		err := q.InsertInterviewQuestion(ctx, InsertInterviewQuestionParams{
-			InterviewID: interviewID, Position: int32(i + 1), CoreQuestionID: question.ID,
+			InterviewID: interviewID, Position: int32(i + 1), CoreQuestionID: id,
 		})
 		if err != nil {
 			return internal(err)
@@ -714,6 +748,26 @@ func listTurns(ctx context.Context, q *Queries, id uuid.UUID) ([]domain.Turn, er
 		turns = append(turns, domain.Turn{
 			Position: row.Position, QuestionNumber: row.QuestionNumber, Kind: domain.TurnKind(row.Kind),
 			Question: row.Question, Answer: row.Answer,
+		})
+	}
+	return turns, nil
+}
+
+// TurnCoreQuestions returns every stored turn of a session in conversation order with the core question it
+// belongs to (domain.TurnCoreQuestion). A session answers its assigned core questions in order, so the n-th core
+// turn belongs to interview_questions position n and a follow-up to the core question before it. Follow-ups
+// that were asked but never answered are not stored and leave no gap. It reads the stored rows only and is
+// not scoped to a Candidate: it serves grading, never a Candidate response.
+func (r *Repository) TurnCoreQuestions(ctx context.Context, interviewID uuid.UUID) ([]domain.TurnCoreQuestion, error) {
+	rows, err := r.queries.ListTurnCoreQuestions(ctx, interviewID)
+	if err != nil {
+		return nil, internal(err)
+	}
+	turns := make([]domain.TurnCoreQuestion, 0, len(rows))
+	for _, row := range rows {
+		turns = append(turns, domain.TurnCoreQuestion{
+			Position: row.Position, QuestionNumber: row.QuestionNumber,
+			Kind: domain.TurnKind(row.Kind), CoreQuestionID: row.CoreQuestionID,
 		})
 	}
 	return turns, nil

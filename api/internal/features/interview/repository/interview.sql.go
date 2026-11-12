@@ -560,6 +560,73 @@ func (q *Queries) ListAbandonedInterviews(ctx context.Context, arg ListAbandoned
 	return items, nil
 }
 
+const listBankQuestions = `-- name: ListBankQuestions :many
+SELECT cq.id,
+       COALESCE(array_agg(DISTINCT rc.metric_id) FILTER (WHERE rc.metric_id IS NOT NULL), '{}')::uuid[] AS metric_ids
+FROM public.core_questions cq
+LEFT JOIN public.rubric_criteria rc ON rc.rubric_id = cq.rubric_id
+WHERE cq.jd_id = $1
+GROUP BY cq.id
+ORDER BY cq.id
+`
+
+type ListBankQuestionsRow struct {
+	ID        uuid.UUID
+	MetricIds []uuid.UUID
+}
+
+// The bank a session samples from (Decision 14, KAN-333): every core question of the Job Description with
+// the distinct metrics its rubric has criteria for. metric_ids is empty for a question without a rubric
+// and for a rubric without criteria. It joins the rubric as it is, whether or not the rubric is active: a
+// question keeps the rubric it was authored with and grading uses it. The order is fixed (by id) so the
+// sampler's injected random source is the only randomness. The sample is stored in interview_questions
+// when the session starts, and every later read goes through those rows, so Get and Resume always return
+// the same questions in the same order. A bank is small (at most about 50 questions).
+func (q *Queries) ListBankQuestions(ctx context.Context, jdID uuid.UUID) ([]ListBankQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, listBankQuestions, jdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBankQuestionsRow
+	for rows.Next() {
+		var i ListBankQuestionsRow
+		if err := rows.Scan(&i.ID, &i.MetricIds); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCatalogMetrics = `-- name: ListCatalogMetrics :many
+SELECT id FROM public.metrics ORDER BY id
+`
+
+// The metric catalog: the active metrics of a practice session, which has no posting and so no weights.
+func (q *Queries) ListCatalogMetrics(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listCatalogMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInterviewRequirements = `-- name: ListInterviewRequirements :many
 SELECT r.name, r.target, COALESCE(r.type::text, '')::text AS type
 FROM public.interviews i
@@ -645,38 +712,80 @@ func (q *Queries) ListInterviewTurns(ctx context.Context, interviewID uuid.UUID)
 	return items, nil
 }
 
-const listStartQuestions = `-- name: ListStartQuestions :many
-SELECT id, content
-FROM public.core_questions
-WHERE jd_id = $1
-ORDER BY random()
-LIMIT $2
+const listPostingActiveMetrics = `-- name: ListPostingActiveMetrics :many
+SELECT m.id
+FROM public.metrics m
+WHERE NOT EXISTS (SELECT 1 FROM public.metrics_percentage w WHERE w.job_posting_id = $1)
+   OR EXISTS (SELECT 1 FROM public.metrics_percentage w
+              WHERE w.job_posting_id = $1 AND w.metric_id = m.id AND w.percentage > 0)
+ORDER BY m.id
 `
 
-type ListStartQuestionsParams struct {
-	JdID          uuid.UUID
-	QuestionLimit int32
-}
-
-type ListStartQuestionsRow struct {
-	ID      uuid.UUID
-	Content string
-}
-
-// A random sample of a Job Description's bank, at most @question_limit questions (Decision 14). The
-// session stores the sample in interview_questions in this order when it starts, and every later read
-// goes through those rows, so Get and Resume always return the same questions in the same order. A bank
-// is small, so sorting it by random() is cheap.
-func (q *Queries) ListStartQuestions(ctx context.Context, arg ListStartQuestionsParams) ([]ListStartQuestionsRow, error) {
-	rows, err := q.db.Query(ctx, listStartQuestions, arg.JdID, arg.QuestionLimit)
+// The metrics a posting is scored on, as evaluation reads them: when the posting has saved weights the
+// active metrics are the ones with a positive weight, and when it has none the equal-split defaults apply,
+// which is the whole metric catalog. "No rows" and "only zero weights" are different cases. It is the
+// same rule as the evaluation feature's weights (copied here so this feature does not import it).
+func (q *Queries) ListPostingActiveMetrics(ctx context.Context, jobPostingID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPostingActiveMetrics, jobPostingID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListStartQuestionsRow
+	var items []uuid.UUID
 	for rows.Next() {
-		var i ListStartQuestionsRow
-		if err := rows.Scan(&i.ID, &i.Content); err != nil {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTurnCoreQuestions = `-- name: ListTurnCoreQuestions :many
+SELECT t.position, t.kind, t.question_number, iq.core_question_id
+FROM (
+    SELECT ct.position, ct.kind,
+           (count(*) FILTER (WHERE ct.kind = 'core') OVER (ORDER BY ct.position))::int AS question_number
+    FROM public.conversation_turns ct
+    WHERE ct.interview_id = $1
+) t
+JOIN public.interview_questions iq ON iq.interview_id = $1 AND iq.position = t.question_number
+ORDER BY t.position
+`
+
+type ListTurnCoreQuestionsRow struct {
+	Position       int32
+	Kind           string
+	QuestionNumber int32
+	CoreQuestionID uuid.UUID
+}
+
+// Each stored turn with the core question of its session it belongs to (KAN-333). A session stores its
+// assigned core questions as interview_questions positions 1..n and answers them in that order, so the
+// n-th core turn is the answer to position n; a follow-up shares the core question it probes. The turn's
+// core question number is derived the same way as in ListInterviewTurns (the count of core turns up to
+// and including the row) and joined to interview_questions.position, which gives the core question id.
+// A follow-up that was asked but never answered is not stored, so it leaves no gap. This is an internal
+// read for grading; no Candidate response carries core_question_id.
+func (q *Queries) ListTurnCoreQuestions(ctx context.Context, interviewID uuid.UUID) ([]ListTurnCoreQuestionsRow, error) {
+	rows, err := q.db.Query(ctx, listTurnCoreQuestions, interviewID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTurnCoreQuestionsRow
+	for rows.Next() {
+		var i ListTurnCoreQuestionsRow
+		if err := rows.Scan(
+			&i.Position,
+			&i.Kind,
+			&i.QuestionNumber,
+			&i.CoreQuestionID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

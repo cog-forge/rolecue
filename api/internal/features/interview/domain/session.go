@@ -194,3 +194,18 @@ func AnsweredCore(turns []Turn) int32 {
 	}
 	return answered
 }
+
+// TurnCoreQuestion ties one stored turn to the core question of its session it belongs to (KAN-333). It is the
+// seam grading uses to group a Candidate's answers per core question: a core turn and every follow-up
+// that probed it carry the same QuestionNumber and CoreQuestionID.
+//
+// QuestionNumber is the position of the core question among the session's assigned questions
+// (interview_questions.position, 1..QuestionCount), not the position of the turn in the conversation: a
+// follow-up shifts the conversation position, never the question number. CoreQuestionID is the bank
+// question assigned at that position. It is internal: no Candidate response carries it.
+type TurnCoreQuestion struct {
+	Position       int32
+	QuestionNumber int32
+	Kind           TurnKind
+	CoreQuestionID uuid.UUID
+}

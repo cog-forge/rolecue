@@ -8,16 +8,37 @@ SELECT id, jd_id, status
 FROM public.role_profiles
 WHERE id = @id AND candidate_id = @candidate_id;
 
--- A random sample of a Job Description's bank, at most @question_limit questions (Decision 14). The
--- session stores the sample in interview_questions in this order when it starts, and every later read
--- goes through those rows, so Get and Resume always return the same questions in the same order. A bank
--- is small, so sorting it by random() is cheap.
--- name: ListStartQuestions :many
-SELECT id, content
-FROM public.core_questions
-WHERE jd_id = @jd_id
-ORDER BY random()
-LIMIT @question_limit;
+-- The bank a session samples from (Decision 14, KAN-333): every core question of the Job Description with
+-- the distinct metrics its rubric has criteria for. metric_ids is empty for a question without a rubric
+-- and for a rubric without criteria. It joins the rubric as it is, whether or not the rubric is active: a
+-- question keeps the rubric it was authored with and grading uses it. The order is fixed (by id) so the
+-- sampler's injected random source is the only randomness. The sample is stored in interview_questions
+-- when the session starts, and every later read goes through those rows, so Get and Resume always return
+-- the same questions in the same order. A bank is small (at most about 50 questions).
+-- name: ListBankQuestions :many
+SELECT cq.id,
+       COALESCE(array_agg(DISTINCT rc.metric_id) FILTER (WHERE rc.metric_id IS NOT NULL), '{}')::uuid[] AS metric_ids
+FROM public.core_questions cq
+LEFT JOIN public.rubric_criteria rc ON rc.rubric_id = cq.rubric_id
+WHERE cq.jd_id = @jd_id
+GROUP BY cq.id
+ORDER BY cq.id;
+
+-- The metrics a posting is scored on, as evaluation reads them: when the posting has saved weights the
+-- active metrics are the ones with a positive weight, and when it has none the equal-split defaults apply,
+-- which is the whole metric catalog. "No rows" and "only zero weights" are different cases. It is the
+-- same rule as the evaluation feature's weights (copied here so this feature does not import it).
+-- name: ListPostingActiveMetrics :many
+SELECT m.id
+FROM public.metrics m
+WHERE NOT EXISTS (SELECT 1 FROM public.metrics_percentage w WHERE w.job_posting_id = @job_posting_id)
+   OR EXISTS (SELECT 1 FROM public.metrics_percentage w
+              WHERE w.job_posting_id = @job_posting_id AND w.metric_id = m.id AND w.percentage > 0)
+ORDER BY m.id;
+
+-- The metric catalog: the active metrics of a practice session, which has no posting and so no weights.
+-- name: ListCatalogMetrics :many
+SELECT id FROM public.metrics ORDER BY id;
 
 -- A practice session may use only an avatar in the Candidate's own inventory (no system avatars exist),
 -- and only an active voice. Another user's personal avatar is their likeness and is never usable.
@@ -166,6 +187,24 @@ SELECT position,
 FROM public.conversation_turns
 WHERE interview_id = @interview_id
 ORDER BY position;
+
+-- Each stored turn with the core question of its session it belongs to (KAN-333). A session stores its
+-- assigned core questions as interview_questions positions 1..n and answers them in that order, so the
+-- n-th core turn is the answer to position n; a follow-up shares the core question it probes. The turn's
+-- core question number is derived the same way as in ListInterviewTurns (the count of core turns up to
+-- and including the row) and joined to interview_questions.position, which gives the core question id.
+-- A follow-up that was asked but never answered is not stored, so it leaves no gap. This is an internal
+-- read for grading; no Candidate response carries core_question_id.
+-- name: ListTurnCoreQuestions :many
+SELECT t.position, t.kind, t.question_number, iq.core_question_id
+FROM (
+    SELECT ct.position, ct.kind,
+           (count(*) FILTER (WHERE ct.kind = 'core') OVER (ORDER BY ct.position))::int AS question_number
+    FROM public.conversation_turns ct
+    WHERE ct.interview_id = @interview_id
+) t
+JOIN public.interview_questions iq ON iq.interview_id = @interview_id AND iq.position = t.question_number
+ORDER BY t.position;
 
 -- A core turn, or a follow-up the live interviewer asked. asked_at is the live delivery time of its
 -- question (NULL for an answer to a core question that was never delivered live); answered_at is the
