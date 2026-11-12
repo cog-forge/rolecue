@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { renderWithIntl } from "../../../helpers/intl";
-import { RubricForm } from "@/features/rubrics/rubric-form";
+import { renderWithIntl } from "@tests/helpers/intl";
+import { RubricForm } from "@/features/rubrics/components/rubric-form";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));

@@ -52,7 +52,7 @@ import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 import { readApiError } from "@/lib/i18n/api-errors";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import { RubricForm } from "./rubric-form";
-import { type Rubric, type RubricValues } from "./rubric-schema";
+import { type Rubric, type RubricValues } from "../schemas/rubric-schema";
 import {
   copyRubric,
   deleteRubric,
@@ -61,7 +61,7 @@ import {
   listRubrics,
   rubricKeys,
   writeRubric,
-} from "./rubric-api";
+} from "../api/rubrics";
 
 export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
   const t = useTranslations("admin.rubrics");
