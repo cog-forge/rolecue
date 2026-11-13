@@ -353,7 +353,7 @@ test("review edits are saved before confirmation, and confirmation waits for the
   expect(api.errors).toEqual([]);
 });
 
-test("interview setup only opens for a confirmed Role Profile", async ({
+test("a confirmed Role Profile can be left for later or continued to the interviewer", async ({
   page,
 }) => {
   const api = await mockRoleProfileApi(
@@ -361,8 +361,24 @@ test("interview setup only opens for a confirmed Role Profile", async ({
     roleProfile({ status: "confirmed" }),
   );
   await page.goto(`/role-profiles/${id}`);
-  await page.getByRole("link", { name: "Continue to setup" }).click();
-  await expect(page).toHaveURL(/\/interviews\/new\/setup\?roleProfileId=/);
+  await page.getByRole("link", { name: "Practice later" }).click();
+  await expect(page).toHaveURL(/\/role-profiles$/);
+  expect(api.calls).toEqual([]);
+  await page.goBack();
+  await page.getByRole("link", { name: "Continue to interviewer" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/interviews/new/interviewer\\?roleProfileId=${id}$`),
+  );
+});
+
+test("interview setup only opens for a confirmed Role Profile", async ({
+  page,
+}) => {
+  const api = await mockRoleProfileApi(
+    page,
+    roleProfile({ status: "confirmed" }),
+  );
+  await page.goto(`/interviews/new/setup?roleProfileId=${id}`);
   await expect(
     page.getByRole("heading", { level: 1, name: "Choose a Role Profile" }),
   ).toBeVisible();

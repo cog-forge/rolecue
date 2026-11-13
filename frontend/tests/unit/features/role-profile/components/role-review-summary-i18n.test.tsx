@@ -57,11 +57,34 @@ describe("RoleReviewSummary in Vietnamese", () => {
       }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Tiếp tục thiết lập/ }),
-    ).toBeInTheDocument();
+      screen.getByRole("link", { name: /Tiếp tục chọn người phỏng vấn/ }),
+    ).toHaveAttribute(
+      "href",
+      `/interviews/new/interviewer?roleProfileId=${profile.id}`,
+    );
+    expect(screen.getByRole("link", { name: "Để sau" })).toHaveAttribute(
+      "href",
+      "/role-profiles",
+    );
     expect(
       screen.getByRole("button", { name: "Nguồn của yêu cầu 1" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("RoleReviewSummary exits", () => {
+  it("continues to the interviewer step or leaves the profile for later", () => {
+    renderWithIntl(<RoleReviewSummary profile={profile} />);
+    expect(
+      screen.getByRole("link", { name: /Continue to interviewer/ }),
+    ).toHaveAttribute(
+      "href",
+      `/interviews/new/interviewer?roleProfileId=${profile.id}`,
+    );
+    expect(
+      screen.getByRole("link", { name: "Practice later" }),
+    ).toHaveAttribute("href", "/role-profiles");
+    expect(screen.queryByRole("link", { name: /setup/i })).toBeNull();
   });
 });
 

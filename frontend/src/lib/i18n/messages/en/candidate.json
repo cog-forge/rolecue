@@ -974,8 +974,9 @@
       "fromJd": "From the JD",
       "noteTitle": "Your refinement note",
       "savedTitle": "Your role review is saved.",
-      "savedStatus": "Your requirements and interview content are saved. Your Role Profile is ready for the next step.",
-      "continue": "Continue to setup"
+      "savedStatus": "Your requirements and interview content are saved. Pick an interviewer to start practicing now, or come back to this Role Profile any time.",
+      "continue": "Continue to interviewer",
+      "later": "Practice later"
     }
   },
   "billing": {
