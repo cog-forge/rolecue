@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
+	roadmapdomain "github.com/cog-forge/rolecue/api/internal/features/roadmap/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ledger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -91,6 +92,9 @@ func (r *Repository) Existing(ctx context.Context, p domain.CreateParams) (domai
 			id, err = r.queries.FindInterviewByStartKey(ctx, p.StartKey)
 			if err == nil {
 				session, readErr := r.Get(ctx, p.CandidateID, id)
+				if readErr == nil {
+					readErr = checkStartIntent(session.FocusItemID, p.FocusItemID)
+				}
 				return session, readErr == nil, readErr
 			}
 			if !errors.Is(err, pgx.ErrNoRows) {
@@ -123,6 +127,31 @@ func (r *Repository) Existing(ctx context.Context, p domain.CreateParams) (domai
 	return session, err == nil, err
 }
 
+// FocusState reads what a focused start needs to know before anything is generated or charged: that the
+// profile is the Candidate's, that the topic belongs to it, and how many bank questions the topic has. It is a
+// plain read; the start checks everything again under the practice start lock.
+func (r *Repository) FocusState(ctx context.Context, candidateID, profileID, focus uuid.UUID) (domain.FocusState, error) {
+	profile, err := r.queries.GetOwnedRoleProfile(ctx, GetOwnedRoleProfileParams{ID: profileID, CandidateID: candidateID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.FocusState{}, domain.ErrRoleProfileNotFound
+	}
+	if err != nil {
+		return domain.FocusState{}, internal(err)
+	}
+	topic, err := r.queries.GetFocusTopic(ctx, GetFocusTopicParams{ItemID: focus, RoleProfileID: profileID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.FocusState{}, apperror.New(apperror.CodeValidation, "focus_item_id is not a topic of this role profile")
+	}
+	if err != nil {
+		return domain.FocusState{}, internal(err)
+	}
+	count, err := r.queries.CountTopicBankQuestions(ctx, CountTopicBankQuestionsParams{JdID: profile.JdID, ItemID: &focus})
+	if err != nil {
+		return domain.FocusState{}, internal(err)
+	}
+	return domain.FocusState{Questions: int(count), RoadmapReady: topic.GenerationStatus == string(roadmapdomain.StatusReady)}, nil
+}
+
 // sessionOfStartKey returns the session a practice start key created, after losing the insert race.
 func (r *Repository) sessionOfStartKey(ctx context.Context, params domain.CreateParams) (domain.Session, bool, error) {
 	var session domain.Session
@@ -133,12 +162,25 @@ func (r *Repository) sessionOfStartKey(ctx context.Context, params domain.Create
 			return err
 		}
 		session, err = readSession(ctx, q, params.CandidateID, id)
-		return err
+		if err != nil {
+			return err
+		}
+		return checkStartIntent(session.FocusItemID, params.FocusItemID)
 	})
 	if err != nil {
 		return domain.Session{}, false, internal(err)
 	}
 	return session, false, nil
+}
+
+// checkStartIntent compares what a start key created with what the same key asks for now. The key names one
+// intent: the same key with another focus would show the Candidate one topic while the server returns a
+// session of another, so it is a conflict, never a silent replay.
+func checkStartIntent(stored, requested *uuid.UUID) error {
+	if (stored == nil) != (requested == nil) || (stored != nil && *stored != *requested) {
+		return domain.ErrStartIntentConflict
+	}
+	return nil
 }
 
 // isUniqueViolation reports a duplicate key, whatever the error was wrapped in.
@@ -515,7 +557,11 @@ func startPracticeOnce(ctx context.Context, tx pgx.Tx, q *Queries, random domain
 	if p.StartKey != nil {
 		existing, err := q.FindInterviewByStartKey(ctx, p.StartKey)
 		if err == nil {
-			return existing, false, nil
+			stored, focusErr := q.GetInterviewFocus(ctx, existing)
+			if focusErr != nil {
+				return uuid.Nil, false, internal(focusErr)
+			}
+			return existing, false, checkStartIntent(stored, p.FocusItemID)
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, false, internal(err)
@@ -565,15 +611,16 @@ func startPractice(ctx context.Context, tx pgx.Tx, q *Queries, random domain.Ran
 		return uuid.Nil, internal(err)
 	}
 	// Practice sampling never refuses for coverage (KAN-378): the Candidate cannot edit the bank, so a refusal
-	// would be a dead end. It covers as many metrics as the bank allows; grading withholds the rest.
-	questions, err := startQuestions(ctx, q, random, profile.JdID, active, p.QuestionLimit, domain.SampleQuestionsBestEffort)
+	// would be a dead end. It covers as many metrics as the bank allows; grading withholds the rest. It also
+	// prefers what the Roadmap still needs, or only the focused topic (KAN-347).
+	questions, err := practiceQuestions(ctx, q, random, profile.ID, profile.JdID, active, p.QuestionLimit, p.FocusItemID)
 	if err != nil {
 		return uuid.Nil, err
 	}
 	if err := checkPracticeReferences(ctx, q, p.CandidateID, p.AvatarID, p.VoiceID); err != nil {
 		return uuid.Nil, err
 	}
-	interviewID, err := createInterviewRow(ctx, q, p.Type, &profile.ID, nil, p.AvatarID, p.VoiceID, p.StartKey)
+	interviewID, err := createInterviewRow(ctx, q, p.Type, &profile.ID, nil, p.AvatarID, p.VoiceID, p.StartKey, p.FocusItemID)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -637,7 +684,7 @@ func startRecruitment(ctx context.Context, q *Queries, random domain.RandomSourc
 	}
 	// The posting's interviewer and voice are fixed by the Recruiter; the Candidate cannot override them
 	// (the service rejects a request that names its own).
-	interviewID, err := createInterviewRow(ctx, q, p.Type, nil, p.ApplicationID, posting.RequiredAvatarID, posting.RequiredVoiceID, nil)
+	interviewID, err := createInterviewRow(ctx, q, p.Type, nil, p.ApplicationID, posting.RequiredAvatarID, posting.RequiredVoiceID, nil, nil)
 	if err != nil {
 		return uuid.Nil, false, err
 	}
@@ -645,6 +692,65 @@ func startRecruitment(ctx context.Context, q *Queries, random domain.RandomSourc
 		return uuid.Nil, false, err
 	}
 	return interviewID, true, nil
+}
+
+// practiceQuestions picks the core questions of a practice start, under the profile's practice start lock.
+//
+// General practice (focus nil) draws from the whole bank and prefers questions the Candidate has no valid
+// result for, in topics that are not achieved yet. Focused practice draws only from the questions of that
+// topic, which must belong to the profile and have a ready Roadmap, and never from another topic: a topic with
+// fewer questions than the limit is refused (the caller tops it up before it charges). Both keep the Barem
+// metric cover ahead of the preference and never refuse for coverage.
+func practiceQuestions(ctx context.Context, q *Queries, random domain.RandomSource, profileID, jdID uuid.UUID, active []uuid.UUID, limit int32, focus *uuid.UUID) ([]uuid.UUID, error) {
+	if focus != nil {
+		topic, err := q.GetFocusTopic(ctx, GetFocusTopicParams{ItemID: *focus, RoleProfileID: profileID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, apperror.New(apperror.CodeValidation, "focus_item_id is not a topic of this role profile")
+		}
+		if err != nil {
+			return nil, internal(err)
+		}
+		if topic.GenerationStatus != string(roadmapdomain.StatusReady) {
+			return nil, domain.ErrRoadmapNotReady
+		}
+	}
+	rows, err := q.ListRoadmapBank(ctx, jdID)
+	if err != nil {
+		return nil, internal(err)
+	}
+	evidence, err := q.ListProfileRoadmapEvidence(ctx, &profileID)
+	if err != nil {
+		return nil, internal(err)
+	}
+	assessed := make(map[uuid.UUID]bool, len(evidence))
+	byTopic := make(map[uuid.UUID][]roadmapdomain.Evidence)
+	for _, row := range evidence {
+		assessed[row.CoreQuestionID] = true
+		byTopic[row.ItemID] = append(byTopic[row.ItemID], roadmapdomain.Evidence{CoreQuestionID: row.CoreQuestionID,
+			InterviewID: row.InterviewID, Position: row.QuestionPosition, Score: row.Score, EventTime: row.CompletedAt.Time})
+	}
+	bank := make([]domain.RoadmapBankQuestion, 0, len(rows))
+	for _, row := range rows {
+		bank = append(bank, domain.RoadmapBankQuestion{SamplingQuestion: domain.SamplingQuestion{ID: row.ID, Metrics: row.MetricIds},
+			TopicID: row.RoadmapItemID, Assessed: assessed[row.ID]})
+	}
+	if focus != nil {
+		bank = domain.FocusedBank(bank, *focus)
+		if len(bank) < int(limit) {
+			// Not enough questions of this topic: never borrow from another topic to reach the limit.
+			return nil, domain.ErrQuestionBankNotReady
+		}
+		return domain.SampleQuestionsPreferring(domain.SamplingQuestions(bank), domain.FocusedRanks(bank), active, int(limit), random)
+	}
+	achieved := make(map[uuid.UUID]bool, len(byTopic))
+	for topic, topicEvidence := range byTopic {
+		score, scoreErr := roadmapdomain.ScoreTopic(topicEvidence)
+		if scoreErr != nil {
+			return nil, internal(scoreErr)
+		}
+		achieved[topic] = score.Status == roadmapdomain.TopicAchieved
+	}
+	return domain.SampleQuestionsPreferring(domain.SamplingQuestions(bank), domain.GeneralPracticeRanks(bank, achieved), active, int(limit), random)
 }
 
 // startQuestions samples the core questions of a new session from the bank of the Job Description with the
@@ -689,10 +795,10 @@ func checkPracticeReferences(ctx context.Context, q *Queries, candidateID uuid.U
 	return nil
 }
 
-func createInterviewRow(ctx context.Context, q *Queries, interviewType domain.Type, roleProfileID, applicationID, avatarID, voiceID *uuid.UUID, startKey *string) (uuid.UUID, error) {
+func createInterviewRow(ctx context.Context, q *Queries, interviewType domain.Type, roleProfileID, applicationID, avatarID, voiceID *uuid.UUID, startKey *string, focusItemID *uuid.UUID) (uuid.UUID, error) {
 	id, err := q.InsertInterview(ctx, InsertInterviewParams{
 		RoleProfileID: roleProfileID, InterviewType: string(interviewType), ApplicationID: applicationID,
-		AvatarID: avatarID, VoiceID: voiceID, StartKey: startKey,
+		AvatarID: avatarID, VoiceID: voiceID, StartKey: startKey, FocusItemID: focusItemID,
 	})
 	if err != nil {
 		return uuid.Nil, internal(err)
@@ -792,7 +898,7 @@ func readSession(ctx context.Context, q *Queries, candidateID, id uuid.UUID) (do
 	}
 	session := domain.Session{
 		ID: row.ID, Type: domain.Type(row.Type), RoleProfileID: row.RoleProfileID,
-		ApplicationID: row.ApplicationID, AvatarID: row.AvatarID, VoiceID: row.VoiceID,
+		ApplicationID: row.ApplicationID, AvatarID: row.AvatarID, VoiceID: row.VoiceID, FocusItemID: row.FocusItemID,
 		StartedAt: row.StartedAt.Time, CompletedAt: timePtr(row.CompletedAt),
 		EndReason:        (*domain.EndReason)(row.EndReason),
 		EvaluationStatus: domain.EvaluationStatus(row.EvaluationStatus),

@@ -8,6 +8,8 @@ var (
 	ErrTurnConflict           = apperror.New(apperror.CodeInterviewTurnConflict, "answer does not match the next question")
 	ErrRoleProfileRequired    = apperror.New(apperror.CodeRoleProfileRequired, "a confirmed role profile is required")
 	ErrRoleProfileNotFound    = apperror.New(apperror.CodeJDNotFound, "Role Profile not found.")
+	ErrStartIntentConflict    = apperror.New(apperror.CodeInterviewStartIntentConflict, "this start request was already used for a different practice")
+	ErrRoadmapNotReady        = apperror.New(apperror.CodeRoadmapNotReady, "the learning roadmap is not ready")
 	ErrQuestionBankNotReady   = apperror.New(apperror.CodeQuestionBankNotReady, "the question bank is not ready")
 	ErrApplicationNotFound    = apperror.New(apperror.CodeApplicationNotFound, "application not found")
 	ErrApplicationNotEligible = apperror.New(apperror.CodeApplicationNotEligible,

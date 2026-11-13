@@ -13,7 +13,8 @@ SELECT i.id,
        i.score_outcome,
        rp.title AS role_profile_title,
        jp.title AS job_posting_title,
-       i.application_id
+       i.application_id,
+       i.focus_item_id
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id

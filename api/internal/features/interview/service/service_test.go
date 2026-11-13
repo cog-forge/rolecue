@@ -20,6 +20,11 @@ type fakeRepository struct {
 	createErr     error
 	createCalls   int
 
+	// existing is what Existing answers: the session a replay or resume would return.
+	existingSession domain.Session
+	existingFound   bool
+	existingErr     error
+
 	getSession domain.Session
 	getErr     error
 	getCalls   int
@@ -75,7 +80,7 @@ type fakeRepository struct {
 }
 
 func (r *fakeRepository) Existing(context.Context, domain.CreateParams) (domain.Session, bool, error) {
-	return domain.Session{}, false, nil
+	return r.existingSession, r.existingFound, r.existingErr
 }
 
 func (r *fakeRepository) Create(_ context.Context, params domain.CreateParams) (domain.Session, bool, error) {

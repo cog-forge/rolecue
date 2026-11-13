@@ -57,6 +57,8 @@ type HistoryItem struct {
 	RoleProfileTitle *string    `json:"role_profile_title"`
 	JobPostingTitle  *string    `json:"job_posting_title"`
 	ApplicationID    *uuid.UUID `json:"application_id"`
+	// FocusItemID is the Roadmap topic the practice was for, null for general practice and recruitment.
+	FocusItemID *uuid.UUID `json:"focus_item_id"`
 }
 
 // HistoryPage is one page of the Candidate's session history, newest first.

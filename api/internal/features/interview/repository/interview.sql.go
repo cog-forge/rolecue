@@ -112,6 +112,23 @@ func (q *Queries) CountInterviewQuestions(ctx context.Context, interviewID uuid.
 	return questions, err
 }
 
+const countTopicBankQuestions = `-- name: CountTopicBankQuestions :one
+SELECT count(*)::int FROM public.core_questions cq WHERE cq.jd_id = $1 AND cq.roadmap_item_id = $2
+`
+
+type CountTopicBankQuestionsParams struct {
+	JdID   uuid.UUID
+	ItemID *uuid.UUID
+}
+
+// How many questions of the profile's bank belong to a topic.
+func (q *Queries) CountTopicBankQuestions(ctx context.Context, arg CountTopicBankQuestionsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countTopicBankQuestions, arg.JdID, arg.ItemID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const evaluationAttemptsExhausted = `-- name: EvaluationAttemptsExhausted :one
 SELECT (completed_at IS NOT NULL
         AND evaluation_attempts >= $1::int
@@ -279,6 +296,44 @@ func (q *Queries) GetApplicationPosting(ctx context.Context, arg GetApplicationP
 	return job_posting_id, err
 }
 
+const getFocusTopic = `-- name: GetFocusTopic :one
+SELECT ri.id, r.generation_status
+FROM public.roadmap_items ri
+JOIN public.roadmaps r ON r.id = ri.roadmap_id
+WHERE ri.id = $1 AND r.role_profile_id = $2
+`
+
+type GetFocusTopicParams struct {
+	ItemID        uuid.UUID
+	RoleProfileID uuid.UUID
+}
+
+type GetFocusTopicRow struct {
+	ID               uuid.UUID
+	GenerationStatus string
+}
+
+// A topic of the profile's Roadmap and the Roadmap's generation status (KAN-347). No row: the topic does not
+// belong to this profile. The caller has already checked that the profile belongs to the Candidate.
+func (q *Queries) GetFocusTopic(ctx context.Context, arg GetFocusTopicParams) (GetFocusTopicRow, error) {
+	row := q.db.QueryRow(ctx, getFocusTopic, arg.ItemID, arg.RoleProfileID)
+	var i GetFocusTopicRow
+	err := row.Scan(&i.ID, &i.GenerationStatus)
+	return i, err
+}
+
+const getInterviewFocus = `-- name: GetInterviewFocus :one
+SELECT focus_item_id FROM public.interviews WHERE id = $1
+`
+
+// The Roadmap topic a session practises, NULL for general practice (KAN-348): the stored intent of the session.
+func (q *Queries) GetInterviewFocus(ctx context.Context, id uuid.UUID) (*uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getInterviewFocus, id)
+	var focus_item_id *uuid.UUID
+	err := row.Scan(&focus_item_id)
+	return focus_item_id, err
+}
+
 const getInterviewGuideline = `-- name: GetInterviewGuideline :one
 SELECT g.tone, g.question_length, g.follow_up_max, g.follow_up_focus, g.avoid_topics
 FROM public.interviews i
@@ -337,7 +392,7 @@ func (q *Queries) GetInterviewQuestion(ctx context.Context, arg GetInterviewQues
 
 const getOwnedInterview = `-- name: GetOwnedInterview :one
 SELECT i.id, i.type::text AS type, i.role_profile_id, i.application_id, i.avatar_id, i.voice_id,
-       i.started_at, i.completed_at, i.end_reason, i.evaluation_status
+       i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.focus_item_id
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -360,6 +415,7 @@ type GetOwnedInterviewRow struct {
 	CompletedAt      pgtype.Timestamptz
 	EndReason        *string
 	EvaluationStatus string
+	FocusItemID      *uuid.UUID
 }
 
 func (q *Queries) GetOwnedInterview(ctx context.Context, arg GetOwnedInterviewParams) (GetOwnedInterviewRow, error) {
@@ -376,6 +432,7 @@ func (q *Queries) GetOwnedInterview(ctx context.Context, arg GetOwnedInterviewPa
 		&i.CompletedAt,
 		&i.EndReason,
 		&i.EvaluationStatus,
+		&i.FocusItemID,
 	)
 	return i, err
 }
@@ -410,9 +467,9 @@ func (q *Queries) GetOwnedRoleProfile(ctx context.Context, arg GetOwnedRoleProfi
 }
 
 const insertInterview = `-- name: InsertInterview :one
-INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key, behavior_guideline_id)
+INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key, focus_item_id, behavior_guideline_id)
 VALUES ($1, $2::text::public.interview_type,
-        $3, $4, $5, $6,
+        $3, $4, $5, $6, $7,
         (SELECT g.id FROM public.interview_behavior_guidelines g ORDER BY g.version DESC LIMIT 1))
 RETURNING id
 `
@@ -424,6 +481,7 @@ type InsertInterviewParams struct {
 	AvatarID      *uuid.UUID
 	VoiceID       *uuid.UUID
 	StartKey      *string
+	FocusItemID   *uuid.UUID
 }
 
 // The session records the Interview Behavior Guideline version current when it starts (KAN-276); NULL when
@@ -436,6 +494,7 @@ func (q *Queries) InsertInterview(ctx context.Context, arg InsertInterviewParams
 		arg.AvatarID,
 		arg.VoiceID,
 		arg.StartKey,
+		arg.FocusItemID,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -738,6 +797,98 @@ func (q *Queries) ListPostingActiveMetrics(ctx context.Context, jobPostingID uui
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProfileRoadmapEvidence = `-- name: ListProfileRoadmapEvidence :many
+SELECT iq.core_question_id, a.roadmap_item_id AS item_id, a.interview_id, a.question_position,
+       COALESCE(iq.score, 0)::float8 AS score, i.completed_at
+FROM public.roadmap_assessments a
+JOIN public.interviews i ON i.id = a.interview_id
+JOIN public.interview_questions iq ON iq.interview_id = a.interview_id AND iq.position = a.question_position
+WHERE i.role_profile_id = $1
+  AND i.type = 'practice'
+  AND i.completed_at IS NOT NULL
+  AND i.evaluation_status = 'completed'
+  AND NOT i.injection_flagged
+`
+
+type ListProfileRoadmapEvidenceRow struct {
+	CoreQuestionID   uuid.UUID
+	ItemID           uuid.UUID
+	InterviewID      uuid.UUID
+	QuestionPosition int32
+	Score            float64
+	CompletedAt      pgtype.Timestamptz
+}
+
+// The valid practice results of a profile that feed its Roadmap topics: one row per assessed core question of
+// a completed, successfully evaluated, not injection-flagged practice session (the Roadmap eligibility rule).
+// A core that was shown and skipped has no stored score and counts 0, as the Roadmap read model counts it. The
+// topic is the one the assessment was recorded for; the time is the session's completion, never the link time.
+func (q *Queries) ListProfileRoadmapEvidence(ctx context.Context, roleProfileID *uuid.UUID) ([]ListProfileRoadmapEvidenceRow, error) {
+	rows, err := q.db.Query(ctx, listProfileRoadmapEvidence, roleProfileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProfileRoadmapEvidenceRow
+	for rows.Next() {
+		var i ListProfileRoadmapEvidenceRow
+		if err := rows.Scan(
+			&i.CoreQuestionID,
+			&i.ItemID,
+			&i.InterviewID,
+			&i.QuestionPosition,
+			&i.Score,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRoadmapBank = `-- name: ListRoadmapBank :many
+SELECT cq.id,
+       COALESCE(array_agg(DISTINCT rc.metric_id) FILTER (WHERE rc.metric_id IS NOT NULL), '{}')::uuid[] AS metric_ids,
+       cq.roadmap_item_id
+FROM public.core_questions cq
+LEFT JOIN public.rubric_criteria rc ON rc.rubric_id = cq.rubric_id
+WHERE cq.jd_id = $1
+GROUP BY cq.id
+ORDER BY cq.id
+`
+
+type ListRoadmapBankRow struct {
+	ID            uuid.UUID
+	MetricIds     []uuid.UUID
+	RoadmapItemID *uuid.UUID
+}
+
+// The bank of a practice start with its Roadmap topic: the same rows and metrics as ListBankQuestions plus
+// roadmap_item_id (NULL for a bank written before the Roadmap existed).
+func (q *Queries) ListRoadmapBank(ctx context.Context, jdID uuid.UUID) ([]ListRoadmapBankRow, error) {
+	rows, err := q.db.Query(ctx, listRoadmapBank, jdID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRoadmapBankRow
+	for rows.Next() {
+		var i ListRoadmapBankRow
+		if err := rows.Scan(&i.ID, &i.MetricIds, &i.RoadmapItemID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

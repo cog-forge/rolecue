@@ -43,7 +43,8 @@ SELECT i.id,
        i.score_outcome,
        rp.title AS role_profile_title,
        jp.title AS job_posting_title,
-       i.application_id
+       i.application_id,
+       i.focus_item_id
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -72,6 +73,7 @@ type ListCandidateInterviewsRow struct {
 	RoleProfileTitle *string
 	JobPostingTitle  *string
 	ApplicationID    *uuid.UUID
+	FocusItemID      *uuid.UUID
 }
 
 // The Candidate's own session history, newest first. The Candidate is taken through the role profile of
@@ -104,6 +106,7 @@ func (q *Queries) ListCandidateInterviews(ctx context.Context, arg ListCandidate
 			&i.RoleProfileTitle,
 			&i.JobPostingTitle,
 			&i.ApplicationID,
+			&i.FocusItemID,
 		); err != nil {
 			return nil, err
 		}
