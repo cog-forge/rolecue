@@ -1,8 +1,7 @@
 {
   "dashboard": {
     "heading": "Tổng quan",
-    "eyebrow": "Ứng viên",
-    "description": "Theo dõi JD mục tiêu, quá trình luyện tập, đơn ứng tuyển và số dư xu tại đây.",
+    "description": "Theo dõi tiến bộ luyện tập và các bước tiếp theo khi tìm việc.",
     "retry": "Thử lại",
     "applications": {
       "title": "Đơn ứng tuyển",
@@ -19,7 +18,8 @@
         "interviewed": "Đã phỏng vấn",
         "approved": "Đã duyệt",
         "rejected": "Không được chọn"
-      }
+      },
+      "emptyTitle": "Chưa có đơn ứng tuyển"
     },
     "practice": {
       "title": "Hoạt động luyện tập",
@@ -28,7 +28,7 @@
       "empty": "Bạn chưa có buổi luyện tập nào. Hãy bắt đầu để xem phản hồi tại đây.",
       "start": "Bắt đầu phỏng vấn luyện tập",
       "count": "{countText} buổi luyện tập",
-      "view": "Xem toàn bộ lịch sử phỏng vấn",
+      "view": "Xem lịch sử",
       "status": {
         "in_progress": "Đang diễn ra",
         "pending": "Đang chuẩn bị phản hồi",
@@ -36,7 +36,10 @@
         "failed": "Không có phản hồi"
       },
       "scoreValue": "{score}/100",
-      "scoreWithheld": "Chưa có điểm tổng"
+      "scoreWithheld": "Chưa có điểm tổng",
+      "emptyTitle": "Chưa có buổi luyện tập nào",
+      "recent": "Các buổi gần nhất",
+      "partial": "Điểm một phần"
     },
     "profiles": {
       "title": "JD mục tiêu",
@@ -53,7 +56,8 @@
         "analyzing": "Đang phân tích mô tả công việc",
         "review": "Đang chờ bạn xem lại",
         "confirmed": "Sẵn sàng luyện tập"
-      }
+      },
+      "emptyTitle": "Chưa có JD mục tiêu"
     },
     "wallet": {
       "title": "Số dư xu",
@@ -62,7 +66,54 @@
       "unit": "xu",
       "description": "Xu được dùng để luyện tập phỏng vấn với AI.",
       "view": "Xem giao dịch"
-    }
+    },
+    "progress": {
+      "title": "Tiến bộ luyện tập",
+      "windowLabel": "Phạm vi lịch sử luyện tập",
+      "window": "{count} buổi gần nhất",
+      "loading": "Đang tải tiến bộ luyện tập…",
+      "error": "Không thể tải tiến bộ luyện tập của bạn.",
+      "latest": "Điểm hoàn chỉnh gần nhất",
+      "noScore": "Hoàn thành buổi luyện tập để xem điểm.",
+      "sessions": "Buổi luyện tập",
+      "best": "Điểm cao nhất đang xem",
+      "score": "Điểm",
+      "chartLabel": "Điểm hoàn chỉnh qua các buổi luyện tập gần đây",
+      "scope": "{count} buổi gần nhất của bạn",
+      "viewValues": "Xem điểm",
+      "emptyTitle": "Chưa có điểm hoàn chỉnh",
+      "empty": "Hoàn thành một buổi luyện tập để theo dõi điểm số qua từng lần.",
+      "explanation": "Chỉ hiển thị điểm hoàn chỉnh. Khoảng trống là buổi chưa có điểm hoàn chỉnh. Các vai trò và rubric có thể đánh giá những kỹ năng khác nhau."
+    },
+    "focus": {
+      "title": "Kỹ năng cần luyện thêm",
+      "loading": "Đang tải phản hồi gần nhất…",
+      "error": "Không thể tải phản hồi gần nhất của bạn.",
+      "emptyTitle": "Phản hồi sau buổi luyện tập đầu tiên",
+      "empty": "Phản hồi gần nhất sẽ giúp bạn biết nên luyện kỹ năng nào tiếp theo.",
+      "description": "Các tiêu chí có điểm thấp nhất trong báo cáo luyện tập gần nhất.",
+      "view": "Đọc phản hồi",
+      "unassessedTitle": "Báo cáo chưa có tiêu chí được chấm",
+      "unassessed": "Mở báo cáo để xem chi tiết buổi luyện tập. Kỹ năng chưa được chấm không có nghĩa là được 0 điểm."
+    },
+    "nextStep": {
+      "title": "Bước tiếp theo của bạn",
+      "loading": "Đang kiểm tra đơn ứng tuyển…",
+      "error": "Không thể kiểm tra bước tiếp theo của đơn ứng tuyển.",
+      "invited": "Đã có thể phỏng vấn",
+      "ongoing": "Buổi luyện tập đang diễn ra",
+      "practiceLabel": "Tiếp tục luyện tập",
+      "practiceTitle": "Luyện tập cho vị trí mục tiêu",
+      "practiceDescription": "Chọn JD mục tiêu và luyện những kỹ năng chuyên môn mà vị trí yêu cầu.",
+      "invitedDescription": "Xem lại đơn ứng tuyển và hoàn thành phỏng vấn trước hạn.",
+      "ongoingDescription": "Mở chi tiết buổi luyện tập để kiểm tra trạng thái hiện tại.",
+      "deadline": "Hoàn thành trước {date}",
+      "openApplication": "Xem đơn ứng tuyển",
+      "openSession": "Kiểm tra buổi luyện tập",
+      "practiceAction": "Chọn JD mục tiêu",
+      "allApplications": "Tất cả đơn"
+    },
+    "loadingCard": "Đang tải {title}…"
   },
   "history": {
     "eyebrow": "Luyện tập",

@@ -1,34 +1,41 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { routes } from "@/config/routes";
-import { useSessionUser } from "@/features/auth/components/session-gate";
-import { dashboardKeys, listPracticeInterviews } from "../api/dashboard";
+import type { PracticeQuery } from "../api/dashboard";
 import type { InterviewHistoryItem } from "../schemas/dashboard-schema";
-import { formatDate } from "../utils/dashboard-text";
+import { recentPractice } from "../utils/practice-summary";
 import { CardError, CardLoading, DashboardCard } from "./dashboard-card";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import { formatScore } from "@/features/report/utils/scoring";
 
-const PREVIEW_COUNT = 3;
-
-// Shows the latest practice sessions. Scores and statuses are displayed as the server reports
-// them; no score is computed here.
-export function PracticeActivityCard() {
+export function PracticeActivityCard({
+  query,
+  className,
+}: {
+  query: PracticeQuery;
+  className?: string;
+}) {
   const t = useTranslations("candidate.dashboard.practice");
-  const user = useSessionUser();
-  const query = useQuery({
-    queryKey: dashboardKeys.practice(user.id),
-    queryFn: ({ signal }) => listPracticeInterviews(PREVIEW_COUNT, signal),
-    retry: false,
-  });
-
   return (
-    <DashboardCard title={t("title")}>
+    <DashboardCard
+      isLoading={query.isPending}
+      title={t("title")}
+      className={className}
+      action={
+        <Button asChild variant="ghost" size="sm" className="min-h-11 px-2">
+          <Link href={routes.history}>
+            {t("view")}
+            <ArrowUpRight aria-hidden className="size-4" />
+          </Link>
+        </Button>
+      }
+    >
       {query.isPending ? (
         <CardLoading label={t("loading")} />
       ) : query.isError ? (
@@ -38,31 +45,28 @@ export function PracticeActivityCard() {
           onRetry={() => void query.refetch()}
         />
       ) : query.data.total === 0 ? (
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">{t("empty")}</p>
-          <Button asChild variant="outline" className="h-11 bg-background">
-            <Link href={routes.interviews.new.jobDescription}>
-              {t("start")}
-            </Link>
-          </Button>
-        </div>
+        <EmptyState
+          variant="plain"
+          title={t("emptyTitle")}
+          description={t("empty")}
+        />
       ) : (
-        <div className="space-y-3">
-          <p className="text-2xl font-semibold tabular-nums">
+        <>
+          <p className="text-sm text-muted-foreground">
             {t("count", {
               count: query.data.total,
               countText: String(query.data.total),
-            })}
+            })}{" "}
+            · {t("recent")}
           </p>
-          <ul className="divide-y rounded-lg border">
-            {query.data.items.map((item) => (
-              <PracticeRow key={item.id} item={item} />
-            ))}
+          <ul className="divide-y">
+            {recentPractice(query.data.items)
+              .slice(0, 3)
+              .map((item) => (
+                <PracticeRow key={item.id} item={item} />
+              ))}
           </ul>
-          <Button asChild variant="link" className="h-11 px-0">
-            <Link href={routes.history}>{t("view")}</Link>
-          </Button>
-        </div>
+        </>
       )}
     </DashboardCard>
   );
@@ -72,27 +76,43 @@ function PracticeRow({ item }: { item: InterviewHistoryItem }) {
   const t = useTranslations("candidate.dashboard.practice");
   const fmt = useFormatters();
   return (
-    <li className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-      <div className="min-w-0">
-        <Link
-          href={routes.reports.detail(item.id)}
-          className="block truncate font-medium underline-offset-4 hover:underline focus-visible:underline"
-        >
-          {item.role_profile_title}
-        </Link>
-        <p className="text-xs text-muted-foreground">
-          {formatDate(item.started_at, fmt)} · {t(`status.${item.status}`)}
-        </p>
-      </div>
-      {item.score !== null ? (
-        <span className="shrink-0 text-sm font-semibold tabular-nums">
-          {t("scoreValue", { score: formatScore(item.score, fmt.number) })}
-        </span>
-      ) : item.score_outcome === "withheld" ? (
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {t("scoreWithheld")}
-        </span>
-      ) : null}
+    <li>
+      <Link
+        href={routes.reports.detail(item.id)}
+        className="group flex min-h-20 items-center justify-between gap-4 rounded-md py-3 outline-none transition-colors hover:bg-muted/40 focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <div className="min-w-0 space-y-1">
+          <p className="truncate text-sm font-medium group-hover:underline underline-offset-4">
+            {item.role_profile_title}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {fmt.date(item.started_at, "calendarDay")} ·{" "}
+            {t(`status.${item.status}`)}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {item.score !== null ? (
+            <span className="text-sm font-semibold tabular-nums">
+              {t("scoreValue", { score: formatScore(item.score, fmt.number) })}
+              {item.score_outcome === "partial" && (
+                <span className="block text-right text-xs font-normal text-muted-foreground">
+                  {t("partial")}
+                </span>
+              )}
+            </span>
+          ) : (
+            <Badge
+              variant="secondary"
+              className="max-w-28 whitespace-normal text-right"
+            >
+              {item.score_outcome === "withheld"
+                ? t("scoreWithheld")
+                : t(`status.${item.status}`)}
+            </Badge>
+          )}
+          <ArrowUpRight aria-hidden className="size-4 text-muted-foreground" />
+        </div>
+      </Link>
     </li>
   );
 }

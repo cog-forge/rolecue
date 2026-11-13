@@ -1,16 +1,26 @@
 import { apiClient } from "@/lib/api/client";
+import type { UseQueryResult } from "@tanstack/react-query";
 import {
   interviewHistoryPageEnvelopeSchema,
   roleProfilePageEnvelopeSchema,
 } from "../schemas/dashboard-schema";
 
-// Dashboard-scoped keys. Cards share no data with the feature screens, so each card owns its key.
+export const PRACTICE_WINDOW_SIZE = 20;
+export type PracticeQuery = UseQueryResult<
+  Awaited<ReturnType<typeof listPracticeInterviews>>
+>;
+
+// Progress, recent sessions and the next action share one bounded history read.
 export const dashboardKeys = {
   all: (userId: string) => ["dashboard", userId] as const,
   roleProfiles: (userId: string) =>
     [...dashboardKeys.all(userId), "role-profiles"] as const,
   practice: (userId: string) =>
-    [...dashboardKeys.all(userId), "practice-interviews"] as const,
+    [
+      ...dashboardKeys.all(userId),
+      "practice-interviews",
+      PRACTICE_WINDOW_SIZE,
+    ] as const,
 };
 
 export async function listDashboardRoleProfiles(

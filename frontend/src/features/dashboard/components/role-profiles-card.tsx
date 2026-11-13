@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FileText } from "lucide-react";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { dashboardKeys, listDashboardRoleProfiles } from "../api/dashboard";
@@ -13,7 +15,7 @@ import { CardError, CardLoading, DashboardCard } from "./dashboard-card";
 
 const PREVIEW_COUNT = 3;
 
-export function RoleProfilesCard() {
+export function RoleProfilesCard({ className }: { className?: string }) {
   const t = useTranslations("candidate.dashboard.profiles");
   const user = useSessionUser();
   const query = useQuery({
@@ -23,7 +25,11 @@ export function RoleProfilesCard() {
   });
 
   return (
-    <DashboardCard title={t("title")}>
+    <DashboardCard
+      title={t("title")}
+      className={className}
+      isLoading={query.isPending}
+    >
       {query.isPending ? (
         <CardLoading label={t("loading")} />
       ) : query.isError ? (
@@ -52,18 +58,20 @@ function RoleProfilesBody({
   const t = useTranslations("candidate.dashboard.profiles");
   if (total === 0)
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">{t("empty")}</p>
-        <Button asChild variant="outline" className="h-11 bg-background">
-          <Link href={routes.targetJds}>{t("add")}</Link>
-        </Button>
-      </div>
+      <EmptyState
+        variant="plain"
+        icons={[FileText]}
+        title={t("emptyTitle")}
+        description={t("empty")}
+        action={{ label: t("add"), href: routes.targetJds, variant: "outline" }}
+        className="min-h-40 px-0! py-2!"
+      />
     );
 
   const pending = items.find((profile) => profile.status !== "confirmed");
   return (
     <div className="space-y-3">
-      <p className="text-2xl font-semibold tabular-nums">
+      <p className="text-3xl font-semibold tracking-tight tabular-nums">
         {t("count", { count: total, countText: String(total) })}
       </p>
       {pending ? (
@@ -79,15 +87,18 @@ function RoleProfilesBody({
       ) : (
         <p className="text-sm text-muted-foreground">{t("ready")}</p>
       )}
-      <ul className="divide-y rounded-lg border">
+      <ul className="divide-y">
         {items.map((profile) => (
           <li
             key={profile.id}
-            className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+            className="flex items-center justify-between gap-3 text-sm"
           >
-            <span className="min-w-0 truncate font-medium">
-              {profile.title}
-            </span>
+            <Link
+              href={routes.roleProfiles.detail(profile.id)}
+              className="flex min-h-11 min-w-0 items-center rounded-md font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="truncate">{profile.title}</span>
+            </Link>
             <span className="shrink-0 text-xs text-muted-foreground">
               {t(`status.${profile.status}`)}
             </span>

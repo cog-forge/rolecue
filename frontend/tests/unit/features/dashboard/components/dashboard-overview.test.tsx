@@ -99,6 +99,33 @@ function serve(overrides: Record<string, unknown> = {}) {
     "/interviews": practice,
     "/applications": applications,
     "/wallet": wallet,
+    [`/interviews/${INTERVIEW_ID}/report`]: {
+      success: true,
+      data: {
+        interview_id: INTERVIEW_ID,
+        type: "practice",
+        status: "completed",
+        overall_score: 78,
+        started_at: "2026-10-21T09:00:00Z",
+        completed_at: "2026-10-21T09:30:00Z",
+        summary: null,
+        breakdown: [
+          {
+            metric_id: "66666666-6666-4666-8666-666666666666",
+            name: "Technical Accuracy",
+            score: 62,
+            weight: 60,
+          },
+          {
+            metric_id: "77777777-7777-4777-8777-777777777777",
+            name: "Communication",
+            score: 91,
+            weight: 40,
+          },
+        ],
+        questions: [],
+      },
+    },
     ...overrides,
   };
   mocks.get.mockImplementation((path: string) => {
@@ -146,7 +173,11 @@ describe("DashboardOverview", () => {
     expect(
       screen.getByRole("link", { name: "Platform Engineer" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("78,00/100")).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("region", { name: "Hoạt động luyện tập" }),
+      ).getByText("78,00/100"),
+    ).toBeInTheDocument();
     expect(screen.getByText("1.250")).toBeInTheDocument();
   });
   it("shows a loading state per card, then each card's data", async () => {
@@ -156,7 +187,7 @@ describe("DashboardOverview", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Dashboard",
     );
-    expect(screen.getAllByRole("status")).toHaveLength(4);
+    expect(screen.getAllByRole("status")).toHaveLength(7);
 
     expect(
       await screen.findByRole("heading", { name: "Target JDs" }),
@@ -172,7 +203,7 @@ describe("DashboardOverview", () => {
     expect(practiceSection).not.toBeNull();
     const practiceRow = within(practiceSection as HTMLElement).getByRole(
       "link",
-      { name: "Go Backend Engineer" },
+      { name: /Go Backend Engineer/ },
     );
     expect(practiceRow).toHaveAttribute("href", `/reports/${INTERVIEW_ID}`);
     expect(
@@ -188,7 +219,7 @@ describe("DashboardOverview", () => {
 
     expect(await screen.findByText("1,250")).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith("/interviews", {
-      params: { type: "practice", page: 1, page_size: 3 },
+      params: { type: "practice", page: 1, page_size: 20 },
       signal: expect.any(AbortSignal),
     });
     expect(mocks.get).toHaveBeenCalledWith("/role-profiles", {
@@ -287,5 +318,111 @@ describe("DashboardOverview", () => {
     expect(
       await screen.findByText(/next step: waiting for your review/i),
     ).toHaveTextContent("Frontend Engineer");
+  });
+  it("loads one bounded practice window and reuses it across the dashboard", async () => {
+    serve();
+    renderOverview();
+    await screen.findByText("Technical Accuracy");
+    expect(
+      mocks.get.mock.calls.filter(([path]) => path === "/interviews"),
+    ).toHaveLength(1);
+    expect(mocks.get).toHaveBeenCalledWith(
+      `/interviews/${INTERVIEW_ID}/report`,
+      { signal: expect.any(AbortSignal) },
+    );
+    expect(
+      screen.getByRole("progressbar", { name: "Technical Accuracy" }),
+    ).toHaveAttribute("aria-valuenow", "62");
+    expect(screen.getByRole("link", { name: "Read feedback" })).toHaveAttribute(
+      "href",
+      `/reports/${INTERVIEW_ID}`,
+    );
+  });
+
+  it("uses server interview eligibility rather than deriving it from the status", async () => {
+    serve({
+      "/applications": {
+        ...applications,
+        data: {
+          ...applications.data,
+          items: [
+            { ...applications.data.items[0], can_start_interview: false },
+          ],
+        },
+      },
+    });
+    renderOverview();
+    const next = screen.getByRole("region", { name: "Your next step" });
+    await within(next).findByText("Keep practising");
+    expect(
+      within(next).queryByText("Interview available"),
+    ).not.toBeInTheDocument();
+    expect(within(next).getByRole("link")).toHaveAttribute(
+      "href",
+      "/interviews/new/job-description",
+    );
+  });
+
+  it("does not turn partial, withheld or pending scores into complete progress", async () => {
+    serve({
+      "/interviews": {
+        success: true,
+        data: {
+          ...practice.data,
+          items: [
+            { ...practice.data.items[0], score: 88, score_outcome: "partial" },
+            {
+              ...practice.data.items[0],
+              id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              score: null,
+              score_outcome: "withheld",
+            },
+          ],
+        },
+      },
+    });
+    renderOverview();
+    const progress = screen.getByRole("region", { name: "Practice progress" });
+    await within(progress).findByText("No complete scores yet");
+    expect(within(progress).queryByText("88.00")).not.toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("region", { name: "Practice activity" }),
+      ).getByText("Partial score"),
+    ).toBeInTheDocument();
+  });
+  it("distinguishes unassessed feedback from a candidate who has never practised", async () => {
+    serve({
+      [`/interviews/${INTERVIEW_ID}/report`]: {
+        success: true,
+        data: {
+          interview_id: INTERVIEW_ID,
+          type: "practice",
+          status: "completed",
+          overall_score: null,
+          started_at: "2026-10-21T09:00:00Z",
+          completed_at: "2026-10-21T09:30:00Z",
+          summary: null,
+          breakdown: [
+            {
+              metric_id: "66666666-6666-4666-8666-666666666666",
+              name: "Technical Accuracy",
+              score: null,
+              weight: 60,
+            },
+          ],
+          questions: [],
+        },
+      },
+    });
+    renderOverview();
+    const focus = screen.getByRole("region", { name: "What to work on" });
+    expect(
+      await within(focus).findByText("No assessed metrics in this report"),
+    ).toBeInTheDocument();
+    expect(within(focus).queryByRole("progressbar")).not.toBeInTheDocument();
+    expect(
+      within(focus).queryByText("Feedback after your first practice"),
+    ).not.toBeInTheDocument();
   });
 });
