@@ -75,6 +75,36 @@ type ExportRoleProfile struct {
 	Title     string    `json:"title"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
+	// Roadmap is the Profile's Learning Roadmap (KAN-356): its topics and the practice answers linked to them.
+	Roadmap *ExportRoadmap `json:"roadmap,omitempty"`
+}
+
+// ExportRoadmap is the Learning Roadmap of one Role Profile. It holds structure and links only: the practice
+// transcripts and criterion results are in the interviews part of the package, so nothing is exported twice, and
+// the bank's questions, expected answers and rubrics are never part of it. Recruitment results never are.
+type ExportRoadmap struct {
+	GenerationStatus string                `json:"generation_status" enums:"pending,generating,ready,failed"`
+	Topics           []ExportRoadmapTopic  `json:"topics"`
+	Results          []ExportRoadmapResult `json:"results"`
+}
+
+// ExportRoadmapTopic is one topic of the Roadmap, in display order.
+type ExportRoadmapTopic struct {
+	ID          uuid.UUID `json:"id"`
+	Title       string    `json:"title"`
+	Description *string   `json:"description"`
+	Position    int32     `json:"position"`
+}
+
+// ExportRoadmapResult links one answered practice question to the topic it counts for. InterviewID and
+// QuestionNumber identify the answer inside the interviews part of the package. Score is the Barem question score,
+// null for a question that was shown and not answered.
+type ExportRoadmapResult struct {
+	TopicID        uuid.UUID `json:"topic_id"`
+	InterviewID    uuid.UUID `json:"interview_id"`
+	QuestionNumber int32     `json:"question_number"`
+	Score          *float64  `json:"score"`
+	LinkedAt       time.Time `json:"linked_at"`
 }
 
 // ExportApplication is one of the Candidate's Applications. CV is a 15-minute link to the uploaded CV.

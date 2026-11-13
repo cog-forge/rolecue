@@ -40,7 +40,55 @@ func (r *Repository) ExportRoleProfiles(ctx context.Context, id uuid.UUID) ([]do
 	for _, row := range rows {
 		out = append(out, domain.ExportRoleProfile{ID: row.ID, Title: row.Title, Status: row.Status, CreatedAt: row.CreatedAt.Time})
 	}
+	if err := r.attachRoadmaps(ctx, id, out); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+// attachRoadmaps adds each Role Profile's Learning Roadmap: status, topics in display order and the practice
+// answers linked to them (KAN-356). Everything is read for the owner only; a profile without a Roadmap row keeps a
+// nil Roadmap.
+func (r *Repository) attachRoadmaps(ctx context.Context, owner uuid.UUID, profiles []domain.ExportRoleProfile) error {
+	if len(profiles) == 0 {
+		return nil
+	}
+	roadmaps, err := r.queries.ExportRoadmaps(ctx, owner)
+	if err != nil {
+		return readFailed(err)
+	}
+	items, err := r.queries.ExportRoadmapItems(ctx, owner)
+	if err != nil {
+		return readFailed(err)
+	}
+	results, err := r.queries.ExportRoadmapResults(ctx, owner)
+	if err != nil {
+		return readFailed(err)
+	}
+	byRoadmap := make(map[uuid.UUID]*domain.ExportRoadmap, len(roadmaps))
+	byProfile := make(map[uuid.UUID]*domain.ExportRoadmap, len(roadmaps))
+	for _, row := range roadmaps {
+		rm := &domain.ExportRoadmap{GenerationStatus: row.GenerationStatus, Topics: []domain.ExportRoadmapTopic{}, Results: []domain.ExportRoadmapResult{}}
+		byRoadmap[row.ID] = rm
+		byProfile[row.RoleProfileID] = rm
+	}
+	for _, row := range items {
+		if rm := byRoadmap[row.RoadmapID]; rm != nil {
+			rm.Topics = append(rm.Topics, domain.ExportRoadmapTopic{ID: row.ID, Title: row.Title, Description: row.Description, Position: row.Position})
+		}
+	}
+	for _, row := range results {
+		if rm := byRoadmap[row.RoadmapID]; rm != nil {
+			rm.Results = append(rm.Results, domain.ExportRoadmapResult{
+				TopicID: row.TopicID, InterviewID: row.InterviewID, QuestionNumber: row.QuestionPosition,
+				Score: dbnum.Float(row.Score), LinkedAt: row.CreatedAt.Time,
+			})
+		}
+	}
+	for i := range profiles {
+		profiles[i].Roadmap = byProfile[profiles[i].ID]
+	}
+	return nil
 }
 
 // ExportApplications lists the Candidate's own Applications, oldest first.

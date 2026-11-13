@@ -247,6 +247,135 @@ func (q *Queries) ExportProfile(ctx context.Context, id uuid.UUID) (ExportProfil
 	return i, err
 }
 
+const exportRoadmapItems = `-- name: ExportRoadmapItems :many
+SELECT ri.roadmap_id, ri.id, ri.title, ri.description, ri.position
+FROM public.roadmap_items ri
+JOIN public.roadmaps r ON r.id = ri.roadmap_id
+JOIN public.role_profiles rp ON rp.id = r.role_profile_id
+WHERE rp.candidate_id = $1
+ORDER BY ri.roadmap_id, ri.position, ri.id
+`
+
+type ExportRoadmapItemsRow struct {
+	RoadmapID   uuid.UUID
+	ID          uuid.UUID
+	Title       string
+	Description *string
+	Position    int32
+}
+
+func (q *Queries) ExportRoadmapItems(ctx context.Context, id uuid.UUID) ([]ExportRoadmapItemsRow, error) {
+	rows, err := q.db.Query(ctx, exportRoadmapItems, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExportRoadmapItemsRow
+	for rows.Next() {
+		var i ExportRoadmapItemsRow
+		if err := rows.Scan(
+			&i.RoadmapID,
+			&i.ID,
+			&i.Title,
+			&i.Description,
+			&i.Position,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const exportRoadmapResults = `-- name: ExportRoadmapResults :many
+SELECT ri.roadmap_id, ri.id AS topic_id, ra.interview_id, ra.question_position, iq.score, ra.created_at
+FROM public.roadmap_assessments ra
+JOIN public.roadmap_items ri ON ri.id = ra.roadmap_item_id
+JOIN public.roadmaps r ON r.id = ri.roadmap_id
+JOIN public.role_profiles rp ON rp.id = r.role_profile_id
+JOIN public.interviews i ON i.id = ra.interview_id AND i.type = 'practice' AND i.role_profile_id = rp.id
+JOIN public.interview_questions iq ON iq.interview_id = ra.interview_id AND iq.position = ra.question_position
+WHERE rp.candidate_id = $1
+ORDER BY ri.roadmap_id, i.started_at, ra.interview_id, ra.question_position
+`
+
+type ExportRoadmapResultsRow struct {
+	RoadmapID        uuid.UUID
+	TopicID          uuid.UUID
+	InterviewID      uuid.UUID
+	QuestionPosition int32
+	Score            pgtype.Numeric
+	CreatedAt        pgtype.Timestamptz
+}
+
+// The practice answers linked to those topics. Only the Candidate's own practice interviews of the same profile
+// count: a link on any other interview (which the writer never creates) is not exported. The score is read from the
+// question, as everywhere else; no question text, answer, expected answer or rubric is selected.
+func (q *Queries) ExportRoadmapResults(ctx context.Context, id uuid.UUID) ([]ExportRoadmapResultsRow, error) {
+	rows, err := q.db.Query(ctx, exportRoadmapResults, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExportRoadmapResultsRow
+	for rows.Next() {
+		var i ExportRoadmapResultsRow
+		if err := rows.Scan(
+			&i.RoadmapID,
+			&i.TopicID,
+			&i.InterviewID,
+			&i.QuestionPosition,
+			&i.Score,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const exportRoadmaps = `-- name: ExportRoadmaps :many
+SELECT r.id, r.role_profile_id, r.generation_status
+FROM public.roadmaps r
+JOIN public.role_profiles rp ON rp.id = r.role_profile_id
+WHERE rp.candidate_id = $1
+ORDER BY r.created_at, r.id
+`
+
+type ExportRoadmapsRow struct {
+	ID               uuid.UUID
+	RoleProfileID    uuid.UUID
+	GenerationStatus string
+}
+
+// The Learning Roadmap of each of the Candidate's own Role Profiles (KAN-356): status and topics.
+func (q *Queries) ExportRoadmaps(ctx context.Context, id uuid.UUID) ([]ExportRoadmapsRow, error) {
+	rows, err := q.db.Query(ctx, exportRoadmaps, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExportRoadmapsRow
+	for rows.Next() {
+		var i ExportRoadmapsRow
+		if err := rows.Scan(&i.ID, &i.RoleProfileID, &i.GenerationStatus); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const exportRoleProfiles = `-- name: ExportRoleProfiles :many
 SELECT id, title, status, created_at
 FROM public.role_profiles

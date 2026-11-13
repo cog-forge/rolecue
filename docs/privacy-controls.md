@@ -40,3 +40,23 @@ version is sent as `consent_version` in `POST /interviews/{id}/recording`; the A
 
 `RECORDING_CONSENT_REQUIRED=false` (default): a grant without a consent version still works. When `true`, a grant with
 no consent sent and none stored is refused with `RECORDING_CONSENT_REQUIRED` (HTTP 409) and nothing is written.
+
+## Learning Roadmap data (KAN-356)
+
+The Roadmap adds three tables (`roadmaps`, `roadmap_items`, `roadmap_assessments`) and two columns
+(`core_questions.roadmap_item_id`, `interviews.focus_item_id`). None of them holds a score, a transcript, an answer or
+an expected answer: a Roadmap row is structure, and an assessment only names the topic that receives one answered
+practice question. Scores are read from `interview_questions.score` on every read, so the privacy rules of the
+interview data apply unchanged.
+
+| Control | Behaviour |
+| --- | --- |
+| Account erasure | `DELETE /account` removes the links first (`roadmap_assessments` by the account's interview ids), then the interviews, then the account's Roadmaps (their topics go with them), then the Role Profiles and Job Descriptions. Bank questions that pointed at a topic lose the pointer and are deleted with their Job Description. The restricting foreign keys (a topic with links or a focused interview) never stop an erasure, because the rows that reference a topic are deleted before it. |
+| Deleting a Role Profile | Refused (`JD_IN_USE`) while the profile has any interview, as before. A profile without interviews is deleted with its Roadmap and topics. |
+| Data export (`GET /account/export`) | Each Role Profile in `role_profiles` carries `roadmap`: `generation_status`, `topics` (id, title, description, position) and `results` (topic id, interview id, question number, the question score, link time). Only the owner's own practice interviews are linked: a recruitment interview, another account's data, question text, answers, expected answers and rubrics are never part of it. The transcripts and criterion results stay in `interviews`, so nothing is exported twice. |
+| Transcript retention (`RETENTION_ENABLED`) | The pass clears the answer and per-turn feedback text and keeps the turns, the questions and every score. The Roadmap is unaffected: "was this question answered" is read from the existence of the turn, never from its text, so an answer whose text expired is never turned into a skipped question worth 0, and no expired text is needed to compute a score. |
+| Logs | The assessment writer and the catch-up job log interview ids, counts and error classes only. The error a catch-up run returns says how many sessions failed and nothing else. |
+
+Injection-flagged practice evaluations (`interviews.injection_flagged`) never feed a Roadmap: the evaluation could
+not trust the answers, so they are not evidence (Learning Roadmap spec section 8).
+

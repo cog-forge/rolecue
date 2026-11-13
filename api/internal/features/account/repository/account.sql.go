@@ -141,6 +141,18 @@ func (q *Queries) DeleteOwnedPostingMetrics(ctx context.Context, id uuid.UUID) e
 	return err
 }
 
+const deleteOwnedRoadmaps = `-- name: DeleteOwnedRoadmaps :exec
+DELETE FROM public.roadmaps WHERE role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = $1)
+`
+
+// A Roadmap and its topics go after the interviews (a focused interview restricts its topic) and before the Role
+// Profile; bank questions that pointed at a topic lose the pointer (ON DELETE SET NULL) and are deleted with the Job
+// Description right after (KAN-356).
+func (q *Queries) DeleteOwnedRoadmaps(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteOwnedRoadmaps, id)
+	return err
+}
+
 const deleteOwnedRoleProfiles = `-- name: DeleteOwnedRoleProfiles :exec
 DELETE FROM public.role_profiles WHERE candidate_id = $1
 `
@@ -179,6 +191,18 @@ DELETE FROM public.requirements WHERE jd_id = ANY($1::uuid[])
 
 func (q *Queries) DeleteRequirements(ctx context.Context, jdIds []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteRequirements, jdIds)
+	return err
+}
+
+const deleteRoadmapAssessments = `-- name: DeleteRoadmapAssessments :exec
+DELETE FROM public.roadmap_assessments WHERE interview_id = ANY($1::uuid[])
+`
+
+// Roadmap links point at an interview question; they carry no text, but they go first and by name, so the order
+// does not rest on the cascade of the foreign key (KAN-356). The topics they point at are deleted later with
+// their Roadmap.
+func (q *Queries) DeleteRoadmapAssessments(ctx context.Context, interviewIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRoadmapAssessments, interviewIds)
 	return err
 }
 
