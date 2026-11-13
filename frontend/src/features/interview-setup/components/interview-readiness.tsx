@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import {
   Suspense,
@@ -257,12 +258,9 @@ function PracticeReadiness({
     return (
       <section className="space-y-6">
         {header}
-        <div
-          role="alert"
-          className="space-y-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm"
-        >
-          <p>
-            {profile.data
+        <ErrorState
+          description={
+            profile.data
               ? t("readiness.practice.confirm")
               : isAxiosError(profile.error) &&
                   profile.error.response?.status === 404
@@ -271,8 +269,9 @@ function PracticeReadiness({
                     errors,
                     profile.error,
                     t("roleProfile.loadFailed"),
-                  )}
-          </p>
+                  )
+          }
+        >
           <Button
             asChild
             variant="outline"
@@ -290,7 +289,7 @@ function PracticeReadiness({
                 : t("readiness.practice.chooseProfile")}
             </Link>
           </Button>
-        </div>
+        </ErrorState>
       </section>
     );
 
@@ -517,25 +516,17 @@ function RecruitmentReadiness({
     return (
       <section className="space-y-6">
         {back}
-        <div
-          role="alert"
-          className="space-y-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm"
-        >
-          <p>
-            {isAxiosError(application.error) &&
+        <ErrorState
+          description={
+            isAxiosError(application.error) &&
             application.error.response?.status === 404
               ? t("readiness.recruitment.notFound")
-              : t("readiness.recruitment.loadFailed")}
-          </p>
-          <Button
-            variant="outline"
-            className="h-auto min-h-11 whitespace-normal py-2 bg-background"
-            disabled={application.isFetching}
-            onClick={() => void application.refetch()}
-          >
-            {t("tryAgain")}
-          </Button>
-        </div>
+              : t("readiness.recruitment.loadFailed")
+          }
+          onRetry={() => void application.refetch()}
+          retryLabel={t("tryAgain")}
+          isRetrying={application.isFetching}
+        ></ErrorState>
       </section>
     );
 

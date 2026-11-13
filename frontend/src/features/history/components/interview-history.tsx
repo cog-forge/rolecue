@@ -1,4 +1,7 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useTranslations } from "next-intl";
 
@@ -75,26 +78,18 @@ export function InterviewHistory() {
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
-        <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-          <h2 className="font-semibold">{t("denied")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{t("checking")}</p>
-        </div>
+        <ErrorState
+          title={t("denied")}
+          description={t("checking")}
+        ></ErrorState>
       ) : query.isError ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
-        >
-          <h2 className="font-semibold">{t("error")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{t("tryLater")}</p>
-          <Button
-            className="mt-4 h-11 bg-background"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {t("retry")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("error")}
+          description={t("tryLater")}
+          onRetry={() => void query.refetch()}
+          retryLabel={t("retry")}
+          isRetrying={query.isFetching}
+        ></ErrorState>
       ) : (
         <HistoryResults
           filters={filters}
@@ -155,36 +150,32 @@ function HistoryResults({
 
   if (items.length === 0 && page > 1)
     return (
-      <div className="rounded-xl border p-8 text-center">
-        <h2 className="font-semibold">{t("pastEnd")}</h2>
+      <EmptyState title={t("pastEnd")} description="">
         <Button asChild variant="outline" className="mt-4 h-11">
           <Link href={historyHref({ type: filters.type, page: 1 })}>
             {t("firstPage")}
           </Link>
         </Button>
-      </div>
+      </EmptyState>
     );
 
   if (items.length === 0)
     return (
-      <div className="rounded-2xl border border-dashed bg-muted/30 p-10 text-center">
-        <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-workspace-accent/10 text-workspace-accent">
-          <Inbox className="size-6" aria-hidden />
-        </span>
-        <h2 className="font-semibold">
-          {filters.type === "practice"
+      <EmptyState
+        icons={[Inbox]}
+        title={
+          filters.type === "practice"
             ? t("emptyPractice")
             : filters.type === "recruitment"
               ? t("emptyRecruitment")
-              : t("empty")}
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("emptyDescription")}
-        </p>
+              : t("empty")
+        }
+        description={t("emptyDescription")}
+      >
         <Button asChild variant="outline" className="mt-4 h-11">
           <Link href={routes.dashboard}>{t("dashboard")}</Link>
         </Button>
-      </div>
+      </EmptyState>
     );
 
   return (

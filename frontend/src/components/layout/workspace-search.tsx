@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { workspaceNavigation } from "@/config/navigation";
 import type { ProductRole } from "@/config/permissions";
 import { cn } from "@/lib/utils";
@@ -117,12 +118,14 @@ function SearchPages({
         ))}
       </ul>
       {!items.length && (
-        <p
-          role="status"
-          className="py-8 text-center text-sm text-muted-foreground"
-        >
-          {t("empty")}
-        </p>
+        <EmptyState
+          isSearch
+          title={t("empty")}
+          searchQuery={query}
+          onClearSearch={query ? () => setQuery("") : undefined}
+          variant="plain"
+          className="min-h-[11rem] py-4"
+        />
       )}
       <p className="text-xs text-muted-foreground">{t("hint")}</p>
     </>

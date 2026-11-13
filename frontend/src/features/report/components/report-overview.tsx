@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect } from "react";
 import Link from "next/link";
@@ -68,12 +69,10 @@ export function ReportOverview({ reportId }: { reportId: string }) {
       </Link>
 
       {!validId ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">{t("invalidTitle")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("invalidText")}
-          </p>
-        </div>
+        <ErrorState
+          title={t("invalidTitle")}
+          description={t("invalidText")}
+        ></ErrorState>
       ) : query.isPending ? (
         <div role="status" className="space-y-4">
           <Skeleton className="h-10 w-2/3" />
@@ -81,18 +80,12 @@ export function ReportOverview({ reportId }: { reportId: string }) {
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
-        <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-          <h1 className="text-xl font-semibold">{t("deniedTitle")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("accessChecking")}
-          </p>
-        </div>
+        <ErrorState
+          title={t("deniedTitle")}
+          description={t("accessChecking")}
+        ></ErrorState>
       ) : apiStatus(query.error) === 404 ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">{t("notFoundTitle")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("notFoundText")}
-          </p>
+        <ErrorState title={t("notFoundTitle")} description={t("notFoundText")}>
           <Button
             asChild
             variant="outline"
@@ -100,23 +93,15 @@ export function ReportOverview({ reportId }: { reportId: string }) {
           >
             <Link href={routes.history}>{t("openHistory")}</Link>
           </Button>
-        </div>
+        </ErrorState>
       ) : query.isError ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
-        >
-          <h1 className="text-xl font-semibold">{t("errorTitle")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{t("errorText")}</p>
-          <Button
-            className="mt-4 h-auto min-h-11 py-2 whitespace-normal bg-background"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {t("retry")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("errorTitle")}
+          description={t("errorText")}
+          onRetry={() => void query.refetch()}
+          retryLabel={t("retry")}
+          isRetrying={query.isFetching}
+        ></ErrorState>
       ) : (
         <ReportBody
           report={query.data}

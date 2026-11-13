@@ -1,4 +1,6 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -238,15 +240,11 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
             ) : profile.isPending ? (
               <p role="status">{t("loading")}</p>
             ) : profile.error ? (
-              <div role="alert" className="space-y-3">
-                <p>{t("loadError")}</p>
-                <Button
-                  variant="outline"
-                  onClick={() => void profile.refetch()}
-                >
-                  {t("retry")}
-                </Button>
-              </div>
+              <ErrorState
+                description={t("loadError")}
+                onRetry={() => void profile.refetch()}
+                retryLabel={t("retry")}
+              ></ErrorState>
             ) : (
               <OnboardingForm
                 key={user.id + user.role}

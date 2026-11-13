@@ -1,4 +1,7 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+
+import { ErrorState } from "@/components/ui/error-state";
 
 import {
   useEffect,
@@ -184,31 +187,20 @@ export function JobBoard() {
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
-        <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-          <h2 className="font-semibold">{t("deniedTitle")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("accessChecking")}
-          </p>
-        </div>
+        <ErrorState
+          title={t("deniedTitle")}
+          description={t("accessChecking")}
+        ></ErrorState>
       ) : query.isError ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
-        >
-          <h2 className="font-semibold">{t("errorTitle")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t("errorText")}</p>
-          <Button
-            className="mt-4 h-auto min-h-11 py-2 whitespace-normal bg-background"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {t("retry")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("errorTitle")}
+          description={t("errorText")}
+          onRetry={() => void query.refetch()}
+          retryLabel={t("retry")}
+          isRetrying={query.isFetching}
+        ></ErrorState>
       ) : page && page.items.length === 0 && total > 0 ? (
-        <div className="rounded-xl border p-8 text-center">
-          <h2 className="font-semibold">{t("pastEnd")}</h2>
+        <EmptyState title={t("pastEnd")} description="">
           <Button
             asChild
             variant="outline"
@@ -218,18 +210,13 @@ export function JobBoard() {
               {t("firstPage")}
             </FilterLink>
           </Button>
-        </div>
+        </EmptyState>
       ) : page && page.items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed bg-muted/30 p-10 text-center duration-300 animate-in fade-in zoom-in-95 motion-reduce:animate-none">
-          <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-workspace-accent/10 text-workspace-accent">
-            <BriefcaseBusiness className="size-6" aria-hidden />
-          </span>
-          <h2 className="font-semibold">
-            {filtered ? t("noMatchTitle") : t("emptyTitle")}
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {filtered ? t("noMatchText") : t("emptyText")}
-          </p>
+        <EmptyState
+          icons={[BriefcaseBusiness]}
+          title={filtered ? t("noMatchTitle") : t("emptyTitle")}
+          description={filtered ? t("noMatchText") : t("emptyText")}
+        >
           {filtered && (
             <Button
               asChild
@@ -241,7 +228,7 @@ export function JobBoard() {
               </FilterLink>
             </Button>
           )}
-        </div>
+        </EmptyState>
       ) : page ? (
         <>
           <p role="status" className="sr-only">

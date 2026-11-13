@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -223,24 +224,14 @@ function PersonalInventory({
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : list.isError || !capacity ? (
-        <div
-          role="alert"
-          className="space-y-4 rounded-2xl border border-destructive/30 bg-destructive/5 p-6"
-        >
-          <p className="text-sm">
-            {denied ? t("accessChecking") : t("loadFailed")}
-          </p>
-          <Button
-            variant="outline"
-            className="h-11"
-            onClick={() => {
-              void list.refetch();
-              void summary.refetch();
-            }}
-          >
-            {t("retry")}
-          </Button>
-        </div>
+        <ErrorState
+          description={denied ? t("accessChecking") : t("loadFailed")}
+          onRetry={() => {
+            void list.refetch();
+            void summary.refetch();
+          }}
+          retryLabel={t("retry")}
+        ></ErrorState>
       ) : page > slotPages ? (
         <div className="space-y-4 rounded-2xl border p-6">
           <p className="text-sm">{t("pastEnd")}</p>

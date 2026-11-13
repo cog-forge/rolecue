@@ -18,8 +18,10 @@ describe("copy button", () => {
     clipboard(writeText);
     renderWithIntl(<CopyButton value="JBSWY3DP" label="Copy setup key" />);
     fireEvent.click(screen.getByRole("button", { name: "Copy setup key" }));
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Copied to clipboard.",
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Copied to clipboard.",
+      ),
     );
     expect(writeText).toHaveBeenCalledWith("JBSWY3DP");
     expect(document.querySelector(".t-icon-swap")).toHaveAttribute(

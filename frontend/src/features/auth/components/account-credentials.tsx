@@ -1,11 +1,11 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Smartphone } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "./session-gate";
@@ -102,15 +102,11 @@ export function AccountCredentials({
 
   if (needsRefresh)
     return (
-      <div
-        role="alert"
-        className="space-y-4 rounded-xl border border-destructive/20 bg-destructive/5 p-4"
-      >
-        <p className="text-sm">{t("credentials.reloadNotice")}</p>
-        <Button className="min-h-11" onClick={() => window.location.reload()}>
-          {t("credentials.reload")}
-        </Button>
-      </div>
+      <ErrorState
+        description={t("credentials.reloadNotice")}
+        onRetry={() => window.location.reload()}
+        retryLabel={t("credentials.reload")}
+      ></ErrorState>
     );
   if (deniedError)
     return (

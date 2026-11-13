@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useCallback, useEffect } from "react";
 import { isAxiosError } from "axios";
@@ -124,20 +125,13 @@ export function ProfileOverview() {
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : !query.data ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("loadFailed.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("loadFailed.description")}
-          </p>
-          <Button
-            className="mt-4"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {t("loadFailed.retry")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("loadFailed.title")}
+          description={t("loadFailed.description")}
+          onRetry={() => void query.refetch()}
+          retryLabel={t("loadFailed.retry")}
+          isRetrying={query.isFetching}
+        ></ErrorState>
       ) : (
         <div className="grid items-start gap-6 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
           <ProfileSummary profile={query.data} />

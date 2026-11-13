@@ -9,7 +9,8 @@ import { meSchema, type SessionUser } from "../schemas/session-schema";
 export type { SessionUser } from "../schemas/session-schema";
 import { apiClient } from "@/lib/api/client";
 import { routes } from "@/config/routes";
-import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
+import { LoadingMorph } from "@/components/ui/loading-morph";
 import { authClient } from "@/lib/auth/client";
 import { VerificationNotice } from "./verification-notice";
 import { gooeyToast } from "goey-toast";
@@ -119,9 +120,13 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
     t,
   ]);
   if (session.isPending || unauthorized || (!session.error && checkingEntry))
-    return <p role="status">{t("checkingSession")}</p>;
+    return (
+      <LoadingMorph label={t("checkingSession")} className="min-h-[60vh]" />
+    );
   if (forbidden && account.isPending)
-    return <p role="status">{t("checkingAccount")}</p>;
+    return (
+      <LoadingMorph label={t("checkingAccount")} className="min-h-[60vh]" />
+    );
   if (
     forbidden &&
     account.data &&
@@ -135,16 +140,17 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
         checking={session.isFetching || account.isFetching}
       />
     );
-  if (forbidden && !account.error) return <p role="alert">{t("noAccess")}</p>;
+  if (forbidden && !account.error)
+    return <ErrorState statusCode={403} description={t("noAccess")} />;
   // An old successful result must never render protected content after a failed recheck.
   if (session.error)
     return (
-      <div role="alert" className="space-y-4">
-        <p>{t("checkFailed")}</p>
-        <Button onClick={retry} disabled={session.isFetching}>
-          {t("retry")}
-        </Button>
-      </div>
+      <ErrorState
+        description={t("checkFailed")}
+        onRetry={retry}
+        isRetrying={session.isFetching}
+        retryLabel={t("retry")}
+      />
     );
   if (!session.data) return null;
   return (

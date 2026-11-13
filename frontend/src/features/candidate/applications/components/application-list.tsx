@@ -1,4 +1,7 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect } from "react";
 import Link from "next/link";
@@ -67,33 +70,21 @@ export function CandidateApplicationList() {
 
   if (denied)
     return (
-      <div role="alert" className="rounded-xl border bg-muted/60 p-6">
-        <h2 className="font-semibold">{t("list.deniedTitle")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("list.deniedBody")}
-        </p>
-      </div>
+      <ErrorState
+        title={t("list.deniedTitle")}
+        description={t("list.deniedBody")}
+      ></ErrorState>
     );
 
   if (query.isError)
     return (
-      <div
-        role="alert"
-        className="rounded-xl border border-destructive/30 bg-destructive/5 p-6"
-      >
-        <h2 className="font-semibold">{t("list.errorTitle")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("list.errorBody")}
-        </p>
-        <Button
-          className="mt-4 h-11 bg-background"
-          variant="outline"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {t("actions.tryAgain")}
-        </Button>
-      </div>
+      <ErrorState
+        title={t("list.errorTitle")}
+        description={t("list.errorBody")}
+        onRetry={() => void query.refetch()}
+        retryLabel={t("actions.tryAgain")}
+        isRetrying={query.isFetching}
+      ></ErrorState>
     );
 
   const { items, total, page_size: pageSize } = query.data;
@@ -102,8 +93,7 @@ export function CandidateApplicationList() {
 
   if (items.length === 0 && page > 1)
     return (
-      <div className="rounded-xl border p-8 text-center">
-        <h2 className="font-semibold">{t("list.pastEnd")}</h2>
+      <EmptyState title={t("list.pastEnd")} description="">
         <Button
           asChild
           variant="outline"
@@ -111,19 +101,16 @@ export function CandidateApplicationList() {
         >
           <Link href={routes.applications}>{t("list.firstPage")}</Link>
         </Button>
-      </div>
+      </EmptyState>
     );
 
   if (items.length === 0)
     return (
-      <div className="rounded-2xl border border-dashed bg-muted/30 p-10 text-center">
-        <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-workspace-accent/10 text-workspace-accent">
-          <Inbox className="size-6" aria-hidden />
-        </span>
-        <h2 className="font-semibold">{t("list.emptyTitle")}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("list.emptyBody")}
-        </p>
+      <EmptyState
+        icons={[Inbox]}
+        title={t("list.emptyTitle")}
+        description={t("list.emptyBody")}
+      >
         <Button
           asChild
           variant="outline"
@@ -131,7 +118,7 @@ export function CandidateApplicationList() {
         >
           <Link href={routes.jobs}>{t("list.browse")}</Link>
         </Button>
-      </div>
+      </EmptyState>
     );
 
   return (
