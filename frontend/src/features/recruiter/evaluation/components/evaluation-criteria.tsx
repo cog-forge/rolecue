@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -105,21 +106,14 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
     return (
       <section className="mx-auto w-full max-w-3xl space-y-6">
         <PageHeader back={back} title={t("title")} />
-        <div
-          role="alert"
-          className={cn(
-            "rounded-xl border p-6",
-            !denied && !notFound && "border-destructive/30",
-          )}
-        >
-          <h2 className="text-base font-semibold">
-            {t(`loadError.${failure}.title`)}
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {failure === "failed"
+        <ErrorState
+          title={t(`loadError.${failure}.title`)}
+          description={
+            failure === "failed"
               ? tCommon("messages.tryAgainLater")
-              : t(`loadError.${failure}.description`)}
-          </p>
+              : t(`loadError.${failure}.description`)
+          }
+        >
           {!denied && !notFound && (
             <Button
               className={cn("mt-4", pillClass)}
@@ -133,7 +127,7 @@ export function EvaluationCriteria({ postingId }: { postingId: string }) {
               {tCommon("actions.tryAgain")}
             </Button>
           )}
-        </div>
+        </ErrorState>
       </section>
     );
   }

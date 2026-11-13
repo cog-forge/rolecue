@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 
 import { useId, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -55,18 +55,12 @@ export function CardError({
 }) {
   const t = useTranslations("candidate.dashboard");
   return (
-    <div role="alert" className="space-y-3">
-      <p className="text-sm text-muted-foreground">{message}</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-11 bg-background"
-        disabled={disabled}
-        onClick={onRetry}
-      >
-        {t("retry")}
-      </Button>
-    </div>
+    <ErrorState
+      variant="inline"
+      description={message}
+      isRetrying={disabled}
+      onRetry={onRetry}
+      retryLabel={t("retry")}
+    />
   );
 }

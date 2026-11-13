@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -172,7 +173,6 @@ function StateMessage({
   heading,
   text,
   action,
-  tone,
 }: {
   heading: ReactNode;
   text: string;
@@ -180,17 +180,9 @@ function StateMessage({
   tone?: "danger";
 }) {
   return (
-    <div
-      role="alert"
-      className={cn(
-        "rounded-xl border p-6 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:text-lg [&_h2]:font-semibold",
-        tone === "danger" && "border-destructive/30 bg-destructive/5",
-      )}
-    >
-      {heading}
-      <p className="mt-2 text-sm text-muted-foreground">{text}</p>
+    <ErrorState heading={heading} description={text}>
       {action}
-    </div>
+    </ErrorState>
   );
 }
 

@@ -1,4 +1,7 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+
+import { EmptyState } from "@/components/ui/empty-state";
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -56,15 +59,10 @@ export function AdminInterviewDetail({ id }: { id: string }) {
         </p>
       </header>
       {notFound ? (
-        <div
-          role="status"
-          className="rounded-xl border bg-card px-5 py-16 text-center"
-        >
-          <h2 className="text-base font-medium">{t("detail.notFoundTitle")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("detail.notFoundDescription")}
-          </p>
-        </div>
+        <EmptyState
+          title={t("detail.notFoundTitle")}
+          description={t("detail.notFoundDescription")}
+        ></EmptyState>
       ) : denied ? (
         <div className="space-y-3 rounded-xl border p-5">
           <p role="alert">{t("accessDenied.message")}</p>
@@ -78,20 +76,12 @@ export function AdminInterviewDetail({ id }: { id: string }) {
           </Button>
         </div>
       ) : detail.error ? (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5"
-        >
-          <p className="text-sm">{t("detail.loadFailed")}</p>
-          <Button
-            className="h-11"
-            variant="outline"
-            disabled={detail.isFetching}
-            onClick={() => void detail.refetch()}
-          >
-            {tCommon("actions.retry")}
-          </Button>
-        </div>
+        <ErrorState
+          description={t("detail.loadFailed")}
+          onRetry={() => void detail.refetch()}
+          retryLabel={tCommon("actions.retry")}
+          isRetrying={detail.isFetching}
+        ></ErrorState>
       ) : detail.isPending ? (
         <div
           role="status"

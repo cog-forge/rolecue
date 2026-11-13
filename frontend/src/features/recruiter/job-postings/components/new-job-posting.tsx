@@ -1,4 +1,7 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+
+import { AiLoader } from "@/components/ui/ai-loader";
 
 import { useRef } from "react";
 import Link from "next/link";
@@ -145,21 +148,16 @@ function GenerationState({
   return (
     <div className="space-y-5 rounded-xl border p-6">
       {error ? (
-        <div role="alert" className="space-y-1">
-          <h2 className="text-base font-semibold">{t("failedTitle")}</h2>
-          <p className="text-sm text-muted-foreground">
-            {t("failedBody", { reason: error })}
-          </p>
-        </div>
+        <ErrorState
+          title={t("failedTitle")}
+          description={t("failedBody", { reason: error })}
+        ></ErrorState>
       ) : (
-        <div role="status" className="space-y-1">
-          <h2 className="text-base font-semibold">
-            <span className="t-shimmer" data-text={t("pendingTitle")}>
-              {t("pendingTitle")}
-            </span>
-          </h2>
-          <p className="text-sm text-muted-foreground">{t("pendingBody")}</p>
-        </div>
+        <AiLoader
+          stage="generating"
+          title={t("pendingTitle")}
+          description={t("pendingBody")}
+        />
       )}
       <div className="flex flex-wrap items-center gap-2">
         {error && (

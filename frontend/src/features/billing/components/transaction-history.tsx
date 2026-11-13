@@ -1,4 +1,7 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton-presets";
 
 import { useState } from "react";
 import {
@@ -26,7 +29,6 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
 import { describeTransaction } from "../lib/describe-transaction";
 import type { Transaction, TransactionPage } from "../schemas/wallet-schema";
 import { useFormatters } from "@/lib/i18n/use-formatters";
@@ -213,62 +215,31 @@ export function TransactionHistory({
           {/* List Content */}
           <TabsContent key={activeTab} value={activeTab} className="mt-4">
             {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between border-b border-border/50 py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Skeleton className="h-9 w-9 rounded-full" />
-                      <div className="space-y-1.5">
-                        <Skeleton className="h-4 w-48" />
-                        <Skeleton className="h-3 w-28" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Skeleton className="h-6 w-16" />
-                      <Skeleton className="h-4 w-20" />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <TableSkeleton columns={3} label={t("tableLabel")} />
             ) : error ? (
-              <div className="flex flex-col items-center justify-center p-8 text-center">
-                <p className="text-sm font-medium text-destructive">
-                  {t("loadError")}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {apiErrorMessage(errorsT, error, t("loadErrorFallback"))}
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={onRefresh}
-                  disabled={isFetching}
-                  className="mt-4 gap-1.5 text-xs"
-                >
-                  <RefreshCw
-                    className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
-                  />
-                  {t("retry")}
-                </Button>
-              </div>
+              <ErrorState
+                title={t("loadError")}
+                description={apiErrorMessage(
+                  errorsT,
+                  error,
+                  t("loadErrorFallback"),
+                )}
+                onRetry={onRefresh}
+                isRetrying={isFetching}
+                retryLabel={t("retry")}
+              />
             ) : filteredItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                <Receipt className="h-10 w-10 stroke-1 opacity-40" />
-                <p className="mt-2 text-sm font-medium text-foreground">
-                  {t("emptyTitle")}
-                </p>
-                <p className="max-w-xs text-xs text-muted-foreground">
-                  {activeTab === "all"
+              <EmptyState
+                icons={[Receipt]}
+                title={t("emptyTitle")}
+                description={
+                  activeTab === "all"
                     ? total === 0
                       ? t("emptyNone")
                       : t("emptyPage")
-                    : t(`emptyFiltered.${activeTab}`)}
-                </p>
-              </div>
+                    : t(`emptyFiltered.${activeTab}`)
+                }
+              />
             ) : (
               <Table aria-label={t("tableLabel")} className="table-fixed">
                 <TableHeader>

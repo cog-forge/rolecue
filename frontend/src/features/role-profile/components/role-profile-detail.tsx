@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import Link from "next/link";
 import { isAxiosError } from "axios";
@@ -93,14 +94,11 @@ export function RoleProfileDetail({ id }: { id: string }) {
     return (
       <section className="mx-auto max-w-6xl space-y-5">
         <h1 className="text-3xl font-semibold">{t("heading")}</h1>
-        <p role="alert">{roleError(query.error)}</p>
-        <Button
-          variant="outline"
-          className="h-auto min-h-11 py-2 whitespace-normal"
-          onClick={() => void query.refetch()}
-        >
-          {t("retry")}
-        </Button>
+        <ErrorState
+          description={roleError(query.error)}
+          onRetry={() => void query.refetch()}
+          retryLabel={t("retry")}
+        />
         <Link
           href={routes.roleProfiles.root}
           className="block text-sm underline"

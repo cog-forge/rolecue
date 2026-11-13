@@ -1,10 +1,13 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton-presets";
+import { ErrorState } from "@/components/ui/error-state";
+
 import { useRef } from "react";
 import { UsersRound, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { ACCOUNTS_PAGE_SIZE } from "../api/accounts";
 import { useAccountManagement } from "../hooks/use-account-management";
@@ -14,9 +17,9 @@ import { AccountLockDialog } from "./account-lock-dialog";
 import { AccountDetailsSheet } from "./account-details-sheet";
 
 export function AccountManagement() {
+  const tCommon = useTranslations("common");
   const t = useTranslations("admin.accounts");
   const groups = useTranslations("common.shell.nav.groups");
-  const tCommon = useTranslations("common");
   const {
     list,
     params,
@@ -123,32 +126,16 @@ export function AccountManagement() {
             </div>
           )}
           {list.error && (
-            <div
-              role="alert"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5"
-            >
-              <p className="text-sm">{t("status.loadFailed")}</p>
-              <Button
-                className="h-11"
-                variant="outline"
-                disabled={list.isFetching}
-                onClick={() => void refresh()}
-              >
-                {tCommon("actions.retry")}
-              </Button>
-            </div>
+            <ErrorState
+              variant="inline"
+              description={t("status.loadFailed")}
+              onRetry={() => void refresh()}
+              isRetrying={list.isFetching}
+              retryLabel={tCommon("actions.retry")}
+            />
           )}
           {list.isPending ? (
-            <div
-              role="status"
-              aria-label={t("status.loadingLabel")}
-              className="space-y-3 rounded-xl border p-5"
-            >
-              <Skeleton className="h-10" />
-              {[0, 1, 2, 3].map((row) => (
-                <Skeleton key={row} className="h-16" />
-              ))}
-            </div>
+            <TableSkeleton label={t("status.loadingLabel")} />
           ) : list.data?.users.length ? (
             <AccountsTable
               users={list.data.users}
@@ -165,30 +152,22 @@ export function AccountManagement() {
             />
           ) : (
             !list.error && (
-              <div
-                role="status"
-                className="rounded-xl border bg-card px-5 py-16 text-center"
-              >
-                <UsersRound
-                  className="mx-auto size-7 text-muted-foreground"
-                  aria-hidden
-                />
-                <h2 className="mt-4 text-base font-medium">
-                  {filtered ? t("empty.filteredTitle") : t("empty.title")}
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {filtered ? t("empty.filteredHint") : t("empty.hint")}
-                </p>
-                {filtered && (
-                  <Button
-                    variant="outline"
-                    className="mt-5 h-11"
-                    onClick={clearFilters}
-                  >
-                    {t("empty.clear")}
-                  </Button>
-                )}
-              </div>
+              <EmptyState
+                icons={[UsersRound]}
+                title={filtered ? t("empty.filteredTitle") : t("empty.title")}
+                description={
+                  filtered ? t("empty.filteredHint") : t("empty.hint")
+                }
+                action={
+                  filtered
+                    ? {
+                        label: t("empty.clear"),
+                        onClick: clearFilters,
+                        variant: "outline",
+                      }
+                    : undefined
+                }
+              />
             )
           )}
           <DataTablePagination

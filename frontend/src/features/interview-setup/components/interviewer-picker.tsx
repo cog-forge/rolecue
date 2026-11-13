@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useId, useState } from "react";
 import Link from "next/link";
@@ -285,21 +286,12 @@ export function InterviewerPicker({
           </div>
         )}
         {avatars.isError && (
-          <div
-            role="alert"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm"
-          >
-            <p>{t("interviewer.loadError")}</p>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-auto min-h-11 whitespace-normal py-2 bg-background"
-              disabled={avatars.isFetching}
-              onClick={() => void avatars.refetch()}
-            >
-              {t("tryAgain")}
-            </Button>
-          </div>
+          <ErrorState
+            description={t("interviewer.loadError")}
+            onRetry={() => void avatars.refetch()}
+            retryLabel={t("tryAgain")}
+            isRetrying={avatars.isFetching}
+          ></ErrorState>
         )}
         {avatarPage && avatarPage.pagination.total === 0 && (
           <p className="text-sm text-muted-foreground">

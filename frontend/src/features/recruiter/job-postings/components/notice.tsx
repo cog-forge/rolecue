@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import type { ReactNode } from "react";
 import { CircleAlert, Info, Lock, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,12 @@ export function Notice({
   role?: "status" | "alert";
   className?: string;
 }) {
+  if (role === "alert" && (tone === "danger" || tone === "locked"))
+    return (
+      <ErrorState title={title} description="" className={className}>
+        {children}
+      </ErrorState>
+    );
   const Icon = icons[tone];
   return (
     <div

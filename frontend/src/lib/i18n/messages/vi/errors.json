@@ -6,7 +6,7 @@
     "ROLE_PROFILE_CONFLICT": "Hồ sơ vị trí với thông tin này đã tồn tại.",
     "INVALID_PDF": "Tệp này không phải PDF hợp lệ.",
     "PDF_TOO_LARGE": "Tệp PDF quá lớn. Hãy chọn tệp nhỏ hơn.",
-    "PDF_UNAVAILABLE": "Không đọc được tệp PDF này. Hãy thử tệp khác.",
+    "PDF_UNAVAILABLE": "Chức năng đọc PDF tạm thời không khả dụng. Vui lòng thử lại sau.",
     "DOCUMENT_STORAGE_UNAVAILABLE": "Hiện không thể lưu tài liệu. Vui lòng thử lại sau ít phút.",
     "INVENTORY_FULL": "Các ô avatar của bạn đã đầy. Hãy thêm ô mới hoặc xóa bớt một avatar.",
     "AVATAR_SOURCE_TOO_LARGE": "Tệp avatar quá lớn.",

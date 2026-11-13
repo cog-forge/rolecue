@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -290,21 +291,12 @@ export function StartPanel({
       {children}
 
       {paid && wallet.isError && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 text-sm"
-        >
-          <p>{t("balanceFailed")}</p>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-auto min-h-11 whitespace-normal py-2"
-            disabled={wallet.isFetching}
-            onClick={() => void wallet.refetch()}
-          >
-            {tSetup("tryAgain")}
-          </Button>
-        </div>
+        <ErrorState
+          description={t("balanceFailed")}
+          onRetry={() => void wallet.refetch()}
+          retryLabel={tSetup("tryAgain")}
+          isRetrying={wallet.isFetching}
+        ></ErrorState>
       )}
       {short > 0 && !problem && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/60 p-3 text-sm">

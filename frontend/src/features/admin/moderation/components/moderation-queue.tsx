@@ -1,4 +1,7 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -121,32 +124,23 @@ export function ModerationQueue({ filters }: { filters: QueueFilters }) {
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("denied.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("denied.description")}
-          </p>
-        </div>
+        <ErrorState
+          title={t("denied.title")}
+          description={t("denied.description")}
+        ></ErrorState>
       ) : query.isError ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("loadFailed.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {tCommon("messages.tryAgainLater")}
-          </p>
-          <Button
-            className="mt-4 h-11"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {tCommon("actions.tryAgain")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("loadFailed.title")}
+          description={tCommon("messages.tryAgainLater")}
+          onRetry={() => void query.refetch()}
+          retryLabel={tCommon("actions.tryAgain")}
+          isRetrying={query.isFetching}
+        ></ErrorState>
       ) : page && page.items.length === 0 ? (
-        <div className="rounded-xl border p-8 text-center">
-          <h2 className="font-semibold">{t(`empty.${filters.status}`)}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{t("emptyHint")}</p>
-        </div>
+        <EmptyState
+          title={t(`empty.${filters.status}`)}
+          description={t("emptyHint")}
+        ></EmptyState>
       ) : page ? (
         <>
           <div className="relative overflow-x-auto rounded-xl border">

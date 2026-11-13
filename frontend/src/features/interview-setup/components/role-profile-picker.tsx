@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useId } from "react";
 import Link from "next/link";
@@ -97,26 +98,16 @@ export function RoleProfilePicker({
           title={t("roleProfile.title")}
           description={t("roleProfile.intro")}
         />
-        <div
-          role="alert"
-          className="space-y-4 rounded-xl border border-destructive/30 bg-destructive/5 p-5"
-        >
-          <p className="text-sm">
-            {apiErrorMessage(
-              errors,
-              profiles.error,
-              t("roleProfile.loadFailed"),
-            )}
-          </p>
-          <Button
-            variant="outline"
-            className="h-auto min-h-11 whitespace-normal py-2 bg-background"
-            disabled={profiles.isFetching}
-            onClick={() => void profiles.refetch()}
-          >
-            {t("tryAgain")}
-          </Button>
-        </div>
+        <ErrorState
+          description={apiErrorMessage(
+            errors,
+            profiles.error,
+            t("roleProfile.loadFailed"),
+          )}
+          onRetry={() => void profiles.refetch()}
+          retryLabel={t("tryAgain")}
+          isRetrying={profiles.isFetching}
+        ></ErrorState>
       </section>
     );
 

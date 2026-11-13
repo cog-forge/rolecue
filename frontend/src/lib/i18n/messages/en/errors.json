@@ -6,7 +6,7 @@
     "ROLE_PROFILE_CONFLICT": "A role profile with these details already exists.",
     "INVALID_PDF": "This file isn't a valid PDF.",
     "PDF_TOO_LARGE": "That PDF is too large. Choose a smaller file.",
-    "PDF_UNAVAILABLE": "We couldn't read this PDF. Try another file.",
+    "PDF_UNAVAILABLE": "PDF reading is temporarily unavailable. Please try again later.",
     "DOCUMENT_STORAGE_UNAVAILABLE": "Document storage is unavailable right now. Try again in a moment.",
     "INVENTORY_FULL": "Your avatar slots are full. Add a slot or remove an avatar first.",
     "AVATAR_SOURCE_TOO_LARGE": "That avatar file is too large.",

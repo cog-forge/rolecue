@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -131,24 +132,25 @@ export function PostingReview({
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">{t("denied.title")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("denied.description")}
-          </p>
-        </div>
+        <ErrorState
+          headingLevel={1}
+          title={t("denied.title")}
+          description={t("denied.description")}
+        ></ErrorState>
       ) : query.isError ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h1 className="text-xl font-semibold">
-            {apiError(query.error).status === 404
+        <ErrorState
+          headingLevel={1}
+          title={
+            apiError(query.error).status === 404
               ? t("notFound.title")
-              : t("loadFailed.title")}
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {apiError(query.error).status === 404
+              : t("loadFailed.title")
+          }
+          description={
+            apiError(query.error).status === 404
               ? t("notFound.description")
-              : tCommon("messages.tryAgainLater")}
-          </p>
+              : tCommon("messages.tryAgainLater")
+          }
+        >
           {apiError(query.error).status !== 404 && (
             <Button
               className="mt-4 h-11"
@@ -159,7 +161,7 @@ export function PostingReview({
               {tCommon("actions.tryAgain")}
             </Button>
           )}
-        </div>
+        </ErrorState>
       ) : (
         <>
           <header className="space-y-2">

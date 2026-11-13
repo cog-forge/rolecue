@@ -1,5 +1,9 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton-presets";
+import { ErrorState } from "@/components/ui/error-state";
+
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -25,7 +29,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import type { RoleSummary } from "../api/contract";
@@ -156,48 +159,25 @@ export function RoleProfileLibrary() {
         </Button>
       </header>
       {query.isPending ? (
-        <div
-          role="status"
-          aria-label={t("library.loading")}
-          className="space-y-3"
-        >
-          <Skeleton className="h-24 rounded-xl" />
-          <Skeleton className="h-24 rounded-xl" />
-        </div>
+        <TableSkeleton label={t("library.loading")} />
       ) : query.error ? (
-        <div role="alert" className="space-y-4 rounded-xl border p-6">
-          <p>{roleError(query.error)}</p>
-          <Button
-            variant="outline"
-            className="h-auto min-h-11 py-2 whitespace-normal"
-            onClick={() => void query.refetch()}
-          >
-            {t("library.retry")}
-          </Button>
-        </div>
+        <ErrorState
+          variant="inline"
+          description={roleError(query.error)}
+          onRetry={() => void query.refetch()}
+          retryLabel={t("library.retry")}
+        />
       ) : query.data.items.length === 0 ? (
-        <div className="flex flex-col items-center rounded-2xl border bg-card px-6 py-16 text-center sm:py-24">
-          <div className="mb-6 flex size-16 items-center justify-center rounded-2xl bg-workspace-accent/10">
-            <FileText
-              className="size-7 text-workspace-accent"
-              aria-hidden="true"
-            />
-          </div>
-          <h2 className="text-2xl font-semibold tracking-tight">
-            {t("library.empty.title")}
-          </h2>
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-            {t("library.empty.description")}
-          </p>
-          <Button
-            asChild
-            className="mt-7 h-auto min-h-11 py-2 whitespace-normal"
-          >
-            <Link href={routes.roleProfiles.new}>
-              {t("library.empty.cta")} <ArrowUpRight aria-hidden="true" />
-            </Link>
-          </Button>
-        </div>
+        <EmptyState
+          icons={[FileText]}
+          title={t("library.empty.title")}
+          description={t("library.empty.description")}
+          action={{
+            label: t("library.empty.cta"),
+            href: routes.roleProfiles.new,
+            variant: "outline",
+          }}
+        />
       ) : (
         <>
           <DataTable

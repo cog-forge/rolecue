@@ -1,4 +1,5 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import { useEffect } from "react";
 import Link from "next/link";
@@ -155,20 +156,17 @@ export function RecruiterDashboard() {
           <p className="text-muted-foreground">{t("denied.description")}</p>
         </Notice>
       ) : allClear ? (
-        <div className="rounded-xl border border-dashed p-10 text-center">
-          <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <CircleCheck className="size-6" aria-hidden />
-          </span>
-          <h2 className="font-semibold">{t("allClear.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("allClear.description")}
-          </p>
+        <EmptyState
+          icons={[CircleCheck]}
+          title={t("allClear.title")}
+          description={t("allClear.description")}
+        >
           <Button asChild variant="outline" className="mt-4 h-11">
             <Link href={routes.recruiter.jobPostingNew}>
               {t("allClear.create")}
             </Link>
           </Button>
-        </div>
+        </EmptyState>
       ) : (
         <ul
           aria-label={t("todosLabel")}

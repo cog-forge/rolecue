@@ -1,4 +1,6 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -270,21 +272,12 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
             </div>
           ) : (selected !== "new" && detail.error && !detail.data) ||
             (metrics.error && !metrics.data) ? (
-            <Alert variant="destructive" className="rounded-2xl p-6">
-              <AlertDescription>
-                <p>{message(detail.error || metrics.error)}</p>
-                <Button
-                  variant="outline"
-                  className="mt-4 h-11"
-                  onClick={retryEditor}
-                >
-                  {t("retry")}
-                </Button>
-                <Button variant="ghost" className="h-11" onClick={close}>
-                  {t("back")}
-                </Button>
-              </AlertDescription>
-            </Alert>
+            <ErrorState
+              description={message(detail.error || metrics.error)}
+              onRetry={retryEditor}
+              retryLabel={t("retry")}
+              onBack={close}
+            />
           ) : (
             <>
               {current && (!current.can_manage || current.locked) && (
@@ -317,18 +310,11 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
                 </p>
               )}
               {(detail.error || metrics.error) && (
-                <Alert variant="destructive">
-                  <AlertDescription>
-                    <p>{message(detail.error || metrics.error)}</p>
-                    <Button
-                      variant="outline"
-                      className="mt-3 h-11"
-                      onClick={retryEditor}
-                    >
-                      {t("retry")}
-                    </Button>
-                  </AlertDescription>
-                </Alert>
+                <ErrorState
+                  description={message(detail.error || metrics.error)}
+                  onRetry={retryEditor}
+                  retryLabel={t("retry")}
+                />
               )}
               <RubricForm
                 key={`${selected}-${formRevision}`}
@@ -433,24 +419,14 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
                 )}
               </div>
               {error && (
-                <Alert
-                  variant="destructive"
-                  className="mx-5 w-auto rounded-xl border-destructive/30 bg-destructive/5 p-4"
-                >
-                  <AlertDescription className="space-y-3">
-                    <p>{message(error)}</p>
-                    <Button
-                      variant="outline"
-                      className="h-11"
-                      onClick={() => {
-                        action.reset();
-                        void list.refetch();
-                      }}
-                    >
-                      {t("retry")}
-                    </Button>
-                  </AlertDescription>
-                </Alert>
+                <ErrorState
+                  description={message(error)}
+                  onRetry={() => {
+                    action.reset();
+                    void list.refetch();
+                  }}
+                  retryLabel={t("retry")}
+                />
               )}
               {list.isPending ? (
                 <div
@@ -463,31 +439,16 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
                   ))}
                 </div>
               ) : !list.error && !rows.length ? (
-                <div className="flex flex-col items-center gap-3 px-5 py-16 text-center">
-                  <FileSearch
-                    aria-hidden
-                    className="size-9 text-muted-foreground"
-                  />
-                  <h3 className="font-semibold">
-                    {search ? t("noResults") : t("empty")}
-                  </h3>
-                  <p className="max-w-sm text-sm text-muted-foreground">
-                    {search ? t("searchHelp") : t("emptyHelp")}
-                  </p>
-                  <Button
-                    variant="outline"
-                    className="mt-2 h-11"
-                    onClick={() => (search ? setSearch("") : open("new"))}
-                  >
-                    {!search && (
-                      <Plus
-                        aria-hidden
-                        className="size-4 transition-transform duration-(--duration-fast) ease-(--ease-smooth-out) group-hover/button:rotate-90 group-focus-visible/button:rotate-90 motion-reduce:rotate-0! motion-reduce:transition-none"
-                      />
-                    )}
-                    {search ? t("clearSearch") : t("create")}
-                  </Button>
-                </div>
+                <EmptyState
+                  icons={[FileSearch]}
+                  title={search ? t("noResults") : t("empty")}
+                  description={search ? t("searchHelp") : t("emptyHelp")}
+                  action={{
+                    label: search ? t("clearSearch") : t("create"),
+                    onClick: () => (search ? setSearch("") : open("new")),
+                    variant: "outline",
+                  }}
+                />
               ) : (
                 <ul className="divide-y">
                   {rows.map((r) => (

@@ -1,4 +1,5 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import {
   useEffect,
@@ -374,26 +375,25 @@ export function ApplicationResults({
   if (!page) return null;
   if (page.items.length === 0 && total > 0)
     return (
-      <div className="rounded-xl border p-8 text-center">
-        <h3 className="font-semibold">{t("list.pastEnd")}</h3>
+      <EmptyState title={t("list.pastEnd")} description="">
         <Button asChild variant="outline" className="mt-4 h-11">
           <FilterLink href={href({ ...filters, page: 1 })}>
             {tCommon("actions.firstPage")}
           </FilterLink>
         </Button>
-      </div>
+      </EmptyState>
     );
   if (page.items.length === 0)
     return (
-      <div className="rounded-xl border border-dashed p-10 text-center">
-        <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-          <Inbox className="size-6" aria-hidden />
-        </span>
-        <h3 className="font-semibold">
-          {filters.search
+      <EmptyState
+        icons={[Inbox]}
+        title={
+          filters.search
             ? t("list.emptySearch", { query: filters.search })
-            : t(`list.empty.${filters.status}`)}
-        </h3>
+            : t(`list.empty.${filters.status}`)
+        }
+        description=""
+      >
         {filtered ? (
           <Button asChild variant="outline" className="mt-4 h-11">
             <FilterLink href={href(reset)}>{t("list.showAll")}</FilterLink>
@@ -403,7 +403,7 @@ export function ApplicationResults({
             {t("list.emptyHint")}
           </p>
         )}
-      </div>
+      </EmptyState>
     );
 
   return (

@@ -1,9 +1,12 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton-presets";
+import { ErrorState } from "@/components/ui/error-state";
+
 import { useTranslations } from "next-intl";
 import { RefreshCw, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import { ADMIN_INTERVIEWS_PAGE_SIZE } from "../api/interviews";
 import { useAdminInterviews } from "../hooks/use-admin-interviews";
@@ -11,8 +14,8 @@ import { InterviewFilters } from "./interview-filters";
 import { InterviewsTable } from "./interviews-table";
 
 export function AdminInterviewSessions() {
-  const t = useTranslations("admin.interviews");
   const tCommon = useTranslations("common");
+  const t = useTranslations("admin.interviews");
   const { list, query, denied, applyFilters, changePage } =
     useAdminInterviews();
   const total = list.data?.total ?? 0;
@@ -72,55 +75,33 @@ export function AdminInterviewSessions() {
             </Button>
           </div>
           {list.error && (
-            <div
-              role="alert"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5"
-            >
-              <p className="text-sm">{t("sessions.loadFailed")}</p>
-              <Button
-                className="h-11"
-                variant="outline"
-                disabled={list.isFetching}
-                onClick={() => void list.refetch()}
-              >
-                {tCommon("actions.retry")}
-              </Button>
-            </div>
+            <ErrorState
+              variant="inline"
+              description={t("sessions.loadFailed")}
+              onRetry={() => void list.refetch()}
+              isRetrying={list.isFetching}
+              retryLabel={tCommon("actions.retry")}
+            />
           )}
           {list.isPending ? (
-            <div
-              role="status"
-              aria-label={t("sessions.loadingLabel")}
-              className="space-y-3 rounded-xl border p-5"
-            >
-              <Skeleton className="h-10" />
-              {[0, 1, 2, 3].map((row) => (
-                <Skeleton key={row} className="h-16" />
-              ))}
-            </div>
+            <TableSkeleton label={t("sessions.loadingLabel")} />
           ) : rows.length ? (
             <InterviewsTable rows={rows} />
           ) : (
             !list.error && (
-              <div
-                role="status"
-                className="rounded-xl border bg-card px-5 py-16 text-center"
-              >
-                <Mic
-                  className="mx-auto size-7 text-muted-foreground"
-                  aria-hidden
-                />
-                <h2 className="mt-4 text-base font-medium">
-                  {filtered
+              <EmptyState
+                icons={[Mic]}
+                title={
+                  filtered
                     ? t("sessions.emptyFilteredTitle")
-                    : t("sessions.emptyTitle")}
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {filtered
+                    : t("sessions.emptyTitle")
+                }
+                description={
+                  filtered
                     ? t("sessions.emptyFilteredHint")
-                    : t("sessions.emptyHint")}
-                </p>
-              </div>
+                    : t("sessions.emptyHint")
+                }
+              />
             )
           )}
           <DataTablePagination

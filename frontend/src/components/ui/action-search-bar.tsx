@@ -239,12 +239,17 @@ export function ActionSearchBar({
           ))}
         </div>
         {matching.length === 0 && (
-          <p
+          <div
             role="status"
-            className="px-3 py-5 text-center text-sm text-muted-foreground"
+            className="flex flex-col items-center justify-center px-4 py-8 text-center"
           >
-            {emptyMessage}
-          </p>
+            <div className="mb-2 flex size-10 items-center justify-center rounded-xl border border-border/60 bg-muted/50 text-muted-foreground">
+              <Search className="size-5 stroke-[1.75]" aria-hidden="true" />
+            </div>
+            <p className="text-sm font-medium text-foreground">
+              {emptyMessage}
+            </p>
+          </div>
         )}
       </PopoverContent>
     </Popover>

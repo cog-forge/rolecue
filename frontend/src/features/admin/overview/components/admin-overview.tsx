@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect } from "react";
 import {
@@ -9,7 +10,6 @@ import {
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/page-header";
 import { routes } from "@/config/routes";
@@ -71,27 +71,18 @@ export function AdminOverview() {
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("denied.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("denied.description")}
-          </p>
-        </div>
+        <ErrorState
+          title={t("denied.title")}
+          description={t("denied.description")}
+        ></ErrorState>
       ) : query.isError || !overview ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("error.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {tCommon("messages.tryAgainLater")}
-          </p>
-          <Button
-            className="mt-4 h-11"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {tCommon("actions.tryAgain")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("error.title")}
+          description={tCommon("messages.tryAgainLater")}
+          onRetry={() => void query.refetch()}
+          retryLabel={tCommon("actions.tryAgain")}
+          isRetrying={query.isFetching}
+        ></ErrorState>
       ) : (
         <div
           aria-busy={query.isPlaceholderData}

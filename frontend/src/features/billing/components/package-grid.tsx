@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import {
   Coins,
@@ -66,11 +67,7 @@ export function PackageGrid({
           ))}
         </div>
       ) : error ? (
-        <div
-          role="alert"
-          className="rounded-2xl border border-dashed p-8 text-center"
-        >
-          <p className="font-medium">{t("packages.loadError")}</p>
+        <ErrorState description={t("packages.loadError")}>
           <p className="mt-2 text-sm text-muted-foreground">
             {t("packages.loadErrorHint")}
           </p>
@@ -83,7 +80,7 @@ export function PackageGrid({
             <RefreshCw className="size-4" aria-hidden />
             {t("packages.retryLoading")}
           </Button>
-        </div>
+        </ErrorState>
       ) : activePackages.length === 0 ? (
         <div className="rounded-2xl border border-dashed p-10 text-center">
           <Coins className="mx-auto size-8 text-muted-foreground" aria-hidden />

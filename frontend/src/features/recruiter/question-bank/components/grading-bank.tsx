@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import {
   useCallback,
@@ -321,15 +322,11 @@ export function GradingBank({
         </div>
       )}
       {catalog.isError && (
-        <div
-          role="alert"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-card p-4 text-sm"
-        >
-          <p>{errorMessage(catalog.error, t("rubricsFailed"))}</p>
-          <Button variant="outline" onClick={() => void catalog.refetch()}>
-            {common("actions.tryAgain")}
-          </Button>
-        </div>
+        <ErrorState
+          description={errorMessage(catalog.error, t("rubricsFailed"))}
+          onRetry={() => void catalog.refetch()}
+          retryLabel={common("actions.tryAgain")}
+        ></ErrorState>
       )}
 
       {[...groups].map(([id, questions]) => {
@@ -633,11 +630,9 @@ export function GradingBank({
                   {t("bulkHint")}
                 </p>
                 {bulk.isError && (
-                  <div
-                    role="alert"
-                    className="space-y-2 text-sm text-destructive"
+                  <ErrorState
+                    description={errorMessage(bulk.error, t("bulkFailed"))}
                   >
-                    <p>{errorMessage(bulk.error, t("bulkFailed"))}</p>
                     <p>{t("bulkRetryHint")}</p>
                     <Button
                       variant="outline"
@@ -645,7 +640,7 @@ export function GradingBank({
                     >
                       {t("reload")}
                     </Button>
-                  </div>
+                  </ErrorState>
                 )}
                 <Button
                   className="min-h-11 rounded-full"

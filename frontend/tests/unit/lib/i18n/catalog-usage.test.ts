@@ -11,17 +11,7 @@ import vi_ from "@/lib/i18n/messages/vi";
 
 // Keys that are only built at run time in a way the scanner cannot follow. Each entry needs the
 // reason; prefer fixing the code so the key appears as a literal over adding one here.
-const allowedUnused: { key: string; reason: string }[] = [
-  {
-    key: "common.globalError.title",
-    reason:
-      "global-error.tsx replaces the root layout, so it reads common.json directly instead of useTranslations",
-  },
-  {
-    key: "common.globalError.description",
-    reason: "same as common.globalError.title",
-  },
-];
+const allowedUnused: { key: string; reason: string }[] = [];
 
 const srcRoot = join(process.cwd(), "src");
 const catalogDir = join("src", "lib", "i18n", "messages");

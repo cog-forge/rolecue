@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -86,16 +87,11 @@ export function AvatarPreviewDialog({
             {t("missing")}
           </p>
         ) : detail.isError ? (
-          <div role="alert" className="space-y-3">
-            <p className="text-sm text-destructive">{t("openFailed")}</p>
-            <Button
-              variant="outline"
-              className="h-11"
-              onClick={() => void refetch()}
-            >
-              {t("retry")}
-            </Button>
-          </div>
+          <ErrorState
+            description={t("openFailed")}
+            onRetry={() => void refetch()}
+            retryLabel={t("retry")}
+          ></ErrorState>
         ) : (
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
             <AvatarViewer

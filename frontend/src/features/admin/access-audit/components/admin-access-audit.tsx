@@ -1,5 +1,9 @@
 "use client";
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton-presets";
+import { ErrorState } from "@/components/ui/error-state";
+
 import { useId, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
@@ -7,7 +11,6 @@ import { RefreshCw, ScrollText } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { DataTablePagination } from "@/components/data-table/data-table-pagination";
 import {
   DataTable,
@@ -27,8 +30,8 @@ import {
 
 // KAN-296: who read a recording or a transcript, and when. Admin only; the content itself is never shown.
 export function AdminAccessAudit() {
-  const t = useTranslations("admin.accessAudit");
   const tCommon = useTranslations("common");
+  const t = useTranslations("admin.accessAudit");
   const fmt = useFormatters();
   const ids = useId();
   const viewer = useSessionUser();
@@ -214,32 +217,16 @@ export function AdminAccessAudit() {
             </Button>
           </div>
           {list.error && (
-            <div
-              role="alert"
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-5"
-            >
-              <p className="text-sm">{t("loadFailed")}</p>
-              <Button
-                className="h-11"
-                variant="outline"
-                disabled={list.isFetching}
-                onClick={() => void list.refetch()}
-              >
-                {tCommon("actions.retry")}
-              </Button>
-            </div>
+            <ErrorState
+              variant="inline"
+              description={t("loadFailed")}
+              onRetry={() => void list.refetch()}
+              isRetrying={list.isFetching}
+              retryLabel={tCommon("actions.retry")}
+            />
           )}
           {list.isPending ? (
-            <div
-              role="status"
-              aria-label={t("loadingLabel")}
-              className="space-y-3 rounded-xl border p-5"
-            >
-              <Skeleton className="h-10" />
-              {[0, 1, 2].map((row) => (
-                <Skeleton key={row} className="h-12" />
-              ))}
-            </div>
+            <TableSkeleton label={t("loadingLabel")} />
           ) : rows.length ? (
             <DataTable
               rows={rows}
@@ -249,21 +236,11 @@ export function AdminAccessAudit() {
             />
           ) : (
             !list.error && (
-              <div
-                role="status"
-                className="rounded-xl border bg-card px-5 py-16 text-center"
-              >
-                <ScrollText
-                  className="mx-auto size-7 text-muted-foreground"
-                  aria-hidden
-                />
-                <h2 className="mt-4 text-base font-medium">
-                  {filtered ? t("emptyFilteredTitle") : t("emptyTitle")}
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {filtered ? t("emptyFilteredHint") : t("emptyHint")}
-                </p>
-              </div>
+              <EmptyState
+                icons={[ScrollText]}
+                title={filtered ? t("emptyFilteredTitle") : t("emptyTitle")}
+                description={filtered ? t("emptyFilteredHint") : t("emptyHint")}
+              />
             )
           )}
           <DataTablePagination

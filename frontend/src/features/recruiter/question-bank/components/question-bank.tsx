@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { GradingBank } from "./grading-bank";
 import { useUnsavedChangesGuard } from "@/lib/hooks/use-unsaved-changes-guard";
@@ -11,6 +12,7 @@ import { ListPlus, LoaderCircle, Pencil, Trash2 } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AiLoader } from "@/components/ui/ai-loader";
 import { routes } from "@/config/routes";
 import { cn } from "@/lib/utils";
 import { useSessionUser } from "@/features/auth/components/session-gate";
@@ -343,27 +345,26 @@ export function QuestionBank({ postingId }: { postingId: string }) {
       ) : denied ? (
         <>
           <PageHeader back={back} title={t("title")} />
-          <div role="alert" className="rounded-xl border p-6">
-            <h2 className="text-base font-semibold">{t("denied.title")}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {t("denied.body")}
-            </p>
-          </div>
+          <ErrorState
+            title={t("denied.title")}
+            description={t("denied.body")}
+          ></ErrorState>
         </>
       ) : query.isError ? (
         <>
           <PageHeader back={back} title={t("title")} />
-          <div role="alert" className="rounded-xl border p-6">
-            <h2 className="text-base font-semibold">
-              {apiError(query.error).status === 404
+          <ErrorState
+            title={
+              apiError(query.error).status === 404
                 ? t("error.notFoundTitle")
-                : t("error.failedTitle")}
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {apiError(query.error).status === 404
+                : t("error.failedTitle")
+            }
+            description={
+              apiError(query.error).status === 404
                 ? t("error.notFoundBody")
-                : tCommon("messages.tryAgainLater")}
-            </p>
+                : tCommon("messages.tryAgainLater")
+            }
+          >
             {apiError(query.error).status !== 404 && (
               <Button
                 className={cn("mt-4", pillClass)}
@@ -374,7 +375,7 @@ export function QuestionBank({ postingId }: { postingId: string }) {
                 {tCommon("actions.tryAgain")}
               </Button>
             )}
-          </div>
+          </ErrorState>
         </>
       ) : (
         <>
@@ -707,6 +708,7 @@ function EmptyBank({
           {t("description", { count: bank.generation_size })}
         </p>
       </div>
+
       <Button
         className={pillClass}
         disabled={generating}
@@ -723,15 +725,16 @@ function EmptyBank({
         )}
         {generating ? t("generating") : error ? t("retry") : t("generate")}
       </Button>
-      <p role="status" aria-live="polite" className="text-[13px]">
-        {generating ? (
-          <span className="t-shimmer" data-text={t("wait")}>
-            {t("wait")}
-          </span>
-        ) : (
-          ""
-        )}
-      </p>
+
+      {generating && (
+        <AiLoader
+          stage="generating"
+          description={t("wait")}
+          size="sm"
+          className="py-1"
+        />
+      )}
+
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
