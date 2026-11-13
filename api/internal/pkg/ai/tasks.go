@@ -15,6 +15,9 @@ import (
 	qd "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
 	qp "github.com/cog-forge/rolecue/api/internal/features/questionbank/provider"
 	qs "github.com/cog-forge/rolecue/api/internal/features/questionbank/service"
+	md "github.com/cog-forge/rolecue/api/internal/features/roadmap/domain"
+	mp "github.com/cog-forge/rolecue/api/internal/features/roadmap/provider"
+	ms "github.com/cog-forge/rolecue/api/internal/features/roadmap/service"
 	rd "github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	rp "github.com/cog-forge/rolecue/api/internal/features/roleprofile/provider"
 	rs "github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
@@ -59,6 +62,26 @@ func (a *TaskAdapter) Extract(ctx context.Context, jd string) (rd.ExtractionCand
 					err = rs.ValidateEvidence(review, jd)
 				}
 			}
+		}
+		if a.route.legacy {
+			return c, err
+		}
+		return c, outputError(err)
+	})
+}
+
+// GenerateTopics proposes the topics of a Learning Roadmap (KAN-343). Like every task it is one routed call:
+// the reply is decoded and validated inside each provider attempt, so an unusable proposal is retried or falls
+// back instead of reaching the caller.
+func (a *TaskAdapter) GenerateTopics(ctx context.Context, in md.TopicInput) (md.TopicCandidate, error) {
+	return Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (md.TopicCandidate, error) {
+		g, err := mp.New(m)
+		if err != nil {
+			return md.TopicCandidate{}, err
+		}
+		c, err := g.GenerateTopics(ctx, in)
+		if err == nil {
+			_, err = ms.ValidateTopics(c)
 		}
 		if a.route.legacy {
 			return c, err
@@ -126,7 +149,18 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 			if err != nil {
 				return qd.GenerationCandidate{}, err
 			}
-			c, err := g.GenerateBatch(ctx, in, size, merged.Contents())
+			batchIn := in
+			if len(in.Topics) > 0 {
+				// A Roadmap bank is written in batches that each owe the topics still short of their quota,
+				// so the distribution does not depend on one reply covering everything (KAN-344).
+				batchIn.Topics = qd.BatchQuotas(in.Topics, qd.CountByTopic(merged.Questions), size)
+			}
+			c, err := g.GenerateBatch(ctx, batchIn, size, append(append([]string{}, in.Existing...), merged.Contents()...))
+			if err == nil && len(in.Topics) > 0 {
+				// Each batch must write the questions it owes every topic; one that does not is invalid
+				// output of this attempt, so it is retried or falls back without redoing earlier batches.
+				c.Questions, err = qs.FitBatchToTopics(c.Questions, batchIn.Topics)
+			}
 			if err == nil {
 				combined := qd.GenerationCandidate{Questions: append(append([]qd.GeneratedQuestion{}, merged.Questions...), c.Questions...)}
 				var valid []qd.GeneratedQuestion
@@ -147,6 +181,10 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 		merged.Questions = append(merged.Questions, batch.Questions...)
 	}
 	_, err := qs.ValidateGenerated(in, merged, count)
+	if err == nil {
+		// The distribution can only be judged on the complete bank, never on a batch of it.
+		err = qs.ValidateBank(in, merged.Questions)
+	}
 	return merged, err
 }
 
