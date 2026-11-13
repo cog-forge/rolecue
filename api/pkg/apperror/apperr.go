@@ -94,6 +94,10 @@ const (
 	CodeEvaluationWeightTotalMismatch Code = "EVALUATION_WEIGHT_TOTAL_MISMATCH"
 	CodeEvaluationWeightsLocked       Code = "EVALUATION_WEIGHTS_LOCKED"
 
+	// Learning Roadmap read API (KAN-352). A topic that is not part of the profile's Roadmap, or a profile the
+	// caller does not own, is reported as not found, exactly like a missing one.
+	CodeRoadmapItemNotFound Code = "ROADMAP_ITEM_NOT_FOUND"
+
 	// Scoring rubric (Barem) management codes (KAN-326). A rubric the caller may not see is reported as not
 	// found, exactly like a missing one, so a guessed UUID reveals nothing.
 	CodeRubricNotFound               Code = "RUBRIC_NOT_FOUND"
@@ -135,6 +139,15 @@ const (
 	// Account erasure (KAN-280).
 	CodeAccountHasActiveWork  Code = "ACCOUNT_HAS_ACTIVE_WORK"
 	CodeAdminCannotSelfDelete Code = "ADMIN_CANNOT_SELF_DELETE"
+
+	// Learning Roadmap generation (KAN-343): topics generated from the confirmed requirements.
+	CodeRoadmapGenerating              Code = "ROADMAP_GENERATING"
+	CodeRoadmapGenerationFailed        Code = "ROADMAP_GENERATION_FAILED"
+	CodeInvalidRoadmapGenerationOutput Code = "INVALID_ROADMAP_GENERATION_OUTPUT"
+	CodeRoadmapRegenerateNotAllowed    Code = "ROADMAP_REGENERATE_NOT_ALLOWED"
+	CodeRoadmapNotRetryable            Code = "ROADMAP_NOT_RETRYABLE"
+	CodeRoadmapNotReady                Code = "ROADMAP_NOT_READY"
+	CodeInterviewStartIntentConflict   Code = "INTERVIEW_START_INTENT_CONFLICT"
 )
 
 type AppError struct {
