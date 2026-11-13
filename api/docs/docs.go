@@ -2801,7 +2801,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Optional. A practice start repeated with the same key returns the first session and charges once; up to 128 characters",
+                        "description": "Optional. A practice start repeated with the same key and the same focus returns the first session and charges once (200, resumed true); the same key with another focus_item_id is 409 INTERVIEW_START_INTENT_CONFLICT; up to 128 characters",
                         "name": "Idempotency-Key",
                         "in": "header"
                     },
@@ -8291,6 +8291,370 @@ const docTemplate = `{
                 }
             }
         },
+        "/role-profiles/{id}/roadmap": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, owner of the Role Profile. Foreign and missing Role Profiles both return JD_NOT_FOUND, exactly like GET /role-profiles/{id}. Returns generation_status (content preparation: pending, generating, ready, failed) separately from learning_status (not_started, in_progress, completed) and progress_percent (null unless generation_status is ready and there is at least one topic). Items are sorted by position, then id. Every score, count and status is computed from stored practice results on each read: score is the mean of the five most recent distinct core questions of the topic (provisional below five questions, null without results), a topic is achieved at five questions and a mean of at least 80 (compared before rounding), and a repeated question counts once with its latest result. practice_started tells whether regenerating is still possible. update_state is updating while evaluated practice results are not part of the Roadmap yet (pending_result_count says how many) and delayed when one has waited more than 10 minutes since its session ended. Practice results only: recruitment never feeds the Roadmap. Never returns bank questions, expected answers, rubrics or feedback text. Poll while generation_status is generating; see api/docs/roadmap-api.md.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "roadmap"
+                ],
+                "summary": "Read the Learning Roadmap of an owned Role Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Profile UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.RoadmapView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/role-profiles/{id}/roadmap/items/{item_id}/history": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, owner of the Role Profile. One page of the practice answers that feed the topic, newest first (evaluation time, then interview id, then question number). Each row is an answer that was evaluated: interview_id (open the practice report with GET /interviews/{interview_id}/report), question_number (the number the report uses), result (scored, or skipped for a question that was shown and not answered, which counts as 0), score, question_text (as the report shows it; null for a skipped question), evaluated_at and in_current_window (true for the five answers the topic score is computed from now; a repeated question's older answers and answers beyond the five most recent questions are false). Never returns expected answers, rubric details, feedback, hidden bank questions or recruitment data. A topic outside the profile's Roadmap returns ROADMAP_ITEM_NOT_FOUND.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "roadmap"
+                ],
+                "summary": "List the evaluated practice answers of a Roadmap topic",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Profile UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Roadmap topic UUID",
+                        "name": "item_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-domain_HistoryEntry"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/role-profiles/{id}/roadmap/regenerate": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Replaces the topics and the question bank of a confirmed Role Profile that has no interview at\nall (a finished or abandoned session counts). The roadmap keeps its id. Synchronous and atomic:\nthe old topics and bank stay until the new ones are valid and are replaced in one transaction;\na failure leaves them in place. Regeneration and a practice start exclude each other.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "role-profiles"
+                ],
+                "summary": "Regenerate the learning roadmap before the first practice session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Profile UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.RoadmapGenerationResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/role-profiles/{id}/roadmap/retry": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Generates the topics and the practice question bank when the first generation did not happen or\nfailed. Synchronous: the response is the finished state. Idempotent: a roadmap that is already\nready is returned unchanged, and concurrent retries start one generation (the others get 409\nROADMAP_GENERATING). Never resets a ready roadmap.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "role-profiles"
+                ],
+                "summary": "Retry generating the learning roadmap of a confirmed Role Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Profile UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.RoadmapGenerationResult"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/rubrics": {
             "get": {
                 "security": [
@@ -9333,6 +9697,7 @@ const docTemplate = `{
                 "EVALUATION_WEIGHT_INVALID",
                 "EVALUATION_WEIGHT_TOTAL_MISMATCH",
                 "EVALUATION_WEIGHTS_LOCKED",
+                "ROADMAP_ITEM_NOT_FOUND",
                 "RUBRIC_NOT_FOUND",
                 "RUBRIC_LOCKED",
                 "RUBRIC_IN_USE",
@@ -9363,7 +9728,14 @@ const docTemplate = `{
                 "RECORDING_INTEGRITY",
                 "RECORDING_CONSENT_REQUIRED",
                 "ACCOUNT_HAS_ACTIVE_WORK",
-                "ADMIN_CANNOT_SELF_DELETE"
+                "ADMIN_CANNOT_SELF_DELETE",
+                "ROADMAP_GENERATING",
+                "ROADMAP_GENERATION_FAILED",
+                "INVALID_ROADMAP_GENERATION_OUTPUT",
+                "ROADMAP_REGENERATE_NOT_ALLOWED",
+                "ROADMAP_NOT_RETRYABLE",
+                "ROADMAP_NOT_READY",
+                "INTERVIEW_START_INTENT_CONFLICT"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -9434,6 +9806,7 @@ const docTemplate = `{
                 "CodeEvaluationWeightInvalid",
                 "CodeEvaluationWeightTotalMismatch",
                 "CodeEvaluationWeightsLocked",
+                "CodeRoadmapItemNotFound",
                 "CodeRubricNotFound",
                 "CodeRubricLocked",
                 "CodeRubricInUse",
@@ -9464,7 +9837,14 @@ const docTemplate = `{
                 "CodeRecordingIntegrity",
                 "CodeRecordingConsentRequired",
                 "CodeAccountHasActiveWork",
-                "CodeAdminCannotSelfDelete"
+                "CodeAdminCannotSelfDelete",
+                "CodeRoadmapGenerating",
+                "CodeRoadmapGenerationFailed",
+                "CodeInvalidRoadmapGenerationOutput",
+                "CodeRoadmapRegenerateNotAllowed",
+                "CodeRoadmapNotRetryable",
+                "CodeRoadmapNotReady",
+                "CodeInterviewStartIntentConflict"
             ]
         },
         "domain.AccessAuditEntry": {
@@ -10247,6 +10627,21 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.CoreOutcome": {
+            "type": "string",
+            "enum": [
+                "scored",
+                "skipped",
+                "not_asked",
+                "ungraded"
+            ],
+            "x-enum-varnames": [
+                "CoreScored",
+                "CoreSkipped",
+                "CoreNotAsked",
+                "CoreUngraded"
+            ]
+        },
         "domain.CoverageMetric": {
             "type": "object",
             "properties": {
@@ -10776,6 +11171,69 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.ExportRoadmap": {
+            "type": "object",
+            "properties": {
+                "generation_status": {
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "generating",
+                        "ready",
+                        "failed"
+                    ]
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportRoadmapResult"
+                    }
+                },
+                "topics": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportRoadmapTopic"
+                    }
+                }
+            }
+        },
+        "domain.ExportRoadmapResult": {
+            "type": "object",
+            "properties": {
+                "interview_id": {
+                    "type": "string"
+                },
+                "linked_at": {
+                    "type": "string"
+                },
+                "question_number": {
+                    "type": "integer"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "topic_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.ExportRoadmapTopic": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "domain.ExportRoleProfile": {
             "type": "object",
             "properties": {
@@ -10784,6 +11242,14 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "string"
+                },
+                "roadmap": {
+                    "description": "Roadmap is the Profile's Learning Roadmap (KAN-356): its topics and the practice answers linked to them.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.ExportRoadmap"
+                        }
+                    ]
                 },
                 "status": {
                     "type": "string"
@@ -10865,6 +11331,61 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.GenerationStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "generating",
+                "ready",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusGenerating",
+                "StatusReady",
+                "StatusFailed"
+            ]
+        },
+        "domain.HistoryEntry": {
+            "type": "object",
+            "properties": {
+                "evaluated_at": {
+                    "description": "EvaluatedAt is when the session was completed and evaluated.",
+                    "type": "string"
+                },
+                "in_current_window": {
+                    "description": "InCurrentWindow is true when this answer is part of the five answers the topic's score is computed from\nnow. A repeated question's older answers and answers beyond the five most recent questions are false.",
+                    "type": "boolean"
+                },
+                "interview_id": {
+                    "type": "string"
+                },
+                "question_number": {
+                    "description": "QuestionNumber is the position of the core question in that session, the same number the practice report\nuses for the question.",
+                    "type": "integer"
+                },
+                "question_text": {
+                    "description": "QuestionText is the question as it was asked and as the practice report shows it. Null for a skipped\nquestion, which the report does not list.",
+                    "type": "string"
+                },
+                "result": {
+                    "description": "Result is scored for an answered and graded question, skipped for a question that was shown and not\nanswered (it counts as 0).",
+                    "enum": [
+                        "scored",
+                        "skipped"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.CoreOutcome"
+                        }
+                    ]
+                },
+                "score": {
+                    "description": "Score is the question score, 0 to 100; 0 for a skipped question.",
+                    "type": "number"
+                }
+            }
+        },
         "domain.HistoryItem": {
             "type": "object",
             "properties": {
@@ -10885,6 +11406,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/domain.EvaluationStatus"
                         }
                     ]
+                },
+                "focus_item_id": {
+                    "description": "FocusItemID is the Roadmap topic the practice was for, null for general practice and recruitment.",
+                    "type": "string"
                 },
                 "id": {
                     "type": "string"
@@ -11213,6 +11738,19 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "domain.LearningStatus": {
+            "type": "string",
+            "enum": [
+                "not_started",
+                "in_progress",
+                "completed"
+            ],
+            "x-enum-varnames": [
+                "LearningNotStarted",
+                "LearningInProgress",
+                "LearningCompleted"
+            ]
         },
         "domain.Level": {
             "type": "string",
@@ -12414,6 +12952,127 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.RoadmapItemView": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "evidence_question_count": {
+                    "description": "EvidenceQuestionCount is the number of distinct questions in the current window, 0 to 5.",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_evaluated_at": {
+                    "description": "LastEvaluatedAt is when the newest result of the window was evaluated (the completion time of its\nsession); null until a result exists.",
+                    "type": "string"
+                },
+                "learning_status": {
+                    "enum": [
+                        "not_started",
+                        "in_progress",
+                        "achieved"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.TopicStatus"
+                        }
+                    ]
+                },
+                "position": {
+                    "type": "integer"
+                },
+                "score": {
+                    "description": "Score is the mean of the current window with two decimals; null until a result exists. With fewer than\nfive questions it is provisional, and never means achieved.",
+                    "type": "number"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.RoadmapView": {
+            "type": "object",
+            "properties": {
+                "achieved_threshold": {
+                    "type": "number"
+                },
+                "completed_items": {
+                    "description": "CompletedItems is the number of achieved topics.",
+                    "type": "integer"
+                },
+                "generation_status": {
+                    "enum": [
+                        "pending",
+                        "generating",
+                        "ready",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.GenerationStatus"
+                        }
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.RoadmapItemView"
+                    }
+                },
+                "learning_status": {
+                    "enum": [
+                        "not_started",
+                        "in_progress",
+                        "completed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.LearningStatus"
+                        }
+                    ]
+                },
+                "pending_result_count": {
+                    "type": "integer"
+                },
+                "practice_started": {
+                    "description": "PracticeStarted tells the UI whether the profile has a practice session. Regenerating the Roadmap is only\npossible while it is false.",
+                    "type": "boolean"
+                },
+                "progress_percent": {
+                    "description": "ProgressPercent is 100 x completed_items / total_items with two decimals. Null unless generation_status is\nready and the Roadmap has at least one topic, so an unfinished or empty Roadmap never shows 100%.",
+                    "type": "number"
+                },
+                "role_profile_id": {
+                    "type": "string"
+                },
+                "total_items": {
+                    "type": "integer"
+                },
+                "update_state": {
+                    "description": "UpdateState is updating while evaluated practice results are not part of the Roadmap yet, delayed when\nsome of them have waited more than 10 minutes, and PendingResultCount says how many such results\n(answers) there are.",
+                    "enum": [
+                        "up_to_date",
+                        "updating",
+                        "delayed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/domain.UpdateState"
+                        }
+                    ]
+                },
+                "window_size": {
+                    "description": "WindowSize and AchievedThreshold state the approved rules the topic statuses follow: a topic is achieved\nwhen its five most recent distinct questions average at least 80.",
+                    "type": "integer"
+                }
+            }
+        },
         "domain.RoleProfile": {
             "type": "object",
             "properties": {
@@ -12683,12 +13342,20 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "focus_item_id": {
+                    "description": "FocusItemID is the Roadmap topic this session practises, null for general practice and for recruitment.\nIt is what the server stored, which is what the session really asks.",
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
                 "question_count": {
                     "description": "QuestionCount is the number of core questions and AnsweredCount how many of them are answered, so\ntogether they are the session's progress. Follow-ups are not counted.",
                     "type": "integer"
+                },
+                "resumed": {
+                    "description": "Resumed is set only on the answer to a start: true when the session already existed (a double click, a\nreplayed Idempotency-Key, or the unfinished session of the profile), false when this start created it.\nCompare FocusItemID with what was asked: an unfinished session keeps its own focus.",
+                    "type": "boolean"
                 },
                 "role_profile_id": {
                     "type": "string"
@@ -12868,6 +13535,19 @@ const docTemplate = `{
                 }
             }
         },
+        "domain.TopicStatus": {
+            "type": "string",
+            "enum": [
+                "not_started",
+                "in_progress",
+                "achieved"
+            ],
+            "x-enum-varnames": [
+                "TopicNotStarted",
+                "TopicInProgress",
+                "TopicAchieved"
+            ]
+        },
         "domain.Transaction": {
             "type": "object",
             "properties": {
@@ -13016,6 +13696,19 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "TypePractice",
                 "TypeRecruitment"
+            ]
+        },
+        "domain.UpdateState": {
+            "type": "string",
+            "enum": [
+                "up_to_date",
+                "updating",
+                "delayed"
+            ],
+            "x-enum-varnames": [
+                "UpdateUpToDate",
+                "UpdateUpdating",
+                "UpdateDelayed"
             ]
         },
         "domain.User": {
@@ -13216,6 +13909,10 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "avatar_id": {
+                    "type": "string"
+                },
+                "focus_item_id": {
+                    "description": "FocusItemID is the topic of the role profile's learning roadmap to practise. Omitted or null is general\npractice. Practice only; a recruitment start with it is refused. The session stores it and answers with\nthe focus it really has.",
                     "type": "string"
                 },
                 "role_profile_id": {
@@ -13539,6 +14236,28 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.RoadmapGenerationResult": {
+            "type": "object",
+            "properties": {
+                "generation_status": {
+                    "type": "string",
+                    "enum": [
+                        "pending",
+                        "generating",
+                        "ready",
+                        "failed"
+                    ]
+                },
+                "roadmap_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "role_profile_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "handler.RoleProfileSummary": {
             "type": "object",
             "properties": {
@@ -13733,6 +14452,20 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/domain.BoardPosting"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
+        "response.Page-domain_HistoryEntry": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.HistoryEntry"
                     }
                 },
                 "pagination": {
