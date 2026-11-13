@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -114,12 +115,11 @@ export function ReviewSubmissionDialog({
           {weights.isPending ? (
             <p role="status">{t("loadingCriteria")}</p>
           ) : weights.isError ? (
-            <div role="alert">
-              <p>{t("criteriaError")}</p>
-              <Button variant="outline" onClick={() => void weights.refetch()}>
-                {t("retryCriteria")}
-              </Button>
-            </div>
+            <ErrorState
+              description={t("criteriaError")}
+              onRetry={() => void weights.refetch()}
+              retryLabel={t("retryCriteria")}
+            ></ErrorState>
           ) : (
             <>
               <p className="text-muted-foreground">

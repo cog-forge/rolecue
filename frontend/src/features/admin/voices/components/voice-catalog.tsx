@@ -1,4 +1,7 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
@@ -303,52 +306,40 @@ export function VoiceCatalog({ filters }: { filters: VoiceFilters }) {
           <span className="sr-only">{t("list.loading")}</span>
         </div>
       ) : denied ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("denied.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("denied.description")}
-          </p>
-        </div>
+        <ErrorState
+          title={t("denied.title")}
+          description={t("denied.description")}
+        ></ErrorState>
       ) : query.isError ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("loadFailed.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {tCommon("messages.tryAgainLater")}
-          </p>
-          <Button
-            className={cn(pillClass, "mt-4")}
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {tCommon("actions.tryAgain")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("loadFailed.title")}
+          description={tCommon("messages.tryAgainLater")}
+          onRetry={() => void query.refetch()}
+          retryLabel={tCommon("actions.tryAgain")}
+          isRetrying={query.isFetching}
+        ></ErrorState>
       ) : page && page.items.length === 0 && total > 0 ? (
-        <div className="rounded-xl border p-8 text-center">
-          <h2 className="font-semibold">{t("pageGone.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("pageGone.description")}
-          </p>
+        <EmptyState
+          title={t("pageGone.title")}
+          description={t("pageGone.description")}
+        >
           <Button asChild variant="outline" className={cn(pillClass, "mt-4")}>
             <Link href={catalogHref({ ...filters, page: 1 })} scroll={false}>
               {tCommon("actions.firstPage")}
             </Link>
           </Button>
-        </div>
+        </EmptyState>
       ) : page && page.items.length === 0 ? (
-        <div className="rounded-xl border p-8 text-center">
-          <h2 className="font-semibold">
-            {filters.q
+        <EmptyState
+          title={
+            filters.q
               ? t("empty.noMatch", { query: filters.q })
               : filters.status === "all"
                 ? t("empty.none")
-                : t("empty.byStatus", { status: filters.status })}
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("empty.hint", { action: t("sync.action") })}
-          </p>
-        </div>
+                : t("empty.byStatus", { status: filters.status })
+          }
+          description={t("empty.hint", { action: t("sync.action") })}
+        ></EmptyState>
       ) : page ? (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-4">

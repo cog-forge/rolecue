@@ -1,11 +1,10 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { AlertCircle } from "lucide-react";
 import { gooeyToast } from "goey-toast";
-import { Button } from "@/components/ui/button";
 import {
   adminBillingKeys,
   exportBillingCSV,
@@ -233,31 +232,15 @@ export function AdminBillingView() {
 
       {/* Error State */}
       {hasError ? (
-        <div
-          role="alert"
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border border-destructive/40 bg-destructive/5 p-8 text-center"
-        >
-          <AlertCircle className="size-8 text-destructive" />
-          <div className="space-y-1">
-            <h2 className="text-sm font-semibold text-foreground">
-              {t("loadError.title")}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {t("loadError.hint")}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              void summaryQuery.refetch();
-              void transactionsQuery.refetch();
-            }}
-          >
-            {tCommon("actions.retry")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("loadError.title")}
+          description={t("loadError.hint")}
+          onRetry={() => {
+            void summaryQuery.refetch();
+            void transactionsQuery.refetch();
+          }}
+          retryLabel={tCommon("actions.retry")}
+        />
       ) : (
         <TransactionTable
           items={transactionsQuery.data?.items ?? []}

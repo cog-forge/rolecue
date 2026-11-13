@@ -1,4 +1,6 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/skeleton-presets";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -28,7 +30,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -212,15 +213,7 @@ export function TransactionTable({
   );
 
   if (isLoading) {
-    return (
-      <div className="rounded-xl bg-card p-4 ring-1 ring-foreground/10">
-        <div className="space-y-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
+    return <TableSkeleton columns={5} />;
   }
 
   return (
@@ -256,7 +249,11 @@ export function TransactionTable({
                   colSpan={5}
                   className="h-32 text-center text-sm text-muted-foreground"
                 >
-                  {t("empty")}
+                  <EmptyState
+                    variant="plain"
+                    title={t("empty")}
+                    description=""
+                  />
                 </TableCell>
               </TableRow>
             ) : (

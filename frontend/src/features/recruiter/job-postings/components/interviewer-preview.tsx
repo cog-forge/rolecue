@@ -1,10 +1,10 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
 import { avatarKeys, getAvatar } from "@/features/avatar/api/inventory";
 
 function PreviewLoading() {
@@ -63,16 +63,11 @@ export function InterviewerPreview({
       className="t-panel-slide grid items-start gap-5 rounded-xl border p-4 sm:grid-cols-[minmax(0,20rem)_1fr]"
     >
       {detail.isError ? (
-        <div role="alert" className="space-y-3 text-sm">
-          <p>{t("error")}</p>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void detail.refetch()}
-          >
-            {t("retry")}
-          </Button>
-        </div>
+        <ErrorState
+          description={t("error")}
+          onRetry={() => void detail.refetch()}
+          retryLabel={t("retry")}
+        ></ErrorState>
       ) : (
         <AvatarViewer
           key={avatarId}

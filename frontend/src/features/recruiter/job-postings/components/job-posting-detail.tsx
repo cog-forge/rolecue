@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -173,27 +174,22 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
     return (
       <section className="mx-auto w-full max-w-5xl space-y-8">
         <PageHeader back={back} title={t("fallbackTitle")} />
-        <div
-          role="alert"
-          className={cn(
-            "rounded-xl border p-6",
-            !denied && !notFound && "border-destructive/30",
-          )}
-        >
-          <h2 className="text-base font-semibold">
-            {denied
+        <ErrorState
+          title={
+            denied
               ? t("error.deniedTitle")
               : notFound
                 ? t("error.notFoundTitle")
-                : t("error.failedTitle")}
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {denied
+                : t("error.failedTitle")
+          }
+          description={
+            denied
               ? t("error.deniedBody")
               : notFound
                 ? t("error.notFoundBody")
-                : tCommon("messages.tryAgainLater")}
-          </p>
+                : tCommon("messages.tryAgainLater")
+          }
+        >
           {!denied && !notFound && (
             <Button
               className={cn("mt-4", pillClass)}
@@ -204,7 +200,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
               {tCommon("actions.tryAgain")}
             </Button>
           )}
-        </div>
+        </ErrorState>
       </section>
     );
   }

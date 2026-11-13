@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -63,27 +64,18 @@ export function InterviewGuidelines() {
           <span className="sr-only">{t("loading")}</span>
         </div>
       ) : denied ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("denied.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {t("denied.description")}
-          </p>
-        </div>
+        <ErrorState
+          title={t("denied.title")}
+          description={t("denied.description")}
+        ></ErrorState>
       ) : query.isError || !guidelines ? (
-        <div role="alert" className="rounded-xl border p-6">
-          <h2 className="font-semibold">{t("loadFailed.title")}</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {tCommon("messages.tryAgainLater")}
-          </p>
-          <Button
-            className={`${actionClass} mt-4`}
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {tCommon("actions.tryAgain")}
-          </Button>
-        </div>
+        <ErrorState
+          title={t("loadFailed.title")}
+          description={tCommon("messages.tryAgainLater")}
+          onRetry={() => void query.refetch()}
+          retryLabel={tCommon("actions.tryAgain")}
+          isRetrying={query.isFetching}
+        ></ErrorState>
       ) : (
         <div className="space-y-5">
           <Outcome

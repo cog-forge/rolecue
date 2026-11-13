@@ -1,11 +1,11 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -264,20 +264,12 @@ export function AdminRevenueView() {
       </div>
 
       {reportQuery.isError ? (
-        <Card className="items-start gap-2 p-6">
-          <p className="text-sm font-medium text-foreground">
-            {t("loadError.title")}
-          </p>
-          <p className="text-sm text-muted-foreground">{t("loadError.hint")}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void reportQuery.refetch()}
-          >
-            {tCommon("actions.retry")}
-          </Button>
-        </Card>
+        <ErrorState
+          title={t("loadError.title")}
+          description={t("loadError.hint")}
+          onRetry={() => void reportQuery.refetch()}
+          retryLabel={tCommon("actions.retry")}
+        />
       ) : !report ? (
         <LoadingReport />
       ) : (

@@ -1,7 +1,7 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -72,17 +72,12 @@ export function AccountDetailsSheet({
             </p>
           )}
           {detail.error && (
-            <div className="space-y-3" role="alert">
-              <p className="text-sm">{t("details.loadFailed")}</p>
-              <Button
-                variant="outline"
-                className="h-11"
-                disabled={detail.isFetching}
-                onClick={() => void detail.refetch()}
-              >
-                {t("details.retry")}
-              </Button>
-            </div>
+            <ErrorState
+              description={t("details.loadFailed")}
+              onRetry={() => void detail.refetch()}
+              retryLabel={t("details.retry")}
+              isRetrying={detail.isFetching}
+            ></ErrorState>
           )}
           {user && (
             <>

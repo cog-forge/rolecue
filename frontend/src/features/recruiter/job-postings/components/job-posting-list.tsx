@@ -1,4 +1,5 @@
 "use client";
+import { EmptyState } from "@/components/ui/empty-state";
 
 import {
   useEffect,
@@ -207,21 +208,22 @@ export function JobPostingList() {
           </Button>
         </Notice>
       ) : page && page.items.length === 0 && total > 0 ? (
-        <div className="rounded-xl border border-dashed p-8 text-center">
-          <h2 className="font-semibold">{t("pastEnd.title")}</h2>
+        <EmptyState title={t("pastEnd.title")} description="">
           <Button asChild variant="outline" className={cn("mt-4", pillClass)}>
             <FilterLink filters={{ ...filters, page: 1 }}>
               {tCommon("actions.firstPage")}
             </FilterLink>
           </Button>
-        </div>
+        </EmptyState>
       ) : page && page.items.length === 0 ? (
-        <div className="rounded-xl border border-dashed p-10 text-center">
-          <h2 className="font-semibold">
-            {filters.search
+        <EmptyState
+          title={
+            filters.search
               ? t("empty.noMatch", { query: filters.search })
-              : t(`empty.${filters.status}`)}
-          </h2>
+              : t(`empty.${filters.status}`)
+          }
+          description=""
+        >
           {filtered ? (
             <Button asChild variant="outline" className={cn("mt-4", pillClass)}>
               <FilterLink filters={{ status: "all", search: "", page: 1 }}>
@@ -238,7 +240,7 @@ export function JobPostingList() {
               </Button>
             </>
           )}
-        </div>
+        </EmptyState>
       ) : page ? (
         <>
           <p role="status" className="sr-only">

@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -10,7 +11,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
 import { getRubric, getRubricMetrics, rubricKeys } from "../api/rubrics";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
@@ -67,18 +67,14 @@ export function RubricCriteria({ rubricId }: { rubricId: string }) {
                 </p>
               )}
               {error && (
-                <div role="alert" className="space-y-2 text-sm">
-                  <p>{errorMessage(error, t("failed"))}</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      void rubric.refetch();
-                      void metrics.refetch();
-                    }}
-                  >
-                    {t("retry")}
-                  </Button>
-                </div>
+                <ErrorState
+                  description={errorMessage(error, t("failed"))}
+                  onRetry={() => {
+                    void rubric.refetch();
+                    void metrics.refetch();
+                  }}
+                  retryLabel={t("retry")}
+                ></ErrorState>
               )}
               {!error &&
                 rubric.data?.criteria?.map((criterion, index) => (
