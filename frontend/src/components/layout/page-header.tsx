@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ export const pillClass = "h-10 rounded-full px-5";
 export function PageHeader({
   back,
   title,
+  titleRef,
   meta,
   description,
   actions,
@@ -19,6 +20,7 @@ export function PageHeader({
 }: {
   back?: { href: string; label: string };
   title: ReactNode;
+  titleRef?: Ref<HTMLHeadingElement>;
   meta?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
@@ -37,7 +39,11 @@ export function PageHeader({
       )}
       <div className="flex flex-col gap-x-6 gap-y-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance [overflow-wrap:anywhere] sm:text-[1.75rem] sm:leading-tight">
+          <h1
+            ref={titleRef}
+            tabIndex={titleRef ? -1 : undefined}
+            className="text-2xl font-semibold tracking-tight text-balance outline-none [overflow-wrap:anywhere] sm:text-[1.75rem] sm:leading-tight"
+          >
             {title}
           </h1>
           {meta && (

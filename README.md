@@ -1,152 +1,207 @@
 # RoleCue
 
-Go API (`api/`) and Next.js frontend (`frontend/`). See
-[frontend setup](frontend/README.md) and [auth setup](auth/README.md) for credentials and local services.
+AI-supported technical interview practice, with a moderated recruitment board.
 
-Dev: copy `.env.example` to `.env` and `auth/.env.example` to `auth/.env`, then run `make dev` from the
-repository root. It starts PostgreSQL, migrations, auth (:3001), Go with Air (:8080), Next (:3002) and Caddy in
-Docker; open `http://localhost:3000` through Caddy (routing in `.caddy/Caddyfile.local`). `make dev-api` starts
-only Go and its dependencies; `make dev-down` stops the stack and keeps volumes.
+RoleCue helps candidates prepare from a job description, practise with a spoken AI interviewer, and review evidence-based feedback. Recruiters publish reviewed job postings, configure interview questions and scoring rubrics, and evaluate completed applications. Administrators manage moderation, accounts, interview operations and financial reporting.
 
-## Development checks
+[Getting started](#getting-started) · [Architecture](#architecture) · [Development](#development) · [Documentation](#documentation) · [Contributing](#contributing)
 
-Install Git (Git for Windows on Windows), Python 3.11+ with `venv`, Go 1.27.2+,
-Bun 1.4.2 and Node 24.20.0+, with their executables on `PATH`.
-Run from the repository root on macOS/Linux:
+## What you can do
+
+| Workspace     | Main workflows                                                                                                                                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Candidate     | Upload a job-description PDF, review extracted requirements, configure a practice session, answer spoken questions, and review interview history and score reports. Browse approved vacancies and submit an application with a PDF CV. |
+| Recruiter     | Prepare job postings, generate and review question banks, maintain scoring rubrics, configure the company interviewer, fund interview capacity, and record application decisions.                                                      |
+| Administrator | Moderate postings, manage account access, review interview operations and access audits, maintain evaluation guidance and voice profiles, and inspect billing and revenue.                                                             |
+
+The interface supports English and Vietnamese. Interview questions, answers and AI feedback remain in English. The interview room supports 3D avatars and environment scenes, with fallback presentation when WebGL or media capabilities are unavailable. Camera and microphone capture require explicit browser permission.
+
+## Architecture
+
+This monorepo contains three application services. Caddy provides the shared browser origin for the frontend and authentication endpoints; business requests go directly to the Go API.
+
+```mermaid
+flowchart LR
+    Browser -->|Pages| Caddy
+    Browser -->|Business API and live interview| API[Go API]
+    Caddy --> Frontend[Next.js frontend]
+    Caddy -->|/api/auth/*| Auth[Better Auth runtime]
+    API -->|Validate session| Auth
+    API --> PostgreSQL[(PostgreSQL)]
+    Auth --> PostgreSQL
+    API --> Storage[S3-compatible storage]
+    API --> Providers[Gemini · Azure Speech · PayOS · Resend]
+```
+
+| Layer                    | Implementation                                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Frontend                 | Next.js 16, React 19, TypeScript, Tailwind CSS 4 and shadcn/ui                                       |
+| Client state             | TanStack Query for remote data, React Hook Form and Zod for forms, Zustand for workspace preferences |
+| Business API             | Go, Gin, PostgreSQL and sqlc queries                                                                 |
+| Authentication           | Standalone Bun service running Better Auth; shared PostgreSQL session storage                        |
+| AI and media             | Gemini, Azure AI Speech, Three.js/VRM, Avaturn and Blender conversion                                |
+| Storage and payments     | S3-compatible object storage and PayOS                                                               |
+| Development and delivery | Docker Compose, Air, Caddy, GitHub Actions and GHCR                                                  |
+
+### Repository layout
+
+```text
+api/          Go API, migrations, background jobs and integration tests
+frontend/     Next.js application, shared UI, unit tests and Playwright tests
+auth/         Better Auth runtime and authentication configuration
+.docker/      Local, build and deployment Compose definitions
+.caddy/       Local and production ingress configuration
+.githooks/    Cross-platform staged-file checks
+.github/      CI, image scanning and deployment workflows
+docs/         Product specs, implementation notes, protocols and security notes
+```
+
+## Getting started
+
+### Prerequisites
+
+For the container-based stack, install Git, Docker with Docker Compose v2, and Make in a POSIX shell. On Windows, use WSL for the Make/Compose workflow. You will also need credentials for the external services enabled in your environment; this is not a zero-configuration demo.
+
+For host-side development and checks, use the versions pinned by CI and the package manifests: **Go 1.27.4**, **Bun 1.4.2**, **Node.js 24.20.0**, and **Python 3.11+** with `venv`.
+
+### 1. Clone and configure
+
+```sh
+git clone https://github.com/cog-forge/rolecue.git
+cd rolecue
+cp .env.example .env
+cp auth/.env.example auth/.env
+cp frontend/.env.example frontend/.env
+```
+
+Copy templates only for a fresh checkout. Fill in the values before starting services; preserve existing environment files when updating a working installation.
+
+| File            | What belongs here                                                                                                                  |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `.env`          | Database and business API configuration, S3 storage, Gemini, PayOS, Azure Speech and API email settings                            |
+| `auth/.env`     | Authentication database URL, signing secret, OAuth credentials, authentication email settings and the shared internal admin secret |
+| `frontend/.env` | Public API/Avaturn URLs and the non-secret social-provider display allowlist                                                       |
+
+Docker Compose takes frontend public values from the root `.env` and passes them into the frontend container; these process values override `frontend/.env`. Use `frontend/.env` for host-side `bun run dev`.
+
+The API requires `LLM_API_KEY` and the three `PAYOS_*` credentials at startup. Configure S3-compatible storage for PDF, CV, avatar and recording workflows. Set a stable `BETTER_AUTH_SECRET`, and keep `ADMIN_AUTH_INTERNAL_SECRET` consistent between the API and auth service. See [auth setup](auth/README.md) for the complete environment contract and provider callbacks.
+
+Azure Speech credentials enable speech features. GLB-to-VRM conversion additionally needs Blender and the VRM extension, with conversion explicitly enabled and the source-usage/license settings configured. The API development image includes Poppler for PDF text extraction; scanned PDFs still need selectable text/OCR before upload.
+
+`NEXT_PUBLIC_*` values are public and embedded at build time. Keep provider credentials, database passwords and signing secrets server-side. Use `localhost` consistently for local browser access so authentication cookies and API origins agree.
+
+### 2. Start the stack
+
+```sh
+make dev
+```
+
+This builds and starts PostgreSQL, runs migrations, and starts auth, the Go API with Air, Next.js and Caddy. Source changes are mounted into the development containers.
+
+| Service                                           | Local address                                            |
+| ------------------------------------------------- | -------------------------------------------------------- |
+| Application, including same-origin authentication | <http://localhost:3000>                                  |
+| Go business API                                   | <http://localhost:8080>                                  |
+| Auth runtime                                      | <http://localhost:3001>                                  |
+| Next.js directly, without the auth ingress        | <http://localhost:3002>                                  |
+| PostgreSQL                                        | `localhost:5432` by default; configurable with `DB_PORT` |
+
+Use port **3000** for normal application access. Opening Next.js directly does not provide Caddy's `/api/auth/*` routing.
+
+```sh
+make dev-api       # API and its database/auth dependencies
+make dev-frontend  # Full local stack; also used by make dev
+make dev-down      # Stop the stack while preserving database volumes
+```
+
+If you run Next.js on the host, install its dependencies and run `bun run dev` inside `frontend/`; keep the API, auth and same-origin routing configured. See [frontend setup](frontend/README.md) for details.
+
+## Development
+
+### Install local tooling
+
+From the repository root:
 
 ```sh
 python3 .githooks/setup.py
 ```
 
-On Windows, use PowerShell; WSL and Make are not required to install or run hooks:
+On Windows, `py .githooks/setup.py` works in PowerShell without WSL or Make. The script installs the pinned pre-commit runner, frontend and Go dependencies, and enables hooks for the current worktree. It does not start services or apply migrations, and preserves existing custom hooks.
 
-```powershell
-py .githooks/setup.py
+The commit hook checks staged files for formatting, lint, syntax, conflict markers and accidental credentials. It does not automatically stage or rewrite files.
+
+### Run checks
+
+| Command                                                        | Purpose                                                                           |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `make precommit`                                               | Run local hook checks against all tracked files                                   |
+| `make frontend-check`                                          | Frontend format, lint, types, unit/component tests and production build           |
+| `make check`                                                   | Local hooks, API checks and frontend checks                                       |
+| `make ci`                                                      | Above, plus Go race/vulnerability checks and the frontend dependency audit        |
+| `make -C api test-integration`                                 | Database integration tests using an explicitly supplied disposable `DATABASE_URL` |
+| `cd auth && bun run lint && bun run typecheck && bun run test` | Auth runtime checks                                                               |
+| `make image-scan IMAGE=rolecue-api:local`                      | Scan a locally built runtime image with Trivy                                     |
+
+To check all files without Make, run `python3 .githooks/setup.py run --all-files` (`py` on Windows).
+
+For browser tests:
+
+```sh
+cd frontend
+bun install --frozen-lockfile
+bunx playwright install chromium
+bun run build
+bun run test:e2e
 ```
 
-`python .githooks/setup.py` also works when Python 3 is available as `python`.
-With Make installed, `make setup` calls the same script (`PYTHON=python` can override
-the default `python3`). It installs the pinned pre-commit runner, downloads frontend
-dependencies with the frozen Bun lockfile and Go module dependencies, and enables
-the hook for this Git worktree. Go lint/audit tools are installed when their Make
-checks run; `make tooling` can preinstall them. Re-running setup is safe. Existing
-custom hooks are preserved; setup stops with instructions if one needs integration.
-Setup does not start services, read credentials or apply database migrations.
-Git for Windows runs the small Git hook launcher using its bundled shell, including
-when committing from PowerShell; setup itself does not invoke a Unix shell.
+Playwright starts the standalone production build on port **3100**. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing compatible Chromium executable. Most browser tests mock API responses; they do not validate real payment, OAuth, email or AI-provider integrations. Tests requiring live services or real media fixtures are explicitly configured separately.
 
-To check all tracked files without Make, run `py .githooks/setup.py run --all-files`
-on Windows or `python3 .githooks/setup.py run --all-files` on macOS/Linux.
-The remaining Make targets and Docker smoke scripts use a POSIX shell; the full
-application/container CI runs on Linux. Only the hook job runs on all three OSes.
+For visual review, `bun run dev` exposes `/state-preview`, where loading, error, empty and AI states stay visible until another scenario is selected. The preview includes a simulated retry and is unavailable in production.
 
-| Command | Purpose |
-| --- | --- |
-| `make precommit` | Run all staged-file hook checks against all tracked files |
-| `make check` | Hooks, Go format/vet/lint/tests/build, frontend format/lint/types/tests/build |
-| `make ci` | Above, plus Go race/vulnerability checks and Bun dependency audit |
-| `make frontend-audit` | Bun HIGH/CRITICAL audit with the single approved, expiring tooling exception |
-| `make -C api test-integration` | Integration tests against an explicitly supplied disposable `DATABASE_URL` |
-| `cd frontend && bun run test:e2e` | Playwright suite after a production build and Chromium installation |
-| `make image-scan IMAGE=rolecue-api:local` | Trivy HIGH/CRITICAL gate for a locally built image |
+### Database changes
 
-The commit hook checks only staged files: Go formatting, frontend Prettier/ESLint,
-JSON/YAML syntax, conflict markers, private keys and accidental credential files.
-It preserves partially staged work and does not automatically stage or reformat files.
-Fix reported formatting with `make -C api fmt` or `cd frontend && bun run format`,
-then review and stage the changes yourself.
+Compose applies migrations before starting local application services. The API binary itself does not migrate the database. Migrations live in [`api/migrations`](api/migrations); host-side migration commands are available in [`api/Makefile`](api/Makefile).
 
-`make ci` covers checks that need no service. CI additionally runs database integration,
-Playwright and image checks. Database tests fail if the supplied database is missing or
-unreachable; use a disposable database, never production. Live LLM/S3 tests have separate
-build tags and are not part of the credential-free CI suite. Existing Playwright tests
-exercise the UI with mocked API responses, not real OAuth/email/payment integrations.
+Use a disposable database for integration tests. Avoid editing an already-applied migration; add a new migration for schema changes.
 
-## CI and GHCR
+## Delivery
 
-[The CI workflow](.github/workflows/ci.yml) runs on pull requests, pushes to `main`
-and manual dispatch. It checks the apps, migrates a temporary PostgreSQL 18 database,
-runs Playwright, then builds and smoke-tests both images. Trivy scans the final runtime
-images and blocks **any HIGH/CRITICAL finding, including unfixed findings**. JSON reports
-and CycloneDX SBOMs are retained for 14 days. Scanner errors also block publication.
-Install Trivy 0.76.0 to reproduce the image policy locally; `TRIVY=/path/to/trivy` can
-override the executable for `make image-scan`.
+[GitHub Actions](.github/workflows/ci.yml) checks the API, auth and frontend, runs database integration and Playwright tests, and builds/scans all three application images. **CI checks** is the aggregate required gate. Trivy blocks HIGH/CRITICAL findings in final runtime images; dependency-audit exceptions are documented in [security notes](docs/security-notes.md).
 
-The user approved one dependency-audit exception on 2026-10-17:
-[`GHSA-vfj7-8cjw-p6xm`](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), an unpatched
-`braces` glob-recursion DoS in ESLint/shadcn tooling. It expires after **2026-11-17 UTC**;
-the Make target automatically returns to the full audit then. The standalone frontend
-image excludes this package. This exception does not apply to Trivy or any other CVE.
-
-Only a successful main push/manual run publishes images. Pull requests never publish.
-The publish job loads the exact images that passed scanning; it does not rebuild them.
-The stable aggregate check name is **CI checks**; require it in your `main` branch rule
-to enforce checks before merging. This change does not alter repository branch rules.
+Pull requests run checks without publishing images. Eligible successful main/manual runs publish the scanned artifacts to GHCR:
 
 - `ghcr.io/cog-forge/rolecue-api`
+- `ghcr.io/cog-forge/rolecue-auth`
 - `ghcr.io/cog-forge/rolecue-frontend`
 
-Both use `latest` and a unique `sha-<commit>-<run-id>-<attempt>` tag. Digests are recorded
-in the workflow summary. Prefer the unique tag/digest when selecting a version.
-GHCR authentication uses the workflow's `GITHUB_TOKEN`; no personal access token is
-needed. An organization/package policy can still restrict publishing. Packages may
-start private; configure their access in GitHub Packages before pulling elsewhere.
-
-Set repository Actions Secret **NEXT_PUBLIC_API_BASE_URL** to the desired public API
-URL. Its current accepted value is `http://localhost:8080`. It is embedded into the
-frontend bundle at build time and is visible to browsers. To change it, update the
-Secret and start a **new CI workflow run on main**; deploy the resulting new image
-separately. Retrying only the publish job reuses the old artifacts. Fork PR checks use
-a test URL and do not need this Secret. Never put auth/DB credentials in build arguments.
-
-## Container builds
+Frontend public configuration is fixed when the image is built. Changing the deployed API URL requires a new frontend build. Deployment uses [`.docker/compose.deploy.yaml`](.docker/compose.deploy.yaml) and the values documented in [`.docker/deploy.env.example`](.docker/deploy.env.example); use a unique image tag or digest to identify the release.
 
 ```sh
-docker build -t rolecue-api:local api
-docker build --build-arg NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 \
-  -t rolecue-frontend:local frontend
+cp .docker/deploy.env.example .docker/deploy.env
+# Configure the deployment environment and release tag first.
+make deploy-pull
+make deploy-up
 ```
 
-The images target Linux amd64 and run as non-root. The frontend uses Next standalone
-with a pinned minimal Chainguard Node runtime. The API uses a pinned Wolfi base with
-Poppler, Blender 5.2.2 and VRM extension 4.10.2; downloaded Blender/VRM artifacts are
-checksum-verified and Blender's embedded Python libraries receive pinned security
-updates. Keep base digests and these versions current as new advisories appear.
-Trivy covers detected OS/language packages; it cannot prove that every library embedded
-inside a downloaded native binary is free of vulnerabilities.
+## Documentation
 
-Provide runtime credentials through container environment variables using the existing
-root/frontend `.env.example` contracts. API startup connects to its configured DB; it
-does not run migrations. Avatar conversion still requires its enable flag and explicit
-license/commercial-usage settings. For a local smoke test using an isolated database:
+- [Frontend setup and conventions](frontend/README.md)
+- [Authentication, cookies and environment ownership](auth/README.md)
+- [Live interview WebSocket protocol](docs/interview-ws-protocol.md)
+- [Scoring rubric specification](docs/SPEC-scoring-rubrics.md)
+- [Avatar conversion specification](docs/KAN-122-GLB-TO-VRM-SPEC.md)
+- [Privacy controls](docs/privacy-controls.md)
+- [Security notes and audit exceptions](docs/security-notes.md)
+- [RoleCue design contract](https://github.com/cog-forge/role-cue-design/blob/main/DESIGN.md)
 
-```sh
-DATABASE_URL=postgres://ci:ci-only@localhost:55432/rolecue_ci?sslmode=disable \
-  sh .docker/smoke.sh api rolecue-api:local
-sh .docker/smoke.sh frontend rolecue-frontend:local
-```
+Some documents under `docs/` record earlier plans or implementation stages. Check their stated scope against current source and tests before using them as setup instructions.
 
-These smoke tests use Linux host networking and temporary ports 18080/13000. They
-clean up only the containers they create. This task publishes build artifacts to GHCR;
-it does not deploy, SSH to servers or roll out containers.
+## Contributing
 
-## Recruiter Question Bank delivery
+Open an [issue](https://github.com/cog-forge/rolecue/issues) for a reproducible bug or a scoped proposal. For a code change, branch from the latest `main`, keep the diff focused, and include the relevant validation in the pull request. Use conventional commit messages such as `fix(frontend): prevent sidebar search overlap`.
 
-Apply migration `000013_posting_question_bank_delivery` before running the updated API.
-`QUESTION_BANK_SIZE` controls generation (20 in `.env.example`); the frontend uses the
-server's value. There is one shared question-generation service for posting and practice JDs.
+Follow the instructions for the component you change, including [`frontend/AGENTS.md`](frontend/AGENTS.md). Keep generated output, environment files, credentials and local review notes out of commits. CI must pass before merging.
 
-The Recruiter flow is: save the reviewed requirements and optional `refinement_note` →
-`POST /job-postings/:id/questions/generate` → review/edit the generated questions →
-`POST /job-postings/:id/submit` (or `/resubmit` after rejection). Submit and resubmit take no
-body. Generating the bank does not submit the posting: a pending posting reaches the Admin
-queue only after an explicit submit. Failed generation can be retried on the same posting; a
-second generate on an existing bank returns `409 QUESTION_BANK_EXISTS`.
+## License
 
-Submission needs a non-empty bank (`409 QUESTION_BANK_NOT_READY` otherwise), and Admins can
-approve or reject only submitted postings. Deleting the final question withdraws the posting
-from the queue; it must be submitted again. Questions can be added by hand only after the bank
-has been generated. A rejected posting can regenerate and edit its bank before resubmitting.
-
-Migration backfill keeps existing pending postings that have questions in the Admin queue;
-pending postings with an empty bank go back to preparation.
+This repository currently has no project-wide license file. Third-party assets and components retain their own licenses where included.

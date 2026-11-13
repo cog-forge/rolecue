@@ -4,7 +4,7 @@ Next.js 16 / React 19 application in the RoleCue Go monorepo. The canonical repo
 
 ## Local setup
 
-Use Bun 1.4.x and Node 22.12+. From `frontend/`:
+Use Bun 1.4.2 and Node 24.20.0 to match CI. From `frontend/`:
 
 ```sh
 bun install --frozen-lockfile
@@ -45,7 +45,9 @@ Routes compose feature components; shared UI is under `src/components`, infrastr
 
 Candidate/admin layouts use a client `SessionGate` backed by Go `/auth/me`. It controls displayed UI; it is not a server authorization check for Server Components or future Server Actions. All sensitive operations must enforce authorization at their server/API boundary. Go business endpoints enforce authentication and ownership; Better Auth's admin plugin enforces administrative permissions.
 
-Email/password registration, login, verification, recovery, configured OAuth entry points, sign-out, and admin lock/unlock are implemented. AI interview runtime, avatar assets, voice capture, evaluation/report data, payments, and much of the candidate UI remain placeholders. The interview state machine is a pure local lifecycle foundation, not a wire protocol. The avatar component is unmounted; future usage must load it dynamically from a client boundary with SSR disabled.
+The application includes authentication, candidate and recruiter workspaces, live interview sessions, avatar selection/conversion, rubric-based evaluation and reports, job applications, moderation and billing. These workflows depend on the configured Go API, auth runtime and external providers. Unit and browser tests usually mock those boundaries; they do not establish that a live provider is configured.
+
+Avatar and interview rendering stay inside client boundaries; Three.js/VRM scenes require WebGL and have fallback presentation. Read the current feature source and tests for behavior rather than relying on earlier placeholder descriptions. `/state-preview` is available only during development for reviewing shared loading, error, empty and AI states.
 
 Read `AGENTS.md` and `SKILL.md` before changing this app. See `../docs/AUTH-SINGLE-SESSION-SPEC.md` for the approved auth architecture.
 

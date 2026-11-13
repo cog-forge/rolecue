@@ -36,6 +36,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { PageHeader, pillClass } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -211,46 +212,42 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
       data-open="false"
       className="t-panel-slide mx-auto w-full max-w-6xl space-y-7 pb-8"
     >
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-2">
-          {!selected && (
-            <p className="text-xs font-semibold tracking-widest text-rolecue-brand uppercase">
-              {role === "admin" ? t("adminEyebrow") : t("recruiterEyebrow")}
-            </p>
-          )}
-          <h1
-            ref={heading}
-            tabIndex={-1}
-            className="text-3xl font-semibold tracking-tight outline-none"
-          >
-            {selected
-              ? selected === "new"
-                ? t("create")
-                : t("rubricDetail")
-              : t("title")}
-          </h1>
-          {!selected && (
-            <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              {role === "admin"
-                ? t("adminDescription")
-                : t("recruiterDescription")}
-            </p>
-          )}
-        </div>
-        {!selected && (
-          <Button
-            className="h-11 rounded-full bg-rolecue-brand px-5 text-white hover:bg-rolecue-brand/90 dark:text-background"
-            onClick={() => open("new")}
-            disabled={action.isPending}
-          >
-            <Plus
-              aria-hidden
-              className="size-4 transition-transform duration-(--duration-fast) ease-(--ease-smooth-out) group-hover/button:rotate-90 group-focus-visible/button:rotate-90 motion-reduce:rotate-0! motion-reduce:transition-none"
-            />
-            {t("create")}
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        titleRef={heading}
+        title={
+          selected
+            ? selected === "new"
+              ? t("create")
+              : t("rubricDetail")
+            : t("title")
+        }
+        meta={
+          !selected
+            ? role === "admin"
+              ? t("adminEyebrow")
+              : t("recruiterEyebrow")
+            : undefined
+        }
+        description={
+          !selected
+            ? role === "admin"
+              ? t("adminDescription")
+              : t("recruiterDescription")
+            : undefined
+        }
+        actions={
+          !selected && (
+            <Button
+              className={pillClass}
+              onClick={() => open("new")}
+              disabled={action.isPending}
+            >
+              <Plus aria-hidden className="size-4" />
+              {t("create")}
+            </Button>
+          )
+        }
+      />
       {notice && (
         <Alert
           role="status"
@@ -341,8 +338,8 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
         </>
       ) : (
         <>
-          <Card className="gap-0 rounded-2xl py-0 [--card-spacing:--spacing(5)]">
-            <CardHeader className="flex flex-wrap items-center justify-between gap-4 border-b bg-rolecue-brand/5 py-5 sm:flex-row">
+          <Card className="gap-0 rounded-xl py-0 [--card-spacing:--spacing(5)]">
+            <CardHeader className="flex flex-wrap items-center justify-between gap-4 border-b bg-muted/30 py-4 sm:flex-row">
               {role === "recruiter" ? (
                 <Tabs
                   value={scope}
@@ -354,16 +351,10 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
                   }}
                 >
                   <TabsList className="h-11">
-                    <TabsTrigger
-                      value="system"
-                      className="h-9 data-[state=active]:bg-rolecue-brand data-[state=active]:text-white dark:data-[state=active]:text-background"
-                    >
+                    <TabsTrigger value="system" className="h-9">
                       {t("system")}
                     </TabsTrigger>
-                    <TabsTrigger
-                      value="own"
-                      className="h-9 data-[state=active]:bg-rolecue-brand data-[state=active]:text-white dark:data-[state=active]:text-background"
-                    >
+                    <TabsTrigger value="own" className="h-9">
                       {t("own")}
                     </TabsTrigger>
                   </TabsList>
@@ -373,7 +364,7 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
               )}
               <Badge
                 variant="outline"
-                className="border-rolecue-brand/20 bg-rolecue-brand/10 px-3 py-1 text-rolecue-brand"
+                className="border-border bg-background px-3 py-1 text-muted-foreground"
               >
                 {t("count", { count: list.data?.pagination.total ?? 0 })}
               </Badge>
@@ -454,13 +445,13 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
                   {rows.map((r) => (
                     <li
                       key={r.id}
-                      className="flex flex-wrap items-center justify-between gap-4 px-5 py-5 transition-colors hover:bg-rolecue-brand/3 motion-reduce:transition-none sm:px-6"
+                      className="flex flex-wrap items-center justify-between gap-4 px-5 py-5 transition-colors hover:bg-muted/30 motion-reduce:transition-none sm:px-6"
                     >
                       <div className="min-w-0 flex-1 basis-64 space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             variant="link"
-                            className="h-auto max-w-full justify-start p-0 text-left text-base font-semibold whitespace-normal text-foreground hover:text-rolecue-brand"
+                            className="h-auto max-w-full justify-start p-0 text-left text-base font-semibold whitespace-normal text-foreground hover:text-foreground"
                             onClick={() => open(r.id)}
                             disabled={action.isPending}
                           >
@@ -495,7 +486,7 @@ export function RubricLibrary({ role }: { role: "admin" | "recruiter" }) {
                           {r.description}
                         </p>
                         <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span className="max-w-full rounded bg-rolecue-brand/8 px-1.5 py-0.5 text-rolecue-brand break-all">
+                          <span className="max-w-full rounded bg-muted px-1.5 py-0.5 text-muted-foreground break-all">
                             {r.question_type}
                           </span>
                           <span>
