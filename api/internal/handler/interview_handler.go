@@ -49,6 +49,10 @@ type CreateInterviewRequest struct {
 	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
 	AvatarID      *uuid.UUID `json:"avatar_id,omitempty"`
 	VoiceID       *uuid.UUID `json:"voice_id,omitempty"`
+	// FocusItemID is the topic of the role profile's learning roadmap to practise. Omitted or null is general
+	// practice. Practice only; a recruitment start with it is refused. The session stores it and answers with
+	// the focus it really has.
+	FocusItemID *uuid.UUID `json:"focus_item_id,omitempty"`
 }
 
 // AppendTurnRequest is the answer to one question. position is the 1-based number of the question.
@@ -65,7 +69,7 @@ type AppendTurnRequest struct {
 // @Produce json
 // @Security SessionCookie
 // @Param Origin header string true "Trusted frontend origin"
-// @Param Idempotency-Key header string false "Optional. A practice start repeated with the same key returns the first session and charges once; up to 128 characters"
+// @Param Idempotency-Key header string false "Optional. A practice start repeated with the same key and the same focus returns the first session and charges once (200, resumed true); the same key with another focus_item_id is 409 INTERVIEW_START_INTENT_CONFLICT; up to 128 characters"
 // @Param body body CreateInterviewRequest true "Session to start; body limit 16 KiB"
 // @Success 200 {object} response.Envelope{data=domain.Session}
 // @Success 201 {object} response.Envelope{data=domain.Session}
@@ -86,6 +90,11 @@ func (h *InterviewHandler) Create(c *gin.Context) {
 	if !interviewJSON(c, &request) {
 		return
 	}
+	// A focused start may generate the questions its topic lacks first (one model call), so it gets the same
+	// response window as a roadmap generation.
+	if request.FocusItemID != nil && !roleWriteDeadline(c, roadmapWriteDeadline) {
+		return
+	}
 	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
 	if len(key) > maxIdempotencyKeyLength {
 		response.Error(c, apperror.New(apperror.CodeValidation, "Idempotency-Key is too long"))
@@ -93,7 +102,7 @@ func (h *InterviewHandler) Create(c *gin.Context) {
 	}
 	session, created, err := h.service.Create(c.Request.Context(), user.ID, user.Role, domain.CreateInput{
 		Type: domain.Type(request.Type), RoleProfileID: request.RoleProfileID, ApplicationID: request.ApplicationID,
-		AvatarID: request.AvatarID, VoiceID: request.VoiceID, IdempotencyKey: key,
+		AvatarID: request.AvatarID, VoiceID: request.VoiceID, FocusItemID: request.FocusItemID, IdempotencyKey: key,
 	})
 	if err != nil {
 		response.Error(c, err)

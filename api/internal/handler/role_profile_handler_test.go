@@ -92,6 +92,9 @@ func TestRoleProfileWriteDeadline(t *testing.T) {
 			if operation == "complete" {
 				timeout = 50 * time.Second
 			}
+			if operation == "confirm" {
+				timeout = roadmapWriteDeadline
+			}
 			if w.deadline.Before(start.Add(timeout)) || w.deadline.After(end.Add(timeout)) {
 				t.Fatalf("deadline %v outside request window + %v", w.deadline, timeout)
 			}

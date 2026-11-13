@@ -7,6 +7,7 @@ import (
 	evaluationservice "github.com/cog-forge/rolecue/api/internal/features/evaluation/service"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
+	roadmapservice "github.com/cog-forge/rolecue/api/internal/features/roadmap/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ai"
 	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
@@ -20,8 +21,10 @@ func ProvideInterviewRepository(pool *pgxpool.Pool) *repository.Repository {
 
 // ProvideInterviewService takes the question and follow-up limits from the interview config, hands
 // completed sessions to the evaluation engine and decides follow-ups with the configured LLM. Without a
-// usable LLM the API still starts and the interview asks core questions only.
-func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, scoring *evaluationservice.Scoring, budget llmbudget.Guard) (*service.Service, error) {
+// usable LLM the API still starts and the interview asks core questions only. After a successful evaluation
+// the results of a practice session are linked to Roadmap topics; that link can never fail the evaluation
+// (KAN-350). A focused practice start tops up a topic through the Roadmap service (KAN-347).
+func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, scoring *evaluationservice.Scoring, budget llmbudget.Guard, roadmap *roadmapservice.Service, assessment *roadmapservice.AssessmentService) (*service.Service, error) {
 	svc, err := service.New(repo, service.Settings{
 		QuestionLimit:          int32(cfg.Interview.QuestionLimit),
 		DefaultProviderVoiceID: cfg.Interview.DefaultProviderVoiceID,
@@ -32,8 +35,10 @@ func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, sc
 	if err != nil {
 		return nil, err
 	}
-	svc.SetEvaluator(scoring)
+	svc.SetEvaluator(roadmapservice.NewEvaluateThenLink(scoring, assessment))
 	svc.SetLLMBudget(budget)
+	// A focused practice start tops up a topic that has too few bank questions before it charges.
+	svc.SetTopicTopUp(repo, roadmap)
 	if cfg.Interview.FollowUpLimit > 0 {
 		decider, err := provideFollowUpDecider(cfg)
 		if err != nil {

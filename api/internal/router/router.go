@@ -41,6 +41,8 @@ type Router struct {
 	adminOverviewHandler   *handler.AdminOverviewHandler
 	interviewHandlers      *handler.InterviewHandlers
 	llmBudget              llmbudget.Guard
+	// roadmapHandler is set with WithRoadmapHandler (KAN-352). Without it the Roadmap read routes are not registered.
+	roadmapHandler *handler.RoadmapHandler
 	// accountHandler is set with WithAccountHandler, not through NewRouter, so adding it did not change
 	// the constructor every router test calls. Without it the /account routes are not registered.
 	accountHandler *accounthandler.Handler
@@ -50,6 +52,12 @@ type Router struct {
 // WithRubricHandler adds the scoring rubric routes (KAN-326). Without it they are not registered.
 func (r *Router) WithRubricHandler(h *handler.RubricHandler) *Router {
 	r.rubricHandler = h
+	return r
+}
+
+// WithRoadmapHandler adds the Learning Roadmap read routes (KAN-352).
+func (r *Router) WithRoadmapHandler(h *handler.RoadmapHandler) *Router {
+	r.roadmapHandler = h
 	return r
 }
 
@@ -179,6 +187,14 @@ func (r *Router) Setup() *gin.Engine {
 	profilesJD.DELETE("/:id", r.roleProfileHandler.Delete)
 	profilesJD.POST("/:id/analyze", with(limits.llm, r.roleProfileHandler.Analyze)...)
 	profilesJD.POST("/:id/confirm", with(limits.llm, r.roleProfileHandler.Confirm)...)
+	profilesJD.POST("/:id/roadmap/retry", with(limits.llm, r.roleProfileHandler.RetryRoadmap)...)
+	profilesJD.POST("/:id/roadmap/regenerate", with(limits.llm, r.roleProfileHandler.RegenerateRoadmap)...)
+
+	// Learning Roadmap read API (KAN-352): Candidate only, owner of the Role Profile.
+	if r.roadmapHandler != nil {
+		profilesJD.GET("/:id/roadmap", r.roadmapHandler.Get)
+		profilesJD.GET("/:id/roadmap/items/:item_id/history", r.roadmapHandler.History)
+	}
 
 	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	{
