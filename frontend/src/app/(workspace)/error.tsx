@@ -1,17 +1,28 @@
 "use client";
+
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
+import { routes } from "@/config/routes";
+
 export default function WorkspaceError({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  const t = useTranslations("common");
+  const t = useTranslations("common.workspaceError");
+
   return (
-    <section role="alert" className="space-y-4">
-      <h1 className="text-2xl font-semibold">{t("workspaceError.title")}</h1>
-      <Button onClick={reset}>{t("globalError.retry")}</Button>
-    </section>
+    <div className="flex min-h-[60vh] w-full items-center justify-center p-4">
+      <ErrorState
+        variant="card"
+        title={t("title")}
+        error={error}
+        onRetry={reset}
+        homeHref={routes.home}
+        className="max-w-xl"
+      />
+    </div>
   );
 }
