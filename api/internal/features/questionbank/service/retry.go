@@ -28,19 +28,32 @@ func (s *Service) generateWithRetry(ctx context.Context, in domain.GenerationInp
 	fail := func(cause error) error {
 		return apperror.Wrap(apperror.CodeQuestionGenerationFailed, generationFailedMessage, cause)
 	}
+	// A Roadmap bank is generated large enough for every topic to reach its minimum, and each topic is given
+	// its share of it; the validation below still checks what the model actually wrote.
+	size := s.size
+	if len(in.Topics) > 0 {
+		size = domain.PracticeBankSize(s.size, len(in.Topics))
+		if in.Size > 0 {
+			size = max(in.Size, domain.MinQuestionsPerTopic*len(in.Topics))
+		}
+		in.Topics = domain.BalancedQuotas(in.Topics, size)
+	}
 	var best []domain.GeneratedQuestion
 	bestCovered := -1
 	for attempt := 0; ; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, fail(err)
 		}
-		candidate, err := s.generator.Generate(ctx, in, s.size)
+		candidate, err := s.generator.Generate(ctx, in, size)
 		if ctx.Err() != nil {
 			return nil, fail(ctx.Err())
 		}
 		if err == nil {
 			var questions []domain.GeneratedQuestion
-			questions, err = validateCandidate(in, candidate, s.size)
+			questions, err = validateCandidate(in, candidate, size)
+			if err == nil {
+				err = ValidateBank(in, questions)
+			}
 			if err == nil {
 				coverage, coverErr := s.candidateCoverage(in, questions)
 				if coverErr != nil {

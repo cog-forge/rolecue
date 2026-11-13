@@ -142,7 +142,7 @@ func (s *Service) Generate(ctx context.Context, recruiterID uuid.UUID, role stri
 	if !posting.Editable() {
 		return domain.BankMutation{}, apperror.New(apperror.CodeQuestionBankLocked, "the question bank can only be changed while the job posting is pending or rejected")
 	}
-	questions, err := s.draft(ctx, posting.JDID, &recruiterID, &postingID)
+	questions, err := s.draft(ctx, posting.JDID, &recruiterID, &postingID, nil, true)
 	if err != nil {
 		return domain.BankMutation{}, err
 	}
@@ -162,11 +162,58 @@ func (s *Service) GenerateForPractice(ctx context.Context, candidateID, jdID uui
 	if err := s.repository.CandidateOwnsJD(ctx, candidateID, jdID); err != nil {
 		return nil, err
 	}
-	questions, err := s.draft(ctx, jdID, nil, nil)
+	questions, err := s.draft(ctx, jdID, nil, nil, nil, true)
 	if err != nil {
 		return nil, err
 	}
 	return s.repository.SaveForPractice(ctx, candidateID, jdID, questions)
+}
+
+// DraftPracticeBank generates, without storing, the practice bank of a Candidate's own profile mapped to the
+// given Roadmap topics (KAN-344): every question names one topic and every topic has at least
+// MinQuestionsPerTopic distinct questions, or the draft is invalid output. The caller stores the result in the
+// same transaction that publishes the topics; an existing bank is that caller's to replace, so it is not an
+// error here.
+func (s *Service) DraftPracticeBank(ctx context.Context, candidateID, jdID uuid.UUID, topics []domain.RoadmapTopic) ([]domain.GeneratedQuestion, error) {
+	if err := s.requireEnabled(); err != nil {
+		return nil, err
+	}
+	if len(topics) == 0 {
+		return nil, invalid("a roadmap bank needs at least one topic")
+	}
+	if err := s.repository.CandidateOwnsJD(ctx, candidateID, jdID); err != nil {
+		return nil, err
+	}
+	return s.draft(ctx, jdID, nil, nil, topics, false)
+}
+
+// DraftTopicQuestions generates, without storing, count more practice questions for one Roadmap topic of a
+// Candidate's own profile (KAN-347, the top-up before a focused start). The questions already in the bank are
+// given to the model as data and dropped when repeated, so the new ones are different from every stored one.
+// count is raised to MinQuestionsPerTopic, the smallest batch the topic rule accepts. It is one call with the
+// usual retry budget; the caller stores the result and decides what a failure means.
+func (s *Service) DraftTopicQuestions(ctx context.Context, candidateID, jdID uuid.UUID, topic domain.RoadmapTopic, count int) ([]domain.GeneratedQuestion, error) {
+	if err := s.requireEnabled(); err != nil {
+		return nil, err
+	}
+	if count < 1 {
+		return nil, invalid("a top-up needs at least one question")
+	}
+	if err := s.repository.CandidateOwnsJD(ctx, candidateID, jdID); err != nil {
+		return nil, err
+	}
+	existing, err := s.repository.List(ctx, jdID)
+	if err != nil {
+		return nil, err
+	}
+	contents := make([]string, 0, len(existing))
+	for _, question := range existing {
+		contents = append(contents, question.Content)
+	}
+	return s.draft(ctx, jdID, nil, nil, []domain.RoadmapTopic{topic}, false, func(in *domain.GenerationInput) {
+		in.Size = max(count, domain.MinQuestionsPerTopic)
+		in.Existing = contents
+	})
 }
 
 // CurrentBank is the stable read contract for the interview runtime (KAN-56). It is not scoped by
@@ -268,13 +315,15 @@ func (s *Service) requireEnabled() error {
 // every session can be graded (KAN-334). A Recruiter's draft may use the active system templates and the
 // Recruiter's own rubrics; a Candidate's practice draft (recruiterID nil) only the active system templates,
 // because a Candidate has no rubrics of their own. The rubric and the expected answer stay server-side.
-func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID, postingID *uuid.UUID) ([]domain.GeneratedQuestion, error) {
-	existing, err := s.repository.List(ctx, jdID)
-	if err != nil {
-		return nil, err
-	}
-	if len(existing) > 0 {
-		return nil, apperror.New(apperror.CodeQuestionBankExists, "this job description already has a question bank")
+func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID, postingID *uuid.UUID, topics []domain.RoadmapTopic, requireEmpty bool, options ...func(*domain.GenerationInput)) ([]domain.GeneratedQuestion, error) {
+	if requireEmpty {
+		existing, err := s.repository.List(ctx, jdID)
+		if err != nil {
+			return nil, err
+		}
+		if len(existing) > 0 {
+			return nil, apperror.New(apperror.CodeQuestionBankExists, "this job description already has a question bank")
+		}
 	}
 	input, err := s.repository.GenerationInput(ctx, jdID)
 	if err != nil {
@@ -284,6 +333,10 @@ func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID, postin
 		return nil, apperror.New(apperror.CodeRequirementsNotConfirmed, "confirm the job description requirements before generating questions")
 	}
 	input.Grading = true
+	input.Topics = topics
+	for _, option := range options {
+		option(&input)
+	}
 	if input.Rubrics, err = s.repository.RubricCatalog(ctx, rubricOwner(recruiterID)); err != nil {
 		return nil, err
 	}
@@ -293,7 +346,7 @@ func (s *Service) draft(ctx context.Context, jdID uuid.UUID, recruiterID, postin
 		return nil, err
 	}
 	done := logger.Start(ctx, "questionbank.generate", logger.String("jd_id", jdID.String()),
-		logger.Int("requested", s.size), logger.Int("requirements", len(input.Requirements)), logger.Int("rubrics", len(input.Rubrics)))
+		logger.Int("requested", s.size), logger.Int("topics", len(topics)), logger.Int("requirements", len(input.Requirements)), logger.Int("rubrics", len(input.Rubrics)))
 	questions, err := s.generateWithRetry(ctx, input, recruiterID != nil)
 	done(err, logger.Int("count", len(questions)))
 	return questions, err

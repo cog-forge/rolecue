@@ -3,6 +3,7 @@ package domain
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -228,6 +229,99 @@ type GenerationInput struct {
 	// metrics of the posting being generated for, or the whole catalog for a practice bank. The service
 	// reads them; they are not part of the prompt.
 	ActiveMetrics []uuid.UUID
+	// Topics are the Roadmap topics a practice bank must be mapped to (KAN-344): every generated question
+	// names exactly one of them, and each needs at least MinQuestionsPerTopic distinct questions. Empty for a
+	// Recruiter's posting bank and for a bank without a Roadmap, which keep the topic-free contract.
+	Topics []RoadmapTopic
+	// Size, when positive, is how many questions this call writes instead of the configured bank size (a top-up of
+	// one topic). Existing are bank questions already stored, given to the model as data so it writes new ones; a
+	// proposed question equal to one of them is dropped by validation.
+	Size     int
+	Existing []string
+}
+
+// ErrBankInUse means the practice bank cannot be replaced because the profile already has an interview: its
+// questions are the history of those sessions.
+var ErrBankInUse = errors.New("the practice question bank is used by an interview")
+
+// MinQuestionsPerTopic is the product rule that a Roadmap topic needs five distinct questions in the bank to
+// be achievable (Learning Roadmap spec, rule 8).
+const MinQuestionsPerTopic = 5
+
+// RoadmapTopic is one topic of the Roadmap, with the id the backend assigned. Quota is how many questions the
+// model is asked to write for it in this call. Title and Description were generated from an untrusted job
+// description, so the prompt treats them as data.
+type RoadmapTopic struct {
+	ID          uuid.UUID
+	Title       string
+	Description string
+	Quota       int
+}
+
+// PracticeBankSize is how many questions a practice bank is generated with: the configured size, raised to
+// MinQuestionsPerTopic per topic when that is more, so a bank is always large enough for the distribution rule
+// to be satisfiable. The configured size alone guarantees nothing per topic.
+func PracticeBankSize(configured, topics int) int {
+	return max(configured, MinQuestionsPerTopic*topics)
+}
+
+// BalancedQuotas spreads size questions over the topics as evenly as possible; the earlier (more important)
+// topics take the remainder. The topics are copied.
+func BalancedQuotas(topics []RoadmapTopic, size int) []RoadmapTopic {
+	out := append([]RoadmapTopic(nil), topics...)
+	if len(out) == 0 {
+		return out
+	}
+	for i := range out {
+		out[i].Quota = size / len(out)
+		if i < size%len(out) {
+			out[i].Quota++
+		}
+	}
+	return out
+}
+
+// BatchQuotas picks the topics and counts of the next batch of at most size questions: topics still short of
+// their Quota (have counts the questions already written per topic), most missing first, one question at a
+// time. It returns only topics with a positive allotment, the allotment in Quota; the sum is at most size.
+func BatchQuotas(topics []RoadmapTopic, have map[uuid.UUID]int, size int) []RoadmapTopic {
+	out := make([]RoadmapTopic, 0, len(topics))
+	allot := make([]int, len(topics))
+	missing := make([]int, len(topics))
+	for i, topic := range topics {
+		missing[i] = topic.Quota - have[topic.ID]
+	}
+	for given := 0; given < size; {
+		best := -1
+		for i := range topics {
+			if missing[i]-allot[i] > 0 && (best < 0 || missing[i]-allot[i] > missing[best]-allot[best]) {
+				best = i
+			}
+		}
+		if best < 0 {
+			break
+		}
+		allot[best]++
+		given++
+	}
+	for i, topic := range topics {
+		if allot[i] > 0 {
+			topic.Quota = allot[i]
+			out = append(out, topic)
+		}
+	}
+	return out
+}
+
+// CountByTopic counts questions per topic id; questions without a topic are ignored.
+func CountByTopic(questions []GeneratedQuestion) map[uuid.UUID]int {
+	counts := make(map[uuid.UUID]int)
+	for _, question := range questions {
+		if question.TopicID != nil {
+			counts[*question.TopicID]++
+		}
+	}
+	return counts
 }
 
 // GeneratedQuestion is one proposed question. RubricID and ExpectedAnswer are set only in grading mode;
@@ -237,6 +331,8 @@ type GeneratedQuestion struct {
 	Content        string
 	RubricID       *uuid.UUID
 	ExpectedAnswer *string
+	// TopicID is the one Roadmap topic the question belongs to; set only when the input carries topics.
+	TopicID *uuid.UUID
 }
 
 // GenerationCandidate is an untrusted proposal from the model. Only service validation turns it

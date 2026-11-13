@@ -399,6 +399,12 @@ func insertGradedIfEmpty(ctx context.Context, q *Queries, jdID, recruiterID uuid
 	if count > 0 {
 		return nil, apperror.New(apperror.CodeQuestionBankExists, "this job description already has a question bank")
 	}
+	return insertGraded(ctx, q, jdID, recruiterID, questions)
+}
+
+// insertGraded writes the questions of an empty bank. The caller has checked that it is empty.
+func insertGraded(ctx context.Context, q *Queries, jdID, recruiterID uuid.UUID, questions []domain.GeneratedQuestion) ([]domain.BankQuestion, error) {
+	itemIDs := make([]string, 0, len(questions))
 	contents := make([]string, 0, len(questions))
 	rubricIDs := make([]string, 0, len(questions))
 	answers := make([]string, 0, len(questions))
@@ -415,6 +421,11 @@ func insertGradedIfEmpty(ctx context.Context, q *Queries, jdID, recruiterID uuid
 		}
 		rubricIDs = append(rubricIDs, rubricID)
 		answers = append(answers, answer)
+		itemID := ""
+		if question.TopicID != nil {
+			itemID = question.TopicID.String()
+		}
+		itemIDs = append(itemIDs, itemID)
 	}
 	if len(chosen) > 0 {
 		if _, err := q.LockUsableRubrics(ctx, LockUsableRubricsParams{RubricIds: chosen, RecruiterID: recruiterID}); err != nil {
@@ -422,7 +433,7 @@ func insertGradedIfEmpty(ctx context.Context, q *Queries, jdID, recruiterID uuid
 		}
 	}
 	if _, err := q.InsertGradedCoreQuestions(ctx, InsertGradedCoreQuestionsParams{
-		JdID: jdID, Contents: contents, RubricIds: rubricIDs, RecruiterID: recruiterID, ExpectedAnswers: answers}); err != nil {
+		JdID: jdID, Contents: contents, RubricIds: rubricIDs, RecruiterID: recruiterID, ExpectedAnswers: answers, ItemIds: itemIDs}); err != nil {
 		return nil, persistenceError(err)
 	}
 	return listBank(ctx, q, jdID, recruiterID)
@@ -456,6 +467,53 @@ func (r *Repository) SaveForPractice(ctx context.Context, candidateID, jdID uuid
 		return nil, err
 	}
 	return saved, nil
+}
+
+// ReplacePracticeBank swaps the practice bank of a profile's job description for the given questions inside the
+// caller's transaction, which also publishes the Roadmap topics the questions are mapped to (KAN-344). The old
+// bank is deleted only after the new one is valid and in the same transaction, so a failure anywhere leaves
+// the old bank intact. The caller holds the practice start lock of the profile, so no session can start
+// between the check below and the commit; a profile that already has an interview keeps its bank
+// (ErrBankInUse).
+func (r *Repository) ReplacePracticeBank(ctx context.Context, tx pgx.Tx, jdID uuid.UUID, questions []domain.GeneratedQuestion) error {
+	q := r.queries.WithTx(tx)
+	used, err := q.JDHasPracticeInterviews(ctx, jdID)
+	if err != nil {
+		return persistenceError(err)
+	}
+	if used {
+		return domain.ErrBankInUse
+	}
+	if err = q.DeleteJDCoreQuestions(ctx, jdID); err != nil {
+		return persistenceError(err)
+	}
+	// Practice rubrics are the active system templates only: uuid.Nil owns no rubric.
+	_, err = insertGraded(ctx, q, jdID, uuid.Nil, questions)
+	return err
+}
+
+// AppendTopicQuestions adds questions to the practice bank of one Roadmap topic inside the caller's transaction,
+// which holds the profile's practice start lock (KAN-347 top-up). It changes nothing that exists: no stored
+// question, rubric binding or topic mapping is touched. When the topic already has total questions or more (a
+// concurrent top-up got there first) nothing is written and false is returned. A topic that was replaced by a
+// regeneration since the draft is a conflict, not a foreign key error.
+func (r *Repository) AppendTopicQuestions(ctx context.Context, tx pgx.Tx, jdID, topicID uuid.UUID, total int, questions []domain.GeneratedQuestion) (bool, error) {
+	q := r.queries.WithTx(tx)
+	have, err := q.CountTopicCoreQuestions(ctx, CountTopicCoreQuestionsParams{JdID: jdID, RoadmapItemID: &topicID})
+	if err != nil {
+		return false, persistenceError(err)
+	}
+	if int(have) >= total {
+		return false, nil
+	}
+	if _, err = insertGraded(ctx, q, jdID, uuid.Nil, questions); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && (pgErr.Code == "23503" || pgErr.Code == "23514") {
+			return false, apperror.New(apperror.CodeRoadmapGenerating, "The learning roadmap changed while the questions were being prepared.")
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // postingRefusal explains why a guarded statement affected no row. questionMissing is true for
