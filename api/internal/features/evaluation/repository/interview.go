@@ -249,3 +249,21 @@ func uuidPtr(value pgtype.UUID) *uuid.UUID {
 	id := uuid.UUID(value.Bytes)
 	return &id
 }
+
+// CoreResultFacts reads, in position order, what is stored about each core question assigned to an interview:
+// delivered, answered and the Barem question score. It applies no policy and does not check the interview type
+// or state; the caller reads InterviewRecord for that.
+func (r *Repository) CoreResultFacts(ctx context.Context, interviewID uuid.UUID) ([]domain.CoreResultFacts, error) {
+	rows, err := r.queries.ListCoreResultFacts(ctx, interviewID)
+	if err != nil {
+		return nil, interviewPersistenceError(err)
+	}
+	facts := make([]domain.CoreResultFacts, 0, len(rows))
+	for _, row := range rows {
+		facts = append(facts, domain.CoreResultFacts{
+			Position: row.Position, CoreQuestionID: row.CoreQuestionID,
+			Delivered: row.Delivered, Answered: row.Answered, Score: dbnum.Float(row.Score),
+		})
+	}
+	return facts, nil
+}

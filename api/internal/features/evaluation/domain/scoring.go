@@ -140,3 +140,17 @@ type Evaluation struct {
 	// injection pattern, or model text echoed an instruction. The evaluation still completes.
 	InjectionFlagged bool
 }
+
+// CoreResultFacts are the stored facts about one assigned core question of a session, for the Learning Roadmap
+// adapter (KAN-349). They carry no question text, expected answer or rubric: only whether the question was
+// delivered to the Candidate, whether it was answered, and the Barem question score when it was graded.
+type CoreResultFacts struct {
+	Position       int32
+	CoreQuestionID uuid.UUID
+	// Delivered is true when the live engine delivered the question (interview_questions.asked_at is set).
+	Delivered bool
+	// Answered is true when the question has a non-empty stored answer; follow-ups belong to their core.
+	Answered bool
+	// Score is interview_questions.score, nil for a question that was not graded.
+	Score *float64
+}
