@@ -40,7 +40,39 @@
   },
   "notFound": {
     "title": "Page not found",
-    "home": "Return home"
+    "description": "We could not find the page you were looking for. Try searching, or pick one of the popular pages below.",
+    "home": "Return home",
+    "searchPlaceholder": "Search pages",
+    "search": "Search",
+    "popularLinks": "Popular pages",
+    "jobs": "Find jobs",
+    "pricing": "Pricing",
+    "login": "Sign in",
+    "noResults": "No pages match your search."
+  },
+  "emptyState": {
+    "title": "No items found",
+    "description": "There are no items to display right now.",
+    "searchTitle": "No results found",
+    "searchDescription": "No results matched your search. Try different keywords or reset filters.",
+    "clearSearch": "Clear search",
+    "resetFilters": "Reset filters"
+  },
+  "errorState": {
+    "title": "Something went wrong",
+    "description": "An error occurred while loading this section.",
+    "retry": "Try again",
+    "back": "Go back",
+    "home": "Return home",
+    "status404": "The requested item was not found.",
+    "status403": "You do not have permission to view this content.",
+    "status500": "A server error occurred. Please try again later."
+  },
+  "aiLoader": {
+    "thinking": "AI is analyzing…",
+    "generating": "AI is generating questions…",
+    "evaluating": "AI is grading barem criteria…",
+    "processing": "Processing with AI…"
   },
   "workspaceError": {
     "title": "Unable to load this page"

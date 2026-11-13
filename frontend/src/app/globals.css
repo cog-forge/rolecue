@@ -1015,3 +1015,155 @@ html[data-posting-transition]::view-transition-new(posting-tabs) {
     transition: none !important;
   }
 }
+
+/* The supplied morph component refers to keyframes that were not included with it. */
+.morph-dot {
+  animation-duration: 2s;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+/* Pastel shades derived from the RoleCue brand blue in both themes. */
+.morph-dot:nth-child(1) {
+  background-color: color-mix(
+    in srgb,
+    var(--rolecue-brand-blue, #185cc0) 55%,
+    white
+  );
+}
+.morph-dot:nth-child(2) {
+  background-color: color-mix(
+    in srgb,
+    var(--rolecue-brand-blue, #185cc0) 40%,
+    white
+  );
+}
+.morph-dot:nth-child(3) {
+  background-color: color-mix(
+    in srgb,
+    var(--rolecue-brand-blue, #185cc0) 30%,
+    white
+  );
+}
+.morph-dot:nth-child(4) {
+  background-color: color-mix(
+    in srgb,
+    var(--rolecue-brand-blue, #185cc0) 48%,
+    white
+  );
+}
+@keyframes morph-0 {
+  0%,
+  100% {
+    transform: translate(-15px, -15px);
+    border-radius: 20%;
+  }
+  50% {
+    transform: translate(15px, 15px) rotate(180deg);
+    border-radius: 50%;
+  }
+}
+@keyframes morph-1 {
+  0%,
+  100% {
+    transform: translate(15px, -15px);
+    border-radius: 20%;
+  }
+  50% {
+    transform: translate(-15px, 15px) rotate(180deg);
+    border-radius: 50%;
+  }
+}
+@keyframes morph-2 {
+  0%,
+  100% {
+    transform: translate(-15px, 15px);
+    border-radius: 20%;
+  }
+  50% {
+    transform: translate(15px, -15px) rotate(180deg);
+    border-radius: 50%;
+  }
+}
+@keyframes morph-3 {
+  0%,
+  100% {
+    transform: translate(15px, 15px);
+    border-radius: 20%;
+  }
+  50% {
+    transform: translate(-15px, -15px) rotate(180deg);
+    border-radius: 50%;
+  }
+}
+.ai-loader-circle {
+  animation: ai-loader-circle 5s linear infinite;
+}
+.ai-loader-letter {
+  animation: ai-loader-letter 3s infinite;
+}
+@keyframes ai-loader-circle {
+  0% {
+    transform: rotate(90deg);
+    box-shadow:
+      0 6px 12px #38bdf8 inset,
+      0 12px 18px #005dff inset,
+      0 36px 36px #1e40af inset,
+      0 0 6px #005dff33;
+  }
+  50% {
+    transform: rotate(270deg);
+    box-shadow:
+      0 6px 12px #60a5fa inset,
+      0 12px 6px #0284c7 inset,
+      0 24px 36px #005dff inset,
+      0 0 6px #005dff33;
+  }
+  100% {
+    transform: rotate(450deg);
+    box-shadow:
+      0 6px 12px #4dc8fd inset,
+      0 12px 18px #005dff inset,
+      0 36px 36px #1e40af inset,
+      0 0 6px #005dff33;
+  }
+}
+@keyframes ai-loader-letter {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  40% {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .morph-dot,
+  .ai-loader-circle,
+  .ai-loader-letter {
+    animation: none;
+  }
+  .morph-dot:nth-child(1) {
+    transform: translate(-15px, -15px);
+  }
+  .morph-dot:nth-child(2) {
+    transform: translate(15px, -15px);
+  }
+  .morph-dot:nth-child(3) {
+    transform: translate(-15px, 15px);
+  }
+  .morph-dot:nth-child(4) {
+    transform: translate(15px, 15px);
+  }
+  .ai-loader-circle {
+    box-shadow:
+      0 6px 12px #38bdf8 inset,
+      0 12px 18px #005dff inset,
+      0 36px 36px #1e40af inset;
+  }
+}

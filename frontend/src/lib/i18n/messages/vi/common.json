@@ -40,7 +40,39 @@
   },
   "notFound": {
     "title": "Không tìm thấy trang",
-    "home": "Về trang chủ"
+    "description": "Không tìm thấy trang bạn cần. Hãy tìm kiếm hoặc chọn một trang phổ biến bên dưới.",
+    "home": "Về trang chủ",
+    "searchPlaceholder": "Tìm trang",
+    "search": "Tìm kiếm",
+    "popularLinks": "Các trang phổ biến",
+    "jobs": "Tìm việc làm",
+    "pricing": "Bảng giá",
+    "login": "Đăng nhập",
+    "noResults": "Không có trang phù hợp."
+  },
+  "emptyState": {
+    "title": "Chưa có dữ liệu",
+    "description": "Hiện tại chưa có mục nào để hiển thị.",
+    "searchTitle": "Không tìm thấy kết quả",
+    "searchDescription": "Không tìm thấy nội dung phù hợp. Hãy thử từ khóa khác hoặc đặt lại bộ lọc.",
+    "clearSearch": "Xóa tìm kiếm",
+    "resetFilters": "Đặt lại bộ lọc"
+  },
+  "errorState": {
+    "title": "Đã xảy ra lỗi",
+    "description": "Đã xảy ra lỗi khi tải khu vực này.",
+    "retry": "Thử lại",
+    "back": "Quay lại",
+    "home": "Về trang chủ",
+    "status404": "Không tìm thấy mục được yêu cầu.",
+    "status403": "Bạn không có quyền xem nội dung này.",
+    "status500": "Đã xảy ra lỗi máy chủ. Vui lòng thử lại sau ít phút."
+  },
+  "aiLoader": {
+    "thinking": "AI đang phân tích…",
+    "generating": "AI đang tạo bộ câu hỏi…",
+    "evaluating": "AI đang chấm điểm theo barem…",
+    "processing": "Đang xử lý cùng AI…"
   },
   "workspaceError": {
     "title": "Không thể tải trang này"
