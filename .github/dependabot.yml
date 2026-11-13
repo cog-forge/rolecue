@@ -1,5 +1,7 @@
 version: 2
 
+# PAUSED (13/11): every ecosystem below has open-pull-requests-limit: 0, so Dependabot
+# opens no version-update PRs. Set the limits back (5 for gomod/bun) to resume.
 # Keeps pinned dependencies fresh: Go modules, Bun lockfiles, @sha256 image
 # digests in Dockerfiles and compose files, and SHA-pinned GitHub Actions.
 # Enable "Dependabot version updates" (and ideally security updates) in the
@@ -9,7 +11,8 @@ updates:
     directory: /api
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Paused: 0 stops version-update PRs until the team triages dependency bumps.
+    open-pull-requests-limit: 0
     groups:
       go-minor-patch:
         update-types: [minor, patch]
@@ -18,7 +21,8 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Paused: 0 stops version-update PRs until the team triages dependency bumps.
+    open-pull-requests-limit: 0
     groups:
       frontend-minor-patch:
         update-types: [minor, patch]
@@ -27,7 +31,8 @@ updates:
     directory: /auth
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    # Paused: 0 stops version-update PRs until the team triages dependency bumps.
+    open-pull-requests-limit: 0
     groups:
       auth-minor-patch:
         update-types: [minor, patch]
@@ -36,26 +41,36 @@ updates:
     directory: /api
     schedule:
       interval: weekly
+    # Paused: 0 stops version-update PRs until the team triages dependency bumps.
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker
     directory: /auth
     schedule:
       interval: weekly
+    # Paused: 0 stops version-update PRs until the team triages dependency bumps.
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker
     directory: /frontend
     schedule:
       interval: weekly
+    # Paused: 0 stops version-update PRs until the team triages dependency bumps.
+    open-pull-requests-limit: 0
 
   - package-ecosystem: docker-compose
     directory: /.docker
     schedule:
       interval: weekly
+    # Paused: 0 stops version-update PRs until the team triages dependency bumps.
+    open-pull-requests-limit: 0
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    # Paused: 0 stops version-update PRs until the team triages dependency bumps.
+    open-pull-requests-limit: 0
     groups:
       actions:
         patterns: ["*"]
