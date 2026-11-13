@@ -188,14 +188,24 @@ export function WorkspaceSidebar({
           onClick={onSearch}
           aria-label={t("searchPages")}
           className={cn(
-            "relative h-11 shrink-0 justify-start gap-3 overflow-hidden rounded-xl px-3 text-muted-foreground",
+            "relative h-11 w-full min-w-0 shrink-0 justify-start gap-2 overflow-hidden rounded-xl px-3 text-muted-foreground",
             collapsed && "justify-center px-0",
           )}
         >
-          <Search className="size-5" aria-hidden />
-          <span className={labelClass}>{t("searchPages")}</span>
+          <Search className="size-5 shrink-0" aria-hidden />
+          <span
+            className={cn(
+              labelClass,
+              !collapsed && "flex-1 truncate whitespace-nowrap text-left",
+            )}
+          >
+            {t("searchPages")}
+          </span>
           {!collapsed && (
-            <kbd className="ml-auto rounded border bg-background/70 px-1.5 text-[10px]">
+            <kbd
+              aria-hidden="true"
+              className="ml-auto shrink-0 whitespace-nowrap rounded border bg-background/70 px-1 text-[10px]"
+            >
               ⌘ / Ctrl K
             </kbd>
           )}

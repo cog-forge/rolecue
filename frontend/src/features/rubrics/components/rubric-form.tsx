@@ -228,7 +228,7 @@ export function RubricForm({
         className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]"
       >
         <div className="space-y-6">
-          <Card className="gap-5 rounded-2xl border-t-2 border-t-rolecue-brand/50 py-6 [--card-spacing:--spacing(6)]">
+          <Card className="gap-5 rounded-xl py-6 [--card-spacing:--spacing(6)]">
             <CardHeader>
               <CardTitle>
                 <h2 className="text-lg font-semibold">{t("details")}</h2>
@@ -312,11 +312,11 @@ export function RubricForm({
               return (
                 <Card
                   key={field.fieldKey}
-                  className="gap-0 rounded-2xl py-0 [--card-spacing:--spacing(6)]"
+                  className="gap-0 rounded-xl py-0 [--card-spacing:--spacing(6)]"
                 >
-                  <CardHeader className="flex flex-row items-center justify-between border-b bg-rolecue-brand/5 py-4">
+                  <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30 py-4">
                     <h3 className="flex items-center gap-3 font-medium">
-                      <span className="flex size-8 items-center justify-center rounded-lg bg-rolecue-brand text-sm text-white dark:text-background">
+                      <span className="flex size-8 items-center justify-center rounded-lg bg-muted text-sm text-foreground">
                         {i + 1}
                       </span>
                       {t("criterion")}
@@ -448,7 +448,7 @@ export function RubricForm({
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 w-full border-dashed border-rolecue-brand/40 bg-rolecue-brand/5 text-rolecue-brand hover:bg-rolecue-brand/10 hover:text-rolecue-brand"
+                className="h-11 w-full border-dashed"
                 disabled={fields.length >= 10}
                 onClick={() => {
                   append(emptyCriterion());
@@ -465,7 +465,7 @@ export function RubricForm({
           </section>
         </div>
         <aside className="h-fit lg:sticky lg:top-20" aria-label={t("summary")}>
-          <Card className="gap-3 rounded-2xl border border-rolecue-brand/15 py-5 [--card-spacing:--spacing(5)]">
+          <Card className="gap-3 rounded-xl py-5 [--card-spacing:--spacing(5)]">
             <CardHeader>
               <CardTitle>
                 <h2 className="font-semibold">{t("summary")}</h2>
@@ -489,7 +489,7 @@ export function RubricForm({
                   <dt className="text-sm text-muted-foreground">
                     {t("totalPoints")}
                   </dt>
-                  <dd className="text-2xl font-semibold text-rolecue-brand tabular-nums">
+                  <dd className="text-2xl font-semibold text-foreground tabular-nums">
                     {criteria.reduce(
                       (n, c) =>
                         n + (Number.isFinite(c.max_points) ? c.max_points : 0),
@@ -501,7 +501,7 @@ export function RubricForm({
               {!readOnly && (
                 <Button
                   type="submit"
-                  className="mt-5 h-11 w-full bg-rolecue-brand text-white hover:bg-rolecue-brand/90 dark:text-background"
+                  className="mt-5 h-11 w-full rounded-full"
                   disabled={pending || conflict}
                   aria-busy={pending}
                 >

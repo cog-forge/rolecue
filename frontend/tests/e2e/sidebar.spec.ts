@@ -422,3 +422,38 @@ test("the candidate sidebar and account menu follow the Vietnamese language", as
     page.getByRole("combobox", { name: "Tìm trang trong không gian làm việc" }),
   ).toBeVisible();
 });
+
+for (const locale of ["en", "vi"] as const) {
+  test(`sidebar search label and shortcut do not overlap (${locale})`, async ({
+    page,
+  }) => {
+    await page
+      .context()
+      .addCookies([
+        { name: "NEXT_LOCALE", value: locale, url: "http://127.0.0.1:3100" },
+      ]);
+    await session(page, "candidate");
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(home.candidate);
+    const trigger = page.getByRole("button", {
+      name: locale === "en" ? "Search pages" : "Tìm trang",
+      exact: true,
+    });
+    await expect(trigger).toBeVisible();
+    const layout = await trigger.evaluate((button) => {
+      const label = button.querySelector("span")!.getBoundingClientRect();
+      const shortcut = button.querySelector("kbd")!.getBoundingClientRect();
+      const bounds = button.getBoundingClientRect();
+      return {
+        labelRight: label.right,
+        shortcutLeft: shortcut.left,
+        shortcutRight: shortcut.right,
+        buttonRight: bounds.right,
+      };
+    });
+    expect(layout.labelRight).toBeLessThanOrEqual(layout.shortcutLeft - 4);
+    expect(layout.shortcutRight).toBeLessThanOrEqual(layout.buttonRight);
+    await trigger.click();
+    await expect(page.getByRole("combobox")).toBeFocused();
+  });
+}

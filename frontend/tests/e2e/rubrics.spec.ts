@@ -393,3 +393,37 @@ test("create actions remain reachable and removal has destructive hover feedback
     ),
   ).toBe(true);
 });
+
+for (const role of ["admin", "recruiter"] as const) {
+  for (const width of [390, 1280]) {
+    test(`${role}: rubric list and editor fit ${width}px`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 900 });
+      await mock(page, role);
+      await open(page, role);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath("rubric-list.png"),
+        fullPage: true,
+      });
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await expect(page.getByLabel("Rubric name", { exact: true })).toHaveValue(
+        "Mechanism rubric",
+      );
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath("rubric-editor.png"),
+        fullPage: true,
+      });
+    });
+  }
+}
