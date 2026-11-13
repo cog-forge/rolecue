@@ -6,6 +6,9 @@ ARG SQLC_VERSION=v1.31.1
 # Tools are installed as root and stay read-only for everyone else. compose.local.yaml
 # overrides the user with LOCAL_UID:LOCAL_GID, which may not match the `dev` user below,
 # so only the module cache (/go/pkg) is left writable for arbitrary uids.
+RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN go install github.com/air-verse/air@${AIR_VERSION} \
     && go install github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION} \
     && chmod -R a+rX /go/bin \
