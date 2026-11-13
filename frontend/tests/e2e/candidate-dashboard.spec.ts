@@ -28,6 +28,8 @@ type Failing = "roleProfiles" | "practice" | "applications" | "wallet";
 type Options = {
   // Endpoints that answer 500 for the first `failures` requests; endpoints not listed always succeed.
   failing?: Partial<Record<Failing, number>>;
+  rich?: boolean;
+  empty?: boolean;
 };
 
 // Serves the four dashboard reads from the Go API shapes. A failing endpoint answers 500 for the
@@ -58,60 +60,198 @@ async function mockDashboard(page: Page, options: Options = {}) {
       });
 
     if (url.pathname === "/auth/me") return ok(candidate);
+    if (/^\/interviews\/[^/]+\/report$/.test(url.pathname))
+      return ok({
+        interview_id: url.pathname.split("/")[2],
+        type: "practice",
+        status: "completed",
+        overall_score: 82,
+        started_at: "2026-11-12T08:00:00Z",
+        completed_at: "2026-11-12T08:30:00Z",
+        summary: "Explain your trade-offs before choosing a solution.",
+        breakdown: [
+          {
+            metric_id: "11111111-aaaa-4aaa-8aaa-000000000001",
+            name: "Technical Accuracy",
+            score: 68,
+            weight: 40,
+          },
+          {
+            metric_id: "11111111-aaaa-4aaa-8aaa-000000000002",
+            name: "Problem Solving",
+            score: 74,
+            weight: 35,
+          },
+          {
+            metric_id: "11111111-aaaa-4aaa-8aaa-000000000003",
+            name: "Communication",
+            score: 88,
+            weight: 25,
+          },
+        ],
+        questions: [],
+      });
     if (url.pathname === "/role-profiles" && method === "GET")
       return fail("roleProfiles")
         ? broken()
         : ok({
-            items: [
-              {
-                id: roleProfileId,
-                title: "Frontend Developer",
-                seniorityLevel: "mid",
-                status: "review",
-                createdAt: "2026-10-01T08:00:00Z",
-              },
-            ],
-            pagination: { limit: 3, offset: 0, total: 1 },
+            items: options.empty
+              ? []
+              : options.rich
+                ? [
+                    {
+                      id: roleProfileId,
+                      title: "Senior Backend Engineer",
+                      seniorityLevel: "senior",
+                      status: "confirmed",
+                      createdAt: "2026-11-01T08:00:00Z",
+                    },
+                    {
+                      id: "eeeeeeee-eeee-4eee-8eee-000000000002",
+                      title: "Platform Engineer",
+                      seniorityLevel: "mid",
+                      status: "review",
+                      createdAt: "2026-11-02T08:00:00Z",
+                    },
+                    {
+                      id: "eeeeeeee-eeee-4eee-8eee-000000000003",
+                      title: "Full Stack Developer",
+                      seniorityLevel: "mid",
+                      status: "draft",
+                      createdAt: "2026-11-03T08:00:00Z",
+                    },
+                  ]
+                : [
+                    {
+                      id: roleProfileId,
+                      title: "Frontend Developer",
+                      seniorityLevel: "mid",
+                      status: "review",
+                      createdAt: "2026-10-01T08:00:00Z",
+                    },
+                  ],
+            pagination: {
+              limit: 3,
+              offset: 0,
+              total: options.empty ? 0 : options.rich ? 3 : 1,
+            },
           });
     if (url.pathname === "/interviews" && method === "GET")
       return fail("practice")
         ? broken()
         : ok({
-            items: [
-              {
-                id: interviewId,
-                type: "practice",
-                started_at: "2026-10-10T08:00:00Z",
-                completed_at: "2026-10-10T08:30:00Z",
-                evaluation_status: "completed",
-                status: "completed",
-                score: 82,
-                role_profile_title: "Frontend Developer",
-                job_posting_title: null,
-                application_id: null,
-              },
-            ],
-            total: 1,
+            items: options.empty
+              ? []
+              : options.rich
+                ? Array.from({ length: 20 }, (_, index) => ({
+                    id: `bbbbbbbb-bbbb-4bbb-8bbb-${String(index + 1).padStart(12, "0")}`,
+                    type: "practice",
+                    started_at: new Date(
+                      Date.UTC(2026, 10, 12 - index, 8),
+                    ).toISOString(),
+                    completed_at:
+                      index === 0
+                        ? null
+                        : new Date(
+                            Date.UTC(2026, 10, 12 - index, 8, 30),
+                          ).toISOString(),
+                    evaluation_status: index === 0 ? "pending" : "completed",
+                    status: index === 0 ? "in_progress" : "completed",
+                    score:
+                      index === 0 || index === 7
+                        ? null
+                        : [
+                            84, 82, 79, 67, 74, 71, 62, 0, 69, 64, 66, 58, 65,
+                            60, 55, 63, 48, 57, 54, 51,
+                          ][index],
+                    score_outcome:
+                      index === 3
+                        ? "partial"
+                        : index === 7
+                          ? "withheld"
+                          : index === 0
+                            ? null
+                            : "complete",
+                    role_profile_title:
+                      index % 4 === 0
+                        ? "Platform Engineer"
+                        : "Senior Backend Engineer",
+                    job_posting_title: null,
+                    application_id: null,
+                  }))
+                : [
+                    {
+                      id: interviewId,
+                      type: "practice",
+                      started_at: "2026-10-10T08:00:00Z",
+                      completed_at: "2026-10-10T08:30:00Z",
+                      evaluation_status: "completed",
+                      status: "completed",
+                      score: 82,
+                      role_profile_title: "Frontend Developer",
+                      job_posting_title: null,
+                      application_id: null,
+                    },
+                  ],
+            total: options.empty ? 0 : options.rich ? 32 : 1,
             page: 1,
-            page_size: 3,
+            page_size: 20,
           });
     if (url.pathname === "/applications" && method === "GET")
       return fail("applications")
         ? broken()
         : ok({
-            items: [
-              {
-                id: applicationId,
-                job_posting_id: postingId,
-                job_posting_title: "Backend Engineer",
-                status: "interview_eligible",
-                reject_reason: null,
-                interview_deadline: "2099-01-01T08:00:00Z",
-                can_start_interview: true,
-                created_at: "2026-10-12T08:00:00Z",
-              },
-            ],
-            total: 1,
+            items: options.empty
+              ? []
+              : options.rich
+                ? [
+                    {
+                      id: applicationId,
+                      job_posting_id: postingId,
+                      job_posting_title: "Backend Engineer",
+                      company_name: "Northstar Labs",
+                      status: "interview_eligible",
+                      reject_reason: null,
+                      interview_deadline: "2026-11-18T17:00:00Z",
+                      can_start_interview: true,
+                      created_at: "2026-11-11T08:00:00Z",
+                    },
+                    {
+                      id: "cccccccc-cccc-4ccc-8ccc-000000000002",
+                      job_posting_id: postingId,
+                      job_posting_title: "Software Engineer",
+                      company_name: "Arc Studio",
+                      status: "pending",
+                      reject_reason: null,
+                      interview_deadline: null,
+                      can_start_interview: false,
+                      created_at: "2026-11-10T08:00:00Z",
+                    },
+                    {
+                      id: "cccccccc-cccc-4ccc-8ccc-000000000003",
+                      job_posting_id: postingId,
+                      job_posting_title: "Platform Engineer",
+                      company_name: "Meridian",
+                      status: "approved",
+                      reject_reason: null,
+                      interview_deadline: null,
+                      can_start_interview: false,
+                      created_at: "2026-11-08T08:00:00Z",
+                    },
+                  ]
+                : [
+                    {
+                      id: applicationId,
+                      job_posting_id: postingId,
+                      job_posting_title: "Backend Engineer",
+                      status: "interview_eligible",
+                      reject_reason: null,
+                      interview_deadline: "2099-01-01T08:00:00Z",
+                      can_start_interview: true,
+                      created_at: "2026-10-12T08:00:00Z",
+                    },
+                  ],
+            total: options.empty ? 0 : options.rich ? 9 : 1,
             page: 1,
             page_size: 20,
           });
@@ -168,7 +308,7 @@ test("the dashboard shows the Target JDs, practice, application and coin cards f
 
 test("when the applications request fails, that card shows its error and the other cards still load", async ({
   page,
-}) => {
+}, testInfo) => {
   await mockDashboard(page, { failing: { applications: Infinity } });
   await page.goto("/dashboard");
 
@@ -189,6 +329,11 @@ test("when the applications request fails, that card shows its error and the oth
   await expect(
     page.getByRole("region", { name: "Coin balance" }),
   ).toContainText("250 coins");
+  await page.screenshot({
+    path: testInfo.outputPath("candidate-dashboard-error.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
 });
 
 test("Try again reloads a failed card once the request recovers", async ({
@@ -227,4 +372,193 @@ test("the dashboard switches to Vietnamese and keeps stored content", async ({
   await expect(
     page.getByRole("region", { name: "Đơn ứng tuyển" }),
   ).toContainText("Backend Engineer");
+});
+
+for (const width of [320, 390, 768, 1280, 1440]) {
+  test(`candidate bento dashboard fits ${width}px and shows a bounded score trend`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await mockDashboard(page, { rich: true });
+    await page.goto("/dashboard");
+    await expect(
+      page
+        .getByRole("region", { name: "Practice progress" })
+        .getByText("82.00", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("progressbar", { name: "Technical Accuracy" }),
+    ).toHaveAttribute("aria-valuenow", "68");
+    await expect(
+      page.getByRole("region", { name: "Your next step" }),
+    ).toContainText("Complete by");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath("candidate-dashboard.png"),
+      fullPage: true,
+      animations: "disabled",
+    });
+    await page
+      .getByRole("combobox", { name: "Practice history window" })
+      .click();
+    await page
+      .getByRole("option", { name: "Last 20 sessions", exact: true })
+      .click();
+    await expect(
+      page.getByText("Your latest 20 sessions", { exact: false }),
+    ).toBeVisible();
+  });
+}
+
+test("candidate dashboard supports a genuine first-use state", async ({
+  page,
+}, testInfo) => {
+  await mockDashboard(page, { empty: true });
+  await page.goto("/dashboard");
+  await expect(page.getByText("No complete scores yet")).toBeVisible();
+  await expect(
+    page.getByText("Feedback after your first practice"),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Practice progress" })
+      .locator(".recharts-area"),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath("candidate-dashboard-empty.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+});
+
+test("candidate dashboard remains readable in dark mode with reduced motion", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await mockDashboard(page, { rich: true });
+  await page.goto("/dashboard");
+  await expect(
+    page.getByRole("progressbar", { name: "Communication" }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  const axisFill = await page
+    .locator(".recharts-cartesian-axis-tick-value")
+    .first()
+    .evaluate((node) => getComputedStyle(node).fill);
+  const labelColor = await page
+    .getByText("Latest complete score", { exact: true })
+    .evaluate((node) => getComputedStyle(node).color);
+  expect(axisFill).toBe(labelColor);
+  await page.evaluate(() => document.fonts.ready);
+  const reveal = page
+    .locator('clipPath[id^="animationClipPath-"] rect')
+    .first();
+  const initialWidth = await reveal.getAttribute("width");
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  expect(await reveal.getAttribute("width")).toBe(initialWidth);
+
+  await page.screenshot({
+    path: testInfo.outputPath("candidate-dashboard-dark.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+});
+
+test("dashboard skeletons stay visible until their own requests resolve", async ({
+  page,
+}, testInfo) => {
+  await mockDashboard(page, { rich: true });
+  const release: Array<() => void> = [];
+  await page.route("http://localhost:8080/**", async (route) => {
+    if (
+      ["/role-profiles", "/interviews", "/applications", "/wallet"].includes(
+        new URL(route.request().url()).pathname,
+      ) &&
+      route.request().method() === "GET"
+    )
+      await new Promise<void>((resolve) => release.push(resolve));
+    return route.fallback();
+  });
+  await page.goto("/dashboard");
+  await expect(
+    page.getByRole("status", { name: "Loading Practice progress…" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("candidate-dashboard-loading.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await expect.poll(() => release.length).toBe(4);
+  release.forEach((resolve) => resolve());
+  await expect(
+    page
+      .getByRole("region", { name: "Practice progress" })
+      .getByText("82.00", { exact: true }),
+  ).toBeVisible();
+});
+
+test("practice score line draws on load and replays when the window changes", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.addInitScript(() => {
+    const samples: Record<string, number[]> = {};
+    Object.defineProperty(window, "__practiceDrawWidths", { value: samples });
+    new MutationObserver(() => {
+      for (const rect of document.querySelectorAll(
+        'clipPath[id^="animationClipPath-"] rect',
+      )) {
+        const id = rect.parentElement?.id;
+        const width = Number(rect.getAttribute("width"));
+        if (id && Number.isFinite(width)) {
+          const values = samples[id] ?? (samples[id] = []);
+          if (values.at(-1) !== width) values.push(width);
+        }
+      }
+    }).observe(document, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["width"],
+    });
+  });
+  await mockDashboard(page, { rich: true });
+  await page.goto("/dashboard");
+  const drawnWindows = () =>
+    page.evaluate(
+      () =>
+        Object.values(
+          (
+            window as unknown as {
+              __practiceDrawWidths: Record<string, number[]>;
+            }
+          ).__practiceDrawWidths,
+        ).filter(
+          (widths) =>
+            widths.length > 4 &&
+            widths.some((width) => width > 0 && width < Math.max(...widths)),
+        ).length,
+    );
+  await expect.poll(drawnWindows).toBeGreaterThanOrEqual(1);
+  const before = await drawnWindows();
+  await page.getByRole("combobox", { name: "Practice history window" }).click();
+  await page
+    .getByRole("option", { name: "Last 20 sessions", exact: true })
+    .click();
+  await expect.poll(drawnWindows).toBeGreaterThan(before);
 });
