@@ -32,6 +32,7 @@ func TestError(t *testing.T) {
 		{"JD short", apperror.CodeJDTooShort, http.StatusBadRequest},
 		{"JD long", apperror.CodeJDTooLong, http.StatusBadRequest},
 		{"JD missing", apperror.CodeJDNotFound, http.StatusNotFound},
+		{"roadmap item missing", apperror.CodeRoadmapItemNotFound, http.StatusNotFound},
 		{"JD in use", apperror.CodeJDInUse, http.StatusConflict},
 		{"avatar missing", apperror.CodeAvatarNotFound, http.StatusNotFound},
 		{"avatar in use", apperror.CodeAvatarInUse, http.StatusConflict},

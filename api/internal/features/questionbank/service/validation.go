@@ -98,7 +98,14 @@ func validateCandidate(in domain.GenerationInput, c domain.GenerationCandidate, 
 	for _, rubric := range in.Rubrics {
 		allowed[rubric.ID] = struct{}{}
 	}
-	seen := make(map[string]struct{}, len(c.Questions))
+	topics := make(map[uuid.UUID]struct{}, len(in.Topics))
+	for _, topic := range in.Topics {
+		topics[topic.ID] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(c.Questions)+len(in.Existing))
+	for _, existing := range in.Existing {
+		seen[strings.ToLower(strings.TrimSpace(existing))] = struct{}{}
+	}
 	out := make([]domain.GeneratedQuestion, 0, len(c.Questions))
 	for index, raw := range c.Questions {
 		q, err := normalizeContent(raw.Content)
@@ -111,6 +118,17 @@ func validateCandidate(in domain.GenerationInput, c domain.GenerationCandidate, 
 		}
 		seen[key] = struct{}{}
 		item := domain.GeneratedQuestion{Content: q}
+		if len(topics) > 0 {
+			// Every question of a Roadmap bank names exactly one of the topics the backend allowed.
+			if raw.TopicID == nil {
+				return nil, badOutput("question generation did not map a question to a topic", fmt.Errorf("question %d: topic id is missing", index+1))
+			}
+			if _, ok := topics[*raw.TopicID]; !ok {
+				return nil, badOutput("question generation chose a topic that is not allowed", fmt.Errorf("question %d: topic id not in the allowed set", index+1))
+			}
+			id := *raw.TopicID
+			item.TopicID = &id
+		}
 		if in.Grading {
 			if raw.RubricID != nil {
 				if _, ok := allowed[*raw.RubricID]; !ok {
@@ -133,5 +151,87 @@ func validateCandidate(in domain.GenerationInput, c domain.GenerationCandidate, 
 			fmt.Errorf("%d distinct questions, %d required", len(out), size))
 	}
 	// Extra distinct questions are harmless; keep exactly size so the bank matches the config.
+	if len(topics) > 0 {
+		return trimKeepingTopics(out, size), nil
+	}
 	return out[:size], nil
+}
+
+// trimKeepingTopics keeps size of the questions without starving a topic: the first MinQuestionsPerTopic
+// questions of each topic rank first, the rest follow in the order the model wrote them, and the kept ones
+// stay in their original order. A model that front-loads one topic therefore cannot push another below the
+// distribution rule just because the proposal was longer than the bank.
+func trimKeepingTopics(questions []domain.GeneratedQuestion, size int) []domain.GeneratedQuestion {
+	if len(questions) <= size {
+		return questions
+	}
+	taken := make(map[uuid.UUID]int)
+	priority, rest := make([]int, 0, size), make([]int, 0, len(questions))
+	for i, question := range questions {
+		if question.TopicID != nil && taken[*question.TopicID] < domain.MinQuestionsPerTopic {
+			taken[*question.TopicID]++
+			priority = append(priority, i)
+			continue
+		}
+		rest = append(rest, i)
+	}
+	keep := make(map[int]bool, size)
+	for _, i := range append(priority, rest...) {
+		if len(keep) == size {
+			break
+		}
+		keep[i] = true
+	}
+	out := make([]domain.GeneratedQuestion, 0, size)
+	for i, question := range questions {
+		if keep[i] {
+			out = append(out, question)
+		}
+	}
+	return out
+}
+
+// ValidateBank checks a complete proposal against the distribution rule of a Roadmap bank: every topic has at
+// least MinQuestionsPerTopic distinct questions. It is separate from validateCandidate because a batch of a
+// larger bank is validated before the others are written. A bank without topics has no such rule.
+func ValidateBank(in domain.GenerationInput, questions []domain.GeneratedQuestion) error {
+	if len(in.Topics) == 0 {
+		return nil
+	}
+	counts := domain.CountByTopic(questions)
+	for index, topic := range in.Topics {
+		if counts[topic.ID] < domain.MinQuestionsPerTopic {
+			return apperror.Wrap(apperror.CodeInvalidQuestionGenerationOutput, "question generation did not cover every topic",
+				fmt.Errorf("topic %d has %d distinct questions, at least %d required", index+1, counts[topic.ID], domain.MinQuestionsPerTopic))
+		}
+	}
+	return nil
+}
+
+// FitBatchToTopics checks one batch of a Roadmap bank against the quotas the batch was asked for and keeps
+// exactly each topic's quota of its questions, in the order the model wrote them. A batch that leaves a topic
+// short is invalid output, so the routed call retries it or falls back to the next provider while only that
+// batch is lost; extra questions of a topic are dropped. A question of a topic that was not asked for in this
+// batch is dropped too (it only counts against the final size).
+func FitBatchToTopics(questions []domain.GeneratedQuestion, quotas []domain.RoadmapTopic) ([]domain.GeneratedQuestion, error) {
+	want := make(map[uuid.UUID]int, len(quotas))
+	for _, topic := range quotas {
+		want[topic.ID] = topic.Quota
+	}
+	taken := make(map[uuid.UUID]int, len(quotas))
+	out := make([]domain.GeneratedQuestion, 0, len(questions))
+	for _, question := range questions {
+		if question.TopicID == nil || taken[*question.TopicID] >= want[*question.TopicID] {
+			continue
+		}
+		taken[*question.TopicID]++
+		out = append(out, question)
+	}
+	for index, topic := range quotas {
+		if taken[topic.ID] < topic.Quota {
+			return nil, apperror.Wrap(apperror.CodeInvalidQuestionGenerationOutput, "question generation did not write the questions asked for a topic",
+				fmt.Errorf("topic %d of the batch has %d questions, %d asked for", index+1, taken[topic.ID], topic.Quota))
+		}
+	}
+	return out, nil
 }

@@ -153,12 +153,16 @@ FOR SHARE;
 
 -- A generated Recruiter bank: each question with its rubric (NULL when none was chosen or it stopped being
 -- usable) and expected answer (NULL when none). The arrays are parallel; an empty rubric id means none.
+-- A Roadmap practice bank also carries each question's topic in the parallel item_ids array (an empty id, or no
+-- array at all, means no topic); the database checks that the topic belongs to the profile of the job
+-- description (migration 000035).
 -- name: InsertGradedCoreQuestions :many
-INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer)
+INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer, roadmap_item_id)
 SELECT @jd_id::uuid, (@contents::text[])[i],
        (SELECT r.id FROM public.rubrics r
         WHERE r.id = NULLIF((@rubric_ids::text[])[i], '')::uuid AND r.is_active AND (r.scope = 'system' OR r.owner_id = @recruiter_id::uuid)),
-       NULLIF((@expected_answers::text[])[i], '')
+       NULLIF((@expected_answers::text[])[i], ''),
+       NULLIF((@item_ids::text[])[i], '')::uuid
 FROM generate_series(1, cardinality(@contents::text[])) AS i
 ORDER BY i
 RETURNING id, content, rubric_id, expected_answer;
@@ -169,6 +173,18 @@ FROM public.core_questions cq
 JOIN public.job_postings jp ON jp.jd_id = cq.jd_id
 WHERE cq.id = @id AND jp.id = @posting_id
 FOR UPDATE OF cq;
+
+-- Whether any interview, of any type, was ever created for the profile that owns the job description.
+-- name: JDHasPracticeInterviews :one
+SELECT EXISTS (
+    SELECT 1 FROM public.interviews i JOIN public.role_profiles rp ON rp.id = i.role_profile_id WHERE rp.jd_id = @jd_id
+);
+
+-- name: CountTopicCoreQuestions :one
+SELECT count(*) FROM public.core_questions WHERE jd_id = @jd_id AND roadmap_item_id = @roadmap_item_id;
+
+-- name: DeleteJDCoreQuestions :exec
+DELETE FROM public.core_questions WHERE jd_id = @jd_id;
 
 -- name: QuestionInUse :one
 SELECT EXISTS (SELECT 1 FROM public.interview_questions WHERE core_question_id = @id);

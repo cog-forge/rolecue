@@ -12,6 +12,8 @@ const (
 	// maxNoteRunes and maxEvidenceRunes cap the job-description text that goes into the prompt.
 	maxNoteRunes     = 2000
 	maxEvidenceRunes = 4000
+	// maxTopicRunes caps one topic summary; a generated topic is at most about 500 characters.
+	maxTopicRunes = 1000
 )
 
 // fencedRequirements copies the requirements with each evidence_text, a JD excerpt written by a person,
@@ -65,4 +67,24 @@ func promptCatalog(rubrics []domain.RubricOption) []promptRubric {
 
 func oneLine(text string) string {
 	return strings.Join(strings.Fields(textsafe.Clean(text)), " ")
+}
+
+// promptTopic is one Roadmap topic as the model sees it. The id and the question count are the backend's; the
+// title and description were generated from an untrusted job description, so they sit in one cleaned, capped
+// and fenced Summary like a rubric does.
+type promptTopic struct {
+	ID        string `json:"id"`
+	Summary   string `json:"summary"`
+	Questions int    `json:"questions"`
+}
+
+// promptTopics turns the allowed topics into prompt entries, bounded in text size. It never returns nil.
+func promptTopics(topics []domain.RoadmapTopic) []promptTopic {
+	out := make([]promptTopic, 0, len(topics))
+	for _, topic := range topics {
+		summary := fmt.Sprintf("Title: %s\nDescription: %s", oneLine(topic.Title), oneLine(topic.Description))
+		out = append(out, promptTopic{ID: topic.ID.String(), Questions: topic.Quota,
+			Summary: textsafe.Fence("UNTRUSTED_TOPIC", summary, maxTopicRunes)})
+	}
+	return out
 }

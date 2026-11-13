@@ -36,6 +36,7 @@ type DocumentService interface {
 type RoleProfileHandler struct {
 	service   RoleProfileService
 	documents DocumentService
+	roadmap   RoadmapGeneration
 }
 
 func NewRoleProfileHandler(service RoleProfileService, documents DocumentService) *RoleProfileHandler {
@@ -323,7 +324,7 @@ func (h *RoleProfileHandler) Confirm(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !roleWriteDeadline(c, 75*time.Second) {
+	if !roleWriteDeadline(c, roadmapWriteDeadline) {
 		return
 	}
 	p, e := h.service.Confirm(c.Request.Context(), user.ID, user.Role, id)

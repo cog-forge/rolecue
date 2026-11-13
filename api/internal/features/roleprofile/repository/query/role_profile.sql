@@ -4,9 +4,15 @@ INSERT INTO job_descriptions(raw_text) VALUES (@raw_text) RETURNING id;
 -- name: CreateDocumentJD :one
 INSERT INTO job_descriptions(raw_text, content_path) VALUES(@raw_text, @content_path) RETURNING id;
 
+-- A profile and its pending Roadmap are one statement, so no creation path can leave a profile without one.
 -- name: CreateRoleProfile :one
-INSERT INTO role_profiles(jd_id, candidate_id, title)
-VALUES (@jd_id, @candidate_id, 'Untitled role') RETURNING id;
+WITH profile AS (
+    INSERT INTO role_profiles(jd_id, candidate_id, title)
+    VALUES (@jd_id, @candidate_id, 'Untitled role') RETURNING id
+), roadmap AS (
+    INSERT INTO roadmaps(role_profile_id) SELECT id FROM profile
+)
+SELECT id FROM profile;
 
 -- name: GetRoleProfile :one
 SELECT rp.id, rp.jd_id, rp.candidate_id, rp.title, rp.status, rp.created_at,

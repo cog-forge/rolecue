@@ -54,6 +54,7 @@ func (r *Repository) ListHistory(ctx context.Context, candidateID uuid.UUID, fil
 			RoleProfileTitle: row.RoleProfileTitle,
 			JobPostingTitle:  row.JobPostingTitle,
 			ApplicationID:    row.ApplicationID,
+			FocusItemID:      row.FocusItemID,
 		})
 	}
 	return items, total, nil

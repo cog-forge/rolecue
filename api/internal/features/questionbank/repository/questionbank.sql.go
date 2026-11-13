@@ -110,6 +110,22 @@ func (q *Queries) CountIncompleteGrading(ctx context.Context, arg CountIncomplet
 	return column_1, err
 }
 
+const countTopicCoreQuestions = `-- name: CountTopicCoreQuestions :one
+SELECT count(*) FROM public.core_questions WHERE jd_id = $1 AND roadmap_item_id = $2
+`
+
+type CountTopicCoreQuestionsParams struct {
+	JdID          uuid.UUID
+	RoadmapItemID *uuid.UUID
+}
+
+func (q *Queries) CountTopicCoreQuestions(ctx context.Context, arg CountTopicCoreQuestionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTopicCoreQuestions, arg.JdID, arg.RoadmapItemID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteCoreQuestion = `-- name: DeleteCoreQuestion :execrows
 DELETE FROM public.core_questions cq
 USING public.job_postings jp
@@ -132,6 +148,15 @@ func (q *Queries) DeleteCoreQuestion(ctx context.Context, arg DeleteCoreQuestion
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteJDCoreQuestions = `-- name: DeleteJDCoreQuestions :exec
+DELETE FROM public.core_questions WHERE jd_id = $1
+`
+
+func (q *Queries) DeleteJDCoreQuestions(ctx context.Context, jdID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteJDCoreQuestions, jdID)
+	return err
 }
 
 const getBankQuestion = `-- name: GetBankQuestion :one
@@ -252,11 +277,12 @@ func (q *Queries) InsertCoreQuestions(ctx context.Context, arg InsertCoreQuestio
 }
 
 const insertGradedCoreQuestions = `-- name: InsertGradedCoreQuestions :many
-INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer)
+INSERT INTO public.core_questions (jd_id, content, rubric_id, expected_answer, roadmap_item_id)
 SELECT $1::uuid, ($2::text[])[i],
        (SELECT r.id FROM public.rubrics r
         WHERE r.id = NULLIF(($3::text[])[i], '')::uuid AND r.is_active AND (r.scope = 'system' OR r.owner_id = $4::uuid)),
-       NULLIF(($5::text[])[i], '')
+       NULLIF(($5::text[])[i], ''),
+       NULLIF(($6::text[])[i], '')::uuid
 FROM generate_series(1, cardinality($2::text[])) AS i
 ORDER BY i
 RETURNING id, content, rubric_id, expected_answer
@@ -268,6 +294,7 @@ type InsertGradedCoreQuestionsParams struct {
 	RubricIds       []string
 	RecruiterID     uuid.UUID
 	ExpectedAnswers []string
+	ItemIds         []string
 }
 
 type InsertGradedCoreQuestionsRow struct {
@@ -279,6 +306,9 @@ type InsertGradedCoreQuestionsRow struct {
 
 // A generated Recruiter bank: each question with its rubric (NULL when none was chosen or it stopped being
 // usable) and expected answer (NULL when none). The arrays are parallel; an empty rubric id means none.
+// A Roadmap practice bank also carries each question's topic in the parallel item_ids array (an empty id, or no
+// array at all, means no topic); the database checks that the topic belongs to the profile of the job
+// description (migration 000035).
 func (q *Queries) InsertGradedCoreQuestions(ctx context.Context, arg InsertGradedCoreQuestionsParams) ([]InsertGradedCoreQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, insertGradedCoreQuestions,
 		arg.JdID,
@@ -286,6 +316,7 @@ func (q *Queries) InsertGradedCoreQuestions(ctx context.Context, arg InsertGrade
 		arg.RubricIds,
 		arg.RecruiterID,
 		arg.ExpectedAnswers,
+		arg.ItemIds,
 	)
 	if err != nil {
 		return nil, err
@@ -308,6 +339,20 @@ func (q *Queries) InsertGradedCoreQuestions(ctx context.Context, arg InsertGrade
 		return nil, err
 	}
 	return items, nil
+}
+
+const jDHasPracticeInterviews = `-- name: JDHasPracticeInterviews :one
+SELECT EXISTS (
+    SELECT 1 FROM public.interviews i JOIN public.role_profiles rp ON rp.id = i.role_profile_id WHERE rp.jd_id = $1
+)
+`
+
+// Whether any interview, of any type, was ever created for the profile that owns the job description.
+func (q *Queries) JDHasPracticeInterviews(ctx context.Context, jdID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, jDHasPracticeInterviews, jdID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listBankQuestions = `-- name: ListBankQuestions :many

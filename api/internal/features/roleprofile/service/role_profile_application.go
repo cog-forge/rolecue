@@ -29,9 +29,17 @@ type PracticeQuestionGenerator interface {
 	GenerateForPractice(context.Context, uuid.UUID, uuid.UUID) ([]questionbankdomain.CoreQuestion, error)
 }
 
+// RoadmapPreparer generates the Learning Roadmap of a profile whose requirements the candidate has just
+// reviewed: its topics and the practice bank (KAN-343). When one is set it replaces the direct question bank
+// generation of Confirm.
+type RoadmapPreparer interface {
+	Prepare(ctx context.Context, candidate, profile, jdID uuid.UUID) error
+}
+
 type RoleProfileApplication struct {
 	extraction   *ExtractionService
 	questionBank PracticeQuestionGenerator
+	roadmap      RoadmapPreparer
 	repository   RoleProfileRepository
 	timeout      time.Duration
 }
@@ -41,6 +49,13 @@ func NewRoleProfileApplication(extraction *ExtractionService, repo RoleProfileRe
 		return nil, fmt.Errorf("invalid Role Profile application configuration")
 	}
 	return &RoleProfileApplication{extraction: extraction, questionBank: questionBank, repository: repo, timeout: timeout}, nil
+}
+
+// WithRoadmap makes Confirm generate the Roadmap and its bank through preparer instead of generating the
+// bank alone. A nil preparer keeps the bank-only behavior.
+func (a *RoleProfileApplication) WithRoadmap(preparer RoadmapPreparer) *RoleProfileApplication {
+	a.roadmap = preparer
+	return a
 }
 func (a *RoleProfileApplication) Create(ctx context.Context, user uuid.UUID, role string, raw string) (domain.RoleProfile, error) {
 	if err := requireCandidate(role); err != nil {
@@ -97,6 +112,15 @@ func (a *RoleProfileApplication) Confirm(ctx context.Context, user uuid.UUID, ro
 	}
 	if _, err = ValidateRoleReview(profile.RoleReview, true); err != nil {
 		return domain.RoleProfile{}, err
+	}
+	if a.roadmap != nil {
+		// An already confirmed profile is not generated again here: its Roadmap is retried explicitly.
+		if profile.Status != domain.Confirmed {
+			if err = a.roadmap.Prepare(ctx, user, id, profile.JDID); err != nil {
+				return domain.RoleProfile{}, err
+			}
+		}
+		return a.repository.ConfirmProfile(ctx, user, id)
 	}
 	if _, err = a.questionBank.GenerateForPractice(ctx, user, profile.JDID); err != nil {
 		var appErr *apperror.AppError

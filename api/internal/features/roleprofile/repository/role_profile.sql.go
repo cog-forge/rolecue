@@ -95,8 +95,13 @@ func (q *Queries) CreateProfileJD(ctx context.Context, rawText *string) (uuid.UU
 }
 
 const createRoleProfile = `-- name: CreateRoleProfile :one
-INSERT INTO role_profiles(jd_id, candidate_id, title)
-VALUES ($1, $2, 'Untitled role') RETURNING id
+WITH profile AS (
+    INSERT INTO role_profiles(jd_id, candidate_id, title)
+    VALUES ($1, $2, 'Untitled role') RETURNING id
+), roadmap AS (
+    INSERT INTO roadmaps(role_profile_id) SELECT id FROM profile
+)
+SELECT id FROM profile
 `
 
 type CreateRoleProfileParams struct {
@@ -104,6 +109,7 @@ type CreateRoleProfileParams struct {
 	CandidateID uuid.UUID
 }
 
+// A profile and its pending Roadmap are one statement, so no creation path can leave a profile without one.
 func (q *Queries) CreateRoleProfile(ctx context.Context, arg CreateRoleProfileParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, createRoleProfile, arg.JdID, arg.CandidateID)
 	var id uuid.UUID

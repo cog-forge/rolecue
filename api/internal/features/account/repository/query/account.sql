@@ -90,6 +90,12 @@ DELETE FROM public.interview_criterion_scores WHERE interview_id = ANY(@intervie
 -- name: DeleteScoreDetails :exec
 DELETE FROM public.score_details WHERE interview_id = ANY(@interview_ids::uuid[]);
 
+-- Roadmap links point at an interview question; they carry no text, but they go first and by name, so the order
+-- does not rest on the cascade of the foreign key (KAN-356). The topics they point at are deleted later with
+-- their Roadmap.
+-- name: DeleteRoadmapAssessments :exec
+DELETE FROM public.roadmap_assessments WHERE interview_id = ANY(@interview_ids::uuid[]);
+
 -- name: DeleteInterviewQuestions :exec
 DELETE FROM public.interview_questions WHERE interview_id = ANY(@interview_ids::uuid[]);
 
@@ -117,6 +123,12 @@ DELETE FROM public.metrics_percentage WHERE job_posting_id IN (SELECT jp.id FROM
 
 -- name: DeleteOwnedJobPostings :exec
 DELETE FROM public.job_postings WHERE recruiter_id = @id;
+
+-- A Roadmap and its topics go after the interviews (a focused interview restricts its topic) and before the Role
+-- Profile; bank questions that pointed at a topic lose the pointer (ON DELETE SET NULL) and are deleted with the Job
+-- Description right after (KAN-356).
+-- name: DeleteOwnedRoadmaps :exec
+DELETE FROM public.roadmaps WHERE role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = @id);
 
 -- name: DeleteOwnedRoleProfiles :exec
 DELETE FROM public.role_profiles WHERE candidate_id = @id;

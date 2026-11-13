@@ -82,6 +82,9 @@ type CreateInput struct {
 	ApplicationID *uuid.UUID
 	AvatarID      *uuid.UUID
 	VoiceID       *uuid.UUID
+	// FocusItemID is the Roadmap topic to practise (KAN-348). Nil is general practice. Only a practice start
+	// has a focus; a recruitment start with one is refused.
+	FocusItemID *uuid.UUID
 	// IdempotencyKey is the client's optional Idempotency-Key. A practice start repeated with the same
 	// key returns the first session and charges once. Recruitment starts are already idempotent.
 	IdempotencyKey string
@@ -98,6 +101,8 @@ type CreateParams struct {
 	VoiceID       *uuid.UUID
 	QuestionLimit int32
 	PracticeCoins int32
+	// FocusItemID is the validated intent of a practice start: the Roadmap topic, nil for general practice.
+	FocusItemID *uuid.UUID
 	// StartKey is the Candidate-scoped idempotency key of a practice start, nil when none was sent.
 	StartKey *string
 }
@@ -127,12 +132,19 @@ type Turn struct {
 // and a recruitment session omits the key. EndReason is null while the session runs, and for a session
 // ended before the reason was recorded.
 type Session struct {
-	ID               uuid.UUID        `json:"id"`
-	Type             Type             `json:"type" enums:"practice,recruitment"`
-	RoleProfileID    *uuid.UUID       `json:"role_profile_id"`
-	ApplicationID    *uuid.UUID       `json:"application_id"`
-	AvatarID         *uuid.UUID       `json:"avatar_id"`
-	VoiceID          *uuid.UUID       `json:"voice_id"`
+	ID            uuid.UUID  `json:"id"`
+	Type          Type       `json:"type" enums:"practice,recruitment"`
+	RoleProfileID *uuid.UUID `json:"role_profile_id"`
+	ApplicationID *uuid.UUID `json:"application_id"`
+	AvatarID      *uuid.UUID `json:"avatar_id"`
+	VoiceID       *uuid.UUID `json:"voice_id"`
+	// FocusItemID is the Roadmap topic this session practises, null for general practice and for recruitment.
+	// It is what the server stored, which is what the session really asks.
+	FocusItemID *uuid.UUID `json:"focus_item_id"`
+	// Resumed is set only on the answer to a start: true when the session already existed (a double click, a
+	// replayed Idempotency-Key, or the unfinished session of the profile), false when this start created it.
+	// Compare FocusItemID with what was asked: an unfinished session keeps its own focus.
+	Resumed          *bool            `json:"resumed,omitempty"`
 	StartedAt        time.Time        `json:"started_at"`
 	CompletedAt      *time.Time       `json:"completed_at"`
 	EndReason        *EndReason       `json:"end_reason" enums:"completed,left,abandoned"`
@@ -208,4 +220,11 @@ type TurnCoreQuestion struct {
 	QuestionNumber int32
 	Kind           TurnKind
 	CoreQuestionID uuid.UUID
+}
+
+// FocusState is what a focused practice start reads before it generates or charges anything: whether the
+// Roadmap of the profile is ready and how many bank questions the topic has.
+type FocusState struct {
+	RoadmapReady bool
+	Questions    int
 }

@@ -20,6 +20,9 @@ type JobsConfig struct {
 	StaleRecordings StaleRecordingsJobConfig `mapstructure:"stale_recordings"`
 	// RecordingRetention deletes recordings 90 days after the Application's final decision (KAN-272).
 	RecordingRetention JobConfig `mapstructure:"recording_retention"`
+	// RoadmapCatchup links evaluated practice results that the evaluation hook did not link to their Roadmap
+	// topics (KAN-351). Each run examines at most BatchSize sessions, oldest first.
+	RoadmapCatchup RoadmapCatchupJobConfig `mapstructure:"roadmap_catchup"`
 }
 
 // JobConfig is the switch and the interval of one job.
@@ -31,6 +34,11 @@ type JobConfig struct {
 type AbandonedSessionsJobConfig struct {
 	JobConfig `mapstructure:",squash"`
 	Timeout   time.Duration `mapstructure:"timeout"`
+}
+
+type RoadmapCatchupJobConfig struct {
+	JobConfig `mapstructure:",squash"`
+	BatchSize int `mapstructure:"batch_size"`
 }
 
 type StaleRecordingsJobConfig struct {
@@ -46,6 +54,9 @@ const (
 	MaxAbandonTimeout = 24 * time.Hour
 	MinRecordingGrace = 30 * time.Second
 	MaxRecordingGrace = 24 * time.Hour
+	// MinCatchupBatch and MaxCatchupBatch bound the sessions one Roadmap catch-up run examines.
+	MinCatchupBatch = 1
+	MaxCatchupBatch = 1000
 )
 
 // jobEnv lists the job settings and their environment variables.
@@ -59,6 +70,9 @@ var jobEnv = map[string]string{
 	"jobs.stale_recordings.grace":       "JOBS_STALE_RECORDINGS_GRACE",
 	"jobs.recording_retention.enabled":  "JOBS_RECORDING_RETENTION_ENABLED",
 	"jobs.recording_retention.interval": "JOBS_RECORDING_RETENTION_INTERVAL",
+	"jobs.roadmap_catchup.enabled":      "JOBS_ROADMAP_CATCHUP_ENABLED",
+	"jobs.roadmap_catchup.interval":     "JOBS_ROADMAP_CATCHUP_INTERVAL",
+	"jobs.roadmap_catchup.batch_size":   "JOBS_ROADMAP_CATCHUP_BATCH_SIZE",
 }
 
 func setJobDefaults(v *viper.Viper) {
@@ -71,6 +85,9 @@ func setJobDefaults(v *viper.Viper) {
 	v.SetDefault("jobs.stale_recordings.grace", "5m")
 	v.SetDefault("jobs.recording_retention.enabled", true)
 	v.SetDefault("jobs.recording_retention.interval", "1h")
+	v.SetDefault("jobs.roadmap_catchup.enabled", true)
+	v.SetDefault("jobs.roadmap_catchup.interval", "1m")
+	v.SetDefault("jobs.roadmap_catchup.batch_size", 100)
 }
 
 func bindJobEnv(v *viper.Viper) error {
@@ -92,6 +109,7 @@ func (c JobsConfig) Validate() error {
 		"abandoned_sessions":  c.AbandonedSessions.Interval,
 		"stale_recordings":    c.StaleRecordings.Interval,
 		"recording_retention": c.RecordingRetention.Interval,
+		"roadmap_catchup":     c.RoadmapCatchup.Interval,
 	} {
 		if interval < MinJobInterval || interval > MaxJobInterval {
 			return fmt.Errorf("jobs.%s.interval must be between %s and %s", name, MinJobInterval, MaxJobInterval)
@@ -99,6 +117,9 @@ func (c JobsConfig) Validate() error {
 	}
 	if t := c.AbandonedSessions.Timeout; t < MinAbandonTimeout || t > MaxAbandonTimeout {
 		return fmt.Errorf("jobs.abandoned_sessions.timeout must be between %s and %s", MinAbandonTimeout, MaxAbandonTimeout)
+	}
+	if b := c.RoadmapCatchup.BatchSize; b < MinCatchupBatch || b > MaxCatchupBatch {
+		return fmt.Errorf("jobs.roadmap_catchup.batch_size must be between %d and %d", MinCatchupBatch, MaxCatchupBatch)
 	}
 	if g := c.StaleRecordings.Grace; g < MinRecordingGrace || g > MaxRecordingGrace {
 		return fmt.Errorf("jobs.stale_recordings.grace must be between %s and %s", MinRecordingGrace, MaxRecordingGrace)

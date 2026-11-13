@@ -187,7 +187,7 @@ func TestHistoryItemsCarryOnlyListFields(t *testing.T) {
 	}
 	allowed := map[string]bool{
 		"id": true, "type": true, "started_at": true, "completed_at": true, "evaluation_status": true,
-		"status": true, "score": true, "score_outcome": true, "role_profile_title": true, "job_posting_title": true, "application_id": true,
+		"status": true, "score": true, "score_outcome": true, "role_profile_title": true, "job_posting_title": true, "application_id": true, "focus_item_id": true,
 	}
 	for key := range decoded.Items[0] {
 		if !allowed[key] {

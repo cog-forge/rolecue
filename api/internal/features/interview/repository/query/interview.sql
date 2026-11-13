@@ -68,9 +68,9 @@ LIMIT 1;
 -- The session records the Interview Behavior Guideline version current when it starts (KAN-276); NULL when
 -- none was ever saved, which means the defaults. A later save never changes it.
 -- name: InsertInterview :one
-INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key, behavior_guideline_id)
+INSERT INTO public.interviews (role_profile_id, type, application_id, avatar_id, voice_id, start_key, focus_item_id, behavior_guideline_id)
 VALUES (@role_profile_id, sqlc.arg(interview_type)::text::public.interview_type,
-        sqlc.narg(application_id), sqlc.narg(avatar_id), sqlc.narg(voice_id), sqlc.narg(start_key),
+        sqlc.narg(application_id), sqlc.narg(avatar_id), sqlc.narg(voice_id), sqlc.narg(start_key), sqlc.narg(focus_item_id),
         (SELECT g.id FROM public.interview_behavior_guidelines g ORDER BY g.version DESC LIMIT 1))
 RETURNING id;
 
@@ -171,7 +171,7 @@ FOR UPDATE OF i;
 
 -- name: GetOwnedInterview :one
 SELECT i.id, i.type::text AS type, i.role_profile_id, i.application_id, i.avatar_id, i.voice_id,
-       i.started_at, i.completed_at, i.end_reason, i.evaluation_status
+       i.started_at, i.completed_at, i.end_reason, i.evaluation_status, i.focus_item_id
 FROM public.interviews i
 LEFT JOIN public.role_profiles rp ON rp.id = i.role_profile_id
 LEFT JOIN public.applications a ON a.id = i.application_id
@@ -337,3 +337,47 @@ WHERE id = @id
   AND evaluation_attempts >= @max_attempts::int
   AND evaluation_status = 'pending'
   AND evaluation_claimed_at < statement_timestamp() - make_interval(secs => @stale_seconds::float8);
+
+-- The Roadmap topic a session practises, NULL for general practice (KAN-348): the stored intent of the session.
+-- name: GetInterviewFocus :one
+SELECT focus_item_id FROM public.interviews WHERE id = @id;
+
+-- A topic of the profile's Roadmap and the Roadmap's generation status (KAN-347). No row: the topic does not
+-- belong to this profile. The caller has already checked that the profile belongs to the Candidate.
+-- name: GetFocusTopic :one
+SELECT ri.id, r.generation_status
+FROM public.roadmap_items ri
+JOIN public.roadmaps r ON r.id = ri.roadmap_id
+WHERE ri.id = @item_id AND r.role_profile_id = @role_profile_id;
+
+-- How many questions of the profile's bank belong to a topic.
+-- name: CountTopicBankQuestions :one
+SELECT count(*)::int FROM public.core_questions cq WHERE cq.jd_id = @jd_id AND cq.roadmap_item_id = @item_id;
+
+-- The bank of a practice start with its Roadmap topic: the same rows and metrics as ListBankQuestions plus
+-- roadmap_item_id (NULL for a bank written before the Roadmap existed).
+-- name: ListRoadmapBank :many
+SELECT cq.id,
+       COALESCE(array_agg(DISTINCT rc.metric_id) FILTER (WHERE rc.metric_id IS NOT NULL), '{}')::uuid[] AS metric_ids,
+       cq.roadmap_item_id
+FROM public.core_questions cq
+LEFT JOIN public.rubric_criteria rc ON rc.rubric_id = cq.rubric_id
+WHERE cq.jd_id = @jd_id
+GROUP BY cq.id
+ORDER BY cq.id;
+
+-- The valid practice results of a profile that feed its Roadmap topics: one row per assessed core question of
+-- a completed, successfully evaluated, not injection-flagged practice session (the Roadmap eligibility rule).
+-- A core that was shown and skipped has no stored score and counts 0, as the Roadmap read model counts it. The
+-- topic is the one the assessment was recorded for; the time is the session's completion, never the link time.
+-- name: ListProfileRoadmapEvidence :many
+SELECT iq.core_question_id, a.roadmap_item_id AS item_id, a.interview_id, a.question_position,
+       COALESCE(iq.score, 0)::float8 AS score, i.completed_at
+FROM public.roadmap_assessments a
+JOIN public.interviews i ON i.id = a.interview_id
+JOIN public.interview_questions iq ON iq.interview_id = a.interview_id AND iq.position = a.question_position
+WHERE i.role_profile_id = @role_profile_id
+  AND i.type = 'practice'
+  AND i.completed_at IS NOT NULL
+  AND i.evaluation_status = 'completed'
+  AND NOT i.injection_flagged;

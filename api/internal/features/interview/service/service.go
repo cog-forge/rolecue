@@ -73,7 +73,20 @@ type Settings struct {
 	AbandonTimeout         time.Duration
 }
 
+// FocusReader reads what a focused practice start needs before it generates or charges anything.
+type FocusReader interface {
+	FocusState(ctx context.Context, candidateID, profileID, focus uuid.UUID) (domain.FocusState, error)
+}
+
+// TopicTopUp adds the bank questions a topic lacks for a focused session (KAN-347): have is how many it has
+// and total how many the session needs. One model call; nothing that exists changes.
+type TopicTopUp interface {
+	TopUp(ctx context.Context, candidate, profile, topic uuid.UUID, have, total int) error
+}
+
 type Service struct {
+	focus      FocusReader
+	topUp      TopicTopUp
 	repository Repository
 	settings   Settings
 	evaluator  Evaluator
@@ -107,6 +120,13 @@ func (s *Service) SetEvaluator(evaluator Evaluator) {
 	s.evaluator = evaluator
 }
 
+// SetTopicTopUp enables focused practice starts to add the questions a topic lacks before they charge. Without
+// it a focused start of a topic with too few questions is refused instead of topped up. Set it before the
+// service serves requests.
+func (s *Service) SetTopicTopUp(reader FocusReader, topUp TopicTopUp) {
+	s.focus, s.topUp = reader, topUp
+}
+
 // SetEndNotifier sets the optional hook told about every ended session. Set it before the service serves
 // requests.
 func (s *Service) SetEndNotifier(notifier EndNotifier) {
@@ -125,7 +145,7 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 	params := domain.CreateParams{
 		CandidateID: candidateID, Type: input.Type, RoleProfileID: input.RoleProfileID,
 		ApplicationID: input.ApplicationID, AvatarID: input.AvatarID, VoiceID: input.VoiceID,
-		QuestionLimit: s.settings.QuestionLimit,
+		QuestionLimit: s.settings.QuestionLimit, FocusItemID: input.FocusItemID,
 	}
 	if input.Type == domain.TypePractice {
 		params.PracticeCoins = domain.PracticeInterviewCoins
@@ -144,9 +164,13 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 			if existing, found, lookupErr := s.repository.Existing(ctx, params); lookupErr != nil {
 				return domain.Session{}, false, lookupErr
 			} else if found {
-				return presentSession(existing), false, nil
+				return presentStart(existing, false), false, nil
 			}
 		}
+		return domain.Session{}, false, err
+	}
+	if err := s.topUpFocus(ctx, params); err != nil {
+		s.releaseBudget(ctx, candidateID, reserved)
 		return domain.Session{}, false, err
 	}
 	session, created, err := s.repository.Create(ctx, params)
@@ -165,7 +189,55 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 			logger.Int("question_count", int(session.QuestionCount)),
 		)
 	}
-	return presentSession(session), created, nil
+	return presentStart(session, created), created, nil
+}
+
+// presentStart is presentSession for the answer to a start: it also says whether the session is new or was
+// already there, so the client never has to guess from the status code.
+func presentStart(session domain.Session, created bool) domain.Session {
+	session = presentSession(session)
+	resumed := !created
+	session.Resumed = &resumed
+	return session
+}
+
+// topUpFocus prepares a focused practice start before anything is charged: it checks the topic and the
+// Roadmap, and when the topic has fewer bank questions than a session asks it generates the missing ones in
+// one bounded call. A start that resumes an existing session needs none of it and calls no model. A failure
+// here leaves no session and no debit. The start checks every condition again under the practice start lock.
+func (s *Service) topUpFocus(ctx context.Context, params domain.CreateParams) error {
+	if params.FocusItemID == nil || s.focus == nil {
+		return nil
+	}
+	// The topic is checked first, so a topic that is not the profile's is refused even while a session is open.
+	state, err := s.focus.FocusState(ctx, params.CandidateID, *params.RoleProfileID, *params.FocusItemID)
+	if err != nil {
+		return err
+	}
+	if _, found, existingErr := s.repository.Existing(ctx, params); existingErr != nil || found {
+		return existingErr
+	}
+	if !state.RoadmapReady {
+		return domain.ErrRoadmapNotReady
+	}
+	need := int(params.QuestionLimit)
+	if state.Questions >= need || s.topUp == nil {
+		return nil
+	}
+	if s.llmBudget != nil {
+		if err = s.llmBudget.Consume(ctx, params.CandidateID); err != nil {
+			return err
+		}
+	}
+	err = s.topUp.TopUp(ctx, params.CandidateID, *params.RoleProfileID, *params.FocusItemID, state.Questions, need)
+	if err != nil {
+		s.releaseBudget(ctx, params.CandidateID, s.llmBudget != nil)
+		if apperror.IsCode(err, apperror.CodeRequirementsNotConfirmed) {
+			return domain.ErrRoleProfileRequired
+		}
+		return err
+	}
+	return nil
 }
 
 // reserveBudget takes one call of the user's daily AI budget for the session about to start. It is a no-op
@@ -457,6 +529,9 @@ func validateCreate(input domain.CreateInput) error {
 		// The posting fixes the interviewer and the voice; the Candidate cannot choose their own.
 		if input.AvatarID != nil || input.VoiceID != nil {
 			return apperror.New(apperror.CodeValidation, "avatar_id and voice_id are fixed by the job posting for a recruitment interview")
+		}
+		if input.FocusItemID != nil {
+			return apperror.New(apperror.CodeValidation, "focus_item_id is only for a practice interview")
 		}
 	default:
 		return apperror.New(apperror.CodeValidation, "type must be practice or recruitment")

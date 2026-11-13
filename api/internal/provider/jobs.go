@@ -7,6 +7,7 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
+	roadmapservice "github.com/cog-forge/rolecue/api/internal/features/roadmap/service"
 	"github.com/cog-forge/rolecue/api/internal/pkg/jobs"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
@@ -29,6 +30,7 @@ const (
 	jobRecordingRetention  = "interview.recording_retention"
 	jobCVRetention         = "application.cv_retention"
 	jobTranscriptRetention = "interview.transcript_retention"
+	jobRoadmapCatchup      = "roadmap.catchup"
 )
 
 func ProvideRecordingUpkeep(repo *repository.Repository, store storage.Store, cfg *config.Config) (*service.RecordingUpkeep, error) {
@@ -50,7 +52,7 @@ func ProvideRecordingUpkeep(repo *repository.Repository, store storage.Store, cf
 
 // ProvideSystemJobs builds the System Handler's job runner (KAN-174) with every enabled job. main starts
 // it with the API and stops it on shutdown. With jobs.enabled off the runner has no job.
-func ProvideSystemJobs(cfg *config.Config, pool *pgxpool.Pool, interviews *service.Service, upkeep *service.RecordingUpkeep, log *logger.Logger) (*jobs.Runner, error) {
+func ProvideSystemJobs(cfg *config.Config, pool *pgxpool.Pool, interviews *service.Service, upkeep *service.RecordingUpkeep, roadmapCatchUp *roadmapservice.CatchUp, log *logger.Logger) (*jobs.Runner, error) {
 	locker, err := jobs.NewPostgresLocker(pool)
 	if err != nil {
 		return nil, err
@@ -75,6 +77,11 @@ func ProvideSystemJobs(cfg *config.Config, pool *pgxpool.Pool, interviews *servi
 		{settings.RecordingRetention.Enabled, jobs.Job{
 			Name: jobRecordingRetention, Interval: settings.RecordingRetention.Interval,
 			Run: countRun(jobRecordingRetention, "purged", upkeep.PurgeExpired),
+		}},
+		// Links evaluated practice results the evaluation hook missed to their Roadmap topics (KAN-351).
+		{settings.RoadmapCatchup.Enabled, jobs.Job{
+			Name: jobRoadmapCatchup, Interval: settings.RoadmapCatchup.Interval,
+			Run: countRun(jobRoadmapCatchup, "linked", roadmapCatchUp.Run),
 		}},
 		// Personal-data retention (KAN-281), off unless RETENTION_ENABLED; paced like the recording retention.
 		{cfg.Retention.Enabled, jobs.Job{

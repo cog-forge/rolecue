@@ -63,7 +63,7 @@ func TestHistoryPageAllowList(t *testing.T) {
 	}
 	wantPage := []string{"items", "page", "page_size", "total"}
 	wantItem := []string{
-		"application_id", "completed_at", "evaluation_status", "id", "job_posting_title",
+		"application_id", "completed_at", "evaluation_status", "focus_item_id", "id", "job_posting_title",
 		"role_profile_title", "score", "score_outcome", "started_at", "status", "type",
 	}
 	if got := sortedKeys(envelope); !reflect.DeepEqual(got, wantPage) {

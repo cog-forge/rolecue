@@ -5,6 +5,7 @@ import (
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	questionbankservice "github.com/cog-forge/rolecue/api/internal/features/questionbank/service"
+	roadmapservice "github.com/cog-forge/rolecue/api/internal/features/roadmap/service"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
@@ -27,13 +28,17 @@ func ProvideRoleProfileExtraction(cfg *config.Config) (*service.ExtractionServic
 	}
 	return service.NewExtractionService(model, retries)
 }
-func ProvideRoleProfileService(cfg *config.Config, extraction *service.ExtractionService, repo *repository.RoleProfileRepository, questionBank *questionbankservice.Service) (*service.RoleProfileApplication, error) {
+func ProvideRoleProfileService(cfg *config.Config, extraction *service.ExtractionService, repo *repository.RoleProfileRepository, questionBank *questionbankservice.Service, roadmap *roadmapservice.Service) (*service.RoleProfileApplication, error) {
 	primary, _ := cfg.TaskLLM(config.TaskJD)
-	return service.NewRoleProfileApplication(extraction, repo, questionBank, primary.Timeout)
+	app, err := service.NewRoleProfileApplication(extraction, repo, questionBank, primary.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	return app.WithRoadmap(roadmap), nil
 }
 func ProvideRoleProfileDocumentApplication(repo *repository.RoleProfileRepository, store storage.Store) *service.RoleProfileDocumentApplication {
 	return service.NewRoleProfileDocumentApplication(repo, store, service.PopplerParser{})
 }
-func ProvideRoleProfileHandler(app *service.RoleProfileApplication, documents *service.RoleProfileDocumentApplication) *handler.RoleProfileHandler {
-	return handler.NewRoleProfileHandler(app, documents)
+func ProvideRoleProfileHandler(app *service.RoleProfileApplication, documents *service.RoleProfileDocumentApplication, roadmap *roadmapservice.Service) *handler.RoleProfileHandler {
+	return handler.NewRoleProfileHandler(app, documents).WithRoadmap(roadmap)
 }
