@@ -1,8 +1,7 @@
 {
   "dashboard": {
     "heading": "Dashboard",
-    "eyebrow": "Candidate",
-    "description": "Your Target JDs, practice activity, applications and coin balance in one place.",
+    "description": "See your practice progress and the next steps in your job search.",
     "retry": "Try again",
     "applications": {
       "title": "Applications",
@@ -19,7 +18,8 @@
         "interviewed": "Interview completed",
         "approved": "Approved",
         "rejected": "Not selected"
-      }
+      },
+      "emptyTitle": "No applications yet"
     },
     "practice": {
       "title": "Practice activity",
@@ -28,7 +28,7 @@
       "empty": "No practice sessions yet. Start one to see your feedback here.",
       "start": "Start a practice interview",
       "count": "{count, plural, one {{countText} session} other {{countText} sessions}}",
-      "view": "View all interview history",
+      "view": "View history",
       "status": {
         "in_progress": "In progress",
         "pending": "Feedback being prepared",
@@ -36,7 +36,10 @@
         "failed": "Feedback unavailable"
       },
       "scoreValue": "{score}/100",
-      "scoreWithheld": "No overall score"
+      "scoreWithheld": "No overall score",
+      "emptyTitle": "No practice sessions yet",
+      "recent": "Latest sessions",
+      "partial": "Partial score"
     },
     "profiles": {
       "title": "Target JDs",
@@ -53,7 +56,8 @@
         "analyzing": "Analyzing the job description",
         "review": "Waiting for your review",
         "confirmed": "Ready to practice"
-      }
+      },
+      "emptyTitle": "No Target JDs yet"
     },
     "wallet": {
       "title": "Coin balance",
@@ -62,7 +66,54 @@
       "unit": "coins",
       "description": "Coins are used for AI interview practice.",
       "view": "View transactions"
-    }
+    },
+    "progress": {
+      "title": "Practice progress",
+      "windowLabel": "Practice history window",
+      "window": "Last {count} sessions",
+      "loading": "Loading your practice progress…",
+      "error": "We couldn't load your practice progress.",
+      "latest": "Latest complete score",
+      "noScore": "Complete a practice session to see your score.",
+      "sessions": "Practice sessions",
+      "best": "Best score shown",
+      "score": "Score",
+      "chartLabel": "Complete practice scores over recent sessions",
+      "scope": "{count, plural, one {Your latest session} other {Your latest # sessions}}",
+      "viewValues": "View scores",
+      "emptyTitle": "No complete scores yet",
+      "empty": "Complete a practice interview to see your scores over time.",
+      "explanation": "Complete practice scores only. Gaps are sessions without a complete score. Different roles and rubrics may assess different skills."
+    },
+    "focus": {
+      "title": "What to work on",
+      "loading": "Loading your latest feedback…",
+      "error": "We couldn't load your latest feedback.",
+      "emptyTitle": "Feedback after your first practice",
+      "empty": "Your latest feedback will show which skills to focus on next.",
+      "description": "The lowest assessed metrics in your latest practice report.",
+      "view": "Read feedback",
+      "unassessedTitle": "No assessed metrics in this report",
+      "unassessed": "Open the report to check the session details. Unassessed skills are not zero scores."
+    },
+    "nextStep": {
+      "title": "Your next step",
+      "loading": "Checking your applications…",
+      "error": "We couldn't check your next application step.",
+      "invited": "Interview available",
+      "ongoing": "Practice in progress",
+      "practiceLabel": "Keep practising",
+      "practiceTitle": "Practise for your target role",
+      "practiceDescription": "Choose a Target JD and rehearse the technical skills the role calls for.",
+      "invitedDescription": "Review the application and complete your interview before the deadline.",
+      "ongoingDescription": "Open the session details to check its current status.",
+      "deadline": "Complete by {date}",
+      "openApplication": "Review application",
+      "openSession": "Check session",
+      "practiceAction": "Choose a Target JD",
+      "allApplications": "All applications"
+    },
+    "loadingCard": "Loading {title}…"
   },
   "history": {
     "eyebrow": "Practice",

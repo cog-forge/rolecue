@@ -12,7 +12,7 @@ import { CardError, CardLoading, DashboardCard } from "./dashboard-card";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 // The balance is the backend's authoritative figure; the card only displays it.
-export function WalletCard() {
+export function WalletCard({ className }: { className?: string }) {
   const t = useTranslations("candidate.dashboard.wallet");
   const fmt = useFormatters();
   const user = useSessionUser();
@@ -23,7 +23,12 @@ export function WalletCard() {
   });
 
   return (
-    <DashboardCard title={t("title")}>
+    <DashboardCard
+      title={t("title")}
+      className={className}
+      isLoading={query.isPending}
+      compact
+    >
       {query.isPending ? (
         <CardLoading label={t("loading")} />
       ) : query.isError ? (
@@ -34,16 +39,24 @@ export function WalletCard() {
         />
       ) : (
         <div className="space-y-3">
-          <p className="text-2xl font-semibold tabular-nums">
-            {fmt.coinAmount(query.data.balance)}{" "}
-            <span className="text-sm font-medium text-muted-foreground">
-              {t("unit")}
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-3xl font-semibold tracking-tight tabular-nums">
+              {fmt.coinAmount(query.data.balance)}{" "}
+              <span className="text-sm font-medium text-muted-foreground">
+                {t("unit")}
+              </span>
+            </p>
+            <Button
+              asChild
+              variant="outline"
+              className="h-11 bg-background text-xs"
+            >
+              <Link href={routes.billing}>{t("view")}</Link>
+            </Button>
+          </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {t("description")}
           </p>
-          <p className="text-sm text-muted-foreground">{t("description")}</p>
-          <Button asChild variant="outline" className="h-11 bg-background">
-            <Link href={routes.billing}>{t("view")}</Link>
-          </Button>
         </div>
       )}
     </DashboardCard>
