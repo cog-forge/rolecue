@@ -70,6 +70,7 @@ export function ReportOverview({ reportId }: { reportId: string }) {
 
       {!validId ? (
         <ErrorState
+          headingLevel={1}
           title={t("invalidTitle")}
           description={t("invalidText")}
         ></ErrorState>
@@ -81,11 +82,16 @@ export function ReportOverview({ reportId }: { reportId: string }) {
         </div>
       ) : denied ? (
         <ErrorState
+          headingLevel={1}
           title={t("deniedTitle")}
           description={t("accessChecking")}
         ></ErrorState>
       ) : apiStatus(query.error) === 404 ? (
-        <ErrorState title={t("notFoundTitle")} description={t("notFoundText")}>
+        <ErrorState
+          headingLevel={1}
+          title={t("notFoundTitle")}
+          description={t("notFoundText")}
+        >
           <Button
             asChild
             variant="outline"
@@ -96,6 +102,7 @@ export function ReportOverview({ reportId }: { reportId: string }) {
         </ErrorState>
       ) : query.isError ? (
         <ErrorState
+          headingLevel={1}
           title={t("errorTitle")}
           description={t("errorText")}
           onRetry={() => void query.refetch()}

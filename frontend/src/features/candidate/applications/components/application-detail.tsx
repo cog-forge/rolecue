@@ -64,6 +64,7 @@ export function CandidateApplicationDetail({ id }: { id: string }) {
 
       {!validId ? (
         <ErrorState
+          headingLevel={1}
           title={t("invalidTitle")}
           description={t("invalidBody")}
         ></ErrorState>
@@ -75,11 +76,16 @@ export function CandidateApplicationDetail({ id }: { id: string }) {
         </div>
       ) : denied ? (
         <ErrorState
+          headingLevel={1}
           title={t("deniedTitle")}
           description={t("deniedBody")}
         ></ErrorState>
       ) : notFound ? (
-        <ErrorState title={t("notFoundTitle")} description={t("notFoundBody")}>
+        <ErrorState
+          headingLevel={1}
+          title={t("notFoundTitle")}
+          description={t("notFoundBody")}
+        >
           <Button
             asChild
             variant="outline"
@@ -90,6 +96,7 @@ export function CandidateApplicationDetail({ id }: { id: string }) {
         </ErrorState>
       ) : query.isError ? (
         <ErrorState
+          headingLevel={1}
           title={t("errorTitle")}
           description={t("errorBody")}
           onRetry={() => void query.refetch()}

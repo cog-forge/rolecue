@@ -432,6 +432,7 @@ describe("ReportOverview", () => {
     expect(
       await screen.findByRole("heading", {
         name: "We couldn't find this report",
+        level: 1,
       }),
     ).toBeInTheDocument();
     expect(
@@ -445,6 +446,7 @@ describe("ReportOverview", () => {
     expect(
       await screen.findByRole("heading", {
         name: "You don't have access to this report",
+        level: 1,
       }),
     ).toBeInTheDocument();
   });
@@ -457,6 +459,7 @@ describe("ReportOverview", () => {
     expect(
       await screen.findByRole("heading", {
         name: "We couldn't load this report",
+        level: 1,
       }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
@@ -468,7 +471,7 @@ describe("ReportOverview", () => {
   it("rejects an invalid link without calling the API", () => {
     renderReport("not-a-uuid");
     expect(
-      screen.getByRole("heading", { name: "This link isn't valid" }),
+      screen.getByRole("heading", { name: "This link isn't valid", level: 1 }),
     ).toBeInTheDocument();
     expect(mocks.get).not.toHaveBeenCalled();
   });

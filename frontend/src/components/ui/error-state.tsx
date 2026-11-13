@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 export interface ErrorStateProps {
   title?: React.ReactNode;
   heading?: React.ReactNode;
+  headingLevel?: 1 | 2 | 3;
   description?: React.ReactNode;
   error?: Error | unknown;
   statusCode?: number;
@@ -33,6 +34,7 @@ export interface ErrorStateProps {
 export function ErrorState({
   title,
   heading,
+  headingLevel = 2,
   description,
   statusCode,
   onRetry,
@@ -47,6 +49,7 @@ export function ErrorState({
   children,
 }: ErrorStateProps) {
   const t = useTranslations("common.errorState");
+  const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
 
   const effectiveTitle = title ?? t("title");
 
@@ -87,9 +90,9 @@ export function ErrorState({
       <div className={cn("max-w-xs space-y-2")}>
         <div className="flex items-center justify-center gap-2">
           {heading ?? (
-            <h2 className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
+            <Heading className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
               {effectiveTitle}
-            </h2>
+            </Heading>
           )}
           {statusCode && (
             <span className="inline-flex items-center rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive">

@@ -133,11 +133,13 @@ export function PostingReview({
         </div>
       ) : denied ? (
         <ErrorState
+          headingLevel={1}
           title={t("denied.title")}
           description={t("denied.description")}
         ></ErrorState>
       ) : query.isError ? (
         <ErrorState
+          headingLevel={1}
           title={
             apiError(query.error).status === 404
               ? t("notFound.title")
