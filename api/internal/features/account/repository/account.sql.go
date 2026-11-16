@@ -95,6 +95,25 @@ func (q *Queries) DeleteJobDescriptions(ctx context.Context, jdIds []uuid.UUID) 
 	return err
 }
 
+const deleteOrphanAssets = `-- name: DeleteOrphanAssets :exec
+DELETE FROM public.avatar_assets s
+WHERE (s.id = ANY($1::uuid[]) OR s.created_by = $2)
+  AND NOT EXISTS (SELECT 1 FROM public.avatars a WHERE a.asset_id = s.id)
+  AND NOT EXISTS (SELECT 1 FROM public.avatar_listings l WHERE l.asset_id = s.id)
+`
+
+type DeleteOrphanAssetsParams struct {
+	AssetIds []uuid.UUID
+	ID       *uuid.UUID
+}
+
+// Assets of the erased account that nothing references any more: the ones its deleted avatars used and the ones it
+// created. An asset another account's avatar or listing still uses stays, with created_by set NULL by the FK.
+func (q *Queries) DeleteOrphanAssets(ctx context.Context, arg DeleteOrphanAssetsParams) error {
+	_, err := q.db.Exec(ctx, deleteOrphanAssets, arg.AssetIds, arg.ID)
+	return err
+}
+
 const deleteOwnedApplications = `-- name: DeleteOwnedApplications :exec
 DELETE FROM public.applications
 WHERE candidate_id = $1 OR job_posting_id IN (SELECT jp.id FROM public.job_postings jp WHERE jp.recruiter_id = $1)
@@ -105,13 +124,30 @@ func (q *Queries) DeleteOwnedApplications(ctx context.Context, id uuid.UUID) err
 	return err
 }
 
-const deleteOwnedAvatars = `-- name: DeleteOwnedAvatars :exec
+const deleteOwnedAvatars = `-- name: DeleteOwnedAvatars :many
 DELETE FROM public.avatars WHERE inventory_id IN (SELECT inv.id FROM public.inventories inv WHERE inv.user_id = $1)
+RETURNING asset_id
 `
 
-func (q *Queries) DeleteOwnedAvatars(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteOwnedAvatars, id)
-	return err
+// The asset ids come back so DeleteOrphanAssets can clean up what only these avatars used.
+func (q *Queries) DeleteOwnedAvatars(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, deleteOwnedAvatars, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var asset_id uuid.UUID
+		if err := rows.Scan(&asset_id); err != nil {
+			return nil, err
+		}
+		items = append(items, asset_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteOwnedInventories = `-- name: DeleteOwnedInventories :exec
@@ -129,6 +165,17 @@ DELETE FROM public.job_postings WHERE recruiter_id = $1
 
 func (q *Queries) DeleteOwnedJobPostings(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteOwnedJobPostings, id)
+	return err
+}
+
+const deleteOwnedListings = `-- name: DeleteOwnedListings :exec
+DELETE FROM public.avatar_listings WHERE seller_id = $1
+`
+
+// Marketplace listings of the account go with it (a listing is the seller's own data); buyers' avatars and the
+// asset they use are not touched. Runs before the avatars so the assets can be checked for orphans.
+func (q *Queries) DeleteOwnedListings(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteOwnedListings, id)
 	return err
 }
 
@@ -342,7 +389,15 @@ SELECT i.record_path FROM public.interviews i
                 OR a.job_posting_id IN (SELECT jp.id FROM public.job_postings jp WHERE jp.recruiter_id = $1))
         OR oi.role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = $1))
 UNION
-SELECT av.model_path FROM public.avatars av JOIN public.inventories inv ON inv.id = av.inventory_id WHERE inv.user_id = $1
+SELECT s.model_path FROM public.avatar_assets s
+ WHERE (s.created_by = $1
+        OR s.id IN (SELECT av.asset_id FROM public.avatars av JOIN public.inventories inv ON inv.id = av.inventory_id WHERE inv.user_id = $1))
+   -- An object that another account's avatar or listing still uses (by key, the legacy rows may share one) stays.
+   AND NOT EXISTS (SELECT 1 FROM public.avatar_assets o
+                    WHERE o.model_path = s.model_path
+                      AND (EXISTS (SELECT 1 FROM public.avatars oa JOIN public.inventories oi ON oi.id = oa.inventory_id
+                                    WHERE oa.asset_id = o.id AND oi.user_id <> $1)
+                           OR EXISTS (SELECT 1 FROM public.avatar_listings ol WHERE ol.asset_id = o.id AND ol.seller_id <> $1)))
 UNION
 SELECT jd.content_path FROM public.job_descriptions jd
  WHERE jd.content_path IS NOT NULL
@@ -352,7 +407,8 @@ UNION
 SELECT g.key::text FROM public.upload_grants g WHERE g.owner_id = $1
 `
 
-// Every object key the account owns: CVs, recordings, avatar models, JD PDFs and the keys of issued upload
+// Every object key the account owns: CVs, recordings, avatar models (shared assets other accounts still use are
+// excluded), JD PDFs and the keys of issued upload
 // grants. The interview subquery repeats ListOwnedInterviewIDs (sqlc has no shared fragments); keep the two
 // identical.
 func (q *Queries) ListStorageKeys(ctx context.Context, id uuid.UUID) ([]*string, error) {
