@@ -1,4 +1,16 @@
 "use client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AiLoader } from "@/components/ui/ai-loader";
+import { PracticeFocus } from "@/features/roadmap/components/practice-focus";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import type { InterviewSession } from "../api/start-session";
 import { ErrorState } from "@/components/ui/error-state";
 
 import { useId, useRef, useState, type ReactNode } from "react";
@@ -84,6 +96,9 @@ export function StartPanel({
   const cache = useQueryClient();
   const ids = useId();
   const [addingCoins, setAddingCoins] = useState(false);
+  const [differentSession, setDifferentSession] =
+    useState<InterviewSession | null>(null);
+  const roadmapT = useTranslations("candidate.roadmap");
   // One Idempotency-Key per attempt: kept while a retry follows an ambiguous failure, replaced when
   // the request changes or a failure proves nothing was created. Memory only, never storage.
   const attempt = useRef<{ key: string; signature: string } | null>(null);
@@ -114,8 +129,19 @@ export function StartPanel({
       );
       return { session, existing: !created };
     },
-    onSuccess: ({ session, existing }) => {
+    onSuccess: ({ session, existing }, current) => {
       attempt.current = null;
+      // Keep the returned session stable until the user chooses to continue. Refetching
+      // setup first can replace this panel with its newly discovered resume state.
+      if (
+        existing &&
+        current.kind === "new" &&
+        current.request.type === "practice" &&
+        session.focus_item_id !== (current.request.focusItemId ?? null)
+      ) {
+        setDifferentSession(session);
+        return;
+      }
       void cache.invalidateQueries({ queryKey: walletKeys.all(user.id) });
       void cache.invalidateQueries({ queryKey: historyKeys.all(user.id) });
       void cache.invalidateQueries({
@@ -174,6 +200,10 @@ export function StartPanel({
         {
           type,
           resume: plan.kind === "resume",
+          focused:
+            plan.kind === "new" &&
+            plan.request.type === "practice" &&
+            Boolean(plan.request.focusItemId),
           balance,
         },
         errorsT,
@@ -203,6 +233,49 @@ export function StartPanel({
 
   const action = (
     <div className="space-y-3">
+      <Dialog
+        open={Boolean(differentSession)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDifferentSession(null);
+            start.reset();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{roadmapT("resumeDifferentTitle")}</DialogTitle>
+            <DialogDescription>{roadmapT("resumeDifferent")}</DialogDescription>
+          </DialogHeader>
+          {differentSession?.role_profile_id && (
+            <PracticeFocus
+              profileId={differentSession.role_profile_id}
+              focusItemId={differentSession.focus_item_id}
+            />
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="min-h-11"
+              onClick={() => {
+                setDifferentSession(null);
+                start.reset();
+              }}
+            >
+              {roadmapT("cancel")}
+            </Button>
+            <Button
+              className="min-h-11"
+              onClick={() => {
+                if (differentSession)
+                  router.push(routes.interviews.room(differentSession.id));
+              }}
+            >
+              {roadmapT("continueSession")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {problem && (
         <Problem
           message={problem.message}
@@ -212,6 +285,16 @@ export function StartPanel({
           onStartNew={() => start.reset()}
         />
       )}
+      {start.isPending &&
+        plan.kind === "new" &&
+        plan.request.type === "practice" &&
+        plan.request.focusItemId && (
+          <AiLoader
+            variant="compact"
+            stage="processing"
+            title={roadmapT("preparingQuestions")}
+          />
+        )}
       <Button
         type="button"
         className="h-auto min-h-11 whitespace-normal py-2 w-full"
@@ -234,7 +317,14 @@ export function StartPanel({
         aria-live="polite"
         className="min-h-4 text-xs text-muted-foreground"
       >
-        {busy ? label : hint}
+        {start.isPending &&
+        plan.kind === "new" &&
+        plan.request.type === "practice" &&
+        plan.request.focusItemId
+          ? null
+          : busy
+            ? label
+            : hint}
       </p>
     </div>
   );
@@ -381,6 +471,16 @@ function Problem({
         {t("startNew")}
       </Button>
     );
+  else if (action === "roadmap" && roleProfileId)
+    control = (
+      <div className="flex flex-wrap gap-2">
+        {link(routes.roleProfiles.roadmap(roleProfileId), t("openRoadmap"))}
+        {link(
+          setupHref(routes.interviews.new.preflight, { roleProfileId }),
+          t("practiceGenerally"),
+        )}
+      </div>
+    );
   else if (action === "role-profile" && roleProfileId)
     control = link(routes.roleProfiles.detail(roleProfileId), t("openProfile"));
   else if (action === "setup")
@@ -396,18 +496,18 @@ function Problem({
     control = link(routes.applications, t("backToApplications"));
 
   return (
-    <div
-      role="alert"
+    <Alert
+      variant="destructive"
       className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm duration-(--duration-fast) ease-(--ease-smooth-out) animate-in fade-in slide-in-from-top-1 motion-reduce:animate-none"
     >
-      <p className="flex items-start gap-2">
+      <AlertDescription className="flex items-start gap-2">
         <AlertCircle
           aria-hidden="true"
           className="mt-0.5 size-4 shrink-0 text-destructive"
         />
         {message}
-      </p>
+      </AlertDescription>
       {control}
-    </div>
+    </Alert>
   );
 }

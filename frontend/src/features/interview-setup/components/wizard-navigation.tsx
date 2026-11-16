@@ -30,7 +30,7 @@ function WizardLinks() {
   const pathname = usePathname();
   const params = readSetupParams(useSearchParams());
   if (params.applicationId) return null;
-  const { roleProfileId, avatarId, voiceId } = params;
+  const { roleProfileId, focusItemId, avatarId, voiceId } = params;
   const active = interviewSteps.findIndex((step) => step.href === pathname);
   return (
     <nav aria-label={t("stepsLabel")}>
@@ -43,6 +43,7 @@ function WizardLinks() {
               <Link
                 href={setupHref(step.href, {
                   roleProfileId,
+                  focusItemId,
                   avatarId,
                   voiceId,
                 })}

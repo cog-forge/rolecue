@@ -1,4 +1,5 @@
 "use client";
+import { PracticeFocus } from "@/features/roadmap/components/practice-focus";
 import { ErrorState } from "@/components/ui/error-state";
 
 import { useId } from "react";
@@ -31,8 +32,10 @@ import { useFormatters } from "@/lib/i18n/use-formatters";
 // Step 3: the confirmed Role Profile the interview is built from. The choice lives in the URL.
 export function RoleProfilePicker({
   roleProfileId,
+  focusItemId,
 }: {
   roleProfileId?: string;
+  focusItemId?: string;
 }) {
   const t = useTranslations("candidate.setup");
   const errors = useTranslations("errors");
@@ -253,6 +256,14 @@ export function RoleProfilePicker({
         )}
       </div>
 
+      {selected && (
+        <PracticeFocus
+          profileId={selected.id}
+          focusItemId={resume ? resume.focusItemId : focusItemId}
+          requestedFocusId={focusItemId}
+          resumed={Boolean(resume)}
+        />
+      )}
       {resume ? (
         <ResumeCallout
           title={t("resume.title")}
@@ -266,6 +277,7 @@ export function RoleProfilePicker({
             <Link
               href={setupHref(routes.interviews.new.preflight, {
                 roleProfileId: resume.roleProfileId,
+                focusItemId,
               })}
             >
               {t("resume.action")} <ArrowRight aria-hidden="true" />
@@ -292,6 +304,7 @@ export function RoleProfilePicker({
                 <Link
                   href={setupHref(routes.interviews.new.interviewer, {
                     roleProfileId: selected.id,
+                    focusItemId,
                   })}
                 >
                   {t("roleProfile.continue")} <ArrowRight aria-hidden="true" />

@@ -1,4 +1,6 @@
 "use client";
+import { getRoadmap, roadmapKeys } from "@/features/roadmap/api/roadmap";
+import { PracticeFocus } from "@/features/roadmap/components/practice-focus";
 import { ErrorState } from "@/components/ui/error-state";
 
 import {
@@ -108,6 +110,7 @@ export function InterviewReadiness(params: SetupParams) {
     return (
       <PracticeReadiness
         roleProfileId={params.roleProfileId}
+        focusItemId={params.focusItemId}
         avatarId={params.avatarId}
         voiceId={params.voiceId}
         readiness={readiness}
@@ -180,12 +183,14 @@ function Layout({
 
 function PracticeReadiness({
   roleProfileId,
+  focusItemId,
   avatarId,
   voiceId,
   readiness,
   microphone,
 }: {
   roleProfileId: string;
+  focusItemId?: string;
   avatarId?: string;
   voiceId?: string;
   readiness: MicrophoneReadiness;
@@ -201,6 +206,15 @@ function PracticeReadiness({
     retry: false,
   });
   const unfinished = useUnfinishedPractice(user.id);
+  const roadmap = useQuery({
+    queryKey: roadmapKeys.detail(user.id, roleProfileId),
+    queryFn: ({ signal }) => getRoadmap(roleProfileId, signal),
+    enabled: Boolean(focusItemId),
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: false,
+  });
+  const roadmapT = useTranslations("candidate.roadmap");
   const avatar = useQuery({
     queryKey: avatarKeys.detail(user.id, avatarId ?? "none"),
     queryFn: ({ signal }) => getAvatar(avatarId ?? "", signal),
@@ -232,6 +246,7 @@ function PracticeReadiness({
   const voiceGone = Boolean(voiceId) && voices.isSuccess && !voice;
   const returnPath = setupHref(routes.interviews.new.preflight, {
     roleProfileId,
+    focusItemId,
     avatarId,
     voiceId,
   });
@@ -313,7 +328,10 @@ function PracticeReadiness({
         <SummaryRow
           label={t("readiness.summary.roleProfile")}
           action={editLink(
-            setupHref(routes.interviews.new.setup, { roleProfileId }),
+            setupHref(routes.interviews.new.setup, {
+              roleProfileId,
+              focusItemId,
+            }),
             t("readiness.summary.changeProfile"),
           )}
         >
@@ -334,6 +352,7 @@ function PracticeReadiness({
               action={editLink(
                 setupHref(routes.interviews.new.interviewer, {
                   roleProfileId,
+                  focusItemId,
                   avatarId,
                   voiceId,
                 }),
@@ -399,43 +418,60 @@ function PracticeReadiness({
     </section>
   );
 
-  const side = unfinished.isPending ? (
-    <div role="status" className="space-y-3 rounded-xl border bg-card p-5">
-      <Skeleton className="h-5 w-40" />
-      <Skeleton className="h-11 w-full" />
-      <span className="sr-only">{t("readiness.checking")}</span>
-    </div>
-  ) : (
-    <StartPanel
-      readiness={readiness}
-      links={{ roleProfileId }}
-      returnPath={returnPath}
-      plan={
-        resume
-          ? {
-              kind: "resume",
-              type: "practice",
-              sessionId: resume.id,
-              callout: (
-                <ResumeCallout
-                  title={t("resume.calloutTitle")}
-                  details={<PracticeProgress session={resume} />}
-                  note={t("resume.noCharge")}
-                />
-              ),
-            }
-          : {
-              kind: "new",
-              request: {
+  const focusReady =
+    !focusItemId ||
+    (roadmap.data?.generation_status === "ready" &&
+      roadmap.data.items.some((item) => item.id === focusItemId));
+  const side =
+    !resume && !focusReady ? (
+      <div className="space-y-3 rounded-xl border p-5">
+        <p role="status" className="text-sm">
+          {roadmapT(roadmap.isPending ? "loadingFocus" : "unknownFocus")}
+        </p>
+        <Button asChild variant="outline" className="min-h-11">
+          <Link href={routes.roleProfiles.roadmap(roleProfileId)}>
+            {roadmapT("chooseAnotherTopic")}
+          </Link>
+        </Button>
+      </div>
+    ) : unfinished.isPending ? (
+      <div role="status" className="space-y-3 rounded-xl border bg-card p-5">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-11 w-full" />
+        <span className="sr-only">{t("readiness.checking")}</span>
+      </div>
+    ) : (
+      <StartPanel
+        readiness={readiness}
+        links={{ roleProfileId }}
+        returnPath={returnPath}
+        plan={
+          resume
+            ? {
+                kind: "resume",
                 type: "practice",
-                roleProfileId,
-                avatarId: avatarGone ? undefined : avatarId,
-                voiceId: voiceGone ? undefined : voiceId,
-              },
-            }
-      }
-    />
-  );
+                sessionId: resume.id,
+                callout: (
+                  <ResumeCallout
+                    title={t("resume.calloutTitle")}
+                    details={<PracticeProgress session={resume} />}
+                    note={t("resume.noCharge")}
+                  />
+                ),
+              }
+            : {
+                kind: "new",
+                request: {
+                  type: "practice",
+                  roleProfileId,
+                  focusItemId,
+                  avatarId: avatarGone ? undefined : avatarId,
+                  voiceId: voiceGone ? undefined : voiceId,
+                },
+              }
+        }
+      />
+    );
 
   return (
     <section className="space-y-8">
@@ -446,6 +482,12 @@ function PracticeReadiness({
           onPaymentReturn={onPaymentReturn}
         />
       </Suspense>
+      <PracticeFocus
+        profileId={roleProfileId}
+        focusItemId={resume ? resume.focusItemId : focusItemId}
+        requestedFocusId={focusItemId}
+        resumed={Boolean(resume)}
+      />
       <Layout summary={summary} microphone={microphone} side={side} />
     </section>
   );

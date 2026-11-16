@@ -1,4 +1,5 @@
 "use client";
+import { PracticeFocus } from "@/features/roadmap/components/practice-focus";
 import { ErrorState } from "@/components/ui/error-state";
 
 import { useId, useState } from "react";
@@ -52,10 +53,12 @@ const cardClass =
 // Step 4: who interviews the Candidate and how they sound. Both are optional.
 export function InterviewerPicker({
   roleProfileId,
+  focusItemId,
   avatarId,
   voiceId,
 }: {
   roleProfileId?: string;
+  focusItemId?: string;
   avatarId?: string;
   voiceId?: string;
 }) {
@@ -110,6 +113,12 @@ export function InterviewerPicker({
           title={t("interviewer.alreadySet.title")}
           description={t("interviewer.alreadySet.description")}
         />
+        <PracticeFocus
+          profileId={roleProfileId}
+          focusItemId={resume.focusItemId}
+          requestedFocusId={focusItemId}
+          resumed
+        />
         <ResumeCallout
           title={t("resume.title")}
           details={<PracticeProgress session={resume} />}
@@ -122,6 +131,7 @@ export function InterviewerPicker({
             <Link
               href={setupHref(routes.interviews.new.preflight, {
                 roleProfileId,
+                focusItemId,
               })}
             >
               {t("resume.action")} <ArrowRight aria-hidden="true" />
@@ -160,6 +170,7 @@ export function InterviewerPicker({
     router.push(
       setupHref(routes.interviews.new.preflight, {
         roleProfileId,
+        focusItemId,
         avatarId: avatar,
         voiceId: voice,
       }),
@@ -174,6 +185,7 @@ export function InterviewerPicker({
         description={t("interviewer.description")}
       />
 
+      <PracticeFocus profileId={roleProfileId} focusItemId={focusItemId} />
       <fieldset className="space-y-4">
         <legend className="font-semibold">{t("interviewer.legend")}</legend>
         <p className="-mt-2 text-sm text-muted-foreground">
@@ -376,7 +388,10 @@ export function InterviewerPicker({
           className="h-auto min-h-11 whitespace-normal py-2"
         >
           <Link
-            href={setupHref(routes.interviews.new.setup, { roleProfileId })}
+            href={setupHref(routes.interviews.new.setup, {
+              roleProfileId,
+              focusItemId,
+            })}
           >
             <ArrowLeft aria-hidden="true" /> {t("interviewer.back")}
           </Link>
