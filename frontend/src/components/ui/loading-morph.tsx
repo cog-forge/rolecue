@@ -8,6 +8,7 @@ export interface LoadingMorphProps {
   className?: string;
   showText?: boolean;
   role?: string | null;
+  variant?: "page" | "compact";
 }
 export function LoadingMorph({
   label,
@@ -15,6 +16,7 @@ export function LoadingMorph({
   className,
   showText = true,
   role = "status",
+  variant = "page",
 }: LoadingMorphProps) {
   const t = useTranslations("common");
   const effectiveLabel = label ?? t("loadingPage");
@@ -22,22 +24,36 @@ export function LoadingMorph({
     <div
       role={role ?? undefined}
       aria-label={effectiveLabel}
+      aria-live={role === "status" ? "polite" : undefined}
       className={cn(
         "flex w-full flex-col items-center justify-center gap-3 text-center",
         size === "fullscreen"
           ? "fixed inset-0 z-50 bg-background"
-          : "min-h-56 py-10",
+          : variant === "compact"
+            ? "flex-row justify-start py-3 text-left"
+            : "min-h-56 py-10",
         className,
       )}
     >
       <div
         aria-hidden="true"
         className={cn(
-          "relative",
-          size === "sm" ? "size-16" : size === "md" ? "size-24" : "size-32",
+          "relative shrink-0",
+          variant === "compact"
+            ? "size-10"
+            : size === "sm"
+              ? "size-16"
+              : size === "md"
+                ? "size-24"
+                : "size-32",
         )}
       >
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div
+          className={cn(
+            "absolute inset-0 flex items-center justify-center",
+            variant === "compact" && "scale-50",
+          )}
+        >
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}

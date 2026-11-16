@@ -25,7 +25,7 @@ export interface ErrorStateProps {
   backHref?: string;
   homeHref?: string;
   onBack?: () => void;
-  variant?: "card" | "inline" | "full-page" | "dashed";
+  variant?: "card" | "inline" | "full-page" | "dashed" | "compact";
   icon?: LucideIcon;
   className?: string;
   children?: React.ReactNode;
@@ -50,6 +50,7 @@ export function ErrorState({
 }: ErrorStateProps) {
   const t = useTranslations("common.errorState");
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
+  const compact = variant === "compact";
 
   const effectiveTitle = title ?? t("title");
 
@@ -67,6 +68,7 @@ export function ErrorState({
     <div
       role="alert"
       aria-live="assertive"
+      aria-busy={isRetrying}
       className={cn(
         "flex w-full flex-col items-center justify-center text-center",
         "animate-in fade-in-50 zoom-in-95 duration-200 motion-reduce:animate-none",
@@ -76,24 +78,42 @@ export function ErrorState({
         variant === "inline" && "min-h-[20rem] border bg-transparent p-8",
         variant === "dashed" &&
           "min-h-[14rem] rounded-2xl border border-dashed border-destructive/30 bg-destructive/[0.02] p-8",
+        compact &&
+          "items-start rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-left",
         className,
       )}
     >
       {/* Icon with soft destructive halo */}
-      <div className="relative mb-4 flex items-center justify-center">
+      <div
+        className={cn(
+          "relative mb-4 flex items-center justify-center",
+          compact && "mb-3",
+        )}
+      >
         <div className="flex size-11 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
           <Icon className="size-4 stroke-[1.8]" aria-hidden="true" />
         </div>
       </div>
 
       {/* Typography */}
-      <div className={cn("max-w-xs space-y-2")}>
-        <div className="flex items-center justify-center gap-2">
-          {heading ?? (
-            <Heading className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
-              {effectiveTitle}
-            </Heading>
+      <div className={cn("max-w-xs space-y-2", compact && "max-w-none")}>
+        <div
+          className={cn(
+            "flex items-center justify-center gap-2",
+            compact && "justify-start",
           )}
+        >
+          {heading ??
+            (effectiveTitle && (
+              <Heading
+                className={cn(
+                  "text-base font-semibold tracking-tight text-foreground sm:text-lg",
+                  compact && "sm:text-base",
+                )}
+              >
+                {effectiveTitle}
+              </Heading>
+            ))}
           {statusCode && (
             <span className="inline-flex items-center rounded-md border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive">
               {statusCode}
@@ -109,61 +129,71 @@ export function ErrorState({
       </div>
 
       {/* Actions */}
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        {onRetry && (
-          <Button
-            type="button"
-            variant="default"
-            className="h-10 min-w-28 font-medium"
-            disabled={isRetrying}
-            onClick={onRetry}
-          >
-            <RefreshCw
-              className={cn("size-4", isRetrying && "animate-spin")}
-              aria-hidden="true"
-            />
-            {retryLabel ?? t("retry")}
-          </Button>
-        )}
+      {(onRetry || onBack || backHref || homeHref) && (
+        <div
+          className={cn(
+            "mt-6 flex flex-wrap items-center justify-center gap-3",
+            compact && "mt-3 justify-start",
+          )}
+        >
+          {onRetry && (
+            <Button
+              type="button"
+              variant="default"
+              className="h-auto min-h-11 min-w-28 whitespace-normal py-2 font-medium"
+              disabled={isRetrying}
+              onClick={onRetry}
+            >
+              <RefreshCw
+                className={cn(
+                  "size-4",
+                  isRetrying && "motion-safe:animate-spin",
+                )}
+                aria-hidden="true"
+              />
+              {retryLabel ?? t("retry")}
+            </Button>
+          )}
 
-        {onBack && (
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-10 rounded-xl font-medium"
-            onClick={onBack}
-          >
-            <ArrowLeft className="size-4" aria-hidden="true" />
-            {t("back")}
-          </Button>
-        )}
-
-        {backHref && (
-          <Button
-            asChild
-            variant="ghost"
-            className="h-10 rounded-xl font-medium"
-          >
-            <Link href={backHref}>
+          {onBack && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-auto min-h-11 whitespace-normal py-2 rounded-xl font-medium"
+              onClick={onBack}
+            >
               <ArrowLeft className="size-4" aria-hidden="true" />
               {t("back")}
-            </Link>
-          </Button>
-        )}
+            </Button>
+          )}
 
-        {homeHref && (
-          <Button
-            asChild
-            variant="outline"
-            className="h-10 rounded-xl font-medium"
-          >
-            <Link href={homeHref}>
-              <Home className="size-4" aria-hidden="true" />
-              {t("home")}
-            </Link>
-          </Button>
-        )}
-      </div>
+          {backHref && (
+            <Button
+              asChild
+              variant="ghost"
+              className="h-auto min-h-11 whitespace-normal py-2 rounded-xl font-medium"
+            >
+              <Link href={backHref}>
+                <ArrowLeft className="size-4" aria-hidden="true" />
+                {t("back")}
+              </Link>
+            </Button>
+          )}
+
+          {homeHref && (
+            <Button
+              asChild
+              variant="outline"
+              className="h-auto min-h-11 whitespace-normal py-2 rounded-xl font-medium"
+            >
+              <Link href={homeHref}>
+                <Home className="size-4" aria-hidden="true" />
+                {t("home")}
+              </Link>
+            </Button>
+          )}
+        </div>
+      )}
 
       {children && <div className="mt-6 w-full">{children}</div>}
     </div>
