@@ -50,13 +50,16 @@ func (s *seed) avatar(owner authdomain.User, modelKey string) uuid.UUID {
 		ON CONFLICT (user_id) DO UPDATE SET slot = public.inventories.slot RETURNING id`, owner.ID).Scan(&inventory); err != nil {
 		s.t.Fatal(err)
 	}
-	s.exec(`INSERT INTO public.avatars (id, inventory_id, name, model_path, personality) VALUES ($1, $2, 'Delete me', $3, 'calm')`,
-		avatar, inventory, modelKey)
+	s.exec(`WITH s AS (INSERT INTO public.avatar_assets (created_by, model_path) VALUES ($4, $3) RETURNING id)
+		INSERT INTO public.avatars (id, inventory_id, name, asset_id, personality) SELECT $1::uuid, $2::uuid, 'Delete me', s.id, 'calm' FROM s`,
+		avatar, inventory, modelKey, owner.ID)
 	s.t.Cleanup(func() {
 		// Runs before the seed cleanup (cleanups are last in, first out) because avatars reference inventories.
 		_, _ = s.pool.Exec(context.Background(), `DELETE FROM public.interviews WHERE avatar_id = $1`, avatar)
 		_, _ = s.pool.Exec(context.Background(), `DELETE FROM public.role_profiles WHERE candidate_id = $1`, owner.ID)
 		_, _ = s.pool.Exec(context.Background(), `DELETE FROM public.avatars WHERE id = $1`, avatar)
+		_, _ = s.pool.Exec(context.Background(), `DELETE FROM public.avatar_assets s WHERE s.model_path = $1
+			AND NOT EXISTS (SELECT 1 FROM public.avatars a WHERE a.asset_id = s.id)`, modelKey)
 	})
 	return avatar
 }

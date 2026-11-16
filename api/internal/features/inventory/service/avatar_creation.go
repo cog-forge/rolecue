@@ -24,6 +24,8 @@ type AvatarCreator interface {
 	Summary(context.Context, uuid.UUID) (domain.Capacity, error)
 	Create(context.Context, uuid.UUID, string, string, string) (domain.Avatar, error)
 	CountRecentAvatars(context.Context, uuid.UUID, time.Time) (int64, error)
+	// ModelKeyReferenced reports whether any asset stores the object key.
+	ModelKeyReferenced(context.Context, string) (bool, error)
 }
 
 type AvatarStore interface {
@@ -108,13 +110,7 @@ func (s *AvatarConversionService) Create(ctx context.Context, user authdomain.Us
 		// The request may already be cancelled; cleanup still gets a short deadline.
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		if cleanupErr := s.store.Delete(cleanupCtx, key); cleanupErr != nil {
-			logger.FromContext(cleanupCtx).Error("unable to delete unreferenced avatar object",
-				logger.Op("inventory.avatar_cleanup"),
-				logger.String("key", key),
-				logger.Cause(cleanupErr),
-			)
-		}
+		s.discardUnreferenced(cleanupCtx, key)
 		return domain.Avatar{}, err
 	}
 	logger.FromContext(ctx).Info("avatar created",
@@ -124,4 +120,26 @@ func (s *AvatarConversionService) Create(ctx context.Context, user authdomain.Us
 		zap.Int64("bytes", size),
 	)
 	return avatar, nil
+}
+
+// discardUnreferenced deletes an uploaded object whose database step failed, but only when no asset stores its
+// key: after an ambiguous commit error the asset may exist, and an object that anything references is never
+// deleted. When the check itself fails the object is kept (a stray object is better than a broken avatar).
+func (s *AvatarConversionService) discardUnreferenced(ctx context.Context, key string) {
+	referenced, err := s.repo.ModelKeyReferenced(ctx, key)
+	if err != nil {
+		logger.FromContext(ctx).Error("unable to check the uploaded avatar object; it was kept",
+			logger.Op("inventory.avatar_cleanup"), logger.Cause(err))
+		return
+	}
+	if referenced {
+		return
+	}
+	if err := s.store.Delete(ctx, key); err != nil {
+		logger.FromContext(ctx).Error("unable to delete unreferenced avatar object",
+			logger.Op("inventory.avatar_cleanup"),
+			logger.String("key", key),
+			logger.Cause(err),
+		)
+	}
 }

@@ -51,6 +51,7 @@ type seed struct {
 	ctx   context.Context
 	pool  *pgxpool.Pool
 	users []string
+	keys  []string
 }
 
 func newSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) *seed {

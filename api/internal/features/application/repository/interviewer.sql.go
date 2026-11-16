@@ -13,10 +13,11 @@ import (
 )
 
 const getCompanyInterviewer = `-- name: GetCompanyInterviewer :one
-SELECT av.name, av.model_path, v.name AS voice_name, a.interview_deadline
+SELECT av.name, s.model_path, v.name AS voice_name, a.interview_deadline
 FROM public.applications a
 JOIN public.job_postings jp ON jp.id = a.job_posting_id
 JOIN public.avatars av ON av.id = jp.required_avatar_id
+JOIN public.avatar_assets s ON s.id = av.asset_id
 JOIN public.inventories inv ON inv.id = av.inventory_id AND inv.user_id = jp.recruiter_id
 JOIN public.voices v ON v.id = jp.required_voice_id
 WHERE a.candidate_id = $1
@@ -42,7 +43,8 @@ type GetCompanyInterviewerRow struct {
 	InterviewDeadline pgtype.Timestamptz
 }
 
-// Only the avatar the posting locked for its interview (required_avatar_id), still owned by the posting's
+// The model key comes from the avatar's asset (no listing, creator or transaction is consulted, so a bought avatar
+// behaves like a self-created one). Only the avatar the posting locked for its interview (required_avatar_id), still owned by the posting's
 // Recruiter: no other avatar of the Recruiter is reachable through this query (KAN-305). Owned, currently
 // eligible Application only. Session reads must
 // additionally identify its unfinished recruitment session; practice cannot match this join.

@@ -77,7 +77,12 @@ func (r *Repository) Create(ctx context.Context, owner uuid.UUID, name, personal
 	if _, err := queries.LockAvatarInventory(ctx, owner); err != nil {
 		return domain.Avatar{}, persistenceError(err)
 	}
-	row, err := queries.InsertInventoryAvatar(ctx, InsertInventoryAvatarParams{UserID: owner, Name: name, Personality: personality, ModelPath: modelPath})
+	// The asset and the avatar are one unit: a full inventory rolls the asset back with the failed insert.
+	assetID, err := queries.InsertAvatarAsset(ctx, InsertAvatarAssetParams{CreatedBy: owner, ModelPath: modelPath})
+	if err != nil {
+		return domain.Avatar{}, persistenceError(err)
+	}
+	row, err := queries.InsertInventoryAvatar(ctx, InsertInventoryAvatarParams{UserID: owner, Name: name, Personality: personality, AssetID: assetID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return domain.Avatar{}, apperror.New(apperror.CodeInventoryFull, "avatar inventory is full")
@@ -219,34 +224,70 @@ func (r *Repository) PurchaseSlot(ctx context.Context, owner uuid.UUID, amount i
 	return domain.SlotPurchase{Capacity: capacityOf(row), Balance: balance}, nil
 }
 
-// Delete removes the owner's avatar row and hands its stored model key to purge before the transaction
-// commits. purge deletes the object: when it fails the transaction rolls back, so the row and the object
-// never disagree silently and the owner can simply delete again. A crash between purge and commit leaves
-// a row without an object; the next delete tolerates the missing object and removes the row.
+// Delete removes the owner's avatar row. When that leaves its asset without any avatar or listing, the asset row
+// goes too and purge receives the stored model key before the transaction commits, unless another asset still
+// stores the same key (legacy rows may share one): an object that anything still references is never deleted.
+// purge deletes the object: when it fails the transaction rolls back, so the row and the object never disagree
+// silently and the owner can simply delete again. A crash between purge and commit leaves a row without an
+// object; the next delete tolerates the missing object and removes the row.
 func (r *Repository) Delete(ctx context.Context, owner, id uuid.UUID, purge func(context.Context, string) error) error {
 	tx, queries, err := r.beginOwner(ctx, owner)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(context.Background()) }()
-	modelPath, err := queries.DeleteInventoryAvatar(ctx, DeleteInventoryAvatarParams{OwnerID: owner, AvatarID: id})
+	assetID, err := queries.DeleteInventoryAvatar(ctx, DeleteInventoryAvatarParams{OwnerID: owner, AvatarID: id})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return avatarNotFound()
 		}
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" && pgErr.ConstraintName != "" && pgErr.ConstraintName != "avatars_asset_id_fkey" {
 			return apperror.New(apperror.CodeAvatarInUse, "avatar is used by a job posting or interview")
 		}
 		return persistenceError(err)
 	}
-	if err := purge(ctx, modelPath); err != nil {
+	if err := r.cleanupAsset(ctx, queries, assetID, purge); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return persistenceError(err)
 	}
 	return nil
+}
+
+// cleanupAsset deletes the asset when nothing references it and purges its object when no other asset stores
+// the same key. The asset row is locked first: a concurrent grant or listing of the asset holds a key-share lock,
+// so this waits and the reference check sees it.
+func (r *Repository) cleanupAsset(ctx context.Context, queries *Queries, assetID uuid.UUID, purge func(context.Context, string) error) error {
+	if _, err := queries.LockAvatarAsset(ctx, assetID); err != nil {
+		return persistenceError(err)
+	}
+	modelPath, err := queries.DeleteUnreferencedAsset(ctx, assetID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // still used by another avatar or a listing
+	}
+	if err != nil {
+		return persistenceError(err)
+	}
+	shared, err := queries.ModelPathInUse(ctx, modelPath)
+	if err != nil {
+		return persistenceError(err)
+	}
+	if shared {
+		return nil
+	}
+	return purge(ctx, modelPath)
+}
+
+// ModelKeyReferenced reports whether any asset stores the object key. It guards the cleanup of an upload whose
+// database step failed: after an ambiguous commit error the row may exist, and a referenced object is kept.
+func (r *Repository) ModelKeyReferenced(ctx context.Context, key string) (bool, error) {
+	used, err := New(r.pool).ModelPathInUse(ctx, key)
+	if err != nil {
+		return false, persistenceError(err)
+	}
+	return used, nil
 }
 
 // uniqueKeyError reports the unique index on the idempotency key. The lookup under the inventory lock

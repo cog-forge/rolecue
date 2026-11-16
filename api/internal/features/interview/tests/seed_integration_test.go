@@ -94,6 +94,8 @@ func (s *seed) cleanup() {
 			[]any{userIDs, postings}},
 		{"avatars", `DELETE FROM public.avatars WHERE inventory_id IN
 			(SELECT id FROM public.inventories WHERE user_id = ANY($1::text[]::uuid[]))`, []any{userIDs}},
+		{"avatar assets", `DELETE FROM public.avatar_assets s WHERE s.model_path = 'models/test.vrm'
+			AND NOT EXISTS (SELECT 1 FROM public.avatars a WHERE a.asset_id = s.id)`, nil},
 		{"inventories", `DELETE FROM public.inventories WHERE user_id = ANY($1::text[]::uuid[])`, []any{userIDs}},
 		{"voices", `DELETE FROM public.voices WHERE id = ANY($1::text[]::uuid[])`, []any{s.voices}},
 		{"applications", `DELETE FROM public.applications WHERE candidate_id = ANY($1::text[]::uuid[])
@@ -382,8 +384,9 @@ func (s *seed) avatarOf(userID uuid.UUID) uuid.UUID {
 	s.t.Helper()
 	id := uuid.New()
 	s.exec(`INSERT INTO public.inventories (user_id, slot) VALUES ($1, 1) ON CONFLICT (user_id) DO NOTHING`, userID)
-	s.exec(`INSERT INTO public.avatars (id, inventory_id, name, model_path, personality)
-		SELECT $2, inv.id, 'Test avatar', 'models/test.vrm', 'calm' FROM public.inventories inv WHERE inv.user_id = $1`, userID, id)
+	s.exec(`WITH s AS (INSERT INTO public.avatar_assets (created_by, model_path) VALUES ($1, 'models/test.vrm') RETURNING id)
+		INSERT INTO public.avatars (id, inventory_id, name, asset_id, personality)
+		SELECT $2, inv.id, 'Test avatar', s.id, 'calm' FROM public.inventories inv, s WHERE inv.user_id = $1`, userID, id)
 	return id
 }
 

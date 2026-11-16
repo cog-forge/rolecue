@@ -150,7 +150,14 @@ func erase(ctx context.Context, q *Queries, id uuid.UUID, email string) error {
 		func() error { return q.DeleteCoreQuestions(ctx, jds) },
 		func() error { return q.DeleteRequirements(ctx, jds) },
 		func() error { return q.DeleteJobDescriptions(ctx, jds) },
-		func() error { return q.DeleteOwnedAvatars(ctx, id) },
+		func() error { return q.DeleteOwnedListings(ctx, id) },
+		func() error {
+			assets, err := q.DeleteOwnedAvatars(ctx, id)
+			if err != nil {
+				return err
+			}
+			return q.DeleteOrphanAssets(ctx, DeleteOrphanAssetsParams{ID: &id, AssetIds: assets})
+		},
 		func() error { return q.DeleteOwnedInventories(ctx, id) },
 		func() error { return q.DeleteOwnedWallets(ctx, id) },
 		func() error {
