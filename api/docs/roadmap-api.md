@@ -376,7 +376,12 @@ Codes of the confirm, retry, regenerate and practice-start endpoints are in sect
 Common to the three generation calls (9.1 to 9.3): Candidate only, session cookie, **no request body**, the
 Candidate must own the Role Profile (a foreign or unknown profile is `404 JD_NOT_FOUND`, indistinguishable). They
 are **synchronous** and call a language model, so each request is rate limited and spends one unit of the
-Candidate's model budget; they can take 40 to 50 seconds (section 5).
+Candidate's model budget; they can take 40 to 50 seconds (section 5). A transient model failure (timeout, 429, 5xx,
+a truncated or unusable reply) is repeated by the server, at most twice per model call and inside one 90 second
+budget for the topic step and one for the bank step, with no extra charge: the unit is spent once per request,
+however many times a call is repeated. A slow request can therefore take longer than the usual 40 to 50 seconds,
+and the codes below now mean that the repeats ran out too. The bank is only published, in one transaction, when it is
+complete, so a repeated call never leaves a partial or duplicate bank.
 
 Response `data` of retry and regenerate (field names are `snake_case`):
 
@@ -444,8 +449,8 @@ Replaces the topics and the whole question bank with a new set, **before the fir
 | 409 | `ROADMAP_REGENERATE_NOT_ALLOWED` | Regenerate: the profile already has an interview, or a start won the race. | Hide regenerate for good (`practice_started` is `true`); explain that the plan is kept so history keeps its meaning. |
 | 429 | `RATE_LIMITED` | Too many generation requests. | Wait and let the user retry. |
 | 409 | `LLM_BUDGET_EXCEEDED` | The model budget is spent (each generation request charges one unit). | Tell the user to try later. (Documented by the generation lane as 409; check swagger for the final status.) |
-| 502 | `ROADMAP_GENERATION_FAILED`, `INVALID_ROADMAP_GENERATION_OUTPUT` | The topic step failed or returned an unusable result. | Show "could not prepare your Roadmap" with a retry button (retry, or confirm again on a profile still in `review`). |
-| 502 | `QUESTION_GENERATION_FAILED`, `INVALID_QUESTION_GENERATION_OUTPUT` | The question bank step failed or returned an unusable result. | The same. |
+| 502 | `ROADMAP_GENERATION_FAILED`, `INVALID_ROADMAP_GENERATION_OUTPUT` | The topic step failed or returned an unusable result, after its repeats. | Show "could not prepare your Roadmap" with a retry button (retry, or confirm again on a profile still in `review`). |
+| 502 | `QUESTION_GENERATION_FAILED`, `INVALID_QUESTION_GENERATION_OUTPUT` | The question bank step failed or returned an unusable result, after its repeats. | The same. |
 | 500 | `INTERNAL_ERROR` | Unexpected failure. | The same, later. |
 
 A failed generation never leaves a half-published Roadmap: the previous state is kept, and `GET .../roadmap`

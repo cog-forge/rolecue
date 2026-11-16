@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmerr"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/internal/pkg/textsafe"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -48,6 +49,8 @@ type Scoring struct {
 	repository InterviewRepository
 	grader     Grader
 	policy     domain.ScoringPolicy
+	retry      llmerr.Policy
+	graded     *gradeCache
 }
 
 // NewScoring builds the evaluation service around an interview repository and a rubric grader.
@@ -58,7 +61,8 @@ func NewScoring(repository InterviewRepository, grader Grader) (*Scoring, error)
 	if grader == nil {
 		return nil, fmt.Errorf("interview grader is required")
 	}
-	return &Scoring{repository: repository, grader: grader, policy: domain.DefaultScoringPolicy()}, nil
+	return &Scoring{repository: repository, grader: grader, policy: domain.DefaultScoringPolicy(),
+		retry: defaultGradeRetry(), graded: newGradeCache()}, nil
 }
 
 // Evaluate grades a completed interview with its rubrics (KAN-334). It is the interview service's Evaluator
@@ -113,7 +117,7 @@ func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 			logger.Int("graded_count", len(plan.inputs)),
 			logger.Int("metric_count", len(metrics)),
 		)
-		grades, gradeErr := s.gradeAll(ctx, plan.inputs)
+		grades, gradeErr := s.gradeAll(ctx, interviewID, plan.inputs)
 		done(gradeErr)
 		if gradeErr != nil {
 			return s.fail(ctx, interviewID, gradeErr)
@@ -128,6 +132,7 @@ func (s *Scoring) Evaluate(ctx context.Context, interviewID uuid.UUID) error {
 		// evaluation again (see interview service Complete); left pending it would look in flight forever.
 		return s.fail(ctx, interviewID, err)
 	}
+	s.graded.forget(interviewID)
 	overall := ""
 	if evaluation.Overall != nil {
 		overall = strconv.FormatFloat(*evaluation.Overall, 'f', 2, 64)
@@ -266,8 +271,14 @@ func planGrading(turns []domain.TurnRecord, questions []domain.GradingQuestion) 
 
 // gradeAll grades every question with at most gradingConcurrency calls in flight. Each call sees one question
 // only, so an injected answer can move the points of its own question and never those of another (KAN-279).
-// The first error cancels the calls still running; nothing is kept from a partly graded session.
-func (s *Scoring) gradeAll(ctx context.Context, inputs []domain.QuestionGradeInput) ([]domain.QuestionGrade, error) {
+//
+// A call that fails for a transient provider reason is repeated on its own, with a backoff, inside the
+// evaluation's time bound (KAN-383); the questions already graded are never asked again, in this run or, while
+// the process lives, in the next claim of the same session (gradeCache). A transient failure that outlasts its
+// repeats does not cancel the other questions: they finish and are kept for the next claim. Any other error
+// (a provider rejection, an invalid grade, a panic) is final and cancels the calls still running. The session is
+// scored only when every question has a grade: one missing grade fails the evaluation, as before.
+func (s *Scoring) gradeAll(ctx context.Context, interviewID uuid.UUID, inputs []domain.QuestionGradeInput) ([]domain.QuestionGrade, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	grades := make([]domain.QuestionGrade, len(inputs))
@@ -291,8 +302,23 @@ func (s *Scoring) gradeAll(ctx context.Context, inputs []domain.QuestionGradeInp
 				errs[i] = err
 				return
 			}
-			grades[i], errs[i] = s.grader.GradeQuestion(ctx, input)
-			if errs[i] != nil {
+			if grade, ok := s.graded.get(interviewID, input); ok {
+				grades[i] = grade
+				logger.FromContext(ctx).Debug("question grade reused", logger.Op("evaluation.grade"), logger.Int("question_position", int(input.QuestionPosition)))
+				return
+			}
+			policy := s.retry
+			policy.OnRetry = func(retry int, cause error) {
+				logger.FromContext(ctx).Warn("grading call failed, retrying", logger.Op("evaluation.grade"),
+					logger.Int("question_position", int(input.QuestionPosition)), logger.Int("retry", retry), logger.String("reason", llmerr.Reason(cause)))
+			}
+			grades[i], errs[i] = llmerr.Do(ctx, policy, func(ctx context.Context) (domain.QuestionGrade, error) {
+				return s.grader.GradeQuestion(ctx, input)
+			})
+			switch {
+			case errs[i] == nil:
+				s.graded.put(interviewID, input, grades[i])
+			case !llmerr.Transient(errs[i]):
 				cancel()
 			}
 		}()
