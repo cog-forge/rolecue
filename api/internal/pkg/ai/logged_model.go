@@ -60,7 +60,7 @@ func sanitizedFailure(err error) error {
 	if err == nil {
 		return nil
 	}
-	return errors.New("llm call failed: " + llmFailureReason(err))
+	return &providerFailure{reason: llmFailureReason(err)}
 }
 
 func failureFields(err error) []zap.Field {
@@ -147,6 +147,9 @@ type providerFailure struct {
 }
 
 func (e *providerFailure) Error() string { return "llm call failed: " + e.reason }
+
+// Reason lets a feature service classify the failure (see package llmerr) without importing this package.
+func (e *providerFailure) Reason() string { return e.reason }
 func (e *providerFailure) Is(target error) bool {
 	return (target == context.DeadlineExceeded && e.reason == "timeout") || (target == context.Canceled && e.reason == "canceled")
 }

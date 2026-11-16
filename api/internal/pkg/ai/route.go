@@ -49,13 +49,22 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 	if r.legacy {
 		return call(ctx, r.entries[0].model)
 	}
+	parent := ctx
 	ctx, cancel := context.WithTimeout(ctx, r.budget)
 	defer cancel()
+	// The route's own budget running out is a timeout of the provider call, which a caller may retry; the
+	// caller's own deadline or cancellation stays what it is.
+	expired := func(err error) error {
+		if parent.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+			return &providerFailure{reason: "timeout"}
+		}
+		return err
+	}
 	var last error
 	for index, entry := range r.entries {
 		for attempt := 0; attempt <= entry.config.MaxRetries; attempt++ {
 			if err := ctx.Err(); err != nil {
-				return zero, err
+				return zero, expired(err)
 			}
 			// Reserve a fair share for remaining providers/retries, especially inside the live 5s budget.
 			deadline, _ := ctx.Deadline()
@@ -75,7 +84,7 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 			}
 			last = err
 			if ctx.Err() != nil {
-				return zero, ctx.Err()
+				return zero, expired(ctx.Err())
 			}
 			if !canFallback(err) {
 				return zero, sanitizedFailure(err)

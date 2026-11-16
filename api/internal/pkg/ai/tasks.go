@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cog-forge/rolecue/api/internal/config"
@@ -21,18 +22,61 @@ import (
 	rd "github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
 	rp "github.com/cog-forge/rolecue/api/internal/features/roleprofile/provider"
 	rs "github.com/cog-forge/rolecue/api/internal/features/roleprofile/service"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmerr"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 )
 
-type TaskAdapter struct{ route *Route }
+type TaskAdapter struct {
+	route *Route
+	// retry overrides the generation retry policy; tests use it. Nil means generationRetry.
+	retry *llmerr.Policy
+}
+
+const (
+	// generationRetries is how many times one generation call (a topic proposal or one bank batch) is repeated
+	// after a transient failure of the whole route: every provider of it failed with a timeout, a 429, a 5xx,
+	// a network error or an unusable reply. Retries stay inside the call's absolute budget.
+	generationRetries = 2
+	// generationMinRemaining is the budget a repeat needs to have a chance: the route splits what is left
+	// between its providers, so less than this cannot complete a call.
+	generationMinRemaining = 8 * time.Second
+)
+
+// generationRetry is the retry policy of generation (KAN-382): bounded, backing off 1 s then 2 s, and never
+// started when the budget has no room for it.
+func (a *TaskAdapter) generationRetry() llmerr.Policy {
+	if a.retry != nil {
+		return *a.retry
+	}
+	return llmerr.Policy{
+		MaxRetries:   generationRetries,
+		Backoff:      llmerr.Exponential(time.Second, 4*time.Second),
+		MinRemaining: generationMinRemaining,
+		Retryable:    llmerr.TransientOrInvalid,
+	}
+}
+
+// retried repeats one routed generation call under the generation policy. A legacy route keeps its single
+// call: the service above it owns that retry.
+func retried[T any](ctx context.Context, a *TaskAdapter, call func(context.Context) (T, error)) (T, error) {
+	if a.route.legacy {
+		return call(ctx)
+	}
+	policy := a.generationRetry()
+	policy.OnRetry = func(retry int, err error) {
+		logger.FromContext(ctx).Warn("llm generation call failed, retrying", logger.Op("ai.retry"),
+			logger.String("task", string(a.route.task)), logger.Int("retry", retry), logger.String("reason", llmerr.Reason(err)))
+	}
+	return llmerr.Do(ctx, policy, call)
+}
 
 func NewTaskAdapter(ctx context.Context, cfg *config.Config, task config.Task) (*TaskAdapter, error) {
 	r, err := NewRoute(ctx, cfg, task)
 	if err != nil {
 		return nil, err
 	}
-	return &TaskAdapter{r}, nil
+	return &TaskAdapter{route: r}, nil
 }
 
 // outputError keeps transport errors classified, and marks decoder/domain failures uniformly.
@@ -74,6 +118,19 @@ func (a *TaskAdapter) Extract(ctx context.Context, jd string) (rd.ExtractionCand
 // the reply is decoded and validated inside each provider attempt, so an unusable proposal is retried or falls
 // back instead of reaching the caller.
 func (a *TaskAdapter) GenerateTopics(ctx context.Context, in md.TopicInput) (md.TopicCandidate, error) {
+	if !a.route.legacy {
+		// One budget for the proposal and its repeats, like a bank, so the topic step cannot take the time
+		// the bank step needs inside the caller's deadline.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, a.route.budget)
+		defer cancel()
+	}
+	return retried(ctx, a, func(ctx context.Context) (md.TopicCandidate, error) {
+		return a.generateTopicsOnce(ctx, in)
+	})
+}
+
+func (a *TaskAdapter) generateTopicsOnce(ctx context.Context, in md.TopicInput) (md.TopicCandidate, error) {
 	return Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (md.TopicCandidate, error) {
 		g, err := mp.New(m)
 		if err != nil {
@@ -144,36 +201,40 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 	merged := qd.GenerationCandidate{Questions: []qd.GeneratedQuestion{}}
 	for offset := 0; offset < count; offset += batchSize {
 		size := min(batchSize, count-offset)
-		batch, err := Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (qd.GenerationCandidate, error) {
-			g, err := qp.New(m)
-			if err != nil {
-				return qd.GenerationCandidate{}, err
-			}
-			batchIn := in
-			if len(in.Topics) > 0 {
-				// A Roadmap bank is written in batches that each owe the topics still short of their quota,
-				// so the distribution does not depend on one reply covering everything (KAN-344).
-				batchIn.Topics = qd.BatchQuotas(in.Topics, qd.CountByTopic(merged.Questions), size)
-			}
-			c, err := g.GenerateBatch(ctx, batchIn, size, append(append([]string{}, in.Existing...), merged.Contents()...))
-			if err == nil && len(in.Topics) > 0 {
-				// Each batch must write the questions it owes every topic; one that does not is invalid
-				// output of this attempt, so it is retried or falls back without redoing earlier batches.
-				c.Questions, err = qs.FitBatchToTopics(c.Questions, batchIn.Topics)
-			}
-			if err == nil {
-				combined := qd.GenerationCandidate{Questions: append(append([]qd.GeneratedQuestion{}, merged.Questions...), c.Questions...)}
-				var valid []qd.GeneratedQuestion
-				valid, err = qs.ValidateGenerated(in, combined, len(merged.Questions)+size)
-				if err == nil {
-					c.Questions = valid[len(merged.Questions):]
+		// A failed batch is repeated on its own: the batches already accepted stay in merged and are not asked
+		// again, and nothing is stored before the complete bank is published.
+		batch, err := retried(ctx, a, func(ctx context.Context) (qd.GenerationCandidate, error) {
+			return Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (qd.GenerationCandidate, error) {
+				g, err := qp.New(m)
+				if err != nil {
+					return qd.GenerationCandidate{}, err
 				}
-			}
-			logRejectedBankOutput(ctx, err, len(merged.Questions), size, len(c.Questions))
-			if a.route.legacy {
-				return c, err
-			}
-			return c, outputError(err)
+				batchIn := in
+				if len(in.Topics) > 0 {
+					// A Roadmap bank is written in batches that each owe the topics still short of their quota,
+					// so the distribution does not depend on one reply covering everything (KAN-344).
+					batchIn.Topics = qd.BatchQuotas(in.Topics, qd.CountByTopic(merged.Questions), size)
+				}
+				c, err := g.GenerateBatch(ctx, batchIn, size, append(append([]string{}, in.Existing...), merged.Contents()...))
+				if err == nil && len(in.Topics) > 0 {
+					// Each batch must write the questions it owes every topic; one that does not is invalid
+					// output of this attempt, so it is retried or falls back without redoing earlier batches.
+					c.Questions, err = qs.FitBatchToTopics(c.Questions, batchIn.Topics)
+				}
+				if err == nil {
+					combined := qd.GenerationCandidate{Questions: append(append([]qd.GeneratedQuestion{}, merged.Questions...), c.Questions...)}
+					var valid []qd.GeneratedQuestion
+					valid, err = qs.ValidateGenerated(in, combined, len(merged.Questions)+size)
+					if err == nil {
+						c.Questions = valid[len(merged.Questions):]
+					}
+				}
+				logRejectedBankOutput(ctx, err, len(merged.Questions), size, len(c.Questions))
+				if a.route.legacy {
+					return c, err
+				}
+				return c, outputError(err)
+			})
 		})
 		if err != nil {
 			return qd.GenerationCandidate{}, err
