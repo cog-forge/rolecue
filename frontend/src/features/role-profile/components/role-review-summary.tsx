@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/config/routes";
+import { setupHref } from "@/features/interview-setup/lib/setup-params";
 import {
   isCustomTarget,
   isKnownTarget,
@@ -126,13 +127,24 @@ export function RoleReviewSummary({ profile }: { profile: RoleProfile }) {
             </p>
           </div>
         </div>
-        <Button asChild className="h-auto min-h-11 py-2 whitespace-normal">
-          <Link
-            href={`${routes.interviews.new.setup}?roleProfileId=${encodeURIComponent(profile.id)}`}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            asChild
+            variant="outline"
+            className="h-auto min-h-11 py-2 whitespace-normal"
           >
-            {t("continue")} <ArrowRight aria-hidden="true" />
-          </Link>
-        </Button>
+            <Link href={routes.roleProfiles.root}>{t("later")}</Link>
+          </Button>
+          <Button asChild className="h-auto min-h-11 py-2 whitespace-normal">
+            <Link
+              href={setupHref(routes.interviews.new.interviewer, {
+                roleProfileId: profile.id,
+              })}
+            >
+              {t("continue")} <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

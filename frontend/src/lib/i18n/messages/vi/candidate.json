@@ -974,8 +974,9 @@
       "fromJd": "Từ JD",
       "noteTitle": "Ghi chú tinh chỉnh của bạn",
       "savedTitle": "Bản xem lại vị trí của bạn đã được lưu.",
-      "savedStatus": "Các yêu cầu và nội dung phỏng vấn của bạn đã được lưu. Hồ sơ vị trí của bạn đã sẵn sàng cho bước tiếp theo.",
-      "continue": "Tiếp tục thiết lập"
+      "savedStatus": "Các yêu cầu và nội dung phỏng vấn của bạn đã được lưu. Hãy chọn người phỏng vấn để luyện tập ngay, hoặc quay lại hồ sơ vị trí này bất cứ lúc nào.",
+      "continue": "Tiếp tục chọn người phỏng vấn",
+      "later": "Để sau"
     }
   },
   "billing": {
