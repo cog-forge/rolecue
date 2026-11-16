@@ -148,6 +148,13 @@ const (
 	CodeRoadmapNotRetryable            Code = "ROADMAP_NOT_RETRYABLE"
 	CodeRoadmapNotReady                Code = "ROADMAP_NOT_READY"
 	CodeInterviewStartIntentConflict   Code = "INTERVIEW_START_INTENT_CONFLICT"
+
+	// Coin transfer between users (KAN-369), see api/docs/marketplace-coins.md. The key is malformed or
+	// not a Marketplace key; the key is well formed but already names another transfer; the recipient's
+	// wallet cannot hold the amount.
+	CodeCoinTransferKeyInvalid    Code = "COIN_TRANSFER_KEY_INVALID"
+	CodeCoinTransferKeyConflict   Code = "COIN_TRANSFER_KEY_CONFLICT"
+	CodeCoinRecipientBalanceLimit Code = "COIN_RECIPIENT_BALANCE_LIMIT"
 )
 
 type AppError struct {

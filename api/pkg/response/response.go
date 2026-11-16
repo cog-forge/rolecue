@@ -133,6 +133,11 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodePaymentGatewayError:     http.StatusBadGateway,
 	apperror.CodePayOSError:              http.StatusBadGateway,
 	apperror.CodeWebhookSignatureInvalid: http.StatusBadRequest,
+
+	// Coin transfer between users (KAN-369).
+	apperror.CodeCoinTransferKeyInvalid:    http.StatusBadRequest,
+	apperror.CodeCoinTransferKeyConflict:   http.StatusConflict,
+	apperror.CodeCoinRecipientBalanceLimit: http.StatusConflict,
 }
 
 func OK(c *gin.Context, data interface{}) {
