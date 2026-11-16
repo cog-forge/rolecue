@@ -15,6 +15,7 @@ const itemKeys = {
   "Scoring rubrics": "scoringRubrics",
   Dashboard: "dashboard",
   "Role Profiles": "roleProfiles",
+  "Learning Roadmaps": "roadmaps",
   "Interview History": "interviewHistory",
   "Personal Avatar Studio": "avatarStudio",
   "Job Board": "jobBoard",

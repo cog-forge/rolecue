@@ -50,6 +50,18 @@ describe("workspace navigation", () => {
   });
 
   it("matches segment boundaries, ignores query/hash, and maps supporting flows", () => {
+    expect(getActiveNavigation("candidate", "/roadmaps")?.href).toBe(
+      "/roadmaps",
+    );
+    expect(
+      getActiveNavigation(
+        "candidate",
+        "/role-profiles/profile-1/roadmap?view=chart",
+      )?.href,
+    ).toBe("/roadmaps");
+    expect(
+      getActiveNavigation("candidate", "/role-profiles/profile-1")?.href,
+    ).toBe("/role-profiles");
     expect(
       getActiveNavigation("candidate", "/jobs/123?tab=details#apply")?.href,
     ).toBe("/jobs");

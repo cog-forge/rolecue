@@ -1788,5 +1788,47 @@
       "updating": "Đang thêm kết quả mới vào lộ trình ({count} câu trả lời). Số liệu hiển thị chỉ tính những kết quả đã liên kết.",
       "delayed": "Phiên mới nhất chưa được thêm vào lộ trình. Kết quả đã được lưu và sẽ xuất hiện sau. Bạn vẫn có thể xem báo cáo luyện tập."
     }
+  },
+  "roadmapOverview": {
+    "eyebrow": "Không gian luyện tập",
+    "heading": "Lộ trình luyện tập",
+    "intro": "Theo dõi tiến độ, chọn chủ đề và tiếp tục luyện phỏng vấn cho từng vị trí.",
+    "createProfile": "Tạo hồ sơ vị trí",
+    "loading": "Đang tải lộ trình…",
+    "loadFailed": "Không thể tải các lộ trình. Vui lòng thử lại.",
+    "refreshFailed": "Chưa thể cập nhật lộ trình. Tiến độ gần nhất vẫn được hiển thị.",
+    "emptyTitle": "Bắt đầu với vị trí bạn hướng tới",
+    "emptyDescription": "Tạo và xác nhận hồ sơ vị trí để chuẩn bị lộ trình phù hợp với mục tiêu phỏng vấn của bạn.",
+    "continueTitle": "Luyện tiếp",
+    "libraryTitle": "Tất cả lộ trình",
+    "byProfile": "Theo hồ sơ vị trí",
+    "loadingSuggestion": "Đang tìm chủ đề để luyện tiếp…",
+    "noReadyTitle": "Chuẩn bị cho buổi luyện tập tiếp theo",
+    "noReadyDescription": "Hoàn thiện hồ sơ vị trí hoặc mở lộ trình bên dưới để xem trạng thái chuẩn bị.",
+    "keepPracticing": "Duy trì kỹ năng của bạn",
+    "completedHint": "Bạn đã đạt yêu cầu ở mọi chủ đề trong lộ trình. Bạn vẫn có thể tiếp tục luyện với hồ sơ này.",
+    "moreEvidence": "Luyện thêm các câu hỏi khác nhau để có đủ căn cứ đánh giá chủ đề này.",
+    "focusHint": "Tiếp tục luyện chủ đề này hoặc luyện tổng quát theo hồ sơ vị trí.",
+    "viewRoadmap": "Xem lộ trình",
+    "viewStatus": "Xem trạng thái",
+    "reviewProfile": "Hoàn thiện hồ sơ",
+    "needsConfirmation": "Xác nhận hồ sơ vị trí để chuẩn bị lộ trình.",
+    "progress": "{count}/{total} chủ đề đạt yêu cầu",
+    "progressLabel": "Tiến độ của {title}",
+    "unavailableProgress": "Chưa có tiến độ",
+    "pagination": "Các trang lộ trình",
+    "page": "Trang {current}/{total}",
+    "status": {
+      "pending": "Chưa chuẩn bị lộ trình",
+      "generating": "Đang chuẩn bị lộ trình…",
+      "failed": "Chuẩn bị thất bại · mở để thử lại",
+      "stalled": "Chuẩn bị lâu hơn dự kiến · kiểm tra trạng thái",
+      "not_started": "Sẵn sàng bắt đầu",
+      "in_progress": "Đang luyện tập",
+      "completed": "Đã đạt mọi chủ đề"
+    },
+    "pageEmptyTitle": "Trang này không còn hồ sơ",
+    "pageEmptyDescription": "Về trang đầu để xem danh sách lộ trình hiện tại.",
+    "firstPage": "Về trang đầu"
   }
 }

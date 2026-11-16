@@ -1,4 +1,5 @@
 import {
+  ChartGantt,
   LayoutDashboard,
   FileText,
   History,
@@ -52,6 +53,11 @@ export const workspaceNavigation: Record<
             routes.targetJds,
             "/interviews/new",
           ],
+        },
+        {
+          label: "Learning Roadmaps",
+          href: routes.roadmaps,
+          icon: ChartGantt,
         },
         {
           label: "Interview History",
@@ -208,6 +214,14 @@ export function workspaceHome(role: ProductRole) {
 }
 export function getActiveNavigation(role: ProductRole, url: string) {
   const pathname = url.split(/[?#]/)[0];
+  // A roadmap detail lives under its profile URL, but belongs to the roadmap library.
+  if (
+    role === "candidate" &&
+    /^\/role-profiles\/[^/]+\/roadmap\/?$/.test(pathname)
+  )
+    return workspaceNavigation.candidate
+      .flatMap((group) => group.items)
+      .find((item) => item.href === routes.roadmaps);
   return workspaceNavigation[role]
     .flatMap((group) => group.items)
     .flatMap((item) =>
@@ -227,6 +241,7 @@ export function isWorkspacePath(pathname: string) {
     routes.dashboard,
     routes.targetJds,
     routes.roleProfiles.root,
+    routes.roadmaps,
     routes.avatarStudio,
     routes.jobs,
     routes.applications,

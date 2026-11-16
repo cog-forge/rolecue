@@ -1788,5 +1788,47 @@
       "updating": "Your latest results are being added to the roadmap ({count} answers). The numbers shown use results already linked.",
       "delayed": "Your latest session has not been added yet. Its results are saved and will appear later. You can still read the practice report."
     }
+  },
+  "roadmapOverview": {
+    "eyebrow": "Your practice",
+    "heading": "Learning roadmaps",
+    "intro": "See where you stand, choose a topic, and continue practicing for each role.",
+    "createProfile": "Create a role profile",
+    "loading": "Loading roadmaps…",
+    "loadFailed": "Your roadmaps could not be loaded. Please try again.",
+    "refreshFailed": "This roadmap could not be refreshed. The last available progress is shown.",
+    "emptyTitle": "Your next role starts here",
+    "emptyDescription": "Create and confirm a role profile to prepare a roadmap tailored to your interview goals.",
+    "continueTitle": "Continue practicing",
+    "libraryTitle": "All roadmaps",
+    "byProfile": "By role profile",
+    "loadingSuggestion": "Finding your next practice topic…",
+    "noReadyTitle": "Your next practice is taking shape",
+    "noReadyDescription": "Review your role profiles or open a roadmap below to check its preparation status.",
+    "keepPracticing": "Keep your skills fresh",
+    "completedHint": "You have achieved every topic in this roadmap. You can keep practicing with the same role profile.",
+    "moreEvidence": "Practice a few more different questions to build enough evidence for this topic.",
+    "focusHint": "Continue with this topic, or practice across the whole role.",
+    "viewRoadmap": "View roadmap",
+    "viewStatus": "View status",
+    "reviewProfile": "Review profile",
+    "needsConfirmation": "Confirm this role profile to prepare its roadmap.",
+    "progress": "{count} of {total} topics achieved",
+    "progressLabel": "Progress for {title}",
+    "unavailableProgress": "Not available yet",
+    "pagination": "Roadmap pages",
+    "page": "Page {current} of {total}",
+    "status": {
+      "pending": "Not prepared yet",
+      "generating": "Preparing your roadmap…",
+      "failed": "Preparation failed · open to try again",
+      "stalled": "Preparation is taking longer · check the status",
+      "not_started": "Ready to start",
+      "in_progress": "Practicing",
+      "completed": "All topics achieved"
+    },
+    "pageEmptyTitle": "These profiles are no longer on this page",
+    "pageEmptyDescription": "Return to the first page to see the current roadmaps.",
+    "firstPage": "Back to first page"
   }
 }
