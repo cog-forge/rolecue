@@ -43,6 +43,8 @@ type Router struct {
 	llmBudget              llmbudget.Guard
 	// roadmapHandler is set with WithRoadmapHandler (KAN-352). Without it the Roadmap read routes are not registered.
 	roadmapHandler *handler.RoadmapHandler
+	// marketplaceHandler is set with WithMarketplaceHandler (KAN-363/365/367).
+	marketplaceHandler *handler.MarketplaceHandler
 	// accountHandler is set with WithAccountHandler, not through NewRouter, so adding it did not change
 	// the constructor every router test calls. Without it the /account routes are not registered.
 	accountHandler *accounthandler.Handler
@@ -58,6 +60,12 @@ func (r *Router) WithRubricHandler(h *handler.RubricHandler) *Router {
 // WithRoadmapHandler adds the Learning Roadmap read routes (KAN-352).
 func (r *Router) WithRoadmapHandler(h *handler.RoadmapHandler) *Router {
 	r.roadmapHandler = h
+	return r
+}
+
+// WithMarketplaceHandler adds the Avatar Marketplace seller, admin and catalog routes.
+func (r *Router) WithMarketplaceHandler(h *handler.MarketplaceHandler) *Router {
+	r.marketplaceHandler = h
 	return r
 }
 
@@ -175,6 +183,21 @@ func (r *Router) Setup() *gin.Engine {
 	inventory.GET("/avatars/:id", r.inventoryHandler.Get)
 	inventory.DELETE("/avatars/:id", r.inventoryHandler.Delete)
 	inventory.POST("/avatars", with(limits.expensive, r.avatarCreateHandler.Create)...)
+
+	if r.marketplaceHandler != nil {
+		market := router.Group("/marketplace", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate", "recruiter"))
+		market.GET("/listings", r.marketplaceHandler.Catalog)
+		market.GET("/listings/:id", r.marketplaceHandler.CatalogItem)
+		market.GET("/listings/:id/preview", r.marketplaceHandler.CatalogPreview)
+		market.GET("/eligible-avatars", r.marketplaceHandler.EligibleAvatars)
+		market.GET("/my-listings", r.marketplaceHandler.MyListings)
+		market.POST("/my-listings", r.marketplaceHandler.Create)
+		market.GET("/my-listings/:id", r.marketplaceHandler.MyListing)
+		market.GET("/my-listings/:id/preview", r.marketplaceHandler.MyListingPreview)
+		market.PUT("/my-listings/:id", r.marketplaceHandler.Edit)
+		market.POST("/my-listings/:id/submit", r.marketplaceHandler.Submit)
+		market.POST("/my-listings/:id/delist", r.marketplaceHandler.Delist)
+	}
 
 	profilesJD := router.Group("/role-profiles", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
 	profilesJD.POST("", r.roleProfileHandler.Create)
@@ -306,6 +329,14 @@ func (r *Router) Setup() *gin.Engine {
 	admin.POST("/job-postings/:id/approve", r.moderationHandler.Approve)
 	admin.POST("/job-postings/:id/reject", r.moderationHandler.Reject)
 	admin.GET("/overview", r.adminOverviewHandler.Get)
+	if r.marketplaceHandler != nil {
+		admin.GET("/marketplace/listings", r.marketplaceHandler.AdminList)
+		admin.GET("/marketplace/listings/:id", r.marketplaceHandler.AdminGet)
+		admin.GET("/marketplace/listings/:id/preview", r.marketplaceHandler.AdminPreview)
+		admin.POST("/marketplace/listings/:id/approve", r.marketplaceHandler.Approve)
+		admin.POST("/marketplace/listings/:id/reject", r.marketplaceHandler.Reject)
+		admin.POST("/marketplace/listings/:id/suspend", r.marketplaceHandler.Suspend)
+	}
 	admin.GET("/access-audit", r.interviewHandlers.Recording.AccessAudit)
 	admin.GET("/interview-guidelines", r.interviewHandlers.Guidelines.Get)
 	admin.PUT("/interview-guidelines", r.interviewHandlers.Guidelines.Put)

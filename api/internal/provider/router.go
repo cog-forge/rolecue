@@ -39,9 +39,10 @@ func ProvideRouter(
 	accountHandler *accounthandler.Handler,
 	rubricHandler *handler.RubricHandler,
 	roadmapHandler *handler.RoadmapHandler,
+	marketplaceHandler *handler.MarketplaceHandler,
 ) *gin.Engine {
 	appRouter := router.NewRouter(cfg, log, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers).WithLLMBudget(llmBudget)
-	return appRouter.WithAccountHandler(accountHandler).WithRubricHandler(rubricHandler).WithRoadmapHandler(roadmapHandler).Setup()
+	return appRouter.WithAccountHandler(accountHandler).WithRubricHandler(rubricHandler).WithRoadmapHandler(roadmapHandler).WithMarketplaceHandler(marketplaceHandler).Setup()
 }
 
 func ProvideHTTPServer(
