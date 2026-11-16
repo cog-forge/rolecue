@@ -66,6 +66,14 @@ const (
 	CodePayOSError              Code = "PAYOS_ERROR"
 	CodeWebhookSignatureInvalid Code = "WEBHOOK_SIGNATURE_INVALID"
 
+	// Avatar Marketplace listing codes (KAN-363/365/367). Kept together so the lanes merge cleanly.
+	CodeMarketplaceListingNotFound   Code = "MARKETPLACE_LISTING_NOT_FOUND"
+	CodeMarketplaceAssetNotEligible  Code = "MARKETPLACE_ASSET_NOT_ELIGIBLE"
+	CodeMarketplaceAssetNotReady     Code = "MARKETPLACE_ASSET_NOT_READY"
+	CodeMarketplaceListingExists     Code = "MARKETPLACE_LISTING_EXISTS"
+	CodeMarketplaceListingStale      Code = "MARKETPLACE_LISTING_STALE"
+	CodeMarketplaceInvalidTransition Code = "MARKETPLACE_INVALID_TRANSITION"
+
 	CodeJobPostingNotPending Code = "JOB_POSTING_NOT_PENDING"
 	// CodeGuidelineVersionConflict is an Interview Behavior Guidelines save made against a version that is no
 	// longer the current one.
