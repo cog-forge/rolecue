@@ -1829,6 +1829,14 @@
     },
     "pageEmptyTitle": "Trang này không còn hồ sơ",
     "pageEmptyDescription": "Về trang đầu để xem danh sách lộ trình hiện tại.",
-    "firstPage": "Về trang đầu"
+    "firstPage": "Về trang đầu",
+    "preview": {
+      "action": "Xem chủ đề",
+      "toggle": "Xem chủ đề của {title}",
+      "heading": "Các chủ đề trong lộ trình",
+      "hint": "Chọn chủ đề · dấu check là chủ đề đã đạt",
+      "rail": "Các chủ đề · cuộn ngang để xem thêm",
+      "noDescription": "Luyện chủ đề này để củng cố kỹ năng phỏng vấn."
+    }
   }
 }

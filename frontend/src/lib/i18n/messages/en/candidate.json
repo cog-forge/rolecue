@@ -1829,6 +1829,14 @@
     },
     "pageEmptyTitle": "These profiles are no longer on this page",
     "pageEmptyDescription": "Return to the first page to see the current roadmaps.",
-    "firstPage": "Back to first page"
+    "firstPage": "Back to first page",
+    "preview": {
+      "action": "Preview topics",
+      "toggle": "Preview topics for {title}",
+      "heading": "Your topics at a glance",
+      "hint": "Select a topic · checkmarks show achieved topics",
+      "rail": "Roadmap topics · scroll horizontally for more",
+      "noDescription": "Practice this topic to build your interview skills."
+    }
   }
 }

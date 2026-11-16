@@ -1,7 +1,4 @@
 "use client";
-import type { UseQueryResult } from "@tanstack/react-query";
-import { AiLoader } from "@/components/ui/ai-loader";
-import { useFormatters } from "@/lib/i18n/use-formatters";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -34,6 +31,7 @@ import { getRoadmap, roadmapKeys, type Roadmap } from "../api/roadmap";
 import { roadmapPollInterval } from "../lib/use-roadmap";
 import { nextPracticeTopic } from "../lib/next-practice";
 import { TopicScore, TopicStatus } from "./topic-status";
+import { RoadmapOverviewRow } from "./roadmap-overview-row";
 import { RoadmapUpdateNotice } from "./roadmap-screen";
 
 export function RoadmapOverview() {
@@ -42,6 +40,7 @@ export function RoadmapOverview() {
   const errorMessage = useApiErrorMessage();
   const user = useSessionUser();
   const [offset, setOffset] = useState(0);
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const phases = useRef(new Map<string, { name: string; since: number }>());
   const profiles = useQuery({
     queryKey: roleProfileKeys.list(user.id, offset),
@@ -225,7 +224,17 @@ export function RoadmapOverview() {
                   expired.get(profile.id) === query.dataUpdatedAt;
                 return (
                   <li key={profile.id} className="py-6">
-                    <RoadmapRow
+                    <RoadmapOverviewRow
+                      open={previewId === profile.id}
+                      onOpenChange={(open) =>
+                        setPreviewId((previous) =>
+                          open
+                            ? profile.id
+                            : previous === profile.id
+                              ? null
+                              : previous,
+                        )
+                      }
                       profile={profile}
                       query={query}
                       stalled={stalled}
@@ -373,124 +382,5 @@ function PracticeSuggestion({
       </div>
       <RoadmapUpdateNotice roadmap={roadmap} />
     </div>
-  );
-}
-
-function RoadmapRow({
-  profile,
-  query,
-  stalled,
-  onRetry,
-}: {
-  profile: RoleSummary;
-  query?: UseQueryResult<Roadmap>;
-  stalled: boolean;
-  onRetry: () => void;
-}) {
-  const t = useTranslations("candidate.roadmapOverview");
-  const errorMessage = useApiErrorMessage();
-  const fmt = useFormatters();
-  const data = query?.data;
-  const ready = data?.generation_status === "ready";
-  const state = stalled
-    ? "stalled"
-    : data?.generation_status !== "ready"
-      ? data?.generation_status
-      : data.learning_status;
-  return (
-    <article className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] lg:items-center">
-      <div className="min-w-0 space-y-2">
-        <h3 className="text-base font-medium [overflow-wrap:anywhere]">
-          {profile.title}
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {profile.status !== "confirmed"
-            ? t("needsConfirmation")
-            : query?.isError && !data
-              ? t("unavailableProgress")
-              : state
-                ? t(`status.${state}`)
-                : t("loading")}
-        </p>
-      </div>
-      <div className="min-w-0">
-        {query?.isPending ? (
-          <LoadingMorph variant="compact" label={t("loading")} />
-        ) : query?.isError && !data ? (
-          <ErrorState
-            variant="compact"
-            description={errorMessage(query.error, t("loadFailed"))}
-            onRetry={onRetry}
-            isRetrying={query.isFetching}
-          />
-        ) : ready ? (
-          <div className="space-y-2">
-            <p className="flex flex-wrap justify-between gap-2 text-sm tabular-nums">
-              <span>
-                {t("progress", {
-                  count: data.completed_items,
-                  total: data.total_items,
-                })}
-              </span>
-              <span>
-                {data.progress_percent === null
-                  ? t("unavailableProgress")
-                  : fmt.percent(data.progress_percent, 0)}
-              </span>
-            </p>
-            {data.progress_percent !== null && (
-              <div
-                role="progressbar"
-                aria-label={t("progressLabel", { title: profile.title })}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={data.progress_percent}
-                className="h-1.5 overflow-hidden rounded-full bg-muted"
-              >
-                <div
-                  className="h-full rounded-full bg-rolecue-brand transition-[width] duration-(--duration-slow) motion-reduce:transition-none"
-                  style={{ width: `${data.progress_percent}%` }}
-                />
-              </div>
-            )}
-          </div>
-        ) : data?.generation_status === "generating" && !stalled ? (
-          <AiLoader
-            stage="generating"
-            variant="compact"
-            title={t("status.generating")}
-          />
-        ) : null}
-        {query?.isError && data && (
-          <ErrorState
-            variant="compact"
-            description={t("refreshFailed")}
-            onRetry={onRetry}
-            isRetrying={query.isFetching}
-          />
-        )}
-        {data && <RoadmapUpdateNotice roadmap={data} />}
-      </div>
-      <Button
-        asChild
-        variant="outline"
-        className="h-auto min-h-11 justify-self-start whitespace-normal py-2"
-      >
-        <Link
-          href={
-            profile.status === "confirmed"
-              ? routes.roleProfiles.roadmap(profile.id)
-              : routes.roleProfiles.detail(profile.id)
-          }
-        >
-          {profile.status !== "confirmed"
-            ? t("reviewProfile")
-            : ready
-              ? t("viewRoadmap")
-              : t("viewStatus")}
-          <ArrowUpRight aria-hidden="true" />
-        </Link>
-      </Button>
-    </article>
   );
 }

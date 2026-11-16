@@ -70,8 +70,23 @@ function AccordionTrigger({
 function AccordionContent({
   className,
   children,
+  motion = "default",
   ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Content>) {
+}: React.ComponentProps<typeof AccordionPrimitive.Content> & {
+  motion?: "default" | "smooth";
+}) {
+  if (motion === "smooth")
+    return (
+      <AccordionPrimitive.Content
+        data-slot="accordion-content"
+        className="t-acc-panel text-sm"
+        {...props}
+      >
+        <div className="t-acc-panel-inner min-h-0">
+          <div className={className}>{children}</div>
+        </div>
+      </AccordionPrimitive.Content>
+    );
   return (
     <AccordionPrimitive.Content
       data-slot="accordion-content"
