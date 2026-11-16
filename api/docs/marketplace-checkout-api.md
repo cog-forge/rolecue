@@ -124,6 +124,27 @@ quota (the quota counts assets the user created, not avatar rows). Suspend and d
 `POST /inventory/purchase` (slot purchase) refuses any `Idempotency-Key` that starts with `mkt1:` (400 `VALIDATION_ERROR`), and
 its replay lookup only matches rows paid to the system, so the two namespaces can never answer for each other.
 
+## Wallet history and admin finance (KAN-372, AM-13)
+
+No endpoint, table or column was added; the existing readers already return the stored row.
+
+- `GET /wallet/transactions` returns the rows where the caller is `from` or `to` and no others (no new permission; an Admin
+  has no wallet). A Marketplace trade is one row: `from` = buyer id, `to` = seller id, `amount`, `currency` `COIN`, `status`
+  `success`, `description` (history text written at purchase time), `payos_order_code` null. Nothing is joined from the
+  listing, so a later price or title change never alters the history. The idempotency key is not in the response.
+- FE rules (AM-12): direction is `from === me` (spent) or `to === me` (received). A row whose `from` and `to` are both user
+  ids and whose `currency` is `COIN` is a user-to-user trade; never infer a type from the description (it carries the
+  listing title, so it can say anything, even "refund" or "deposit") and never treat `to === me` as a top-up: a seller's
+  income arrives with `to === me` and `payos_order_code` null. The history tabs "top-up / spend / refund" of the billing page
+  need a separate trade label (for example received/spent from avatar trading) before the Marketplace UI ships.
+- Admin billing (`/admin/billing/*`, revenue report): revenue, coins sold, deposits and unique payers count only
+  `status = success` rows with a `payos_order_code`; a COIN trade has none, so it is never revenue. A trade is also never a
+  `refund`: the classifier ignores the `refund` text of the description for rows whose idempotency key is in the `mkt1:`
+  namespace (regression test `wallet/tests/marketplace_trade_integration_test.go`). In the admin list a trade is a `spend`
+  row of the buyer (`tx_from`/`tx_to` show both parties, `paid_vnd` 0, `coin_amount` negative) and it is counted in
+  `coins_spent` and in the feature breakdown under its description. That is coin movement between users, not consumption of
+  a feature; excluding it needs a decision (see the report) and a new `tx_type` value would break the admin schema.
+
 ## Erasure and cleanup (KAN-373, AM-14)
 
 Account erasure (`DELETE /account`, `api/internal/features/account`) and the shared asset:
