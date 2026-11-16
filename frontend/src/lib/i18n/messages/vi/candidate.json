@@ -1597,7 +1597,9 @@
         "chooseProfile": "Chọn hồ sơ vị trí",
         "changeInterviewer": "Đổi người phỏng vấn",
         "backToApplication": "Quay lại đơn ứng tuyển",
-        "backToApplications": "Quay lại các đơn ứng tuyển"
+        "backToApplications": "Quay lại các đơn ứng tuyển",
+        "practiceGenerally": "Luyện tổng quát",
+        "openRoadmap": "Xem lộ trình luyện tập"
       }
     },
     "startErrors": {
@@ -1619,7 +1621,13 @@
       "completedRecruitment": "Cuộc phỏng vấn này đã kết thúc.",
       "interviewNotFoundPractice": "Chúng tôi không tìm thấy cuộc phỏng vấn này. Bạn có thể bắt đầu một cuộc mới.",
       "interviewNotFoundRecruitment": "Chúng tôi không tìm thấy cuộc phỏng vấn này.",
-      "denied": "Chỉ tài khoản ứng viên mới có thể bắt đầu phỏng vấn. Hãy đăng nhập lại nếu bạn thấy điều này không đúng."
+      "denied": "Chỉ tài khoản ứng viên mới có thể bắt đầu phỏng vấn. Hãy đăng nhập lại nếu bạn thấy điều này không đúng.",
+      "roadmapNotReady": "Lộ trình chưa sẵn sàng. Mở hồ sơ vị trí để kiểm tra hoặc thử chuẩn bị lại.",
+      "coverageInsufficient": "Ngân hàng câu hỏi chưa bao phủ đủ kỹ năng cần thiết. Hãy kiểm tra hồ sơ vị trí trước khi thử lại.",
+      "generationFailed": "Chưa chuẩn bị được câu hỏi. Không tạo phiên và không trừ xu. Bạn có thể thử lại.",
+      "modelBudget": "Đã hết hạn mức tạo câu hỏi. Bạn vui lòng thử lại sau.",
+      "intentConflict": "Lượt bắt đầu này đã gắn với phạm vi luyện tập khác. Thử lại để tạo lượt mới.",
+      "questionBankFocused": "Chủ đề này chưa có đủ câu hỏi. Bạn có thể luyện tổng quát hoặc chọn chủ đề khác."
     },
     "preflight": {
       "status": {

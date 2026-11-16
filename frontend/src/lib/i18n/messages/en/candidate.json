@@ -1597,7 +1597,9 @@
         "chooseProfile": "Choose a Role Profile",
         "changeInterviewer": "Change interviewer",
         "backToApplication": "Back to application",
-        "backToApplications": "Back to applications"
+        "backToApplications": "Back to applications",
+        "practiceGenerally": "Practice generally",
+        "openRoadmap": "View learning roadmap"
       }
     },
     "startErrors": {
@@ -1619,7 +1621,13 @@
       "completedRecruitment": "This interview has already finished.",
       "interviewNotFoundPractice": "We couldn't find this interview. You can start a new one.",
       "interviewNotFoundRecruitment": "We couldn't find this interview.",
-      "denied": "Only candidate accounts can start interviews. Sign in again if this looks wrong."
+      "denied": "Only candidate accounts can start interviews. Sign in again if this looks wrong.",
+      "roadmapNotReady": "Your roadmap is not ready. Open your Role Profile to check or retry preparation.",
+      "coverageInsufficient": "The question bank does not cover all required skills yet. Review your Role Profile before trying again.",
+      "generationFailed": "Questions could not be prepared. No session was created and no coins were charged. You can try again.",
+      "modelBudget": "The question-generation limit has been reached. Please try again later.",
+      "intentConflict": "This attempt belongs to a different practice focus. Try again to create a new attempt.",
+      "questionBankFocused": "There are not enough questions for this topic yet. Try general practice or choose another topic."
     },
     "preflight": {
       "status": {

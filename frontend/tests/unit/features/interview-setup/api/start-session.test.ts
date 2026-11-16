@@ -69,7 +69,7 @@ describe("createInterviewSession", () => {
         avatar_id: avatarId,
         voice_id: voiceId,
       },
-      { headers: { "Idempotency-Key": key } },
+      { headers: { "Idempotency-Key": key }, timeout: 210_000 },
     );
     expect(result.created).toBe(true);
     expect(result.session.id).toBe(sessionId);
@@ -183,4 +183,25 @@ describe("startFailure", () => {
   ])("treats %s as ambiguous", (_, error) => {
     expect(startFailure(error)).toEqual({ confirmed: false });
   });
+});
+
+it("sends a focused intent with a long timeout and honors server-reported focus", async () => {
+  mocks.post.mockResolvedValue({
+    status: 200,
+    data: {
+      success: true,
+      data: session({ focus_item_id: null, resumed: true }),
+    },
+  });
+  const result = await createInterviewSession(
+    { type: "practice", roleProfileId: profileId, focusItemId: avatarId },
+    key,
+  );
+  expect(mocks.post).toHaveBeenCalledWith(
+    "/interviews",
+    { type: "practice", role_profile_id: profileId, focus_item_id: avatarId },
+    { headers: { "Idempotency-Key": key }, timeout: 210_000 },
+  );
+  expect(result.session.focus_item_id).toBeNull();
+  expect(result.created).toBe(false);
 });

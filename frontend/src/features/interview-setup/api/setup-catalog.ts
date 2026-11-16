@@ -36,6 +36,7 @@ export async function listActiveVoices(signal?: AbortSignal) {
 export type UnfinishedPractice = {
   id: string;
   roleProfileId: string;
+  focusItemId?: string | null;
   startedAt: string;
   answeredCount: number;
   questionCount: number;
@@ -67,6 +68,7 @@ export async function listUnfinishedPractice(signal?: AbortSignal) {
     byProfile.set(session.role_profile_id, {
       id: session.id,
       roleProfileId: session.role_profile_id,
+      focusItemId: session.focus_item_id,
       startedAt: session.started_at,
       answeredCount: session.answered_count,
       questionCount: session.question_count,
