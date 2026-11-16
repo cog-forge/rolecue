@@ -74,6 +74,12 @@ const (
 	CodeMarketplaceListingStale      Code = "MARKETPLACE_LISTING_STALE"
 	CodeMarketplaceInvalidTransition Code = "MARKETPLACE_INVALID_TRANSITION"
 
+	// Avatar Marketplace checkout codes (KAN-370), see api/docs/marketplace-checkout-api.md.
+	CodeMarketplaceListingUnavailable Code = "MARKETPLACE_LISTING_UNAVAILABLE"
+	CodeMarketplacePriceChanged       Code = "MARKETPLACE_PRICE_CHANGED"
+	CodeMarketplaceAlreadyOwned       Code = "MARKETPLACE_ALREADY_OWNED"
+	CodeMarketplaceOwnListing         Code = "MARKETPLACE_OWN_LISTING"
+
 	CodeJobPostingNotPending Code = "JOB_POSTING_NOT_PENDING"
 	// CodeGuidelineVersionConflict is an Interview Behavior Guidelines save made against a version that is no
 	// longer the current one.

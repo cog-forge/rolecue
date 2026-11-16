@@ -37,11 +37,12 @@ SELECT count(*)::bigint FROM public.avatars a
 JOIN public.inventories i ON i.id = a.inventory_id
 WHERE i.user_id = $1;
 
--- Avatars the owner created since a point in time: the persisted side of the daily conversion quota.
+-- Avatar models the owner created since a point in time: the persisted side of the daily conversion quota.
+-- Counted from avatar_assets.created_by, so an avatar bought on the Marketplace (someone else's asset) does not use
+-- the quota and a model the owner converted keeps counting while it exists.
 -- name: CountRecentInventoryAvatars :one
-SELECT count(*)::bigint FROM public.avatars a
-JOIN public.inventories i ON i.id = a.inventory_id
-WHERE i.user_id = sqlc.arg(owner_id) AND a.created_at >= sqlc.arg(since)::timestamptz;
+SELECT count(*)::bigint FROM public.avatar_assets s
+WHERE s.created_by = sqlc.arg(owner_id)::uuid AND s.created_at >= sqlc.arg(since)::timestamptz;
 
 -- name: ListInventoryAvatars :many
 SELECT a.id, a.name, a.personality, a.created_at, a.updated_at
@@ -92,7 +93,8 @@ UPDATE public.inventories
 SET slot = slot + @amount
 WHERE user_id = @user_id AND slot + @amount <= @max_slots::integer;
 
--- The ledger row of an earlier purchase with this Idempotency-Key, read under the inventory row lock.
+-- The ledger row of an earlier slot purchase with this Idempotency-Key, read under the inventory row lock. Only
+-- rows paid to the system match: a Marketplace purchase row under the same key text is never a slot purchase.
 -- name: GetSlotPurchaseByKey :one
 SELECT amount FROM public.transactions
-WHERE "from" = @payer AND idempotency_key = @idempotency_key;
+WHERE "from" = @payer AND idempotency_key = @idempotency_key AND "to" = 'system';

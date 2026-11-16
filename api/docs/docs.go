@@ -4629,7 +4629,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each, up to 100 slots in total (INVENTORY_FULL, 409, beyond that). The balance check, the coin debit, its ledger row and the capacity increase commit together. Send an Idempotency-Key header (up to 128 printable ASCII characters, unique per purchase attempt): a repeat of the same key and amount, such as a double click or a retry, debits nothing again and returns the current summary and balance; the same key with another amount is VALIDATION_ERROR. Without the header every request debits. Returns the GET /inventory summary after the purchase plus balance, the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE (422) and changes nothing.",
+                "description": "Candidate/Recruiter only. Buys 1 to 10 slots at 1 coin each, up to 100 slots in total (INVENTORY_FULL, 409, beyond that). The balance check, the coin debit, its ledger row and the capacity increase commit together. Send an Idempotency-Key header (up to 128 printable ASCII characters, unique per purchase attempt): a repeat of the same key and amount, such as a double click or a retry, debits nothing again and returns the current summary and balance; the same key with another amount is VALIDATION_ERROR. Without the header every request debits. Keys starting with mkt1: are reserved for Marketplace purchases and are VALIDATION_ERROR here. Returns the GET /inventory summary after the purchase plus balance, the wallet balance after the debit. An amount outside 1..10 is VALIDATION_ERROR (400); a missing wallet or a balance below the price is INSUFFICIENT_BALANCE (422) and changes nothing.",
                 "consumes": [
                     "application/json"
                 ],
@@ -7852,6 +7852,121 @@ const docTemplate = `{
                 }
             }
         },
+        "/marketplace/listings/{id}/purchase": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. Trusted Origin required. Buys one active listing with coins (full price to the seller, no fee) and puts an owned copy of the avatar in the caller's inventory, in one transaction. The Idempotency-Key header is required and is ` + "`" + `mkt1:\u003clisting id\u003e:\u003cprice\u003e:\u003cnonce\u003e` + "`" + `: the listing id and price must equal the path and the body price_coins, the nonce (16..64 of A-Z a-z 0-9 _ -) is generated once per purchase intent by the client and reused for retries of that intent. A repeat with the same key returns the original receipt with replayed=true and never charges or grants again, even after a suspend, a delist or the buyer deleting the avatar (the avatar is then null and is not restored). To buy again after deleting, use a new nonce. See api/docs/marketplace-checkout-api.md.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-catalog"
+                ],
+                "summary": "Buy an avatar from the Marketplace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "mkt1:\u003clisting id\u003e:\u003cprice\u003e:\u003cnonce\u003e",
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The price the buyer saw",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.PurchaseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.PurchaseView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/marketplace/my-listings": {
             "get": {
                 "security": [
@@ -10996,6 +11111,10 @@ const docTemplate = `{
                 "MARKETPLACE_LISTING_EXISTS",
                 "MARKETPLACE_LISTING_STALE",
                 "MARKETPLACE_INVALID_TRANSITION",
+                "MARKETPLACE_LISTING_UNAVAILABLE",
+                "MARKETPLACE_PRICE_CHANGED",
+                "MARKETPLACE_ALREADY_OWNED",
+                "MARKETPLACE_OWN_LISTING",
                 "JOB_POSTING_NOT_PENDING",
                 "GUIDELINE_VERSION_CONFLICT",
                 "QUESTION_BANK_NOT_READY",
@@ -11114,6 +11233,10 @@ const docTemplate = `{
                 "CodeMarketplaceListingExists",
                 "CodeMarketplaceListingStale",
                 "CodeMarketplaceInvalidTransition",
+                "CodeMarketplaceListingUnavailable",
+                "CodeMarketplacePriceChanged",
+                "CodeMarketplaceAlreadyOwned",
+                "CodeMarketplaceOwnListing",
                 "CodeJobPostingNotPending",
                 "CodeGuidelineVersionConflict",
                 "CodeQuestionBankNotReady",
@@ -15702,6 +15825,54 @@ const docTemplate = `{
                 "message": {
                     "type": "string",
                     "example": "success"
+                }
+            }
+        },
+        "handler.PurchaseRequest": {
+            "type": "object",
+            "required": [
+                "price_coins"
+            ],
+            "properties": {
+                "price_coins": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.PurchaseTransactionView": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string",
+                    "enum": [
+                        "COIN"
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.PurchaseView": {
+            "type": "object",
+            "properties": {
+                "avatar": {
+                    "$ref": "#/definitions/domain.Avatar"
+                },
+                "balance": {
+                    "type": "integer"
+                },
+                "replayed": {
+                    "type": "boolean"
+                },
+                "transaction": {
+                    "$ref": "#/definitions/handler.PurchaseTransactionView"
                 }
             }
         },
