@@ -53,6 +53,41 @@ storage validator, which deduplicates case-insensitively. A cross-batch duplicat
 that leaves too few questions triggers retry/fallback. Only the complete, validated
 bank is returned for storage. Every batch shares the bank's absolute deadline.
 
+## Transient failures, retries and the daily budget (KAN-382, KAN-383)
+
+The route above handles one call: it tries each provider once and falls back, and a 429 never sleeps. A call
+that failed on **every** provider with a transient reason is then repeated by its caller, above the route:
+
+| Task | What is repeated | Repeats | Retried reasons | Bound |
+| --- | --- | --- | --- | --- |
+| Roadmap topics, question bank | one topic proposal, or one bank batch (accepted batches are kept) | 2, backoff 1 s then 2 s | `timeout`, `rate_limited`, `http_5xx`, `network`, `invalid_output` (truncated JSON, unexpected EOF) | the task budget (`AI_QUESTION_BANK_TIMEOUT`, 90 s) for the whole step; a repeat is skipped when less than 8 s is left |
+| Evaluation | one core question's grading call (the other questions are not asked again) | 2, backoff 1 s then 2 s | `timeout`, `rate_limited`, `http_5xx`, `network` | the evaluation's 2 minute bound; a repeat is skipped when less than 15 s is left |
+
+JD extraction and the live follow-up are not repeated (the follow-up has a 5 s budget). Authentication and other 4xx
+errors, cancellation and a spent deadline are never repeated. A grade that is decoded but invalid is not repeated
+here: the route already retries or falls back on it.
+
+Grading keeps the questions it has graded. If one question still fails after its repeats the session is not scored
+(no partial credit): its evaluation fails and the other questions' grades are kept in memory for 30 minutes, so the
+next claim of the same session grades only the missing question. That memory is per API process; after a restart a
+claim grades every question again.
+
+**Reading the daily LLM budget** (default 200 operations per user and UTC day, `LLM_USER_DAILY_CALL_BUDGET`). One unit is
+spent by: each generation request (confirm, retry, regenerate), a top-up, a new practice session (reserved at start,
+and given back if the start creates nothing), and every evaluation claim after the first of a session (a repeated
+`POST /interviews/{id}/complete` after a failed evaluation). The first evaluation is paid by the unit reserved at start.
+A repeated model call inside one request or one evaluation never costs a unit.
+
+**Reading `EVALUATION_ATTEMPTS_EXCEEDED`** (409 on `POST /interviews/{id}/complete`). Each claim of an evaluation is
+one session-level attempt, at most 3 per session. The code means all 3 claims ended in a failed evaluation and the
+session will not be evaluated again. With per-call repeats a single 429, 5xx or timeout no longer consumes an attempt;
+an attempt is lost only when a question's repeats ran out, or on a non-transient error (provider rejection, invalid
+grade, save error). To diagnose, read the API log for the interview id: `grading call failed, retrying` lines show the
+repeats (with reason and question position), `llm.task_attempt` lines show each provider try with its reason, and the
+`evaluation.grade` step failure shows the final cause. A retry the daily budget cannot pay for is refused with
+`LLM_BUDGET_EXCEEDED` and gives its attempt back. The only way to reset the attempt counter is an operator action on
+the database; no endpoint does it.
+
 ## Limits, vision and capacity
 
 [Groq models](https://console.groq.com/docs/models),
