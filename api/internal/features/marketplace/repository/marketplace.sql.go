@@ -34,6 +34,24 @@ func (q *Queries) ApproveListing(ctx context.Context, arg ApproveListingParams) 
 	return id, err
 }
 
+const buyerOwnsAsset = `-- name: BuyerOwnsAsset :one
+SELECT EXISTS (
+  SELECT 1 FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id
+  WHERE i.user_id = $1 AND a.asset_id = $2)
+`
+
+type BuyerOwnsAssetParams struct {
+	UserID  uuid.UUID
+	AssetID uuid.UUID
+}
+
+func (q *Queries) BuyerOwnsAsset(ctx context.Context, arg BuyerOwnsAssetParams) (bool, error) {
+	row := q.db.QueryRow(ctx, buyerOwnsAsset, arg.UserID, arg.AssetID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const countAdminListings = `-- name: CountAdminListings :one
 SELECT count(*) FROM public.avatar_listings l
 WHERE ($1::text IS NULL OR l.status = $1::text)
@@ -132,6 +150,69 @@ func (q *Queries) DelistListing(ctx context.Context, arg DelistListingParams) (u
 	return id, err
 }
 
+const ensureBuyerInventory = `-- name: EnsureBuyerInventory :exec
+
+INSERT INTO public.inventories (user_id, slot) VALUES ($1, $2::integer)
+ON CONFLICT (user_id) DO NOTHING
+`
+
+type EnsureBuyerInventoryParams struct {
+	UserID          uuid.UUID
+	InitialCapacity int32
+}
+
+// Checkout (KAN-370). Lock order of api/docs/marketplace-checkout-api.md: buyer user (LockMarketplaceUser, shared),
+// buyer inventory, listing, asset (both shared), then the wallets inside ledger.MarketplaceTransfer.
+func (q *Queries) EnsureBuyerInventory(ctx context.Context, arg EnsureBuyerInventoryParams) error {
+	_, err := q.db.Exec(ctx, ensureBuyerInventory, arg.UserID, arg.InitialCapacity)
+	return err
+}
+
+const getBuyerAvatarOfAsset = `-- name: GetBuyerAvatarOfAsset :one
+SELECT a.id, a.name, a.personality, a.created_at, a.updated_at
+FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id
+WHERE i.user_id = $1 AND a.asset_id = $2
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT 1
+`
+
+type GetBuyerAvatarOfAssetParams struct {
+	UserID  uuid.UUID
+	AssetID uuid.UUID
+}
+
+type GetBuyerAvatarOfAssetRow struct {
+	ID          uuid.UUID
+	Name        string
+	Personality string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) GetBuyerAvatarOfAsset(ctx context.Context, arg GetBuyerAvatarOfAssetParams) (GetBuyerAvatarOfAssetRow, error) {
+	row := q.db.QueryRow(ctx, getBuyerAvatarOfAsset, arg.UserID, arg.AssetID)
+	var i GetBuyerAvatarOfAssetRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Personality,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getBuyerBalance = `-- name: GetBuyerBalance :one
+SELECT balance FROM public.wallets WHERE user_id = $1
+`
+
+func (q *Queries) GetBuyerBalance(ctx context.Context, userID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, getBuyerBalance, userID)
+	var balance int32
+	err := row.Scan(&balance)
+	return balance, err
+}
+
 const getCatalogListing = `-- name: GetCatalogListing :one
 SELECT l.id, l.asset_id, l.title, l.description, l.default_personality, l.price_coins, l.created_at, u.name AS seller_name,
        (l.seller_id = $1::uuid) AS is_own_listing,
@@ -217,6 +298,18 @@ func (q *Queries) GetListing(ctx context.Context, id uuid.UUID) (GetListingRow, 
 	return i, err
 }
 
+const getListingAsset = `-- name: GetListingAsset :one
+SELECT asset_id FROM public.avatar_listings WHERE id = $1
+`
+
+// The asset of a listing, without a lock: a replay only needs it to find the buyer's current copy.
+func (q *Queries) GetListingAsset(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getListingAsset, id)
+	var asset_id uuid.UUID
+	err := row.Scan(&asset_id)
+	return asset_id, err
+}
+
 const getOwnedAvatarAsset = `-- name: GetOwnedAvatarAsset :one
 SELECT a.id AS asset_id, a.created_by, a.status
 FROM public.avatars av
@@ -240,6 +333,86 @@ func (q *Queries) GetOwnedAvatarAsset(ctx context.Context, arg GetOwnedAvatarAss
 	row := q.db.QueryRow(ctx, getOwnedAvatarAsset, arg.ID, arg.UserID)
 	var i GetOwnedAvatarAssetRow
 	err := row.Scan(&i.AssetID, &i.CreatedBy, &i.Status)
+	return i, err
+}
+
+const getPurchaseTransferByKey = `-- name: GetPurchaseTransferByKey :one
+SELECT id, "to", amount, currency, status::text AS status, created_at
+FROM public.transactions
+WHERE "from" = $1::text AND idempotency_key = $2::text
+`
+
+type GetPurchaseTransferByKeyParams struct {
+	Buyer          string
+	IdempotencyKey string
+}
+
+type GetPurchaseTransferByKeyRow struct {
+	ID        uuid.UUID
+	To        string
+	Amount    int32
+	Currency  string
+	Status    string
+	CreatedAt pgtype.Timestamptz
+}
+
+// The buyer's ledger row for an idempotency key, read under the inventory lock that serializes the buyer's purchases.
+// "from"/"to" hold user ids as text; the unique index is on ("from", idempotency_key).
+func (q *Queries) GetPurchaseTransferByKey(ctx context.Context, arg GetPurchaseTransferByKeyParams) (GetPurchaseTransferByKeyRow, error) {
+	row := q.db.QueryRow(ctx, getPurchaseTransferByKey, arg.Buyer, arg.IdempotencyKey)
+	var i GetPurchaseTransferByKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.To,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const grantPurchasedAvatar = `-- name: GrantPurchasedAvatar :one
+INSERT INTO public.avatars (inventory_id, name, asset_id, personality)
+SELECT i.id, $1::text, $2::uuid, $3::text
+FROM public.inventories i
+WHERE i.user_id = $4
+  AND (SELECT count(*) FROM public.avatars a WHERE a.inventory_id = i.id) < i.slot
+RETURNING id, name, personality, created_at, updated_at
+`
+
+type GrantPurchasedAvatarParams struct {
+	Name        string
+	AssetID     uuid.UUID
+	Personality string
+	UserID      uuid.UUID
+}
+
+type GrantPurchasedAvatarRow struct {
+	ID          uuid.UUID
+	Name        string
+	Personality string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
+// The owned avatar of a purchase: it points at the shared asset (avatars has no model path of its own). The caller has
+// the asset locked FOR SHARE. Zero rows means the inventory is full; the caller rolls the transaction back.
+func (q *Queries) GrantPurchasedAvatar(ctx context.Context, arg GrantPurchasedAvatarParams) (GrantPurchasedAvatarRow, error) {
+	row := q.db.QueryRow(ctx, grantPurchasedAvatar,
+		arg.Name,
+		arg.AssetID,
+		arg.Personality,
+		arg.UserID,
+	)
+	var i GrantPurchasedAvatarRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Personality,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
@@ -610,6 +783,61 @@ func (q *Queries) ListSellerListings(ctx context.Context, arg ListSellerListings
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAssetForPurchase = `-- name: LockAssetForPurchase :one
+SELECT status FROM public.avatar_assets WHERE id = $1 FOR SHARE
+`
+
+// The asset delete path locks the asset FOR UPDATE, so a share lock keeps it alive until the grant commits.
+func (q *Queries) LockAssetForPurchase(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, lockAssetForPurchase, id)
+	var status string
+	err := row.Scan(&status)
+	return status, err
+}
+
+const lockBuyerInventory = `-- name: LockBuyerInventory :one
+SELECT id FROM public.inventories WHERE user_id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockBuyerInventory(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockBuyerInventory, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockListingForPurchase = `-- name: LockListingForPurchase :one
+SELECT id, seller_id, asset_id, status, title, default_personality, price_coins
+FROM public.avatar_listings WHERE id = $1 FOR SHARE
+`
+
+type LockListingForPurchaseRow struct {
+	ID                 uuid.UUID
+	SellerID           uuid.UUID
+	AssetID            uuid.UUID
+	Status             string
+	Title              string
+	DefaultPersonality string
+	PriceCoins         int32
+}
+
+// By id only, no status filter: a suspend or delist that committed first is re-read here and refused by the caller.
+// FOR SHARE blocks a concurrent suspend/delist (an UPDATE) until this purchase commits.
+func (q *Queries) LockListingForPurchase(ctx context.Context, id uuid.UUID) (LockListingForPurchaseRow, error) {
+	row := q.db.QueryRow(ctx, lockListingForPurchase, id)
+	var i LockListingForPurchaseRow
+	err := row.Scan(
+		&i.ID,
+		&i.SellerID,
+		&i.AssetID,
+		&i.Status,
+		&i.Title,
+		&i.DefaultPersonality,
+		&i.PriceCoins,
+	)
+	return i, err
 }
 
 const lockMarketplaceUser = `-- name: LockMarketplaceUser :one

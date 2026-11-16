@@ -81,6 +81,8 @@ func (w *world) cleanup() {
 		`DELETE FROM public.avatars WHERE inventory_id IN (SELECT id FROM public.inventories WHERE user_id = ANY($1))`,
 		`DELETE FROM public.avatar_assets WHERE created_by = ANY($1) OR created_by IS NULL AND model_path LIKE 'mp-test/%'`,
 		`DELETE FROM public.inventories WHERE user_id = ANY($1)`,
+		`DELETE FROM public.transactions WHERE "from" = ANY($1::uuid[]::text[]) OR "to" = ANY($1::uuid[]::text[])`,
+		`DELETE FROM public.wallets WHERE user_id = ANY($1)`,
 		`DELETE FROM public.users WHERE id = ANY($1)`,
 	} {
 		if _, err := w.pool.Exec(bg, sql, w.users); err != nil {

@@ -31,6 +31,7 @@ type Repository interface {
 	Suspend(ctx context.Context, id, admin uuid.UUID, reason string) (bool, error)
 	Catalog(ctx context.Context, caller uuid.UUID, pattern *string, sort domain.CatalogSort, limit, offset int32) ([]domain.CatalogItem, int64, error)
 	CatalogItem(ctx context.Context, caller, id uuid.UUID) (domain.CatalogItem, bool, error)
+	Checkout(ctx context.Context, req domain.PurchaseRequest) (domain.PurchaseResult, error)
 }
 
 // Signer signs a short-lived GET for one storage key (storage.Store satisfies it).

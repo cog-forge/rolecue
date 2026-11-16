@@ -189,6 +189,7 @@ func (r *Router) Setup() *gin.Engine {
 		market.GET("/listings", r.marketplaceHandler.Catalog)
 		market.GET("/listings/:id", r.marketplaceHandler.CatalogItem)
 		market.GET("/listings/:id/preview", r.marketplaceHandler.CatalogPreview)
+		market.POST("/listings/:id/purchase", r.marketplaceHandler.Purchase)
 		market.GET("/eligible-avatars", r.marketplaceHandler.EligibleAvatars)
 		market.GET("/my-listings", r.marketplaceHandler.MyListings)
 		market.POST("/my-listings", r.marketplaceHandler.Create)

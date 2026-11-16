@@ -26,9 +26,8 @@ func (q *Queries) CountInventoryAvatars(ctx context.Context, userID uuid.UUID) (
 }
 
 const countRecentInventoryAvatars = `-- name: CountRecentInventoryAvatars :one
-SELECT count(*)::bigint FROM public.avatars a
-JOIN public.inventories i ON i.id = a.inventory_id
-WHERE i.user_id = $1 AND a.created_at >= $2::timestamptz
+SELECT count(*)::bigint FROM public.avatar_assets s
+WHERE s.created_by = $1::uuid AND s.created_at >= $2::timestamptz
 `
 
 type CountRecentInventoryAvatarsParams struct {
@@ -36,7 +35,9 @@ type CountRecentInventoryAvatarsParams struct {
 	Since   pgtype.Timestamptz
 }
 
-// Avatars the owner created since a point in time: the persisted side of the daily conversion quota.
+// Avatar models the owner created since a point in time: the persisted side of the daily conversion quota.
+// Counted from avatar_assets.created_by, so an avatar bought on the Marketplace (someone else's asset) does not use
+// the quota and a model the owner converted keeps counting while it exists.
 func (q *Queries) CountRecentInventoryAvatars(ctx context.Context, arg CountRecentInventoryAvatarsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countRecentInventoryAvatars, arg.OwnerID, arg.Since)
 	var column_1 int64
@@ -156,7 +157,7 @@ func (q *Queries) GetInventoryCapacity(ctx context.Context, userID uuid.UUID) (G
 
 const getSlotPurchaseByKey = `-- name: GetSlotPurchaseByKey :one
 SELECT amount FROM public.transactions
-WHERE "from" = $1 AND idempotency_key = $2
+WHERE "from" = $1 AND idempotency_key = $2 AND "to" = 'system'
 `
 
 type GetSlotPurchaseByKeyParams struct {
@@ -164,7 +165,8 @@ type GetSlotPurchaseByKeyParams struct {
 	IdempotencyKey *string
 }
 
-// The ledger row of an earlier purchase with this Idempotency-Key, read under the inventory row lock.
+// The ledger row of an earlier slot purchase with this Idempotency-Key, read under the inventory row lock. Only
+// rows paid to the system match: a Marketplace purchase row under the same key text is never a slot purchase.
 func (q *Queries) GetSlotPurchaseByKey(ctx context.Context, arg GetSlotPurchaseByKeyParams) (int32, error) {
 	row := q.db.QueryRow(ctx, getSlotPurchaseByKey, arg.Payer, arg.IdempotencyKey)
 	var amount int32

@@ -166,3 +166,59 @@ FROM public.avatar_listings l
 JOIN public.avatar_assets a ON a.id = l.asset_id AND a.status = 'ready'
 JOIN public.users u ON u.id = l.seller_id
 WHERE l.id = sqlc.arg(id) AND l.status = 'active';
+
+-- Checkout (KAN-370). Lock order of api/docs/marketplace-checkout-api.md: buyer user (LockMarketplaceUser, shared),
+-- buyer inventory, listing, asset (both shared), then the wallets inside ledger.MarketplaceTransfer.
+
+-- name: EnsureBuyerInventory :exec
+INSERT INTO public.inventories (user_id, slot) VALUES ($1, sqlc.arg(initial_capacity)::integer)
+ON CONFLICT (user_id) DO NOTHING;
+
+-- name: LockBuyerInventory :one
+SELECT id FROM public.inventories WHERE user_id = $1 FOR UPDATE;
+
+-- The buyer's ledger row for an idempotency key, read under the inventory lock that serializes the buyer's purchases.
+-- "from"/"to" hold user ids as text; the unique index is on ("from", idempotency_key).
+-- name: GetPurchaseTransferByKey :one
+SELECT id, "to", amount, currency, status::text AS status, created_at
+FROM public.transactions
+WHERE "from" = sqlc.arg(buyer)::text AND idempotency_key = sqlc.arg(idempotency_key)::text;
+
+-- By id only, no status filter: a suspend or delist that committed first is re-read here and refused by the caller.
+-- FOR SHARE blocks a concurrent suspend/delist (an UPDATE) until this purchase commits.
+-- name: LockListingForPurchase :one
+SELECT id, seller_id, asset_id, status, title, default_personality, price_coins
+FROM public.avatar_listings WHERE id = $1 FOR SHARE;
+
+-- The asset delete path locks the asset FOR UPDATE, so a share lock keeps it alive until the grant commits.
+-- name: LockAssetForPurchase :one
+SELECT status FROM public.avatar_assets WHERE id = $1 FOR SHARE;
+
+-- name: BuyerOwnsAsset :one
+SELECT EXISTS (
+  SELECT 1 FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id
+  WHERE i.user_id = $1 AND a.asset_id = $2);
+
+-- The owned avatar of a purchase: it points at the shared asset (avatars has no model path of its own). The caller has
+-- the asset locked FOR SHARE. Zero rows means the inventory is full; the caller rolls the transaction back.
+-- name: GrantPurchasedAvatar :one
+INSERT INTO public.avatars (inventory_id, name, asset_id, personality)
+SELECT i.id, sqlc.arg(name)::text, sqlc.arg(asset_id)::uuid, sqlc.arg(personality)::text
+FROM public.inventories i
+WHERE i.user_id = sqlc.arg(user_id)
+  AND (SELECT count(*) FROM public.avatars a WHERE a.inventory_id = i.id) < i.slot
+RETURNING id, name, personality, created_at, updated_at;
+
+-- name: GetBuyerAvatarOfAsset :one
+SELECT a.id, a.name, a.personality, a.created_at, a.updated_at
+FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id
+WHERE i.user_id = $1 AND a.asset_id = $2
+ORDER BY a.created_at DESC, a.id DESC
+LIMIT 1;
+
+-- name: GetBuyerBalance :one
+SELECT balance FROM public.wallets WHERE user_id = $1;
+
+-- The asset of a listing, without a lock: a replay only needs it to find the buyer's current copy.
+-- name: GetListingAsset :one
+SELECT asset_id FROM public.avatar_listings WHERE id = $1;

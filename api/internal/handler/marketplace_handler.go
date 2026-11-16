@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
+	invdomain "github.com/cog-forge/rolecue/api/internal/features/inventory/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/marketplace/domain"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/cog-forge/rolecue/api/pkg/response"
@@ -31,6 +33,7 @@ type MarketplaceService interface {
 	CatalogPreview(ctx context.Context, caller, id uuid.UUID) (string, error)
 	MyListingPreview(ctx context.Context, seller, id uuid.UUID) (string, error)
 	AdminPreview(ctx context.Context, role string, id uuid.UUID) (string, error)
+	Purchase(ctx context.Context, buyer, listingID uuid.UUID, confirmedPrice int32, key string) (domain.PurchaseResult, error)
 }
 
 type MarketplaceHandler struct{ service MarketplaceService }
@@ -813,4 +816,80 @@ func (h *MarketplaceHandler) AdminPreview(c *gin.Context) {
 	}
 	url, err := h.service.AdminPreview(c.Request.Context(), role, id)
 	previewRedirect(c, url, err)
+}
+
+// PurchaseRequest confirms the price the buyer saw. The listing comes from the path, the buyer from the session,
+// the idempotency key from the header; none of them is accepted in the body.
+type PurchaseRequest struct {
+	PriceCoins *int32 `json:"price_coins" binding:"required"`
+}
+
+// PurchaseTransactionView is the receipt of the coin transfer. On a replay it is the row of the first success.
+type PurchaseTransactionView struct {
+	ID        uuid.UUID `json:"id"`
+	Amount    int32     `json:"amount"`
+	Currency  string    `json:"currency" enums:"COIN"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// PurchaseView is the checkout response. avatar uses the inventory avatar DTO (no model key, no URL) and is null
+// only on a replay after the buyer deleted the avatar. balance is the buyer's coin balance after the call.
+type PurchaseView struct {
+	Avatar      *invdomain.Avatar       `json:"avatar"`
+	Transaction PurchaseTransactionView `json:"transaction"`
+	Balance     int32                   `json:"balance"`
+	Replayed    bool                    `json:"replayed"`
+}
+
+func purchaseView(r domain.PurchaseResult) PurchaseView {
+	v := PurchaseView{
+		Transaction: PurchaseTransactionView{ID: r.Receipt.TransactionID, Amount: r.Receipt.Amount, Currency: r.Receipt.Currency, CreatedAt: r.Receipt.CreatedAt},
+		Balance:     r.Balance, Replayed: r.Replayed,
+	}
+	if r.Avatar != nil {
+		v.Avatar = &invdomain.Avatar{ID: r.Avatar.ID, Name: r.Avatar.Name, Personality: r.Avatar.Personality, CreatedAt: r.Avatar.CreatedAt, UpdatedAt: r.Avatar.UpdatedAt}
+	}
+	return v
+}
+
+// Purchase godoc
+// @Summary Buy an avatar from the Marketplace
+// @Description Candidate and Recruiter. Trusted Origin required. Buys one active listing with coins (full price to the seller, no fee) and puts an owned copy of the avatar in the caller's inventory, in one transaction. The Idempotency-Key header is required and is `mkt1:<listing id>:<price>:<nonce>`: the listing id and price must equal the path and the body price_coins, the nonce (16..64 of A-Z a-z 0-9 _ -) is generated once per purchase intent by the client and reused for retries of that intent. A repeat with the same key returns the original receipt with replayed=true and never charges or grants again, even after a suspend, a delist or the buyer deleting the avatar (the avatar is then null and is not restored). To buy again after deleting, use a new nonce. See api/docs/marketplace-checkout-api.md.
+// @Tags marketplace-catalog
+// @Accept json
+// @Produce json
+// @Security SessionCookie
+// @Param Origin header string true "Trusted frontend origin"
+// @Param Idempotency-Key header string true "mkt1:<listing id>:<price>:<nonce>"
+// @Param id path string true "Listing ID" format(uuid)
+// @Param request body PurchaseRequest true "The price the buyer saw"
+// @Success 200 {object} response.Envelope{data=PurchaseView}
+// @Failure 400 {object} response.Envelope
+// @Failure 401 {object} response.Envelope
+// @Failure 403 {object} response.Envelope
+// @Failure 404 {object} response.Envelope
+// @Failure 409 {object} response.Envelope
+// @Failure 422 {object} response.Envelope
+// @Failure 500 {object} response.Envelope
+// @Router /marketplace/listings/{id}/purchase [post]
+func (h *MarketplaceHandler) Purchase(c *gin.Context) {
+	user, _, ok := marketplaceUser(c)
+	if !ok {
+		return
+	}
+	id, ok := marketplaceID(c)
+	if !ok {
+		return
+	}
+	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	var req PurchaseRequest
+	if !marketplaceBody(c, &req, func() bool { return req.PriceCoins != nil }) {
+		return
+	}
+	result, err := h.service.Purchase(c.Request.Context(), user, id, *req.PriceCoins, key)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.OK(c, purchaseView(result))
 }

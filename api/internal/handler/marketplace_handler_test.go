@@ -89,3 +89,42 @@ func TestAdminViewCarriesReviewPayloadWithoutEmail(t *testing.T) {
 		}
 	}
 }
+
+// The purchase response is an allow-list too: the avatar is the inventory DTO and nothing names a model, a URL,
+// the seller or an email.
+func TestPurchaseViewExposesOnlyReceiptFields(t *testing.T) {
+	now := time.Now()
+	res := domain.PurchaseResult{
+		Avatar:  &domain.PurchasedAvatar{ID: uuid.New(), Name: "n", Personality: "p", CreatedAt: now, UpdatedAt: now},
+		Receipt: domain.Receipt{TransactionID: uuid.New(), Amount: 20, Currency: "COIN", CreatedAt: now}, Balance: 30,
+	}
+	v := purchaseView(res)
+	if got, want := strings.Join(keysOf(t, v), ","), "avatar,balance,replayed,transaction"; got != want {
+		t.Fatalf("keys %s want %s", got, want)
+	}
+	if got, want := strings.Join(keysOf(t, v.Avatar), ","), "created_at,id,name,personality,updated_at"; got != want {
+		t.Fatalf("avatar keys %s want %s", got, want)
+	}
+	if got, want := strings.Join(keysOf(t, v.Transaction), ","), "amount,created_at,currency,id"; got != want {
+		t.Fatalf("transaction keys %s want %s", got, want)
+	}
+	res.Avatar, res.Replayed = nil, true
+	if v := purchaseView(res); v.Avatar != nil || !v.Replayed {
+		t.Errorf("replay without avatar: %+v", v)
+	}
+}
+
+func TestSlotPurchaseRefusesMarketplaceKeys(t *testing.T) {
+	for key, want := range map[string]bool{
+		"":                                true,
+		"slot-purchase-0001":              true,
+		"mkt1:x":                          false,
+		"mkt1:" + strings.Repeat("a", 40): false,
+		"mkt2:x":                          true,
+		"MKT1:x":                          true,
+	} {
+		if got := validPurchaseKey(key); got != want {
+			t.Errorf("validPurchaseKey(%q) = %v want %v", key, got, want)
+		}
+	}
+}
