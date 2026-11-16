@@ -126,3 +126,47 @@ describe("RoleReviewForm in Vietnamese", () => {
     ).toBeInTheDocument();
   });
 });
+
+it.each(["en", "vi"] as const)(
+  "keeps the shared AI loader visible for the full confirmation request (%s)",
+  async (locale) => {
+    let finish: ((value: RoleProfile) => void) | undefined;
+    const onConfirm = vi.fn(
+      () =>
+        new Promise<RoleProfile>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const onSave = vi.fn().mockResolvedValue(profile());
+    renderWithIntl(
+      <RoleReviewForm
+        profile={profile()}
+        busy={false}
+        onSave={onSave}
+        onConfirm={onConfirm}
+      />,
+      { locale },
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: locale === "en" ? "Confirm role" : "Xác nhận vị trí",
+      }),
+    );
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+    const status = screen
+      .getAllByRole("status")
+      .find((element) => element.querySelector(".ai-loader-circle"));
+    expect(status).toBeVisible();
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveTextContent(
+      locale === "en" ? "Preparing your roadmap" : "Đang chuẩn bị lộ trình",
+    );
+    expect(onSave).not.toHaveBeenCalled();
+    finish?.(profile());
+    await waitFor(() =>
+      expect(
+        document.querySelector(".ai-loader-circle"),
+      ).not.toBeInTheDocument(),
+    );
+  },
+);

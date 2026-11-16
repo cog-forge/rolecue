@@ -312,6 +312,12 @@ test("review edits are saved before confirmation, and confirmation waits for the
   await expect(
     page.getByRole("heading", { name: "Your role review is saved." }),
   ).toHaveCount(0);
+  await expect(
+    page.getByRole("status").filter({ has: page.locator(".ai-loader-circle") }),
+  ).toContainText("Preparing your roadmap");
+  await expect(
+    page.getByRole("status").filter({ has: page.locator(".ai-loader-circle") }),
+  ).toBeVisible();
   confirmation.open();
   await expect(
     page.getByRole("heading", { name: "Your role review is saved." }),

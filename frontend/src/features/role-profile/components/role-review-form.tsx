@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { AiLoader } from "@/components/ui/ai-loader";
 import { useTranslations } from "next-intl";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +37,10 @@ export function RoleReviewForm({
   onConfirm: (review: RoleReview) => Promise<RoleProfile>;
 }) {
   const t = useTranslations("candidate.roleProfiles");
+  const roadmapT = useTranslations("candidate.roadmap");
+  const showConfirmation = useCallback((node: HTMLDivElement | null) => {
+    node?.scrollIntoView?.({ block: "center", behavior: "instant" });
+  }, []);
   const labels = useTranslations("candidate.roleProfiles.labels");
   const roleError = useRoleError();
   const reviewSchema = useMemo(
@@ -261,6 +266,16 @@ export function RoleReviewForm({
         </p>
       )}
       <footer className="flex flex-wrap items-center justify-between gap-5 border-t pt-6">
+        {action === "confirm" && (
+          <div ref={showConfirmation} className="w-full" aria-busy="true">
+            <AiLoader
+              stage="generating"
+              title={roadmapT("preparingTitle")}
+              description={roadmapT("confirmingDescription")}
+              size="lg"
+            />
+          </div>
+        )}
         <div className="max-w-md space-y-1">
           <p className="text-sm text-muted-foreground">
             {t("review.confirmNote")}

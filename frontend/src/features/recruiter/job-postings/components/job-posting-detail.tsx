@@ -1,4 +1,5 @@
 "use client";
+import { AiLoader } from "@/components/ui/ai-loader";
 import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -272,6 +273,7 @@ export function JobPostingDetail({ postingId }: { postingId: string }) {
         status={posting.status}
       />
       <PostingProgress posting={posting} generating={generating} />
+      {generating && <AiLoader stage="generating" />}
 
       {notice && (
         <Notice role="status" tone="info">
