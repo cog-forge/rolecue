@@ -507,7 +507,11 @@ describe("ReportOverview", () => {
         await screen.findByRole("heading", { name: "Overall score" }),
       ).toBeInTheDocument();
       await act(() => vi.advanceTimersByTimeAsync(REPORT_POLL_MS * 3));
-      expect(mocks.get).toHaveBeenCalledTimes(3);
+      expect(
+        mocks.get.mock.calls.filter(
+          ([path]) => typeof path === "string" && path.endsWith("/report"),
+        ),
+      ).toHaveLength(3);
     });
 
     it("gives up after a bounded number of checks and leaves Check again", async () => {

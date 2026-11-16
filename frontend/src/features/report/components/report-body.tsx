@@ -1,3 +1,5 @@
+import { AiLoader } from "@/components/ui/ai-loader";
+import { ErrorState } from "@/components/ui/error-state";
 import { ReportExport } from "./report-export";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -236,6 +238,36 @@ function StatusNotice({
 }) {
   const t = useTranslations("candidate.report");
   if (status === "completed") return null;
+  if (status === "failed")
+    return (
+      <ErrorState
+        variant="compact"
+        title={t("notice.failed.title")}
+        description={t("notice.failed.text")}
+      />
+    );
+  if (status === "pending")
+    return (
+      <section className="space-y-3" aria-label={t("notice.pending.title")}>
+        <AiLoader
+          stage="evaluating"
+          headingLevel={2}
+          title={t("notice.pending.title")}
+          description={t("notice.pending.text")}
+        />
+        <p role="status" className="text-sm text-muted-foreground">
+          {autoRefresh ? t("autoRefresh") : t("autoRefreshStopped")}
+        </p>
+        <Button
+          variant="outline"
+          className="h-auto min-h-11 whitespace-normal py-2"
+          disabled={checking}
+          onClick={onCheckAgain}
+        >
+          {t("checkAgain")}
+        </Button>
+      </section>
+    );
 
   return (
     <section
@@ -248,21 +280,14 @@ function StatusNotice({
       <p className="mt-2 text-sm text-muted-foreground">
         {t(`notice.${status}.text`)}
       </p>
-      {status === "pending" ? (
-        <p role="status" className="mt-2 text-sm text-muted-foreground">
-          {autoRefresh ? t("autoRefresh") : t("autoRefreshStopped")}
-        </p>
-      ) : null}
-      {status === "pending" || status === "in_progress" ? (
-        <Button
-          variant="outline"
-          className="mt-4 h-auto min-h-11 py-2 whitespace-normal bg-background"
-          disabled={checking}
-          onClick={onCheckAgain}
-        >
-          {t("checkAgain")}
-        </Button>
-      ) : null}
+      <Button
+        variant="outline"
+        className="mt-4 h-auto min-h-11 py-2 whitespace-normal bg-background"
+        disabled={checking}
+        onClick={onCheckAgain}
+      >
+        {t("checkAgain")}
+      </Button>
     </section>
   );
 }

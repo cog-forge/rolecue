@@ -1,4 +1,5 @@
 "use client";
+import { SessionRoadmapResult } from "@/features/roadmap/components/session-roadmap-result";
 import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect } from "react";
@@ -110,12 +111,19 @@ export function ReportOverview({ reportId }: { reportId: string }) {
           isRetrying={query.isFetching}
         ></ErrorState>
       ) : (
-        <ReportBody
-          report={query.data}
-          autoRefresh={autoRefreshes(query.data.status, pollState)}
-          checking={query.isFetching}
-          onCheckAgain={() => void query.refetch()}
-        />
+        <>
+          <ReportBody
+            report={query.data}
+            autoRefresh={autoRefreshes(query.data.status, pollState)}
+            checking={query.isFetching}
+            onCheckAgain={() => void query.refetch()}
+          />
+          {query.data.type === "practice" &&
+            query.data.status === "completed" &&
+            !query.data.injection_flagged && (
+              <SessionRoadmapResult sessionId={reportId} />
+            )}
+        </>
       )}
     </section>
   );
