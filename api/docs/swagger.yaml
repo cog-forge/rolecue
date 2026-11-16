@@ -55,6 +55,12 @@ definitions:
     - PAYMENT_GATEWAY_ERROR
     - PAYOS_ERROR
     - WEBHOOK_SIGNATURE_INVALID
+    - MARKETPLACE_LISTING_NOT_FOUND
+    - MARKETPLACE_ASSET_NOT_ELIGIBLE
+    - MARKETPLACE_ASSET_NOT_READY
+    - MARKETPLACE_LISTING_EXISTS
+    - MARKETPLACE_LISTING_STALE
+    - MARKETPLACE_INVALID_TRANSITION
     - JOB_POSTING_NOT_PENDING
     - GUIDELINE_VERSION_CONFLICT
     - QUESTION_BANK_NOT_READY
@@ -109,6 +115,9 @@ definitions:
     - ROADMAP_NOT_RETRYABLE
     - ROADMAP_NOT_READY
     - INTERVIEW_START_INTENT_CONFLICT
+    - COIN_TRANSFER_KEY_INVALID
+    - COIN_TRANSFER_KEY_CONFLICT
+    - COIN_RECIPIENT_BALANCE_LIMIT
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -164,6 +173,12 @@ definitions:
     - CodePaymentGatewayError
     - CodePayOSError
     - CodeWebhookSignatureInvalid
+    - CodeMarketplaceListingNotFound
+    - CodeMarketplaceAssetNotEligible
+    - CodeMarketplaceAssetNotReady
+    - CodeMarketplaceListingExists
+    - CodeMarketplaceListingStale
+    - CodeMarketplaceInvalidTransition
     - CodeJobPostingNotPending
     - CodeGuidelineVersionConflict
     - CodeQuestionBankNotReady
@@ -218,6 +233,9 @@ definitions:
     - CodeRoadmapNotRetryable
     - CodeRoadmapNotReady
     - CodeInterviewStartIntentConflict
+    - CodeCoinTransferKeyInvalid
+    - CodeCoinTransferKeyConflict
+    - CodeCoinRecipientBalanceLimit
   domain.AccessAuditEntry:
     properties:
       action:
@@ -3099,6 +3117,50 @@ definitions:
     x-enum-varnames:
     - Required
     - Preferred
+  handler.AdminListingView:
+    properties:
+      asset_id:
+        type: string
+      asset_ready:
+        type: boolean
+      created_at:
+        type: string
+      default_personality:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      preview_url:
+        type: string
+      price_coins:
+        type: integer
+      review_note:
+        type: string
+      reviewed_at:
+        type: string
+      reviewed_by:
+        type: string
+      rights_note:
+        type: string
+      seller:
+        $ref: '#/definitions/handler.SellerPublicView'
+      seller_id:
+        type: string
+      status:
+        enum:
+        - draft
+        - pending
+        - active
+        - rejected
+        - delisted
+        - suspended
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
   handler.AppendTurnRequest:
     properties:
       answer:
@@ -3107,6 +3169,29 @@ definitions:
       position:
         example: 1
         type: integer
+    type: object
+  handler.CatalogItemView:
+    properties:
+      already_owned:
+        type: boolean
+      created_at:
+        type: string
+      default_personality:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      is_own_listing:
+        type: boolean
+      preview_url:
+        type: string
+      price_coins:
+        type: integer
+      seller:
+        $ref: '#/definitions/handler.SellerPublicView'
+      title:
+        type: string
     type: object
   handler.CreateInterviewRequest:
     properties:
@@ -3178,6 +3263,27 @@ definitions:
     - seniority_level
     - title
     type: object
+  handler.CreateListingRequest:
+    properties:
+      avatar_id:
+        type: string
+      default_personality:
+        type: string
+      description:
+        type: string
+      price_coins:
+        type: integer
+      rights_note:
+        type: string
+      title:
+        type: string
+    required:
+    - avatar_id
+    - default_personality
+    - price_coins
+    - rights_note
+    - title
+    type: object
   handler.CreateRecordingRequest:
     properties:
       consent_version:
@@ -3232,6 +3338,34 @@ definitions:
     required:
     - package_id
     type: object
+  handler.EditListingRequest:
+    properties:
+      default_personality:
+        type: string
+      description:
+        type: string
+      expected_updated_at:
+        type: string
+      price_coins:
+        type: integer
+      rights_note:
+        type: string
+      title:
+        type: string
+    required:
+    - default_personality
+    - expected_updated_at
+    - price_coins
+    - rights_note
+    - title
+    type: object
+  handler.EligibleAvatarView:
+    properties:
+      avatar_id:
+        type: string
+      name:
+        type: string
+    type: object
   handler.ErasureResult:
     properties:
       deleted:
@@ -3258,6 +3392,13 @@ definitions:
         type: array
     required:
     - weights
+    type: object
+  handler.ExpectedRequest:
+    properties:
+      expected_updated_at:
+        type: string
+    required:
+    - expected_updated_at
     type: object
   handler.ExtractJobPostingRequest:
     properties:
@@ -3339,6 +3480,16 @@ definitions:
       reject_reason:
         description: RejectReason is an optional note, at most 500 characters.
         type: string
+    type: object
+  handler.RejectListingRequest:
+    properties:
+      expected_updated_at:
+        type: string
+      reason:
+        type: string
+    required:
+    - expected_updated_at
+    - reason
     type: object
   handler.RejectPostingRequest:
     properties:
@@ -3440,6 +3591,60 @@ definitions:
         type: integer
       values:
         $ref: '#/definitions/domain.BehaviorGuideline'
+    type: object
+  handler.SellerListingView:
+    properties:
+      asset_id:
+        type: string
+      can_delist:
+        type: boolean
+      can_edit:
+        type: boolean
+      can_submit:
+        type: boolean
+      created_at:
+        type: string
+      default_personality:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      preview_url:
+        type: string
+      price_coins:
+        type: integer
+      review_note:
+        type: string
+      reviewed_at:
+        type: string
+      rights_note:
+        type: string
+      status:
+        enum:
+        - draft
+        - pending
+        - active
+        - rejected
+        - delisted
+        - suspended
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  handler.SellerPublicView:
+    properties:
+      display_name:
+        type: string
+    type: object
+  handler.SuspendListingRequest:
+    properties:
+      reason:
+        type: string
+    required:
+    - reason
     type: object
   handler.SyncDepositRequest:
     properties:
@@ -3557,11 +3762,38 @@ definitions:
       pagination:
         $ref: '#/definitions/response.Pagination'
     type: object
+  response.Page-handler_AdminListingView:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/handler.AdminListingView'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
+  response.Page-handler_CatalogItemView:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/handler.CatalogItemView'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
   response.Page-handler_RoleProfileSummary:
     properties:
       items:
         items:
           $ref: '#/definitions/handler.RoleProfileSummary'
+        type: array
+      pagination:
+        $ref: '#/definitions/response.Pagination'
+    type: object
+  response.Page-handler_SellerListingView:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/handler.SellerListingView'
         type: array
       pagination:
         $ref: '#/definitions/response.Pagination'
@@ -4625,6 +4857,324 @@ paths:
       summary: Reject a pending Job Posting
       tags:
       - admin-job-postings
+  /admin/marketplace/listings:
+    get:
+      description: Admin only. Oldest change first. Without status the pending queue;
+        status=all removes the filter. limit 1..50 (default 20), offset 0..10000.
+      parameters:
+      - description: pending (default), draft, active, rejected, delisted, suspended
+          or all
+        in: query
+        name: status
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 50
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Items to skip
+        in: query
+        maximum: 10000
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-handler_AdminListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List Marketplace listings for review
+      tags:
+      - admin-marketplace
+  /admin/marketplace/listings/{id}:
+    get:
+      description: Admin only. The exact payload (including rights_note), seller display
+        name, asset readiness and review trail. updated_at is the version to send
+        back to approve or reject.
+      parameters:
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.AdminListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get a listing under review
+      tags:
+      - admin-marketplace
+  /admin/marketplace/listings/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: 'Admin only. Trusted Origin required. pending to active, recording
+        reviewer and time. Review is by exact payload: expected_updated_at must equal
+        the listing''s current updated_at, else 409 MARKETPLACE_LISTING_STALE and
+        nothing changes. A non-pending listing is 409 MARKETPLACE_INVALID_TRANSITION
+        (a repeat of an approve is therefore a conflict), a model that is not ready
+        is 409 MARKETPLACE_ASSET_NOT_READY.'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The reviewed version
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ExpectedRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.AdminListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Approve a pending listing
+      tags:
+      - admin-marketplace
+  /admin/marketplace/listings/{id}/preview:
+    get:
+      description: Admin only. Same 302 as the catalog preview, for a listing in any
+        status.
+      parameters:
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "302":
+          description: Found
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Preview image of a listing under review
+      tags:
+      - admin-marketplace
+  /admin/marketplace/listings/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Admin only. Trusted Origin required. pending to rejected with a
+        required reason (1..2000 characters), recording reviewer and time. Same exact-payload
+        rule as approve. The seller may edit and submit again.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The reviewed version and the reason
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RejectListingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.AdminListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Reject a pending listing
+      tags:
+      - admin-marketplace
+  /admin/marketplace/listings/{id}/suspend:
+    post:
+      consumes:
+      - application/json
+      description: Admin only. Trusted Origin required. active to suspended with a
+        required reason; blocks new purchases only. Buyers' avatars, the asset and
+        files are untouched and the Admin receives nothing. Suspending a suspended
+        listing succeeds without a change (the first reason stays). No individual
+        revoke or refund exists. There is no unsuspend in this release.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The reason
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.SuspendListingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.AdminListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Suspend an active listing
+      tags:
+      - admin-marketplace
   /admin/overview:
     get:
       description: |-
@@ -8399,6 +8949,551 @@ paths:
       summary: Suggest requirements from JD text
       tags:
       - job-postings
+  /marketplace/eligible-avatars:
+    get:
+      description: Candidate and Recruiter. Avatars in the caller's own inventory
+        whose model the caller created, that are ready and have no listing yet.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/handler.EligibleAvatarView'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List avatars the caller may sell
+      tags:
+      - marketplace-seller
+  /marketplace/listings:
+    get:
+      description: Candidate and Recruiter. Active listings whose model is ready,
+        nothing else. q searches the title (at most 100 characters, case-insensitive
+        contains); sort is newest (default), price_asc or price_desc; limit 1..50
+        (default 20), offset 0..10000. already_owned is true when the caller has an
+        avatar of the same model in their inventory; is_own_listing when the caller
+        is the seller. preview_key is previews/<asset_id>.webp by convention and never
+        a model URL.
+      parameters:
+      - description: Title search
+        in: query
+        maxLength: 100
+        name: q
+        type: string
+      - default: newest
+        description: newest, price_asc or price_desc
+        in: query
+        name: sort
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 50
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Items to skip
+        in: query
+        maximum: 10000
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-handler_CatalogItemView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Browse the Marketplace
+      tags:
+      - marketplace-catalog
+  /marketplace/listings/{id}:
+    get:
+      description: Candidate and Recruiter. Any listing that is not active (or whose
+        model is not ready) is 404, whoever asks.
+      parameters:
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.CatalogItemView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get an active listing
+      tags:
+      - marketplace-catalog
+  /marketplace/listings/{id}/preview:
+    get:
+      description: Candidate and Recruiter. 302 to a signed GET (valid 5 minutes)
+        of the listing's preview image, usable directly as an img src. Only active
+        listings of a ready asset; anything else is 404. The object may not exist
+        yet, so the UI must fall back to its default image on load failure. The model
+        file is never signed.
+      parameters:
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "302":
+          description: Found
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Preview image of an active listing
+      tags:
+      - marketplace-catalog
+  /marketplace/my-listings:
+    get:
+      description: Candidate and Recruiter. The caller's own listings, most recently
+        changed first. status filters one status; all or absent means every status.
+        limit 1..50 (default 20), offset 0..10000.
+      parameters:
+      - description: draft, pending, active, rejected, delisted, suspended or all
+        in: query
+        name: status
+        type: string
+      - default: 20
+        description: Page size
+        in: query
+        maximum: 50
+        minimum: 1
+        name: limit
+        type: integer
+      - default: 0
+        description: Items to skip
+        in: query
+        maximum: 10000
+        minimum: 0
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/response.Page-handler_SellerListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: List my listings
+      tags:
+      - marketplace-seller
+    post:
+      consumes:
+      - application/json
+      description: 'Candidate and Recruiter. Trusted Origin required. Starts a draft
+        from one of the caller''s own avatars; seller_id is the session user and the
+        asset is resolved from the avatar. The avatar''s model must have been created
+        by the caller and be ready (a bought copy can never be listed). One listing
+        per asset: 409 MARKETPLACE_LISTING_EXISTS. 422 MARKETPLACE_ASSET_NOT_ELIGIBLE
+        otherwise. Body limit 16 KiB.'
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Avatar and listing payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateListingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.SellerListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Create a draft listing
+      tags:
+      - marketplace-seller
+  /marketplace/my-listings/{id}:
+    get:
+      description: Candidate and Recruiter. Another seller's listing is 404.
+      parameters:
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.SellerListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Get my listing
+      tags:
+      - marketplace-seller
+    put:
+      consumes:
+      - application/json
+      description: Candidate and Recruiter. Trusted Origin required. Only draft and
+        rejected listings are editable (409 MARKETPLACE_INVALID_TRANSITION otherwise);
+        a rejected listing stays rejected until it is submitted again. expected_updated_at
+        is the updated_at the caller loaded; any other current value is 409 MARKETPLACE_LISTING_STALE
+        and nothing is written. Seller and asset cannot change.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New payload and the version it replaces
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.EditListingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.SellerListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Edit a draft or rejected listing
+      tags:
+      - marketplace-seller
+  /marketplace/my-listings/{id}/delist:
+    post:
+      consumes:
+      - application/json
+      description: Candidate and Recruiter, owner only. Trusted Origin required. active
+        to delisted stops new sales; buyers' avatars, the asset and files are untouched.
+        Delisting a delisted listing succeeds without a change. There is no relist.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The version being delisted
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ExpectedRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.SellerListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Delist an active listing
+      tags:
+      - marketplace-seller
+  /marketplace/my-listings/{id}/preview:
+    get:
+      description: Candidate and Recruiter, owner only. Same 302 as the catalog preview,
+        for any status of the caller's own listing.
+      parameters:
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "302":
+          description: Found
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Preview image of my listing
+      tags:
+      - marketplace-seller
+  /marketplace/my-listings/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      description: Candidate and Recruiter. Trusted Origin required. draft to pending,
+        or rejected to pending after an edit made since the rejection. The payload
+        is validated again and the avatar's model must still be ready and owned by
+        the seller. Stale expected_updated_at is 409 MARKETPLACE_LISTING_STALE.
+      parameters:
+      - description: Trusted frontend origin
+        in: header
+        name: Origin
+        required: true
+        type: string
+      - description: Listing ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: The version being submitted
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ExpectedRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.SellerListingView'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Submit or resubmit a listing for review
+      tags:
+      - marketplace-seller
   /onboarding/role:
     post:
       consumes:

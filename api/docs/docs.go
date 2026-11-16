@@ -1526,6 +1526,488 @@ const docTemplate = `{
                 }
             }
         },
+        "/admin/marketplace/listings": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Oldest change first. Without status the pending queue; status=all removes the filter. limit 1..50 (default 20), offset 0..10000.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-marketplace"
+                ],
+                "summary": "List Marketplace listings for review",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "pending (default), draft, active, rejected, delisted, suspended or all",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 50,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 10000,
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-handler_AdminListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/marketplace/listings/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. The exact payload (including rights_note), seller display name, asset readiness and review trail. updated_at is the version to send back to approve or reject.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-marketplace"
+                ],
+                "summary": "Get a listing under review",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.AdminListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/marketplace/listings/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Trusted Origin required. pending to active, recording reviewer and time. Review is by exact payload: expected_updated_at must equal the listing's current updated_at, else 409 MARKETPLACE_LISTING_STALE and nothing changes. A non-pending listing is 409 MARKETPLACE_INVALID_TRANSITION (a repeat of an approve is therefore a conflict), a model that is not ready is 409 MARKETPLACE_ASSET_NOT_READY.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-marketplace"
+                ],
+                "summary": "Approve a pending listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The reviewed version",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ExpectedRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.AdminListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/marketplace/listings/{id}/preview": {
+            "get": {
+                "description": "Admin only. Same 302 as the catalog preview, for a listing in any status.",
+                "tags": [
+                    "admin-marketplace"
+                ],
+                "summary": "Preview image of a listing under review",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/marketplace/listings/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Trusted Origin required. pending to rejected with a required reason (1..2000 characters), recording reviewer and time. Same exact-payload rule as approve. The seller may edit and submit again.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-marketplace"
+                ],
+                "summary": "Reject a pending listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The reviewed version and the reason",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RejectListingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.AdminListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/marketplace/listings/{id}/suspend": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Admin only. Trusted Origin required. active to suspended with a required reason; blocks new purchases only. Buyers' avatars, the asset and files are untouched and the Admin receives nothing. Suspending a suspended listing succeeds without a change (the first reason stays). No individual revoke or refund exists. There is no unsuspend in this release.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-marketplace"
+                ],
+                "summary": "Suspend an active listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The reason",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SuspendListingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.AdminListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/admin/overview": {
             "get": {
                 "security": [
@@ -7116,6 +7598,832 @@ const docTemplate = `{
                 }
             }
         },
+        "/marketplace/eligible-avatars": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. Avatars in the caller's own inventory whose model the caller created, that are ready and have no listing yet.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-seller"
+                ],
+                "summary": "List avatars the caller may sell",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/handler.EligibleAvatarView"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/marketplace/listings": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. Active listings whose model is ready, nothing else. q searches the title (at most 100 characters, case-insensitive contains); sort is newest (default), price_asc or price_desc; limit 1..50 (default 20), offset 0..10000. already_owned is true when the caller has an avatar of the same model in their inventory; is_own_listing when the caller is the seller. preview_key is previews/\u003casset_id\u003e.webp by convention and never a model URL.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-catalog"
+                ],
+                "summary": "Browse the Marketplace",
+                "parameters": [
+                    {
+                        "maxLength": 100,
+                        "type": "string",
+                        "description": "Title search",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "newest",
+                        "description": "newest, price_asc or price_desc",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 50,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 10000,
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-handler_CatalogItemView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/marketplace/listings/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. Any listing that is not active (or whose model is not ready) is 404, whoever asks.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-catalog"
+                ],
+                "summary": "Get an active listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.CatalogItemView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/marketplace/listings/{id}/preview": {
+            "get": {
+                "description": "Candidate and Recruiter. 302 to a signed GET (valid 5 minutes) of the listing's preview image, usable directly as an img src. Only active listings of a ready asset; anything else is 404. The object may not exist yet, so the UI must fall back to its default image on load failure. The model file is never signed.",
+                "tags": [
+                    "marketplace-catalog"
+                ],
+                "summary": "Preview image of an active listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/marketplace/my-listings": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. The caller's own listings, most recently changed first. status filters one status; all or absent means every status. limit 1..50 (default 20), offset 0..10000.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-seller"
+                ],
+                "summary": "List my listings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "draft, pending, active, rejected, delisted, suspended or all",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 50,
+                        "minimum": 1,
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 10000,
+                        "minimum": 0,
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Items to skip",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/response.Page-handler_SellerListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. Trusted Origin required. Starts a draft from one of the caller's own avatars; seller_id is the session user and the asset is resolved from the avatar. The avatar's model must have been created by the caller and be ready (a bought copy can never be listed). One listing per asset: 409 MARKETPLACE_LISTING_EXISTS. 422 MARKETPLACE_ASSET_NOT_ELIGIBLE otherwise. Body limit 16 KiB.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-seller"
+                ],
+                "summary": "Create a draft listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Avatar and listing payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateListingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.SellerListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/marketplace/my-listings/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. Another seller's listing is 404.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-seller"
+                ],
+                "summary": "Get my listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.SellerListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. Trusted Origin required. Only draft and rejected listings are editable (409 MARKETPLACE_INVALID_TRANSITION otherwise); a rejected listing stays rejected until it is submitted again. expected_updated_at is the updated_at the caller loaded; any other current value is 409 MARKETPLACE_LISTING_STALE and nothing is written. Seller and asset cannot change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-seller"
+                ],
+                "summary": "Edit a draft or rejected listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New payload and the version it replaces",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.EditListingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.SellerListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/marketplace/my-listings/{id}/delist": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter, owner only. Trusted Origin required. active to delisted stops new sales; buyers' avatars, the asset and files are untouched. Delisting a delisted listing succeeds without a change. There is no relist.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-seller"
+                ],
+                "summary": "Delist an active listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The version being delisted",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ExpectedRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.SellerListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/marketplace/my-listings/{id}/preview": {
+            "get": {
+                "description": "Candidate and Recruiter, owner only. Same 302 as the catalog preview, for any status of the caller's own listing.",
+                "tags": [
+                    "marketplace-seller"
+                ],
+                "summary": "Preview image of my listing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "302": {
+                        "description": "Found"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/marketplace/my-listings/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate and Recruiter. Trusted Origin required. draft to pending, or rejected to pending after an edit made since the rejection. The payload is validated again and the avatar's model must still be ready and owned by the seller. Stale expected_updated_at is 409 MARKETPLACE_LISTING_STALE.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "marketplace-seller"
+                ],
+                "summary": "Submit or resubmit a listing for review",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Trusted frontend origin",
+                        "name": "Origin",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Listing ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The version being submitted",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ExpectedRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.SellerListingView"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/onboarding/role": {
             "post": {
                 "security": [
@@ -9682,6 +10990,12 @@ const docTemplate = `{
                 "PAYMENT_GATEWAY_ERROR",
                 "PAYOS_ERROR",
                 "WEBHOOK_SIGNATURE_INVALID",
+                "MARKETPLACE_LISTING_NOT_FOUND",
+                "MARKETPLACE_ASSET_NOT_ELIGIBLE",
+                "MARKETPLACE_ASSET_NOT_READY",
+                "MARKETPLACE_LISTING_EXISTS",
+                "MARKETPLACE_LISTING_STALE",
+                "MARKETPLACE_INVALID_TRANSITION",
                 "JOB_POSTING_NOT_PENDING",
                 "GUIDELINE_VERSION_CONFLICT",
                 "QUESTION_BANK_NOT_READY",
@@ -9735,7 +11049,10 @@ const docTemplate = `{
                 "ROADMAP_REGENERATE_NOT_ALLOWED",
                 "ROADMAP_NOT_RETRYABLE",
                 "ROADMAP_NOT_READY",
-                "INTERVIEW_START_INTENT_CONFLICT"
+                "INTERVIEW_START_INTENT_CONFLICT",
+                "COIN_TRANSFER_KEY_INVALID",
+                "COIN_TRANSFER_KEY_CONFLICT",
+                "COIN_RECIPIENT_BALANCE_LIMIT"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -9791,6 +11108,12 @@ const docTemplate = `{
                 "CodePaymentGatewayError",
                 "CodePayOSError",
                 "CodeWebhookSignatureInvalid",
+                "CodeMarketplaceListingNotFound",
+                "CodeMarketplaceAssetNotEligible",
+                "CodeMarketplaceAssetNotReady",
+                "CodeMarketplaceListingExists",
+                "CodeMarketplaceListingStale",
+                "CodeMarketplaceInvalidTransition",
                 "CodeJobPostingNotPending",
                 "CodeGuidelineVersionConflict",
                 "CodeQuestionBankNotReady",
@@ -9844,7 +11167,10 @@ const docTemplate = `{
                 "CodeRoadmapRegenerateNotAllowed",
                 "CodeRoadmapNotRetryable",
                 "CodeRoadmapNotReady",
-                "CodeInterviewStartIntentConflict"
+                "CodeInterviewStartIntentConflict",
+                "CodeCoinTransferKeyInvalid",
+                "CodeCoinTransferKeyConflict",
+                "CodeCoinRecipientBalanceLimit"
             ]
         },
         "domain.AccessAuditEntry": {
@@ -13888,6 +15214,70 @@ const docTemplate = `{
                 "Preferred"
             ]
         },
+        "handler.AdminListingView": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "asset_ready": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "default_personality": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "preview_url": {
+                    "type": "string"
+                },
+                "price_coins": {
+                    "type": "integer"
+                },
+                "review_note": {
+                    "type": "string"
+                },
+                "reviewed_at": {
+                    "type": "string"
+                },
+                "reviewed_by": {
+                    "type": "string"
+                },
+                "rights_note": {
+                    "type": "string"
+                },
+                "seller": {
+                    "$ref": "#/definitions/handler.SellerPublicView"
+                },
+                "seller_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "pending",
+                        "active",
+                        "rejected",
+                        "delisted",
+                        "suspended"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.AppendTurnRequest": {
             "type": "object",
             "properties": {
@@ -13898,6 +15288,41 @@ const docTemplate = `{
                 "position": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "handler.CatalogItemView": {
+            "type": "object",
+            "properties": {
+                "already_owned": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "default_personality": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_own_listing": {
+                    "type": "boolean"
+                },
+                "preview_url": {
+                    "type": "string"
+                },
+                "price_coins": {
+                    "type": "integer"
+                },
+                "seller": {
+                    "$ref": "#/definitions/handler.SellerPublicView"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },
@@ -13993,6 +15418,36 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.CreateListingRequest": {
+            "type": "object",
+            "required": [
+                "avatar_id",
+                "default_personality",
+                "price_coins",
+                "rights_note",
+                "title"
+            ],
+            "properties": {
+                "avatar_id": {
+                    "type": "string"
+                },
+                "default_personality": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "price_coins": {
+                    "type": "integer"
+                },
+                "rights_note": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.CreateRecordingRequest": {
             "type": "object",
             "properties": {
@@ -14064,6 +15519,47 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.EditListingRequest": {
+            "type": "object",
+            "required": [
+                "default_personality",
+                "expected_updated_at",
+                "price_coins",
+                "rights_note",
+                "title"
+            ],
+            "properties": {
+                "default_personality": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expected_updated_at": {
+                    "type": "string"
+                },
+                "price_coins": {
+                    "type": "integer"
+                },
+                "rights_note": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.EligibleAvatarView": {
+            "type": "object",
+            "properties": {
+                "avatar_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.ErasureResult": {
             "type": "object",
             "properties": {
@@ -14100,6 +15596,17 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/handler.EvaluationWeightEntry"
                     }
+                }
+            }
+        },
+        "handler.ExpectedRequest": {
+            "type": "object",
+            "required": [
+                "expected_updated_at"
+            ],
+            "properties": {
+                "expected_updated_at": {
+                    "type": "string"
                 }
             }
         },
@@ -14221,6 +15728,21 @@ const docTemplate = `{
             "properties": {
                 "reject_reason": {
                     "description": "RejectReason is an optional note, at most 500 characters.",
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RejectListingRequest": {
+            "type": "object",
+            "required": [
+                "expected_updated_at",
+                "reason"
+            ],
+            "properties": {
+                "expected_updated_at": {
+                    "type": "string"
+                },
+                "reason": {
                     "type": "string"
                 }
             }
@@ -14374,6 +15896,86 @@ const docTemplate = `{
                 },
                 "values": {
                     "$ref": "#/definitions/domain.BehaviorGuideline"
+                }
+            }
+        },
+        "handler.SellerListingView": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "can_delist": {
+                    "type": "boolean"
+                },
+                "can_edit": {
+                    "type": "boolean"
+                },
+                "can_submit": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "default_personality": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "preview_url": {
+                    "type": "string"
+                },
+                "price_coins": {
+                    "type": "integer"
+                },
+                "review_note": {
+                    "type": "string"
+                },
+                "reviewed_at": {
+                    "type": "string"
+                },
+                "rights_note": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "draft",
+                        "pending",
+                        "active",
+                        "rejected",
+                        "delisted",
+                        "suspended"
+                    ]
+                },
+                "title": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.SellerPublicView": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.SuspendListingRequest": {
+            "type": "object",
+            "required": [
+                "reason"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string"
                 }
             }
         },
@@ -14557,6 +16159,34 @@ const docTemplate = `{
                 }
             }
         },
+        "response.Page-handler_AdminListingView": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.AdminListingView"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
+        "response.Page-handler_CatalogItemView": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.CatalogItemView"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
         "response.Page-handler_RoleProfileSummary": {
             "type": "object",
             "properties": {
@@ -14564,6 +16194,20 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/handler.RoleProfileSummary"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/response.Pagination"
+                }
+            }
+        },
+        "response.Page-handler_SellerListingView": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.SellerListingView"
                     }
                 },
                 "pagination": {
