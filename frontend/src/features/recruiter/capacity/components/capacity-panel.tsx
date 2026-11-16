@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import Link from "next/link";
 import { routes } from "@/config/routes";
@@ -7,7 +8,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import {
   applicationKeys,
@@ -378,28 +378,13 @@ function CapacityLoadError({
     [400, 404].includes(status) || code === "JOB_POSTING_NOT_FOUND";
   const denied = isAccessDenied(error);
   return (
-    <Card>
-      <CardContent
-        role="alert"
-        className={cn(
-          "space-y-2 pt-6",
-          denied || notFound ? "bg-muted/50" : "bg-destructive/5",
-        )}
-      >
-        <h2 className="text-base font-semibold">
-          {denied ? t("denied") : notFound ? t("notFound") : t("failed")}
-        </h2>
-        {!denied && !notFound && (
-          <Button
-            className="h-11 bg-background"
-            variant="outline"
-            disabled={retrying}
-            onClick={onRetry}
-          >
-            {tCommon("actions.tryAgain")}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+    <ErrorState
+      variant="compact"
+      title={denied ? t("denied") : notFound ? t("notFound") : t("failed")}
+      description=""
+      onRetry={!denied && !notFound ? onRetry : undefined}
+      isRetrying={retrying}
+      retryLabel={tCommon("actions.tryAgain")}
+    />
   );
 }

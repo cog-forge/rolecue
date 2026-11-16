@@ -1,4 +1,6 @@
 "use client";
+import { LoadingMorph } from "@/components/ui/loading-morph";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -156,26 +158,16 @@ function EvaluationBreakdown({
   });
 
   if (query.isPending)
-    return (
-      <p role="status" className="text-sm text-muted-foreground">
-        {t("evaluationLoading")}
-      </p>
-    );
+    return <LoadingMorph variant="compact" label={t("evaluationLoading")} />;
   if (query.isError)
     return (
-      <div className="space-y-2">
-        <p role="alert" className="text-sm text-destructive">
-          {t("evaluationFailed")}
-        </p>
-        <Button
-          variant="outline"
-          className="h-11 bg-background"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {tCommon("actions.tryAgain")}
-        </Button>
-      </div>
+      <ErrorState
+        variant="compact"
+        description={t("evaluationFailed")}
+        onRetry={() => void query.refetch()}
+        isRetrying={query.isFetching}
+        retryLabel={tCommon("actions.tryAgain")}
+      />
     );
 
   const report = query.data;

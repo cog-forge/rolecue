@@ -100,7 +100,7 @@ export function CardError({
   const t = useTranslations("candidate.dashboard");
   return (
     <ErrorState
-      variant="inline"
+      variant="compact"
       description={message}
       isRetrying={disabled}
       onRetry={onRetry}

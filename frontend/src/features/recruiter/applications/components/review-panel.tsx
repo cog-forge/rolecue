@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect, useId } from "react";
 import Link from "next/link";
@@ -115,9 +116,8 @@ export function ReviewPanel({
     return (
       <section className="space-y-4 rounded-xl border bg-card p-5">
         <div className="flex justify-end">{navigation}</div>
-        <Notice
-          role="alert"
-          tone={notFound || denied ? "locked" : "danger"}
+        <ErrorState
+          variant="compact"
           title={
             notFound
               ? t("detail.notFoundTitle")
@@ -125,18 +125,13 @@ export function ReviewPanel({
                 ? t("detail.deniedTitle")
                 : t("detail.errorTitle")
           }
-        >
-          {!notFound && !denied && (
-            <Button
-              className="mt-2 h-11 bg-background"
-              variant="outline"
-              disabled={query.isFetching}
-              onClick={() => void query.refetch()}
-            >
-              {tCommon("actions.tryAgain")}
-            </Button>
-          )}
-        </Notice>
+          description=""
+          onRetry={
+            !notFound && !denied ? () => void query.refetch() : undefined
+          }
+          isRetrying={query.isFetching}
+          retryLabel={tCommon("actions.tryAgain")}
+        />
       </section>
     );
 

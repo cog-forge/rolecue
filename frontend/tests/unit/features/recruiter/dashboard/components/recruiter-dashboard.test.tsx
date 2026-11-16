@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, within } from "@testing-library/react";
+import { waitFor } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
@@ -285,10 +286,10 @@ describe("RecruiterDashboard", () => {
     failing = false;
     serve({ pending: 3, drafts: 1, rejected: 2 });
     list.getByRole("button", { name: "Try again" }).click();
-    expect(
-      await list.findByText("Rejected postings to fix"),
-    ).toBeInTheDocument();
-    expect(list.queryByText("We couldn't load this count.")).toBeNull();
+    await waitFor(() => {
+      expect(list.getByText("Rejected postings to fix")).toBeInTheDocument();
+      expect(list.queryByText("We couldn't load this count.")).toBeNull();
+    });
   });
 
   it("does not claim all clear when a count failed even if the others are zero", async () => {

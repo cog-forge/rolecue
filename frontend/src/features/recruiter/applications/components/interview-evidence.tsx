@@ -1,4 +1,6 @@
 "use client";
+import { LoadingMorph } from "@/components/ui/loading-morph";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -112,16 +114,15 @@ function RecordingLoader({
   });
 
   if (query.isPending)
-    return (
-      <p role="status" className="text-sm text-muted-foreground">
-        {t("gettingLink")}
-      </p>
-    );
+    return <LoadingMorph variant="compact" label={t("gettingLink")} />;
   if (query.isError)
     return (
-      <p role="alert" className="text-sm text-destructive">
-        {errorMessage(query.error, t("linkFailed"))}
-      </p>
+      <ErrorState
+        variant="compact"
+        description={errorMessage(query.error, t("linkFailed"))}
+        onRetry={() => void query.refetch()}
+        isRetrying={query.isFetching}
+      />
     );
   const recording = query.data;
   if (!recording.url)
@@ -194,16 +195,15 @@ function TranscriptBody({
   });
 
   if (query.isPending)
-    return (
-      <p role="status" className="text-sm text-muted-foreground">
-        {t("transcriptLoading")}
-      </p>
-    );
+    return <LoadingMorph variant="compact" label={t("transcriptLoading")} />;
   if (query.isError)
     return (
-      <p role="alert" className="text-sm text-destructive">
-        {errorMessage(query.error, t("transcriptFailed"))}
-      </p>
+      <ErrorState
+        variant="compact"
+        description={errorMessage(query.error, t("transcriptFailed"))}
+        onRetry={() => void query.refetch()}
+        isRetrying={query.isFetching}
+      />
     );
   const turns = query.data.turns;
   if (turns.length === 0)
