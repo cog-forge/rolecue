@@ -1,4 +1,5 @@
 "use client";
+import { AiLoader } from "@/components/ui/ai-loader";
 import { ErrorState } from "@/components/ui/error-state";
 
 import Link from "next/link";
@@ -37,6 +38,7 @@ type ReviewAction = {
 };
 export function RoleProfileDetail({ id }: { id: string }) {
   const t = useTranslations("candidate.roleProfiles.detail");
+  const roadmapT = useTranslations("candidate.roadmap");
   const roleError = useRoleError();
   const user = useSessionUser();
   const cache = useQueryClient();
@@ -149,17 +151,23 @@ export function RoleProfileDetail({ id }: { id: string }) {
         />
       </header>
       {query.error && (
-        <p role="alert" className="text-sm text-destructive">
-          {t("refreshFailed")}
-        </p>
+        <ErrorState
+          variant="compact"
+          description={t("refreshFailed")}
+          onRetry={() => void query.refetch()}
+          isRetrying={query.isFetching}
+        />
       )}
       {(!reviewing || staleReview) && error && (
-        <p
-          role="alert"
-          className="rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-sm"
-        >
-          {roleError(error)}
-        </p>
+        <ErrorState variant="compact" description={roleError(error)} />
+      )}
+      {profile.status === "confirmed" && (
+        <Button asChild className="min-h-11">
+          <Link href={routes.roleProfiles.roadmap(id)}>
+            {roadmapT("openRoadmap")}
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
       )}
       {reviewing ? (
         <RoleReviewForm
@@ -181,13 +189,17 @@ export function RoleProfileDetail({ id }: { id: string }) {
         />
       ) : analysis ? (
         <div className="space-y-5 rounded-2xl border bg-card p-6 sm:p-8">
-          <p role="status" className="text-sm text-muted-foreground">
-            {busy || running
-              ? t("analyzing")
-              : prepare.isError
-                ? t("analysisFailed")
-                : t("ready")}
-          </p>
+          {prepare.isPending ? (
+            <AiLoader stage="processing" title={t("analyzing")} />
+          ) : (
+            <p role="status" className="text-sm text-muted-foreground">
+              {running
+                ? t("analyzing")
+                : prepare.isError
+                  ? t("analysisFailed")
+                  : t("ready")}
+            </p>
+          )}
           <Button
             disabled={busy}
             className="h-auto min-h-11 py-2 whitespace-normal"
