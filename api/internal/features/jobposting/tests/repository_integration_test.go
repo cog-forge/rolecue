@@ -103,7 +103,9 @@ func (s *seed) avatar(ownerID uuid.UUID) uuid.UUID {
 	inventory, avatar := uuid.New(), uuid.New()
 	s.exec(`INSERT INTO public.inventories (id, user_id, slot) VALUES ($1, $2, 3)`, inventory, ownerID)
 	s.later(`DELETE FROM public.inventories WHERE id = $1`, inventory)
-	s.exec(`INSERT INTO public.avatars (id, inventory_id, name, model_path, personality) VALUES ($1, $2, 'Ava', 'm.vrm', 'calm')`, avatar, inventory)
+	s.later(`DELETE FROM public.avatar_assets s WHERE s.model_path = 'm.vrm' AND NOT EXISTS (SELECT 1 FROM public.avatars a WHERE a.asset_id = s.id)`)
+	s.exec(`WITH s AS (INSERT INTO public.avatar_assets (created_by, model_path) VALUES ($3, 'm.vrm') RETURNING id)
+		INSERT INTO public.avatars (id, inventory_id, name, asset_id, personality) SELECT $1::uuid, $2::uuid, 'Ava', s.id, 'calm' FROM s`, avatar, inventory, ownerID)
 	s.later(`DELETE FROM public.avatars WHERE id = $1`, avatar)
 	return avatar
 }

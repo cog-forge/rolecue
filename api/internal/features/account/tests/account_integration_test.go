@@ -180,7 +180,8 @@ func (f *fixture) graded(interview, jd uuid.UUID, quote string) {
 func (f *fixture) belongings(user uuid.UUID, modelKey string) (grantKey string) {
 	inv := uuid.New()
 	f.exec(`INSERT INTO public.inventories (id, user_id, slot) VALUES ($1, $2, 1)`, inv, user)
-	f.exec(`INSERT INTO public.avatars (inventory_id, name, model_path, personality) VALUES ($1, 'Avatar', $2, 'calm')`, inv, modelKey)
+	f.exec(`WITH s AS (INSERT INTO public.avatar_assets (created_by, model_path) VALUES ($3, $2) RETURNING id)
+		INSERT INTO public.avatars (inventory_id, name, asset_id, personality) SELECT $1::uuid, 'Avatar', s.id, 'calm' FROM s`, inv, modelKey, user)
 	f.exec(`INSERT INTO public.wallets (user_id, balance) VALUES ($1, 10)`, user)
 	grant := uuid.New()
 	f.exec(`INSERT INTO public.upload_grants (key, owner_id, purpose) VALUES ($1, $2, 'role_profile_pdf')`, grant, user)
