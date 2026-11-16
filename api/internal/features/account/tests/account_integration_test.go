@@ -96,14 +96,14 @@ func (f *fixture) cleanup() {
 	// Candidates go first: a recruiter is only erasable once no application is left on their postings.
 	var blocked []uuid.UUID
 	for _, id := range f.users {
-		if err := f.repo.Erase(ctx, id); errors.Is(err, repository.ErrActiveWork) {
+		if _, err := f.repo.Erase(ctx, id); errors.Is(err, repository.ErrActiveWork) {
 			blocked = append(blocked, id)
 		} else if err != nil {
 			f.t.Errorf("cleanup erase %s: %v", id, err)
 		}
 	}
 	for _, id := range blocked {
-		if err := f.repo.Erase(ctx, id); err != nil {
+		if _, err := f.repo.Erase(ctx, id); err != nil {
 			f.t.Errorf("cleanup erase %s: %v", id, err)
 		}
 	}
@@ -247,7 +247,7 @@ func TestEraseCandidateCascadesAndLeavesOthersUntouched(t *testing.T) {
 		t.Fatalf("deleted keys = %v, want exactly alice's %v", got, want)
 	}
 	// Erasing an account that is already gone succeeds, so a retried request is safe.
-	if err := f.repo.Erase(f.ctx, alice.ID); err != nil {
+	if _, err := f.repo.Erase(f.ctx, alice.ID); err != nil {
 		t.Fatalf("second erase: %v", err)
 	}
 }

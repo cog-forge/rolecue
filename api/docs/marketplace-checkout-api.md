@@ -124,10 +124,32 @@ quota (the quota counts assets the user created, not avatar rows). Suspend and d
 `POST /inventory/purchase` (slot purchase) refuses any `Idempotency-Key` that starts with `mkt1:` (400 `VALIDATION_ERROR`), and
 its replay lookup only matches rows paid to the system, so the two namespaces can never answer for each other.
 
+## Erasure and cleanup (KAN-373, AM-14)
+
+Account erasure (`DELETE /account`, `api/internal/features/account`) and the shared asset:
+
+1. In one transaction: the user row is locked, then the seller's listings and the owner's avatars are deleted (each returns
+   its asset id), the candidate assets (those ids plus the ones the user created) are locked `FOR UPDATE` in a statement of
+   their own, and only then are the assets with no avatar and no listing deleted (`RETURNING model_path`). Checkout takes
+   the listing and then the asset `FOR SHARE` before granting the avatar, so an erasure waits for a purchase in flight and
+   its orphan check sees the new avatar; a purchase after the erasure finds no listing.
+2. After the commit, for each returned key (duplicates removed) the service asks again whether any asset stores that key and
+   deletes the object only when none does. A missing object counts as deleted. A storage failure is logged (user id, opaque
+   key, error) and leaves an unreferenced object behind: the account is already gone and an orphan object is harmless,
+   while a row without an object is not. The erasure never fails because of it.
+3. The up-front deletion of CVs, recordings, JD files and upload grants is unchanged (nobody else can reference them). Avatar
+   models are no longer in `ListStorageKeys`.
+4. A rare deadlock or serialization failure of the erasure transaction is rerun up to 3 times; nothing outside the
+   transaction has happened yet.
+
+Normal delist, suspend and reject only change the listing status; they never touch an avatar, the asset or the file, and
+suspension never sets `avatar_assets.status = blocked`. An asset that an avatar or a listing uses cannot be deleted at the
+database level (`avatars.asset_id` and `avatar_listings.asset_id` are `ON DELETE RESTRICT`). The inventory's own
+delete-avatar path already locks the asset and purges inside its transaction and is unchanged.
+
 ## Notes for later lanes
 
 - AM-12 (FE): everything above; the receipt is `transaction`, the new inventory entry is `avatar`; after a success refresh the
   wallet balance from `balance`.
-- AM-13/14/15/16: no table records "who bought what". Ownership is the avatar row; a replay after deletion proves only that
-  a payment was made. Account erasure of a seller removes the listing (CASCADE) and a buyer who still holds the avatar keeps it.
-  If a later lane needs purchase history or revocation, it needs its own table.
+- AM-16: no table records "who bought what". Ownership is the avatar row; a replay after deletion proves only that
+  a payment was made. If a later lane needs purchase history or revocation, it needs its own table.
