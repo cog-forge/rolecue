@@ -22,7 +22,8 @@ type Repository interface {
 	Account(context.Context, uuid.UUID) (domain.Identity, error)
 	ActiveWork(context.Context, uuid.UUID) (domain.ErasureBlockers, error)
 	StorageKeys(context.Context, uuid.UUID) ([]string, error)
-	Erase(context.Context, uuid.UUID) error
+	Erase(context.Context, uuid.UUID) ([]string, error)
+	ModelKeyInUse(context.Context, string) (bool, error)
 	ExportProfile(context.Context, uuid.UUID) (domain.ExportProfile, error)
 	ExportRoleProfiles(context.Context, uuid.UUID) ([]domain.ExportRoleProfile, error)
 	ExportApplications(context.Context, uuid.UUID) ([]domain.ExportApplication, error)
@@ -46,11 +47,16 @@ func NewService(repo *repository.Repository, store Store) *Service {
 	return &Service{repository: repo, store: store, now: time.Now}
 }
 
-// Erase deletes the signed-in account. Order matters for retries: the checks run first, then the
-// stored objects are deleted (a missing object counts as deleted), and the database rows go last in one
-// transaction. A storage failure keeps the account and the call can be repeated (files already removed
-// count as deleted on the retry). If the final in-transaction check finds new work, files removed by then
-// stay removed; the window is only the time between the two checks.
+// Erase deletes the signed-in account. Order matters for retries: the checks run first, then the stored objects
+// that only this account can reference (CVs, recordings, JD files, upload grants) are deleted (a missing object
+// counts as deleted), and the database rows go in one transaction. A storage failure keeps the account and the
+// call can be repeated. If the final in-transaction check finds new work, files removed by then stay removed.
+//
+// Avatar model objects are different: a model can be shared with other accounts (a copy bought from a listing),
+// so the transaction decides which assets are orphans under the asset locks, and the objects of exactly those
+// deleted rows are removed after the commit, one by one, and only when no asset stores the key any more. A failure
+// there is logged and leaves an unreferenced object behind: the account is already gone and an orphan object
+// is harmless, while a deleted object under a live avatar is not.
 func (s *Service) Erase(ctx context.Context, user authdomain.User, confirm string) error {
 	if user.ID == uuid.Nil {
 		return apperror.New(apperror.CodeInvalidToken, "authentication required")
@@ -83,7 +89,8 @@ func (s *Service) Erase(ctx context.Context, user authdomain.User, confirm strin
 			return apperror.Wrap(apperror.CodeInternal, "some of your files could not be removed and your account was kept; please try again", err)
 		}
 	}
-	if err := s.repository.Erase(ctx, user.ID); err != nil {
+	models, err := s.repository.Erase(ctx, user.ID)
+	if err != nil {
 		if errors.Is(err, repository.ErrActiveWork) {
 			w, werr := s.repository.ActiveWork(ctx, user.ID)
 			if werr != nil {
@@ -93,9 +100,42 @@ func (s *Service) Erase(ctx context.Context, user authdomain.User, confirm strin
 		}
 		return err
 	}
+	removed := s.removeOrphanModels(ctx, user.ID, models)
 	logger.FromContext(ctx).Info("account erased", logger.Op("account.erase"),
-		logger.String("user_id", user.ID.String()), logger.Int("object_count", len(keys)))
+		logger.String("user_id", user.ID.String()), logger.Int("object_count", len(keys)+removed))
 	return nil
+}
+
+// removeOrphanModels deletes the model objects of assets the erasure deleted, after the commit. Each key is
+// checked again: another asset (a purchase or upload that landed since) may store it. It returns how many
+// objects were removed; failures are logged and never fail the already committed erasure.
+func (s *Service) removeOrphanModels(ctx context.Context, userID uuid.UUID, models []string) int {
+	removed := 0
+	seen := map[string]bool{}
+	for _, key := range models {
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		used, err := s.repository.ModelKeyInUse(ctx, key)
+		if err == nil && used {
+			continue
+		}
+		if err == nil {
+			err = s.store.Delete(ctx, key)
+			if errors.Is(err, storage.ErrNotFound) {
+				err = nil
+			}
+		}
+		if err != nil {
+			// The key is an opaque object id (no personal data) and the only way to find the leftover object.
+			logger.FromContext(ctx).Error("account erasure: avatar model object left behind",
+				logger.Op("account.erase"), logger.String("user_id", userID.String()), logger.String("key", key), logger.Error(err))
+			continue
+		}
+		removed++
+	}
+	return removed
 }
 
 func activeWorkError(w domain.ErasureBlockers) error {

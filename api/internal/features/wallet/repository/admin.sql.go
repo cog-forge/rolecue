@@ -22,7 +22,7 @@ WITH enriched AS (
         COALESCE(t.payos_order_code, '') AS payos_order_code,
         CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN 'refund'
             ELSE 'spend'
         END AS tx_type,
         COALESCE(u.id::text,
@@ -54,7 +54,7 @@ WITH enriched AS (
         END)::bigint AS paid_vnd,
         (CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN abs(t.amount)::bigint
             ELSE -abs(t.amount)::bigint
         END)::bigint AS coin_amount
     FROM public.transactions t
@@ -150,7 +150,7 @@ WITH enriched AS (
         COALESCE(t.payos_order_code, '') AS payos_order_code,
         CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN 'refund'
             ELSE 'spend'
         END AS tx_type,
         COALESCE(u.id::text,
@@ -182,7 +182,7 @@ WITH enriched AS (
         END)::bigint AS paid_vnd,
         (CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN abs(t.amount)::bigint
             ELSE -abs(t.amount)::bigint
         END)::bigint AS coin_amount
     FROM public.transactions t
@@ -322,7 +322,7 @@ WITH enriched AS (
         COALESCE(t.payos_order_code, '') AS payos_order_code,
         CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN 'refund'
             ELSE 'spend'
         END AS tx_type,
         COALESCE(u.id::text, t."from")::text AS user_id,
@@ -415,7 +415,7 @@ WITH enriched AS (
         COALESCE(t.payos_order_code, '') AS payos_order_code,
         CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN 'refund'
             ELSE 'spend'
         END AS tx_type,
         COALESCE(u.id::text,
@@ -447,7 +447,7 @@ WITH enriched AS (
         END)::bigint AS paid_vnd,
         (CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN abs(t.amount)::bigint
             ELSE -abs(t.amount)::bigint
         END)::bigint AS coin_amount
     FROM public.transactions t
@@ -572,7 +572,7 @@ SELECT
     COALESCE(t.payos_order_code, '') AS payos_order_code,
     CASE
         WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
-        WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+        WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN 'refund'
         ELSE 'spend'
     END AS tx_type,
     COALESCE(u.id::text,
@@ -604,7 +604,7 @@ SELECT
     END)::bigint AS paid_vnd,
     (CASE
         WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
-        WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
+        WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN abs(t.amount)::bigint
         ELSE -abs(t.amount)::bigint
     END)::bigint AS coin_amount,
     t.created_at
@@ -705,7 +705,7 @@ WITH enriched AS (
         COALESCE(t.payos_order_code, '') AS payos_order_code,
         CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN 'topup'
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN 'refund'
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN 'refund'
             ELSE 'spend'
         END AS tx_type,
         COALESCE(u.id::text,
@@ -737,7 +737,7 @@ WITH enriched AS (
         END)::bigint AS paid_vnd,
         (CASE
             WHEN t.payos_order_code IS NOT NULL AND t.payos_order_code <> '' THEN t.amount::bigint
-            WHEN lower(t."from") = 'system' OR lower(COALESCE(t.description, '')) LIKE '%refund%' THEN abs(t.amount)::bigint
+            WHEN lower(t."from") = 'system' OR (lower(COALESCE(t.description, '')) LIKE '%refund%' AND COALESCE(t.idempotency_key, '') NOT LIKE 'mkt1:%') THEN abs(t.amount)::bigint
             ELSE -abs(t.amount)::bigint
         END)::bigint AS coin_amount
     FROM public.transactions t
@@ -863,6 +863,9 @@ type ListAdminTransactionsRow struct {
 }
 
 // Admin billing and revenue read-only queries (KAN-191, KAN-192, KAN-241).
+// A Marketplace COIN trade (idempotency key in the ledger's own mkt1 namespace) is never a top-up (no PayOS order)
+// and never a refund, whatever its description says: the description is a seller's listing title. It stays a
+// 'spend' row of the buyer, with no VND, and never reaches revenue.
 // Each query keeps its own copy of the enrichment CTE. Every filtered query applies the same optional
 // [date_from, date_to) window on t.created_at inside the CTE, before the user and package lookups.
 func (q *Queries) ListAdminTransactions(ctx context.Context, arg ListAdminTransactionsParams) ([]ListAdminTransactionsRow, error) {

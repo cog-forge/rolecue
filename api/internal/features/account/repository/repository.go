@@ -12,6 +12,7 @@ import (
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -77,14 +78,37 @@ func (r *Repository) StorageKeys(ctx context.Context, id uuid.UUID) ([]string, e
 	return keys, nil
 }
 
-// Erase deletes the account and everything it owns in one transaction. The caller has already removed
-// the stored objects. It locks the user row and checks again that no work is active, so a posting
-// that went live after the first check is refused (ErrActiveWork). An account that is already gone
-// is not an error, which makes a retry after a lost response safe.
-func (r *Repository) Erase(ctx context.Context, id uuid.UUID) (err error) {
+// eraseAttempts bounds the reruns of the erasure transaction after a deadlock or serialization failure. A
+// seller's erasure can cross a purchase of one of the seller's listings (checkout locks the listing and then
+// the seller's wallet; the erasure deletes the listing under the user row lock), and the database picks one
+// victim. Nothing outside the transaction has happened yet, so a rerun is safe.
+const eraseAttempts = 3
+
+// Erase deletes the account and everything it owns in one transaction and returns the object keys of the avatar
+// models whose asset row it deleted (the only ones that may be removed from the store). The caller has already
+// removed the other stored objects and must remove these only after Erase returned, after ModelKeyInUse said
+// nobody references them any more. It locks the user row and checks again that no work is active, so a posting
+// that went live after the first check is refused (ErrActiveWork). An account that is already gone is not an
+// error, which makes a retry after a lost response safe.
+func (r *Repository) Erase(ctx context.Context, id uuid.UUID) ([]string, error) {
+	for attempt := 1; ; attempt++ {
+		keys, err := r.eraseOnce(ctx, id)
+		if err == nil || attempt >= eraseAttempts || !retryable(err) {
+			return keys, err
+		}
+	}
+}
+
+// retryable reports a PostgreSQL deadlock (40P01) or serialization failure (40001) anywhere in the chain.
+func retryable(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && (pgErr.Code == "40P01" || pgErr.Code == "40001")
+}
+
+func (r *Repository) eraseOnce(ctx context.Context, id uuid.UUID) (keys []string, err error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return apperror.Wrap(apperror.CodeInternal, "could not start the erasure", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "could not start the erasure", err)
 	}
 	defer func() {
 		if err != nil {
@@ -95,35 +119,47 @@ func (r *Repository) Erase(ctx context.Context, id uuid.UUID) (err error) {
 	email, scanErr := q.LockAccountEmail(ctx, id)
 	switch {
 	case errors.Is(scanErr, pgx.ErrNoRows):
-		return tx.Commit(ctx)
+		return nil, tx.Commit(ctx)
 	case scanErr != nil:
-		return apperror.Wrap(apperror.CodeInternal, "could not lock the account", scanErr)
+		return nil, apperror.Wrap(apperror.CodeInternal, "could not lock the account", scanErr)
 	}
 	work, err := activeWork(ctx, q, id)
 	if err != nil {
-		return apperror.Wrap(apperror.CodeInternal, "could not check the account's open work", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "could not check the account's open work", err)
 	}
 	if !work.None() {
-		return ErrActiveWork
+		return nil, ErrActiveWork
 	}
-	if err = erase(ctx, q, id, email); err != nil {
-		return apperror.Wrap(apperror.CodeInternal, "could not erase the account", err)
+	if keys, err = erase(ctx, q, id, email); err != nil {
+		return nil, apperror.Wrap(apperror.CodeInternal, "could not erase the account", err)
 	}
 	if err = tx.Commit(ctx); err != nil {
-		return apperror.Wrap(apperror.CodeInternal, "could not erase the account", err)
+		return nil, apperror.Wrap(apperror.CodeInternal, "could not erase the account", err)
 	}
-	return nil
+	return keys, nil
 }
 
-// erase runs the statements in the order the foreign keys need; q is bound to the erasure transaction.
-func erase(ctx context.Context, q *Queries, id uuid.UUID, email string) error {
+// ModelKeyInUse reports whether any asset still stores the object key. The service asks it after the erasure
+// committed, right before it deletes an avatar model object, so an object that a purchase or an upload
+// referenced in the meantime is kept.
+func (r *Repository) ModelKeyInUse(ctx context.Context, key string) (bool, error) {
+	used, err := r.queries.ModelKeyInUse(ctx, key)
+	if err != nil {
+		return false, apperror.Wrap(apperror.CodeInternal, "could not check the avatar model", err)
+	}
+	return used, nil
+}
+
+// erase runs the statements in the order the foreign keys need; q is bound to the erasure transaction. It
+// returns the model keys of the asset rows it deleted.
+func erase(ctx context.Context, q *Queries, id uuid.UUID, email string) (modelKeys []string, err error) {
 	interviews, err := q.ListOwnedInterviewIDs(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	jds, err := q.ListOwnedJobDescriptionIDs(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	tombstone := domain.Tombstone
 	steps := []func() error{
@@ -150,13 +186,23 @@ func erase(ctx context.Context, q *Queries, id uuid.UUID, email string) error {
 		func() error { return q.DeleteCoreQuestions(ctx, jds) },
 		func() error { return q.DeleteRequirements(ctx, jds) },
 		func() error { return q.DeleteJobDescriptions(ctx, jds) },
-		func() error { return q.DeleteOwnedListings(ctx, id) },
 		func() error {
-			assets, err := q.DeleteOwnedAvatars(ctx, id)
+			// Listings, then avatars, then the assets (the order checkout takes its locks in). Which assets are
+			// orphans is decided here, under the asset locks, and only from the rows this transaction deleted.
+			listed, err := q.DeleteOwnedListings(ctx, id)
 			if err != nil {
 				return err
 			}
-			return q.DeleteOrphanAssets(ctx, DeleteOrphanAssetsParams{ID: &id, AssetIds: assets})
+			held, err := q.DeleteOwnedAvatars(ctx, id)
+			if err != nil {
+				return err
+			}
+			candidates := append(listed, held...)
+			if err := q.LockCandidateAssets(ctx, LockCandidateAssetsParams{AssetIds: candidates, ID: &id}); err != nil {
+				return err
+			}
+			modelKeys, err = q.DeleteOrphanAssets(ctx, DeleteOrphanAssetsParams{AssetIds: candidates, ID: &id})
+			return err
 		},
 		func() error { return q.DeleteOwnedInventories(ctx, id) },
 		func() error { return q.DeleteOwnedWallets(ctx, id) },
@@ -167,10 +213,10 @@ func erase(ctx context.Context, q *Queries, id uuid.UUID, email string) error {
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return modelKeys, nil
 }
 
 func timePtr(value pgtype.Timestamptz) *time.Time {

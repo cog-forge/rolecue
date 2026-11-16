@@ -19,6 +19,9 @@ type fakeRepo struct {
 	work      domain.ErasureBlockers
 	keys      []string
 	eraseErr  error
+	models    []string
+	inUse     map[string]bool
+	inUseErr  error
 	erased    bool
 	calls     []string
 	profile   domain.ExportProfile
@@ -38,12 +41,19 @@ func (f *fakeRepo) StorageKeys(context.Context, uuid.UUID) ([]string, error) {
 	f.calls = append(f.calls, "keys")
 	return f.keys, nil
 }
-func (f *fakeRepo) Erase(context.Context, uuid.UUID) error {
+func (f *fakeRepo) Erase(context.Context, uuid.UUID) ([]string, error) {
 	f.calls = append(f.calls, "erase")
 	if f.eraseErr == nil {
 		f.erased = true
 	}
-	return f.eraseErr
+	return f.models, f.eraseErr
+}
+func (f *fakeRepo) ModelKeyInUse(_ context.Context, key string) (bool, error) {
+	f.calls = append(f.calls, "inuse")
+	if f.inUseErr != nil {
+		return false, f.inUseErr
+	}
+	return f.inUse[key], nil
 }
 func (f *fakeRepo) ExportProfile(context.Context, uuid.UUID) (domain.ExportProfile, error) {
 	return f.profile, nil
@@ -218,4 +228,37 @@ func TestExportRefusesAdminAndAnonymous(t *testing.T) {
 	code(t, err, apperror.CodeForbidden)
 	_, err = svc.Export(context.Background(), authdomain.User{Role: "candidate"})
 	code(t, err, apperror.CodeInvalidToken)
+}
+
+// Avatar models are removed only after the erasure committed, and only the ones nobody references any more.
+func TestEraseRemovesOrphanModelsAfterCommitAndKeepsReferencedOnes(t *testing.T) {
+	repo := &fakeRepo{keys: []string{"cv"}, models: []string{"gone", "gone", "taken", "missing"}, inUse: map[string]bool{"taken": true}}
+	store := &fakeStore{missing: map[string]bool{"missing": true}}
+	if err := newService(repo, store).Erase(context.Background(), user("candidate"), "DELETE"); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(store.deleted) != "[cv gone]" {
+		t.Fatalf("deleted = %v, want the cv and the unreferenced model once", store.deleted)
+	}
+	if fmt.Sprint(repo.calls) != "[work keys erase inuse inuse inuse]" {
+		t.Fatalf("calls = %v, want the model checks after the erase commit", repo.calls)
+	}
+}
+
+// A failing object delete or recheck after the commit never fails the erasure: the account is gone, an orphan
+// object stays and the other models are still processed.
+func TestEraseModelCleanupFailureLeavesAnOrphanObject(t *testing.T) {
+	repo := &fakeRepo{models: []string{"bad", "good"}}
+	store := &fakeStore{failOn: "bad"}
+	if err := newService(repo, store).Erase(context.Background(), user("candidate"), "DELETE"); err != nil {
+		t.Fatalf("erasure failed after commit: %v", err)
+	}
+	if fmt.Sprint(store.deleted) != "[good]" || !repo.erased {
+		t.Fatalf("deleted = %v erased = %v", store.deleted, repo.erased)
+	}
+	repo = &fakeRepo{models: []string{"a"}, inUseErr: errors.New("db down")}
+	store = &fakeStore{}
+	if err := newService(repo, store).Erase(context.Background(), user("candidate"), "DELETE"); err != nil || len(store.deleted) != 0 {
+		t.Fatalf("err = %v deleted = %v: an unverified object must be kept", err, store.deleted)
+	}
 }

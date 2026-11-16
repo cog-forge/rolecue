@@ -87,7 +87,7 @@ func TestEraseRemovesRoadmapRowsInOrderAndLeavesOthersUntouched(t *testing.T) {
 		}
 	}
 	// Retried erasure of a gone account is safe.
-	if err := f.repo.Erase(f.ctx, alice.ID); err != nil {
+	if _, err := f.repo.Erase(f.ctx, alice.ID); err != nil {
 		t.Fatalf("second erase: %v", err)
 	}
 }

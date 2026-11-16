@@ -84,7 +84,7 @@ func TestAccountErasureRemovesRoadmapRowsWithoutOrphans(t *testing.T) {
 	otherProfile := e.profile(t, other)
 	e.publish(t, e.roadmap(t, other, otherProfile.ID).ID, "Kafka")
 
-	if err := accountrepo.NewRepository(e.pool).Erase(e.ctx, owner); err != nil {
+	if _, err := accountrepo.NewRepository(e.pool).Erase(e.ctx, owner); err != nil {
 		t.Fatal("erase account", err)
 	}
 	for name, probe := range map[string]struct {

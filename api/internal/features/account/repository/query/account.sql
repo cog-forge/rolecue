@@ -17,9 +17,10 @@ SELECT
   (SELECT count(*) FROM public.applications a JOIN public.job_postings jp ON jp.id = a.job_posting_id
      WHERE jp.recruiter_id = @id)::bigint AS applications_in_progress;
 
--- Every object key the account owns: CVs, recordings, avatar models (shared assets other accounts still use are
--- excluded), JD PDFs and the keys of issued upload
--- grants. The interview subquery repeats ListOwnedInterviewIDs (sqlc has no shared fragments); keep the two
+-- Every object key the account owns that no one else can reference: CVs, recordings, JD PDFs and the keys of
+-- issued upload grants. Avatar models are not listed: a model object can be shared with other accounts (a copy
+-- bought from a listing), so its deletion is decided inside the erasure transaction (DeleteOrphanAssets) and the
+-- object is removed only after the commit. The interview subquery repeats ListOwnedInterviewIDs (sqlc has no shared fragments); keep the two
 -- identical.
 -- name: ListStorageKeys :many
 SELECT a.cv_path AS key FROM public.applications a
@@ -35,16 +36,6 @@ SELECT i.record_path FROM public.interviews i
              WHERE a.candidate_id = @id
                 OR a.job_posting_id IN (SELECT jp.id FROM public.job_postings jp WHERE jp.recruiter_id = @id))
         OR oi.role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = @id))
-UNION
-SELECT s.model_path FROM public.avatar_assets s
- WHERE (s.created_by = @id
-        OR s.id IN (SELECT av.asset_id FROM public.avatars av JOIN public.inventories inv ON inv.id = av.inventory_id WHERE inv.user_id = @id))
-   -- An object that another account's avatar or listing still uses (by key, the legacy rows may share one) stays.
-   AND NOT EXISTS (SELECT 1 FROM public.avatar_assets o
-                    WHERE o.model_path = s.model_path
-                      AND (EXISTS (SELECT 1 FROM public.avatars oa JOIN public.inventories oi ON oi.id = oa.inventory_id
-                                    WHERE oa.asset_id = o.id AND oi.user_id <> @id)
-                           OR EXISTS (SELECT 1 FROM public.avatar_listings ol WHERE ol.asset_id = o.id AND ol.seller_id <> @id)))
 UNION
 SELECT jd.content_path FROM public.job_descriptions jd
  WHERE jd.content_path IS NOT NULL
@@ -152,22 +143,43 @@ DELETE FROM public.requirements WHERE jd_id = ANY(@jd_ids::uuid[]);
 DELETE FROM public.job_descriptions WHERE id = ANY(@jd_ids::uuid[]);
 
 -- Marketplace listings of the account go with it (a listing is the seller's own data); buyers' avatars and the
--- asset they use are not touched. Runs before the avatars so the assets can be checked for orphans.
--- name: DeleteOwnedListings :exec
-DELETE FROM public.avatar_listings WHERE seller_id = @id;
+-- asset they use are not touched. Runs before the avatars so the assets can be checked for orphans. The asset ids
+-- come back so the assets only a listing kept alive are cleaned up too.
+-- name: DeleteOwnedListings :many
+DELETE FROM public.avatar_listings WHERE seller_id = @id
+RETURNING asset_id;
 
 -- The asset ids come back so DeleteOrphanAssets can clean up what only these avatars used.
 -- name: DeleteOwnedAvatars :many
 DELETE FROM public.avatars WHERE inventory_id IN (SELECT inv.id FROM public.inventories inv WHERE inv.user_id = @id)
 RETURNING asset_id;
 
--- Assets of the erased account that nothing references any more: the ones its deleted avatars used and the ones it
--- created. An asset another account's avatar or listing still uses stays, with created_by set NULL by the FK.
--- name: DeleteOrphanAssets :exec
+-- Locks the candidate assets (the ones the account's avatars and listings used and the ones it created) FOR UPDATE.
+-- Checkout locks an asset FOR SHARE before it grants an avatar, so a purchase in flight finishes first and the
+-- reference check in DeleteOrphanAssets, a separate statement with its own snapshot, sees its new avatar. This is
+-- a statement of its own on purpose: inside one DELETE a row that had to wait for a lock is re-checked with the
+-- old snapshot for the other tables. Lock order: user row, the listing, the avatar, then the asset, as checkout.
+-- name: LockCandidateAssets :exec
+SELECT s.id FROM public.avatar_assets s
+WHERE s.id = ANY(@asset_ids::uuid[]) OR s.created_by = @id
+ORDER BY s.id
+FOR UPDATE;
+
+-- Assets of the erased account that nothing references any more: the ones its deleted avatars and listings used and
+-- the ones it created. An asset another account's avatar or listing still uses stays, with created_by set NULL by
+-- the FK. The object keys of the rows really deleted come back: they are the only objects that may be removed, and
+-- only after the commit and a recheck by key (ModelKeyInUse).
+-- name: DeleteOrphanAssets :many
 DELETE FROM public.avatar_assets s
 WHERE (s.id = ANY(@asset_ids::uuid[]) OR s.created_by = @id)
   AND NOT EXISTS (SELECT 1 FROM public.avatars a WHERE a.asset_id = s.id)
-  AND NOT EXISTS (SELECT 1 FROM public.avatar_listings l WHERE l.asset_id = s.id);
+  AND NOT EXISTS (SELECT 1 FROM public.avatar_listings l WHERE l.asset_id = s.id)
+RETURNING s.model_path;
+
+-- Whether any asset still stores this object key. Legacy rows may share one key, so an object is deleted only when
+-- this is false.
+-- name: ModelKeyInUse :one
+SELECT EXISTS (SELECT 1 FROM public.avatar_assets WHERE model_path = @model_path);
 
 -- name: DeleteOwnedInventories :exec
 DELETE FROM public.inventories WHERE user_id = @id;

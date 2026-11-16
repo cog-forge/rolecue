@@ -95,11 +95,12 @@ func (q *Queries) DeleteJobDescriptions(ctx context.Context, jdIds []uuid.UUID) 
 	return err
 }
 
-const deleteOrphanAssets = `-- name: DeleteOrphanAssets :exec
+const deleteOrphanAssets = `-- name: DeleteOrphanAssets :many
 DELETE FROM public.avatar_assets s
 WHERE (s.id = ANY($1::uuid[]) OR s.created_by = $2)
   AND NOT EXISTS (SELECT 1 FROM public.avatars a WHERE a.asset_id = s.id)
   AND NOT EXISTS (SELECT 1 FROM public.avatar_listings l WHERE l.asset_id = s.id)
+RETURNING s.model_path
 `
 
 type DeleteOrphanAssetsParams struct {
@@ -107,11 +108,28 @@ type DeleteOrphanAssetsParams struct {
 	ID       *uuid.UUID
 }
 
-// Assets of the erased account that nothing references any more: the ones its deleted avatars used and the ones it
-// created. An asset another account's avatar or listing still uses stays, with created_by set NULL by the FK.
-func (q *Queries) DeleteOrphanAssets(ctx context.Context, arg DeleteOrphanAssetsParams) error {
-	_, err := q.db.Exec(ctx, deleteOrphanAssets, arg.AssetIds, arg.ID)
-	return err
+// Assets of the erased account that nothing references any more: the ones its deleted avatars and listings used and
+// the ones it created. An asset another account's avatar or listing still uses stays, with created_by set NULL by
+// the FK. The object keys of the rows really deleted come back: they are the only objects that may be removed, and
+// only after the commit and a recheck by key (ModelKeyInUse).
+func (q *Queries) DeleteOrphanAssets(ctx context.Context, arg DeleteOrphanAssetsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, deleteOrphanAssets, arg.AssetIds, arg.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var model_path string
+		if err := rows.Scan(&model_path); err != nil {
+			return nil, err
+		}
+		items = append(items, model_path)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteOwnedApplications = `-- name: DeleteOwnedApplications :exec
@@ -168,15 +186,32 @@ func (q *Queries) DeleteOwnedJobPostings(ctx context.Context, id uuid.UUID) erro
 	return err
 }
 
-const deleteOwnedListings = `-- name: DeleteOwnedListings :exec
+const deleteOwnedListings = `-- name: DeleteOwnedListings :many
 DELETE FROM public.avatar_listings WHERE seller_id = $1
+RETURNING asset_id
 `
 
 // Marketplace listings of the account go with it (a listing is the seller's own data); buyers' avatars and the
-// asset they use are not touched. Runs before the avatars so the assets can be checked for orphans.
-func (q *Queries) DeleteOwnedListings(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteOwnedListings, id)
-	return err
+// asset they use are not touched. Runs before the avatars so the assets can be checked for orphans. The asset ids
+// come back so the assets only a listing kept alive are cleaned up too.
+func (q *Queries) DeleteOwnedListings(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, deleteOwnedListings, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var asset_id uuid.UUID
+		if err := rows.Scan(&asset_id); err != nil {
+			return nil, err
+		}
+		items = append(items, asset_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteOwnedPostingMetrics = `-- name: DeleteOwnedPostingMetrics :exec
@@ -389,16 +424,6 @@ SELECT i.record_path FROM public.interviews i
                 OR a.job_posting_id IN (SELECT jp.id FROM public.job_postings jp WHERE jp.recruiter_id = $1))
         OR oi.role_profile_id IN (SELECT rp.id FROM public.role_profiles rp WHERE rp.candidate_id = $1))
 UNION
-SELECT s.model_path FROM public.avatar_assets s
- WHERE (s.created_by = $1
-        OR s.id IN (SELECT av.asset_id FROM public.avatars av JOIN public.inventories inv ON inv.id = av.inventory_id WHERE inv.user_id = $1))
-   -- An object that another account's avatar or listing still uses (by key, the legacy rows may share one) stays.
-   AND NOT EXISTS (SELECT 1 FROM public.avatar_assets o
-                    WHERE o.model_path = s.model_path
-                      AND (EXISTS (SELECT 1 FROM public.avatars oa JOIN public.inventories oi ON oi.id = oa.inventory_id
-                                    WHERE oa.asset_id = o.id AND oi.user_id <> $1)
-                           OR EXISTS (SELECT 1 FROM public.avatar_listings ol WHERE ol.asset_id = o.id AND ol.seller_id <> $1)))
-UNION
 SELECT jd.content_path FROM public.job_descriptions jd
  WHERE jd.content_path IS NOT NULL
    AND jd.id IN (SELECT rp.jd_id FROM public.role_profiles rp WHERE rp.candidate_id = $1
@@ -407,9 +432,10 @@ UNION
 SELECT g.key::text FROM public.upload_grants g WHERE g.owner_id = $1
 `
 
-// Every object key the account owns: CVs, recordings, avatar models (shared assets other accounts still use are
-// excluded), JD PDFs and the keys of issued upload
-// grants. The interview subquery repeats ListOwnedInterviewIDs (sqlc has no shared fragments); keep the two
+// Every object key the account owns that no one else can reference: CVs, recordings, JD PDFs and the keys of
+// issued upload grants. Avatar models are not listed: a model object can be shared with other accounts (a copy
+// bought from a listing), so its deletion is decided inside the erasure transaction (DeleteOrphanAssets) and the
+// object is removed only after the commit. The interview subquery repeats ListOwnedInterviewIDs (sqlc has no shared fragments); keep the two
 // identical.
 func (q *Queries) ListStorageKeys(ctx context.Context, id uuid.UUID) ([]*string, error) {
 	rows, err := q.db.Query(ctx, listStorageKeys, id)
@@ -444,6 +470,41 @@ func (q *Queries) LockAccountEmail(ctx context.Context, id uuid.UUID) (string, e
 	var email string
 	err := row.Scan(&email)
 	return email, err
+}
+
+const lockCandidateAssets = `-- name: LockCandidateAssets :exec
+SELECT s.id FROM public.avatar_assets s
+WHERE s.id = ANY($1::uuid[]) OR s.created_by = $2
+ORDER BY s.id
+FOR UPDATE
+`
+
+type LockCandidateAssetsParams struct {
+	AssetIds []uuid.UUID
+	ID       *uuid.UUID
+}
+
+// Locks the candidate assets (the ones the account's avatars and listings used and the ones it created) FOR UPDATE.
+// Checkout locks an asset FOR SHARE before it grants an avatar, so a purchase in flight finishes first and the
+// reference check in DeleteOrphanAssets, a separate statement with its own snapshot, sees its new avatar. This is
+// a statement of its own on purpose: inside one DELETE a row that had to wait for a lock is re-checked with the
+// old snapshot for the other tables. Lock order: user row, the listing, the avatar, then the asset, as checkout.
+func (q *Queries) LockCandidateAssets(ctx context.Context, arg LockCandidateAssetsParams) error {
+	_, err := q.db.Exec(ctx, lockCandidateAssets, arg.AssetIds, arg.ID)
+	return err
+}
+
+const modelKeyInUse = `-- name: ModelKeyInUse :one
+SELECT EXISTS (SELECT 1 FROM public.avatar_assets WHERE model_path = $1)
+`
+
+// Whether any asset still stores this object key. Legacy rows may share one key, so an object is deleted only when
+// this is false.
+func (q *Queries) ModelKeyInUse(ctx context.Context, modelPath string) (bool, error) {
+	row := q.db.QueryRow(ctx, modelKeyInUse, modelPath)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const tombstoneConversationTurns = `-- name: TombstoneConversationTurns :exec
