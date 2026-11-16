@@ -48,7 +48,7 @@ const deleteInventoryAvatar = `-- name: DeleteInventoryAvatar :one
 DELETE FROM public.avatars a USING public.inventories i
 WHERE a.inventory_id = i.id AND i.user_id = $1
   AND a.id = $2
-RETURNING a.model_path
+RETURNING a.asset_id
 `
 
 type DeleteInventoryAvatarParams struct {
@@ -56,9 +56,27 @@ type DeleteInventoryAvatarParams struct {
 	AvatarID uuid.UUID
 }
 
-// The stored model key comes back so the service can delete the object before the transaction commits.
-func (q *Queries) DeleteInventoryAvatar(ctx context.Context, arg DeleteInventoryAvatarParams) (string, error) {
+// Only the owner's avatar row goes; the asset it pointed at is returned so the caller can clean it up when nothing
+// else uses it.
+func (q *Queries) DeleteInventoryAvatar(ctx context.Context, arg DeleteInventoryAvatarParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, deleteInventoryAvatar, arg.OwnerID, arg.AvatarID)
+	var asset_id uuid.UUID
+	err := row.Scan(&asset_id)
+	return asset_id, err
+}
+
+const deleteUnreferencedAsset = `-- name: DeleteUnreferencedAsset :one
+DELETE FROM public.avatar_assets s
+WHERE s.id = $1
+  AND NOT EXISTS (SELECT 1 FROM public.avatars a WHERE a.asset_id = s.id)
+  AND NOT EXISTS (SELECT 1 FROM public.avatar_listings l WHERE l.asset_id = s.id)
+RETURNING s.model_path
+`
+
+// Deletes the asset only when no avatar and no listing uses it; the stored key comes back so the service can
+// decide about the object. Zero rows: the asset is still in use (or already gone).
+func (q *Queries) DeleteUnreferencedAsset(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, deleteUnreferencedAsset, id)
 	var model_path string
 	err := row.Scan(&model_path)
 	return model_path, err
@@ -80,8 +98,10 @@ func (q *Queries) EnsureInventory(ctx context.Context, arg EnsureInventoryParams
 }
 
 const getInventoryAvatar = `-- name: GetInventoryAvatar :one
-SELECT a.id, a.name, a.personality, a.model_path, a.created_at, a.updated_at
-FROM public.avatars a JOIN public.inventories i ON i.id = a.inventory_id
+SELECT a.id, a.name, a.personality, s.model_path, a.created_at, a.updated_at
+FROM public.avatars a
+JOIN public.inventories i ON i.id = a.inventory_id
+JOIN public.avatar_assets s ON s.id = a.asset_id
 WHERE i.user_id = $1 AND a.id = $2
 `
 
@@ -99,6 +119,8 @@ type GetInventoryAvatarRow struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+// The model key comes from the asset. Access is decided by inventory ownership alone: the creator of the asset,
+// its listings and any transaction are irrelevant.
 func (q *Queries) GetInventoryAvatar(ctx context.Context, arg GetInventoryAvatarParams) (GetInventoryAvatarRow, error) {
 	row := q.db.QueryRow(ctx, getInventoryAvatar, arg.OwnerID, arg.AvatarID)
 	var i GetInventoryAvatarRow
@@ -150,9 +172,28 @@ func (q *Queries) GetSlotPurchaseByKey(ctx context.Context, arg GetSlotPurchaseB
 	return amount, err
 }
 
+const insertAvatarAsset = `-- name: InsertAvatarAsset :one
+INSERT INTO public.avatar_assets (created_by, model_path) VALUES ($1::uuid, $2::text)
+RETURNING id
+`
+
+type InsertAvatarAssetParams struct {
+	CreatedBy uuid.UUID
+	ModelPath string
+}
+
+// The shared model of a new avatar: one asset per conversion, created by the owner. model_path is the object key
+// the upload returned; the asset's payload never changes afterwards.
+func (q *Queries) InsertAvatarAsset(ctx context.Context, arg InsertAvatarAssetParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertAvatarAsset, arg.CreatedBy, arg.ModelPath)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const insertInventoryAvatar = `-- name: InsertInventoryAvatar :one
-INSERT INTO public.avatars (inventory_id, name, model_path, personality)
-SELECT i.id, $1::text, $2::text, $3::text
+INSERT INTO public.avatars (inventory_id, name, asset_id, personality)
+SELECT i.id, $1::text, $2::uuid, $3::text
 FROM public.inventories i
 WHERE i.user_id = $4
   AND (SELECT count(*) FROM public.avatars a WHERE a.inventory_id = i.id) < i.slot
@@ -161,7 +202,7 @@ RETURNING id, name, personality, created_at, updated_at
 
 type InsertInventoryAvatarParams struct {
 	Name        string
-	ModelPath   string
+	AssetID     uuid.UUID
 	Personality string
 	UserID      uuid.UUID
 }
@@ -174,10 +215,11 @@ type InsertInventoryAvatarRow struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+// The avatar points at its asset. Zero rows means the inventory is full (the caller rolls the asset back).
 func (q *Queries) InsertInventoryAvatar(ctx context.Context, arg InsertInventoryAvatarParams) (InsertInventoryAvatarRow, error) {
 	row := q.db.QueryRow(ctx, insertInventoryAvatar,
 		arg.Name,
-		arg.ModelPath,
+		arg.AssetID,
 		arg.Personality,
 		arg.UserID,
 	)
@@ -240,6 +282,19 @@ func (q *Queries) ListInventoryAvatars(ctx context.Context, arg ListInventoryAva
 	return items, nil
 }
 
+const lockAvatarAsset = `-- name: LockAvatarAsset :one
+SELECT id FROM public.avatar_assets WHERE id = $1 FOR UPDATE
+`
+
+// Row lock on the asset: a concurrent grant or listing of it holds a key-share lock, so this waits for it and the
+// reference check below sees its row.
+func (q *Queries) LockAvatarAsset(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockAvatarAsset, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const lockAvatarInventory = `-- name: LockAvatarInventory :one
 SELECT id FROM public.inventories WHERE user_id = $1 FOR UPDATE
 `
@@ -263,6 +318,19 @@ func (q *Queries) LockInventoryOwner(ctx context.Context, id uuid.UUID) (uuid.UU
 	var id_2 uuid.UUID
 	err := row.Scan(&id_2)
 	return id_2, err
+}
+
+const modelPathInUse = `-- name: ModelPathInUse :one
+SELECT EXISTS (SELECT 1 FROM public.avatar_assets WHERE model_path = $1)
+`
+
+// Whether any asset still stores this object key. Legacy rows may share one key, so the object is deleted only
+// when this is false.
+func (q *Queries) ModelPathInUse(ctx context.Context, modelPath string) (bool, error) {
+	row := q.db.QueryRow(ctx, modelPathInUse, modelPath)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const updateInventorySlot = `-- name: UpdateInventorySlot :execrows

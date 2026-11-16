@@ -29,6 +29,13 @@ type creationRepository struct {
 	cancel    context.CancelFunc
 	owner     uuid.UUID
 	key       string
+	// referenced and referencedErr answer ModelKeyReferenced: the row may exist after an ambiguous commit error.
+	referenced    bool
+	referencedErr error
+}
+
+func (r *creationRepository) ModelKeyReferenced(context.Context, string) (bool, error) {
+	return r.referenced, r.referencedErr
 }
 
 func (r *creationRepository) Summary(context.Context, uuid.UUID) (domain.Capacity, error) {
@@ -145,6 +152,9 @@ func TestAvatarCreationPersistence(t *testing.T) {
 		name                             string
 		insertErr, uploadErr, cleanupErr error
 		cancel                           bool
+		referenced                       bool
+		referencedErr                    error
+		keepObject                       bool
 	}{
 		{name: "success"},
 		{name: "inventory filled during conversion", insertErr: apperror.New(apperror.CodeInventoryFull, "full")},
@@ -152,11 +162,14 @@ func TestAvatarCreationPersistence(t *testing.T) {
 		{name: "request cancelled before cleanup", insertErr: context.Canceled, cancel: true},
 		{name: "cleanup failure preserves database error", insertErr: dbErr, cleanupErr: errors.New("storage unavailable")},
 		{name: "upload failure", uploadErr: errors.New("upload failed")},
+		// A commit error can be reported although the row exists: the object it uses must survive.
+		{name: "commit error but the asset exists", insertErr: dbErr, referenced: true, keepObject: true},
+		{name: "reference check unavailable keeps the object", insertErr: dbErr, referencedErr: errors.New("check failed"), keepObject: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			repo := &creationRepository{createErr: tc.insertErr}
+			repo := &creationRepository{createErr: tc.insertErr, referenced: tc.referenced, referencedErr: tc.referencedErr}
 			if tc.cancel {
 				repo.cancel = cancel
 			}
@@ -180,6 +193,12 @@ func TestAvatarCreationPersistence(t *testing.T) {
 			case tc.insertErr != nil:
 				if !errors.Is(err, tc.insertErr) {
 					t.Fatalf("insert error lost: %v", err)
+				}
+				if tc.keepObject {
+					if len(store.objects) != 1 {
+						t.Fatal("a referenced or unchecked object was deleted")
+					}
+					break
 				}
 				if tc.cleanupErr == nil && len(store.objects) != 0 {
 					t.Fatal("failed insert left an orphan VRM")
