@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 
 import { useEffect } from "react";
@@ -220,21 +221,15 @@ function TodoRow({
     );
   if (query.isError)
     return (
-      <li className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <p className="font-medium">{title}</p>
-          <p role="alert" className="text-sm text-destructive">
-            {t("loadFailed")}
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          className="h-11"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {tCommon("actions.tryAgain")}
-        </Button>
+      <li className="px-4 py-4">
+        <ErrorState
+          variant="compact"
+          title={title}
+          description={t("loadFailed")}
+          onRetry={() => void query.refetch()}
+          isRetrying={query.isFetching}
+          retryLabel={tCommon("actions.tryAgain")}
+        />
       </li>
     );
   const todo = query.data;

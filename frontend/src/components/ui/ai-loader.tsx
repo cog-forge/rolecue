@@ -8,6 +8,8 @@ export interface AiLoaderProps {
   description?: string;
   size?: "sm" | "md" | "lg";
   className?: string;
+  variant?: "panel" | "compact";
+  headingLevel?: 2 | 3;
 }
 export function AiLoader({
   stage = "thinking",
@@ -15,9 +17,38 @@ export function AiLoader({
   description,
   size = "md",
   className,
+  variant = "panel",
+  headingLevel,
 }: AiLoaderProps) {
   const t = useTranslations("common.aiLoader");
   const text = title ?? t(stage);
+  const Title = headingLevel === 2 ? "h2" : headingLevel === 3 ? "h3" : "span";
+  if (variant === "compact")
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className={cn(
+          "flex w-full items-center gap-4 rounded-xl border bg-muted/30 p-4",
+          className,
+        )}
+      >
+        <div
+          aria-hidden="true"
+          className="relative size-12 shrink-0 overflow-hidden rounded-full bg-slate-950"
+        >
+          <div className="ai-loader-circle absolute inset-0 rounded-full" />
+        </div>
+        <div className="min-w-0 space-y-1">
+          <Title className="block text-sm font-medium">{text}</Title>
+          {description && (
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {description}
+            </p>
+          )}
+        </div>
+      </div>
+    );
   return (
     <div
       role="status"
@@ -37,7 +68,7 @@ export function AiLoader({
           aria-hidden="true"
           className="ai-loader-circle absolute inset-0 rounded-full"
         />
-        <span className="sr-only">{text}</span>
+        <Title className="sr-only">{text}</Title>
         <span
           aria-hidden="true"
           className="z-10 max-w-[75%] text-sm font-medium leading-snug"

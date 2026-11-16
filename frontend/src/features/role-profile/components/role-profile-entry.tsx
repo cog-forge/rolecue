@@ -1,4 +1,6 @@
 "use client";
+import { AiLoader } from "@/components/ui/ai-loader";
+import { ErrorState } from "@/components/ui/error-state";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -267,12 +269,18 @@ export function RoleProfileEntry() {
               </TabsContent>
             </Tabs>
           </fieldset>
+          {busy && phase === "analysis" && (
+            <AiLoader
+              stage="processing"
+              variant="compact"
+              title={t("entry.phase.analysis.status")}
+            />
+          )}
           {mutation.error && (
-            <div
-              role="alert"
-              className="rounded-xl border border-destructive/25 bg-destructive/5 p-4 text-sm"
+            <ErrorState
+              variant="compact"
+              description={roleError(mutation.error)}
             >
-              <p>{roleError(mutation.error)}</p>
               {draftId && (
                 <Link
                   href={routes.roleProfiles.detail(draftId)}
@@ -281,7 +289,7 @@ export function RoleProfileEntry() {
                   {t("entry.draftLink")}
                 </Link>
               )}
-            </div>
+            </ErrorState>
           )}
           <div className="flex flex-wrap items-center gap-4">
             <Button
@@ -316,9 +324,11 @@ export function RoleProfileEntry() {
               aria-live="polite"
               className="text-xs text-muted-foreground"
             >
-              {busy
-                ? t(`entry.phase.${currentPhase}.status`)
-                : t("entry.private")}
+              {busy && phase === "analysis"
+                ? null
+                : busy
+                  ? t(`entry.phase.${currentPhase}.status`)
+                  : t("entry.private")}
             </p>
           </div>
         </form>

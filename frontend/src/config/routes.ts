@@ -8,11 +8,13 @@ export const routes = {
   resetPassword: "/reset-password",
   twoFactor: "/two-factor",
   dashboard: "/dashboard",
+  roadmaps: "/roadmaps",
   targetJds: "/target-jds",
   roleProfiles: {
     root: "/role-profiles",
     new: "/role-profiles/new",
     detail: (id: string) => `/role-profiles/${segment(id)}`,
+    roadmap: (id: string) => `/role-profiles/${segment(id)}/roadmap`,
   },
   avatarStudio: "/avatar-studio",
   avatarStudioNew: "/avatar-studio/new",

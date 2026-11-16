@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 
 import {
@@ -194,19 +195,14 @@ export function JobPostingList() {
           <p className="text-muted-foreground">{t("denied.description")}</p>
         </Notice>
       ) : query.isError ? (
-        <Notice role="alert" tone="danger" title={t("error.title")}>
-          <p className="text-muted-foreground">
-            {tCommon("messages.tryAgainLater")}
-          </p>
-          <Button
-            className={cn("mt-2", pillClass)}
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {tCommon("actions.tryAgain")}
-          </Button>
-        </Notice>
+        <ErrorState
+          variant="compact"
+          title={t("error.title")}
+          description={tCommon("messages.tryAgainLater")}
+          onRetry={() => void query.refetch()}
+          isRetrying={query.isFetching}
+          retryLabel={tCommon("actions.tryAgain")}
+        />
       ) : page && page.items.length === 0 && total > 0 ? (
         <EmptyState title={t("pastEnd.title")} description="">
           <Button asChild variant="outline" className={cn("mt-4", pillClass)}>

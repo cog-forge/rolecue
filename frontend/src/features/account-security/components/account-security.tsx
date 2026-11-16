@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,18 +95,12 @@ export function PasswordSettings() {
             <Skeleton className="h-11 w-full max-w-sm" />
           </div>
         ) : accounts.isError ? (
-          <SecurityRow
-            title={t("password.loadFailed")}
-            action={
-              <Button
-                variant="outline"
-                className="min-h-11"
-                disabled={accounts.isFetching}
-                onClick={() => void accounts.refetch()}
-              >
-                {t("tryAgain")}
-              </Button>
-            }
+          <ErrorState
+            variant="compact"
+            description={t("password.loadFailed")}
+            onRetry={() => void accounts.refetch()}
+            isRetrying={accounts.isFetching}
+            retryLabel={t("tryAgain")}
           />
         ) : accounts.data.includes("credential") && !noPassword ? (
           <SecurityRow

@@ -396,3 +396,32 @@ describe("a recruitment interview", () => {
     ).toHaveAttribute("href", `/applications/${applicationId}`);
   });
 });
+
+it("asks to continue a server-returned general session when a focused start races", async () => {
+  wallet(20);
+  mocks.post.mockResolvedValue({
+    status: 200,
+    data: {
+      success: true,
+      data: session({ focus_item_id: null, resumed: true }),
+    },
+  });
+  renderPanel({
+    kind: "new",
+    request: {
+      type: "practice",
+      roleProfileId: profileId,
+      focusItemId: applicationId,
+    },
+  });
+  const control = await screen.findByRole("button", { name: /Start.*5/ });
+  await waitFor(() => expect(control).toBeEnabled());
+  fireEvent.click(control);
+  await screen.findByRole("dialog");
+  expect(screen.getByText("General practice · all topics")).toBeVisible();
+  expect(mocks.push).not.toHaveBeenCalled();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Continue existing session" }),
+  );
+  expect(mocks.push).toHaveBeenCalledWith(`/interviews/${sessionId}/room`);
+});

@@ -12,6 +12,11 @@ export const interviewSessionSchema = z.object({
   id: z.uuid(),
   type: z.enum(["practice", "recruitment"]),
   role_profile_id: z.uuid().nullable(),
+  focus_item_id: z
+    .uuid()
+    .nullish()
+    .transform((value) => value ?? null),
+  resumed: z.boolean().optional(),
   application_id: z.uuid().nullable(),
   avatar_id: z.uuid().nullable(),
   voice_id: z.uuid().nullable(),
@@ -32,6 +37,7 @@ export type StartRequest =
   | {
       type: "practice";
       roleProfileId: string;
+      focusItemId?: string;
       avatarId?: string;
       voiceId?: string;
     }
@@ -43,6 +49,7 @@ function startBody(request: StartRequest) {
   return {
     type: request.type,
     role_profile_id: request.roleProfileId,
+    ...(request.focusItemId ? { focus_item_id: request.focusItemId } : {}),
     ...(request.avatarId ? { avatar_id: request.avatarId } : {}),
     ...(request.voiceId ? { voice_id: request.voiceId } : {}),
   };
@@ -57,11 +64,12 @@ export async function createInterviewSession(
   const response = await apiClient.post<unknown>(
     "/interviews",
     startBody(request),
-    { headers: { "Idempotency-Key": idempotencyKey } },
+    { headers: { "Idempotency-Key": idempotencyKey }, timeout: 210_000 },
   );
+  const session = sessionEnvelopeSchema.parse(response.data).data;
   return {
-    session: sessionEnvelopeSchema.parse(response.data).data,
-    created: response.status === 201,
+    session,
+    created: response.status === 201 && session.resumed !== true,
   };
 }
 
@@ -97,6 +105,12 @@ export const confirmedStartCodes = [
   "ROLE_PROFILE_REQUIRED",
   "JD_NOT_FOUND",
   "QUESTION_BANK_NOT_READY",
+  "ROADMAP_NOT_READY",
+  "QUESTION_BANK_COVERAGE_INSUFFICIENT",
+  "QUESTION_GENERATION_FAILED",
+  "INVALID_QUESTION_GENERATION_OUTPUT",
+  "LLM_BUDGET_EXCEEDED",
+  "INTERVIEW_START_INTENT_CONFLICT",
   "INSUFFICIENT_BALANCE",
   "APPLICATION_NOT_FOUND",
   "APPLICATION_NOT_ELIGIBLE",

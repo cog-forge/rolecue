@@ -6,7 +6,7 @@ export default async function Page({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { roleProfileId, avatarId, voiceId } = readSetupParams(
+  const { roleProfileId, focusItemId, avatarId, voiceId } = readSetupParams(
     await searchParams,
   );
   // Keyed by profile: a different role starts from a fresh form.
@@ -14,6 +14,7 @@ export default async function Page({
     <InterviewerPicker
       key={roleProfileId}
       roleProfileId={roleProfileId}
+      focusItemId={focusItemId}
       avatarId={avatarId}
       voiceId={voiceId}
     />

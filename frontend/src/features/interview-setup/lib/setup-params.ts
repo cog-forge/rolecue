@@ -4,6 +4,7 @@ import { z } from "zod";
 // them. Nothing is stored in the browser. A value that is not a UUID is dropped, never sent.
 export const setupParamNames = [
   "roleProfileId",
+  "focusItemId",
   "avatarId",
   "voiceId",
   "applicationId",

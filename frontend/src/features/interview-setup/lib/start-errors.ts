@@ -14,6 +14,7 @@ export type StartAction =
   | "retry"
   | "add-coins"
   | "role-profile"
+  | "roadmap"
   | "setup"
   | "interviewer"
   | "application"
@@ -27,6 +28,7 @@ type Context = {
   type: "practice" | "recruitment";
   resume?: boolean;
   balance?: number;
+  focused?: boolean;
 };
 
 // Matched by code; the wording lives in candidate.setup.startErrors. The only server text read is
@@ -55,12 +57,25 @@ export function describeStartFailure(
     case "JD_NOT_FOUND":
       return { message: t("profileNotFound"), action: "setup" };
     case "QUESTION_BANK_NOT_READY":
+      if (context.focused)
+        return { message: t("questionBankFocused"), action: "roadmap" };
       return {
         message: practice
           ? t("questionBankPractice")
           : t("questionBankRecruitment"),
         action: "retry",
       };
+    case "ROADMAP_NOT_READY":
+      return { message: t("roadmapNotReady"), action: "roadmap" };
+    case "QUESTION_BANK_COVERAGE_INSUFFICIENT":
+      return { message: t("coverageInsufficient"), action: "role-profile" };
+    case "QUESTION_GENERATION_FAILED":
+    case "INVALID_QUESTION_GENERATION_OUTPUT":
+      return { message: t("generationFailed"), action: "retry" };
+    case "LLM_BUDGET_EXCEEDED":
+      return { message: t("modelBudget"), action: null };
+    case "INTERVIEW_START_INTENT_CONFLICT":
+      return { message: t("intentConflict"), action: "retry" };
     case "VALIDATION_ERROR":
       if (failure.message === "avatar not found")
         return { message: t("avatarGone"), action: "interviewer" };

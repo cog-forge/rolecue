@@ -71,7 +71,7 @@ export async function confirmRoleProfile(id: string) {
   const response = await apiClient.post<unknown>(
     `${path(id)}/confirm`,
     {},
-    { timeout: 150_000 },
+    { timeout: 210_000 },
   );
   return profileEnvelopeSchema.parse(response.data).data;
 }
@@ -79,7 +79,7 @@ export async function analyzeRoleProfile(id: string, signal?: AbortSignal) {
   const response = await apiClient.post<unknown>(
     `${path(id)}/analyze`,
     undefined,
-    { timeout: 150_000, signal },
+    { timeout: 210_000, signal },
   );
   return profileEnvelopeSchema.parse(response.data).data;
 }

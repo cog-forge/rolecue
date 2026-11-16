@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 
 import { useEffect } from "react";
 import Link from "next/link";
@@ -94,19 +95,14 @@ export function ApplicationDetail({
   if (query.isError && !query.data)
     return (
       <section className="mx-auto w-full max-w-3xl space-y-6">
-        <Notice role="alert" tone="danger" title={t("detail.errorTitle")}>
-          <p className="text-muted-foreground">
-            {tCommon("messages.tryAgainLater")}
-          </p>
-          <Button
-            className="mt-2 h-11 bg-background"
-            variant="outline"
-            disabled={query.isFetching}
-            onClick={() => void query.refetch()}
-          >
-            {tCommon("actions.tryAgain")}
-          </Button>
-        </Notice>
+        <ErrorState
+          variant="compact"
+          title={t("detail.errorTitle")}
+          description={tCommon("messages.tryAgainLater")}
+          onRetry={() => void query.refetch()}
+          isRetrying={query.isFetching}
+          retryLabel={tCommon("actions.tryAgain")}
+        />
       </section>
     );
 

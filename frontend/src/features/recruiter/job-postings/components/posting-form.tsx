@@ -1,4 +1,5 @@
 "use client";
+import { AiLoader } from "@/components/ui/ai-loader";
 
 import {
   useEffect,
@@ -345,6 +346,13 @@ export function PostingForm({
                   {t("pdf.characters", { count: textLength })}
                 </p>
               </div>
+            )}
+            {extract.isPending && (
+              <AiLoader
+                variant="compact"
+                stage="processing"
+                title={t("suggest.reading")}
+              />
             )}
             <div className="flex flex-wrap items-center gap-2">
               <Button

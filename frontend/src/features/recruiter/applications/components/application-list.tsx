@@ -1,4 +1,5 @@
 "use client";
+import { ErrorState } from "@/components/ui/error-state";
 import { EmptyState } from "@/components/ui/empty-state";
 
 import {
@@ -358,19 +359,14 @@ export function ApplicationResults({
     );
   if (query.isError)
     return (
-      <Notice role="alert" tone="danger" title={t("list.errorTitle")}>
-        <p className="text-muted-foreground">
-          {tCommon("messages.tryAgainLater")}
-        </p>
-        <Button
-          className="mt-2 h-11 bg-background"
-          variant="outline"
-          disabled={query.isFetching}
-          onClick={() => void query.refetch()}
-        >
-          {tCommon("actions.tryAgain")}
-        </Button>
-      </Notice>
+      <ErrorState
+        variant="compact"
+        title={t("list.errorTitle")}
+        description={tCommon("messages.tryAgainLater")}
+        onRetry={() => void query.refetch()}
+        isRetrying={query.isFetching}
+        retryLabel={tCommon("actions.tryAgain")}
+      />
     );
   if (!page) return null;
   if (page.items.length === 0 && total > 0)

@@ -6,6 +6,11 @@ export default async function Page({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { roleProfileId } = readSetupParams(await searchParams);
-  return <RoleProfilePicker roleProfileId={roleProfileId} />;
+  const { roleProfileId, focusItemId } = readSetupParams(await searchParams);
+  return (
+    <RoleProfilePicker
+      roleProfileId={roleProfileId}
+      focusItemId={focusItemId}
+    />
+  );
 }
