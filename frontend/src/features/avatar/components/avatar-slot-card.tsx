@@ -43,14 +43,17 @@ export function AvatarSlotCard({
   index,
   onOpen,
   onDelete,
+  canSell = false,
 }: {
   avatar: Avatar;
   userId: string;
   index: number;
   onOpen: () => void;
   onDelete: (trigger: HTMLButtonElement) => void;
+  canSell?: boolean;
 }) {
   const t = useTranslations("candidate.avatars.card");
+  const marketplace = useTranslations("marketplace");
   const fmt = useFormatters();
   const card = useRef<HTMLLIElement>(null);
   const [visible, setVisible] = useState(false);
@@ -200,6 +203,19 @@ export function AvatarSlotCard({
         <p className="line-clamp-2 pr-1.5 text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
           {avatar.personality}
         </p>
+        {canSell && (
+          <Button
+            asChild
+            variant="outline"
+            className="mt-auto min-h-11 whitespace-normal"
+          >
+            <Link
+              href={`/marketplace/my-listings/new?avatar=${encodeURIComponent(avatar.id)}`}
+            >
+              {marketplace("sell")}
+            </Link>
+          </Button>
+        )}
       </div>
     </li>
   );

@@ -1,5 +1,6 @@
 "use client";
 import { ErrorState } from "@/components/ui/error-state";
+import { eligibleAvatarsQuery } from "@/features/marketplace/eligible-avatars-query";
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -78,6 +79,10 @@ function PersonalInventory({
   const page = pageFrom(params.get("page"));
   const previewId = params.get("avatar");
   const [buying, setBuying] = useState(false);
+  const eligible = useQuery({
+    ...eligibleAvatarsQuery(userId),
+    retry: false,
+  });
   const [deleting, setDeleting] = useState<Avatar | null>(null);
   const deleteTrigger = useRef<HTMLButtonElement | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -258,6 +263,10 @@ function PersonalInventory({
                 avatar={avatar}
                 userId={userId}
                 index={index}
+                canSell={
+                  eligible.data?.some((item) => item.avatar_id === avatar.id) ??
+                  false
+                }
                 onOpen={() => setParams({ avatar: avatar.id })}
                 onDelete={(trigger) => {
                   deleteTrigger.current = trigger;
