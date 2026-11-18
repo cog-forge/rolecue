@@ -4,7 +4,7 @@ SHELL := /bin/sh
 PYTHON ?= python3
 TRIVY ?= trivy
 
-.PHONY: setup tooling precommit check frontend-check frontend-audit ci image-scan image-build ensure-local-env dev dev-api dev-frontend dev-down deploy-pull deploy-up deploy-down
+.PHONY: setup tooling precommit check frontend-check frontend-audit auth-audit ci image-scan image-build ensure-local-env dev dev-api dev-frontend dev-down deploy-pull deploy-up deploy-down
 
 DEPLOY_ENV_FILE ?= .docker/deploy.env
 DEPLOY_COMPOSE := --env-file "$(DEPLOY_ENV_FILE)" -p rolecue -f .docker/compose.deploy.yaml
@@ -46,12 +46,20 @@ ci: check
 	$(MAKE) frontend-audit
 
 # User-approved, tooling-only exception. It expires after 2027-01-16 UTC (extended 60 days from 2026-11-17: braces 3.0.3 is still resolved; see docs/security-notes.md).
-# No container vulnerability is excluded by this target.
-frontend-audit:
-	cd frontend && if [ "$$(date -u +%Y%m%d)" -le 20270116 ]; then \
+# Picomatch has no patched npm release. Recheck GHSA-fc5q-39xc-vjpf before 2026-12-18 UTC.
+# These exceptions apply only to lockfile audits; image scanning is unchanged.
+frontend-audit auth-audit:
+	@set --; \
+	today=$$(date -u +%Y%m%d); \
+	if [ "$@" = frontend-audit ] && [ "$$today" -le 20270116 ]; then \
 		echo 'Temporary braces exception: GHSA-vfj7-8cjw-p6xm, expires 2027-01-16 UTC'; \
-		bun audit --audit-level=high --ignore GHSA-vfj7-8cjw-p6xm; \
-	else bun audit --audit-level=high; fi
+		set -- "$$@" --ignore GHSA-vfj7-8cjw-p6xm; \
+	fi; \
+	if [ "$$today" -le 20261218 ]; then \
+		echo 'Temporary picomatch exception: GHSA-fc5q-39xc-vjpf, expires 2026-12-18 UTC'; \
+		set -- "$$@" --ignore GHSA-fc5q-39xc-vjpf; \
+	fi; \
+	cd "$(@:-audit=)" && bun audit --audit-level=high "$$@"
 
 # IMAGE must name an image already built/loaded into the local Docker daemon.
 image-scan:
