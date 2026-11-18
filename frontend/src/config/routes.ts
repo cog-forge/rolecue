@@ -16,6 +16,7 @@ export const routes = {
     detail: (id: string) => `/role-profiles/${segment(id)}`,
     roadmap: (id: string) => `/role-profiles/${segment(id)}/roadmap`,
   },
+  marketplace: "/marketplace",
   avatarStudio: "/avatar-studio",
   avatarStudioNew: "/avatar-studio/new",
   avatarStudioPreview: (id: string) =>
@@ -60,6 +61,7 @@ export const routes = {
     billing: "/recruiter/billing",
   },
   admin: {
+    marketplace: "/admin/marketplace",
     root: "/admin",
     rubrics: "/admin/rubrics",
     dashboard: "/admin/dashboard",
