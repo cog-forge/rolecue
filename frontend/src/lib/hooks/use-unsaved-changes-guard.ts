@@ -97,7 +97,31 @@ export function useUnsavedChangesGuard(active: boolean) {
     }
   }, [leaving, router]);
 
-  return { leaving: leaving !== null, stay, leave };
+  // Saving then navigating must consume the guard entry before Next changes the URL.
+  // Otherwise the effect cleanup's asynchronous Back can undo the successful navigation.
+  const replaceAfterSave = useCallback(
+    (href: string) => {
+      released.current = true;
+      setLeaving(null);
+      if (isGuardEntry(window.history.state)) {
+        const state = { ...window.history.state };
+        delete state[GUARD_KEY];
+        window.history.replaceState(state, "", window.location.href);
+        window.addEventListener(
+          "popstate",
+          (event) => {
+            event.stopImmediatePropagation();
+            router.replace(href);
+          },
+          { capture: true, once: true },
+        );
+        window.history.back();
+      } else router.replace(href);
+    },
+    [router],
+  );
+
+  return { leaving: leaving !== null, stay, leave, replaceAfterSave };
 }
 
 function pushGuardEntry({ href, state }: { href: string; state: unknown }) {

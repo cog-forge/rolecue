@@ -29,6 +29,11 @@ function Harness({ active }: { active: boolean }) {
       <p>{guard.leaving ? "asking" : "idle"}</p>
       <button onClick={guard.stay}>Stay</button>
       <button onClick={guard.leave}>Leave</button>
+      <button
+        onClick={() => guard.replaceAfterSave("/marketplace/my-listings/saved")}
+      >
+        Save and open
+      </button>
     </div>
   );
 }
@@ -55,6 +60,18 @@ afterEach(async () => {
 });
 
 describe("useUnsavedChangesGuard", () => {
+  it("consumes the guard entry before replacing the URL after saving", async () => {
+    const { rerender } = render(<Harness active />);
+    fireEvent.click(screen.getByRole("button", { name: "Save and open" }));
+    rerender(<Harness active={false} />);
+    await waitFor(() =>
+      expect(mocks.replace).toHaveBeenCalledWith(
+        "/marketplace/my-listings/saved",
+      ),
+    );
+    expect(mocks.replace).toHaveBeenCalledTimes(1);
+    expect(isGuardEntry()).toBe(false);
+  });
   it("stays out of the way while there is nothing to lose", () => {
     const entries = window.history.length;
     render(<Harness active={false} />);
