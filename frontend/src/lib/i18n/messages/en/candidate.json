@@ -1016,7 +1016,8 @@
         "all": "All Transactions",
         "topup": "Top-ups (PayOS)",
         "spend": "Coin Spending",
-        "refund": "Refunds"
+        "refund": "Refunds",
+        "trade": "Marketplace trades"
       },
       "status": {
         "success": "Success",
@@ -1033,7 +1034,8 @@
       "emptyFiltered": {
         "topup": "No topup transactions on this page. Other pages may contain matching transactions.",
         "spend": "No spend transactions on this page. Other pages may contain matching transactions.",
-        "refund": "No refund transactions on this page. Other pages may contain matching transactions."
+        "refund": "No refund transactions on this page. Other pages may contain matching transactions.",
+        "trade": "No marketplace trades on this page. Other pages may contain matching transactions."
       },
       "tableLabel": "Coin transactions",
       "columns": {
@@ -1053,7 +1055,10 @@
       "showing": "Showing {shown} of {total} transactions on this page.",
       "pagination": "Showing page {page} of {totalPages} ({total} transactions across all types)",
       "previous": "Previous page",
-      "next": "Next page"
+      "next": "Next page",
+      "trade": "Trade",
+      "tradeSpent": "Marketplace purchase · spent",
+      "tradeReceived": "Marketplace sale · received"
     },
     "describe": {
       "pack": "{name} pack",
