@@ -11,7 +11,8 @@ RUN bun run typecheck && bun run build
 FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS production-dependencies
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --production --frozen-lockfile --ignore-scripts
+# Better Auth declares Vitest as an optional peer for its test utilities.
+RUN bun install --production --omit peer --frozen-lockfile --ignore-scripts
 
 FROM cgr.dev/chainguard/wolfi-base:latest@sha256:360896efb0753a5701c48f860e17130c205eae5a264797aa3e7ea126ee2923a7 AS runtime
 RUN apk add --no-cache ca-certificates libstdc++ libgcc && adduser -D -u 10001 rolecue
