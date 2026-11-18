@@ -1,5 +1,6 @@
 import {
   ChartGantt,
+  Store,
   LayoutDashboard,
   FileText,
   History,
@@ -70,6 +71,7 @@ export const workspaceNavigation: Record<
           href: routes.avatarStudio,
           icon: UserRound,
         },
+        { label: "Avatar Marketplace", href: routes.marketplace, icon: Store },
       ],
     },
     {
@@ -123,6 +125,7 @@ export const workspaceNavigation: Record<
           href: routes.avatarStudio,
           icon: UserRound,
         },
+        { label: "Avatar Marketplace", href: routes.marketplace, icon: Store },
       ],
     },
     {
@@ -150,6 +153,16 @@ export const workspaceNavigation: Record<
           label: "Job Posting Moderation",
           href: routes.admin.jobPostings,
           icon: ShieldCheck,
+        },
+      ],
+    },
+    {
+      label: "Marketplace",
+      items: [
+        {
+          label: "Marketplace Review",
+          href: routes.admin.marketplace,
+          icon: Store,
         },
       ],
     },
@@ -243,6 +256,7 @@ export function isWorkspacePath(pathname: string) {
     routes.roleProfiles.root,
     routes.roadmaps,
     routes.avatarStudio,
+    routes.marketplace,
     routes.jobs,
     routes.applications,
     routes.history,

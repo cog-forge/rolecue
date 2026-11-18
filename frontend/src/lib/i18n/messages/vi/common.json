@@ -131,7 +131,8 @@
         "recruitment": "Tuyển dụng",
         "governance": "Quản trị",
         "operations": "Vận hành",
-        "finance": "Tài chính"
+        "finance": "Tài chính",
+        "marketplace": "Chợ avatar"
       },
       "items": {
         "dashboard": "Tổng quan",
@@ -152,7 +153,9 @@
         "revenueReports": "Báo cáo doanh thu",
         "interviewGuidelines": "Hướng dẫn phỏng vấn",
         "scoringRubrics": "Barem chấm điểm",
-        "roadmaps": "Lộ trình luyện tập"
+        "roadmaps": "Lộ trình luyện tập",
+        "marketplace": "Chợ avatar",
+        "marketplaceReview": "Duyệt chợ avatar"
       }
     },
     "badges": {

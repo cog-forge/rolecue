@@ -220,3 +220,91 @@ describe("what each row says", () => {
     expect(screen.queryByText("+200")).not.toBeInTheDocument();
   });
 });
+
+describe("marketplace trade directions", () => {
+  it.each(["en", "vi"] as const)(
+    "labels a seller's income and Refund Bot as a trade in %s",
+    (locale) => {
+      renderWithIntl(
+        <TransactionHistory
+          currentUserId="seller"
+          isLoading={false}
+          isFetching={false}
+          error={null}
+          page={1}
+          onPageChange={vi.fn()}
+          onRefresh={vi.fn()}
+          data={{
+            items: [
+              {
+                id: "sale",
+                from: "buyer",
+                to: "seller",
+                amount: 20,
+                currency: "COIN",
+                status: "success",
+                description: "Refund Bot",
+              },
+            ],
+            total: 1,
+            page: 1,
+            page_size: 20,
+          }}
+        />,
+        { locale },
+      );
+      expect(
+        screen.getByText(
+          locale === "en"
+            ? "Marketplace sale · received"
+            : "Bán avatar · đã nhận",
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getByText(locale === "en" ? "Trade" : "Giao dịch chợ avatar", {
+          selector: "[data-slot=badge]",
+        }),
+      ).toBeVisible();
+      expect(screen.getByText("Refund Bot")).toBeVisible();
+      expect(screen.getByText("+20")).toBeVisible();
+      fireEvent.mouseDown(
+        screen.getByRole("tab", {
+          name: locale === "en" ? "Refunds" : "Hoàn xu",
+        }),
+        { button: 0, ctrlKey: false },
+      );
+      expect(screen.queryByText("Refund Bot")).toBeNull();
+    },
+  );
+  it("labels a buyer's payment as spent even when the listing name contains refund", () => {
+    renderWithIntl(
+      <TransactionHistory
+        currentUserId="buyer"
+        isLoading={false}
+        isFetching={false}
+        error={null}
+        page={1}
+        onPageChange={vi.fn()}
+        onRefresh={vi.fn()}
+        data={{
+          items: [
+            {
+              id: "purchase",
+              from: "buyer",
+              to: "seller",
+              amount: 20,
+              currency: "COIN",
+              status: "success",
+              description: "Refund Bot",
+            },
+          ],
+          total: 1,
+          page: 1,
+          page_size: 20,
+        }}
+      />,
+    );
+    expect(screen.getByText("Marketplace purchase · spent")).toBeVisible();
+    expect(screen.getByText("-20")).toBeVisible();
+  });
+});

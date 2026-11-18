@@ -1016,7 +1016,8 @@
         "all": "Tất cả giao dịch",
         "topup": "Nạp xu (PayOS)",
         "spend": "Chi tiêu xu",
-        "refund": "Hoàn xu"
+        "refund": "Hoàn xu",
+        "trade": "Giao dịch chợ avatar"
       },
       "status": {
         "success": "Thành công",
@@ -1033,7 +1034,8 @@
       "emptyFiltered": {
         "topup": "Không có giao dịch nạp xu nào trên trang này. Các trang khác có thể có giao dịch phù hợp.",
         "spend": "Không có giao dịch chi tiêu xu nào trên trang này. Các trang khác có thể có giao dịch phù hợp.",
-        "refund": "Không có giao dịch hoàn xu nào trên trang này. Các trang khác có thể có giao dịch phù hợp."
+        "refund": "Không có giao dịch hoàn xu nào trên trang này. Các trang khác có thể có giao dịch phù hợp.",
+        "trade": "Trang này chưa có giao dịch chợ avatar. Các trang khác có thể có giao dịch phù hợp."
       },
       "tableLabel": "Giao dịch xu",
       "columns": {
@@ -1053,7 +1055,10 @@
       "showing": "Hiển thị {shown} trong {total} giao dịch trên trang này.",
       "pagination": "Trang {page}/{totalPages} (tổng {total} giao dịch thuộc mọi loại)",
       "previous": "Trang trước",
-      "next": "Trang sau"
+      "next": "Trang sau",
+      "trade": "Giao dịch chợ avatar",
+      "tradeSpent": "Mua avatar · đã chi",
+      "tradeReceived": "Bán avatar · đã nhận"
     },
     "describe": {
       "pack": "Gói {name}",

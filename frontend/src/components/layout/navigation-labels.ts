@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 
 // The navigation config keeps the stable English names; the catalog supplies what people read.
 const groupKeys = {
+  Marketplace: "marketplace",
   Practice: "practice",
   Career: "career",
   Account: "account",
@@ -13,6 +14,8 @@ const groupKeys = {
 
 const itemKeys = {
   "Scoring rubrics": "scoringRubrics",
+  "Avatar Marketplace": "marketplace",
+  "Marketplace Review": "marketplaceReview",
   Dashboard: "dashboard",
   "Role Profiles": "roleProfiles",
   "Learning Roadmaps": "roadmaps",

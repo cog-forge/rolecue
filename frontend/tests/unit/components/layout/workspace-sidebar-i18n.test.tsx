@@ -149,7 +149,11 @@ describe("workspace search", () => {
     const input = screen.getByRole("combobox", {
       name: "Tìm trang trong không gian làm việc",
     });
-    expect(screen.getAllByRole("option")).toHaveLength(8);
+    expect(screen.getAllByRole("option")).toHaveLength(9);
+    fireEvent.change(input, { target: { value: "chợ avatar" } });
+    expect(
+      screen.getByRole("option", { name: "Chợ avatar" }),
+    ).toBeInTheDocument();
     fireEvent.change(input, { target: { value: "lịch sử" } });
     expect(screen.getAllByRole("option")).toHaveLength(1);
     expect(

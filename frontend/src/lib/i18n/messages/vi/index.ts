@@ -1,3 +1,4 @@
+import marketplace from "./marketplace.json";
 import admin from "./admin.json";
 import auth from "./auth.json";
 import candidate from "./candidate.json";
@@ -9,6 +10,7 @@ import validation from "./validation.json";
 
 // One file per area keeps parallel translation work from touching the same lines.
 const messages = {
+  marketplace,
   common,
   errors,
   validation,

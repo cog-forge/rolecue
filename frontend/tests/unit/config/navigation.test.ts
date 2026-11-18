@@ -19,12 +19,18 @@ describe("workspace navigation", () => {
       );
     expect(
       links("recruiter").every(
-        (href) => href.startsWith("/recruiter/") || href === "/avatar-studio",
+        (href) =>
+          href.startsWith("/recruiter/") ||
+          href === "/avatar-studio" ||
+          href === "/marketplace",
       ),
     ).toBe(true);
     expect(links("candidate")).toContain("/avatar-studio");
     expect(links("recruiter")).toContain("/avatar-studio");
     expect(links("admin")).not.toContain("/avatar-studio");
+    expect(links("candidate")).toContain("/marketplace");
+    expect(links("recruiter")).toContain("/marketplace");
+    expect(links("admin")).not.toContain("/marketplace");
     expect(links("candidate")).not.toContain("/admin/users");
     expect(links("admin")).not.toContain("/billing");
     expect(links("admin")).not.toContain("/admin/avatars");
@@ -39,6 +45,7 @@ describe("workspace navigation", () => {
       "Dashboard -> /admin/dashboard",
       "Accounts -> /admin/users",
       "Job Posting Moderation -> /admin/job-postings",
+      "Marketplace Review -> /admin/marketplace",
       "Interview Sessions -> /admin/interviews",
       "Access Audit -> /admin/access-audit",
       "Voice Profiles -> /admin/voices",
@@ -50,6 +57,12 @@ describe("workspace navigation", () => {
   });
 
   it("matches segment boundaries, ignores query/hash, and maps supporting flows", () => {
+    expect(
+      getActiveNavigation("candidate", "/marketplace/my-listings/new")?.href,
+    ).toBe("/marketplace");
+    expect(getActiveNavigation("admin", "/admin/marketplace/item")?.href).toBe(
+      "/admin/marketplace",
+    );
     expect(getActiveNavigation("candidate", "/roadmaps")?.href).toBe(
       "/roadmaps",
     );

@@ -30,12 +30,13 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { describeTransaction } from "../lib/describe-transaction";
+import { classifyTransaction } from "../lib/classify-transaction";
 import type { Transaction, TransactionPage } from "../schemas/wallet-schema";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import { apiErrorMessage } from "@/lib/i18n/api-errors";
 import { useTranslations } from "next-intl";
 
-type FilterTab = "all" | "topup" | "spend" | "refund";
+type FilterTab = "all" | "topup" | "spend" | "refund" | "trade";
 
 interface TransactionHistoryProps {
   currentUserId: string;
@@ -69,35 +70,9 @@ export function TransactionHistory({
   const pageSize = data?.page_size ?? 20;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  const isDeposit = (tx: Transaction) => {
-    return (
-      tx.payos_order_code != null ||
-      tx.to === currentUserId ||
-      (tx.description?.toLowerCase().includes("deposit") ?? false)
-    );
-  };
-
-  const isRefund = (tx: Transaction) => {
-    return (
-      (tx.description?.toLowerCase().includes("refund") ?? false) ||
-      (tx.to === currentUserId && tx.from == null && !tx.payos_order_code)
-    );
-  };
-
-  const isSpend = (tx: Transaction) => {
-    return (
-      tx.from === currentUserId ||
-      (!isDeposit(tx) && !isRefund(tx)) ||
-      (tx.description?.toLowerCase().includes("spend") ?? false)
-    );
-  };
-
   const filteredItems = items.filter((tx) => {
     if (activeTab === "all") return true;
-    if (activeTab === "topup") return isDeposit(tx) && !isRefund(tx);
-    if (activeTab === "refund") return isRefund(tx);
-    if (activeTab === "spend") return isSpend(tx);
-    return true;
+    return classifyTransaction(tx, currentUserId).kind === activeTab;
   });
 
   const formatDate = (dateStr?: string) => {
@@ -199,17 +174,19 @@ export function TransactionHistory({
           <TabsList
             aria-label={t("filterLabel")}
             aria-describedby="transaction-filter-scope"
-            className="grid w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-auto sm:grid-cols-4"
+            className="grid w-full grid-cols-2 gap-1 group-data-horizontal/tabs:h-auto sm:grid-cols-5"
           >
-            {(["all", "topup", "spend", "refund"] as const).map((tab) => (
-              <TabsTrigger
-                key={tab}
-                value={tab}
-                className="text-xs min-h-9 whitespace-normal"
-              >
-                {t(`tabs.${tab}`)}
-              </TabsTrigger>
-            ))}
+            {(["all", "topup", "spend", "refund", "trade"] as const).map(
+              (tab) => (
+                <TabsTrigger
+                  key={tab}
+                  value={tab}
+                  className="text-xs min-h-9 whitespace-normal"
+                >
+                  {t(`tabs.${tab}`)}
+                </TabsTrigger>
+              ),
+            )}
           </TabsList>
 
           {/* List Content */}
@@ -257,9 +234,14 @@ export function TransactionHistory({
                 </TableHeader>
                 <TableBody>
                   {filteredItems.map((tx) => {
-                    const refund = isRefund(tx);
-                    const deposit = isDeposit(tx) && !refund;
-                    const positive = deposit || refund;
+                    const classification = classifyTransaction(
+                      tx,
+                      currentUserId,
+                    );
+                    const refund = classification.kind === "refund";
+                    const deposit = classification.kind === "topup";
+                    const trade = classification.kind === "trade";
+                    const positive = classification.positive;
                     const described = describeTransaction(
                       tx.description,
                       describeT,
@@ -283,14 +265,26 @@ export function TransactionHistory({
                             </span>
                             <div className="min-w-0 space-y-1">
                               <p className="break-words text-sm font-medium">
-                                {tx.description
-                                  ? described.title
-                                  : deposit
-                                    ? t("fallbackDeposit")
-                                    : refund
-                                      ? t("fallbackRefund")
-                                      : t("fallbackSpend")}
+                                {trade
+                                  ? t(positive ? "tradeReceived" : "tradeSpent")
+                                  : tx.description
+                                    ? described.title
+                                    : deposit
+                                      ? t("fallbackDeposit")
+                                      : refund
+                                        ? t("fallbackRefund")
+                                        : t("fallbackSpend")}
                               </p>
+                              {trade && (
+                                <div className="space-y-1">
+                                  <Badge variant="outline">{t("trade")}</Badge>
+                                  {tx.description && (
+                                    <p className="break-words text-xs text-muted-foreground">
+                                      {described.title}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                               <p className="text-xs text-muted-foreground">
                                 <time dateTime={tx.created_at}>
                                   {formatDate(tx.created_at)}

@@ -131,7 +131,8 @@
         "recruitment": "Recruitment",
         "governance": "Governance",
         "operations": "Operations",
-        "finance": "Finance"
+        "finance": "Finance",
+        "marketplace": "Marketplace"
       },
       "items": {
         "dashboard": "Dashboard",
@@ -152,7 +153,9 @@
         "revenueReports": "Revenue Reports",
         "interviewGuidelines": "Interview Guidelines",
         "scoringRubrics": "Scoring rubrics",
-        "roadmaps": "Learning roadmaps"
+        "roadmaps": "Learning roadmaps",
+        "marketplace": "Avatar Marketplace",
+        "marketplaceReview": "Marketplace Review"
       }
     },
     "badges": {
