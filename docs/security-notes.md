@@ -436,3 +436,13 @@ model and fails when an injected answer earns high points or is not flagged. It 
   `UPDATE_PROMPTFOO=1 go test ./internal/features/evaluation/provider` from `api/`.
 - **Not verified:** the suite and the workflow were not run (no API key, no network eval). The promptfoo
   version default, the Gemini provider id and the variable templating were written from documentation.
+
+### Temporary picomatch dependency audit exception
+
+The auth and frontend lockfile audits allow GHSA-fc5q-39xc-vjpf through
+2026-12-18 UTC while no patched npm release is available. The auth production
+install omits optional peers, including the Vitest chain that pulled in
+picomatch. This exception applies to the Bun lockfile audits only. Image scans
+retain their existing policy, and Next.js also ships its own compiled matcher.
+Recheck upstream and remove the exception as soon as patched dependencies can
+be resolved.

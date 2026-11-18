@@ -119,7 +119,8 @@ jobs:
       - run: bun run typecheck
       - run: bun run test
       - name: Dependency vulnerability audit
-        run: bun audit --audit-level=high
+        working-directory: .
+        run: make auth-audit
 
   # Runs alongside the gates rather than after them; `publish` still waits on every gate via `checks`.
   images:
