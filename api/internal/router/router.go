@@ -45,6 +45,8 @@ type Router struct {
 	roadmapHandler *handler.RoadmapHandler
 	// marketplaceHandler is set with WithMarketplaceHandler (KAN-363/365/367).
 	marketplaceHandler *handler.MarketplaceHandler
+	// interviewSetupHandler is set with WithInterviewSetupHandler (KAN-231). Without it the setup routes are not registered.
+	interviewSetupHandler *handler.InterviewSetupHandler
 	// accountHandler is set with WithAccountHandler, not through NewRouter, so adding it did not change
 	// the constructor every router test calls. Without it the /account routes are not registered.
 	accountHandler *accounthandler.Handler
@@ -60,6 +62,12 @@ func (r *Router) WithRubricHandler(h *handler.RubricHandler) *Router {
 // WithRoadmapHandler adds the Learning Roadmap read routes (KAN-352).
 func (r *Router) WithRoadmapHandler(h *handler.RoadmapHandler) *Router {
 	r.roadmapHandler = h
+	return r
+}
+
+// WithInterviewSetupHandler adds the persisted pre-interview setup routes (KAN-231).
+func (r *Router) WithInterviewSetupHandler(h *handler.InterviewSetupHandler) *Router {
+	r.interviewSetupHandler = h
 	return r
 }
 
@@ -218,6 +226,16 @@ func (r *Router) Setup() *gin.Engine {
 	if r.roadmapHandler != nil {
 		profilesJD.GET("/:id/roadmap", r.roadmapHandler.Get)
 		profilesJD.GET("/:id/roadmap/items/:item_id/history", r.roadmapHandler.History)
+	}
+
+	// Pre-interview setup (KAN-231): Candidate only. It saves choices and reports readiness; it never starts an
+	// interview, debits coins or uses a recruitment slot.
+	if r.interviewSetupHandler != nil {
+		setups := router.Group("/interview-setups", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding(), middleware.RequireRole("candidate"))
+		setups.GET("/practice/:id", r.interviewSetupHandler.GetPractice)
+		setups.PUT("/practice/:id", r.interviewSetupHandler.PutPractice)
+		setups.GET("/recruitment/:id", r.interviewSetupHandler.GetRecruitment)
+		setups.PUT("/recruitment/:id", r.interviewSetupHandler.PutRecruitment)
 	}
 
 	wallet := router.Group("/wallet", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins), middleware.RequireOnboarding())
