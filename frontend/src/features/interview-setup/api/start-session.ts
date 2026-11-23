@@ -1,6 +1,7 @@
 import { isAxiosError } from "axios";
 import { z } from "zod";
 import { apiClient } from "@/lib/api/client";
+import type { SetupBlocker } from "./saved-setup";
 
 // The practice price in coins. The Go service fixes it as domain.PracticeInterviewCoins and no
 // endpoint returns it (Product Decision 15); affordability still comes from GET /wallet.
@@ -119,6 +120,8 @@ export const confirmedStartCodes = [
   "INTERVIEW_CAPACITY_FULL",
   "INTERVIEW_NOT_FOUND",
   "INTERVIEW_COMPLETED",
+  // The saved setup is not ready: nothing was created. Its blockers come with the error.
+  "SETUP_NOT_READY",
 ] as const;
 export type StartCode = (typeof confirmedStartCodes)[number];
 
@@ -137,4 +140,25 @@ export function startFailure(error: unknown): StartFailure {
   return isStartCode(code)
     ? { confirmed: true, code, message }
     : { confirmed: false };
+}
+
+// The blocker shape of the setup API. Declared here, not imported, so this module never depends on
+// saved-setup at load time (that module reaches back here through the setup catalog).
+const startBlockerSchema = z.object({
+  code: z.string(),
+  field: z.enum(["avatar", "voice", "environment"]).nullish(),
+});
+
+const notReadySchema = z.object({
+  error: z.object({
+    details: z.object({ blockers: z.array(startBlockerSchema) }).nullish(),
+  }),
+});
+
+// The blockers a SETUP_NOT_READY answer carries (error.details.blockers, the shape of the setup
+// API's own blockers). A missing or malformed details is an empty list, never a failure.
+export function startBlockers(error: unknown): SetupBlocker[] {
+  if (!isAxiosError(error)) return [];
+  const body = notReadySchema.safeParse(error.response?.data);
+  return body.success ? (body.data.error.details?.blockers ?? []) : [];
 }

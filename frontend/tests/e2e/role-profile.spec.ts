@@ -401,11 +401,62 @@ test("interview setup only opens for a confirmed Role Profile", async ({
     page.getByRole("heading", { name: "Choose your Role Profile first." }),
   ).toBeVisible();
 
-  await page.goto(`/interviews/new/skills?roleProfileId=${id}`);
-  await expect(page).toHaveURL(new RegExp(`/role-profiles/${id}$`));
+  // Requirements is a step of the wizard; without a profile it sends the reader to start one.
+  await page.goto("/interviews/new/skills");
+  await expect(page).toHaveURL(/\/role-profiles\/new$/);
   // The old /target-jds alias is gone for good.
   expect((await page.goto("/target-jds"))?.status()).toBe(404);
   expect(api.errors).toEqual([]);
+});
+
+test("the requirements step is a current step of the wizard and links to the profile", async ({
+  page,
+}) => {
+  const api = await mockRoleProfileApi(
+    page,
+    roleProfile({ status: "confirmed" }),
+  );
+  await page.goto(`/interviews/new/skills?roleProfileId=${id}`);
+  await expect(page).toHaveURL(new RegExp(`/interviews/new/skills\\?`));
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Check the requirements" }),
+  ).toBeVisible();
+  await expect(page.getByText("Go", { exact: true })).toBeVisible();
+  const steps = page.getByRole("navigation", {
+    name: "Interview creation steps",
+  });
+  await expect(steps.locator('[aria-current="step"]')).toHaveText(
+    "2Requirements",
+  );
+  await expect(
+    steps.getByRole("link", { name: "Role Profile" }),
+  ).not.toHaveAttribute("aria-current", "step");
+
+  await page.getByRole("link", { name: "Continue to setup" }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/interviews/new/setup\\?roleProfileId=${id}`),
+  );
+
+  await page.goBack();
+  await page.getByRole("link", { name: "Edit requirements" }).click();
+  await expect(page).toHaveURL(new RegExp(`/role-profiles/${id}$`));
+  expect(api.errors).toEqual([]);
+});
+
+test("the requirements step asks to confirm an unconfirmed profile before setup", async ({
+  page,
+}) => {
+  await mockRoleProfileApi(page, roleProfile({ status: "review" }));
+  await page.goto(`/interviews/new/skills?roleProfileId=${id}`);
+  await expect(
+    page.getByText("Confirm this Role Profile before you continue to setup."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Continue to setup" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Edit requirements" }),
+  ).toBeVisible();
 });
 
 test("deleting from the library asks first and keeps keyboard focus", async ({

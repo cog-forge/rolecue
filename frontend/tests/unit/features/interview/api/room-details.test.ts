@@ -25,6 +25,8 @@ it("reads only room identity and avatar, discarding legacy answer/progress paylo
     id,
     type: "recruitment",
     avatar_id: null,
+    role_profile_id: null,
+    application_id: null,
     completed_at: "2026-11-03T08:20:00Z",
   });
   expect(get).toHaveBeenCalledExactlyOnceWith(`/interviews/${id}`, {
@@ -39,4 +41,17 @@ it("rejects an invalid avatar reference rather than requesting it", async () => 
     },
   });
   await expect(getRoomDetails(id)).rejects.toThrow();
+});
+it("keeps the setup a session was started from", async () => {
+  const profile = "bbbbbbbb-bbbb-4bbb-8bbb-000000000001";
+  get.mockResolvedValue({
+    data: {
+      success: true,
+      data: { id, type: "practice", avatar_id: null, role_profile_id: profile },
+    },
+  });
+  expect(await getRoomDetails(id)).toMatchObject({
+    role_profile_id: profile,
+    application_id: null,
+  });
 });

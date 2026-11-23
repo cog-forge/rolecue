@@ -85,6 +85,9 @@ export function describeStartFailure(
         message: t("invalid"),
         action: practice ? "setup" : "application",
       };
+    case "SETUP_NOT_READY":
+      // The blockers are shown by the setup's own list, which the panel refreshes from the answer.
+      return { message: t("setupNotReady"), action: null };
     case "APPLICATION_NOT_FOUND":
     case "JOB_POSTING_NOT_FOUND":
       return { message: t("applicationNotFound"), action: "applications" };

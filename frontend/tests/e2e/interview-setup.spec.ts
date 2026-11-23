@@ -597,6 +597,49 @@ test("practice: a saved setup is restored after a reload, and a blocker is expla
   expect(starts).toEqual([]);
 });
 
+test("practice: a start the saved setup refuses explains why and lists what to fix", async ({
+  page,
+}) => {
+  // The voice is switched off after the page loaded: only the start finds out.
+  const inactiveVoices: string[] = [];
+  const { starts } = await mockApi(page, {
+    ready: true,
+    inactiveVoices,
+    start: () => {
+      inactiveVoices.push(avaId);
+      return {
+        status: 409,
+        body: {
+          success: false,
+          error: {
+            code: "SETUP_NOT_READY",
+            message: "setup is not ready",
+            details: {
+              blockers: [{ code: "voice_unavailable", field: "voice" }],
+            },
+          },
+        },
+      };
+    },
+  });
+  await page.goto(`/interviews/new/preflight?roleProfileId=${profileId}`);
+  await testMicrophone(page);
+  const start = page.getByRole("button", { name: "Start interview · 5 coins" });
+  await expect(start).toBeEnabled();
+  await start.click();
+  await expect(
+    page.getByRole("region", { name: "Practice interview" }).getByRole("alert"),
+  ).toContainText("setup isn't ready");
+  const blockers = page.getByRole("region", { name: "Before you can start" });
+  await expect(blockers).toContainText(
+    "Your chosen voice is no longer available. Choose another.",
+  );
+  await expect(start).toBeDisabled();
+  expect(starts).toHaveLength(1);
+  await blockers.getByRole("link", { name: "Fix in setup" }).click();
+  await expect(page).toHaveURL(/\/interviews\/new\/interviewer.*#setup-voice/);
+});
+
 test("setup steps fit a 390 px phone without sideways scrolling", async ({
   page,
 }, testInfo) => {
