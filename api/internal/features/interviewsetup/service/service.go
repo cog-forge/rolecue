@@ -3,6 +3,7 @@
 //
 // Nothing here starts a session. Starting still goes through POST /interviews, which keeps the coin debit, the
 // recruitment slot and the interviews row for itself; a setup only remembers choices and says whether they are
+// ready. POST /interviews calls Practice or Recruitment before a new session starts and refuses one that is not
 // ready.
 package service
 
@@ -41,7 +42,8 @@ func requireCandidate(role string) error {
 
 // Practice reads the practice setup of a Role Profile the Candidate owns and revalidates it against the data
 // as it is now: every call recomputes the blockers, writes nothing and never clears a stored choice that went
-// stale. It is also the check a start flow calls before it starts a practice session (ready == no blockers).
+// stale. It is also the check POST /interviews calls before it starts a new practice session (ready == no
+// blockers).
 func (s *Service) Practice(ctx context.Context, userID uuid.UUID, role string, profileID uuid.UUID) (domain.Setup, error) {
 	if err := requireCandidate(role); err != nil {
 		return domain.Setup{}, err

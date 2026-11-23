@@ -9,6 +9,7 @@ import (
 
 	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/domain"
+	setupdomain "github.com/cog-forge/rolecue/api/internal/features/interviewsetup/domain"
 	"github.com/cog-forge/rolecue/api/internal/pkg/llmbudget"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
@@ -84,7 +85,15 @@ type TopicTopUp interface {
 	TopUp(ctx context.Context, candidate, profile, topic uuid.UUID, have, total int) error
 }
 
+// StartSetup re-checks the saved interview setup (KAN-231) before a new session starts. It is the interview
+// setup service: the same revalidation the setup endpoints answer with, so the start flow repeats no rule.
+type StartSetup interface {
+	Practice(ctx context.Context, userID uuid.UUID, role string, profileID uuid.UUID) (setupdomain.Setup, error)
+	Recruitment(ctx context.Context, userID uuid.UUID, role string, applicationID uuid.UUID) (setupdomain.Setup, error)
+}
+
 type Service struct {
+	setup      StartSetup
 	focus      FocusReader
 	topUp      TopicTopUp
 	repository Repository
@@ -125,6 +134,14 @@ func (s *Service) SetEvaluator(evaluator Evaluator) {
 // service serves requests.
 func (s *Service) SetTopicTopUp(reader FocusReader, topUp TopicTopUp) {
 	s.focus, s.topUp = reader, topUp
+}
+
+// SetStartSetup makes every new session start re-check the saved setup of its Role Profile or Application: a
+// start whose setup is not saved and ready is refused before anything is charged, and a practice start uses the
+// saved avatar and voice. A start that only returns an existing session (resume, retry) is never checked. Without
+// it a start takes the avatar and voice from the request. Set it before the service serves requests.
+func (s *Service) SetStartSetup(setup StartSetup) {
+	s.setup = setup
 }
 
 // SetEndNotifier sets the optional hook told about every ended session. Set it before the service serves
@@ -169,7 +186,7 @@ func (s *Service) Create(ctx context.Context, candidateID uuid.UUID, role string
 		}
 		return domain.Session{}, false, err
 	}
-	if err := s.topUpFocus(ctx, params); err != nil {
+	if err := s.prepareStart(ctx, role, &params); err != nil {
 		s.releaseBudget(ctx, candidateID, reserved)
 		return domain.Session{}, false, err
 	}
@@ -201,22 +218,41 @@ func presentStart(session domain.Session, created bool) domain.Session {
 	return session
 }
 
-// topUpFocus prepares a focused practice start before anything is charged: it checks the topic and the
-// Roadmap, and when the topic has fewer bank questions than a session asks it generates the missing ones in
-// one bounded call. A start that resumes an existing session needs none of it and calls no model. A failure
-// here leaves no session and no debit. The start checks every condition again under the practice start lock.
-func (s *Service) topUpFocus(ctx context.Context, params domain.CreateParams) error {
-	if params.FocusItemID == nil || s.focus == nil {
+// prepareStart runs what a new session needs checked before anything is charged. It reads the focus topic
+// (when focused), then lets a start that only returns an existing session through unchecked (a resume, a retry
+// with the same key, the open practice session of the profile, the Application's recruitment session: none of
+// them may be blocked by a setup that changed since), then re-checks the saved setup and finally tops up a
+// focused topic. A failure here leaves no session and no debit. The start checks every condition again under
+// the practice start lock.
+func (s *Service) prepareStart(ctx context.Context, role string, params *domain.CreateParams) error {
+	var state domain.FocusState
+	focused := params.FocusItemID != nil && s.focus != nil
+	if focused {
+		// The topic is checked first, so a topic that is not the profile's is refused even while a session is open.
+		var err error
+		state, err = s.focus.FocusState(ctx, params.CandidateID, *params.RoleProfileID, *params.FocusItemID)
+		if err != nil {
+			return err
+		}
+	}
+	if !focused && s.setup == nil {
 		return nil
 	}
-	// The topic is checked first, so a topic that is not the profile's is refused even while a session is open.
-	state, err := s.focus.FocusState(ctx, params.CandidateID, *params.RoleProfileID, *params.FocusItemID)
-	if err != nil {
-		return err
-	}
-	if _, found, existingErr := s.repository.Existing(ctx, params); existingErr != nil || found {
+	if _, found, existingErr := s.repository.Existing(ctx, *params); existingErr != nil || found {
 		return existingErr
 	}
+	if err := s.checkSetup(ctx, role, params); err != nil {
+		return err
+	}
+	if !focused {
+		return nil
+	}
+	return s.topUpFocus(ctx, *params, state)
+}
+
+// topUpFocus prepares a focused practice start: it checks the Roadmap and, when the topic has fewer bank
+// questions than a session asks, generates the missing ones in one bounded call.
+func (s *Service) topUpFocus(ctx context.Context, params domain.CreateParams, state domain.FocusState) error {
 	if !state.RoadmapReady {
 		return domain.ErrRoadmapNotReady
 	}
@@ -225,11 +261,11 @@ func (s *Service) topUpFocus(ctx context.Context, params domain.CreateParams) er
 		return nil
 	}
 	if s.llmBudget != nil {
-		if err = s.llmBudget.Consume(ctx, params.CandidateID); err != nil {
+		if err := s.llmBudget.Consume(ctx, params.CandidateID); err != nil {
 			return err
 		}
 	}
-	err = s.topUp.TopUp(ctx, params.CandidateID, *params.RoleProfileID, *params.FocusItemID, state.Questions, need)
+	err := s.topUp.TopUp(ctx, params.CandidateID, *params.RoleProfileID, *params.FocusItemID, state.Questions, need)
 	if err != nil {
 		s.releaseBudget(ctx, params.CandidateID, s.llmBudget != nil)
 		if apperror.IsCode(err, apperror.CodeRequirementsNotConfirmed) {
@@ -238,6 +274,82 @@ func (s *Service) topUpFocus(ctx context.Context, params domain.CreateParams) er
 		return err
 	}
 	return nil
+}
+
+// checkSetup re-checks the saved setup of a start that would create a new session. A setup that is not saved,
+// or saved and not ready, refuses the start; the blockers are the setup's own. A practice start uses the saved
+// avatar and voice: an avatar_id or voice_id in the request is optional, and one that differs from the saved
+// choice is refused instead of silently replaced. A recruitment start has nothing to apply: the posting's
+// avatar and voice are locked and the repository reads them itself.
+func (s *Service) checkSetup(ctx context.Context, role string, params *domain.CreateParams) error {
+	if s.setup == nil {
+		return nil
+	}
+	if params.Type == domain.TypeRecruitment {
+		setup, err := s.setup.Recruitment(ctx, params.CandidateID, role, *params.ApplicationID)
+		if err != nil {
+			return err
+		}
+		return setupRefusal(setup)
+	}
+	setup, err := s.setup.Practice(ctx, params.CandidateID, role, *params.RoleProfileID)
+	if err != nil {
+		return err
+	}
+	if err := setupRefusal(setup); err != nil {
+		return err
+	}
+	// Ready means both choices are present and usable.
+	if params.AvatarID != nil && *params.AvatarID != setup.Avatar.ID {
+		return apperror.New(apperror.CodeValidation, "avatar_id does not match the saved setup: save the setup first or omit avatar_id")
+	}
+	if params.VoiceID != nil && *params.VoiceID != setup.Voice.ID {
+		return apperror.New(apperror.CodeValidation, "voice_id does not match the saved setup: save the setup first or omit voice_id")
+	}
+	params.AvatarID, params.VoiceID = &setup.Avatar.ID, &setup.Voice.ID
+	return nil
+}
+
+// SetupBlocker is one entry of the blockers in the details of SETUP_NOT_READY. It has the shape of the blockers
+// of GET /interview-setups: a stable code and the setup field it is about, when there is one.
+type SetupBlocker struct {
+	Code  string `json:"code"`
+	Field string `json:"field,omitempty"`
+}
+
+// SetupNotReadyDetails is the error.details of SETUP_NOT_READY.
+type SetupNotReadyDetails struct {
+	Blockers []SetupBlocker `json:"blockers"`
+}
+
+// setupRefusal is nil for a ready setup. Otherwise it is the refusal of the start: a blocker the start flow
+// always reported with its own code keeps that code (an unconfirmed Role Profile, a bank that is not ready, an
+// Application that is not eligible or past its deadline), and everything else, which is what the Candidate can
+// fix in the setup (avatar, voice, environment), is SETUP_NOT_READY with every blocker in its details.
+func setupRefusal(setup setupdomain.Setup) error {
+	if setup.Ready {
+		return nil
+	}
+	for _, code := range []struct {
+		blocker setupdomain.BlockerCode
+		err     error
+	}{
+		{setupdomain.BlockerRoleProfileNotConfirmed, domain.ErrRoleProfileRequired},
+		{setupdomain.BlockerQuestionBankNotReady, domain.ErrQuestionBankNotReady},
+		{setupdomain.BlockerApplicationNotEligible, domain.ErrApplicationNotEligible},
+		{setupdomain.BlockerDeadlinePassed, domain.ErrApplicationNotEligible},
+	} {
+		for _, blocker := range setup.Blockers {
+			if blocker.Code == code.blocker {
+				return code.err
+			}
+		}
+	}
+	details := SetupNotReadyDetails{Blockers: make([]SetupBlocker, 0, len(setup.Blockers))}
+	for _, blocker := range setup.Blockers {
+		details.Blockers = append(details.Blockers, SetupBlocker{Code: string(blocker.Code), Field: blocker.Field})
+	}
+	return apperror.New(apperror.CodeSetupNotReady, "The interview setup is not ready to start.").WithDetails(details)
 }
 
 // reserveBudget takes one call of the user's daily AI budget for the session about to start. It is a no-op

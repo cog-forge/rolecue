@@ -7,6 +7,7 @@ import (
 	evaluationservice "github.com/cog-forge/rolecue/api/internal/features/evaluation/service"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/interview/service"
+	setupservice "github.com/cog-forge/rolecue/api/internal/features/interviewsetup/service"
 	roadmapservice "github.com/cog-forge/rolecue/api/internal/features/roadmap/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
 	"github.com/cog-forge/rolecue/api/internal/pkg/ai"
@@ -23,8 +24,9 @@ func ProvideInterviewRepository(pool *pgxpool.Pool) *repository.Repository {
 // completed sessions to the evaluation engine and decides follow-ups with the configured LLM. Without a
 // usable LLM the API still starts and the interview asks core questions only. After a successful evaluation
 // the results of a practice session are linked to Roadmap topics; that link can never fail the evaluation
-// (KAN-350). A focused practice start tops up a topic through the Roadmap service (KAN-347).
-func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, scoring *evaluationservice.Scoring, budget llmbudget.Guard, roadmap *roadmapservice.Service, assessment *roadmapservice.AssessmentService) (*service.Service, error) {
+// (KAN-350). A focused practice start tops up a topic through the Roadmap service (KAN-347). A new start
+// re-checks the saved interview setup through the setup service (KAN-231).
+func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, scoring *evaluationservice.Scoring, budget llmbudget.Guard, roadmap *roadmapservice.Service, assessment *roadmapservice.AssessmentService, setup *setupservice.Service) (*service.Service, error) {
 	svc, err := service.New(repo, service.Settings{
 		QuestionLimit:          int32(cfg.Interview.QuestionLimit),
 		DefaultProviderVoiceID: cfg.Interview.DefaultProviderVoiceID,
@@ -37,6 +39,8 @@ func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, sc
 	}
 	svc.SetEvaluator(roadmapservice.NewEvaluateThenLink(scoring, assessment))
 	svc.SetLLMBudget(budget)
+	// A new session starts only from a saved, ready setup (KAN-231); resuming one is never checked.
+	svc.SetStartSetup(setup)
 	// A focused practice start tops up a topic that has too few bank questions before it charges.
 	svc.SetTopicTopUp(repo, roadmap)
 	if cfg.Interview.FollowUpLimit > 0 {

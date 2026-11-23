@@ -70,6 +70,7 @@
     "ROADMAP_NOT_RETRYABLE": "Lộ trình này không cần thử lại.",
     "ROADMAP_NOT_READY": "Lộ trình học này chưa sẵn sàng. Hãy đợi hoàn tất hoặc thử tạo lại.",
     "INTERVIEW_START_INTENT_CONFLICT": "Yêu cầu bắt đầu này đã được dùng cho một buổi luyện tập khác. Hãy bắt đầu lại.",
+    "SETUP_NOT_READY": "Thiết lập buổi phỏng vấn chưa sẵn sàng. Hãy mở phần thiết lập, hoàn tất các lựa chọn còn thiếu rồi bắt đầu lại.",
     "COIN_TRANSFER_KEY_INVALID": "Yêu cầu mua này không hợp lệ. Hãy tải lại trang rồi thử lại.",
     "COIN_TRANSFER_KEY_CONFLICT": "Yêu cầu mua này đã được dùng cho một giao dịch khác. Hãy tải lại trang rồi thử lại.",
     "COIN_RECIPIENT_BALANCE_LIMIT": "Người bán hiện chưa thể nhận khoản thanh toán này. Vui lòng thử lại sau.",

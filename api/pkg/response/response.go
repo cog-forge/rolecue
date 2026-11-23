@@ -21,6 +21,8 @@ type Envelope struct {
 type ErrorBody struct {
 	Code    apperror.Code `json:"code"`
 	Message string        `json:"message"`
+	// Details is present only for errors that carry client-safe structured data, such as SETUP_NOT_READY.
+	Details any `json:"details,omitempty"`
 }
 
 var httpStatusByCode = map[apperror.Code]int{
@@ -76,6 +78,7 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeRoadmapNotRetryable:              http.StatusConflict,
 	apperror.CodeRoadmapNotReady:                  http.StatusConflict,
 	apperror.CodeInterviewStartIntentConflict:     http.StatusConflict,
+	apperror.CodeSetupNotReady:                    http.StatusConflict,
 	apperror.CodeJobPostingNotPending:             http.StatusConflict,
 	apperror.CodeGuidelineVersionConflict:         http.StatusConflict,
 	apperror.CodeQuestionBankNotReady:             http.StatusConflict,
@@ -175,7 +178,7 @@ func Error(c *gin.Context, err error) {
 		logFailure(c, status, string(appErr.Code), err)
 		c.JSON(status, Envelope{
 			Success: false,
-			Error:   &ErrorBody{Code: appErr.Code, Message: appErr.Message},
+			Error:   &ErrorBody{Code: appErr.Code, Message: appErr.Message, Details: appErr.Details},
 		})
 		return
 	}

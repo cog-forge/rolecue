@@ -75,6 +75,7 @@ func TestError(t *testing.T) {
 		{"intake not open", apperror.CodeIntakeNotOpen, http.StatusConflict},
 		{"capacity not funded", apperror.CodeInterviewCapacityNotFunded, http.StatusConflict},
 		{"capacity full", apperror.CodeInterviewCapacityFull, http.StatusConflict},
+		{"setup not ready", apperror.CodeSetupNotReady, http.StatusConflict},
 		{"internal", apperror.CodeInternal, http.StatusInternalServerError},
 		{"unknown code", apperror.Code("FUTURE_CODE"), http.StatusInternalServerError},
 	} {
@@ -100,6 +101,38 @@ func TestError(t *testing.T) {
 	t.Run("constructor without cause", func(t *testing.T) {
 		assertResponse(t, apperror.New(apperror.CodeValidation, "invalid input"), http.StatusBadRequest, apperror.CodeValidation, "invalid input")
 	})
+}
+
+func TestErrorDetails(t *testing.T) {
+	shared := apperror.New(apperror.CodeSetupNotReady, "not ready")
+	details := map[string]any{"blockers": []map[string]string{{"code": "avatar_required", "field": "avatar"}}}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	response.Error(ctx, shared.WithDetails(details))
+	var body struct {
+		Error struct {
+			Code    string `json:"code"`
+			Details struct {
+				Blockers []struct{ Code, Field string } `json:"blockers"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Error.Code != "SETUP_NOT_READY" || len(body.Error.Details.Blockers) != 1 || body.Error.Details.Blockers[0].Code != "avatar_required" {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+	if shared.Details != nil {
+		t.Fatal("WithDetails changed the shared error")
+	}
+	// An error without details sends no details key.
+	recorder = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(recorder)
+	response.Error(ctx, shared)
+	if strings.Contains(recorder.Body.String(), "details") {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
 }
 
 func assertResponse(t *testing.T, err error, status int, code apperror.Code, message string) {

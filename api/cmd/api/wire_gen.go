@@ -201,15 +201,17 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	guard := provider.ProvideLLMBudget(config, pool)
 	roadmapSessionSource := provider.ProvideRoadmapSessionSource(repository6)
 	assessmentService := provider.ProvideRoadmapAssessmentService(roadmapSessionSource, repository2)
-	service14, err := provider.ProvideInterviewService(repository15, config, scoring, guard, serviceService, assessmentService)
+	repository16 := provider.ProvideInterviewSetupRepository(pool)
+	service14 := provider.ProvideInterviewSetupService(repository16)
+	service15, err := provider.ProvideInterviewService(repository15, config, scoring, guard, serviceService, assessmentService, service14)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	interviewHandler := provider.ProvideInterviewHandler(service14)
-	interviewHistoryHandler := provider.ProvideInterviewHistoryHandler(service14)
+	interviewHandler := provider.ProvideInterviewHandler(service15)
+	interviewHistoryHandler := provider.ProvideInterviewHistoryHandler(service15)
 	interviewReportHandler := provider.ProvideInterviewReportHandler(scoring)
 	recordingService, err := provider.ProvideInterviewRecordingService(repository15, store, config)
 	if err != nil {
@@ -227,27 +229,27 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	engine, err := provider.ProvideInterviewLiveEngine(service14, synthesizer, transcriber, config)
+	engine, err := provider.ProvideInterviewLiveEngine(service15, synthesizer, transcriber, config)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	interviewLiveHandler := provider.ProvideInterviewLiveHandler(service14, engine, config, authService)
-	repository16 := provider.ProvideAdminGuidelinesRepository(pool)
-	service15, err := provider.ProvideAdminGuidelinesService(repository16, config)
+	interviewLiveHandler := provider.ProvideInterviewLiveHandler(service15, engine, config, authService)
+	repository17 := provider.ProvideAdminGuidelinesRepository(pool)
+	service16, err := provider.ProvideAdminGuidelinesService(repository17, config)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	adminGuidelinesHandler := provider.ProvideAdminGuidelinesHandler(service15)
+	adminGuidelinesHandler := provider.ProvideAdminGuidelinesHandler(service16)
 	interviewHandlers := provider.ProvideInterviewHandlers(interviewHandler, interviewHistoryHandler, interviewReportHandler, interviewRecordingHandler, interviewLiveHandler, adminGuidelinesHandler)
-	repository17 := provider.ProvideAccountRepository(pool)
-	service16 := provider.ProvideAccountService(repository17, store)
-	handler := provider.ProvideAccountHandler(service16)
+	repository18 := provider.ProvideAccountRepository(pool)
+	service17 := provider.ProvideAccountService(repository18, store)
+	handler := provider.ProvideAccountHandler(service17)
 	rubrics, err := provider.ProvideRubricService(repository6)
 	if err != nil {
 		cleanup3()
@@ -258,12 +260,10 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 	rubricHandler := provider.ProvideRubricHandler(rubrics)
 	readService := provider.ProvideRoadmapReadService(repository2)
 	roadmapHandler := provider.ProvideRoadmapHandler(readService)
-	repository18 := provider.ProvideMarketplaceRepository(pool)
-	service17 := provider.ProvideMarketplaceService(repository18, store)
-	marketplaceHandler := provider.ProvideMarketplaceHandler(service17)
-	repository19 := provider.ProvideInterviewSetupRepository(pool)
-	service18 := provider.ProvideInterviewSetupService(repository19)
-	interviewSetupHandler := provider.ProvideInterviewSetupHandler(service18)
+	repository19 := provider.ProvideMarketplaceRepository(pool)
+	service18 := provider.ProvideMarketplaceService(repository19, store)
+	marketplaceHandler := provider.ProvideMarketplaceHandler(service18)
+	interviewSetupHandler := provider.ProvideInterviewSetupHandler(service14)
 	ginEngine := provider.ProvideRouter(config, logger, authHandler, healthHandler, roleProfileHandler, profileHandler, walletHandler, questionBankHandler, moderationHandler, onboardingHandler, accountsHandler, inventoryHandler, avatarCreateHandler, voiceCatalogHandler, jobPostingHandler, voiceHandler, jobBoardHandler, evaluationHandler, applicationHandler, adminInterviewsHandler, adminOverviewHandler, interviewHandlers, guard, handler, rubricHandler, roadmapHandler, marketplaceHandler, interviewSetupHandler)
 	server := provider.ProvideHTTPServer(config, ginEngine, logger)
 	tracer, cleanup4, err := provider.ProvideTracer(config, logger)
@@ -297,7 +297,7 @@ func InitializeApplication(configPath string) (*Application, func(), error) {
 		cleanup()
 		return nil, nil, err
 	}
-	runner, err := provider.ProvideSystemJobs(config, pool, service14, recordingUpkeep, catchUp, logger)
+	runner, err := provider.ProvideSystemJobs(config, pool, service15, recordingUpkeep, catchUp, logger)
 	if err != nil {
 		cleanup4()
 		cleanup3()

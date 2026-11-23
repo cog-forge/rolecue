@@ -19,10 +19,11 @@ func ProvideRoadmapRepository(pool *pgxpool.Pool) *roadmaprepository.Repository 
 
 // ProvideRoadmapGeneration builds the service Confirm uses to generate a Roadmap and its bank. The topic step
 // uses the question bank's model route (timeout, retries, fallback): both steps are the same kind of
-// generation, and no new AI task needs configuring.
+// generation, and no new AI task needs configuring. It does not carry the bank's topic check (the bank service
+// generates the questions, with its own adapter), so the check's startup warning is logged once.
 func ProvideRoadmapGeneration(cfg *config.Config, repo *roadmaprepository.Repository, inputs *questionbankrepository.Repository,
 	bank *questionbankservice.Service) (*roadmapservice.Service, error) {
-	model, err := ai.NewTaskAdapter(context.Background(), cfg, config.TaskBank)
+	model, err := ai.NewTopicsAdapter(context.Background(), cfg)
 	if err != nil {
 		return nil, err
 	}
