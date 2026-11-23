@@ -16,6 +16,7 @@ import type { TransportEnd } from "../transport/interview-transport";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { interviewKeys } from "../api/keys";
 import { getRoomDetails } from "../api/room-details";
+import { useSavedRoom } from "../api/saved-room";
 import { useMicrophone } from "../audio/use-microphone";
 import type {
   AvatarPerformance,
@@ -152,9 +153,11 @@ function LiveRoom({
   });
   const [transcriptOpen, setTranscriptOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
-  const [background, setBackground] = useState<RoomBackgroundId>(
-    defaultRoomBackground,
-  );
+  // The room the candidate picked in this visit; until then the one saved in the setup, then the
+  // default. A pick is not written back to the setup.
+  const [picked, setBackground] = useState<RoomBackgroundId | null>(null);
+  const saved = useSavedRoom(userId, details.data);
+  const background = picked ?? saved.background ?? defaultRoomBackground;
   const [sceneStatus, setSceneStatus] = useState<EnvironmentStatus>({
     state: "loading",
     progress: 0,
@@ -232,6 +235,9 @@ function LiveRoom({
     roomBackgrounds.find((option) => option.id === background) ??
     roomBackgrounds[0];
   const available = validId && details.data !== undefined && !details.isError;
+  // Until the saved room is known the stage stays plain, so the default room never flashes first.
+  const choosingRoom =
+    validId && !details.isError && (details.isPending || saved.pending);
   const canLeave =
     available &&
     details.data.completed_at === null &&
@@ -259,7 +265,9 @@ function LiveRoom({
       >
         <h1 className="sr-only">{t("label")}</h1>
         <div aria-label={t("stage")} className="absolute inset-0">
-          {available ? (
+          {choosingRoom ? (
+            <div aria-hidden className="absolute inset-0 bg-neutral-900" />
+          ) : available ? (
             <InterviewerAvatar
               performance={performance}
               onDirectorReady={onDirectorReady}

@@ -29,11 +29,13 @@ import { getWallet, walletKeys } from "@/features/billing/api/wallet";
 import { AddCoinsDialog } from "@/features/billing/components/wallet-purchase";
 import { candidateApplicationKeys } from "@/features/candidate/applications/api/applications";
 import { historyKeys } from "@/features/history/api/history";
+import { savedSetupKeys, type SavedSetup } from "../api/saved-setup";
 import { interviewSetupKeys } from "../api/setup-catalog";
 import {
   createInterviewSession,
   PRACTICE_SESSION_COINS,
   resumeInterviewSession,
+  startBlockers,
   startFailure,
   type StartRequest,
 } from "../api/start-session";
@@ -178,6 +180,32 @@ export function StartPanel({
         void cache.invalidateQueries({
           queryKey: candidateApplicationKeys.all(user.id),
         });
+      if (failure.code === "SETUP_NOT_READY") {
+        // Show what the server just refused at once, in the setup's own blocker list, then read
+        // the saved setup again so the page agrees with the server.
+        const target =
+          type === "practice" && links.roleProfileId
+            ? ({
+                mode: "practice",
+                roleProfileId: links.roleProfileId,
+              } as const)
+            : type === "recruitment" && links.applicationId
+              ? ({
+                  mode: "recruitment",
+                  applicationId: links.applicationId,
+                } as const)
+              : null;
+        if (target) {
+          const blockers = startBlockers(error);
+          const key = savedSetupKeys.detail(user.id, target);
+          if (blockers.length > 0)
+            cache.setQueryData<SavedSetup>(
+              key,
+              (view) => view && { ...view, ready: false, blockers },
+            );
+          void cache.invalidateQueries({ queryKey: key });
+        }
+      }
       if (deniedCodes.has(failure.code))
         void cache.invalidateQueries({ queryKey: ["auth", "me"] });
     },

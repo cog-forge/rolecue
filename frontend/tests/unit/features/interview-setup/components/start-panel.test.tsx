@@ -8,6 +8,10 @@ import {
   StartPanel,
   type StartPlan,
 } from "@/features/interview-setup/components/start-panel";
+import {
+  savedSetupKeys,
+  type SavedSetup,
+} from "@/features/interview-setup/api/saved-setup";
 import type { MicrophoneReadiness } from "@/features/interview-setup/components/preflight-check";
 
 const mocks = vi.hoisted(() => ({
@@ -35,6 +39,8 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push }),
 }));
 vi.mock("goey-toast", () => ({ gooeyToast: { info: mocks.info } }));
+
+import { practiceView } from "../saved-setup-fixtures";
 
 const profileId = "22222222-2222-4222-8222-222222222222";
 const applicationId = "33333333-3333-4333-8333-333333333333";
@@ -69,6 +75,23 @@ function apiFailure(status: number, code: string, message = "server says") {
     status,
     statusText: "Error",
     data: { success: false, error: { code, message } },
+    headers: new AxiosHeaders(),
+    config: { headers: new AxiosHeaders() },
+  });
+}
+
+function notReady(blockers: unknown, details = true) {
+  return new AxiosError("failure", "ERR_BAD_RESPONSE", undefined, undefined, {
+    status: 409,
+    statusText: "Conflict",
+    data: {
+      success: false,
+      error: {
+        code: "SETUP_NOT_READY",
+        message: "setup is not ready",
+        ...(details ? { details: { blockers } } : {}),
+      },
+    },
     headers: new AxiosHeaders(),
     config: { headers: new AxiosHeaders() },
   });
@@ -112,6 +135,7 @@ function renderPanel(
   const view = renderWithIntl(ui(readiness));
   return {
     ...view,
+    client,
     setReadiness: (value: MicrophoneReadiness) => view.rerender(ui(value)),
   };
 }
@@ -445,5 +469,55 @@ describe("the saved setup's readiness", () => {
     expect(
       screen.queryByText("Finish your setup to start."),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("a start the saved setup refuses (SETUP_NOT_READY)", () => {
+  const key = savedSetupKeys.detail(mocks.user.id, {
+    mode: "practice",
+    roleProfileId: profileId,
+  });
+
+  it("explains it and puts the server's blockers into the saved setup", async () => {
+    wallet(9);
+    mocks.post.mockRejectedValue(
+      notReady([{ code: "voice_unavailable", field: "voice" }]),
+    );
+    const view = renderPanel(practice);
+    view.client.setQueryData(key, practiceView({ ready: true, blockers: [] }));
+    expect(await screen.findByText("9 coins")).toBeInTheDocument();
+    fireEvent.click(startButton());
+    expect(
+      await screen.findByText(/setup isn't ready, so nothing was started/),
+    ).toBeInTheDocument();
+    expect(view.client.getQueryData<SavedSetup>(key)).toMatchObject({
+      ready: false,
+      blockers: [{ code: "voice_unavailable", field: "voice" }],
+    });
+    expect(mocks.push).not.toHaveBeenCalled();
+    // The refusal proves nothing was created, so the next attempt is a new one.
+    mocks.post.mockResolvedValue({
+      status: 201,
+      data: { success: true, data: session() },
+    });
+    fireEvent.click(startButton());
+    await waitFor(() => expect(mocks.push).toHaveBeenCalled());
+    const keys = mocks.post.mock.calls.map(
+      ([, , config]) => config.headers["Idempotency-Key"],
+    );
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it("still explains it when the answer carries no blockers", async () => {
+    wallet(9);
+    mocks.post.mockRejectedValue(notReady(null, false));
+    const view = renderPanel(practice);
+    view.client.setQueryData(key, practiceView({ ready: true, blockers: [] }));
+    expect(await screen.findByText("9 coins")).toBeInTheDocument();
+    fireEvent.click(startButton());
+    expect(
+      await screen.findByText(/setup isn't ready, so nothing was started/),
+    ).toBeInTheDocument();
+    expect(view.client.getQueryData<SavedSetup>(key)?.blockers).toEqual([]);
   });
 });

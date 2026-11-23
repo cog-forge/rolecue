@@ -1432,6 +1432,17 @@
     "avatar": {
       "previewUnavailable": "Không có bản xem trước"
     },
+    "requirements": {
+      "title": "Kiểm tra các yêu cầu",
+      "intro": "Đây là các kỹ năng và công nghệ mà cuộc phỏng vấn sẽ đề cập. Hãy chỉnh sửa trong hồ sơ vị trí nếu có gì chưa đúng.",
+      "loading": "Đang tải các yêu cầu…",
+      "loadFailed": "Chúng tôi không thể tải hồ sơ vị trí này. Vui lòng thử lại.",
+      "tryAgain": "Thử lại",
+      "empty": "Hồ sơ vị trí này chưa có yêu cầu nào.",
+      "notConfirmed": "Hãy xác nhận hồ sơ vị trí này trước khi tiếp tục thiết lập.",
+      "edit": "Chỉnh sửa yêu cầu",
+      "continue": "Tiếp tục thiết lập"
+    },
     "roleProfile": {
       "title": "Chọn hồ sơ vị trí",
       "loading": {
@@ -1607,6 +1618,7 @@
       }
     },
     "startErrors": {
+      "setupNotReady": "Thiết lập phỏng vấn của bạn chưa sẵn sàng nên chưa có gì được bắt đầu và bạn không bị trừ phí. Hãy sửa các mục được liệt kê trong thiết lập rồi thử lại.",
       "unconfirmed": "Chúng tôi không thể xác nhận cuộc phỏng vấn của bạn đã bắt đầu. Hãy thử lại. Bạn sẽ không bị trừ xu hai lần.",
       "insufficientBalance": "Bạn cần {cost, plural, other {# xu}} để bắt đầu một cuộc phỏng vấn luyện tập.",
       "insufficientBalanceWithBalance": "Bạn cần {cost, plural, other {# xu}} để bắt đầu một cuộc phỏng vấn luyện tập. Số dư của bạn là {balance}.",

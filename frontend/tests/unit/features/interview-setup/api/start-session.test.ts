@@ -3,6 +3,7 @@ import { AxiosError, AxiosHeaders } from "axios";
 import {
   createInterviewSession,
   resumeInterviewSession,
+  startBlockers,
   startFailure,
 } from "@/features/interview-setup/api/start-session";
 
@@ -204,4 +205,46 @@ it("sends a focused intent with a long timeout and honors server-reported focus"
   );
   expect(result.session.focus_item_id).toBeNull();
   expect(result.created).toBe(false);
+});
+
+describe("SETUP_NOT_READY", () => {
+  const refusal = (details: unknown) =>
+    apiFailure(409, {
+      success: false,
+      error: { code: "SETUP_NOT_READY", message: "not ready", details },
+    });
+
+  it("is a confirmed failure: nothing was created", () => {
+    expect(startFailure(refusal({ blockers: [] }))).toEqual({
+      confirmed: true,
+      code: "SETUP_NOT_READY",
+      message: "not ready",
+    });
+  });
+
+  it("reads the blockers of the answer", () => {
+    expect(
+      startBlockers(
+        refusal({
+          blockers: [
+            { code: "avatar_required", field: "avatar" },
+            { code: "question_bank_not_ready" },
+          ],
+        }),
+      ),
+    ).toEqual([
+      { code: "avatar_required", field: "avatar" },
+      { code: "question_bank_not_ready" },
+    ]);
+  });
+
+  it.each([
+    ["no details", refusal(undefined)],
+    ["null details", refusal(null)],
+    ["details without blockers", refusal({})],
+    ["malformed blockers", refusal({ blockers: [{ field: "voice" }] })],
+    ["a non-HTTP error", new Error("boom")],
+  ])("tolerates %s", (_, error) => {
+    expect(startBlockers(error)).toEqual([]);
+  });
 });

@@ -1432,6 +1432,17 @@
     "avatar": {
       "previewUnavailable": "Preview unavailable"
     },
+    "requirements": {
+      "title": "Check the requirements",
+      "intro": "These are the skills and technologies your interview will cover. Edit them on the Role Profile if something is off.",
+      "loading": "Loading the requirements…",
+      "loadFailed": "We couldn't load this Role Profile. Please try again.",
+      "tryAgain": "Try again",
+      "empty": "This Role Profile has no requirements yet.",
+      "notConfirmed": "Confirm this Role Profile before you continue to setup.",
+      "edit": "Edit requirements",
+      "continue": "Continue to setup"
+    },
     "roleProfile": {
       "title": "Choose a Role Profile",
       "loading": {
@@ -1607,6 +1618,7 @@
       }
     },
     "startErrors": {
+      "setupNotReady": "Your interview setup isn't ready, so nothing was started and you weren't charged. Fix what is listed in the setup, then try again.",
       "unconfirmed": "We couldn't confirm your interview started. Try again. You won't be charged twice.",
       "insufficientBalance": "You need {cost, plural, one {# coin} other {# coins}} to start a practice interview.",
       "insufficientBalanceWithBalance": "You need {cost, plural, one {# coin} other {# coins}} to start a practice interview. Your balance is {balance}.",

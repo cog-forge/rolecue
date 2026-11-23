@@ -1,6 +1,8 @@
 import { expect, type Page } from "@playwright/test";
 import { avatarItem, cors } from "./avatar-api";
 import { mockLiveServer } from "./live-interview";
+export const setupProfileId = "bbbbbbbb-bbbb-4bbb-8bbb-000000000053";
+export const setupApplicationId = "cccccccc-cccc-4ccc-8ccc-000000000053";
 export const roomId = "aaaaaaaa-aaaa-4aaa-8aaa-000000000053";
 export async function mockRoomPreview(
   page: Page,
@@ -12,10 +14,13 @@ export async function mockRoomPreview(
     /** Serve a one-question live socket so the room never reaches a real API (default). */
     live?: boolean;
     companyInterviewerError?: boolean;
+    /** The room saved in the setup the session was started from; omit for a session with no setup. */
+    savedRoom?: string | null;
   } = {},
 ) {
   const calls = {
     reads: 0,
+    setupReads: [] as string[],
     details: 0,
     companyInterviewerReads: 0,
     inventoryReads: [] as string[],
@@ -56,6 +61,22 @@ export async function mockRoomPreview(
         json: { success: false, error: { code: "METHOD_NOT_ALLOWED" } },
       });
     }
+    if (
+      path.startsWith("/interview-setups/") &&
+      options.savedRoom !== undefined
+    ) {
+      calls.setupReads.push(path);
+      return ok({
+        mode: options.recruitment ? "recruitment" : "practice",
+        target_title: "Frontend Engineer",
+        avatar: null,
+        voice: null,
+        environment: options.savedRoom,
+        saved: true,
+        ready: true,
+        blockers: [],
+      });
+    }
     if (path === "/auth/me")
       return ok({
         id: "11111111-1111-4111-8111-111111111111",
@@ -86,6 +107,14 @@ export async function mockRoomPreview(
         id: roomId,
         type: options.recruitment ? "recruitment" : "practice",
         avatar_id: options.avatar ? avatarItem(1).id : null,
+        role_profile_id:
+          options.savedRoom !== undefined && !options.recruitment
+            ? setupProfileId
+            : null,
+        application_id:
+          options.savedRoom !== undefined && options.recruitment
+            ? setupApplicationId
+            : null,
         completed_at: options.completed ? "2026-10-29T09:00:00Z" : null,
         current_question: { position: 1, content: "Old REST question" },
         turns: [

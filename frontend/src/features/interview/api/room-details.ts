@@ -7,6 +7,16 @@ export const roomDetailsSchema = z.object({
   id: z.uuid(),
   type: z.enum(["practice", "recruitment"]),
   avatar_id: z.uuid().nullable(),
+  // The setup this session was started from: a practice session's Role Profile or a recruitment
+  // session's Application. They tell the room which saved room to open on.
+  role_profile_id: z
+    .uuid()
+    .nullish()
+    .transform((value) => value ?? null),
+  application_id: z
+    .uuid()
+    .nullish()
+    .transform((value) => value ?? null),
   completed_at: z.iso
     .datetime({ offset: true })
     .nullish()
