@@ -308,7 +308,8 @@
         "replace": "Thay tệp PDF",
         "upload": "Tải lên PDF mô tả công việc",
         "hintEdit": "Tệp PDF mới sẽ thay tệp hiện tại khi bạn lưu.",
-        "hintCreate": "Không đọc được tệp PDF dạng ảnh quét không có văn bản chọn được.",
+        "dropHere": "Thả PDF mô tả công việc vào đây",
+        "hintCreate": "Dùng PDF có văn bản chọn được, tối đa 5 MB.",
         "textRead": "Nội dung đọc từ tệp PDF",
         "characters": "{count} ký tự"
       },

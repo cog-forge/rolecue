@@ -1,12 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { FileText, Upload, X } from "lucide-react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { pdfFileError } from "../lib/pdf-file";
+import { FileUpload } from "@/components/ui/file-upload";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import { pdfFileError } from "../lib/pdf-file";
 
 export function DocumentUploadPanel({
   file,
@@ -21,108 +19,66 @@ export function DocumentUploadPanel({
 }) {
   const t = useTranslations("candidate.roleProfiles.upload");
   const fmt = useFormatters();
-  const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const select = (selected: File | undefined) => {
+  const select = ([selected]: File[]) => {
     if (!selected) return;
     const message = pdfFileError(selected, (key) => t(`errors.${key}`));
     setError(message);
     if (!message) onChange(selected);
-    if (input.current) input.current.value = "";
   };
+
   return (
-    <div
-      aria-describedby="document-help"
-      className="rounded-xl border border-dashed bg-muted/30 px-5 py-7 text-center"
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={(event) => {
-        event.preventDefault();
-        if (!disabled) {
-          if (event.dataTransfer.files.length !== 1)
-            setError(t("errors.oneAtATime"));
-          else select(event.dataTransfer.files[0]);
+    <div className="space-y-2">
+      <FileUpload
+        variant="centered"
+        value={
+          file
+            ? [
+                {
+                  id: file.name,
+                  name: file.name,
+                  type: file.type,
+                  status: progress === null ? "queued" : "uploading",
+                  progress: progress ?? undefined,
+                  statusLabel:
+                    progress === null
+                      ? ""
+                      : t("uploaded", { progress: String(progress) }),
+                  meta: t("selected", {
+                    size: fmt.number(file.size / 1024, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    }),
+                  }),
+                },
+              ]
+            : []
         }
-      }}
-    >
-      <div className="flex flex-col items-center gap-3">
-        {file ? (
-          <FileText
-            className="size-6 text-workspace-accent"
-            aria-hidden="true"
-          />
-        ) : (
-          <Upload className="size-6 text-muted-foreground" aria-hidden="true" />
-        )}
-        <p className="max-w-full break-words text-sm font-medium">
-          {file ? file.name : t("dropHere")}
+        accept=".pdf,application/pdf"
+        multiple={false}
+        disabled={disabled}
+        title={t("dropHere")}
+        description={t("help")}
+        browseLabel={file ? t("replace") : t("choose")}
+        inputLabel={t("inputLabel")}
+        removeLabel={t("remove")}
+        progressLabel={t("progressLabel")}
+        validateSelection={(files) => {
+          if (files.length === 1) return null;
+          setError(null);
+          return t("errors.oneAtATime");
+        }}
+        onFilesAdded={(_, files) => select(files)}
+        onRemove={() => {
+          setError(null);
+          onChange(null);
+        }}
+      />
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
         </p>
-        <p
-          id="document-help"
-          className="max-w-sm text-xs leading-relaxed text-muted-foreground"
-        >
-          {file
-            ? t("selected", {
-                size: fmt.number(file.size / 1024, {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                }),
-              })
-            : t("help")}
-        </p>
-        <Input
-          ref={input}
-          type="file"
-          accept=".pdf,application/pdf"
-          className="sr-only"
-          tabIndex={-1}
-          aria-label={t("inputLabel")}
-          disabled={disabled}
-          onChange={(event) => select(event.target.files?.[0])}
-        />
-        <div className="flex flex-wrap justify-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={disabled}
-            className="h-auto min-h-11 py-2 whitespace-normal"
-            onClick={() => input.current?.click()}
-          >
-            {file ? t("replace") : t("choose")}
-          </Button>
-          {file && (
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={disabled}
-              className="h-auto min-h-11 py-2 whitespace-normal hover:text-destructive"
-              onClick={() => {
-                setError(null);
-                onChange(null);
-              }}
-            >
-              <X aria-hidden="true" /> {t("remove")}
-            </Button>
-          )}
-        </div>
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
-          </p>
-        )}
-        {progress !== null && (
-          <div className="w-full max-w-sm space-y-2 text-left">
-            <progress
-              className="h-2 w-full accent-workspace-accent"
-              max={100}
-              value={progress}
-              aria-label={t("progressLabel")}
-            />
-            <p className="text-xs text-muted-foreground">
-              {t("uploaded", { progress: String(progress) })}
-            </p>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

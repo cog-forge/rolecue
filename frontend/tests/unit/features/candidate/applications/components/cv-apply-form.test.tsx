@@ -112,8 +112,7 @@ describe("CvApplyForm", () => {
 
   it("accepts a dropped PDF and names it before sending", () => {
     renderForm();
-    const zone = screen.getByText(/or drop it here/i).parentElement;
-    if (!zone) throw new Error("drop zone missing");
+    const zone = screen.getByRole("button", { name: "Choose your CV (PDF)" });
     fireEvent.drop(zone, { dataTransfer: { files: [pdf("dropped.pdf")] } });
     expect(screen.getByText("dropped.pdf")).toBeInTheDocument();
     expect(applyButton()).toBeEnabled();

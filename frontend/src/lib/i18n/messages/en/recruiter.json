@@ -308,7 +308,8 @@
         "replace": "Replace the PDF",
         "upload": "Upload the job description PDF",
         "hintEdit": "A new PDF replaces the current one when you save.",
-        "hintCreate": "Scanned PDFs without selectable text can't be read.",
+        "dropHere": "Drop the job description PDF here",
+        "hintCreate": "Use a PDF with selectable text, up to 5 MB.",
         "textRead": "Text read from the PDF",
         "characters": "{count, plural, one {# character} other {# characters}}"
       },

@@ -49,6 +49,27 @@ describe("DocumentUploadPanel in Vietnamese", () => {
     expect(screen.getByRole("button", { name: "Xóa PDF" })).toBeInTheDocument();
   });
 
+  it("rejects a batch drop instead of silently taking the first PDF", () => {
+    const onChange = vi.fn();
+    renderWithIntl(
+      <DocumentUploadPanel
+        file={null}
+        onChange={onChange}
+        disabled={false}
+        progress={null}
+      />,
+      { locale: "vi" },
+    );
+    fireEvent.drop(screen.getByRole("button", { name: "Chọn PDF" }), {
+      dataTransfer: { files: [pdf("first.pdf"), pdf("second.pdf")] },
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Hãy chọn từng PDF một.",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it.each([
     [
       new File(["x"], "notes.txt", { type: "text/plain" }),

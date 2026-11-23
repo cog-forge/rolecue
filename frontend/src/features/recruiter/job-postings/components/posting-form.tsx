@@ -1,14 +1,7 @@
 "use client";
 import { AiLoader } from "@/components/ui/ai-loader";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,9 +15,10 @@ import {
   type FieldError,
   type UseFormRegisterReturn,
 } from "react-hook-form";
-import { FileUp, LoaderCircle, Plus, ScanText, Trash2 } from "lucide-react";
+import { LoaderCircle, Plus, ScanText, Trash2 } from "lucide-react";
 import { gooeyToast } from "goey-toast";
 import { Button } from "@/components/ui/button";
+import { FileUpload, type FileUploadItem } from "@/components/ui/file-upload";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -113,7 +107,6 @@ export function PostingForm({
     formState: { errors, isDirty, dirtyFields },
   } = form;
   const rows = useFieldArray({ control, name: "requirements" });
-  const fileInput = useRef<HTMLInputElement>(null);
   const [fileError, setFileError] = useState<string | null>(null);
 
   const avatars = useQuery({
@@ -219,9 +212,7 @@ export function PostingForm({
   const busy = submitting || extract.isPending || upload.isPending;
   const questionCount = posting?.core_question_count ?? 0;
 
-  const loadFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  const loadFile = (file: File | undefined) => {
     if (!file) return;
     upload.reset();
     if (!isPdf(file)) {
@@ -239,6 +230,29 @@ export function PostingForm({
   const uploadMessage = upload.isError
     ? errorMessage(upload.error, t("pdf.uploadFailed"))
     : null;
+
+  const pendingFile = upload.variables;
+  const uploadItems: FileUploadItem[] = [];
+  if (fileName && !upload.isPending) {
+    uploadItems.push({
+      id: `saved-${fileName}`,
+      name: fileName,
+      size: upload.isSuccess ? pendingFile?.size : undefined,
+      status: "success",
+    });
+  }
+  if (pendingFile && (upload.isPending || upload.isError)) {
+    uploadItems.push({
+      id: `upload-${pendingFile.name}`,
+      name: pendingFile.name,
+      size: pendingFile.size,
+      type: pendingFile.type,
+      file: pendingFile,
+      status: upload.isPending ? "uploading" : "error",
+      statusLabel: upload.isPending ? t("pdf.reading") : undefined,
+      error: uploadMessage ?? undefined,
+    });
+  }
 
   const submit = handleSubmit((values) => {
     if (submitting) return;
@@ -275,60 +289,29 @@ export function PostingForm({
         {locks.textEditable ? (
           <>
             <div className="space-y-2">
-              <input
-                ref={fileInput}
-                id="posting-pdf"
-                type="file"
+              <FileUpload
+                inputId="posting-pdf"
+                value={uploadItems}
                 accept={PDF_FILE_TYPES}
-                className="sr-only"
-                tabIndex={-1}
-                aria-hidden
-                onChange={loadFile}
+                multiple={false}
+                disabled={busy}
+                title={t("pdf.dropHere")}
+                description={
+                  mode === "edit" ? t("pdf.hintEdit") : t("pdf.hintCreate")
+                }
+                browseLabel={rawText ? t("pdf.replace") : t("pdf.upload")}
+                describedBy={describedBy("posting-pdf", false, errors.raw_text)}
+                onFilesAdded={(_, [file]) => loadFile(file)}
+                onRetry={
+                  upload.isError && !isAccessDenied(upload.error)
+                    ? ({ file }) => loadFile(file)
+                    : undefined
+                }
               />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant={rawText ? "outline" : "default"}
-                  className="h-10 rounded-full px-4"
-                  disabled={busy}
-                  aria-busy={upload.isPending}
-                  aria-describedby={describedBy(
-                    "posting-pdf",
-                    true,
-                    errors.raw_text,
-                  )}
-                  onClick={() => fileInput.current?.click()}
-                >
-                  {upload.isPending ? (
-                    <LoaderCircle
-                      className="size-4 animate-spin motion-reduce:animate-none"
-                      aria-hidden
-                    />
-                  ) : (
-                    <FileUp aria-hidden />
-                  )}
-                  {upload.isPending
-                    ? t("pdf.reading")
-                    : rawText
-                      ? t("pdf.replace")
-                      : t("pdf.upload")}
-                </Button>
-                {fileName && !upload.isPending && (
-                  <span className="text-sm font-medium [overflow-wrap:anywhere]">
-                    {fileName}
-                  </span>
-                )}
-              </div>
-              <p
-                id="posting-pdf-hint"
-                className="text-xs text-muted-foreground"
-              >
-                {mode === "edit" ? t("pdf.hintEdit") : t("pdf.hintCreate")}
-              </p>
               <FieldErrorText id="posting-pdf" error={errors.raw_text} />
-              {(fileError ?? uploadMessage) && (
+              {fileError && (
                 <p role="alert" className="text-sm text-destructive">
-                  {fileError ?? uploadMessage}
+                  {fileError}
                 </p>
               )}
             </div>
