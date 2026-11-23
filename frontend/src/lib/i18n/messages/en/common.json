@@ -12,6 +12,24 @@
     "saving": "Saving…",
     "firstPage": "Go to the first page"
   },
+  "fileUpload": {
+    "dropHere": "Drop files here",
+    "browse": "Choose files",
+    "limitReached": "File limit reached",
+    "limitHint": "{count} of {max} files added",
+    "remove": "Remove {name}",
+    "retry": "Retry {name}",
+    "progress": "Upload progress for {name}",
+    "bytes": "{size, number} B",
+    "kilobytes": "{size} KB",
+    "megabytes": "{size} MB",
+    "status": {
+      "queued": "Ready to upload",
+      "uploading": "Uploading…",
+      "success": "Uploaded",
+      "error": "Upload failed"
+    }
+  },
   "labels": {
     "all": "All",
     "notSet": "Not set",

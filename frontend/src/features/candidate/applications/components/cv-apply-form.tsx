@@ -1,14 +1,14 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FileText, FileUp, LoaderCircle, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FileUpload } from "@/components/ui/file-upload";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { jobBoardKeys } from "@/features/job-board/api/job-board";
-import { cn } from "@/lib/utils";
 import {
   candidateApplicationKeys,
   uploadApplicationCv,
@@ -66,11 +66,9 @@ export function CvApplyForm({
   const t = useTranslations("candidate.applications.cvForm");
   const user = useSessionUser();
   const cache = useQueryClient();
-  const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<CvFileError | null>(null);
   const [progress, setProgress] = useState(0);
-  const [dragging, setDragging] = useState(false);
 
   const upload = useMutation({
     mutationFn: (cv: File) => uploadApplicationCv(postingId, cv, setProgress),
@@ -100,98 +98,44 @@ export function CvApplyForm({
 
   const pick = (picked: File | null) => {
     upload.reset();
-    if (!picked) return;
-    const error = cvFileError(picked);
+    const error = picked ? cvFileError(picked) : null;
     setFile(error ? null : picked);
     setFileError(error);
-  };
-  const choose = (event: ChangeEvent<HTMLInputElement>) => {
-    pick(event.target.files?.[0] ?? null);
-    // The same file can be chosen again after an error.
-    event.target.value = "";
-  };
-  const drop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    setDragging(false);
-    if (!busy) pick(event.dataTransfer.files[0] ?? null);
   };
 
   return (
     <div className="space-y-4">
-      <input
-        ref={input}
-        id="cv-file"
-        type="file"
+      <FileUpload
+        inputId="cv-file"
+        value={
+          file
+            ? [
+                {
+                  id: file.name,
+                  name: file.name,
+                  type: file.type,
+                  meta: fileSize(file.size, fmt, t),
+                  status: busy ? "uploading" : failed ? "error" : "queued",
+                  progress,
+                  statusLabel: busy
+                    ? progress < 100
+                      ? t("uploading", { progress })
+                      : t("saving")
+                    : undefined,
+                },
+              ]
+            : []
+        }
         accept={CV_FILE_TYPES}
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden
+        multiple={false}
         disabled={busy}
-        onChange={choose}
+        title={t("dropHere")}
+        description={t("hint")}
+        browseLabel={file ? t("chooseAnother") : t("choose")}
+        progressLabel={t("progressLabel")}
+        onFilesAdded={(_, [selected]) => pick(selected ?? null)}
+        onRemove={() => pick(null)}
       />
-      <div
-        onDragOver={(event) => {
-          event.preventDefault();
-          if (!busy) setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={drop}
-        className={cn(
-          "flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-6 text-center transition-colors duration-[var(--duration-quick)] motion-reduce:transition-none",
-          dragging && "border-foreground bg-muted/60",
-        )}
-      >
-        {file ? (
-          <p className="flex items-center gap-2 text-sm font-medium [overflow-wrap:anywhere]">
-            <FileText className="size-4 shrink-0" aria-hidden />
-            <span>{file.name}</span>
-            <span className="font-normal text-muted-foreground">
-              {fileSize(file.size, fmt, t)}
-            </span>
-          </p>
-        ) : (
-          <FileUp className="size-6 text-muted-foreground" aria-hidden />
-        )}
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11"
-          disabled={busy}
-          aria-describedby="cv-hint"
-          onClick={() => input.current?.click()}
-        >
-          {file ? t("chooseAnother") : t("choose")}
-        </Button>
-        <p id="cv-hint" className="text-xs text-muted-foreground">
-          {t("hint")}
-        </p>
-      </div>
-
-      {busy && (
-        <div className="space-y-2">
-          <div
-            role="progressbar"
-            aria-label={t("progressLabel")}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={progress}
-            aria-valuetext={`${progress}%`}
-            className="h-2 w-full overflow-hidden rounded-full bg-muted"
-          >
-            <div
-              className="h-full bg-foreground transition-[width] duration-200 motion-reduce:transition-none"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p role="status" className="flex items-center gap-2 text-sm">
-            <LoaderCircle
-              className="size-4 animate-spin motion-reduce:animate-none"
-              aria-hidden
-            />
-            {progress < 100 ? t("uploading", { progress }) : t("saving")}
-          </p>
-        </div>
-      )}
 
       {message && (
         <div role="alert" className="space-y-2 text-sm text-destructive">

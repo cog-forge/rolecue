@@ -12,6 +12,24 @@
     "saving": "Đang lưu…",
     "firstPage": "Về trang đầu"
   },
+  "fileUpload": {
+    "dropHere": "Thả tệp vào đây",
+    "browse": "Chọn tệp",
+    "limitReached": "Đã đạt giới hạn số tệp",
+    "limitHint": "Đã thêm {count} trên {max} tệp",
+    "remove": "Xóa {name}",
+    "retry": "Thử tải lại {name}",
+    "progress": "Tiến độ tải {name} lên",
+    "bytes": "{size, number} B",
+    "kilobytes": "{size} KB",
+    "megabytes": "{size} MB",
+    "status": {
+      "queued": "Sẵn sàng tải lên",
+      "uploading": "Đang tải lên…",
+      "success": "Đã tải lên",
+      "error": "Tải lên thất bại"
+    }
+  },
   "labels": {
     "all": "Tất cả",
     "notSet": "Chưa đặt",

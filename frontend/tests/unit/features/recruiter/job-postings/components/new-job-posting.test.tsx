@@ -333,6 +333,27 @@ describe("NewJobPosting", () => {
     ).toBeEnabled();
   });
 
+  it("retries a dropped PDF with the same file after an upload failure", async () => {
+    mocks.post
+      .mockRejectedValueOnce(failure(500, "INTERNAL_ERROR", "server error"))
+      .mockResolvedValueOnce(uploaded);
+    mount();
+    const file = pdf();
+    fireEvent.drop(
+      screen.getByRole("button", { name: "Upload the job description PDF" }),
+      { dataTransfer: { files: [file] } },
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Retry backend.pdf" }),
+    );
+    expect(
+      await screen.findByLabelText("Text read from the PDF"),
+    ).toBeInTheDocument();
+    expect(mocks.post).toHaveBeenCalledTimes(2);
+    expect((mocks.post.mock.calls[1][1] as FormData).get("file")).toBe(file);
+  });
+
   it("refuses non-PDF and oversized files without uploading", async () => {
     mount();
     pickFile(new File(["hello"], "jd.txt", { type: "text/plain" }));
