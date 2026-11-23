@@ -147,8 +147,18 @@ func (a *TaskAdapter) generateTopicsOnce(ctx context.Context, in md.TopicInput) 
 	})
 }
 func (a *TaskAdapter) Decide(ctx context.Context, in id.FollowUpContext) (id.FollowUpProposal, error) {
+	return a.followUp(ctx, in, ip.New)
+}
+
+// Word words a follow-up that a decision model already decided to ask (KAN-274): the same route, decoder and
+// validator as Decide, with a prompt whose reply must ask.
+func (a *TaskAdapter) Word(ctx context.Context, in id.FollowUpContext) (id.FollowUpProposal, error) {
+	return a.followUp(ctx, in, ip.NewWording)
+}
+
+func (a *TaskAdapter) followUp(ctx context.Context, in id.FollowUpContext, build func(model.BaseChatModel) (*ip.EinoFollowUpDecider, error)) (id.FollowUpProposal, error) {
 	return Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (id.FollowUpProposal, error) {
-		d, err := ip.New(m)
+		d, err := build(m)
 		if err != nil {
 			return id.FollowUpProposal{}, err
 		}

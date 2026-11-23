@@ -22,8 +22,8 @@ keys/models, invalid timeout (positive, at most 10m), and retries outside 0–3 
 
 `.env.example` contains the complete opt-in recipe: 30s for JD/evaluation, 90s for
 bank generation, 5s for follow-ups, zero retries, Gemini fallback. YAML has matching
-`ai.<task>` sections; credentials must stay in env. Bedrock and Jev are deferred,
-with the existing BaseChatModel and task interfaces remaining the extension seams.
+`ai.<task>` sections; credentials must stay in env. Bedrock is deferred. Jev is not
+used; Clef (below) took its place for the follow-up decision.
 
 ## Execution and validation
 
@@ -52,6 +52,46 @@ handling remain intact. Each attempt validates the combined bank with the existi
 storage validator, which deduplicates case-insensitively. A cross-batch duplicate
 that leaves too few questions triggers retry/fallback. Only the complete, validated
 bank is returned for storage. Every batch shares the bank's absolute deadline.
+
+## Follow-up decision model: Clef (KAN-274)
+
+[Clef](https://developers.cloudflare.com/workers-ai/models/clef/) is Cloudflare's decision model on Workers AI.
+It answers typed questions about a `state` with probabilities and **writes no text**, so it is not a chat
+model and is not a route entry. It sits in front of the `follow_up` chat route behind `FollowUpDecider`:
+
+| Clef result | What happens |
+| --- | --- |
+| yes probability below the threshold | No follow-up; no chat call is made |
+| at or above the threshold | The chat route only **words** the question (a prompt whose reply must ask); a reply that declines or fails the validator skips the follow-up as `invalid_output` |
+| failure: timeout, 429, 5xx, 401/403, network, invalid reply | The chat route decides and words as before, in the rest of the live budget |
+| cancellation or the caller's deadline | Returned as is; nothing else is called |
+
+Off by default. Settings (env, YAML `ai.follow_up_decision`): `AI_FOLLOW_UP_DECISION_PROVIDER=clef`,
+`_MODEL` (`clef-flash` default, or `clef`), `_THRESHOLD` (default 0.5, between 0 and 1), `_TIMEOUT` (default 2 s,
+at most 5 s). Credentials only in env: `CLOUDFLARE_ACCOUNT_ID` (32 hex) and `CLOUDFLARE_AI_API_TOKEN` (Workers AI
+permission). Without the provider set no Cloudflare value is needed; with it, missing or malformed values fail
+startup. Evaluation is unchanged and never uses Clef.
+
+The Clef call gets at most half of what the live budget has left, so its fallback always has time. The state is
+the same cleaned, redacted (`textsafe.Redact`) and capped `untrusted_*` object the chat decider sends; the
+question (`noul`, fixed English instructions plus yes/no criteria chosen by the guideline's follow-up focus) never
+contains input text. The REST call is `POST /client/v4/accounts/{id}/ai/run/@cf/cloudflare/<model>` with
+`Authorization: Bearer`; the envelope `{result, success, errors, messages}` was confirmed live on 2026-11-18.
+Errors carry a status or reason, never the body. The `llm.task_attempt` log (task `follow_up_decision`, provider
+`clef`) holds model, duration, reason/status, `input_tokens`/`output_tokens`, the rounded probability and the
+`ask` outcome; never state, answers, instructions or credentials. One follow-up decision still spends one unit
+of the daily LLM budget, however many calls it makes inside.
+
+Pricing (checked 2026-11-18): `clef` $0.24 and `clef-flash` $0.038 per million input tokens, output free; the
+Workers AI free allocation is 10,000 neurons per day (`clef-flash` 3,455 neurons per million tokens, so roughly
+2.9 M input tokens a day). The model page states zero data retention and does not state a region or a rate
+limit for Clef.
+
+Live check (billable, opt-in): `go test -tags ai_live ./internal/pkg/ai -run TestLiveClef -v`. One synthetic
+sample per case on 2026-11-18 (not a benchmark): a decision used 298–369 input tokens, so the free allocation
+covers roughly 8,000 `clef-flash` decisions a day. `clef-flash` answered in 0.13–0.31 s, `clef` in 0.35–0.55 s.
+Yes probability (`clef-flash` / `clef`): vague answer 0.76 / 0.94, complete answer 0.12 / 0.27, an answer that
+asks the model to "answer no" 0.87 / 0.79 (it was also vague). Clef then Groq wording took 0.79 s end to end.
 
 ## Transient failures, retries and the daily budget (KAN-382, KAN-383)
 

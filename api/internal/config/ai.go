@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -33,6 +34,76 @@ type AIConfig struct {
 	Bank       TaskRoute `mapstructure:"question_bank"`
 	FollowUp   TaskRoute `mapstructure:"follow_up"`
 	Evaluation TaskRoute `mapstructure:"evaluation"`
+	// Cloudflare Workers AI credentials for the Clef decision model (KAN-274). Env only, never YAML.
+	CloudflareAccountID string `mapstructure:"cloudflare_account_id"`
+	CloudflareAPIToken  string `mapstructure:"cloudflare_api_token"`
+	// FollowUpDecision puts a decision model in front of the follow-up chat route: it decides whether a
+	// follow-up is asked, and the chat route only words it. Empty provider keeps the chat route deciding.
+	FollowUpDecision DecisionRoute `mapstructure:"follow_up_decision"`
+}
+
+// DecisionRoute configures a decision model. Zero fields take the defaults of FollowUpDecisionRoute.
+type DecisionRoute struct {
+	Provider string `mapstructure:"provider"`
+	Model    string `mapstructure:"model"`
+	// Threshold is the yes probability from which a follow-up is asked.
+	Threshold float64 `mapstructure:"threshold"`
+	// Timeout bounds the decision call; the rest of the live budget is left for the wording or the fallback.
+	Timeout time.Duration `mapstructure:"timeout"`
+}
+
+const (
+	DecisionProviderClef     = "clef"
+	defaultDecisionModel     = "clef-flash"
+	defaultDecisionThreshold = 0.5
+	defaultDecisionTimeout   = 2 * time.Second
+	maxDecisionTimeout       = 5 * time.Second
+)
+
+var cloudflareAccountID = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+// FollowUpDecisionRoute returns the follow-up decision route with defaults filled in. Provider "" means off.
+func (c AIConfig) FollowUpDecisionRoute() DecisionRoute {
+	r := c.FollowUpDecision
+	if r.Provider == "" {
+		return DecisionRoute{}
+	}
+	if r.Model == "" {
+		r.Model = defaultDecisionModel
+	}
+	if r.Threshold == 0 {
+		r.Threshold = defaultDecisionThreshold
+	}
+	if r.Timeout == 0 {
+		r.Timeout = defaultDecisionTimeout
+	}
+	return r
+}
+
+func (c AIConfig) validateDecision() error {
+	r := c.FollowUpDecisionRoute()
+	if r.Provider == "" {
+		return nil
+	}
+	if r.Provider != DecisionProviderClef {
+		return fmt.Errorf("ai.follow_up_decision: provider must be clef")
+	}
+	if r.Model != "clef" && r.Model != "clef-flash" {
+		return fmt.Errorf("ai.follow_up_decision: model must be clef or clef-flash")
+	}
+	if r.Threshold <= 0 || r.Threshold >= 1 {
+		return fmt.Errorf("ai.follow_up_decision: threshold must be between 0 and 1")
+	}
+	if r.Timeout <= 0 || r.Timeout > maxDecisionTimeout {
+		return fmt.Errorf("ai.follow_up_decision: timeout must be positive and at most %s", maxDecisionTimeout)
+	}
+	if !cloudflareAccountID.MatchString(c.CloudflareAccountID) {
+		return fmt.Errorf("ai.follow_up_decision: CLOUDFLARE_ACCOUNT_ID must be a 32-character hex account ID")
+	}
+	if strings.TrimSpace(c.CloudflareAPIToken) == "" || strings.ContainsAny(c.CloudflareAPIToken, " \r\n\t") {
+		return fmt.Errorf("ai.follow_up_decision: CLOUDFLARE_AI_API_TOKEN is required and must be one token")
+	}
+	return nil
 }
 
 func (c AIConfig) Route(task Task) TaskRoute {
@@ -95,8 +166,20 @@ func (c *Config) TaskLLM(task Task) (LLMConfig, []LLMConfig) {
 	return primary, fallback
 }
 func bindAI(v *viper.Viper) error {
-	if err := v.BindEnv("ai.groq_api_key", "GROQ_API_KEY"); err != nil {
-		return err
+	for key, env := range map[string]string{
+		"ai.groq_api_key":          "GROQ_API_KEY",
+		"ai.cloudflare_account_id": "CLOUDFLARE_ACCOUNT_ID",
+		"ai.cloudflare_api_token":  "CLOUDFLARE_AI_API_TOKEN",
+	} {
+		if err := v.BindEnv(key, env); err != nil {
+			return err
+		}
+	}
+	for _, field := range []string{"provider", "model", "threshold", "timeout"} {
+		key := "ai.follow_up_decision." + field
+		if err := v.BindEnv(key, strings.ToUpper(strings.ReplaceAll(key, ".", "_"))); err != nil {
+			return err
+		}
 	}
 	for _, task := range AITasks {
 		for _, field := range []string{"provider", "model", "timeout", "max_retries", "fallback"} {
@@ -109,6 +192,9 @@ func bindAI(v *viper.Viper) error {
 	return nil
 }
 func (c *Config) validateAI() error {
+	if err := c.AI.validateDecision(); err != nil {
+		return err
+	}
 	for _, task := range AITasks {
 		if c.AI.Route(task) == (TaskRoute{}) {
 			continue

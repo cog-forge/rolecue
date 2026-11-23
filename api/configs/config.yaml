@@ -123,6 +123,8 @@ ai:
   question_bank: {}
   follow_up: {}
   evaluation: {}
+  # Clef decides whether a follow-up is asked (KAN-274); credentials come from env only.
+  follow_up_decision: {}
 
 interview:
   # fake or azure; azure requires the shared AZURE_SPEECH_KEY and AZURE_SPEECH_REGION.
