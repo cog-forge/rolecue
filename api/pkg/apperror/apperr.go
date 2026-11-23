@@ -162,6 +162,9 @@ const (
 	CodeRoadmapNotRetryable            Code = "ROADMAP_NOT_RETRYABLE"
 	CodeRoadmapNotReady                Code = "ROADMAP_NOT_READY"
 	CodeInterviewStartIntentConflict   Code = "INTERVIEW_START_INTENT_CONFLICT"
+	// CodeSetupNotReady means a new interview cannot start because the saved interview setup of its Role
+	// Profile or Application is missing or not ready (KAN-231). The error details list the blockers.
+	CodeSetupNotReady Code = "SETUP_NOT_READY"
 
 	// Coin transfer between users (KAN-369), see api/docs/marketplace-coins.md. The key is malformed or
 	// not a Marketplace key; the key is well formed but already names another transfer; the recipient's
@@ -175,6 +178,20 @@ type AppError struct {
 	Code    Code
 	Message string
 	Err     error
+	// Details is optional, client-safe structured data that explains the error (for example the blockers of a
+	// setup that is not ready). It is sent as error.details; it must never hold anything the message could not.
+	Details any
+}
+
+// WithDetails returns a copy of the error that carries details. The receiver is not changed, so a shared
+// error value can be given details per request.
+func (e *AppError) WithDetails(details any) *AppError {
+	if e == nil {
+		return nil
+	}
+	copied := *e
+	copied.Details = details
+	return &copied
 }
 
 func New(code Code, message string) *AppError {

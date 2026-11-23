@@ -70,6 +70,7 @@
     "ROADMAP_NOT_RETRYABLE": "This roadmap doesn't need another attempt.",
     "ROADMAP_NOT_READY": "This learning roadmap isn't ready yet. Wait for it to finish or try generating it again.",
     "INTERVIEW_START_INTENT_CONFLICT": "This start request was already used for a different practice. Start again.",
+    "SETUP_NOT_READY": "Your interview setup isn't ready yet. Open the setup, finish the missing choices and start again.",
     "COIN_TRANSFER_KEY_INVALID": "This purchase request is not valid. Reload the page and try again.",
     "COIN_TRANSFER_KEY_CONFLICT": "This purchase request was already used for a different purchase. Reload the page and try again.",
     "COIN_RECIPIENT_BALANCE_LIMIT": "The seller cannot receive this payment right now. Try again later.",

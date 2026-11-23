@@ -10,7 +10,7 @@ an interview ends when every core question is answered.
 ## 1. Basics
 
 - A setup is a draft the Candidate comes back to. It is **not** an interview. Starting still goes through
-  `POST /interviews` with its own request; that endpoint neither reads nor writes a setup. A setup call **never**
+  `POST /interviews` with its own request; that endpoint re-checks the saved setup before a new session starts (section 6) but never writes it. A setup call **never**
   debits practice coins, uses a recruitment slot, creates an `interviews` row, or returns core questions, the bank
   size or evaluation weights.
 - Envelope, session cookie and `snake_case` are the same as every other endpoint. Branch on `error.code`.
@@ -109,11 +109,46 @@ deadline, on a funded `open` or `intake_closed` posting.
 blocked), `locked_voice_unavailable`, `environment_required`, `environment_unsupported`. Interview capacity is **not**
 a blocker: the slot is consumed by the first start, which checks it.
 
-## 6. For the start flow
+## 6. The start flow (`POST /interviews`)
 
-`Service.Practice` and `Service.Recruitment` (package `interviewsetup/service`) are the revalidation a start flow can
-call before it starts: `ready == (no blockers)`, computed from live data, with no side effect. Today `POST /interviews`
-does not call them.
+A **new** session starts only from a saved, ready setup. `POST /interviews` calls `Service.Practice` (a practice start,
+by `role_profile_id`) or `Service.Recruitment` (a recruitment start, by `application_id`) and starts only when
+`ready == (no blockers)`, computed from live data. The check runs before anything is charged or taken: a refusal debits
+no coins, uses no recruitment slot, writes no interview row and gives the AI budget reservation back.
+
+**What is never checked** (the start only returns a session that already exists, so a setup that went stale or was never
+saved cannot block it): resuming the open practice session of the Role Profile, a retry with the same `Idempotency-Key`,
+and the Application's existing recruitment session (even though its setup then reports `interview_already_started`).
+`POST /interviews/{id}/resume` and the live socket do not read the setup at all. A focused practice start
+(`focus_item_id`) is checked like any new practice start, after the topic is validated and before any top-up call.
+
+**Refusal.** A setup that is not saved or not ready answers `409 SETUP_NOT_READY` with the blockers of section 4/5 in
+`error.details`, the same `{code, field}` objects `GET` returns:
+
+```json
+{"success": false, "error": {"code": "SETUP_NOT_READY", "message": "The interview setup is not ready to start.",
+  "details": {"blockers": [{"code": "avatar_required", "field": "avatar"}, {"code": "environment_required", "field": "environment"}]}}}
+```
+
+Blockers the start flow always reported with a code of its own keep that code (and no `details`): an unconfirmed Role
+Profile is `ROLE_PROFILE_REQUIRED`, a profile without a ready bank `QUESTION_BANK_NOT_READY`, an Application that is not
+`interview_eligible`, whose posting stopped accepting or whose deadline passed `APPLICATION_NOT_ELIGIBLE`. Every other
+blocker (avatar, voice, environment, locked avatar/voice) is `SETUP_NOT_READY`. A foreign or missing Role Profile or
+Application is still `JD_NOT_FOUND` / `APPLICATION_NOT_FOUND`.
+
+**Avatar and voice of a practice start.** The session uses the saved avatar and voice. `avatar_id` and `voice_id` in
+the request body are optional:
+
+- omitted: the saved value is used;
+- present and equal to the saved value: accepted (the current client repeats them);
+- present and different: refused with `400 VALIDATION_ERROR`, nothing charged. The start never silently replaces what the
+  Candidate asked for; to change the interviewer, save the setup first.
+
+A recruitment start takes the posting's avatar and voice and still refuses a body that names its own (`VALIDATION_ERROR`).
+Starts that return an existing session ignore the body, as before.
+
+The capacity of a recruitment posting is still checked by the start itself (`INTERVIEW_CAPACITY_NOT_FUNDED`,
+`INTERVIEW_CAPACITY_FULL`), under the posting lock.
 
 ## 7. Storage
 

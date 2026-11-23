@@ -3598,7 +3598,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "Candidate only. Creates a session, or returns the existing recruitment session of the Application (200, no side effects). A practice session needs a confirmed role profile of yours and charges 5 coins once; starting again while that role profile still has an unfinished practice session returns it (200) without charging. Its avatar must be in your own inventory and its voice active. A recruitment session needs no role profile and takes its interviewer and voice from the posting (sending avatar_id or voice_id is a VALIDATION_ERROR); it needs an interview_eligible Application inside its 24-hour deadline, a funded posting with a free interview slot, and a question bank; it is free. Errors: VALIDATION_ERROR (bad type, missing or unknown reference), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND, APPLICATION_NOT_FOUND (not yours or missing), APPLICATION_NOT_ELIGIBLE, INTERVIEW_CAPACITY_NOT_FUNDED, INTERVIEW_CAPACITY_FULL, ROLE_PROFILE_REQUIRED (practice only), JD_NOT_FOUND (role profile missing or not yours), QUESTION_BANK_NOT_READY, QUESTION_BANK_COVERAGE_INSUFFICIENT (recruitment only: the bank cannot cover every weighted metric within the question limit; nothing is created or charged. A practice session never fails for coverage: it asks the questions that cover as many metrics as its bank allows, and the metrics it cannot measure are withheld from the report, never scored 0), INSUFFICIENT_BALANCE.",
+                "description": "Candidate only. Creates a session, or returns the existing recruitment session of the Application (200, no side effects). A practice session needs a confirmed role profile of yours and charges 5 coins once; starting again while that role profile still has an unfinished practice session returns it (200) without charging. A new practice or recruitment session needs a saved, ready interview setup (GET /interview-setups/...; see api/docs/interview-setup-api.md): if it is not, the start is refused with SETUP_NOT_READY, error.details.blockers lists what is missing ({code, field}), and nothing is charged or taken; resuming an existing session and a retry with the same Idempotency-Key are never refused for it. A practice session uses the saved avatar and voice: avatar_id and voice_id are optional and, when present, must equal the saved ones (otherwise VALIDATION_ERROR). A recruitment session needs no role profile and takes its interviewer and voice from the posting (sending avatar_id or voice_id is a VALIDATION_ERROR); it needs an interview_eligible Application inside its 24-hour deadline, a funded posting with a free interview slot, and a question bank; it is free. Errors: VALIDATION_ERROR (bad type, missing or unknown reference, avatar_id or voice_id different from the saved setup), SETUP_NOT_READY (409, with error.details.blockers), FORBIDDEN (not a Candidate), JOB_POSTING_NOT_FOUND, APPLICATION_NOT_FOUND (not yours or missing), APPLICATION_NOT_ELIGIBLE, INTERVIEW_CAPACITY_NOT_FUNDED, INTERVIEW_CAPACITY_FULL, ROLE_PROFILE_REQUIRED (practice only), JD_NOT_FOUND (role profile missing or not yours), QUESTION_BANK_NOT_READY, QUESTION_BANK_COVERAGE_INSUFFICIENT (recruitment only: the bank cannot cover every weighted metric within the question limit; nothing is created or charged. A practice session never fails for coverage: it asks the questions that cover as many metrics as its bank allows, and the metrics it cannot measure are withheld from the report, never scored 0), INSUFFICIENT_BALANCE.",
                 "consumes": [
                     "application/json"
                 ],
@@ -11505,6 +11505,7 @@ const docTemplate = `{
                 "ROADMAP_NOT_RETRYABLE",
                 "ROADMAP_NOT_READY",
                 "INTERVIEW_START_INTENT_CONFLICT",
+                "SETUP_NOT_READY",
                 "COIN_TRANSFER_KEY_INVALID",
                 "COIN_TRANSFER_KEY_CONFLICT",
                 "COIN_RECIPIENT_BALANCE_LIMIT"
@@ -11627,6 +11628,7 @@ const docTemplate = `{
                 "CodeRoadmapNotRetryable",
                 "CodeRoadmapNotReady",
                 "CodeInterviewStartIntentConflict",
+                "CodeSetupNotReady",
                 "CodeCoinTransferKeyInvalid",
                 "CodeCoinTransferKeyConflict",
                 "CodeCoinRecipientBalanceLimit"
@@ -12519,6 +12521,13 @@ const docTemplate = `{
                 "generated_at": {
                     "type": "string"
                 },
+                "interview_setups": {
+                    "description": "InterviewSetups are the Candidate's saved pre-interview setups (KAN-231).",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/domain.ExportInterviewSetup"
+                    }
+                },
                 "interviews": {
                     "type": "array",
                     "items": {
@@ -12888,6 +12897,42 @@ const docTemplate = `{
                         "practice",
                         "recruitment"
                     ]
+                }
+            }
+        },
+        "domain.ExportInterviewSetup": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string"
+                },
+                "avatar_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "environment": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role_profile_id": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "practice",
+                        "recruitment"
+                    ]
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "voice_id": {
+                    "type": "string"
                 }
             }
         },
@@ -16659,6 +16704,9 @@ const docTemplate = `{
             "properties": {
                 "code": {
                     "$ref": "#/definitions/apperror.Code"
+                },
+                "details": {
+                    "description": "Details is present only for errors that carry client-safe structured data, such as SETUP_NOT_READY."
                 },
                 "message": {
                     "type": "string"
