@@ -73,6 +73,8 @@ func retried[T any](ctx context.Context, a *TaskAdapter, call func(context.Conte
 	return llmerr.Do(ctx, policy, call)
 }
 
+// NewTaskAdapter builds the adapter of one AI task. A question bank adapter also gets the Roadmap topic check
+// (KAN-384); use NewTopicsAdapter for a caller that only proposes topics and never generates bank questions.
 func NewTaskAdapter(ctx context.Context, cfg *config.Config, task config.Task) (*TaskAdapter, error) {
 	r, err := NewRoute(ctx, cfg, task)
 	if err != nil {
@@ -83,6 +85,17 @@ func NewTaskAdapter(ctx context.Context, cfg *config.Config, task config.Task) (
 		adapter.topicCheck = newTopicCheckFromConfig(ctx, cfg)
 	}
 	return adapter, nil
+}
+
+// NewTopicsAdapter builds the question bank adapter for Roadmap topic generation. It shares the bank's route
+// but not its topic check: that check only runs while bank questions are generated, which this adapter never
+// does, so building it here would only repeat the startup warning of the check being off.
+func NewTopicsAdapter(ctx context.Context, cfg *config.Config) (*TaskAdapter, error) {
+	r, err := NewRoute(ctx, cfg, config.TaskBank)
+	if err != nil {
+		return nil, err
+	}
+	return &TaskAdapter{route: r}, nil
 }
 
 // outputError keeps transport errors classified, and marks decoder/domain failures uniformly.

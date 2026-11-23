@@ -287,3 +287,41 @@ func TestTopicCheckIsOnByDefaultAndNeedsNoCredentials(t *testing.T) {
 		t.Fatal("off did not turn the topic check off")
 	}
 }
+
+// The bank adapter owns the topic check; the adapter of Roadmap topic generation must not build it again, or
+// the "check is off" warning is logged twice at startup.
+func TestTopicCheckWarningIsLoggedOnceWhenBothAdaptersAreBuilt(t *testing.T) {
+	core, logs := observer.New(zap.DebugLevel)
+	ctx := logger.ToContext(context.Background(), &logger.Logger{Logger: zap.New(core)})
+	cfg := &config.Config{}
+	cfg.LLM.Provider, cfg.LLM.Timeout = "groq", time.Second
+	cfg.AI.GroqAPIKey = "test-key"
+	const warning = "question bank topic check is off: Cloudflare credentials are missing"
+
+	bank, err := NewTaskAdapter(ctx, cfg, config.TaskBank)
+	if err != nil {
+		t.Fatal(err)
+	}
+	topics, err := NewTopicsAdapter(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(logs.FilterMessage(warning).All()); n != 1 {
+		t.Fatalf("the warning was logged %d times, want once", n)
+	}
+	// Fail-open: without credentials neither adapter has a check, and a batch passes through untouched.
+	if bank.topicCheck != nil || topics.topicCheck != nil {
+		t.Fatal("a topic check was built without credentials")
+	}
+	questions := []qd.GeneratedQuestion{{Content: "Q1?"}}
+	if kept, dropped := bank.checkTopics(ctx, []qd.RoadmapTopic{{Title: "SQL"}}, questions, 0); len(kept) != 1 || len(dropped) != 0 {
+		t.Fatalf("kept %d dropped %d", len(kept), len(dropped))
+	}
+	// With credentials only the bank adapter has the check.
+	cfg.AI.CloudflareAccountID, cfg.AI.CloudflareAPIToken = clefAccount, clefToken
+	bank, _ = NewTaskAdapter(ctx, cfg, config.TaskBank)
+	topics, _ = NewTopicsAdapter(ctx, cfg)
+	if bank.topicCheck == nil || topics.topicCheck != nil {
+		t.Fatalf("bank check %v, topics check %v", bank.topicCheck != nil, topics.topicCheck != nil)
+	}
+}
