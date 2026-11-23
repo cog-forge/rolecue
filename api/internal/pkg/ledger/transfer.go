@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/cog-forge/rolecue/api/internal/pkg/ledger/repository"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -80,9 +81,8 @@ func MarketplaceTransfer(ctx context.Context, db DBTX, in MarketplaceTransferInp
 		return MarketplaceReceipt{}, err
 	}
 	// The seller wallet is created before any FOR UPDATE so the locking below is plain and sorted.
-	if _, err := db.Exec(ctx,
-		`INSERT INTO public.wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING`, in.Seller); err != nil {
-		return MarketplaceReceipt{}, persistence(err)
+	if err := ensureWallet(ctx, db, in.Seller); err != nil {
+		return MarketplaceReceipt{}, err
 	}
 	var buyer, seller lockedWallet
 	for _, id := range lockOrder(in.Buyer, in.Seller) {
@@ -116,18 +116,18 @@ func MarketplaceTransfer(ctx context.Context, db DBTX, in MarketplaceTransferInp
 		w       lockedWallet
 		balance int32
 	}{{buyer, buyer.balance - in.Amount}, {seller, seller.balance + in.Amount}} {
-		if _, err := db.Exec(ctx, `UPDATE public.wallets SET balance = $2 WHERE id = $1`, move.w.id, move.balance); err != nil {
-			return MarketplaceReceipt{}, persistence(err)
+		if err := setBalance(ctx, db, move.w.id, move.balance); err != nil {
+			return MarketplaceReceipt{}, err
 		}
 	}
 	receipt := MarketplaceReceipt{Buyer: in.Buyer, Seller: in.Seller, Amount: in.Amount, Description: in.Description}
-	err = db.QueryRow(ctx,
-		`INSERT INTO public.transactions ("from", "to", amount, currency, description, status, idempotency_key)
-		 VALUES ($1, $2, $3, $4, $5, 'success', $6) RETURNING id, created_at`,
-		in.Buyer.String(), in.Seller.String(), in.Amount, Currency, in.Description, in.Key).Scan(&receipt.TransactionID, &receipt.CreatedAt)
+	inserted, err := queries(db).InsertKeyedCoinTransactionReturning(ctx, repository.InsertKeyedCoinTransactionReturningParams{
+		FromParty: in.Buyer.String(), ToParty: in.Seller.String(), Amount: in.Amount, Currency: Currency,
+		Description: textPtr(in.Description), IdempotencyKey: textPtr(in.Key)})
 	if err != nil {
 		return MarketplaceReceipt{}, keyInsertError(err)
 	}
+	receipt.TransactionID, receipt.CreatedAt = inserted.ID, inserted.CreatedAt
 	// The line says "in transaction": it is final only if the caller's transaction commits. The key and the
 	// description are not logged.
 	logger.FromContext(ctx).Info("wallet transfer applied in transaction", logger.Op("wallet.transfer"),
@@ -198,18 +198,16 @@ type keyedRow struct {
 // findKeyedRow reads the buyer's row for the key. The unique index is on ("from", idempotency_key), so
 // only the buyer's own rows can match.
 func findKeyedRow(ctx context.Context, db DBTX, buyer uuid.UUID, key string) (keyedRow, bool, error) {
-	var row keyedRow
-	err := db.QueryRow(ctx,
-		`SELECT id, "to", amount, currency, status::text, description, created_at
-		 FROM public.transactions WHERE "from" = $1 AND idempotency_key = $2`,
-		buyer.String(), key).Scan(&row.id, &row.to, &row.amount, &row.currency, &row.status, &row.description, &row.createdAt)
+	row, err := queries(db).FindKeyedTransaction(ctx, repository.FindKeyedTransactionParams{
+		FromParty: buyer.String(), IdempotencyKey: textPtr(key)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return keyedRow{}, false, nil
 	}
 	if err != nil {
 		return keyedRow{}, false, persistence(err)
 	}
-	return row, true, nil
+	return keyedRow{id: row.ID, to: row.To, amount: row.Amount, currency: row.Currency, status: row.Status,
+		description: row.Description, createdAt: row.CreatedAt}, true, nil
 }
 
 // replayOf accepts the stored row only when it is this very transfer: a completed COIN row from the buyer

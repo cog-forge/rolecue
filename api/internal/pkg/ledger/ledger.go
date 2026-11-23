@@ -10,6 +10,7 @@ import (
 	"errors"
 	"math"
 
+	"github.com/cog-forge/rolecue/api/internal/pkg/ledger/repository"
 	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 	"github.com/cog-forge/rolecue/api/pkg/apperror"
 	"github.com/google/uuid"
@@ -52,8 +53,8 @@ func DebitKeyed(ctx context.Context, db DBTX, userID uuid.UUID, amount int32, de
 	if !found || balance < amount {
 		return insufficientBalance()
 	}
-	if _, err := db.Exec(ctx, `UPDATE public.wallets SET balance = $2 WHERE id = $1`, walletID, balance-amount); err != nil {
-		return persistence(err)
+	if err := setBalance(ctx, db, walletID, balance-amount); err != nil {
+		return err
 	}
 	if err := insertRowKeyed(ctx, db, userID.String(), Counterparty, amount, description, key); err != nil {
 		return err
@@ -112,9 +113,8 @@ func logCredit(ctx context.Context, op string, userID uuid.UUID, amount, balance
 
 // addToWallet creates the wallet if it is missing, locks it, raises the balance by amount and returns the new balance.
 func addToWallet(ctx context.Context, db DBTX, userID uuid.UUID, amount int32) (int32, error) {
-	if _, err := db.Exec(ctx,
-		`INSERT INTO public.wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING`, userID); err != nil {
-		return 0, persistence(err)
+	if err := ensureWallet(ctx, db, userID); err != nil {
+		return 0, err
 	}
 	walletID, balance, found, err := lockWallet(ctx, db, userID)
 	if err != nil {
@@ -126,8 +126,8 @@ func addToWallet(ctx context.Context, db DBTX, userID uuid.UUID, amount int32) (
 	if int64(balance)+int64(amount) > math.MaxInt32 {
 		return 0, apperror.New(apperror.CodeInternal, "wallet balance would exceed the maximum")
 	}
-	if _, err := db.Exec(ctx, `UPDATE public.wallets SET balance = $2 WHERE id = $1`, walletID, balance+amount); err != nil {
-		return 0, persistence(err)
+	if err := setBalance(ctx, db, walletID, balance+amount); err != nil {
+		return 0, err
 	}
 	return balance + amount, nil
 }
@@ -143,24 +143,38 @@ func checkAmount(amount int32) error {
 	return nil
 }
 
+// ensureWallet creates the user's wallet at zero when it is missing.
+func ensureWallet(ctx context.Context, db DBTX, userID uuid.UUID) error {
+	if err := queries(db).EnsureWallet(ctx, userID); err != nil {
+		return persistence(err)
+	}
+	return nil
+}
+
 // lockWallet reads and locks the user's wallet row. found is false when the user has no wallet.
 func lockWallet(ctx context.Context, db DBTX, userID uuid.UUID) (walletID uuid.UUID, balance int32, found bool, err error) {
-	err = db.QueryRow(ctx,
-		`SELECT id, balance FROM public.wallets WHERE user_id = $1 FOR UPDATE`, userID).Scan(&walletID, &balance)
+	row, err := queries(db).LockWalletByUser(ctx, userID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, 0, false, nil
 	}
 	if err != nil {
 		return uuid.Nil, 0, false, persistence(err)
 	}
-	return walletID, balance, true, nil
+	return row.ID, row.Balance, true, nil
+}
+
+// setBalance writes the new balance of a wallet row the caller has locked.
+func setBalance(ctx context.Context, db DBTX, walletID uuid.UUID, balance int32) error {
+	if err := queries(db).SetWalletBalance(ctx, repository.SetWalletBalanceParams{ID: walletID, Balance: balance}); err != nil {
+		return persistence(err)
+	}
+	return nil
 }
 
 func insertRow(ctx context.Context, db DBTX, from, to string, amount int32, description string) error {
-	if _, err := db.Exec(ctx,
-		`INSERT INTO public.transactions ("from", "to", amount, currency, description, status)
-		 VALUES ($1, $2, $3, $4, $5, 'success')`,
-		from, to, amount, Currency, description); err != nil {
+	err := queries(db).InsertCoinTransaction(ctx, repository.InsertCoinTransactionParams{
+		FromParty: from, ToParty: to, Amount: amount, Currency: Currency, Description: textPtr(description)})
+	if err != nil {
 		return persistence(err)
 	}
 	return nil
@@ -171,10 +185,9 @@ func insertRowKeyed(ctx context.Context, db DBTX, from, to string, amount int32,
 	if key == "" {
 		return insertRow(ctx, db, from, to, amount, description)
 	}
-	if _, err := db.Exec(ctx,
-		`INSERT INTO public.transactions ("from", "to", amount, currency, description, status, idempotency_key)
-		 VALUES ($1, $2, $3, $4, $5, 'success', $6)`,
-		from, to, amount, Currency, description, key); err != nil {
+	err := queries(db).InsertKeyedCoinTransaction(ctx, repository.InsertKeyedCoinTransactionParams{
+		FromParty: from, ToParty: to, Amount: amount, Currency: Currency, Description: textPtr(description), IdempotencyKey: textPtr(key)})
+	if err != nil {
 		return persistence(err)
 	}
 	return nil

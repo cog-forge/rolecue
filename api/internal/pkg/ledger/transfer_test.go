@@ -180,8 +180,8 @@ func TestMarketplaceTransferWritesBothBalancesAndOneRow(t *testing.T) {
 	balances := map[uuid.UUID]int32{}
 	for _, args := range db.execArgs {
 		if len(args) == 2 {
-			if id, ok := args[0].(uuid.UUID); ok {
-				balances[id] = args[1].(int32)
+			if id, ok := args[1].(uuid.UUID); ok {
+				balances[id] = args[0].(int32)
 			}
 		}
 	}

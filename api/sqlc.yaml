@@ -424,3 +424,24 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "UUID"
+  - engine: "postgresql"
+    queries: "internal/pkg/ledger/repository/query/"
+    schema: "migrations/"
+    gen:
+      go:
+        package: "repository"
+        out: "internal/pkg/ledger/repository"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
+        omit_unused_structs: true
+        overrides:
+          - db_type: "uuid"
+            nullable: false
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "timestamptz"
+            nullable: false
+            go_type:
+              import: "time"
+              type: "Time"
