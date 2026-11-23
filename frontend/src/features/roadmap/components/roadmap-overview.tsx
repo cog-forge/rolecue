@@ -19,12 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import { roleProfileKeys } from "@/features/role-profile/api/keys";
 import {
   listRoleProfiles,
   ROLE_PROFILES_PAGE_SIZE,
+  roleProfileKeys,
 } from "@/features/role-profile/api/requests";
-import type { RoleSummary } from "@/features/role-profile/api/contract";
+import type { RoleSummary } from "@/features/role-profile/schemas/role-profile-schema";
 import { setupHref } from "@/features/interview-setup/lib/setup-params";
 import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 import { getRoadmap, roadmapKeys, type Roadmap } from "../api/roadmap";

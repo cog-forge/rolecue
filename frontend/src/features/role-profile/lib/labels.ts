@@ -1,5 +1,5 @@
 import type { useTranslations } from "next-intl";
-import type { RoleRequirement } from "../api/contract";
+import type { RoleRequirement } from "../schemas/role-profile-schema";
 
 export type RoleLabelTranslator = ReturnType<
   typeof useTranslations<"candidate.roleProfiles.labels">

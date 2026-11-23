@@ -1,15 +1,25 @@
 import axios from "axios";
 import { apiClient } from "@/lib/api/client";
 import {
-  documentEnvelopeSchema,
-  entrySchema,
   listEnvelopeSchema,
   profileEnvelopeSchema,
-  reviewSchema,
-  type RoleReview,
-  type UploadTicket,
+} from "../schemas/role-profile-schema";
+import { entrySchema } from "../schemas/role-entry-schema";
+import { reviewSchema, type RoleReview } from "../schemas/role-review-schema";
+import {
+  documentEnvelopeSchema,
   uploadEnvelopeSchema,
-} from "./contract";
+  type UploadTicket,
+} from "../schemas/upload-schema";
+
+export const roleProfileKeys = {
+  all: (userId: string) => ["role-profiles", userId] as const,
+  lists: (userId: string) => [...roleProfileKeys.all(userId), "list"] as const,
+  list: (userId: string, offset: number) =>
+    [...roleProfileKeys.lists(userId), offset] as const,
+  detail: (userId: string, id: string) =>
+    [...roleProfileKeys.all(userId), "detail", id] as const,
+};
 
 export const ROLE_PROFILES_PAGE_SIZE = 20;
 

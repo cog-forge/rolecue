@@ -5,7 +5,7 @@ import { FileText, Upload, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { pdfFileError } from "../api/contract";
+import { pdfFileError } from "../lib/pdf-file";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 
 export function DocumentUploadPanel({

@@ -3,7 +3,7 @@
 import { Check, FileText, LoaderCircle, PencilLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
-import type { RoleSummary } from "../api/contract";
+import type { RoleSummary } from "../schemas/role-profile-schema";
 import { statusLabel } from "../lib/labels";
 
 const statusIcons = {

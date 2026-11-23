@@ -275,7 +275,7 @@ async function mockDashboard(page: Page, options: Options = {}) {
   return { hits, recover };
 }
 
-test("the dashboard shows the Target JDs, practice, application and coin cards from the API", async ({
+test("the dashboard shows the Role Profiles, practice, application and coin cards from the API", async ({
   page,
 }) => {
   await mockDashboard(page);
@@ -285,9 +285,9 @@ test("the dashboard shows the Target JDs, practice, application and coin cards f
     page.getByRole("heading", { level: 1, name: "Dashboard" }),
   ).toBeVisible();
 
-  const targetJds = page.getByRole("region", { name: "Target JDs" });
-  await expect(targetJds).toContainText("1 Target JD");
-  await expect(targetJds).toContainText(
+  const roleProfiles = page.getByRole("region", { name: "Role Profiles" });
+  await expect(roleProfiles).toContainText("1 Role Profile");
+  await expect(roleProfiles).toContainText(
     "Next step: Waiting for your review for Frontend Developer.",
   );
 
@@ -320,9 +320,9 @@ test("when the applications request fails, that card shows its error and the oth
     applications.getByRole("button", { name: "Try again" }),
   ).toBeEnabled();
 
-  await expect(page.getByRole("region", { name: "Target JDs" })).toContainText(
-    "1 Target JD",
-  );
+  await expect(
+    page.getByRole("region", { name: "Role Profiles" }),
+  ).toContainText("1 Role Profile");
   await expect(
     page.getByRole("region", { name: "Practice activity" }),
   ).toContainText("82.00/100");

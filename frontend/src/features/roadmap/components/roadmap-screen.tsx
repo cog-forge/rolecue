@@ -27,8 +27,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import { getRoleProfile } from "@/features/role-profile/api/requests";
-import { roleProfileKeys } from "@/features/role-profile/api/keys";
+import {
+  getRoleProfile,
+  roleProfileKeys,
+} from "@/features/role-profile/api/requests";
 import { setupHref } from "@/features/interview-setup/lib/setup-params";
 import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 import { useFormatters } from "@/lib/i18n/use-formatters";

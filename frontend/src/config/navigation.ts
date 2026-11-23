@@ -49,11 +49,7 @@ export const workspaceNavigation: Record<
           label: "Role Profiles",
           href: routes.roleProfiles.root,
           icon: FileText,
-          match: [
-            routes.roleProfiles.root,
-            routes.targetJds,
-            "/interviews/new",
-          ],
+          match: [routes.roleProfiles.root, "/interviews/new"],
         },
         {
           label: "Learning Roadmaps",
@@ -252,7 +248,6 @@ export function isWorkspacePath(pathname: string) {
     "/interviews",
     "/reports",
     routes.dashboard,
-    routes.targetJds,
     routes.roleProfiles.root,
     routes.roadmaps,
     routes.avatarStudio,

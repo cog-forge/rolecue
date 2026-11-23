@@ -63,7 +63,11 @@ function RoleProfilesBody({
         icons={[FileText]}
         title={t("emptyTitle")}
         description={t("empty")}
-        action={{ label: t("add"), href: routes.targetJds, variant: "outline" }}
+        action={{
+          label: t("add"),
+          href: routes.roleProfiles.new,
+          variant: "outline",
+        }}
         className="min-h-40 px-0! py-2!"
       />
     );
@@ -106,7 +110,7 @@ function RoleProfilesBody({
         ))}
       </ul>
       <Button asChild variant="link" className="h-11 px-0">
-        <Link href={routes.targetJds}>{t("manage")}</Link>
+        <Link href={routes.roleProfiles.root}>{t("manage")}</Link>
       </Button>
     </div>
   );

@@ -17,14 +17,15 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import type { RoleProfile, RoleReview } from "../api/contract";
-import { roleProfileKeys } from "../api/keys";
 import {
   analyzeRoleProfile,
   confirmRoleProfile,
   getRoleProfile,
+  roleProfileKeys,
   saveRoleProfile,
 } from "../api/requests";
+import type { RoleProfile } from "../schemas/role-profile-schema";
+import type { RoleReview } from "../schemas/role-review-schema";
 import { useRoleError } from "../lib/use-role-error";
 import { OriginalRoleDocument } from "./original-role-document";
 import { RoleProfileStatus } from "./role-profile-status";

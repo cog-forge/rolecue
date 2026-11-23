@@ -42,22 +42,22 @@
       "partial": "Partial score"
     },
     "profiles": {
-      "title": "Target JDs",
-      "loading": "Loading your Target JDs…",
-      "error": "We couldn't load your Target JDs.",
-      "empty": "You haven't added a Target JD yet. Add one to shape your practice interviews.",
-      "add": "Add a Target JD",
-      "count": "{count, plural, one {{countText} Target JD} other {{countText} Target JDs}}",
+      "title": "Role Profiles",
+      "loading": "Loading your Role Profiles…",
+      "error": "We couldn't load your Role Profiles.",
+      "empty": "You haven't added a Role Profile yet. Add one to shape your practice interviews.",
+      "add": "Add a Role Profile",
+      "count": "{count, plural, one {{countText} Role Profile} other {{countText} Role Profiles}}",
       "next": "Next step: {status} for <name>{title}</name>.",
-      "ready": "Your Target JDs are ready for practice.",
-      "manage": "Manage Target JDs",
+      "ready": "Your Role Profiles are ready for practice.",
+      "manage": "Manage Role Profiles",
       "status": {
         "draft": "Draft",
         "analyzing": "Analyzing the job description",
         "review": "Waiting for your review",
         "confirmed": "Ready to practice"
       },
-      "emptyTitle": "No Target JDs yet"
+      "emptyTitle": "No Role Profiles yet"
     },
     "wallet": {
       "title": "Coin balance",
@@ -104,13 +104,13 @@
       "ongoing": "Practice in progress",
       "practiceLabel": "Keep practising",
       "practiceTitle": "Practise for your target role",
-      "practiceDescription": "Choose a Target JD and rehearse the technical skills the role calls for.",
+      "practiceDescription": "Choose a Role Profile and rehearse the technical skills the role calls for.",
       "invitedDescription": "Review the application and complete your interview before the deadline.",
       "ongoingDescription": "Open the session details to check its current status.",
       "deadline": "Complete by {date}",
       "openApplication": "Review application",
       "openSession": "Check session",
-      "practiceAction": "Choose a Target JD",
+      "practiceAction": "Choose a Role Profile",
       "allApplications": "All applications"
     },
     "loadingCard": "Loading {title}…"

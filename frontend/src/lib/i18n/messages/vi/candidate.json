@@ -42,22 +42,22 @@
       "partial": "Điểm một phần"
     },
     "profiles": {
-      "title": "JD mục tiêu",
-      "loading": "Đang tải JD mục tiêu…",
-      "error": "Không thể tải JD mục tiêu của bạn.",
-      "empty": "Bạn chưa thêm JD mục tiêu. Hãy thêm một JD để định hướng các buổi luyện tập.",
-      "add": "Thêm JD mục tiêu",
-      "count": "{countText} JD mục tiêu",
+      "title": "Hồ sơ vị trí",
+      "loading": "Đang tải hồ sơ vị trí…",
+      "error": "Không thể tải hồ sơ vị trí của bạn.",
+      "empty": "Bạn chưa thêm hồ sơ vị trí. Hãy thêm một hồ sơ để định hướng các buổi luyện tập.",
+      "add": "Thêm hồ sơ vị trí",
+      "count": "{countText} hồ sơ vị trí",
       "next": "Bước tiếp theo: {status} cho <name>{title}</name>.",
-      "ready": "Các JD mục tiêu đã sẵn sàng để luyện tập.",
-      "manage": "Quản lý JD mục tiêu",
+      "ready": "Các hồ sơ vị trí đã sẵn sàng để luyện tập.",
+      "manage": "Quản lý hồ sơ vị trí",
       "status": {
         "draft": "Bản nháp",
         "analyzing": "Đang phân tích mô tả công việc",
         "review": "Đang chờ bạn xem lại",
         "confirmed": "Sẵn sàng luyện tập"
       },
-      "emptyTitle": "Chưa có JD mục tiêu"
+      "emptyTitle": "Chưa có hồ sơ vị trí"
     },
     "wallet": {
       "title": "Số dư xu",
@@ -104,13 +104,13 @@
       "ongoing": "Buổi luyện tập đang diễn ra",
       "practiceLabel": "Tiếp tục luyện tập",
       "practiceTitle": "Luyện tập cho vị trí mục tiêu",
-      "practiceDescription": "Chọn JD mục tiêu và luyện những kỹ năng chuyên môn mà vị trí yêu cầu.",
+      "practiceDescription": "Chọn hồ sơ vị trí và luyện những kỹ năng chuyên môn mà vị trí yêu cầu.",
       "invitedDescription": "Xem lại đơn ứng tuyển và hoàn thành phỏng vấn trước hạn.",
       "ongoingDescription": "Mở chi tiết buổi luyện tập để kiểm tra trạng thái hiện tại.",
       "deadline": "Hoàn thành trước {date}",
       "openApplication": "Xem đơn ứng tuyển",
       "openSession": "Kiểm tra buổi luyện tập",
-      "practiceAction": "Chọn JD mục tiêu",
+      "practiceAction": "Chọn hồ sơ vị trí",
       "allApplications": "Tất cả đơn"
     },
     "loadingCard": "Đang tải {title}…"

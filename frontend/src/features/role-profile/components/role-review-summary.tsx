@@ -13,11 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/config/routes";
 import { setupHref } from "@/features/interview-setup/lib/setup-params";
-import {
-  isCustomTarget,
-  isKnownTarget,
-  type RoleProfile,
-} from "../api/contract";
+import { isCustomTarget, isKnownTarget } from "../lib/targets";
+import type { RoleProfile } from "../schemas/role-profile-schema";
 import {
   proficiencyLabel,
   requirementLabel,
@@ -30,7 +27,9 @@ export function RoleReviewSummary({ profile }: { profile: RoleProfile }) {
   return (
     <div className="space-y-7">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-semibold">{profile.title}</h2>
+        <h2 className="min-w-0 text-2xl font-semibold [overflow-wrap:anywhere]">
+          {profile.title}
+        </h2>
         {profile.seniorityLevel && (
           <Badge variant="secondary" className="h-7 px-3 text-sm">
             {seniorityLabel(labels, profile.seniorityLevel)}

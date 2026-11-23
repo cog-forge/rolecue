@@ -15,13 +15,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import type { RoleSummary } from "@/features/role-profile/api/contract";
-import { roleProfileKeys } from "@/features/role-profile/api/keys";
 import {
   getRoleProfile,
   listRoleProfiles,
   ROLE_PROFILES_PAGE_SIZE,
+  roleProfileKeys,
 } from "@/features/role-profile/api/requests";
+import type { RoleSummary } from "@/features/role-profile/schemas/role-profile-schema";
 import { useUnfinishedPractice } from "../api/setup-catalog";
 import { setupHref } from "../lib/setup-params";
 import { PracticeProgress, ResumeCallout } from "./resume-callout";

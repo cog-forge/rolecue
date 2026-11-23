@@ -16,21 +16,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import {
-  createEntrySchema,
-  normalizeRoleText,
-  type EntryValues,
-  type RoleProfile,
-  type UploadTicket,
-} from "../api/contract";
-import { roleProfileKeys } from "../api/keys";
-import {
   analyzeRoleProfile,
   completePDFUpload,
   createPDFUpload,
   createRoleProfile,
   getRoleProfile,
+  roleProfileKeys,
   uploadPDF,
 } from "../api/requests";
+import { normalizeRoleText } from "../lib/role-text";
+import {
+  createEntrySchema,
+  type EntryValues,
+} from "../schemas/role-entry-schema";
+import type { RoleProfile } from "../schemas/role-profile-schema";
+import type { UploadTicket } from "../schemas/upload-schema";
 import { DocumentUploadPanel } from "./document-upload-panel";
 import { RoleProfileSteps } from "./role-profile-steps";
 import { useRoleError } from "../lib/use-role-error";

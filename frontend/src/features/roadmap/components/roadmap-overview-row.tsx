@@ -15,7 +15,7 @@ import { LoadingMorph } from "@/components/ui/loading-morph";
 import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/config/routes";
-import type { RoleSummary } from "@/features/role-profile/api/contract";
+import type { RoleSummary } from "@/features/role-profile/schemas/role-profile-schema";
 import { useApiErrorMessage } from "@/lib/i18n/use-api-error-message";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import type { Roadmap } from "../api/roadmap";

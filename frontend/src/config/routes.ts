@@ -9,7 +9,6 @@ export const routes = {
   twoFactor: "/two-factor",
   dashboard: "/dashboard",
   roadmaps: "/roadmaps",
-  targetJds: "/target-jds",
   roleProfiles: {
     root: "/role-profiles",
     new: "/role-profiles/new",
