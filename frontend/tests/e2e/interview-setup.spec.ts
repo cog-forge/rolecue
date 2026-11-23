@@ -1,4 +1,8 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import {
+  createSetupMock,
+  type SetupMock,
+} from "./fixtures/interview-setup-api";
 
 // KAN-51: setup ends in exactly one real operation, a start or a resume, then the room URL. Every
 // API call is mocked here; nothing reaches a real wallet.
@@ -30,7 +34,7 @@ const corsHeaders = (route: Route) => ({
   "access-control-allow-origin":
     route.request().headers().origin ?? "http://127.0.0.1:3100",
   "access-control-allow-credentials": "true",
-  "access-control-allow-methods": "GET,POST,OPTIONS",
+  "access-control-allow-methods": "GET,POST,PUT,OPTIONS",
   "access-control-allow-headers": "Content-Type, Idempotency-Key",
 });
 
@@ -80,10 +84,35 @@ type Options = {
   unfinished?: boolean;
   start?: (attempt: number) => { status: number; body: unknown };
   application?: Record<string, unknown>;
+  /** The saved setup the API starts with; `ready` makes the practice setup complete. */
+  setup?: Parameters<typeof createSetupMock>[0]["initial"];
+  inactiveVoices?: string[];
+  /** Start with a saved, complete setup (both modes). */
+  ready?: boolean;
 };
+
+const minhVoiceId = "55555555-5555-4555-8555-000000000002";
 
 async function mockApi(page: Page, options: Options = {}) {
   const starts: Start[] = [];
+  const setup: SetupMock = createSetupMock({
+    profileId,
+    applicationId,
+    avatars: { [miaId]: "Mia" },
+    voices: { [avaId]: "Ava – English", [minhVoiceId]: "Minh – Vietnamese" },
+    inactiveVoices: options.inactiveVoices,
+    lockedAvatar: ["44444444-4444-4444-8444-0000000000aa", "Acme interviewer"],
+    lockedVoice: [avaId, "Ava – English"],
+    initial: options.ready
+      ? {
+          avatar_id: miaId,
+          voice_id: avaId,
+          environment: "office-3d",
+          saved: true,
+          ...options.setup,
+        }
+      : options.setup,
+  });
   const reply = (route: Route, data: unknown, status = 200) =>
     route.fulfill({
       status,
@@ -98,6 +127,8 @@ async function mockApi(page: Page, options: Options = {}) {
     if (method === "OPTIONS")
       return route.fulfill({ status: 204, headers: corsHeaders(route) });
     if (path === "/auth/me") return reply(route, candidate);
+    const saved = setup.handle(path, method, request.postDataJSON());
+    if (saved) return reply(route, saved.data, saved.status);
     if (path === "/wallet")
       return reply(route, {
         id: "wallet",
@@ -231,7 +262,7 @@ async function mockApi(page: Page, options: Options = {}) {
       404,
     );
   });
-  return { starts };
+  return { starts, setup };
 }
 
 async function testMicrophone(page: Page) {
@@ -246,7 +277,7 @@ async function testMicrophone(page: Page) {
 test("practice: choose a Role Profile, an avatar and a voice, check the microphone, then start", async ({
   page,
 }) => {
-  const { starts } = await mockApi(page);
+  const { starts, setup } = await mockApi(page);
   await page.goto("/interviews/new/setup");
 
   const profiles = page.getByRole("radiogroup", {
@@ -261,12 +292,12 @@ test("practice: choose a Role Profile, an avatar and a voice, check the micropho
   await expect(
     page.getByRole("heading", { level: 1, name: "Choose your interviewer" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("radio", { name: /2d interviewer/i }),
-  ).toBeChecked();
+  await expect(page.getByRole("radio", { name: /mia/i })).not.toBeChecked();
   await page.getByRole("radio", { name: /mia/i }).click();
   await page.getByRole("combobox", { name: "Voice" }).click();
   await page.getByRole("option", { name: "Ava – English" }).click();
+  await page.getByRole("radio", { name: "Office (3D room)" }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /continue to preflight/i }).click();
 
   await expect(page).toHaveURL(
@@ -276,6 +307,12 @@ test("practice: choose a Role Profile, an avatar and a voice, check the micropho
   await expect(summary).toContainText(roleProfile.title);
   await expect(summary).toContainText("Mia");
   await expect(summary).toContainText("Ava – English");
+  await expect(summary).toContainText("Office");
+  expect(setup.puts.at(-1)).toEqual({
+    avatar_id: miaId,
+    voice_id: avaId,
+    environment: "office-3d",
+  });
   await expect(page.getByText("9 coins")).toBeVisible();
   const start = page.getByRole("button", { name: "Start interview · 5 coins" });
   await expect(start).toBeDisabled();
@@ -339,6 +376,7 @@ test("practice: a refused balance offers Add coins, and an unknown outcome retri
   page,
 }) => {
   const { starts } = await mockApi(page, {
+    ready: true,
     start: (attempt) =>
       attempt === 1
         ? { status: 502, body: { error: "Upstream service unavailable" } }
@@ -376,7 +414,7 @@ test("practice: a refused balance offers Add coins, and an unknown outcome retri
 test("recruitment: start from the Application with the company's interviewer, for free", async ({
   page,
 }) => {
-  const { starts } = await mockApi(page, {
+  const { starts, setup } = await mockApi(page, {
     start: (attempt) =>
       attempt === 1
         ? {
@@ -417,6 +455,14 @@ test("recruitment: start from the Application with the company's interviewer, fo
   await expect(panel.getByText(/coins/)).toHaveCount(0);
   await testMicrophone(page);
   const start = page.getByRole("button", { name: "Start interview" });
+  // The company locked the interviewer; the Candidate only chooses the room.
+  await expect(
+    page.getByText("Choose an interview room.", { exact: true }),
+  ).toBeVisible();
+  await expect(start).toBeDisabled();
+  await page.getByRole("radio", { name: "Balcony" }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(setup.puts).toEqual([{ environment: "balcony" }]);
   // The interview is recorded: Start waits for the camera, next to the disclosure.
   await expect(start).toBeDisabled();
   await expect(
@@ -468,7 +514,7 @@ test("vi: the setup steps speak Vietnamese and keep stored names as they are", a
     .addCookies([
       { name: "NEXT_LOCALE", value: "vi", url: "http://127.0.0.1:3100" },
     ]);
-  await mockApi(page);
+  await mockApi(page, { ready: true });
   await page.goto("/interviews/new/setup");
 
   await expect(
@@ -487,7 +533,7 @@ test("vi: the setup steps speak Vietnamese and keep stored names as they are", a
     page.getByRole("heading", { level: 1, name: "Chọn người phỏng vấn" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("radio", { name: /người phỏng vấn 2d/i }),
+    page.getByRole("group", { name: "Phòng phỏng vấn" }),
   ).toBeVisible();
   await expect(page.getByRole("radio", { name: /mia/i })).toBeVisible();
 
@@ -509,6 +555,46 @@ test("vi: the setup steps speak Vietnamese and keep stored names as they are", a
     page.getByText("Micro đã sẵn sàng", { exact: true }),
   ).toBeVisible();
   await expect(start).toBeEnabled();
+});
+
+test("practice: a saved setup is restored after a reload, and a blocker is explained with a link to its step", async ({
+  page,
+}) => {
+  const { starts } = await mockApi(page, {
+    ready: true,
+    inactiveVoices: [avaId],
+  });
+  await page.goto(`/interviews/new/interviewer?roleProfileId=${profileId}`);
+  // Nothing in the URL: everything comes back from the saved setup.
+  await expect(page.getByRole("radio", { name: /mia/i })).toBeChecked();
+  await expect(page.getByRole("combobox", { name: "Voice" })).toContainText(
+    "Ava – English",
+  );
+  await expect(
+    page.getByRole("radio", { name: "Office (3D room)" }),
+  ).toBeChecked();
+  await page.reload();
+  await expect(page.getByRole("radio", { name: /mia/i })).toBeChecked();
+  await expect(
+    page.getByRole("radio", { name: "Office (3D room)" }),
+  ).toBeChecked();
+
+  await page.getByRole("button", { name: /continue to preflight/i }).click();
+  const blockers = page.getByRole("region", { name: "Before you can start" });
+  await expect(blockers).toContainText(
+    "Your chosen voice is no longer available. Choose another.",
+  );
+  await testMicrophone(page);
+  await expect(
+    page.getByRole("button", { name: "Start interview · 5 coins" }),
+  ).toBeDisabled();
+  await expect(page.getByText("Finish your setup to start.")).toBeVisible();
+  await blockers.getByRole("link", { name: "Fix in setup" }).click();
+  await expect(page).toHaveURL(/\/interviews\/new\/interviewer.*#setup-voice/);
+  await page.getByRole("combobox", { name: "Voice" }).click();
+  await page.getByRole("option", { name: "Minh – Vietnamese" }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  expect(starts).toEqual([]);
 });
 
 test("setup steps fit a 390 px phone without sideways scrolling", async ({

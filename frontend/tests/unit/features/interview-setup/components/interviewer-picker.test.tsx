@@ -2,10 +2,19 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  avaVoiceId as ava,
+  ducId as duc,
+  envelope,
+  miaId as mia,
+  practiceView,
+  profileId,
+} from "../saved-setup-fixtures";
 import { InterviewerPicker } from "@/features/interview-setup/components/interviewer-picker";
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  put: vi.fn(),
   push: vi.fn(),
   user: {
     id: "11111111-1111-4111-8111-111111111111",
@@ -17,7 +26,9 @@ const mocks = vi.hoisted(() => ({
     image: null,
   },
 }));
-vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get } }));
+vi.mock("@/lib/api/client", () => ({
+  apiClient: { get: mocks.get, put: mocks.put },
+}));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
 }));
@@ -25,10 +36,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mocks.push }),
 }));
 
-const profileId = "22222222-2222-4222-8222-222222222222";
-const mia = "44444444-4444-4444-8444-000000000001";
-const duc = "44444444-4444-4444-8444-000000000002";
-const ava = "55555555-5555-4555-8555-000000000001";
 const retired = "55555555-5555-4555-8555-000000000009";
 
 const avatar = (id: string, name: string) => ({
@@ -41,7 +48,11 @@ const avatar = (id: string, name: string) => ({
 
 function api({
   avatars = [avatar(mia, "Mia"), avatar(duc, "Đức")],
-}: { avatars?: ReturnType<typeof avatar>[] } = {}) {
+  saved = practiceView(),
+}: {
+  avatars?: ReturnType<typeof avatar>[];
+  saved?: ReturnType<typeof practiceView>;
+} = {}) {
   mocks.get.mockImplementation((url: string) => {
     if (url === "/inventory/avatars")
       return Promise.resolve({
@@ -70,8 +81,25 @@ function api({
           data: { items: [], total: 0, page: 1, page_size: 100 },
         },
       });
+    if (url === `/interview-setups/practice/${profileId}`)
+      return Promise.resolve(envelope(saved));
     return Promise.reject(new Error(`unexpected GET ${url}`));
   });
+  // The API answers a save with the revalidated view of what it stored.
+  mocks.put.mockImplementation((_url: string, body: Record<string, string>) =>
+    Promise.resolve(
+      envelope(
+        practiceView({
+          saved: true,
+          avatar: body.avatar_id ? { id: body.avatar_id, name: "Mia" } : null,
+          voice: body.voice_id
+            ? { id: body.voice_id, name: "Ava - English" }
+            : null,
+          environment: body.environment,
+        }),
+      ),
+    ),
+  );
 }
 
 function renderPicker(props: Parameters<typeof InterviewerPicker>[0]) {
@@ -87,6 +115,7 @@ function renderPicker(props: Parameters<typeof InterviewerPicker>[0]) {
 
 beforeEach(() => {
   mocks.get.mockReset();
+  mocks.put.mockReset();
   mocks.push.mockReset();
   vi.stubGlobal(
     "IntersectionObserver",
@@ -101,44 +130,133 @@ beforeEach(() => {
   );
 });
 
-it("defaults to the 2D interviewer and the default voice, and sends neither", async () => {
+const putPath = `/interview-setups/practice/${profileId}`;
+
+it("pre-fills avatar, voice and room from the saved setup", async () => {
+  api({
+    saved: practiceView({
+      saved: true,
+      avatar: { id: duc, name: "Đức" },
+      voice: { id: ava, name: "Ava - English" },
+      environment: "meeting-3d",
+    }),
+  });
+  renderPicker({ roleProfileId: profileId });
+  expect(await screen.findByRole("radio", { name: /đức/i })).toBeChecked();
+  expect(screen.getByRole("combobox", { name: "Voice" })).toHaveTextContent(
+    "Ava - English",
+  );
+  expect(
+    screen.getByRole("radio", { name: "Meeting room (3D room)" }),
+  ).toBeChecked();
+});
+
+it("lets the saved setup win over the URL once it exists", async () => {
+  api({
+    saved: practiceView({
+      saved: true,
+      avatar: { id: mia, name: "Mia" },
+      voice: null,
+      environment: "office",
+    }),
+  });
+  renderPicker({ roleProfileId: profileId, avatarId: duc, voiceId: ava });
+  expect(await screen.findByRole("radio", { name: /mia/i })).toBeChecked();
+  expect(screen.getByRole("radio", { name: /đức/i })).not.toBeChecked();
+  expect(screen.getByRole("combobox", { name: "Voice" })).toHaveTextContent(
+    "Choose a voice",
+  );
+});
+
+it("seeds a never-saved setup from the URL", async () => {
+  api();
+  renderPicker({ roleProfileId: profileId, avatarId: duc, voiceId: ava });
+  expect(await screen.findByRole("radio", { name: /đức/i })).toBeChecked();
+  expect(screen.getByRole("combobox", { name: "Voice" })).toHaveTextContent(
+    "Ava - English",
+  );
+});
+
+it("saves the full replace body on every choice", async () => {
   api();
   renderPicker({ roleProfileId: profileId });
-  expect(
-    await screen.findByRole("radio", { name: /2d interviewer/i }),
-  ).toBeChecked();
-  await screen.findByRole("radio", { name: /mia/i });
-  fireEvent.click(
-    screen.getByRole("button", { name: /continue to preflight/i }),
-  );
+  fireEvent.click(await screen.findByRole("radio", { name: /mia/i }));
   await waitFor(() =>
-    expect(mocks.push).toHaveBeenCalledWith(
-      `/interviews/new/preflight?roleProfileId=${profileId}`,
-    ),
+    expect(mocks.put).toHaveBeenLastCalledWith(putPath, {
+      avatar_id: mia,
+      voice_id: null,
+      environment: null,
+    }),
   );
+  fireEvent.click(screen.getByRole("radio", { name: "Balcony" }));
+  await waitFor(() =>
+    expect(mocks.put).toHaveBeenLastCalledWith(putPath, {
+      avatar_id: mia,
+      voice_id: null,
+      environment: "balcony",
+    }),
+  );
+  expect(await screen.findByText("Saved")).toBeInTheDocument();
 });
 
-it("carries a chosen avatar and voice to the preflight", async () => {
+it("saves, then carries the choices to the preflight", async () => {
   api();
-  renderPicker({ roleProfileId: profileId, voiceId: ava });
+  renderPicker({ roleProfileId: profileId });
   fireEvent.click(await screen.findByRole("radio", { name: /đức/i }));
-  expect(screen.getByRole("radio", { name: /đức/i })).toBeChecked();
-  expect(
-    await screen.findByRole("combobox", { name: "Voice" }),
-  ).toHaveTextContent("Ava - English");
+  fireEvent.click(screen.getByRole("radio", { name: "Balcony" }));
   fireEvent.click(
     screen.getByRole("button", { name: /continue to preflight/i }),
   );
   await waitFor(() =>
     expect(mocks.push).toHaveBeenCalledWith(
-      `/interviews/new/preflight?roleProfileId=${profileId}&avatarId=${duc}&voiceId=${ava}`,
+      `/interviews/new/preflight?roleProfileId=${profileId}&avatarId=${duc}`,
     ),
   );
+  expect(mocks.put).toHaveBeenLastCalledWith(putPath, {
+    avatar_id: duc,
+    voice_id: null,
+    environment: "balcony",
+  });
 });
 
-it("drops an avatar or voice that is gone instead of sending it", async () => {
-  api({ avatars: [avatar(mia, "Mia")] });
-  renderPicker({ roleProfileId: profileId, avatarId: duc, voiceId: retired });
+it("shows a failed save with a retry and stays on the step", async () => {
+  api();
+  renderPicker({ roleProfileId: profileId });
+  mocks.put.mockRejectedValueOnce(new Error("offline"));
+  fireEvent.click(await screen.findByRole("radio", { name: /mia/i }));
+  expect(
+    await screen.findByText("We couldn't save your choices."),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByText("Saved")).toBeInTheDocument();
+  expect(mocks.put).toHaveBeenCalledTimes(2);
+});
+
+it("does not continue while the save fails", async () => {
+  api();
+  renderPicker({ roleProfileId: profileId });
+  await screen.findByRole("radio", { name: /mia/i });
+  mocks.put.mockRejectedValue(new Error("offline"));
+  fireEvent.click(
+    screen.getByRole("button", { name: /continue to preflight/i }),
+  );
+  expect(
+    await screen.findByText("We couldn't save your choices."),
+  ).toBeInTheDocument();
+  expect(mocks.push).not.toHaveBeenCalled();
+});
+
+it("drops an avatar or voice that is gone instead of saving it", async () => {
+  api({
+    avatars: [avatar(mia, "Mia")],
+    saved: practiceView({
+      saved: true,
+      avatar: { id: duc, name: "Đức" },
+      voice: { id: retired, name: "Old" },
+      environment: "cafe",
+    }),
+  });
+  renderPicker({ roleProfileId: profileId });
   expect(
     await screen.findByText(
       /the avatar you chose is no longer in your inventory/i,
@@ -147,27 +265,51 @@ it("drops an avatar or voice that is gone instead of sending it", async () => {
   expect(
     await screen.findByText(/the voice you chose is no longer available/i),
   ).toBeInTheDocument();
-  expect(screen.getByRole("radio", { name: /2d interviewer/i })).toBeChecked();
   fireEvent.click(
     screen.getByRole("button", { name: /continue to preflight/i }),
   );
   await waitFor(() =>
-    expect(mocks.push).toHaveBeenCalledWith(
-      `/interviews/new/preflight?roleProfileId=${profileId}`,
-    ),
+    expect(mocks.put).toHaveBeenCalledWith(putPath, {
+      avatar_id: null,
+      voice_id: null,
+      environment: "cafe",
+    }),
   );
 });
 
-it("still offers the 2D interviewer with an empty inventory", async () => {
+it("invites an empty inventory to the Studio", async () => {
   api({ avatars: [] });
   renderPicker({ roleProfileId: profileId });
   expect(
     await screen.findByText(/you don't have an avatar yet/i),
   ).toBeInTheDocument();
-  expect(screen.getByRole("radio", { name: /2d interviewer/i })).toBeChecked();
   expect(
     screen.getByRole("link", { name: "Create one in Avatar Studio" }),
   ).toHaveAttribute("href", "/avatar-studio/new");
+});
+
+it("offers a retry when the saved setup cannot be loaded", async () => {
+  api();
+  mocks.get.mockImplementation((url: string) =>
+    url === putPath
+      ? Promise.reject(new Error("down"))
+      : Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              items: [],
+              total: 0,
+              page: 1,
+              page_size: 100,
+              pagination: { limit: 12, offset: 0, total: 0 },
+            },
+          },
+        }),
+  );
+  renderPicker({ roleProfileId: profileId });
+  expect(
+    await screen.findByText("We couldn't load your saved setup."),
+  ).toBeInTheDocument();
 });
 
 it("asks for a Role Profile first when none is chosen", () => {

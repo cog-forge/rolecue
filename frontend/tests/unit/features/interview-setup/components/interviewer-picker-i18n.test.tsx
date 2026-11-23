@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { envelope, practiceView } from "../saved-setup-fixtures";
 import { InterviewerPicker } from "@/features/interview-setup/components/interviewer-picker";
 
 const mocks = vi.hoisted(() => ({
@@ -16,7 +17,9 @@ const mocks = vi.hoisted(() => ({
     image: null,
   },
 }));
-vi.mock("@/lib/api/client", () => ({ apiClient: { get: mocks.get } }));
+vi.mock("@/lib/api/client", () => ({
+  apiClient: { get: mocks.get, put: vi.fn() },
+}));
 vi.mock("@/features/auth/components/session-gate", () => ({
   useSessionUser: () => mocks.user,
 }));
@@ -62,6 +65,8 @@ function api(avatars: { id: string; name: string }[]) {
           data: { items: [], total: 0, page: 1, page_size: 100 },
         },
       });
+    if (url.startsWith("/interview-setups/practice/"))
+      return Promise.resolve(envelope(practiceView()));
     return Promise.reject(new Error(`unexpected GET ${url}`));
   });
 }
@@ -102,9 +107,6 @@ it("translates the picker chrome and keeps avatar and voice names as data", asyn
       name: "Chọn người phỏng vấn",
     }),
   ).toBeInTheDocument();
-  expect(
-    await screen.findByRole("radio", { name: /Người phỏng vấn 2D/ }),
-  ).toBeChecked();
   // The avatar's name and personality are stored text, shown unchanged.
   expect(await screen.findByRole("radio", { name: /Mia/ })).toBeInTheDocument();
   expect(
@@ -112,11 +114,9 @@ it("translates the picker chrome and keeps avatar and voice names as data", asyn
   ).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Mở Avatar Studio" })).toBeVisible();
   expect(screen.getByRole("combobox", { name: "Giọng nói" })).toHaveTextContent(
-    "Giọng mặc định",
+    "Chọn giọng nói",
   );
-  expect(
-    await screen.findByText("Chỉ hiển thị các giọng nói đang hoạt động."),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Phòng phỏng vấn" })).toBeVisible();
   expect(
     screen.getByRole("link", { name: /Quay lại hồ sơ vị trí/ }),
   ).toBeVisible();

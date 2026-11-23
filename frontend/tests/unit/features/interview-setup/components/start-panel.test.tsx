@@ -91,6 +91,7 @@ function renderPanel(
   plan: StartPlan,
   readiness: MicrophoneReadiness = "ready",
   children?: ReactNode,
+  setupReady?: boolean,
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -100,6 +101,7 @@ function renderPanel(
       <StartPanel
         plan={plan}
         readiness={value}
+        setupReady={setupReady}
         links={{ roleProfileId: profileId, applicationId }}
         returnPath="/interviews/new/preflight"
       >
@@ -424,4 +426,24 @@ it("asks to continue a server-returned general session when a focused start race
     screen.getByRole("button", { name: "Continue existing session" }),
   );
   expect(mocks.push).toHaveBeenCalledWith(`/interviews/${sessionId}/room`);
+});
+
+describe("the saved setup's readiness", () => {
+  it("keeps Start off with a hint while the setup is not ready", async () => {
+    wallet(9);
+    renderPanel(practice, "ready", undefined, false);
+    expect(await screen.findByText("9 coins")).toBeInTheDocument();
+    expect(startButton()).toBeDisabled();
+    expect(screen.getByText("Finish your setup to start.")).toBeInTheDocument();
+  });
+
+  it("starts once the setup is ready", async () => {
+    wallet(9);
+    renderPanel(practice, "ready", undefined, true);
+    expect(await screen.findByText("9 coins")).toBeInTheDocument();
+    expect(startButton()).toBeEnabled();
+    expect(
+      screen.queryByText("Finish your setup to start."),
+    ).not.toBeInTheDocument();
+  });
 });

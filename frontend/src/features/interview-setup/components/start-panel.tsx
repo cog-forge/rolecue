@@ -65,6 +65,7 @@ const deniedCodes = new Set(["FORBIDDEN", "INVALID_TOKEN", "USER_INACTIVE"]);
 export function StartPanel({
   plan,
   readiness,
+  setupReady,
   cameraReady,
   consentGiven,
   links,
@@ -73,6 +74,8 @@ export function StartPanel({
 }: {
   plan: StartPlan;
   readiness: MicrophoneReadiness;
+  /** The saved setup's readiness (KAN-231). `false` keeps Start off; omitted when resuming. */
+  setupReady?: boolean;
   /** Recruitment only: the interview is recorded, so Start also needs a live camera. */
   cameraReady?: boolean;
   /** Recruitment only: the recording consent box is ticked (KAN-297). */
@@ -192,8 +195,14 @@ export function StartPanel({
   const cameraMissing = cameraReady === false;
   // Recruitment only: a recording needs the Candidate's consent, so Start waits for the ticked box.
   const consentMissing = consentGiven === false;
+  const setupBlocked = setupReady === false;
   const disabled =
-    busy || !micReady || cameraMissing || consentMissing || walletBlocks;
+    busy ||
+    !micReady ||
+    setupBlocked ||
+    cameraMissing ||
+    consentMissing ||
+    walletBlocks;
   const problem = start.isError
     ? describeStartFailure(
         startFailure(start.error),
@@ -223,13 +232,15 @@ export function StartPanel({
           : t("label.start");
   const hint = !micReady
     ? t(`hint.${micHintKeys[readiness]}`)
-    : cameraMissing
-      ? recordingT("startHint")
-      : consentMissing
-        ? recordingT("consent.startHint")
-        : paid && wallet.isError
-          ? t("hint.balance")
-          : null;
+    : setupBlocked
+      ? t("hint.setup")
+      : cameraMissing
+        ? recordingT("startHint")
+        : consentMissing
+          ? recordingT("consent.startHint")
+          : paid && wallet.isError
+            ? t("hint.balance")
+            : null;
 
   const action = (
     <div className="space-y-3">

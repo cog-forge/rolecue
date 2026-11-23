@@ -1474,7 +1474,7 @@
     },
     "interviewer": {
       "title": "Choose your interviewer",
-      "description": "Pick who interviews you and how they sound. Both are optional: without an avatar you get the 2D interviewer, which works on every device.",
+      "description": "Pick who interviews you, how they sound and the room you sit in. Your choices are saved as you go.",
       "needProfile": {
         "title": "Choose your Role Profile first.",
         "description": "Pick the confirmed role you want to practise for, then choose your interviewer.",
@@ -1486,27 +1486,26 @@
       },
       "legend": "Interviewer",
       "inventoryNote": "Avatars come from your own inventory. <link>Open Avatar Studio</link>",
-      "twoD": {
-        "title": "2D interviewer",
-        "detail": "An animated voice waveform."
-      },
-      "avatarGone": "The avatar you chose is no longer in your inventory, so the 2D interviewer is selected.",
+      "avatarGone": "The avatar you chose is no longer in your inventory. Choose another.",
       "previous": "Previous",
       "next": "Next",
       "page": "Page {page} of {pageCount}",
-      "loadError": "We couldn't load your avatars. You can still use the 2D interviewer.",
+      "loadError": "We couldn't load your avatars.",
       "noAvatars": "You don't have an avatar yet. <link>Create one in Avatar Studio</link> to see it here.",
       "voice": {
         "label": "Voice",
-        "default": "Default voice",
         "loading": "Loading voices…",
-        "error": "We couldn't load the voices. The default voice is used.",
-        "none": "No voices are available yet. The default voice is used.",
-        "gone": "The voice you chose is no longer available, so the default voice is selected.",
-        "active": "Only active voices are listed."
+        "error": "We couldn't load the voices.",
+        "none": "No voices are available yet.",
+        "gone": "The voice you chose is no longer available. Choose another.",
+        "placeholder": "Choose a voice"
       },
       "back": "Back to Role Profile",
-      "continue": "Continue to preflight"
+      "continue": "Continue to preflight",
+      "loadSaved": {
+        "loading": "Loading your saved setup…",
+        "error": "We couldn't load your saved setup."
+      }
     },
     "readiness": {
       "generic": {
@@ -1535,15 +1534,13 @@
         "kept": "Kept from your unfinished interview",
         "interviewer": "Interviewer",
         "changeInterviewer": "Change interviewer",
-        "twoD": "2D interviewer",
-        "avatarGone": "The avatar you chose is no longer in your inventory.",
         "avatarError": "We couldn't load this avatar.",
         "voice": "Voice",
-        "defaultVoice": "Default voice",
-        "voiceGone": "The voice you chose is no longer available.",
         "voiceError": "We couldn't load this voice.",
         "jobPosting": "Job posting",
-        "companyInterviewer": "Interviewer chosen by the company"
+        "companyInterviewer": "Interviewer chosen by the company",
+        "notChosen": "Not chosen yet",
+        "environment": "Interview room"
       },
       "checking": "Checking for an unfinished interview…",
       "recruitment": {
@@ -1591,7 +1588,8 @@
         "notReady": "Turn on your microphone to start.",
         "muted": "Unmute your microphone to start.",
         "attention": "Your microphone needs attention. Retry the check to start.",
-        "balance": "Start is unavailable until your balance loads."
+        "balance": "Start is unavailable until your balance loads.",
+        "setup": "Finish your setup to start."
       },
       "existing": {
         "title": "Opening your existing interview",
@@ -1702,6 +1700,45 @@
         "deviceListFailed": "The microphone list could not be refreshed. Your current input may still work; refresh inputs to try again.",
         "analysisUnavailable": "Input level and voice activity are unavailable. Retry the audio check to enable them."
       }
+    },
+    "environment": {
+      "title": "Interview room",
+      "description": "Where your interview takes place. 3D rooms need a capable device; photos are lighter.",
+      "group": "Interview room"
+    },
+    "saveStatus": {
+      "saving": "Saving…",
+      "saved": "Saved",
+      "failed": "We couldn't save your choices.",
+      "retry": "Try again"
+    },
+    "blockers": {
+      "title": "Before you can start",
+      "description": "Fix these to turn on Start.",
+      "messages": {
+        "role_profile_not_confirmed": "Confirm your Role Profile before you start.",
+        "question_bank_not_ready": "The questions for this role are still being prepared.",
+        "avatar_required": "Choose an interviewer.",
+        "avatar_unavailable": "Your chosen interviewer is no longer available. Choose another.",
+        "voice_required": "Choose a voice.",
+        "voice_unavailable": "Your chosen voice is no longer available. Choose another.",
+        "environment_required": "Choose an interview room.",
+        "environment_unsupported": "Your chosen room is no longer offered. Choose another.",
+        "application_not_eligible": "This application isn't eligible for an interview.",
+        "interview_deadline_passed": "The deadline to take this interview has passed.",
+        "interview_already_started": "This interview has already started.",
+        "locked_avatar_unavailable": "The company's interviewer is unavailable right now. Try again later or contact the company.",
+        "locked_voice_unavailable": "The company's interviewer voice is unavailable right now. Try again later or contact the company.",
+        "unknown": "Something about your setup needs attention."
+      },
+      "actions": {
+        "step": "Fix in setup",
+        "profile": "Open Role Profile",
+        "application": "Back to application",
+        "here": "Choose a room"
+      },
+      "checking": "Checking your setup…",
+      "error": "We couldn't check your setup."
     }
   },
   "roadmap": {
