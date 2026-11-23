@@ -3171,6 +3171,342 @@ const docTemplate = `{
                 }
             }
         },
+        "/interview-setups/practice/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, owner of the Role Profile (a foreign or missing one is JD_NOT_FOUND). Returns the saved avatar, voice and environment (null: not chosen yet) and recomputes the readiness from the data as it is now: ready is true exactly when blockers is empty. Blockers: role_profile_not_confirmed, question_bank_not_ready, avatar_required, avatar_unavailable, voice_required, voice_unavailable, environment_required, environment_unsupported. A stored choice that went stale (an avatar no longer usable, a voice deactivated) is reported and kept; a deleted avatar or voice is cleared by the database and shows as required. Never writes, debits coins, uses a recruitment slot or starts an interview. Never returns core questions, bank size or evaluation weights. See api/docs/interview-setup-api.md.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interview-setups"
+                ],
+                "summary": "Read the saved practice setup of a Role Profile and revalidate it",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Profile UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.InterviewSetupResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. A full replacement (null or a missing field: not chosen yet, so a partial draft can be saved), idempotent: repeating it changes nothing. Refused with nothing saved: JD_NOT_FOUND (foreign or missing Role Profile), ROLE_PROFILE_REQUIRED (not confirmed), QUESTION_BANK_NOT_READY (no ready bank), AVATAR_NOT_FOUND (not in the Candidate's own inventory, deleted, or its model blocked), VOICE_NOT_FOUND (unknown or inactive voice), VALIDATION_ERROR (environment outside the catalog, unknown JSON field, bad UUID). Answers with the revalidated setup, like GET. Never debits coins, uses a recruitment slot or creates an interview: starting still goes through POST /interviews.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interview-setups"
+                ],
+                "summary": "Save the practice setup of a confirmed Role Profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Role Profile UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Setup",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.PracticeSetupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.InterviewSetupResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/interview-setups/recruitment/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only, owner of the Application (a foreign or missing one is APPLICATION_NOT_FOUND). Returns the avatar and voice the Recruiter locked on the posting (read-only, listed in locked_fields; id and name only, no model or grant), the Candidate's saved environment and the interview deadline, and recomputes the readiness now. Blockers: application_not_eligible, interview_deadline_passed, interview_already_started, locked_avatar_unavailable, locked_voice_unavailable, environment_required, environment_unsupported. Never writes, uses a recruitment slot or starts an interview. See api/docs/interview-setup-api.md.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interview-setups"
+                ],
+                "summary": "Read the recruitment setup of an Application and revalidate it",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.InterviewSetupResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "description": "Candidate only. The environment is the only Candidate-editable field; the Recruiter-locked avatar and voice cannot be sent (unknown fields are VALIDATION_ERROR). A full replacement (null: not chosen yet), idempotent. Refused with nothing saved: APPLICATION_NOT_FOUND (foreign or missing), APPLICATION_NOT_ELIGIBLE (CV not approved, deadline passed, posting not accepting, or the interview already started), VALIDATION_ERROR (environment outside the catalog). Answers with the revalidated setup. Never uses a recruitment slot or creates an interview: the first start still goes through POST /interviews.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "interview-setups"
+                ],
+                "summary": "Save the environment of a recruitment setup",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Application UUID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Setup",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RecruitmentSetupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handler.InterviewSetupResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/interviews": {
             "get": {
                 "security": [
@@ -15815,6 +16151,89 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.InterviewSetupBlocker": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "avatar_required"
+                },
+                "field": {
+                    "type": "string",
+                    "example": "avatar"
+                }
+            }
+        },
+        "handler.InterviewSetupChoice": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.InterviewSetupResponse": {
+            "type": "object",
+            "properties": {
+                "application_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "avatar": {
+                    "$ref": "#/definitions/handler.InterviewSetupChoice"
+                },
+                "blockers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.InterviewSetupBlocker"
+                    }
+                },
+                "environment": {
+                    "type": "string"
+                },
+                "interview_deadline": {
+                    "type": "string"
+                },
+                "locked_fields": {
+                    "description": "LockedFields are the fields the Candidate cannot change: avatar and voice for a recruitment interview.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "practice",
+                        "recruitment"
+                    ]
+                },
+                "ready": {
+                    "type": "boolean"
+                },
+                "role_profile_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "saved": {
+                    "type": "boolean"
+                },
+                "target_title": {
+                    "description": "TargetTitle is the Role Profile title (practice) or the posting title (recruitment).",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "voice": {
+                    "$ref": "#/definitions/handler.InterviewSetupChoice"
+                }
+            }
+        },
         "handler.PayOSWebhookAck": {
             "type": "object",
             "properties": {
@@ -15825,6 +16244,31 @@ const docTemplate = `{
                 "message": {
                     "type": "string",
                     "example": "success"
+                }
+            }
+        },
+        "handler.PracticeSetupRequest": {
+            "type": "object",
+            "properties": {
+                "avatar_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "environment": {
+                    "type": "string",
+                    "enum": [
+                        "cafe-3d",
+                        "office-3d",
+                        "meeting-3d",
+                        "office",
+                        "balcony",
+                        "cafe"
+                    ],
+                    "example": "office-3d"
+                },
+                "voice_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -15891,6 +16335,23 @@ const docTemplate = `{
                 "rubric_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "handler.RecruitmentSetupRequest": {
+            "type": "object",
+            "properties": {
+                "environment": {
+                    "type": "string",
+                    "enum": [
+                        "cafe-3d",
+                        "office-3d",
+                        "meeting-3d",
+                        "office",
+                        "balcony",
+                        "cafe"
+                    ],
+                    "example": "office-3d"
                 }
             }
         },

@@ -3462,6 +3462,65 @@ definitions:
       version:
         type: integer
     type: object
+  handler.InterviewSetupBlocker:
+    properties:
+      code:
+        example: avatar_required
+        type: string
+      field:
+        example: avatar
+        type: string
+    type: object
+  handler.InterviewSetupChoice:
+    properties:
+      id:
+        format: uuid
+        type: string
+      name:
+        type: string
+    type: object
+  handler.InterviewSetupResponse:
+    properties:
+      application_id:
+        format: uuid
+        type: string
+      avatar:
+        $ref: '#/definitions/handler.InterviewSetupChoice'
+      blockers:
+        items:
+          $ref: '#/definitions/handler.InterviewSetupBlocker'
+        type: array
+      environment:
+        type: string
+      interview_deadline:
+        type: string
+      locked_fields:
+        description: 'LockedFields are the fields the Candidate cannot change: avatar
+          and voice for a recruitment interview.'
+        items:
+          type: string
+        type: array
+      mode:
+        enum:
+        - practice
+        - recruitment
+        type: string
+      ready:
+        type: boolean
+      role_profile_id:
+        format: uuid
+        type: string
+      saved:
+        type: boolean
+      target_title:
+        description: TargetTitle is the Role Profile title (practice) or the posting
+          title (recruitment).
+        type: string
+      updated_at:
+        type: string
+      voice:
+        $ref: '#/definitions/handler.InterviewSetupChoice'
+    type: object
   handler.PayOSWebhookAck:
     properties:
       code:
@@ -3469,6 +3528,25 @@ definitions:
         type: string
       message:
         example: success
+        type: string
+    type: object
+  handler.PracticeSetupRequest:
+    properties:
+      avatar_id:
+        format: uuid
+        type: string
+      environment:
+        enum:
+        - cafe-3d
+        - office-3d
+        - meeting-3d
+        - office
+        - balcony
+        - cafe
+        example: office-3d
+        type: string
+      voice_id:
+        format: uuid
         type: string
     type: object
   handler.PurchaseRequest:
@@ -3512,6 +3590,19 @@ definitions:
         type: string
       rubric_id:
         format: uuid
+        type: string
+    type: object
+  handler.RecruitmentSetupRequest:
+    properties:
+      environment:
+        enum:
+        - cafe-3d
+        - office-3d
+        - meeting-3d
+        - office
+        - balcony
+        - cafe
+        example: office-3d
         type: string
     type: object
   handler.RejectCVRequest:
@@ -5950,6 +6041,244 @@ paths:
       summary: Check process liveness
       tags:
       - health
+  /interview-setups/practice/{id}:
+    get:
+      description: 'Candidate only, owner of the Role Profile (a foreign or missing
+        one is JD_NOT_FOUND). Returns the saved avatar, voice and environment (null:
+        not chosen yet) and recomputes the readiness from the data as it is now: ready
+        is true exactly when blockers is empty. Blockers: role_profile_not_confirmed,
+        question_bank_not_ready, avatar_required, avatar_unavailable, voice_required,
+        voice_unavailable, environment_required, environment_unsupported. A stored
+        choice that went stale (an avatar no longer usable, a voice deactivated) is
+        reported and kept; a deleted avatar or voice is cleared by the database and
+        shows as required. Never writes, debits coins, uses a recruitment slot or
+        starts an interview. Never returns core questions, bank size or evaluation
+        weights. See api/docs/interview-setup-api.md.'
+      parameters:
+      - description: Role Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.InterviewSetupResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read the saved practice setup of a Role Profile and revalidate it
+      tags:
+      - interview-setups
+    put:
+      consumes:
+      - application/json
+      description: 'Candidate only. A full replacement (null or a missing field: not
+        chosen yet, so a partial draft can be saved), idempotent: repeating it changes
+        nothing. Refused with nothing saved: JD_NOT_FOUND (foreign or missing Role
+        Profile), ROLE_PROFILE_REQUIRED (not confirmed), QUESTION_BANK_NOT_READY (no
+        ready bank), AVATAR_NOT_FOUND (not in the Candidate''s own inventory, deleted,
+        or its model blocked), VOICE_NOT_FOUND (unknown or inactive voice), VALIDATION_ERROR
+        (environment outside the catalog, unknown JSON field, bad UUID). Answers with
+        the revalidated setup, like GET. Never debits coins, uses a recruitment slot
+        or creates an interview: starting still goes through POST /interviews.'
+      parameters:
+      - description: Role Profile UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Setup
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.PracticeSetupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.InterviewSetupResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Save the practice setup of a confirmed Role Profile
+      tags:
+      - interview-setups
+  /interview-setups/recruitment/{id}:
+    get:
+      description: 'Candidate only, owner of the Application (a foreign or missing
+        one is APPLICATION_NOT_FOUND). Returns the avatar and voice the Recruiter
+        locked on the posting (read-only, listed in locked_fields; id and name only,
+        no model or grant), the Candidate''s saved environment and the interview deadline,
+        and recomputes the readiness now. Blockers: application_not_eligible, interview_deadline_passed,
+        interview_already_started, locked_avatar_unavailable, locked_voice_unavailable,
+        environment_required, environment_unsupported. Never writes, uses a recruitment
+        slot or starts an interview. See api/docs/interview-setup-api.md.'
+      parameters:
+      - description: Application UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.InterviewSetupResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read the recruitment setup of an Application and revalidate it
+      tags:
+      - interview-setups
+    put:
+      consumes:
+      - application/json
+      description: 'Candidate only. The environment is the only Candidate-editable
+        field; the Recruiter-locked avatar and voice cannot be sent (unknown fields
+        are VALIDATION_ERROR). A full replacement (null: not chosen yet), idempotent.
+        Refused with nothing saved: APPLICATION_NOT_FOUND (foreign or missing), APPLICATION_NOT_ELIGIBLE
+        (CV not approved, deadline passed, posting not accepting, or the interview
+        already started), VALIDATION_ERROR (environment outside the catalog). Answers
+        with the revalidated setup. Never uses a recruitment slot or creates an interview:
+        the first start still goes through POST /interviews.'
+      parameters:
+      - description: Application UUID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Setup
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RecruitmentSetupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/handler.InterviewSetupResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Save the environment of a recruitment setup
+      tags:
+      - interview-setups
   /interviews:
     get:
       description: Candidate only. Returns one page of your own sessions, newest first
