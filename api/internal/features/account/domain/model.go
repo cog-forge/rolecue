@@ -53,8 +53,10 @@ type DataExport struct {
 	Profile        ExportProfile       `json:"profile"`
 	RoleProfiles   []ExportRoleProfile `json:"role_profiles,omitempty"`
 	Applications   []ExportApplication `json:"applications,omitempty"`
-	Interviews     []ExportInterview   `json:"interviews,omitempty"`
-	Postings       []ExportPosting     `json:"job_postings,omitempty"`
+	// InterviewSetups are the Candidate's saved pre-interview setups (KAN-231).
+	InterviewSetups []ExportInterviewSetup `json:"interview_setups,omitempty"`
+	Interviews      []ExportInterview      `json:"interviews,omitempty"`
+	Postings        []ExportPosting        `json:"job_postings,omitempty"`
 }
 
 // ExportProfile is the account's own profile data.
@@ -105,6 +107,21 @@ type ExportRoadmapResult struct {
 	QuestionNumber int32     `json:"question_number"`
 	Score          *float64  `json:"score"`
 	LinkedAt       time.Time `json:"linked_at"`
+}
+
+// ExportInterviewSetup is one saved setup of the Candidate: the avatar, voice and room chosen for a practice
+// Role Profile, or the room chosen for an Application. Exactly one of RoleProfileID and ApplicationID is set. A
+// recruitment setup has no avatar or voice of its own (the Recruiter's locked ones are not the Candidate's data).
+type ExportInterviewSetup struct {
+	ID            uuid.UUID  `json:"id"`
+	Type          string     `json:"type" enums:"practice,recruitment"`
+	RoleProfileID *uuid.UUID `json:"role_profile_id"`
+	ApplicationID *uuid.UUID `json:"application_id"`
+	AvatarID      *uuid.UUID `json:"avatar_id"`
+	VoiceID       *uuid.UUID `json:"voice_id"`
+	Environment   *string    `json:"environment"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // ExportApplication is one of the Candidate's Applications. CV is a 15-minute link to the uploaded CV.

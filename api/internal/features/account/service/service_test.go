@@ -28,6 +28,7 @@ type fakeRepo struct {
 	postings  []domain.ExportPosting
 	apps      []domain.ExportApplication
 	interview []domain.ExportInterview
+	setups    []domain.ExportInterviewSetup
 }
 
 func (f *fakeRepo) Account(context.Context, uuid.UUID) (domain.Identity, error) {
@@ -63,6 +64,9 @@ func (f *fakeRepo) ExportRoleProfiles(context.Context, uuid.UUID) ([]domain.Expo
 }
 func (f *fakeRepo) ExportApplications(context.Context, uuid.UUID) ([]domain.ExportApplication, error) {
 	return f.apps, nil
+}
+func (f *fakeRepo) ExportInterviewSetups(context.Context, uuid.UUID) ([]domain.ExportInterviewSetup, error) {
+	return f.setups, nil
 }
 func (f *fakeRepo) ExportInterviews(context.Context, uuid.UUID) ([]domain.ExportInterview, error) {
 	return f.interview, nil

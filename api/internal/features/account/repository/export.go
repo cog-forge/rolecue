@@ -91,6 +91,23 @@ func (r *Repository) attachRoadmaps(ctx context.Context, owner uuid.UUID, profil
 	return nil
 }
 
+// ExportInterviewSetups lists the Candidate's own saved interview setups, oldest first.
+func (r *Repository) ExportInterviewSetups(ctx context.Context, id uuid.UUID) ([]domain.ExportInterviewSetup, error) {
+	rows, err := r.queries.ExportInterviewSetups(ctx, id)
+	if err != nil {
+		return nil, readFailed(err)
+	}
+	var out []domain.ExportInterviewSetup
+	for _, row := range rows {
+		out = append(out, domain.ExportInterviewSetup{
+			ID: row.ID, Type: row.Type, RoleProfileID: row.RoleProfileID, ApplicationID: row.ApplicationID,
+			AvatarID: row.AvatarID, VoiceID: row.VoiceID, Environment: row.Environment,
+			CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time,
+		})
+	}
+	return out, nil
+}
+
 // ExportApplications lists the Candidate's own Applications, oldest first.
 func (r *Repository) ExportApplications(ctx context.Context, id uuid.UUID) ([]domain.ExportApplication, error) {
 	rows, err := r.queries.ExportApplications(ctx, id)

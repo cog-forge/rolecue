@@ -9,6 +9,18 @@ FROM public.role_profiles
 WHERE candidate_id = @id
 ORDER BY created_at, id;
 
+-- The Candidate's own saved interview setups (KAN-231): practice through their Role Profiles, recruitment through
+-- their Applications. Ids, choices and timestamps only; a recruitment row never holds an avatar or voice. Another
+-- account's setup is never selected: the owner is always the Role Profile's or the Application's Candidate.
+-- name: ExportInterviewSetups :many
+SELECT s.id, s.type::text AS type, s.role_profile_id, s.application_id, s.avatar_id, s.voice_id, s.environment,
+       s.created_at, s.updated_at
+FROM public.interview_setups s
+LEFT JOIN public.role_profiles rp ON rp.id = s.role_profile_id
+LEFT JOIN public.applications a ON a.id = s.application_id
+WHERE rp.candidate_id = @id OR a.candidate_id = @id
+ORDER BY s.created_at, s.id;
+
 -- name: ExportApplications :many
 SELECT a.id, jp.title, a.status::text AS status, a.reject_reason, a.interview_deadline, a.created_at, a.updated_at, a.cv_path
 FROM public.applications a

@@ -27,6 +27,7 @@ type Repository interface {
 	ExportProfile(context.Context, uuid.UUID) (domain.ExportProfile, error)
 	ExportRoleProfiles(context.Context, uuid.UUID) ([]domain.ExportRoleProfile, error)
 	ExportApplications(context.Context, uuid.UUID) ([]domain.ExportApplication, error)
+	ExportInterviewSetups(context.Context, uuid.UUID) ([]domain.ExportInterviewSetup, error)
 	ExportInterviews(context.Context, uuid.UUID) ([]domain.ExportInterview, error)
 	ExportPostings(context.Context, uuid.UUID) ([]domain.ExportPosting, error)
 }
@@ -182,6 +183,9 @@ func (s *Service) candidateData(ctx context.Context, id uuid.UUID, out *domain.D
 		return err
 	}
 	if out.Applications, err = s.repository.ExportApplications(ctx, id); err != nil {
+		return err
+	}
+	if out.InterviewSetups, err = s.repository.ExportInterviewSetups(ctx, id); err != nil {
 		return err
 	}
 	if out.Interviews, err = s.repository.ExportInterviews(ctx, id); err != nil {

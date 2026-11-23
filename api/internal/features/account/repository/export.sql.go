@@ -109,6 +109,61 @@ func (q *Queries) ExportCriteria(ctx context.Context, interviewID uuid.UUID) ([]
 	return items, nil
 }
 
+const exportInterviewSetups = `-- name: ExportInterviewSetups :many
+SELECT s.id, s.type::text AS type, s.role_profile_id, s.application_id, s.avatar_id, s.voice_id, s.environment,
+       s.created_at, s.updated_at
+FROM public.interview_setups s
+LEFT JOIN public.role_profiles rp ON rp.id = s.role_profile_id
+LEFT JOIN public.applications a ON a.id = s.application_id
+WHERE rp.candidate_id = $1 OR a.candidate_id = $1
+ORDER BY s.created_at, s.id
+`
+
+type ExportInterviewSetupsRow struct {
+	ID            uuid.UUID
+	Type          string
+	RoleProfileID *uuid.UUID
+	ApplicationID *uuid.UUID
+	AvatarID      *uuid.UUID
+	VoiceID       *uuid.UUID
+	Environment   *string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
+// The Candidate's own saved interview setups (KAN-231): practice through their Role Profiles, recruitment through
+// their Applications. Ids, choices and timestamps only; a recruitment row never holds an avatar or voice. Another
+// account's setup is never selected: the owner is always the Role Profile's or the Application's Candidate.
+func (q *Queries) ExportInterviewSetups(ctx context.Context, id uuid.UUID) ([]ExportInterviewSetupsRow, error) {
+	rows, err := q.db.Query(ctx, exportInterviewSetups, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExportInterviewSetupsRow
+	for rows.Next() {
+		var i ExportInterviewSetupsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Type,
+			&i.RoleProfileID,
+			&i.ApplicationID,
+			&i.AvatarID,
+			&i.VoiceID,
+			&i.Environment,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const exportInterviews = `-- name: ExportInterviews :many
 SELECT i.id, i.type::text AS type, i.application_id, i.started_at, i.completed_at, i.end_reason,
        i.score, i.score_outcome, i.feedback,
