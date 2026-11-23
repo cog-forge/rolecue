@@ -150,6 +150,13 @@ func (g *fakeGenerator) Generate(_ context.Context, in domain.GenerationInput, c
 	return g.fn(g.calls)
 }
 
+// subject is a distinct made-up term per question, so templated fixture questions are not near duplicates of
+// each other (KAN-384) the way questions that differ only in a number would be.
+func subject(topic, question int) string {
+	k := topic*97 + question
+	return fmt.Sprintf("term%c%c", 'a'+rune(k/26%26), 'a'+rune(k%26))
+}
+
 func questionsOf(n int) domain.GenerationCandidate {
 	c := domain.GenerationCandidate{Questions: []domain.GeneratedQuestion{}}
 	for i := 0; i < n; i++ {

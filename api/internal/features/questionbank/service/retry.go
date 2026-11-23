@@ -30,6 +30,10 @@ func (s *Service) generateWithRetry(ctx context.Context, in domain.GenerationInp
 	}
 	// A Roadmap bank is generated large enough for every topic to reach its minimum, and each topic is given
 	// its share of it; the validation below still checks what the model actually wrote.
+	// One threshold for every pass: the adapter's per-batch validation and the final one below (KAN-384).
+	if in.DuplicateThreshold == 0 {
+		in.DuplicateThreshold = s.duplicateThreshold
+	}
 	size := s.size
 	if len(in.Topics) > 0 {
 		size = domain.PracticeBankSize(s.size, len(in.Topics))

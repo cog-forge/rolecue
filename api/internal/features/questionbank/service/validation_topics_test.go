@@ -23,7 +23,7 @@ func mapped(in domain.GenerationInput, counts ...int) []domain.GeneratedQuestion
 	for i, n := range counts {
 		for j := 0; j < n; j++ {
 			id := in.Topics[i].ID
-			out = append(out, domain.GeneratedQuestion{Content: fmt.Sprintf("Question %d of topic %d?", j, i), TopicID: &id, ExpectedAnswer: ptr("Key points.")})
+			out = append(out, domain.GeneratedQuestion{Content: fmt.Sprintf("Question %d of topic %d about %s?", j, i, subject(i, j)), TopicID: &id, ExpectedAnswer: ptr("Key points.")})
 		}
 	}
 	return out
@@ -105,7 +105,7 @@ func TestFitBatchToTopicsKeepsExactlyTheQuotaOfEachTopic(t *testing.T) {
 	if len(got) != 5 || counts[in.Topics[0].ID] != 3 || counts[in.Topics[1].ID] != 2 {
 		t.Fatalf("len=%d counts=%v, want 3 and 2", len(got), counts)
 	}
-	if got[0].Content != "Question 0 of topic 0?" {
+	if got[0].Content != "Question 0 of topic 0 about "+subject(0, 0)+"?" {
 		t.Fatal("the model's order must be kept")
 	}
 }

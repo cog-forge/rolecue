@@ -31,6 +31,7 @@ func ProvideQuestionBankService(cfg *config.Config, repo *repository.Repository)
 		return nil, err
 	}
 	svc.SetQuestionLimit(cfg.Interview.QuestionLimit)
+	svc.SetDuplicateThreshold(cfg.AI.BankCheck.DuplicateThreshold)
 	return svc, nil
 }
 func ProvideQuestionBankHandler(cfg *config.Config, svc *service.Service) *handler.QuestionBankHandler {

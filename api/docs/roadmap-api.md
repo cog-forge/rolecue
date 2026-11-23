@@ -383,6 +383,13 @@ however many times a call is repeated. A slow request can therefore take longer 
 and the codes below now mean that the repeats ran out too. The bank is only published, in one transaction, when it is
 complete, so a repeated call never leaves a partial or duplicate bank.
 
+Bank quality (KAN-384, no contract change): a generated question that is an exact or **near duplicate** of a
+stored question or of an earlier one in the bank is dropped, and a missing question is written by the next batch.
+The Clef topic check (on by default, batched `clef`, threshold 0.5, fail-open) drops a question that does not test
+the topic the model assigned it and refills its topic the same way; without Cloudflare credentials, or when Clef is
+down, slow or returns invalid output, the bank is accepted as before. Both stay within
+the bank step's budget. Details and the measured numbers are in `api/docs/ai-routing.md`.
+
 Response `data` of retry and regenerate (field names are `snake_case`):
 
 ```json

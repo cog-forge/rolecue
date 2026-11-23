@@ -64,21 +64,41 @@ type clefNoul struct {
 // YesProbability asks one yes/no question about state and returns the probability of yes. Errors carry a
 // status or a classified reason, never the response body, which may echo the state.
 func (c *clefClient) YesProbability(ctx context.Context, state any, q ClefYesNo) (float64, ClefUsage, error) {
-	var criteria map[string]string
-	if q.Yes != "" || q.No != "" {
-		criteria = map[string]string{"true": q.Yes, "false": q.No}
+	answers, usage, err := c.yesProbabilities(ctx, state, map[string]ClefYesNo{clefQuestionID: q})
+	if err != nil {
+		return 0, usage, err
+	}
+	return answers[clefQuestionID], usage, nil
+}
+
+// maxClefQuestions is the documented limit of questions in one request.
+const maxClefQuestions = 64
+
+// yesProbabilities asks up to maxClefQuestions yes/no questions about one state in one request. Every id must
+// come back as a noul answer with a probability in [0, 1], or the whole reply is invalid output.
+func (c *clefClient) yesProbabilities(ctx context.Context, state any, questions map[string]ClefYesNo) (map[string]float64, ClefUsage, error) {
+	if len(questions) == 0 || len(questions) > maxClefQuestions {
+		return nil, ClefUsage{}, errors.New("clef request needs 1 to 64 questions")
+	}
+	nouls := make(map[string]clefNoul, len(questions))
+	for id, q := range questions {
+		var criteria map[string]string
+		if q.Yes != "" || q.No != "" {
+			criteria = map[string]string{"true": q.Yes, "false": q.No}
+		}
+		nouls[id] = clefNoul{Type: "noul", Instructions: q.Instructions, Criteria: criteria}
 	}
 	body, err := json.Marshal(struct {
 		Model     string              `json:"model"`
 		State     any                 `json:"state"`
 		Questions map[string]clefNoul `json:"questions"`
-	}{c.model, state, map[string]clefNoul{clefQuestionID: {Type: "noul", Instructions: q.Instructions, Criteria: criteria}}})
+	}{c.model, state, nouls})
 	if err != nil {
-		return 0, ClefUsage{}, err
+		return nil, ClefUsage{}, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
-		return 0, ClefUsage{}, err
+		return nil, ClefUsage{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
@@ -86,14 +106,14 @@ func (c *clefClient) YesProbability(ctx context.Context, state any, q ClefYesNo)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return 0, ClefUsage{}, ctxErr
+			return nil, ClefUsage{}, ctxErr
 		}
-		return 0, ClefUsage{}, err
+		return nil, ClefUsage{}, err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		delay, _ := strconv.ParseFloat(resp.Header.Get("Retry-After"), 64)
-		return 0, ClefUsage{}, &HTTPError{Status: resp.StatusCode, RetryAfter: time.Duration(delay * float64(time.Second))}
+		return nil, ClefUsage{}, &HTTPError{Status: resp.StatusCode, RetryAfter: time.Duration(delay * float64(time.Second))}
 	}
 	var out struct {
 		Success bool `json:"success"`
@@ -110,23 +130,27 @@ func (c *clefClient) YesProbability(ctx context.Context, state any, q ClefYesNo)
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxClefReplyBytes)).Decode(&out); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return 0, ClefUsage{}, ctxErr
+			return nil, ClefUsage{}, ctxErr
 		}
-		return 0, ClefUsage{}, ErrInvalidOutput
+		return nil, ClefUsage{}, ErrInvalidOutput
 	}
 	if !out.Success || out.Result == nil {
-		return 0, ClefUsage{}, ErrInvalidOutput
+		return nil, ClefUsage{}, ErrInvalidOutput
 	}
 	usage := ClefUsage{InputTokens: out.Result.Usage.Input, OutputTokens: out.Result.Usage.Output}
-	answer, ok := out.Result.Answers[clefQuestionID]
-	if !ok || answer.Type != "noul" || answer.Noul == nil {
-		return 0, usage, ErrInvalidOutput
+	probabilities := make(map[string]float64, len(questions))
+	for id := range questions {
+		answer, ok := out.Result.Answers[id]
+		if !ok || answer.Type != "noul" || answer.Noul == nil {
+			return nil, usage, ErrInvalidOutput
+		}
+		p := *answer.Noul
+		if math.IsNaN(p) || p < 0 || p > 1 {
+			return nil, usage, ErrInvalidOutput
+		}
+		probabilities[id] = p
 	}
-	p := *answer.Noul
-	if math.IsNaN(p) || p < 0 || p > 1 {
-		return 0, usage, ErrInvalidOutput
-	}
-	return p, usage, nil
+	return probabilities, usage, nil
 }
 
 var errClefNotConfigured = errors.New("clef decision route is not configured")
