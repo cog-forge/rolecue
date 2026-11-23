@@ -1474,7 +1474,7 @@
     },
     "interviewer": {
       "title": "Chọn người phỏng vấn",
-      "description": "Chọn người phỏng vấn bạn và giọng nói của họ. Cả hai đều không bắt buộc: nếu không chọn avatar, bạn sẽ gặp người phỏng vấn 2D, hoạt động được trên mọi thiết bị.",
+      "description": "Chọn người phỏng vấn, giọng nói của họ và căn phòng bạn ngồi. Lựa chọn của bạn được lưu ngay khi bạn chọn.",
       "needProfile": {
         "title": "Hãy chọn hồ sơ vị trí trước.",
         "description": "Chọn vị trí đã xác nhận mà bạn muốn luyện tập, rồi chọn người phỏng vấn.",
@@ -1486,27 +1486,26 @@
       },
       "legend": "Người phỏng vấn",
       "inventoryNote": "Avatar lấy từ kho avatar của bạn. <link>Mở Avatar Studio</link>",
-      "twoD": {
-        "title": "Người phỏng vấn 2D",
-        "detail": "Sóng âm giọng nói có chuyển động."
-      },
-      "avatarGone": "Avatar bạn đã chọn không còn trong kho avatar, nên người phỏng vấn 2D đang được chọn.",
+      "avatarGone": "Avatar bạn đã chọn không còn trong kho avatar. Hãy chọn avatar khác.",
       "previous": "Trước",
       "next": "Sau",
       "page": "Trang {page}/{pageCount}",
-      "loadError": "Không thể tải các avatar của bạn. Bạn vẫn có thể dùng người phỏng vấn 2D.",
+      "loadError": "Không thể tải các avatar của bạn.",
       "noAvatars": "Bạn chưa có avatar nào. <link>Tạo avatar trong Avatar Studio</link> để thấy avatar ở đây.",
       "voice": {
         "label": "Giọng nói",
-        "default": "Giọng mặc định",
         "loading": "Đang tải các giọng nói…",
-        "error": "Không thể tải các giọng nói. Sẽ dùng giọng mặc định.",
-        "none": "Chưa có giọng nói nào. Sẽ dùng giọng mặc định.",
-        "gone": "Giọng nói bạn đã chọn không còn khả dụng, nên giọng mặc định đang được chọn.",
-        "active": "Chỉ hiển thị các giọng nói đang hoạt động."
+        "error": "Không thể tải các giọng nói.",
+        "none": "Chưa có giọng nói nào.",
+        "gone": "Giọng nói bạn đã chọn không còn khả dụng. Hãy chọn giọng khác.",
+        "placeholder": "Chọn giọng nói"
       },
       "back": "Quay lại hồ sơ vị trí",
-      "continue": "Tiếp tục kiểm tra trước"
+      "continue": "Tiếp tục kiểm tra trước",
+      "loadSaved": {
+        "loading": "Đang tải thiết lập đã lưu của bạn…",
+        "error": "Không thể tải thiết lập đã lưu của bạn."
+      }
     },
     "readiness": {
       "generic": {
@@ -1535,15 +1534,13 @@
         "kept": "Giữ nguyên từ cuộc phỏng vấn chưa hoàn thành của bạn",
         "interviewer": "Người phỏng vấn",
         "changeInterviewer": "Đổi người phỏng vấn",
-        "twoD": "Người phỏng vấn 2D",
-        "avatarGone": "Avatar bạn đã chọn không còn trong kho avatar.",
         "avatarError": "Không thể tải avatar này.",
         "voice": "Giọng nói",
-        "defaultVoice": "Giọng mặc định",
-        "voiceGone": "Giọng nói bạn đã chọn không còn khả dụng.",
         "voiceError": "Không thể tải giọng nói này.",
         "jobPosting": "Tin tuyển dụng",
-        "companyInterviewer": "Người phỏng vấn do công ty chọn"
+        "companyInterviewer": "Người phỏng vấn do công ty chọn",
+        "notChosen": "Chưa chọn",
+        "environment": "Phòng phỏng vấn"
       },
       "checking": "Đang kiểm tra cuộc phỏng vấn chưa hoàn thành…",
       "recruitment": {
@@ -1591,7 +1588,8 @@
         "notReady": "Hãy bật micro để bắt đầu.",
         "muted": "Hãy bật tiếng micro để bắt đầu.",
         "attention": "Micro của bạn cần được kiểm tra. Hãy thử lại bước kiểm tra để bắt đầu.",
-        "balance": "Chưa thể bắt đầu cho đến khi số dư được tải xong."
+        "balance": "Chưa thể bắt đầu cho đến khi số dư được tải xong.",
+        "setup": "Hãy hoàn tất thiết lập để bắt đầu."
       },
       "existing": {
         "title": "Đang mở cuộc phỏng vấn hiện có của bạn",
@@ -1702,6 +1700,45 @@
         "deviceListFailed": "Không thể làm mới danh sách micro. Thiết bị hiện tại có thể vẫn hoạt động; hãy làm mới danh sách để thử lại.",
         "analysisUnavailable": "Mức âm đầu vào và phát hiện giọng nói không khả dụng. Hãy thử lại bước kiểm tra âm thanh để bật chúng."
       }
+    },
+    "environment": {
+      "title": "Phòng phỏng vấn",
+      "description": "Nơi cuộc phỏng vấn diễn ra. Phòng 3D cần thiết bị đủ mạnh; ảnh nhẹ hơn.",
+      "group": "Phòng phỏng vấn"
+    },
+    "saveStatus": {
+      "saving": "Đang lưu…",
+      "saved": "Đã lưu",
+      "failed": "Không thể lưu lựa chọn của bạn.",
+      "retry": "Thử lại"
+    },
+    "blockers": {
+      "title": "Trước khi bạn có thể bắt đầu",
+      "description": "Hãy xử lý các mục này để bật nút Bắt đầu.",
+      "messages": {
+        "role_profile_not_confirmed": "Hãy xác nhận hồ sơ vị trí trước khi bắt đầu.",
+        "question_bank_not_ready": "Các câu hỏi cho vị trí này vẫn đang được chuẩn bị.",
+        "avatar_required": "Hãy chọn người phỏng vấn.",
+        "avatar_unavailable": "Người phỏng vấn bạn đã chọn không còn khả dụng. Hãy chọn người khác.",
+        "voice_required": "Hãy chọn giọng nói.",
+        "voice_unavailable": "Giọng nói bạn đã chọn không còn khả dụng. Hãy chọn giọng khác.",
+        "environment_required": "Hãy chọn phòng phỏng vấn.",
+        "environment_unsupported": "Phòng bạn đã chọn không còn được cung cấp. Hãy chọn phòng khác.",
+        "application_not_eligible": "Đơn ứng tuyển này chưa đủ điều kiện phỏng vấn.",
+        "interview_deadline_passed": "Đã quá hạn làm cuộc phỏng vấn này.",
+        "interview_already_started": "Cuộc phỏng vấn này đã bắt đầu.",
+        "locked_avatar_unavailable": "Người phỏng vấn của công ty hiện không khả dụng. Hãy thử lại sau hoặc liên hệ công ty.",
+        "locked_voice_unavailable": "Giọng nói của người phỏng vấn công ty hiện không khả dụng. Hãy thử lại sau hoặc liên hệ công ty.",
+        "unknown": "Thiết lập của bạn có điểm cần xử lý."
+      },
+      "actions": {
+        "step": "Sửa trong thiết lập",
+        "profile": "Mở hồ sơ vị trí",
+        "application": "Về đơn ứng tuyển",
+        "here": "Chọn phòng"
+      },
+      "checking": "Đang kiểm tra thiết lập của bạn…",
+      "error": "Không thể kiểm tra thiết lập của bạn."
     }
   },
   "roadmap": {

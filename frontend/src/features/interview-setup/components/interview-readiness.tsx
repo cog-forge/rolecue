@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { ArrowLeft, AudioLines } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { routes } from "@/config/routes";
@@ -37,11 +37,8 @@ import {
   getRoleProfile,
   roleProfileKeys,
 } from "@/features/role-profile/api/requests";
-import {
-  interviewSetupKeys,
-  listActiveVoices,
-  useUnfinishedPractice,
-} from "../api/setup-catalog";
+import { useSavedSetup, type SetupTarget } from "../api/saved-setup";
+import { useUnfinishedPractice } from "../api/setup-catalog";
 import { setupHref, type SetupParams } from "../lib/setup-params";
 import { CompanyInterviewer } from "@/features/candidate/applications/components/company-interviewer";
 import { RecordingPreflight } from "@/features/interview/components/recording-preflight";
@@ -54,10 +51,16 @@ import { useNow } from "@/features/candidate/applications/utils/use-now";
 import { AvatarPortrait } from "./avatar-portrait";
 import { PreflightCheck, type MicrophoneReadiness } from "./preflight-check";
 import { PracticeProgress, ResumeCallout } from "./resume-callout";
+import { RecruitmentEnvironment } from "./recruitment-environment";
+import { SetupBlockers } from "./setup-blockers";
 import { SetupHeader } from "./setup-header";
 import { StartPanel } from "./start-panel";
 import { apiErrorMessage } from "@/lib/i18n/api-errors";
 import { useFormatters } from "@/lib/i18n/use-formatters";
+import {
+  roomBackgrounds,
+  type RoomBackgroundId,
+} from "@/features/interview/components/room-backgrounds";
 
 // Step 5: the microphone check and the one real operation of setup, start or resume. The layout
 // reads summary, microphone, start on a phone; on a desktop the microphone takes the main column
@@ -217,16 +220,16 @@ function PracticeReadiness({
     retry: false,
   });
   const roadmapT = useTranslations("candidate.roadmap");
+  // The saved setup is the source of truth for what the interview will use; the avatarId and
+  // voiceId in the URL are only carried along for the steps' own links.
+  const target: SetupTarget = { mode: "practice", roleProfileId };
+  const setup = useSavedSetup(user.id, target);
+  const view = setup.data;
+  const savedAvatarId = view?.avatar?.id;
   const avatar = useQuery({
-    queryKey: avatarKeys.detail(user.id, avatarId ?? "none"),
-    queryFn: ({ signal }) => getAvatar(avatarId ?? "", signal),
-    enabled: Boolean(avatarId),
-    retry: false,
-  });
-  const voices = useQuery({
-    queryKey: interviewSetupKeys.voices(user.id),
-    queryFn: ({ signal }) => listActiveVoices(signal),
-    enabled: Boolean(voiceId),
+    queryKey: avatarKeys.detail(user.id, savedAvatarId ?? "none"),
+    queryFn: ({ signal }) => getAvatar(savedAvatarId ?? "", signal),
+    enabled: Boolean(savedAvatarId),
     retry: false,
   });
   // PayOS returns here after Add coins; the payment is confirmed with the server, as on Billing.
@@ -242,10 +245,6 @@ function PracticeReadiness({
   );
 
   const resume = unfinished.data?.get(roleProfileId);
-  const avatarGone =
-    isAxiosError(avatar.error) && avatar.error.response?.status === 404;
-  const voice = voices.data?.find((item) => item.id === voiceId);
-  const voiceGone = Boolean(voiceId) && voices.isSuccess && !voice;
   const returnPath = setupHref(routes.interviews.new.preflight, {
     roleProfileId,
     focusItemId,
@@ -361,23 +360,14 @@ function PracticeReadiness({
                 t("readiness.summary.changeInterviewer"),
               )}
             >
-              {!avatarId || avatarGone ? (
-                <span className="flex items-center gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted">
-                    <AudioLines
-                      aria-hidden="true"
-                      className="size-5 text-muted-foreground"
-                    />
-                  </span>
-                  <span>
-                    {t("readiness.summary.twoD")}
-                    {avatarGone && (
-                      <span className="block text-xs font-normal text-muted-foreground">
-                        {t("readiness.summary.avatarGone")}
-                      </span>
-                    )}
-                  </span>
-                </span>
+              {!view ? (
+                setup.isError ? (
+                  t("readiness.summary.avatarError")
+                ) : (
+                  <Skeleton className="h-10 w-32" />
+                )
+              ) : !view.avatar ? (
+                t("readiness.summary.notChosen")
               ) : avatar.data ? (
                 <span className="flex items-center gap-3">
                   <AvatarPortrait
@@ -391,27 +381,29 @@ function PracticeReadiness({
                   </span>
                 </span>
               ) : avatar.isError ? (
-                t("readiness.summary.avatarError")
+                view.avatar.name
               ) : (
                 <Skeleton className="h-10 w-32" />
               )}
             </SummaryRow>
             <SummaryRow label={t("readiness.summary.voice")}>
-              {!voiceId || voiceGone ? (
-                <>
-                  {t("readiness.summary.defaultVoice")}
-                  {voiceGone && (
-                    <span className="block text-xs font-normal text-muted-foreground">
-                      {t("readiness.summary.voiceGone")}
-                    </span>
-                  )}
-                </>
-              ) : voice ? (
-                voice.name
-              ) : voices.isError ? (
-                t("readiness.summary.voiceError")
+              {!view ? (
+                setup.isError ? (
+                  t("readiness.summary.voiceError")
+                ) : (
+                  <Skeleton className="h-5 w-28" />
+                )
               ) : (
-                <Skeleton className="h-5 w-28" />
+                (view.voice?.name ?? t("readiness.summary.notChosen"))
+              )}
+            </SummaryRow>
+            <SummaryRow label={t("readiness.summary.environment")}>
+              {!view ? (
+                <Skeleton className="h-5 w-24" />
+              ) : view.environment ? (
+                <RoomName id={view.environment} />
+              ) : (
+                t("readiness.summary.notChosen")
               )}
             </SummaryRow>
           </>
@@ -436,43 +428,60 @@ function PracticeReadiness({
           </Link>
         </Button>
       </div>
-    ) : unfinished.isPending ? (
+    ) : unfinished.isPending || (!resume && setup.isPending) ? (
       <div role="status" className="space-y-3 rounded-xl border bg-card p-5">
         <Skeleton className="h-5 w-40" />
         <Skeleton className="h-11 w-full" />
         <span className="sr-only">{t("readiness.checking")}</span>
       </div>
+    ) : !resume && !view ? (
+      <ErrorState
+        description={t("blockers.error")}
+        onRetry={() => void setup.refetch()}
+        retryLabel={t("tryAgain")}
+        isRetrying={setup.isFetching}
+      ></ErrorState>
     ) : (
-      <StartPanel
-        readiness={readiness}
-        links={{ roleProfileId }}
-        returnPath={returnPath}
-        plan={
-          resume
-            ? {
-                kind: "resume",
-                type: "practice",
-                sessionId: resume.id,
-                callout: (
-                  <ResumeCallout
-                    title={t("resume.calloutTitle")}
-                    details={<PracticeProgress session={resume} />}
-                    note={t("resume.noCharge")}
-                  />
-                ),
-              }
-            : {
-                kind: "new",
-                request: {
+      <>
+        {!resume && view && (
+          <SetupBlockers
+            blockers={view.blockers}
+            target={target}
+            params={{ roleProfileId, focusItemId, avatarId, voiceId }}
+          />
+        )}
+        <StartPanel
+          readiness={readiness}
+          setupReady={resume ? undefined : view?.ready}
+          links={{ roleProfileId }}
+          returnPath={returnPath}
+          plan={
+            resume
+              ? {
+                  kind: "resume",
                   type: "practice",
-                  roleProfileId,
-                  focusItemId,
-                  avatarId: avatarGone ? undefined : avatarId,
-                  voiceId: voiceGone ? undefined : voiceId,
-                },
-              }
-        }
-      />
+                  sessionId: resume.id,
+                  callout: (
+                    <ResumeCallout
+                      title={t("resume.calloutTitle")}
+                      details={<PracticeProgress session={resume} />}
+                      note={t("resume.noCharge")}
+                    />
+                  ),
+                }
+              : {
+                  kind: "new",
+                  request: {
+                    type: "practice",
+                    roleProfileId,
+                    focusItemId,
+                    avatarId: view?.avatar?.id,
+                    voiceId: view?.voice?.id,
+                  },
+                }
+          }
+        />
+      </>
     );
 
   return (
@@ -521,6 +530,7 @@ function RecruitmentReadiness({
     refetchInterval: 30_000,
     retry: false,
   });
+  const setup = useSavedSetup(user.id, { mode: "recruitment", applicationId });
   const data = application.data;
   const inProgress = data?.interview?.status === "in_progress";
   const back = (
@@ -602,110 +612,115 @@ function RecruitmentReadiness({
   );
 
   const deadline = data.interview_deadline;
-  const side =
+  const blocked =
     !data.can_start_interview ||
-    (deadline !== null && now >= Date.parse(deadline)) ? (
-      <div className="space-y-3 rounded-xl border bg-card p-5 text-sm">
-        <h2 className="font-semibold">
-          {t(`readiness.recruitment.status.${data.status}`)}
-        </h2>
-        <p role="status" className="text-muted-foreground">
-          {data.blocker
-            ? ti(`blockers.${data.blocker}`)
-            : t("readiness.recruitment.notEligible")}
-        </p>
-        {deadline && (
-          <dl className="space-y-2">
-            <div>
-              <dt className="text-muted-foreground">
-                {t("readiness.recruitment.completeBy")}
-              </dt>
-              <dd>
-                <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">
-                {t("readiness.recruitment.timeLeft")}
-              </dt>
-              <dd className="tabular-nums">
-                <TimeLeft deadline={deadline} />
-              </dd>
-            </div>
-          </dl>
-        )}
-        <Button
-          asChild
-          variant="outline"
-          className="h-auto min-h-11 whitespace-normal py-2 w-full"
-        >
-          <Link href={routes.application(applicationId)}>
-            {t("readiness.recruitment.back")}
-          </Link>
-        </Button>
-      </div>
-    ) : (
-      <StartPanel
-        readiness={readiness}
-        cameraReady={cameraReady}
-        consentGiven={consentGiven}
-        links={{ applicationId }}
-        returnPath={setupHref(routes.interviews.new.preflight, {
-          applicationId,
-        })}
-        plan={
-          inProgress && data.interview
-            ? {
-                kind: "resume",
-                type: "recruitment",
-                sessionId: data.interview.id,
-                callout: (
-                  <ResumeCallout
-                    title={t("resume.calloutTitle")}
-                    details={
-                      deadline
-                        ? t.rich("readiness.recruitment.completeIt", {
-                            deadline: formatDeadline(deadline, fmt),
-                            time: (chunks) => (
-                              <time dateTime={deadline}>{chunks}</time>
-                            ),
-                          })
-                        : undefined
-                    }
-                    note={t("readiness.recruitment.resumeNote")}
-                  />
-                ),
-              }
-            : { kind: "new", request: { type: "recruitment", applicationId } }
-        }
+    (deadline !== null && now >= Date.parse(deadline));
+  const side = blocked ? (
+    <div className="space-y-3 rounded-xl border bg-card p-5 text-sm">
+      <h2 className="font-semibold">
+        {t(`readiness.recruitment.status.${data.status}`)}
+      </h2>
+      <p role="status" className="text-muted-foreground">
+        {data.blocker
+          ? ti(`blockers.${data.blocker}`)
+          : t("readiness.recruitment.notEligible")}
+      </p>
+      {deadline && (
+        <dl className="space-y-2">
+          <div>
+            <dt className="text-muted-foreground">
+              {t("readiness.recruitment.completeBy")}
+            </dt>
+            <dd>
+              <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">
+              {t("readiness.recruitment.timeLeft")}
+            </dt>
+            <dd className="tabular-nums">
+              <TimeLeft deadline={deadline} />
+            </dd>
+          </div>
+        </dl>
+      )}
+      <Button
+        asChild
+        variant="outline"
+        className="h-auto min-h-11 whitespace-normal py-2 w-full"
       >
-        {deadline && (
-          <dl className="divide-y rounded-lg border text-sm">
-            <div className="flex items-center justify-between gap-4 px-4 py-3">
-              <dt className="text-muted-foreground">
-                {t("readiness.recruitment.completeBy")}
-              </dt>
-              <dd className="text-right font-semibold">
-                <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
-              </dd>
-            </div>
-            <div className="flex items-center justify-between gap-4 px-4 py-3">
-              <dt className="text-muted-foreground">
-                {t("readiness.recruitment.timeLeft")}
-              </dt>
-              <dd className="font-semibold tabular-nums">
-                <TimeLeft deadline={deadline} />
-              </dd>
-            </div>
-          </dl>
-        )}
-      </StartPanel>
-    );
+        <Link href={routes.application(applicationId)}>
+          {t("readiness.recruitment.back")}
+        </Link>
+      </Button>
+    </div>
+  ) : (
+    <StartPanel
+      readiness={readiness}
+      setupReady={inProgress ? undefined : (setup.data?.ready ?? false)}
+      cameraReady={cameraReady}
+      consentGiven={consentGiven}
+      links={{ applicationId }}
+      returnPath={setupHref(routes.interviews.new.preflight, {
+        applicationId,
+      })}
+      plan={
+        inProgress && data.interview
+          ? {
+              kind: "resume",
+              type: "recruitment",
+              sessionId: data.interview.id,
+              callout: (
+                <ResumeCallout
+                  title={t("resume.calloutTitle")}
+                  details={
+                    deadline
+                      ? t.rich("readiness.recruitment.completeIt", {
+                          deadline: formatDeadline(deadline, fmt),
+                          time: (chunks) => (
+                            <time dateTime={deadline}>{chunks}</time>
+                          ),
+                        })
+                      : undefined
+                  }
+                  note={t("readiness.recruitment.resumeNote")}
+                />
+              ),
+            }
+          : { kind: "new", request: { type: "recruitment", applicationId } }
+      }
+    >
+      {deadline && (
+        <dl className="divide-y rounded-lg border text-sm">
+          <div className="flex items-center justify-between gap-4 px-4 py-3">
+            <dt className="text-muted-foreground">
+              {t("readiness.recruitment.completeBy")}
+            </dt>
+            <dd className="text-right font-semibold">
+              <time dateTime={deadline}>{formatDeadline(deadline, fmt)}</time>
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-4 px-4 py-3">
+            <dt className="text-muted-foreground">
+              {t("readiness.recruitment.timeLeft")}
+            </dt>
+            <dd className="font-semibold tabular-nums">
+              <TimeLeft deadline={deadline} />
+            </dd>
+          </div>
+        </dl>
+      )}
+    </StartPanel>
+  );
 
   return (
     <section className="space-y-8">
       {back}
       {header}
+      {!inProgress && !blocked && (
+        <RecruitmentEnvironment applicationId={applicationId} setup={setup} />
+      )}
       <Layout summary={summary} microphone={microphone} side={side} />
     </section>
   );
@@ -740,4 +755,12 @@ function TimeLeft({ deadline }: { deadline: string }) {
     return () => window.clearInterval(timer);
   }, []);
   return timeLeftText(deadline, now, fmt);
+}
+
+// The room name, from the room picker's own catalog.
+function RoomName({ id }: { id: string }) {
+  const t = useTranslations("candidate.interviewRoom.background");
+  return roomBackgrounds.some((room) => room.id === id)
+    ? t(`options.${id as RoomBackgroundId}`)
+    : id;
 }

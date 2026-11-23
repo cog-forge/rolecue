@@ -7,10 +7,8 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import { ArrowLeft, ArrowRight, AudioLines } from "lucide-react";
-import { z } from "zod";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -29,28 +27,36 @@ import {
   listAvatars,
 } from "@/features/avatar/api/inventory";
 import {
+  draftOf,
+  useSavedSetup,
+  useSaveSetup,
+  type SavedSetup,
+  type SetupDraft,
+  type SetupTarget,
+} from "../api/saved-setup";
+import {
   interviewSetupKeys,
   listActiveVoices,
   useUnfinishedPractice,
 } from "../api/setup-catalog";
 import { setupHref } from "../lib/setup-params";
 import { AvatarPortrait } from "./avatar-portrait";
+import { EnvironmentPicker } from "./environment-picker";
+import { SaveStatus } from "./save-status";
 import { PracticeProgress, ResumeCallout } from "./resume-callout";
 import { SetupHeader } from "./setup-header";
 
-// "2d" and "default" are the absence of a choice: no avatar_id or voice_id is sent.
-const NO_AVATAR = "2d";
-const DEFAULT_VOICE = "default";
-export const interviewerFormSchema = z.object({
-  avatarId: z.union([z.literal(NO_AVATAR), z.uuid()]),
-  voiceId: z.union([z.literal(DEFAULT_VOICE), z.uuid()]),
-});
-type InterviewerForm = z.infer<typeof interviewerFormSchema>;
+type InterviewerForm = SetupDraft;
 
 const cardClass =
   "group relative flex min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border bg-card transition-[border-color,box-shadow,translate] duration-(--duration-fast) ease-(--ease-smooth-out) hover:-translate-y-0.5 hover:border-foreground/30 has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-data-[state=checked]:border-foreground has-data-[state=checked]:shadow-[inset_0_0_0_1px_var(--foreground)] motion-reduce:transition-none motion-reduce:hover:translate-y-0";
 
-// Step 4: who interviews the Candidate and how they sound. Both are optional.
+// Step 4: who interviews the Candidate, how they sound and the room they sit in. Every choice is
+// saved to the setup API as it is made (a full replace of the three values), so leaving and coming
+// back, or reloading, finds it again.
+//
+// Where the choices come from: the saved setup wins. The avatarId and voiceId in the URL only seed
+// a setup that was never saved (an older link, or a choice made before this screen saved anything).
 export function InterviewerPicker({
   roleProfileId,
   focusItemId,
@@ -63,31 +69,6 @@ export function InterviewerPicker({
   voiceId?: string;
 }) {
   const t = useTranslations("candidate.setup");
-  const user = useSessionUser();
-  const router = useRouter();
-  const ids = useId();
-  const [page, setPage] = useState(1);
-  const unfinished = useUnfinishedPractice(user.id);
-  const avatars = useQuery({
-    queryKey: avatarKeys.list(user.id, page),
-    queryFn: ({ signal }) => listAvatars(page, signal),
-    // Avatars are made in the Avatar Studio, often in another tab: refresh on return.
-    refetchOnWindowFocus: true,
-    retry: false,
-  });
-  const voices = useQuery({
-    queryKey: interviewSetupKeys.voices(user.id),
-    queryFn: ({ signal }) => listActiveVoices(signal),
-    retry: false,
-  });
-  const form = useForm<InterviewerForm>({
-    resolver: zodResolver(interviewerFormSchema),
-    defaultValues: {
-      avatarId: avatarId ?? NO_AVATAR,
-      voiceId: voiceId ?? DEFAULT_VOICE,
-    },
-  });
-
   if (!roleProfileId)
     return (
       <section className="space-y-6">
@@ -103,6 +84,44 @@ export function InterviewerPicker({
         </Button>
       </section>
     );
+  return (
+    <InterviewerStep
+      roleProfileId={roleProfileId}
+      focusItemId={focusItemId}
+      avatarId={avatarId}
+      voiceId={voiceId}
+    />
+  );
+}
+
+function InterviewerStep({
+  roleProfileId,
+  focusItemId,
+  avatarId,
+  voiceId,
+}: {
+  roleProfileId: string;
+  focusItemId?: string;
+  avatarId?: string;
+  voiceId?: string;
+}) {
+  const t = useTranslations("candidate.setup");
+  const user = useSessionUser();
+  const [page, setPage] = useState(1);
+  const unfinished = useUnfinishedPractice(user.id);
+  const avatars = useQuery({
+    queryKey: avatarKeys.list(user.id, page),
+    queryFn: ({ signal }) => listAvatars(page, signal),
+    // Avatars are made in the Avatar Studio, often in another tab: refresh on return.
+    refetchOnWindowFocus: true,
+    retry: false,
+  });
+  const voices = useQuery({
+    queryKey: interviewSetupKeys.voices(user.id),
+    queryFn: ({ signal }) => listActiveVoices(signal),
+    retry: false,
+  });
+  const saved = useSavedSetup(user.id, { mode: "practice", roleProfileId });
 
   const resume = unfinished.data?.get(roleProfileId);
   if (resume)
@@ -141,6 +160,93 @@ export function InterviewerPicker({
       </section>
     );
 
+  // Wait for this visit's own read: a cached answer may predate a change made elsewhere.
+  if (saved.isError || !saved.isFetchedAfterMount || !saved.data)
+    return (
+      <section className="space-y-8">
+        <SetupHeader
+          context={t("context")}
+          title={t("interviewer.title")}
+          description={t("interviewer.description")}
+        />
+        {!saved.isError ? (
+          <div role="status" className="space-y-3">
+            <Skeleton className="h-40 rounded-xl" />
+            <span className="sr-only">
+              {t("interviewer.loadSaved.loading")}
+            </span>
+          </div>
+        ) : (
+          <ErrorState
+            description={t("interviewer.loadSaved.error")}
+            onRetry={() => void saved.refetch()}
+            retryLabel={t("tryAgain")}
+            isRetrying={saved.isFetching}
+          ></ErrorState>
+        )}
+      </section>
+    );
+
+  return (
+    <InterviewerChoices
+      key={roleProfileId}
+      roleProfileId={roleProfileId}
+      focusItemId={focusItemId}
+      saved={saved.data}
+      urlAvatarId={avatarId}
+      urlVoiceId={voiceId}
+      avatars={avatars}
+      voices={voices}
+      page={page}
+      setPage={setPage}
+    />
+  );
+}
+
+type AvatarsQuery = ReturnType<
+  typeof useQuery<Awaited<ReturnType<typeof listAvatars>>>
+>;
+type VoicesQuery = ReturnType<
+  typeof useQuery<Awaited<ReturnType<typeof listActiveVoices>>>
+>;
+
+function InterviewerChoices({
+  roleProfileId,
+  focusItemId,
+  saved,
+  urlAvatarId,
+  urlVoiceId,
+  avatars,
+  voices,
+  page,
+  setPage,
+}: {
+  roleProfileId: string;
+  focusItemId?: string;
+  saved: SavedSetup;
+  urlAvatarId?: string;
+  urlVoiceId?: string;
+  avatars: AvatarsQuery;
+  voices: VoicesQuery;
+  page: number;
+  setPage: (update: (value: number) => number) => void;
+}) {
+  const t = useTranslations("candidate.setup");
+  const user = useSessionUser();
+  const router = useRouter();
+  const ids = useId();
+  const target: SetupTarget = { mode: "practice", roleProfileId };
+  const save = useSaveSetup(user.id, target);
+  const form = useForm<InterviewerForm>({
+    defaultValues: saved.saved
+      ? draftOf(saved)
+      : {
+          avatarId: urlAvatarId ?? null,
+          voiceId: urlVoiceId ?? null,
+          environment: saved.environment,
+        },
+  });
+
   const avatarPage = avatars.data;
   const allAvatarsLoaded =
     avatarPage !== undefined && avatarPage.pagination.total <= avatarPageSize;
@@ -149,30 +255,45 @@ export function InterviewerPicker({
     : 1;
   // A chosen avatar or voice that is gone (deleted, deactivated) falls back to no choice, so the
   // start never sends a reference the API would refuse.
-  const avatarGone = (value: string) =>
-    value !== NO_AVATAR &&
+  const avatarGone = (value: string | null) =>
+    value !== null &&
     allAvatarsLoaded &&
     !avatarPage?.items.some((avatar) => avatar.id === value);
-  const voiceGone = (value: string) =>
-    value !== DEFAULT_VOICE &&
+  const voiceGone = (value: string | null) =>
+    value !== null &&
     voices.isSuccess &&
     !voices.data.some((voice) => voice.id === value);
+  // A gone avatar or voice is saved as "not chosen": the API would refuse the stale id.
+  const current = (patch: Partial<SetupDraft> = {}): SetupDraft => {
+    const values = { ...form.getValues(), ...patch };
+    return {
+      avatarId: avatarGone(values.avatarId) ? null : values.avatarId,
+      voiceId: voiceGone(values.voiceId) ? null : values.voiceId,
+      environment: values.environment,
+    };
+  };
+  const persist = (patch: Partial<SetupDraft>) => save.mutate(current(patch));
+  const saveState = save.isPending
+    ? "saving"
+    : save.isError
+      ? "error"
+      : save.isSuccess
+        ? "saved"
+        : "idle";
 
-  const submit = form.handleSubmit((values) => {
-    const avatar =
-      values.avatarId === NO_AVATAR || avatarGone(values.avatarId)
-        ? undefined
-        : values.avatarId;
-    const voice =
-      values.voiceId === DEFAULT_VOICE || voiceGone(values.voiceId)
-        ? undefined
-        : values.voiceId;
+  const submit = form.handleSubmit(async () => {
+    const draft = current();
+    try {
+      await save.mutateAsync(draft);
+    } catch {
+      return; // the status line shows the failure with a retry; stay on this step
+    }
     router.push(
       setupHref(routes.interviews.new.preflight, {
         roleProfileId,
         focusItemId,
-        avatarId: avatar,
-        voiceId: voice,
+        avatarId: draft.avatarId ?? undefined,
+        voiceId: draft.voiceId ?? undefined,
       }),
     );
   });
@@ -186,7 +307,11 @@ export function InterviewerPicker({
       />
 
       <PracticeFocus profileId={roleProfileId} focusItemId={focusItemId} />
-      <fieldset className="space-y-4">
+      <fieldset
+        id="setup-avatar"
+        tabIndex={-1}
+        className="scroll-mt-24 space-y-4 outline-none"
+      >
         <legend className="font-semibold">{t("interviewer.legend")}</legend>
         <p className="-mt-2 text-sm text-muted-foreground">
           {t.rich("interviewer.inventoryNote", {
@@ -208,28 +333,13 @@ export function InterviewerPicker({
             <>
               <RadioGroup
                 aria-label={t("interviewer.legend")}
-                value={avatarGone(field.value) ? NO_AVATAR : field.value}
-                onValueChange={field.onChange}
+                value={avatarGone(field.value) ? "" : (field.value ?? "")}
+                onValueChange={(value) => {
+                  field.onChange(value);
+                  persist({ avatarId: value });
+                }}
                 className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4"
               >
-                <label htmlFor={`${ids}-2d`} className={cardClass}>
-                  <span className="relative grid aspect-[4/5] place-items-center bg-muted/60">
-                    <AudioLines
-                      aria-hidden="true"
-                      className="size-10 text-muted-foreground"
-                      strokeWidth={1.5}
-                    />
-                  </span>
-                  <CardText
-                    title={t("interviewer.twoD.title")}
-                    detail={t("interviewer.twoD.detail")}
-                  />
-                  <RadioGroupItem
-                    id={`${ids}-2d`}
-                    value={NO_AVATAR}
-                    className="absolute top-2.5 left-2.5 bg-background"
-                  />
-                </label>
                 {avatars.isPending &&
                   [0, 1].map((slot) => (
                     <div
@@ -321,7 +431,11 @@ export function InterviewerPicker({
         )}
       </fieldset>
 
-      <div className="max-w-md space-y-2">
+      <div
+        id="setup-voice"
+        tabIndex={-1}
+        className="max-w-md scroll-mt-24 space-y-2 outline-none"
+      >
         <h2 id={`${ids}-voice-label`} className="font-semibold">
           {t("interviewer.voice.label")}
         </h2>
@@ -330,8 +444,11 @@ export function InterviewerPicker({
           name="voiceId"
           render={({ field }) => (
             <Select
-              value={voiceGone(field.value) ? DEFAULT_VOICE : field.value}
-              onValueChange={field.onChange}
+              value={voiceGone(field.value) ? "" : (field.value ?? "")}
+              onValueChange={(value) => {
+                field.onChange(value);
+                persist({ voiceId: value });
+              }}
               disabled={voices.isPending}
             >
               <SelectTrigger
@@ -339,12 +456,9 @@ export function InterviewerPicker({
                 aria-describedby={`${ids}-voice-help`}
                 className="h-11 w-full min-w-0"
               >
-                <SelectValue />
+                <SelectValue placeholder={t("interviewer.voice.placeholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={DEFAULT_VOICE}>
-                  {t("interviewer.voice.default")}
-                </SelectItem>
                 {voices.data?.map((voice) => (
                   <SelectItem key={voice.id} value={voice.id}>
                     {voice.name}
@@ -367,7 +481,7 @@ export function InterviewerPicker({
                 ? t("interviewer.voice.none")
                 : voiceGone(form.getValues("voiceId"))
                   ? t("interviewer.voice.gone")
-                  : t("interviewer.voice.active")}
+                  : null}
         </p>
         {voices.isError && (
           <Button
@@ -380,6 +494,22 @@ export function InterviewerPicker({
           </Button>
         )}
       </div>
+
+      <Controller
+        control={form.control}
+        name="environment"
+        render={({ field }) => (
+          <EnvironmentPicker
+            value={field.value}
+            onChange={(value) => {
+              field.onChange(value);
+              persist({ environment: value });
+            }}
+          />
+        )}
+      />
+
+      <SaveStatus state={saveState} onRetry={() => persist({})} />
 
       <div className="flex flex-col-reverse gap-3 border-t pt-6 sm:flex-row sm:items-center sm:justify-between">
         <Button

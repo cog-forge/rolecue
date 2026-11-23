@@ -9,6 +9,10 @@ import {
   sessionFixture,
 } from "../fixtures/roadmap";
 import type { Roadmap } from "@/features/roadmap/api/roadmap";
+import { createSetupMock } from "./fixtures/interview-setup-api";
+
+const miaId = "44444444-4444-4444-8444-000000000001";
+const avaId = "55555555-5555-4555-8555-000000000001";
 
 test.use({
   launchOptions: {
@@ -51,6 +55,12 @@ async function mockApi(
     errors: [] as string[],
     regenerates: 0,
   };
+  const setup = createSetupMock({
+    profileId,
+    applicationId: "77777777-7777-4777-8777-000000000001",
+    avatars: { [miaId]: "Mia" },
+    voices: { [avaId]: "Ava - English" },
+  });
   page.on("pageerror", (error) => state.errors.push(error.message));
   await page.route(
     `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080"}/**`,
@@ -61,7 +71,7 @@ async function mockApi(
       const headers = {
         "access-control-allow-origin": "http://127.0.0.1:3100",
         "access-control-allow-credentials": "true",
-        "access-control-allow-methods": "GET,POST,OPTIONS",
+        "access-control-allow-methods": "GET,POST,PUT,OPTIONS",
         "access-control-allow-headers": "Content-Type,Idempotency-Key",
       };
       const ok = (data: unknown, status = 200) =>
@@ -69,6 +79,19 @@ async function mockApi(
       if (request.method() === "OPTIONS")
         return route.fulfill({ status: 204, headers });
       if (path === "/auth/me") return ok(candidate);
+      const saved = setup.handle(
+        path,
+        request.method(),
+        request.postDataJSON(),
+      );
+      if (saved)
+        return saved.status < 300
+          ? ok(saved.data)
+          : route.fulfill({
+              status: saved.status,
+              headers,
+              json: saved.data,
+            });
       if (path === `/role-profiles/${profileId}`) return ok(profileFixture);
       if (path === "/role-profiles")
         return ok({
@@ -119,11 +142,22 @@ async function mockApi(
         return ok({ id: "wallet", user_id: candidate.id, balance: 20 });
       if (path === "/inventory/avatars")
         return ok({
-          items: [],
-          pagination: { page: 1, page_size: 20, total: 0, total_pages: 0 },
+          items: [
+            {
+              id: miaId,
+              name: "Mia",
+              personality: "Calm and precise.",
+              created_at: "2026-10-20T08:00:00Z",
+              updated_at: "2026-10-20T08:00:00Z",
+            },
+          ],
+          pagination: { limit: 12, offset: 0, total: 1 },
         });
       if (path === "/voices")
-        return ok({ items: [], pagination: { total: 0 } });
+        return ok({
+          items: [{ id: avaId, name: "Ava - English" }],
+          pagination: { limit: 100, offset: 0, total: 1 },
+        });
       if (path === "/interviews" && request.method() === "GET")
         return ok({
           items: [],
@@ -360,6 +394,11 @@ for (const language of ["en", "vi"] as const) {
         exact: true,
       }),
     ).toHaveCount(0);
+    // The setup now needs an avatar, a voice and a room before Start turns on.
+    await page.getByRole("radio", { name: /mia/i }).click();
+    await page.getByRole("combobox").click();
+    await page.getByRole("option", { name: /Ava/ }).click();
+    await page.locator('button[role="radio"][value="office-3d"]').click();
     await page
       .getByRole("button", {
         name:
