@@ -104,8 +104,8 @@ func TestDebitLowersBalanceAndWritesOneCoinRow(t *testing.T) {
 	if db.count("UPDATE public.wallets") != 1 || db.count("INSERT INTO public.transactions") != 1 {
 		t.Fatalf("statements = %v, want one wallet update and one transaction row", db.statements)
 	}
-	// Exec calls are recorded in order: the wallet UPDATE args are (wallet id, new balance).
-	if got := db.args[0]; got[1] != int32(95) {
+	// Exec calls are recorded in order: the wallet UPDATE args are (new balance, wallet id).
+	if got := db.args[0]; got[0] != int32(95) {
 		t.Fatalf("UPDATE args = %v, want new balance 95", got)
 	}
 	row := db.args[1]
@@ -180,7 +180,7 @@ func TestCreditForOrderCreatesMissingWalletAndWritesNoRow(t *testing.T) {
 	if db.count("UPDATE public.wallets") != 1 {
 		t.Fatalf("statements = %v, want one wallet update", db.statements)
 	}
-	if got := db.args[len(db.args)-1]; got[1] != int32(100) {
+	if got := db.args[len(db.args)-1]; got[0] != int32(100) {
 		t.Fatalf("UPDATE args = %v, want new balance 100", got)
 	}
 	if db.count("INSERT INTO public.transactions") != 0 {
@@ -193,7 +193,7 @@ func TestCreditForOrderAddsToExistingBalance(t *testing.T) {
 	if err := CreditForOrder(context.Background(), db, userID, 100); err != nil {
 		t.Fatal(err)
 	}
-	if got := db.args[len(db.args)-1]; got[1] != int32(107) {
+	if got := db.args[len(db.args)-1]; got[0] != int32(107) {
 		t.Fatalf("UPDATE args = %v, want new balance 107", got)
 	}
 }
