@@ -47,6 +47,8 @@ type Service struct {
 	maxRetries    int
 	size          int
 	questionLimit int
+	// duplicateThreshold is stamped on every generation input (KAN-384); zero keeps the domain default.
+	duplicateThreshold float64
 }
 
 // New builds the service. size is the number of questions to generate; 0 disables generation
@@ -66,6 +68,12 @@ func New(repository Repository, generator Generator, maxRetries, size int) (*Ser
 	}
 	return &Service{repository: repository, generator: generator, maxRetries: maxRetries, size: size,
 		questionLimit: evaluationdomain.DefaultQuestionLimit}, nil
+}
+
+// SetDuplicateThreshold sets the near-duplicate threshold of generated questions (KAN-384). Zero keeps
+// domain.DefaultDuplicateThreshold. Set it before the service serves requests.
+func (s *Service) SetDuplicateThreshold(threshold float64) {
+	s.duplicateThreshold = threshold
 }
 
 // SetQuestionLimit sets how many core questions one interview session asks, the limit a generated bank is

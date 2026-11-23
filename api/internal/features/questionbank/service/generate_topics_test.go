@@ -16,7 +16,7 @@ func bankFor(in domain.GenerationInput, counts ...int) domain.GenerationCandidat
 	for i, n := range counts {
 		for j := 0; j < n; j++ {
 			id := in.Topics[i].ID
-			c.Questions = append(c.Questions, domain.GeneratedQuestion{Content: fmt.Sprintf("Question %d of topic %d?", j, i), TopicID: &id, ExpectedAnswer: ptr("Key points.")})
+			c.Questions = append(c.Questions, domain.GeneratedQuestion{Content: fmt.Sprintf("Question %d of topic %d about %s?", j, i, subject(i, j)), TopicID: &id, ExpectedAnswer: ptr("Key points.")})
 		}
 	}
 	return c

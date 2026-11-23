@@ -50,9 +50,13 @@ func ProvideInterviewService(repo *repository.Repository, cfg *config.Config, sc
 	return svc, nil
 }
 
-// provideFollowUpDecider routes decision and text together within the live time budget. Another
-// decision provider plugs in here behind service.FollowUpDecider.
+// provideFollowUpDecider routes decision and text together within the live time budget. With
+// ai.follow_up_decision set, Clef decides and the chat route only words the question, falling back to the
+// chat route deciding when Clef fails (KAN-274).
 func provideFollowUpDecider(cfg *config.Config) (service.FollowUpDecider, error) {
+	if cfg.AI.FollowUpDecisionRoute().Provider != "" {
+		return ai.NewClefFollowUpDecider(context.Background(), cfg)
+	}
 	model, err := ai.NewTaskAdapter(context.Background(), cfg, config.TaskFollowUp)
 	if err != nil {
 		return nil, err

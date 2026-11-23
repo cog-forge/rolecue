@@ -47,14 +47,20 @@ const lengthPhrase = "at most 300 characters"
 // followUpSystemMessage composes the follow-up system message for a guideline. An unknown value counts as the
 // default of its field (domain.BehaviorGuideline.Sanitized), so only fixed text above can appear.
 func followUpSystemMessage(guideline domain.BehaviorGuideline) string {
+	return composeSystemMessage(followUpInstruction, guideline)
+}
+
+// composeSystemMessage inserts the guideline block into a follow-up instruction that ends with the output
+// schema paragraph (the deciding or the wording one).
+func composeSystemMessage(instruction string, guideline domain.BehaviorGuideline) string {
 	g, _ := guideline.Sanitized()
 	if g.IsDefault() {
-		return followUpInstruction
+		return instruction
 	}
-	head, tail, found := strings.Cut(followUpInstruction, followUpSchemaMarker)
+	head, tail, found := strings.Cut(instruction, followUpSchemaMarker)
 	if !found {
-		// followUpInstruction always has the schema paragraph (a test pins it); never guess a position.
-		return followUpInstruction
+		// Both instructions always have the schema paragraph (a test pins it); never guess a position.
+		return instruction
 	}
 	tail = followUpSchemaMarker + tail
 	if g.QuestionLength == domain.LengthConcise {

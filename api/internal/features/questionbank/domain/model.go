@@ -238,7 +238,15 @@ type GenerationInput struct {
 	// proposed question equal to one of them is dropped by validation.
 	Size     int
 	Existing []string
+	// DuplicateThreshold is the token similarity from which a question counts as a near duplicate of an
+	// earlier one and is dropped (KAN-384). Zero means DefaultDuplicateThreshold; above 1 only exact
+	// duplicates are dropped. The service stamps it from config once, so every pass uses the same value.
+	DuplicateThreshold float64
 }
+
+// DefaultDuplicateThreshold is the token similarity (Jaccard over informative tokens) from which two
+// questions are near duplicates (KAN-384).
+const DefaultDuplicateThreshold = 0.7
 
 // ErrBankInUse means the practice bank cannot be replaced because the profile already has an interview: its
 // questions are the history of those sessions.

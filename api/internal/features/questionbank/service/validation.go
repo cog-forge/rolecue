@@ -102,9 +102,22 @@ func validateCandidate(in domain.GenerationInput, c domain.GenerationCandidate, 
 	for _, topic := range in.Topics {
 		topics[topic.ID] = struct{}{}
 	}
+	// Exact duplicates (case-insensitive) and near duplicates (KAN-384) of an existing question or of an
+	// earlier kept one are dropped; the first one wins.
+	threshold := duplicateThreshold(in)
 	seen := make(map[string]struct{}, len(c.Questions)+len(in.Existing))
+	kept := make([]map[string]struct{}, 0, len(c.Questions)+len(in.Existing))
 	for _, existing := range in.Existing {
 		seen[strings.ToLower(strings.TrimSpace(existing))] = struct{}{}
+		kept = append(kept, questionTokens(existing))
+	}
+	isNear := func(tokens map[string]struct{}) bool {
+		for _, other := range kept {
+			if nearDuplicate(tokens, other, threshold) {
+				return true
+			}
+		}
+		return false
 	}
 	out := make([]domain.GeneratedQuestion, 0, len(c.Questions))
 	for index, raw := range c.Questions {
@@ -116,7 +129,12 @@ func validateCandidate(in domain.GenerationInput, c domain.GenerationCandidate, 
 		if _, dup := seen[key]; dup {
 			continue
 		}
+		tokens := questionTokens(q)
+		if isNear(tokens) {
+			continue
+		}
 		seen[key] = struct{}{}
+		kept = append(kept, tokens)
 		item := domain.GeneratedQuestion{Content: q}
 		if len(topics) > 0 {
 			// Every question of a Roadmap bank names exactly one of the topics the backend allowed.

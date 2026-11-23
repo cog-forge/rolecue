@@ -123,6 +123,11 @@ ai:
   question_bank: {}
   follow_up: {}
   evaluation: {}
+  # Clef decides whether a follow-up is asked (KAN-274); credentials come from env only.
+  follow_up_decision: {}
+  # Question bank quality (KAN-384): near-duplicate threshold and the Clef topic check (on by default,
+  # batched clef, fail-open; topic.provider: off turns it off).
+  question_bank_check: {}
 
 interview:
   # fake or azure; azure requires the shared AZURE_SPEECH_KEY and AZURE_SPEECH_REGION.

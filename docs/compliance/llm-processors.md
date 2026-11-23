@@ -14,6 +14,7 @@ re-check when providers, routing or prompts change.
 | --- | --- | --- | --- |
 | Google Gemini (Gemini API) | `api/internal/pkg/ai/model.go` (eino Gemini chat model) | `llm.provider: gemini` in `api/configs/config.yaml`; key in `LLM_API_KEY`; model `llm.model` (default `gemini-3.1-flash-lite`) | Yes |
 | Groq | `api/internal/pkg/ai/model.go` and `groq.go`, endpoint `https://api.groq.com/openai/v1/chat/completions` | Opt-in per task through `ai.<task>.provider: groq` (`ai.jd_extraction`, `ai.question_bank`, `ai.follow_up`, `ai.evaluation`); key in `GROQ_API_KEY` | Yes |
+| Cloudflare Workers AI (Clef) | `api/internal/pkg/ai/clef.go`, endpoint `https://api.cloudflare.com/client/v4/accounts/{id}/ai/run/@cf/cloudflare/clef-flash` | Opt-in through `ai.follow_up_decision.provider: clef`; credentials in `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_AI_API_TOKEN` | Yes |
 | Microsoft Azure AI Speech (text to speech) | `api/internal/pkg/tts/azure/azure.go` (REST synthesis) and `api/internal/features/admin/voicecatalog/provider/azure.go` (voice list) | `tts.key`, `tts.region` (env `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`) | Yes |
 | Azure speech to text | None. `interview.stt_provider` accepts only `fake` (`api/internal/config/config.go`); no real transcriber is wired | n/a | Yes: not used |
 
@@ -32,6 +33,7 @@ maps Azure viseme output to blend shapes; engineering has not traced where that 
 | JD extraction (`roleprofile/provider/eino.go`) | Gemini or Groq | The job description text a candidate pasted or uploaded (may contain recruiter or company contact details) | Extract title, seniority, skills | JD is cleaned (NFKC, invisible characters) and fenced as untrusted data. Contact details are not stripped, because the model must quote the JD verbatim. TODO product owner: accept, or add redaction with a placeholder-aware evidence check |
 | Question bank (`questionbank/provider/eino.go`) | Gemini or Groq | Seniority level, confirmed requirement names and targets, JD excerpts (`evidence_text`), the owner's refinement note, earlier generated questions | Write core interview questions | Free text is cleaned, capped and fenced |
 | Follow-up decision (`interview/provider/eino.go`) | Gemini or Groq (`ai.follow_up`) | Core question, the candidate's spoken answers as text and earlier questions, requirement names | Decide and word one follow-up | Answers go through `textsafe.Redact` (e-mail, phone, URL) |
+| Follow-up decision model (`pkg/ai/clef_decider.go`, KAN-274) | Cloudflare Workers AI, Clef (`ai.follow_up_decision`) | The same data as the follow-up decision row: core question, the candidate's answers as text and earlier questions, requirement names | Decide whether a follow-up is asked (probability only; Clef writes no text) | Same `untrusted_*` state as the chat decider, answers through `textsafe.Redact`; instructions are fixed text |
 | Rubric grading (`evaluation/provider/grader.go`, KAN-334) | Gemini or Groq (`ai.evaluation`) | One core question, its follow-ups and the candidate's answers to them as text; the question's rubric (name, description, criteria, metric names, maximum points, scoring guides, which a Recruiter may have written) and its expected answer | Grade each rubric criterion and write feedback | Answers and questions go through `textsafe.Redact`; every value is cleaned, capped and fenced as untrusted data; one call per core question, so a call sees only that question's answers and rubric. `QuestionGradeInput.RedactNames` can carry the candidate's own names; TODO engineering: the evaluation service does not populate it yet |
 | Text to speech (`tts/azure`) | Azure AI Speech | The text of the interviewer's questions (core questions and follow-ups) and the voice id | Speak the question to the candidate | Questions only; no candidate answers are sent |
 | Voice catalog (`voicecatalog/provider/azure.go`) | Azure AI Speech | Admin request for the voice list; no candidate data | Keep the voice catalog current | None needed |
@@ -51,6 +53,7 @@ All entries are unknown to engineering. Do not fill them from assumptions.
 | --- | --- | --- | --- | --- |
 | Google Gemini API | TODO | TODO | TODO (paid tier versus free tier terms differ; confirm which applies to the key in use) | TODO |
 | Groq | TODO | TODO | TODO | TODO |
+| Cloudflare Workers AI (Clef) | TODO (not stated on the model page) | TODO | Model page states zero data retention (checked 2026-11-18) | TODO |
 | Azure AI Speech | TODO: the region is the value of `AZURE_SPEECH_REGION` in each environment | TODO | TODO | TODO |
 
 ## 4. DPA and SCC checklist

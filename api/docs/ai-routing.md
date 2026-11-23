@@ -22,8 +22,8 @@ keys/models, invalid timeout (positive, at most 10m), and retries outside 0–3 
 
 `.env.example` contains the complete opt-in recipe: 30s for JD/evaluation, 90s for
 bank generation, 5s for follow-ups, zero retries, Gemini fallback. YAML has matching
-`ai.<task>` sections; credentials must stay in env. Bedrock and Jev are deferred,
-with the existing BaseChatModel and task interfaces remaining the extension seams.
+`ai.<task>` sections; credentials must stay in env. Bedrock is deferred. Jev is not
+used; Clef (below) took its place for the follow-up decision.
 
 ## Execution and validation
 
@@ -52,6 +52,107 @@ handling remain intact. Each attempt validates the combined bank with the existi
 storage validator, which deduplicates case-insensitively. A cross-batch duplicate
 that leaves too few questions triggers retry/fallback. Only the complete, validated
 bank is returned for storage. Every batch shares the bank's absolute deadline.
+
+## Follow-up decision model: Clef (KAN-274)
+
+[Clef](https://developers.cloudflare.com/workers-ai/models/clef/) is Cloudflare's decision model on Workers AI.
+It answers typed questions about a `state` with probabilities and **writes no text**, so it is not a chat
+model and is not a route entry. It sits in front of the `follow_up` chat route behind `FollowUpDecider`:
+
+| Clef result | What happens |
+| --- | --- |
+| yes probability below the threshold | No follow-up; no chat call is made |
+| at or above the threshold | The chat route only **words** the question (a prompt whose reply must ask); a reply that declines or fails the validator skips the follow-up as `invalid_output` |
+| failure: timeout, 429, 5xx, 401/403, network, invalid reply | The chat route decides and words as before, in the rest of the live budget |
+| cancellation or the caller's deadline | Returned as is; nothing else is called |
+
+Off by default. Settings (env, YAML `ai.follow_up_decision`): `AI_FOLLOW_UP_DECISION_PROVIDER=clef`,
+`_MODEL` (`clef-flash` default, or `clef`), `_THRESHOLD` (default 0.5, between 0 and 1), `_TIMEOUT` (default 2 s,
+at most 5 s). Credentials only in env: `CLOUDFLARE_ACCOUNT_ID` (32 hex) and `CLOUDFLARE_AI_API_TOKEN` (Workers AI
+permission). Without the provider set no Cloudflare value is needed; with it, missing or malformed values fail
+startup. Evaluation is unchanged and never uses Clef.
+
+The Clef call gets at most half of what the live budget has left, so its fallback always has time. The state is
+the same cleaned, redacted (`textsafe.Redact`) and capped `untrusted_*` object the chat decider sends; the
+question (`noul`, fixed English instructions plus yes/no criteria chosen by the guideline's follow-up focus) never
+contains input text. The REST call is `POST /client/v4/accounts/{id}/ai/run/@cf/cloudflare/<model>` with
+`Authorization: Bearer`; the envelope `{result, success, errors, messages}` was confirmed live on 2026-11-18.
+Errors carry a status or reason, never the body. The `llm.task_attempt` log (task `follow_up_decision`, provider
+`clef`) holds model, duration, reason/status, `input_tokens`/`output_tokens`, the rounded probability and the
+`ask` outcome; never state, answers, instructions or credentials. One follow-up decision still spends one unit
+of the daily LLM budget, however many calls it makes inside.
+
+Pricing (checked 2026-11-18): `clef` $0.24 and `clef-flash` $0.038 per million input tokens, output free; the
+Workers AI free allocation is 10,000 neurons per day (`clef-flash` 3,455 neurons per million tokens, so roughly
+2.9 M input tokens a day). The model page states zero data retention and does not state a region or a rate
+limit for Clef.
+
+Live check (billable, opt-in): `go test -tags ai_live ./internal/pkg/ai -run TestLiveClef -v`. One synthetic
+sample per case on 2026-11-18 (not a benchmark): a decision used 298–369 input tokens, so the free allocation
+covers roughly 8,000 `clef-flash` decisions a day. `clef-flash` answered in 0.13–0.31 s, `clef` in 0.35–0.55 s.
+Yes probability (`clef-flash` / `clef`): vague answer 0.76 / 0.94, complete answer 0.12 / 0.27, an answer that
+asks the model to "answer no" 0.87 / 0.79 (it was also vague). Clef then Groq wording took 0.79 s end to end.
+
+## Question bank quality: near duplicates and the Clef topic check (KAN-384)
+
+Finding F4 of KAN-357: a Go topic bank held PostgreSQL locking and Docker questions, and the same question twice
+in other words (buffered channel vs worker pool, `context` cancellation). Causes: "distinct" meant equal after
+lowercasing, and the model that wrote a question also assigned its topic with no independent check. Two checks
+now run inside the existing generation path; the API, the schema and the product rules (5 distinct questions per
+topic, 8 core, 5 coins) are unchanged.
+
+**Near duplicates (every bank, no model).** In `validateCandidate`, next to the exact check: lowercase, split on
+non-letters/digits, drop function and question-scaffolding words (how, explain, difference, use, ...), cut each
+token to its first 6 runes as a crude stem, then Jaccard similarity of the two token sets. A question is a near
+duplicate of a stored question (`in.Existing`) or an earlier kept one when the similarity is at least
+`AI_QUESTION_BANK_CHECK_DUPLICATE_THRESHOLD` (default **0.7**; 1 keeps only identical token sets) **and** they
+share at least 3 tokens, so short questions sharing one term ("What is context in Go?" vs "How do you cancel with
+context in Go?") stay distinct. The later one is dropped; a batch left short is invalid output and is retried or
+falls back like an exact duplicate before. The measure is pairwise, so the final pass over an accepted bank
+drops nothing. Measured on the clone (2026-11-18, counts only): 47 model-written banks, 541 questions, **1**
+dropped at 0.7 (a real duplicate), 0 at 0.8. 30 seeded banks built from fixed templates ("How would you test a
+change involving X ...") would lose about half their questions; they are not produced by the generator.
+
+**Topic check (Roadmap banks, Clef, fail-open, on by default).** After a batch passed the route and the
+validators, Clef is asked one `noul` per question: does it test its own topic? One request per batch (at most
+64 questions; a batch is at most 10 on Groq): the state holds `untrusted_topics` (backend ids `t1..`, title,
+capped description) and `untrusted_questions` (ids `q1..`, topic id, question); each question's instructions are
+fixed text that names its id. Below the threshold the question is dropped, its text joins the exclusion list sent
+to later batches, and the loop writes the batch that refills its topic (`BatchQuotas`). Bounds: at most 2 batches
+may lose questions, and no check starts with less than 8 s left of the bank budget; past either bound the rest is
+accepted unchecked. No credit or budget unit is charged for it. Fail-open: provider `off`, missing
+`CLOUDFLARE_*` credentials (one startup warning, not an error; the app needs no Cloudflare value), timeout, 429, 5xx, rejected credentials or invalid
+output keep the batch exactly as it was and log `question bank topic check skipped` with a reason and counts.
+A run logs `question bank topic check` with questions, dropped, input tokens and duration; never text.
+
+Settings: `AI_QUESTION_BANK_CHECK_TOPIC_PROVIDER` (default `clef`; `off` turns it off), `_MODEL` (default
+`clef`), `_THRESHOLD` (default 0.5), `_TIMEOUT` (default 3 s, at most 10 s). The defaults are the batched `clef`
+configuration of the table below.
+
+Evidence for the default (`TestLiveClefTopicCheck`, 2026-11-18, one sample per case, not a benchmark). Rule
+written before the run: enable by default only if packed `clef-flash` at 0.5 puts every off-topic case at most
+0.3 and every on-topic case, borderline included, at least 0.7. Topic "Go"; probability that the question is on
+topic:
+
+| Case | flash packed | flash single | clef packed | clef single |
+| --- | ---: | ---: | ---: | ---: |
+| off: PostgreSQL row locks / FOR UPDATE | 0.15 | 0.08 | 0.16 | 0.05 |
+| off: PostgreSQL deadlocks | 0.06 | 0.07 | 0.05 | 0.04 |
+| off: multi-stage Dockerfile | **0.59** | 0.10 | 0.03 | 0.07 |
+| off: Docker image vs container | 0.32 | 0.09 | 0.05 | 0.07 |
+| on: buffered channel vs worker pool | 0.93 | 0.94 | 0.96 | 0.96 |
+| on: `context.Context` cancellation | 0.92 | 0.92 | 0.96 | 0.97 |
+| on: error of a deferred Close | 0.92 | 0.94 | 0.95 | 0.96 |
+| border on: `database/sql` pooling | 0.85 | 0.86 | 0.79 | 0.93 |
+| border on: static Go binary for scratch | **0.57** | **0.44** | **0.59** | **0.57** |
+| ambiguous: slow PostgreSQL queries from Go | 0.28 | 0.26 | 0.54 | 0.30 |
+
+Packed `clef-flash` keeps the Dockerfile question (0.59), so the pre-registered rule failed. The product owner
+then decided (2026-11-18) to **enable the check by default with batched `clef` at threshold 0.5**, the best
+configuration: off-topic at most 0.16, on-topic at least 0.79, 0.59 s and 2,154 input tokens for ten questions.
+Known uncertainty: the borderline on-topic "statically linked Go binary for a scratch image" scored 0.59, just
+above the threshold, so similar Go-tooling questions may sometimes be dropped and refilled. The threshold was not
+tuned. Packing blurs `clef-flash` (single requests separate better but took 1.7 s for ten).
 
 ## Transient failures, retries and the daily budget (KAN-382, KAN-383)
 

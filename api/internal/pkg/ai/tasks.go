@@ -29,6 +29,8 @@ import (
 
 type TaskAdapter struct {
 	route *Route
+	// topicCheck verifies the topic of each Roadmap bank question with Clef (KAN-384); nil means off.
+	topicCheck *clefTopicCheck
 	// retry overrides the generation retry policy; tests use it. Nil means generationRetry.
 	retry *llmerr.Policy
 }
@@ -76,7 +78,11 @@ func NewTaskAdapter(ctx context.Context, cfg *config.Config, task config.Task) (
 	if err != nil {
 		return nil, err
 	}
-	return &TaskAdapter{route: r}, nil
+	adapter := &TaskAdapter{route: r}
+	if task == config.TaskBank {
+		adapter.topicCheck = newTopicCheckFromConfig(ctx, cfg)
+	}
+	return adapter, nil
 }
 
 // outputError keeps transport errors classified, and marks decoder/domain failures uniformly.
@@ -147,8 +153,18 @@ func (a *TaskAdapter) generateTopicsOnce(ctx context.Context, in md.TopicInput) 
 	})
 }
 func (a *TaskAdapter) Decide(ctx context.Context, in id.FollowUpContext) (id.FollowUpProposal, error) {
+	return a.followUp(ctx, in, ip.New)
+}
+
+// Word words a follow-up that a decision model already decided to ask (KAN-274): the same route, decoder and
+// validator as Decide, with a prompt whose reply must ask.
+func (a *TaskAdapter) Word(ctx context.Context, in id.FollowUpContext) (id.FollowUpProposal, error) {
+	return a.followUp(ctx, in, ip.NewWording)
+}
+
+func (a *TaskAdapter) followUp(ctx context.Context, in id.FollowUpContext, build func(model.BaseChatModel) (*ip.EinoFollowUpDecider, error)) (id.FollowUpProposal, error) {
 	return Run(ctx, a.route, func(ctx context.Context, m model.BaseChatModel) (id.FollowUpProposal, error) {
-		d, err := ip.New(m)
+		d, err := build(m)
 		if err != nil {
 			return id.FollowUpProposal{}, err
 		}
@@ -199,8 +215,15 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 		}
 	}
 	merged := qd.GenerationCandidate{Questions: []qd.GeneratedQuestion{}}
-	for offset := 0; offset < count; offset += batchSize {
-		size := min(batchSize, count-offset)
+	// Questions the topic check dropped (KAN-384) are excluded from later batches like stored ones, so a refill
+	// does not write them again. drops counts the batches that lost questions; it bounds the refills.
+	var rejected []string
+	drops := 0
+	// The bank is filled until it holds count questions: a batch that lost off-topic questions leaves the topics
+	// short, and the next batch owes them the difference (BatchQuotas). The loop ends because every batch either
+	// adds size questions or uses one of the maxTopicRefills drops.
+	for len(merged.Questions) < count {
+		size := min(batchSize, count-len(merged.Questions))
 		// A failed batch is repeated on its own: the batches already accepted stay in merged and are not asked
 		// again, and nothing is stored before the complete bank is published.
 		batch, err := retried(ctx, a, func(ctx context.Context) (qd.GenerationCandidate, error) {
@@ -215,7 +238,7 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 					// so the distribution does not depend on one reply covering everything (KAN-344).
 					batchIn.Topics = qd.BatchQuotas(in.Topics, qd.CountByTopic(merged.Questions), size)
 				}
-				c, err := g.GenerateBatch(ctx, batchIn, size, append(append([]string{}, in.Existing...), merged.Contents()...))
+				c, err := g.GenerateBatch(ctx, batchIn, size, append(append(append([]string{}, in.Existing...), merged.Contents()...), rejected...))
 				if err == nil && len(in.Topics) > 0 {
 					// Each batch must write the questions it owes every topic; one that does not is invalid
 					// output of this attempt, so it is retried or falls back without redoing earlier batches.
@@ -239,7 +262,12 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 		if err != nil {
 			return qd.GenerationCandidate{}, err
 		}
-		merged.Questions = append(merged.Questions, batch.Questions...)
+		kept, dropped := a.checkTopics(ctx, in.Topics, batch.Questions, drops)
+		if len(dropped) > 0 {
+			drops++
+			rejected = append(rejected, dropped...)
+		}
+		merged.Questions = append(merged.Questions, kept...)
 	}
 	_, err := qs.ValidateGenerated(in, merged, count)
 	if err == nil {

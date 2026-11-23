@@ -41,7 +41,7 @@ func topicBankAdapter(t *testing.T, calls *int, ignoreQuota bool, all []qd.Roadm
 				if ignoreQuota {
 					id = all[0].ID.String()
 				}
-				items = append(items, topicReply{Question: fmt.Sprintf("Question %d about %s?", *calls*100+len(items), topic.ID), TopicID: id, ExpectedAnswer: "Key points."})
+				items = append(items, topicReply{Question: fmt.Sprintf("Question %d on %s?", *calls*100+len(items), fixtureTerm(*calls*100+len(items))), TopicID: id, ExpectedAnswer: "Key points."})
 			}
 		}
 		*calls++
@@ -139,11 +139,17 @@ func topicReplyFor(t *testing.T, msgs []*schema.Message, who string, call int, i
 			if ignoreQuota {
 				id = all[0].ID.String()
 			}
-			items = append(items, topicReply{Question: fmt.Sprintf("Question %s-%d-%d about %s?", who, call, len(items), topic.ID), TopicID: id, ExpectedAnswer: "Key points."})
+			items = append(items, topicReply{Question: fmt.Sprintf("Question %s-%d-%d on %s?", who, call, len(items), fixtureTerm(len(who)*10000+call*100+len(items))), TopicID: id, ExpectedAnswer: "Key points."})
 		}
 	}
 	body, _ := json.Marshal(struct {
 		Questions []topicReply `json:"questions"`
 	}{items})
 	return schema.AssistantMessage(string(body), nil)
+}
+
+// fixtureTerm is a distinct made-up term per fixture question, so questions that share a topic id are not near
+// duplicates of each other (KAN-384).
+func fixtureTerm(k int) string {
+	return fmt.Sprintf("%c%c%cterm", 'a'+rune(k/676%26), 'a'+rune(k/26%26), 'a'+rune(k%26))
 }
