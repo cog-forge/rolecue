@@ -3,7 +3,7 @@ import { screen } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { RoleReviewSummary } from "@/features/role-profile/components/role-review-summary";
 import { RoleProfileSteps } from "@/features/role-profile/components/role-profile-steps";
-import type { RoleProfile } from "@/features/role-profile/api/contract";
+import type { RoleProfile } from "@/features/role-profile/schemas/role-profile-schema";
 
 const profile: RoleProfile = {
   id: "22222222-2222-4222-8222-222222222222",

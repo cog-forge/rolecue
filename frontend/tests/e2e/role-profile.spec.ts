@@ -403,8 +403,8 @@ test("interview setup only opens for a confirmed Role Profile", async ({
 
   await page.goto(`/interviews/new/skills?roleProfileId=${id}`);
   await expect(page).toHaveURL(new RegExp(`/role-profiles/${id}$`));
-  await page.goto("/target-jds");
-  await expect(page).toHaveURL(/\/role-profiles$/);
+  // The old /target-jds alias is gone for good.
+  expect((await page.goto("/target-jds"))?.status()).toBe(404);
   expect(api.errors).toEqual([]);
 });
 
@@ -504,6 +504,65 @@ test("Role Profile screens fit a 375px viewport", async ({ page }) => {
     await page.goto(path);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 375);
+  }
+  expect(api.errors).toEqual([]);
+});
+
+test("a very long title stays inside the library, the delete dialog and the detail page", async ({
+  page,
+}) => {
+  const title = "A".repeat(200);
+  const api = await mockRoleProfileApi(
+    page,
+    roleProfile({ title, status: "confirmed" }),
+  );
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/role-profiles");
+    const remove = page.getByRole("button", { name: `Delete ${title}` });
+    await expect(remove).toBeVisible();
+    await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
+    const table = page.locator('[data-slot="table-container"]');
+    const scrolls = await table.evaluate(
+      (el) => el.scrollWidth > el.clientWidth,
+    );
+    // Desktop shows every column without sideways scrolling; a phone may scroll the table only.
+    if (width >= 1024) {
+      expect(scrolls).toBe(false);
+      const box = await remove.boundingBox();
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    }
+    // Two lines at most, and the full title stays readable from the link.
+    const link = page.getByRole("link", { name: new RegExp(`^${title}`) });
+    await expect(link).toHaveAttribute("title", title);
+    const lines = await link
+      .locator("span")
+      .first()
+      .evaluate((el) => {
+        const target = el.firstElementChild ?? el;
+        return Math.round(
+          target.getBoundingClientRect().height /
+            parseFloat(getComputedStyle(target).lineHeight),
+        );
+      });
+    expect(lines).toBeLessThanOrEqual(2);
+
+    await remove.click();
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByRole("button", { name: "Keep profile" }),
+    ).toBeInViewport();
+    await expect(dialog).toHaveJSProperty(
+      "scrollWidth",
+      await dialog.evaluate((el) => el.clientWidth),
+    );
+    await page.keyboard.press("Escape");
+
+    await page.goto(`/role-profiles/${id}`);
+    await expect(
+      page.getByRole("heading", { level: 2, name: title }),
+    ).toBeVisible();
+    await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
   }
   expect(api.errors).toEqual([]);
 });

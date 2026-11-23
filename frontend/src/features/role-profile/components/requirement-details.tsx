@@ -10,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { categorySchema, type RoleReview } from "../api/contract";
+import { categorySchema } from "../schemas/role-profile-schema";
+import type { RoleReview } from "../schemas/role-review-schema";
 import { categoryLabel, kindLabel, priorityLabel } from "../lib/labels";
 
 export function RequirementDetails({

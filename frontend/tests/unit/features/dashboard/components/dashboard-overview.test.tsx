@@ -169,7 +169,7 @@ describe("DashboardOverview", () => {
     expect(
       screen.getByRole("heading", { name: "Tổng quan" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("1 JD mục tiêu")).toBeInTheDocument();
+    expect(await screen.findByText("1 hồ sơ vị trí")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Platform Engineer" }),
     ).toBeInTheDocument();
@@ -190,12 +190,12 @@ describe("DashboardOverview", () => {
     expect(screen.getAllByRole("status")).toHaveLength(7);
 
     expect(
-      await screen.findByRole("heading", { name: "Target JDs" }),
+      await screen.findByRole("heading", { name: "Role Profiles" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("1 Target JD")).toBeInTheDocument();
+    expect(await screen.findByText("1 Role Profile")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Manage Target JDs" }),
-    ).toHaveAttribute("href", "/target-jds");
+      screen.getByRole("link", { name: "Manage Role Profiles" }),
+    ).toHaveAttribute("href", "/role-profiles");
 
     const practiceSection = screen
       .getByRole("heading", { name: "Practice activity" })
@@ -241,7 +241,7 @@ describe("DashboardOverview", () => {
       ),
     ).toBeInTheDocument();
 
-    expect(await screen.findByText("1 Target JD")).toBeInTheDocument();
+    expect(await screen.findByText("1 Role Profile")).toBeInTheDocument();
     expect(screen.getByText("1 application")).toBeInTheDocument();
   });
 
@@ -264,7 +264,7 @@ describe("DashboardOverview", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers a first step when the candidate has no Target JDs or practice yet", async () => {
+  it("offers a first step when the candidate has no Role Profiles or practice yet", async () => {
     serve({
       "/role-profiles": {
         success: true,
@@ -285,8 +285,8 @@ describe("DashboardOverview", () => {
     renderOverview();
 
     expect(
-      await screen.findByRole("link", { name: "Add a Target JD" }),
-    ).toHaveAttribute("href", "/target-jds");
+      await screen.findByRole("link", { name: "Add a Role Profile" }),
+    ).toHaveAttribute("href", "/role-profiles/new");
     expect(
       screen.getByRole("link", { name: "Start a practice interview" }),
     ).toHaveAttribute("href", "/interviews/new/job-description");
@@ -295,7 +295,7 @@ describe("DashboardOverview", () => {
     ).toHaveAttribute("href", "/jobs");
   });
 
-  it("names the next step for a Target JD that still needs review", async () => {
+  it("names the next step for a Role Profile that still needs review", async () => {
     serve({
       "/role-profiles": {
         success: true,

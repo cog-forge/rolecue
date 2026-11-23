@@ -31,13 +31,13 @@ import {
 } from "@/components/ui/dialog";
 import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
-import type { RoleSummary } from "../api/contract";
-import { roleProfileKeys } from "../api/keys";
 import {
   deleteRoleProfile,
   listRoleProfiles,
   ROLE_PROFILES_PAGE_SIZE,
+  roleProfileKeys,
 } from "../api/requests";
+import type { RoleSummary } from "../schemas/role-profile-schema";
 import { seniorityLabel } from "../lib/labels";
 import { useRoleError } from "../lib/use-role-error";
 import { RoleProfileStatus } from "./role-profile-status";
@@ -78,13 +78,18 @@ export function RoleProfileLibrary() {
     {
       id: "role",
       header: t("library.columns.role"),
+      // TableCell defaults to nowrap; a long title must wrap instead of widening the table.
+      className: "px-5 py-4 whitespace-normal",
       cell: (profile) => (
         <Link
           href={routes.roleProfiles.detail(profile.id)}
+          title={profile.title}
           className="group flex min-h-11 flex-col justify-center rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <span className="flex items-center gap-2 font-semibold group-hover:underline group-hover:underline-offset-4">
-            <span className="min-w-0 break-words">{profile.title}</span>
+            <span className="line-clamp-2 min-w-0 [overflow-wrap:anywhere]">
+              {profile.title}
+            </span>
             <ArrowUpRight
               className="size-4 shrink-0 text-muted-foreground"
               aria-hidden="true"
@@ -217,7 +222,7 @@ export function RoleProfileLibrary() {
         >
           <DialogHeader>
             <DialogTitle>{t("library.delete.title")}</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="[overflow-wrap:anywhere]">
               {t("library.delete.description", {
                 title: selected?.title ?? "",
               })}

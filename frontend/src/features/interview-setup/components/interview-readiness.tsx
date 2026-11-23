@@ -33,8 +33,10 @@ import {
   formatDeadline,
   timeLeftText,
 } from "@/features/candidate/applications/utils/application-text";
-import { roleProfileKeys } from "@/features/role-profile/api/keys";
-import { getRoleProfile } from "@/features/role-profile/api/requests";
+import {
+  getRoleProfile,
+  roleProfileKeys,
+} from "@/features/role-profile/api/requests";
 import {
   interviewSetupKeys,
   listActiveVoices,

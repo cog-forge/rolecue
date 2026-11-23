@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithIntl } from "@tests/helpers/intl";
 import { RoleReviewForm } from "@/features/role-profile/components/role-review-form";
-import type { RoleProfile } from "@/features/role-profile/api/contract";
+import type { RoleProfile } from "@/features/role-profile/schemas/role-profile-schema";
 
 const profile = (over: Partial<RoleProfile> = {}): RoleProfile => ({
   id: "22222222-2222-4222-8222-222222222222",

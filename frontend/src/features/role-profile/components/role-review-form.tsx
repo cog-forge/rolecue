@@ -16,11 +16,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { RoleProfile } from "../schemas/role-profile-schema";
 import {
   createReviewSchema,
-  type RoleProfile,
   type RoleReview,
-} from "../api/contract";
+} from "../schemas/role-review-schema";
 import { seniorityLabel } from "../lib/labels";
 import { useRoleError } from "../lib/use-role-error";
 import { RequirementRow } from "./requirement-row";

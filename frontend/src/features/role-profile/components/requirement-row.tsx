@@ -18,12 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  isCustomTarget,
-  isKnownTarget,
-  proficiencyLevels,
-  type RoleReview,
-} from "../api/contract";
+import { isCustomTarget, isKnownTarget } from "../lib/targets";
+import { proficiencyLevels } from "../schemas/role-profile-schema";
+import type { RoleReview } from "../schemas/role-review-schema";
 import { proficiencyLabel, requirementLabel } from "../lib/labels";
 import { RequirementDetails } from "./requirement-details";
 

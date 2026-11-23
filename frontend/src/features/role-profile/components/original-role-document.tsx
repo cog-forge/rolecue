@@ -5,7 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { ArrowUpRight, FileText, LoaderCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
-import type { RoleProfile } from "../api/contract";
+import type { RoleProfile } from "../schemas/role-profile-schema";
 import { getOriginalDocument } from "../api/requests";
 import { useRoleError } from "../lib/use-role-error";
 
