@@ -7,12 +7,10 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/page-header";
-import { routes } from "@/config/routes";
 import { useSessionUser } from "@/features/auth/components/session-gate";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import { cn } from "@/lib/utils";
@@ -45,30 +43,34 @@ export function AdminOverview() {
   const overview = query.data;
 
   return (
-    <section className="mx-auto w-full max-w-6xl space-y-6">
+    <section className="mx-auto w-full max-w-7xl space-y-6">
       <PageHeader
         title={t("title")}
-        description={t("description")}
+        actions={<WindowSelector days={days} />}
         meta={
           overview ? (
             <span>
               {t("updated", {
                 days: overview.window.days,
-                updated: fmt.date(overview.generated_at, "localDateTime"),
+                updated: fmt.date(overview.generated_at, "vietnamDateTime"),
               })}
             </span>
           ) : undefined
         }
       />
 
-      <WindowSelector days={days} />
-
       {query.isPending ? (
-        <div role="status" className="space-y-4">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-40 rounded-xl" />
-          ))}
+        <div role="status" className="space-y-5">
           <span className="sr-only">{t("loading")}</span>
+          <div aria-hidden className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-28 rounded-xl" />
+            ))}
+          </div>
+          <div aria-hidden className="grid gap-4 xl:grid-cols-12">
+            <Skeleton className="h-52 rounded-xl xl:order-last xl:h-100 xl:col-span-4" />
+            <Skeleton className="h-86 rounded-xl xl:h-100 xl:col-span-8" />
+          </div>
         </div>
       ) : denied ? (
         <ErrorState
@@ -98,31 +100,6 @@ export function AdminOverview() {
           <OverviewBody overview={overview} />
         </div>
       )}
-
-      <nav aria-label={t("tools.label")} className="rounded-xl border p-5">
-        <h2 className="font-semibold">{t("tools.title")}</h2>
-        <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {quickLinks.map((link) => (
-            <li key={link.href}>
-              <Link
-                href={link.href}
-                className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                {t(`tools.${link.key}`)}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
     </section>
   );
 }
-
-const quickLinks = [
-  { href: routes.admin.jobPostings, key: "jobPostings" },
-  { href: routes.admin.interviews, key: "interviews" },
-  { href: routes.admin.voices, key: "voices" },
-  { href: routes.admin.billing, key: "billing" },
-  { href: routes.admin.revenue, key: "revenue" },
-  { href: routes.admin.users, key: "users" },
-] as const;

@@ -37,7 +37,18 @@ const overview = {
     from: "2026-10-01T00:00:00+07:00",
     to: "2026-10-30T08:00:00+07:00",
   },
-  accounts: { candidates: 1234, recruiters: 56, locked: 7, new_in_window: 89 },
+  previous_window: {
+    days: 30,
+    from: "2026-09-01T00:00:00+07:00",
+    to: "2026-10-01T00:00:00+07:00",
+  },
+  accounts: {
+    candidates: 1234,
+    recruiters: 56,
+    locked: 7,
+    new_in_window: 89,
+    new_in_previous_window: 0,
+  },
   job_postings: {
     pending: 3,
     open: 4,
@@ -52,6 +63,7 @@ const overview = {
     approved: 14,
     rejected: 15,
     submitted_in_window: 16,
+    submitted_in_previous_window: 20,
   },
   interviews: {
     practice_started_in_window: 21,
@@ -59,8 +71,20 @@ const overview = {
     completed_in_window: 23,
     evaluation_failed: 24,
   },
+  interview_activity: {
+    bucket_days: 1,
+    buckets: [
+      {
+        practice: 21,
+        recruitment: 22,
+        previous_practice: 10,
+        previous_recruitment: 10,
+      },
+    ],
+  },
   finance: {
     revenue_vnd: 100000,
+    previous_revenue_vnd: 50000,
     successful_deposits: 31,
     coins_sold: 32000,
     coins_spent: 33,
@@ -72,6 +96,17 @@ const overview = {
 
 const zeroOverview = {
   ...overview,
+  interview_activity: {
+    bucket_days: 1,
+    buckets: [
+      {
+        practice: 0,
+        recruitment: 0,
+        previous_practice: 0,
+        previous_recruitment: 0,
+      },
+    ],
+  },
   accounts: { candidates: 0, recruiters: 0, locked: 0, new_in_window: 0 },
   job_postings: {
     pending: 0,
@@ -140,63 +175,69 @@ beforeEach(() => {
 });
 
 describe("AdminOverview", () => {
-  it("renders every section with its numbers and definition text", async () => {
+  it("shows comparable KPIs separately from current operational counts", async () => {
     mocks.get.mockImplementation(() => ok(overview));
     renderPage();
 
+    await screen.findByRole("heading", { level: 1, name: "Admin dashboard" });
+    const metrics = await screen.findByRole("region", { name: "Key metrics" });
+    expect(metrics).toHaveTextContent("Current:");
+    expect(metrics).toHaveTextContent("Previous:");
+    expect(within(metrics).getByText("89")).toBeInTheDocument();
+    expect(within(metrics).getByText("New activity")).toBeInTheDocument();
+    expect(within(metrics).getByText("Down 20.0%")).toBeInTheDocument();
+    expect(within(metrics).getByText("43")).toBeInTheDocument();
+    expect(within(metrics).getByText("100.000 ₫")).toBeInTheDocument();
+
+    const attention = sectionOf("Needs attention");
+    expect(attention).toHaveTextContent("Current status across all dates");
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Admin dashboard" }),
-    ).toBeInTheDocument();
-    // The heading renders at once; the sections arrive with the data.
-    await screen.findByRole("region", { name: "Accounts" });
-    const accounts = sectionOf("Accounts");
-    expect(within(accounts).getByText("1,234")).toBeInTheDocument();
-    expect(
-      within(accounts).getByText(/Candidates and recruiters only/),
-    ).toBeInTheDocument();
-    expect(sectionOf("Job postings")).toHaveTextContent(
-      "All-time counts by status.",
+      within(attention).getByRole("link", { name: "Failed evaluations 24" }),
+    ).toHaveAttribute("href", routes.admin.interviews);
+    expect(sectionOf("Job postings")).toHaveTextContent("Rejected");
+    expect(sectionOf("Applications")).toHaveTextContent("Awaiting CV review");
+    expect(sectionOf("Interview activity")).toHaveTextContent(
+      "23 completed in the current period",
     );
-    expect(
-      within(sectionOf("Job postings")).getByText("Rejected"),
-    ).toBeInTheDocument();
-    expect(sectionOf("Applications")).toHaveTextContent(
-      "Submitted counts the window.",
-    );
-    expect(
-      within(sectionOf("Applications")).getByText("16"),
-    ).toBeInTheDocument();
-    expect(sectionOf("Interviews")).toHaveTextContent(
-      "Evaluation failed is all-time.",
-    );
-    expect(within(sectionOf("Interviews")).getByText("24")).toBeInTheDocument();
-    const finance = sectionOf("Finance");
-    expect(finance).toHaveTextContent(
-      "Coin debits and refunds are not revenue.",
-    );
-    expect(within(finance).getByText("100.000 ₫")).toBeInTheDocument();
-    expect(within(finance).getByText("32,000")).toBeInTheDocument();
   });
 
-  it("shows zero values as 0 instead of hiding them", async () => {
+  it("shows real zero values and an empty activity state", async () => {
     mocks.get.mockImplementation(() => ok(zeroOverview));
     renderPage();
 
-    const finance = await screen.findByRole("region", { name: "Finance" });
-    expect(await within(finance).findByText("0 ₫")).toBeInTheDocument();
+    const metrics = await screen.findByRole("region", { name: "Key metrics" });
+    expect(within(metrics).getByText("0 ₫")).toBeInTheDocument();
     expect(
-      within(finance).getByText("Coins refunded").nextSibling,
-    ).toHaveTextContent("0");
-    expect(
-      within(sectionOf("Accounts")).getByText("Locked now").nextSibling,
-    ).toHaveTextContent("0");
+      within(sectionOf("Needs attention")).getByRole("link", {
+        name: "Locked accounts 0",
+      }),
+    ).toBeInTheDocument();
+    expect(sectionOf("Interview activity")).toHaveTextContent(
+      "No interviews of this type started in either period.",
+    );
+  });
+
+  it("keeps the current metrics available when an older response omits the chart", async () => {
+    mocks.get.mockImplementation(() =>
+      ok({
+        ...overview,
+        previous_window: undefined,
+        interview_activity: undefined,
+      }),
+    );
+    renderPage();
+
+    await screen.findByRole("region", { name: "Key metrics" });
+    expect(sectionOf("Interview activity")).toHaveTextContent(
+      "The interview trend is currently unavailable.",
+    );
   });
 
   it("requests the window from the URL and shows the default when absent", async () => {
     mocks.get.mockImplementation(() => ok(overview));
     renderPage();
 
-    await screen.findByRole("region", { name: "Accounts" });
+    await screen.findByRole("region", { name: "Key metrics" });
     expect(mocks.get).toHaveBeenCalledWith("/admin/overview", {
       params: { days: 30 },
       signal: expect.anything(),
@@ -206,7 +247,7 @@ describe("AdminOverview", () => {
   it("switches the window through the selector and requests the new days", async () => {
     mocks.get.mockImplementation(() => ok(overview));
     const { rerender } = renderPage();
-    await screen.findByRole("region", { name: "Accounts" });
+    await screen.findByRole("region", { name: "Key metrics" });
 
     const selector = screen.getByRole("navigation", {
       name: "Reporting window",
@@ -244,7 +285,7 @@ describe("AdminOverview", () => {
       </QueryClientProvider>
     );
     const { rerender } = renderWithIntl(page);
-    const accounts = await screen.findByRole("region", { name: "Accounts" });
+    const accounts = await screen.findByRole("region", { name: "Key metrics" });
     expect(accounts.closest('[aria-busy="true"]')).toBeNull();
     expect(screen.getByText(/Last 30 days · Updated/)).toBeInTheDocument();
 
@@ -260,7 +301,7 @@ describe("AdminOverview", () => {
     await waitFor(() =>
       expect(
         screen
-          .getByRole("region", { name: "Accounts" })
+          .getByRole("region", { name: "Key metrics" })
           .closest('[aria-busy="true"]'),
       ).not.toBeNull(),
     );
@@ -287,7 +328,7 @@ describe("AdminOverview", () => {
     fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
 
     expect(
-      await screen.findByRole("region", { name: "Accounts" }),
+      await screen.findByRole("region", { name: "Key metrics" }),
     ).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledTimes(2);
   });
@@ -313,35 +354,29 @@ describe("AdminOverview", () => {
     );
   });
 
-  it("links to the admin tools with the right hrefs", async () => {
+  it("links to the relevant admin destinations", async () => {
     mocks.get.mockImplementation(() => ok(overview));
     renderPage();
-    await screen.findByRole("region", { name: "Accounts" });
+    await screen.findByRole("region", { name: "Key metrics" });
 
+    const attention = sectionOf("Needs attention");
     expect(
-      screen.getByRole("link", { name: "Review pending postings" }),
+      within(attention).getByRole("link", {
+        name: "Postings awaiting review 3",
+      }),
     ).toHaveAttribute("href", routes.admin.jobPostings);
     expect(
-      screen.getByRole("link", { name: "Browse recent interviews" }),
-    ).toHaveAttribute("href", routes.admin.interviews);
-    expect(
-      screen.getByRole("link", { name: "Manage the voice catalog" }),
-    ).toHaveAttribute("href", routes.admin.voices);
-    expect(
-      screen.getByRole("link", { name: "Check payments" }),
-    ).toHaveAttribute("href", routes.admin.billing);
-    expect(
-      screen.getByRole("link", { name: "See revenue figures" }),
-    ).toHaveAttribute("href", routes.admin.revenue);
-    expect(
-      screen.getByRole("link", { name: "Find an account" }),
+      within(attention).getByRole("link", { name: "Locked accounts 7" }),
     ).toHaveAttribute("href", routes.admin.users);
+    expect(
+      screen.getByRole("link", { name: "Successful PayOS top-ups" }),
+    ).toHaveAttribute("href", routes.admin.revenue);
   });
 
   it("never mentions wallet or membership", async () => {
     mocks.get.mockImplementation(() => ok(overview));
     renderPage();
-    await screen.findByRole("region", { name: "Accounts" });
+    await screen.findByRole("region", { name: "Key metrics" });
 
     expect(document.body.textContent ?? "").not.toMatch(/wallet|membership/i);
   });
@@ -356,13 +391,12 @@ describe("AdminOverview", () => {
         name: "Bảng điều khiển quản trị",
       }),
     ).toBeInTheDocument();
-    const accounts = await screen.findByRole("region", { name: "Tài khoản" });
-    expect(within(accounts).getByText("1.234")).toBeInTheDocument();
-    expect(within(accounts).getByText("Đang bị khóa")).toBeInTheDocument();
-    const finance = screen.getByRole("region", { name: "Tài chính" });
-    expect(within(finance).getByText("100.000 ₫")).toBeInTheDocument();
-    expect(within(finance).getByText("32.000")).toBeInTheDocument();
-    expect(within(finance).getByText("66,7%")).toBeInTheDocument();
+    const metrics = await screen.findByRole("region", {
+      name: "Chỉ số trong kỳ",
+    });
+    expect(within(metrics).getByText("100.000 ₫")).toBeInTheDocument();
+    expect(within(metrics).getByText("Giảm 20,0%")).toBeInTheDocument();
+    expect(sectionOf("Cần chú ý")).toHaveTextContent("Tài khoản đang khóa");
     expect(screen.getByText(/30 ngày gần nhất · Cập nhật/)).toBeInTheDocument();
     const selector = screen.getByRole("navigation", {
       name: "Khoảng thời gian báo cáo",
@@ -371,7 +405,7 @@ describe("AdminOverview", () => {
       within(selector).getByRole("link", { name: "7 ngày gần nhất" }),
     ).toHaveAttribute("href", `${routes.admin.dashboard}?days=7`);
     expect(
-      screen.getByRole("link", { name: "Tìm một tài khoản" }),
+      screen.getByRole("link", { name: "Tài khoản đang khóa 7" }),
     ).toHaveAttribute("href", routes.admin.users);
   });
 
