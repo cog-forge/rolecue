@@ -28,19 +28,21 @@ func NewRepositoryTx(tx pgx.Tx) *Repository {
 }
 
 // Accounts counts Candidate and Recruiter accounts, the active locks and the accounts created in the window.
-func (r *Repository) Accounts(ctx context.Context, from, to time.Time) (domain.OverviewAccounts, error) {
+func (r *Repository) Accounts(ctx context.Context, window, previous domain.OverviewWindow) (domain.OverviewAccounts, error) {
 	row, err := r.queries.CountOverviewAccounts(ctx, CountOverviewAccountsParams{
-		WindowFrom: timestamp(from),
-		WindowTo:   timestamp(to),
+		WindowFrom:   timestamp(window.From),
+		WindowTo:     timestamp(window.To),
+		PreviousFrom: timestamp(previous.From),
 	})
 	if err != nil {
 		return domain.OverviewAccounts{}, persistenceError(err)
 	}
 	return domain.OverviewAccounts{
-		Candidates:  row.Candidates,
-		Recruiters:  row.Recruiters,
-		Locked:      row.Locked,
-		NewInWindow: row.NewInWindow,
+		Candidates:          row.Candidates,
+		Recruiters:          row.Recruiters,
+		Locked:              row.Locked,
+		NewInWindow:         row.NewInWindow,
+		NewInPreviousWindow: row.NewInPreviousWindow,
 	}, nil
 }
 
@@ -60,39 +62,65 @@ func (r *Repository) Postings(ctx context.Context) (domain.OverviewPostings, err
 }
 
 // Applications counts Applications by status, all-time, and the ones submitted in the window.
-func (r *Repository) Applications(ctx context.Context, from, to time.Time) (domain.OverviewApplications, error) {
+func (r *Repository) Applications(ctx context.Context, window, previous domain.OverviewWindow) (domain.OverviewApplications, error) {
 	row, err := r.queries.CountOverviewApplications(ctx, CountOverviewApplicationsParams{
-		WindowFrom: timestamp(from),
-		WindowTo:   timestamp(to),
+		WindowFrom:   timestamp(window.From),
+		WindowTo:     timestamp(window.To),
+		PreviousFrom: timestamp(previous.From),
 	})
 	if err != nil {
 		return domain.OverviewApplications{}, persistenceError(err)
 	}
 	return domain.OverviewApplications{
-		Pending:           row.Pending,
-		InterviewEligible: row.InterviewEligible,
-		Interviewed:       row.Interviewed,
-		Approved:          row.Approved,
-		Rejected:          row.Rejected,
-		SubmittedInWindow: row.SubmittedInWindow,
+		Pending:                   row.Pending,
+		InterviewEligible:         row.InterviewEligible,
+		Interviewed:               row.Interviewed,
+		Approved:                  row.Approved,
+		Rejected:                  row.Rejected,
+		SubmittedInWindow:         row.SubmittedInWindow,
+		SubmittedInPreviousWindow: row.SubmittedInPreviousWindow,
 	}, nil
 }
 
 // Interviews counts interview sessions started and completed in the window, and failed evaluations.
-func (r *Repository) Interviews(ctx context.Context, from, to time.Time) (domain.OverviewInterviews, error) {
+func (r *Repository) Interviews(ctx context.Context, window, previous domain.OverviewWindow) (domain.OverviewInterviews, domain.OverviewInterviewActivity, error) {
 	row, err := r.queries.CountOverviewInterviews(ctx, CountOverviewInterviewsParams{
-		WindowFrom: timestamp(from),
-		WindowTo:   timestamp(to),
+		WindowFrom: timestamp(window.From),
+		WindowTo:   timestamp(window.To),
 	})
 	if err != nil {
-		return domain.OverviewInterviews{}, persistenceError(err)
+		return domain.OverviewInterviews{}, domain.OverviewInterviewActivity{}, persistenceError(err)
 	}
-	return domain.OverviewInterviews{
-		PracticeStartedInWindow:    row.PracticeStartedInWindow,
-		RecruitmentStartedInWindow: row.RecruitmentStartedInWindow,
-		CompletedInWindow:          row.CompletedInWindow,
-		EvaluationFailed:           row.EvaluationFailed,
-	}, nil
+	bucketDays := 1
+	if window.Days == 90 {
+		bucketDays = 7
+	}
+	starts, err := r.queries.CountOverviewInterviewActivity(ctx, CountOverviewInterviewActivityParams{
+		BucketSeconds: int32(bucketDays * 24 * 60 * 60),
+		WindowFrom:    timestamp(window.From),
+		WindowTo:      timestamp(window.To),
+		PreviousFrom:  timestamp(previous.From),
+	})
+	if err != nil {
+		return domain.OverviewInterviews{}, domain.OverviewInterviewActivity{}, persistenceError(err)
+	}
+
+	summary := domain.OverviewInterviews{CompletedInWindow: row.CompletedInWindow, EvaluationFailed: row.EvaluationFailed}
+	activity := domain.OverviewInterviewActivity{
+		BucketDays: bucketDays,
+		Buckets:    make([]domain.OverviewInterviewBucket, (window.Days+bucketDays-1)/bucketDays),
+	}
+	for _, row := range starts {
+		activity.Buckets[row.BucketIndex] = domain.OverviewInterviewBucket{
+			Practice:            row.Practice,
+			Recruitment:         row.Recruitment,
+			PreviousPractice:    row.PreviousPractice,
+			PreviousRecruitment: row.PreviousRecruitment,
+		}
+		summary.PracticeStartedInWindow += row.Practice
+		summary.RecruitmentStartedInWindow += row.Recruitment
+	}
+	return summary, activity, nil
 }
 
 func timestamp(t time.Time) pgtype.Timestamptz {

@@ -10,7 +10,8 @@ SELECT
     count(*) FILTER (
         WHERE is_locked AND (lock_expires_at IS NULL OR lock_expires_at > @window_to)
     ) AS locked,
-    count(*) FILTER (WHERE created_at >= @window_from AND created_at < @window_to) AS new_in_window
+    count(*) FILTER (WHERE created_at >= @window_from AND created_at < @window_to) AS new_in_window,
+    count(*) FILTER (WHERE created_at >= @previous_from AND created_at < @window_from) AS new_in_previous_window
 FROM public.users
 WHERE role IN ('candidate', 'recruiter');
 
@@ -32,19 +33,34 @@ SELECT
     count(*) FILTER (WHERE status = 'interviewed') AS interviewed,
     count(*) FILTER (WHERE status = 'approved') AS approved,
     count(*) FILTER (WHERE status = 'rejected') AS rejected,
-    count(*) FILTER (WHERE created_at >= @window_from AND created_at < @window_to) AS submitted_in_window
+    count(*) FILTER (WHERE created_at >= @window_from AND created_at < @window_to) AS submitted_in_window,
+    count(*) FILTER (WHERE created_at >= @previous_from AND created_at < @window_from) AS submitted_in_previous_window
 FROM public.applications;
 
 -- name: CountOverviewInterviews :one
--- *_started_in_window use started_at by type; completed_in_window uses completed_at.
--- evaluation_failed is all-time.
+-- Start counts come from the activity series. Evaluation failures count current rows in every period.
 SELECT
-    count(*) FILTER (
-        WHERE type = 'practice' AND started_at >= @window_from AND started_at < @window_to
-    ) AS practice_started_in_window,
-    count(*) FILTER (
-        WHERE type = 'recruitment' AND started_at >= @window_from AND started_at < @window_to
-    ) AS recruitment_started_in_window,
     count(*) FILTER (WHERE completed_at >= @window_from AND completed_at < @window_to) AS completed_in_window,
     count(*) FILTER (WHERE evaluation_status = 'failed') AS evaluation_failed
 FROM public.interviews;
+
+-- name: CountOverviewInterviewActivity :many
+-- Each reporting window has its own origin. Both windows use half-open bounds.
+WITH starts AS (
+    SELECT type, started_at >= @window_from::timestamptz AS is_current,
+           CASE WHEN started_at >= @window_from::timestamptz
+             THEN started_at - @window_from::timestamptz
+             ELSE started_at - @previous_from::timestamptz
+           END AS elapsed
+    FROM public.interviews
+    WHERE started_at >= @previous_from::timestamptz AND started_at < @window_to::timestamptz
+)
+SELECT
+    floor(extract(epoch FROM elapsed) / @bucket_seconds::int)::int AS bucket_index,
+    count(*) FILTER (WHERE is_current AND type = 'practice') AS practice,
+    count(*) FILTER (WHERE is_current AND type = 'recruitment') AS recruitment,
+    count(*) FILTER (WHERE NOT is_current AND type = 'practice') AS previous_practice,
+    count(*) FILTER (WHERE NOT is_current AND type = 'recruitment') AS previous_recruitment
+FROM starts
+GROUP BY bucket_index
+ORDER BY bucket_index;

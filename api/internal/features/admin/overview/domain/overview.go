@@ -22,13 +22,15 @@ var WindowDays = []int{7, 30, 90}
 
 // Overview is the whole Admin overview response.
 type Overview struct {
-	GeneratedAt  time.Time            `json:"generated_at"`
-	Window       OverviewWindow       `json:"window"`
-	Accounts     OverviewAccounts     `json:"accounts"`
-	JobPostings  OverviewPostings     `json:"job_postings"`
-	Applications OverviewApplications `json:"applications"`
-	Interviews   OverviewInterviews   `json:"interviews"`
-	Finance      OverviewFinance      `json:"finance"`
+	GeneratedAt       time.Time                 `json:"generated_at"`
+	Window            OverviewWindow            `json:"window"`
+	PreviousWindow    OverviewWindow            `json:"previous_window"`
+	Accounts          OverviewAccounts          `json:"accounts"`
+	JobPostings       OverviewPostings          `json:"job_postings"`
+	Applications      OverviewApplications      `json:"applications"`
+	Interviews        OverviewInterviews        `json:"interviews"`
+	InterviewActivity OverviewInterviewActivity `json:"interview_activity"`
+	Finance           OverviewFinance           `json:"finance"`
 }
 
 // OverviewWindow is the time window the windowed counts cover: [from, to).
@@ -41,10 +43,11 @@ type OverviewWindow struct {
 // OverviewAccounts counts Candidate and Recruiter accounts. Admin accounts are excluded.
 // Locked is an active lock (is_locked and not yet expired). NewInWindow counts accounts created in the window.
 type OverviewAccounts struct {
-	Candidates  int64 `json:"candidates"`
-	Recruiters  int64 `json:"recruiters"`
-	Locked      int64 `json:"locked"`
-	NewInWindow int64 `json:"new_in_window"`
+	Candidates          int64 `json:"candidates"`
+	Recruiters          int64 `json:"recruiters"`
+	Locked              int64 `json:"locked"`
+	NewInWindow         int64 `json:"new_in_window"`
+	NewInPreviousWindow int64 `json:"new_in_previous_window"`
 }
 
 // OverviewPostings counts Job Postings by status, all-time.
@@ -59,12 +62,13 @@ type OverviewPostings struct {
 // OverviewApplications counts Applications by status, all-time. SubmittedInWindow counts
 // applications created in the window.
 type OverviewApplications struct {
-	Pending           int64 `json:"pending"`
-	InterviewEligible int64 `json:"interview_eligible"`
-	Interviewed       int64 `json:"interviewed"`
-	Approved          int64 `json:"approved"`
-	Rejected          int64 `json:"rejected"`
-	SubmittedInWindow int64 `json:"submitted_in_window"`
+	Pending                   int64 `json:"pending"`
+	InterviewEligible         int64 `json:"interview_eligible"`
+	Interviewed               int64 `json:"interviewed"`
+	Approved                  int64 `json:"approved"`
+	Rejected                  int64 `json:"rejected"`
+	SubmittedInWindow         int64 `json:"submitted_in_window"`
+	SubmittedInPreviousWindow int64 `json:"submitted_in_previous_window"`
 }
 
 // OverviewInterviews counts interview sessions. See the package comment for the time basis of each count.
@@ -75,10 +79,26 @@ type OverviewInterviews struct {
 	EvaluationFailed           int64 `json:"evaluation_failed"`
 }
 
+// OverviewInterviewActivity pairs buckets at the same offset within each window.
+// The first bucket starts at the window boundary. The final bucket ends at the
+// window boundary even if it is shorter than BucketDays.
+type OverviewInterviewActivity struct {
+	BucketDays int                       `json:"bucket_days"`
+	Buckets    []OverviewInterviewBucket `json:"buckets"`
+}
+
+type OverviewInterviewBucket struct {
+	Practice            int64 `json:"practice"`
+	Recruitment         int64 `json:"recruitment"`
+	PreviousPractice    int64 `json:"previous_practice"`
+	PreviousRecruitment int64 `json:"previous_recruitment"`
+}
+
 // OverviewFinance is the wallet billing summary over the window. RevenueVND is successful PayOS
 // top-ups only. SuccessRate is the percent (0 to 100) of PayOS top-up attempts that succeeded, as in the admin billing summary.
 type OverviewFinance struct {
 	RevenueVND         int64   `json:"revenue_vnd"`
+	PreviousRevenueVND int64   `json:"previous_revenue_vnd"`
 	SuccessfulDeposits int64   `json:"successful_deposits"`
 	CoinsSold          int64   `json:"coins_sold"`
 	CoinsSpent         int64   `json:"coins_spent"`
