@@ -64,6 +64,11 @@ export const dateStyles = {
     month: "2-digit",
     year: "numeric",
   },
+  vietnamShortDate: {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "numeric",
+    month: "short",
+  },
 } satisfies Record<string, Intl.DateTimeFormatOptions>;
 export type DateStyle = keyof typeof dateStyles;
 

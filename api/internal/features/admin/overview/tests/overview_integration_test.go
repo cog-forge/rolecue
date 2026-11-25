@@ -177,7 +177,7 @@ func (f *fakeFinance) Summary(context.Context, time.Time, time.Time) (domain.Ove
 // reject a request before any of these methods run.
 type countingRepository struct{ calls int }
 
-func (r *countingRepository) Accounts(context.Context, time.Time, time.Time) (domain.OverviewAccounts, error) {
+func (r *countingRepository) Accounts(context.Context, domain.OverviewWindow, domain.OverviewWindow) (domain.OverviewAccounts, error) {
 	r.calls++
 	return domain.OverviewAccounts{}, nil
 }
@@ -187,14 +187,14 @@ func (r *countingRepository) Postings(context.Context) (domain.OverviewPostings,
 	return domain.OverviewPostings{}, nil
 }
 
-func (r *countingRepository) Applications(context.Context, time.Time, time.Time) (domain.OverviewApplications, error) {
+func (r *countingRepository) Applications(context.Context, domain.OverviewWindow, domain.OverviewWindow) (domain.OverviewApplications, error) {
 	r.calls++
 	return domain.OverviewApplications{}, nil
 }
 
-func (r *countingRepository) Interviews(context.Context, time.Time, time.Time) (domain.OverviewInterviews, error) {
+func (r *countingRepository) Interviews(context.Context, domain.OverviewWindow, domain.OverviewWindow) (domain.OverviewInterviews, domain.OverviewInterviewActivity, error) {
 	r.calls++
-	return domain.OverviewInterviews{}, nil
+	return domain.OverviewInterviews{}, domain.OverviewInterviewActivity{}, nil
 }
 
 func newService(t *testing.T, tx pgx.Tx) *service.Service {
@@ -276,9 +276,9 @@ func TestOverviewNewInWindowFollowsTheWindow(t *testing.T) {
 	ctx, tx := openTx(t)
 	s := newSeeder(t, ctx, tx)
 	svc := newService(t, tx)
-	before := map[int]int64{}
+	before := map[int]domain.OverviewAccounts{}
 	for _, d := range windows {
-		before[d] = read(t, ctx, svc, d).Accounts.NewInWindow
+		before[d] = read(t, ctx, svc, d).Accounts
 	}
 
 	id := s.user("candidate")
@@ -287,8 +287,9 @@ func TestOverviewNewInWindowFollowsTheWindow(t *testing.T) {
 	// Ten days ago is outside a 7-day window and inside the 30- and 90-day windows.
 	want := map[int]int64{7: 0, 30: 1, 90: 1}
 	for _, d := range windows {
-		got := read(t, ctx, svc, d).Accounts.NewInWindow - before[d]
-		assertDelta(t, fmt.Sprintf("accounts.new_in_window (days=%d)", d), got, want[d])
+		got := read(t, ctx, svc, d).Accounts
+		assertDelta(t, fmt.Sprintf("accounts.new_in_window (days=%d)", d), got.NewInWindow-before[d].NewInWindow, want[d])
+		assertDelta(t, fmt.Sprintf("accounts.new_in_previous_window (days=%d)", d), got.NewInPreviousWindow-before[d].NewInPreviousWindow, 1-want[d])
 	}
 }
 
@@ -315,9 +316,9 @@ func TestOverviewApplicationsCountStatusesAndSubmittedInWindow(t *testing.T) {
 	s := newSeeder(t, ctx, tx)
 	svc := newService(t, tx)
 	beforeStatus := applicationStatusCounts(read(t, ctx, svc, 30).Applications)
-	beforeSubmitted := map[int]int64{}
+	beforeSubmitted := map[int]domain.OverviewApplications{}
 	for _, d := range windows {
-		beforeSubmitted[d] = read(t, ctx, svc, d).Applications.SubmittedInWindow
+		beforeSubmitted[d] = read(t, ctx, svc, d).Applications
 	}
 
 	recruiter := s.user("recruiter")
@@ -338,8 +339,10 @@ func TestOverviewApplicationsCountStatusesAndSubmittedInWindow(t *testing.T) {
 	// Five recent applications are submitted in every window; the 40-day-old one joins only at 90 days.
 	wantSubmitted := map[int]int64{7: 5, 30: 5, 90: 6}
 	for _, d := range windows {
-		got := read(t, ctx, svc, d).Applications.SubmittedInWindow - beforeSubmitted[d]
-		assertDelta(t, fmt.Sprintf("applications.submitted_in_window (days=%d)", d), got, wantSubmitted[d])
+		got := read(t, ctx, svc, d).Applications
+		assertDelta(t, fmt.Sprintf("applications.submitted_in_window (days=%d)", d), got.SubmittedInWindow-beforeSubmitted[d].SubmittedInWindow, wantSubmitted[d])
+		wantPrevious := map[int]int64{7: 0, 30: 1, 90: 0}
+		assertDelta(t, fmt.Sprintf("applications.submitted_in_previous_window (days=%d)", d), got.SubmittedInPreviousWindow-beforeSubmitted[d].SubmittedInPreviousWindow, wantPrevious[d])
 	}
 }
 
@@ -384,6 +387,53 @@ func TestOverviewInterviewsCountStartsCompletionsAndFailures(t *testing.T) {
 // domainInterviews aliases the interview aggregate so the expected values read as a literal.
 type domainInterviews = domain.OverviewInterviews
 
+func TestInterviewActivityPairsOffsetsAndExcludesWindowEnd(t *testing.T) {
+	ctx, tx := openTx(t)
+	s := newSeeder(t, ctx, tx)
+	repo := repository.NewRepositoryTx(tx)
+	// Non-midnight boundaries expose any accidental grouping by calendar day.
+	from := time.Date(2026, 7, 15, 9, 23, 0, 0, time.UTC)
+	duration := 90 * 24 * time.Hour
+	window := domain.OverviewWindow{Days: 90, From: from, To: from.Add(duration)}
+	previous := domain.OverviewWindow{Days: 90, From: from.Add(-duration), To: from}
+	readActivity := func() (domain.OverviewInterviews, domain.OverviewInterviewActivity) {
+		t.Helper()
+		summary, activity, err := repo.Interviews(ctx, window, previous)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if activity.BucketDays != 7 || len(activity.Buckets) != 13 {
+			t.Fatalf("expected 13 buckets of up to 7 days: %+v", activity)
+		}
+		return summary, activity
+	}
+	beforeSummary, before := readActivity()
+	candidate := s.user("candidate")
+	recruiter := s.user("recruiter")
+	app := s.application(s.posting(recruiter, "open"), candidate, "interviewed", from)
+	s.interview("recruitment", nil, app, from, nil, "pending")
+	for _, start := range []time.Time{
+		previous.From.Add(-time.Microsecond),
+		previous.From,
+		from.Add(-time.Microsecond),
+		from.Add(7 * 24 * time.Hour),
+		window.To.Add(-time.Microsecond),
+		window.To,
+	} {
+		s.interview("practice", s.roleProfile(candidate), nil, start, nil, "pending")
+	}
+	afterSummary, after := readActivity()
+	assertDelta(t, "current practice total", afterSummary.PracticeStartedInWindow-beforeSummary.PracticeStartedInWindow, 2)
+	assertDelta(t, "current recruitment total", afterSummary.RecruitmentStartedInWindow-beforeSummary.RecruitmentStartedInWindow, 1)
+	for i, bucket := range after.Buckets {
+		old := before.Buckets[i]
+		assertDelta(t, fmt.Sprintf("bucket %d current practice", i), bucket.Practice-old.Practice, map[int]int64{1: 1, 12: 1}[i])
+		assertDelta(t, fmt.Sprintf("bucket %d current recruitment", i), bucket.Recruitment-old.Recruitment, map[int]int64{0: 1}[i])
+		assertDelta(t, fmt.Sprintf("bucket %d previous practice", i), bucket.PreviousPractice-old.PreviousPractice, map[int]int64{0: 1, 12: 1}[i])
+		assertDelta(t, fmt.Sprintf("bucket %d previous recruitment", i), bucket.PreviousRecruitment-old.PreviousRecruitment, 0)
+	}
+}
+
 func TestOverviewResponseCarriesEveryKeyAsANumber(t *testing.T) {
 	ctx, tx := openTx(t)
 	svc := newService(t, tx)
@@ -401,13 +451,15 @@ func TestOverviewResponseCarriesEveryKeyAsANumber(t *testing.T) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		t.Fatal(err)
 	}
-	requireKeys(t, doc, "", "generated_at", "window", "accounts", "job_postings", "applications", "interviews", "finance")
+	requireKeys(t, doc, "", "generated_at", "window", "previous_window", "accounts", "job_postings", "applications", "interviews", "interview_activity", "finance")
 	requireKeys(t, doc, "window", "days", "from", "to")
-	requireNumericKeys(t, doc, "accounts", "candidates", "recruiters", "locked", "new_in_window")
+	requireKeys(t, doc, "previous_window", "days", "from", "to")
+	requireKeys(t, doc, "interview_activity", "bucket_days", "buckets")
+	requireNumericKeys(t, doc, "accounts", "candidates", "recruiters", "locked", "new_in_window", "new_in_previous_window")
 	requireNumericKeys(t, doc, "job_postings", "pending", "open", "intake_closed", "closed", "rejected")
-	requireNumericKeys(t, doc, "applications", "pending", "interview_eligible", "interviewed", "approved", "rejected", "submitted_in_window")
+	requireNumericKeys(t, doc, "applications", "pending", "interview_eligible", "interviewed", "approved", "rejected", "submitted_in_window", "submitted_in_previous_window")
 	requireNumericKeys(t, doc, "interviews", "practice_started_in_window", "recruitment_started_in_window", "completed_in_window", "evaluation_failed")
-	requireNumericKeys(t, doc, "finance", "revenue_vnd", "successful_deposits", "coins_sold", "coins_spent", "coins_refunded", "unique_payers", "success_rate")
+	requireNumericKeys(t, doc, "finance", "revenue_vnd", "previous_revenue_vnd", "successful_deposits", "coins_sold", "coins_spent", "coins_refunded", "unique_payers", "success_rate")
 }
 
 // requireKeys checks that the object at section (or the top level when section is empty) has exactly

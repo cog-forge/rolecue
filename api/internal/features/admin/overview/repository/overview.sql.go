@@ -19,21 +19,24 @@ SELECT
     count(*) FILTER (
         WHERE is_locked AND (lock_expires_at IS NULL OR lock_expires_at > $1)
     ) AS locked,
-    count(*) FILTER (WHERE created_at >= $2 AND created_at < $1) AS new_in_window
+    count(*) FILTER (WHERE created_at >= $2 AND created_at < $1) AS new_in_window,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $2) AS new_in_previous_window
 FROM public.users
 WHERE role IN ('candidate', 'recruiter')
 `
 
 type CountOverviewAccountsParams struct {
-	WindowTo   pgtype.Timestamptz
-	WindowFrom pgtype.Timestamptz
+	WindowTo     pgtype.Timestamptz
+	WindowFrom   pgtype.Timestamptz
+	PreviousFrom pgtype.Timestamptz
 }
 
 type CountOverviewAccountsRow struct {
-	Candidates  int64
-	Recruiters  int64
-	Locked      int64
-	NewInWindow int64
+	Candidates          int64
+	Recruiters          int64
+	Locked              int64
+	NewInWindow         int64
+	NewInPreviousWindow int64
 }
 
 // Admin overview aggregates. Every query is read-only and returns one row of counts, so a status
@@ -41,13 +44,14 @@ type CountOverviewAccountsRow struct {
 // Admin accounts are excluded on purpose. locked means is_locked and the lock has not expired yet
 // (a NULL lock_expires_at never expires); @window_to is the same clock the window ends at.
 func (q *Queries) CountOverviewAccounts(ctx context.Context, arg CountOverviewAccountsParams) (CountOverviewAccountsRow, error) {
-	row := q.db.QueryRow(ctx, countOverviewAccounts, arg.WindowTo, arg.WindowFrom)
+	row := q.db.QueryRow(ctx, countOverviewAccounts, arg.WindowTo, arg.WindowFrom, arg.PreviousFrom)
 	var i CountOverviewAccountsRow
 	err := row.Scan(
 		&i.Candidates,
 		&i.Recruiters,
 		&i.Locked,
 		&i.NewInWindow,
+		&i.NewInPreviousWindow,
 	)
 	return i, err
 }
@@ -59,27 +63,30 @@ SELECT
     count(*) FILTER (WHERE status = 'interviewed') AS interviewed,
     count(*) FILTER (WHERE status = 'approved') AS approved,
     count(*) FILTER (WHERE status = 'rejected') AS rejected,
-    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS submitted_in_window
+    count(*) FILTER (WHERE created_at >= $1 AND created_at < $2) AS submitted_in_window,
+    count(*) FILTER (WHERE created_at >= $3 AND created_at < $1) AS submitted_in_previous_window
 FROM public.applications
 `
 
 type CountOverviewApplicationsParams struct {
-	WindowFrom pgtype.Timestamptz
-	WindowTo   pgtype.Timestamptz
+	WindowFrom   pgtype.Timestamptz
+	WindowTo     pgtype.Timestamptz
+	PreviousFrom pgtype.Timestamptz
 }
 
 type CountOverviewApplicationsRow struct {
-	Pending           int64
-	InterviewEligible int64
-	Interviewed       int64
-	Approved          int64
-	Rejected          int64
-	SubmittedInWindow int64
+	Pending                   int64
+	InterviewEligible         int64
+	Interviewed               int64
+	Approved                  int64
+	Rejected                  int64
+	SubmittedInWindow         int64
+	SubmittedInPreviousWindow int64
 }
 
 // Status counts are all-time; submitted_in_window counts applications created inside the window.
 func (q *Queries) CountOverviewApplications(ctx context.Context, arg CountOverviewApplicationsParams) (CountOverviewApplicationsRow, error) {
-	row := q.db.QueryRow(ctx, countOverviewApplications, arg.WindowFrom, arg.WindowTo)
+	row := q.db.QueryRow(ctx, countOverviewApplications, arg.WindowFrom, arg.WindowTo, arg.PreviousFrom)
 	var i CountOverviewApplicationsRow
 	err := row.Scan(
 		&i.Pending,
@@ -88,18 +95,81 @@ func (q *Queries) CountOverviewApplications(ctx context.Context, arg CountOvervi
 		&i.Approved,
 		&i.Rejected,
 		&i.SubmittedInWindow,
+		&i.SubmittedInPreviousWindow,
 	)
 	return i, err
 }
 
+const countOverviewInterviewActivity = `-- name: CountOverviewInterviewActivity :many
+WITH starts AS (
+    SELECT type, started_at >= $2::timestamptz AS is_current,
+           CASE WHEN started_at >= $2::timestamptz
+             THEN started_at - $2::timestamptz
+             ELSE started_at - $3::timestamptz
+           END AS elapsed
+    FROM public.interviews
+    WHERE started_at >= $3::timestamptz AND started_at < $4::timestamptz
+)
+SELECT
+    floor(extract(epoch FROM elapsed) / $1::int)::int AS bucket_index,
+    count(*) FILTER (WHERE is_current AND type = 'practice') AS practice,
+    count(*) FILTER (WHERE is_current AND type = 'recruitment') AS recruitment,
+    count(*) FILTER (WHERE NOT is_current AND type = 'practice') AS previous_practice,
+    count(*) FILTER (WHERE NOT is_current AND type = 'recruitment') AS previous_recruitment
+FROM starts
+GROUP BY bucket_index
+ORDER BY bucket_index
+`
+
+type CountOverviewInterviewActivityParams struct {
+	BucketSeconds int32
+	WindowFrom    pgtype.Timestamptz
+	PreviousFrom  pgtype.Timestamptz
+	WindowTo      pgtype.Timestamptz
+}
+
+type CountOverviewInterviewActivityRow struct {
+	BucketIndex         int32
+	Practice            int64
+	Recruitment         int64
+	PreviousPractice    int64
+	PreviousRecruitment int64
+}
+
+// Each reporting window has its own origin. Both windows use half-open bounds.
+func (q *Queries) CountOverviewInterviewActivity(ctx context.Context, arg CountOverviewInterviewActivityParams) ([]CountOverviewInterviewActivityRow, error) {
+	rows, err := q.db.Query(ctx, countOverviewInterviewActivity,
+		arg.BucketSeconds,
+		arg.WindowFrom,
+		arg.PreviousFrom,
+		arg.WindowTo,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountOverviewInterviewActivityRow
+	for rows.Next() {
+		var i CountOverviewInterviewActivityRow
+		if err := rows.Scan(
+			&i.BucketIndex,
+			&i.Practice,
+			&i.Recruitment,
+			&i.PreviousPractice,
+			&i.PreviousRecruitment,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countOverviewInterviews = `-- name: CountOverviewInterviews :one
 SELECT
-    count(*) FILTER (
-        WHERE type = 'practice' AND started_at >= $1 AND started_at < $2
-    ) AS practice_started_in_window,
-    count(*) FILTER (
-        WHERE type = 'recruitment' AND started_at >= $1 AND started_at < $2
-    ) AS recruitment_started_in_window,
     count(*) FILTER (WHERE completed_at >= $1 AND completed_at < $2) AS completed_in_window,
     count(*) FILTER (WHERE evaluation_status = 'failed') AS evaluation_failed
 FROM public.interviews
@@ -111,23 +181,15 @@ type CountOverviewInterviewsParams struct {
 }
 
 type CountOverviewInterviewsRow struct {
-	PracticeStartedInWindow    int64
-	RecruitmentStartedInWindow int64
-	CompletedInWindow          int64
-	EvaluationFailed           int64
+	CompletedInWindow int64
+	EvaluationFailed  int64
 }
 
-// *_started_in_window use started_at by type; completed_in_window uses completed_at.
-// evaluation_failed is all-time.
+// Start counts come from the activity series. Evaluation failures count current rows in every period.
 func (q *Queries) CountOverviewInterviews(ctx context.Context, arg CountOverviewInterviewsParams) (CountOverviewInterviewsRow, error) {
 	row := q.db.QueryRow(ctx, countOverviewInterviews, arg.WindowFrom, arg.WindowTo)
 	var i CountOverviewInterviewsRow
-	err := row.Scan(
-		&i.PracticeStartedInWindow,
-		&i.RecruitmentStartedInWindow,
-		&i.CompletedInWindow,
-		&i.EvaluationFailed,
-	)
+	err := row.Scan(&i.CompletedInWindow, &i.EvaluationFailed)
 	return i, err
 }
 

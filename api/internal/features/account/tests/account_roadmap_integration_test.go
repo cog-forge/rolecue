@@ -27,7 +27,7 @@ func (f *fixture) roadmapOf(candidate uuid.UUID) (profile uuid.UUID, items []uui
 		f.exec(`INSERT INTO public.roadmap_items (id, roadmap_id, title, description, position) VALUES ($1, $2, $3, $4, $5)`, id, roadmap, title, title+" scope", i+1)
 	}
 	graded, focused = uuid.New(), uuid.New()
-	f.exec(`INSERT INTO public.interviews (id, type, role_profile_id, score, feedback, completed_at, evaluation_status) VALUES ($1, 'practice', $2, 70, 'roadmap feedback', now(), 'completed')`, graded, profile)
+	f.exec(`INSERT INTO public.interviews (id, type, role_profile_id) VALUES ($1, 'practice', $2)`, graded, profile)
 	for i, item := range items {
 		question := uuid.New()
 		f.exec(`INSERT INTO public.core_questions (id, jd_id, content, expected_answer, roadmap_item_id) VALUES ($1, $2, $3, 'EXPECTED-SECRET', $4)`, question, jd, "Roadmap question", item)
@@ -35,6 +35,9 @@ func (f *fixture) roadmapOf(candidate uuid.UUID) (profile uuid.UUID, items []uui
 		f.exec(`INSERT INTO public.conversation_turns (interview_id, position, question, answer) VALUES ($1, $2, 'Roadmap question', 'roadmap answer')`, graded, i+1)
 		f.exec(`INSERT INTO public.roadmap_assessments (roadmap_item_id, interview_id, question_position) VALUES ($1, $2, $3)`, item, graded, i+1)
 	}
+	// Other integration packages run the Roadmap catch-up job against the same database.
+	// Publish completion after the assessment links exist so the job cannot race this fixture.
+	f.exec(`UPDATE public.interviews SET score = 70, feedback = 'roadmap feedback', completed_at = now(), evaluation_status = 'completed' WHERE id = $1`, graded)
 	// Started on the first topic and never finished: focus_item_id restricts the topic from being deleted on its own.
 	f.exec(`INSERT INTO public.interviews (id, type, role_profile_id, focus_item_id) VALUES ($1, 'practice', $2, $3)`, focused, profile, items[0])
 	return profile, items, graded, focused

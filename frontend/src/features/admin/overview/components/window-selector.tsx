@@ -32,6 +32,7 @@ export function WindowSelector({ days }: { days: OverviewDays }) {
               <Link
                 href={href}
                 scroll={false}
+                aria-label={t("option", { days: option })}
                 aria-current={active ? "page" : undefined}
                 onClick={(event: MouseEvent<HTMLAnchorElement>) => {
                   if (event.defaultPrevented || modified(event)) return;
@@ -39,13 +40,18 @@ export function WindowSelector({ days }: { days: OverviewDays }) {
                   window.history.pushState(null, "", href);
                 }}
                 className={cn(
-                  "inline-flex min-h-11 items-center rounded-full border px-4 text-sm outline-none transition-colors duration-150 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "inline-flex min-h-11 items-center rounded-full border px-3 text-sm outline-none transition-colors duration-150 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none sm:px-4",
                   active
                     ? "border-foreground font-medium text-foreground"
                     : "text-muted-foreground",
                 )}
               >
-                {t("option", { days: option })}
+                <span className="sm:hidden">
+                  {t("shortOption", { days: option })}
+                </span>
+                <span className="hidden sm:inline">
+                  {t("option", { days: option })}
+                </span>
               </Link>
             </li>
           );

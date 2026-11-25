@@ -304,7 +304,6 @@
   },
   "overview": {
     "title": "Admin dashboard",
-    "description": "Platform operations overview.",
     "updated": "Last {days} days · Updated {updated}",
     "loading": "Loading admin overview…",
     "loadingWindow": "Loading the last {days} days…",
@@ -317,30 +316,56 @@
     },
     "window": {
       "label": "Reporting window",
-      "option": "Last {days} days"
+      "option": "Last {days} days",
+      "shortOption": "{days} days"
     },
-    "tools": {
-      "label": "Admin tools",
-      "title": "Go to",
-      "jobPostings": "Review pending postings",
-      "interviews": "Browse recent interviews",
-      "voices": "Manage the voice catalog",
-      "billing": "Check payments",
-      "revenue": "See revenue figures",
-      "users": "Find an account"
+    "metrics": {
+      "title": "Key metrics",
+      "currentRange": "Current: {from} – {to}",
+      "comparison": "Previous: {from} – {to}",
+      "timeZone": "GMT+7",
+      "newAccounts": "New accounts",
+      "newApplications": "New applications",
+      "interviewsStarted": "Interviews started",
+      "payosTopups": "Successful PayOS top-ups",
+      "newActivity": "New activity",
+      "unchanged": "No change",
+      "up": "Up {percent}",
+      "down": "Down {percent}",
+      "lessThan": "<{percent}"
+    },
+    "attention": {
+      "title": "Needs attention",
+      "snapshot": "Current status across all dates",
+      "postings": "Postings awaiting review",
+      "evaluations": "Failed evaluations",
+      "lockedAccounts": "Locked accounts",
+      "accounts": "Platform accounts",
+      "candidates": "Candidates",
+      "recruiters": "Recruiters"
+    },
+    "activity": {
+      "title": "Interview activity",
+      "daily": "Sessions started per 24-hour interval",
+      "weekly": "Sessions started per 7-day interval",
+      "mode": "Interview type",
+      "all": "All types",
+      "practice": "Practice",
+      "recruitment": "Recruitment",
+      "current": "Current period",
+      "previous": "Previous period",
+      "chartLabel": "Interview starts by period · {mode}",
+      "completed": "{count} completed in the current period",
+      "empty": "No interviews of this type started in either period.",
+      "unavailable": "The interview trend is currently unavailable."
+    },
+    "status": {
+      "description": "Current status across all dates",
+      "viewPostings": "View postings"
     },
     "sections": {
-      "accounts": {
-        "title": "Accounts",
-        "definition": "Candidates and recruiters only. Locked is the number locked right now; new accounts count the window.",
-        "candidates": "Candidates",
-        "recruiters": "Recruiters",
-        "locked": "Locked now",
-        "newInWindow": "New in window"
-      },
       "jobPostings": {
         "title": "Job postings",
-        "definition": "All-time counts by status.",
         "pending": "Pending review",
         "open": "Open",
         "intakeClosed": "Intake closed",
@@ -349,32 +374,11 @@
       },
       "applications": {
         "title": "Applications",
-        "definition": "Counts by status are all-time. Submitted counts the window.",
         "pending": "Awaiting CV review",
         "interviewEligible": "Interview eligible",
         "interviewed": "Interviewed",
         "approved": "Approved",
-        "rejected": "Rejected",
-        "submittedInWindow": "Submitted in window"
-      },
-      "interviews": {
-        "title": "Interviews",
-        "definition": "Started and completed count the window. Evaluation failed is all-time.",
-        "practiceStarted": "Practice started",
-        "recruitmentStarted": "Recruitment started",
-        "completed": "Completed",
-        "evaluationFailed": "Evaluation failed"
-      },
-      "finance": {
-        "title": "Finance",
-        "definition": "Revenue is successful PayOS top-ups in the window. Coin totals are for the window. Coin debits and refunds are not revenue.",
-        "revenue": "Revenue",
-        "successfulDeposits": "Successful top-ups",
-        "coinsSold": "Coins sold",
-        "coinsSpent": "Coins spent",
-        "coinsRefunded": "Coins refunded",
-        "uniquePayers": "Unique payers",
-        "successRate": "Payment success rate"
+        "rejected": "Rejected"
       }
     }
   },

@@ -23,14 +23,14 @@ type fakeRepository struct {
 	applicationsErr error
 	interviewsErr   error
 
-	calls int
-	from  time.Time
-	to    time.Time
+	calls    int
+	window   domain.OverviewWindow
+	previous domain.OverviewWindow
 }
 
-func (f *fakeRepository) Accounts(_ context.Context, from, to time.Time) (domain.OverviewAccounts, error) {
+func (f *fakeRepository) Accounts(_ context.Context, window, previous domain.OverviewWindow) (domain.OverviewAccounts, error) {
 	f.calls++
-	f.from, f.to = from, to
+	f.window, f.previous = window, previous
 	return f.accounts, f.accountsErr
 }
 
@@ -39,26 +39,32 @@ func (f *fakeRepository) Postings(_ context.Context) (domain.OverviewPostings, e
 	return f.postings, f.postingsErr
 }
 
-func (f *fakeRepository) Applications(_ context.Context, from, to time.Time) (domain.OverviewApplications, error) {
+func (f *fakeRepository) Applications(_ context.Context, window, previous domain.OverviewWindow) (domain.OverviewApplications, error) {
 	f.calls++
-	f.from, f.to = from, to
+	f.window, f.previous = window, previous
 	return f.applications, f.applicationsErr
 }
 
-func (f *fakeRepository) Interviews(_ context.Context, from, to time.Time) (domain.OverviewInterviews, error) {
+func (f *fakeRepository) Interviews(_ context.Context, window, previous domain.OverviewWindow) (domain.OverviewInterviews, domain.OverviewInterviewActivity, error) {
 	f.calls++
-	f.from, f.to = from, to
-	return f.interviews, f.interviewsErr
+	f.window, f.previous = window, previous
+	return f.interviews, domain.OverviewInterviewActivity{}, f.interviewsErr
 }
 
 type fakeFinance struct {
-	summary domain.OverviewFinance
-	err     error
-	calls   int
+	summary         domain.OverviewFinance
+	previousRevenue int64
+	windows         [][2]time.Time
+	err             error
+	calls           int
 }
 
-func (f *fakeFinance) Summary(_ context.Context, _, _ time.Time) (domain.OverviewFinance, error) {
+func (f *fakeFinance) Summary(_ context.Context, from, to time.Time) (domain.OverviewFinance, error) {
 	f.calls++
+	f.windows = append(f.windows, [2]time.Time{from, to})
+	if f.calls == 2 {
+		return domain.OverviewFinance{RevenueVND: f.previousRevenue}, f.err
+	}
 	return f.summary, f.err
 }
 
@@ -143,8 +149,16 @@ func TestGetWindowAndDays(t *testing.T) {
 			if !got.Window.From.Equal(wantFrom) || !got.Window.To.Equal(fixedNow) {
 				t.Fatalf("window = [%s, %s), want [%s, %s)", got.Window.From, got.Window.To, wantFrom, fixedNow)
 			}
-			if !repo.from.Equal(wantFrom) || !repo.to.Equal(fixedNow) {
-				t.Fatalf("repository window = [%s, %s), want [%s, %s)", repo.from, repo.to, wantFrom, fixedNow)
+			wantPreviousFrom := wantFrom.Add(wantFrom.Sub(fixedNow))
+			if !got.PreviousWindow.From.Equal(wantPreviousFrom) || !got.PreviousWindow.To.Equal(wantFrom) || got.PreviousWindow.Days != tt.wantDays {
+				t.Fatalf("previous window = %+v, want [%s, %s)", got.PreviousWindow, wantPreviousFrom, wantFrom)
+			}
+			if repo.window != got.Window || repo.previous != got.PreviousWindow {
+				t.Fatalf("repository windows = %+v and %+v", repo.window, repo.previous)
+			}
+			if finance.calls != 2 || finance.windows[0] != [2]time.Time{wantFrom, fixedNow} ||
+				finance.windows[1] != [2]time.Time{wantPreviousFrom, wantFrom} {
+				t.Fatalf("finance windows = %+v", finance.windows)
 			}
 			if !got.GeneratedAt.Equal(fixedNow) {
 				t.Fatalf("generated_at = %s, want %s", got.GeneratedAt, fixedNow)
@@ -160,15 +174,17 @@ func TestGetPassesThroughRepositoryAndFinance(t *testing.T) {
 		applications: domain.OverviewApplications{Pending: 6, SubmittedInWindow: 7},
 		interviews:   domain.OverviewInterviews{PracticeStartedInWindow: 8, EvaluationFailed: 9},
 	}
-	finance := &fakeFinance{summary: domain.OverviewFinance{RevenueVND: 100000, SuccessRate: 0.5}}
+	finance := &fakeFinance{summary: domain.OverviewFinance{RevenueVND: 100000, SuccessRate: 0.5}, previousRevenue: 50000}
 	svc := newTestService(t, repo, finance)
 	got, err := svc.Get(context.Background(), "admin", 7)
 	if err != nil {
 		t.Fatal(err)
 	}
+	wantFinance := finance.summary
+	wantFinance.PreviousRevenueVND = finance.previousRevenue
 	if got.Accounts != repo.accounts || got.JobPostings != repo.postings ||
 		got.Applications != repo.applications || got.Interviews != repo.interviews ||
-		got.Finance != finance.summary {
+		got.Finance != wantFinance {
 		t.Fatalf("aggregates not passed through: %+v", got)
 	}
 }

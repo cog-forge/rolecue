@@ -14,10 +14,10 @@ const adminRole = "admin"
 
 // Repository is the persistence contract consumed by the Admin overview. Every method is read-only.
 type Repository interface {
-	Accounts(ctx context.Context, from, to time.Time) (domain.OverviewAccounts, error)
+	Accounts(ctx context.Context, window, previous domain.OverviewWindow) (domain.OverviewAccounts, error)
 	Postings(ctx context.Context) (domain.OverviewPostings, error)
-	Applications(ctx context.Context, from, to time.Time) (domain.OverviewApplications, error)
-	Interviews(ctx context.Context, from, to time.Time) (domain.OverviewInterviews, error)
+	Applications(ctx context.Context, window, previous domain.OverviewWindow) (domain.OverviewApplications, error)
+	Interviews(ctx context.Context, window, previous domain.OverviewWindow) (domain.OverviewInterviews, domain.OverviewInterviewActivity, error)
 }
 
 // Finance supplies the wallet billing summary for the window.
@@ -51,11 +51,13 @@ func (s *Service) Get(ctx context.Context, role string, days int) (domain.Overvi
 	if err != nil {
 		return domain.Overview{}, err
 	}
-	now := s.now()
-	from := now.Add(-time.Duration(windowDays) * 24 * time.Hour)
-	to := now
+	// Use one microsecond-precision cutoff for PostgreSQL and the serialized window bounds.
+	now := s.now().Truncate(time.Microsecond)
+	duration := time.Duration(windowDays) * 24 * time.Hour
+	window := domain.OverviewWindow{Days: windowDays, From: now.Add(-duration), To: now}
+	previous := domain.OverviewWindow{Days: windowDays, From: window.From.Add(-duration), To: window.From}
 
-	accounts, err := s.repository.Accounts(ctx, from, to)
+	accounts, err := s.repository.Accounts(ctx, window, previous)
 	if err != nil {
 		return domain.Overview{}, err
 	}
@@ -63,26 +65,33 @@ func (s *Service) Get(ctx context.Context, role string, days int) (domain.Overvi
 	if err != nil {
 		return domain.Overview{}, err
 	}
-	applications, err := s.repository.Applications(ctx, from, to)
+	applications, err := s.repository.Applications(ctx, window, previous)
 	if err != nil {
 		return domain.Overview{}, err
 	}
-	interviews, err := s.repository.Interviews(ctx, from, to)
+	interviews, activity, err := s.repository.Interviews(ctx, window, previous)
 	if err != nil {
 		return domain.Overview{}, err
 	}
-	finance, err := s.finance.Summary(ctx, from, to)
+	finance, err := s.finance.Summary(ctx, window.From, window.To)
 	if err != nil {
 		return domain.Overview{}, err
 	}
+	previousFinance, err := s.finance.Summary(ctx, previous.From, previous.To)
+	if err != nil {
+		return domain.Overview{}, err
+	}
+	finance.PreviousRevenueVND = previousFinance.RevenueVND
 	return domain.Overview{
-		GeneratedAt:  now,
-		Window:       domain.OverviewWindow{Days: windowDays, From: from, To: to},
-		Accounts:     accounts,
-		JobPostings:  postings,
-		Applications: applications,
-		Interviews:   interviews,
-		Finance:      finance,
+		GeneratedAt:       now,
+		Window:            window,
+		PreviousWindow:    previous,
+		Accounts:          accounts,
+		JobPostings:       postings,
+		Applications:      applications,
+		Interviews:        interviews,
+		InterviewActivity: activity,
+		Finance:           finance,
 	}, nil
 }
 

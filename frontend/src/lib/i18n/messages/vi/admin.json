@@ -304,7 +304,6 @@
   },
   "overview": {
     "title": "Bảng điều khiển quản trị",
-    "description": "Tổng quan vận hành nền tảng.",
     "updated": "{days} ngày gần nhất · Cập nhật {updated}",
     "loading": "Đang tải tổng quan quản trị…",
     "loadingWindow": "Đang tải dữ liệu {days} ngày gần nhất…",
@@ -317,30 +316,56 @@
     },
     "window": {
       "label": "Khoảng thời gian báo cáo",
-      "option": "{days} ngày gần nhất"
+      "option": "{days} ngày gần nhất",
+      "shortOption": "{days} ngày"
     },
-    "tools": {
-      "label": "Công cụ quản trị",
-      "title": "Đi đến",
-      "jobPostings": "Duyệt các tin tuyển dụng đang chờ",
-      "interviews": "Xem các buổi phỏng vấn gần đây",
-      "voices": "Quản lý danh mục giọng nói",
-      "billing": "Kiểm tra thanh toán",
-      "revenue": "Xem số liệu doanh thu",
-      "users": "Tìm một tài khoản"
+    "metrics": {
+      "title": "Chỉ số trong kỳ",
+      "currentRange": "Kỳ này: {from} – {to}",
+      "comparison": "Kỳ trước: {from} – {to}",
+      "timeZone": "GMT+7",
+      "newAccounts": "Tài khoản mới",
+      "newApplications": "Đơn ứng tuyển mới",
+      "interviewsStarted": "Lượt bắt đầu phỏng vấn",
+      "payosTopups": "Tiền nạp PayOS thành công",
+      "newActivity": "Mới phát sinh",
+      "unchanged": "Không đổi",
+      "up": "Tăng {percent}",
+      "down": "Giảm {percent}",
+      "lessThan": "<{percent}"
+    },
+    "attention": {
+      "title": "Cần chú ý",
+      "snapshot": "Trạng thái hiện tại, tính trên toàn bộ dữ liệu",
+      "postings": "Tin tuyển dụng chờ duyệt",
+      "evaluations": "Lượt chấm điểm lỗi",
+      "lockedAccounts": "Tài khoản đang khóa",
+      "accounts": "Tài khoản trên nền tảng",
+      "candidates": "Ứng viên",
+      "recruiters": "Nhà tuyển dụng"
+    },
+    "activity": {
+      "title": "Hoạt động phỏng vấn",
+      "daily": "Số phiên bắt đầu trong mỗi khoảng 24 giờ",
+      "weekly": "Số phiên bắt đầu trong mỗi khoảng 7 ngày",
+      "mode": "Loại phỏng vấn",
+      "all": "Tất cả",
+      "practice": "Luyện tập",
+      "recruitment": "Tuyển dụng",
+      "current": "Kỳ hiện tại",
+      "previous": "Kỳ trước",
+      "chartLabel": "Lượt bắt đầu phỏng vấn theo kỳ · {mode}",
+      "completed": "{count} lượt hoàn tất trong kỳ hiện tại",
+      "empty": "Cả hai kỳ đều chưa có lượt bắt đầu phỏng vấn thuộc loại này.",
+      "unavailable": "Hiện chưa có dữ liệu xu hướng phỏng vấn."
+    },
+    "status": {
+      "description": "Trạng thái hiện tại, tính trên toàn bộ dữ liệu",
+      "viewPostings": "Xem tin tuyển dụng"
     },
     "sections": {
-      "accounts": {
-        "title": "Tài khoản",
-        "definition": "Chỉ gồm ứng viên và nhà tuyển dụng. Đã khóa là số tài khoản đang bị khóa ngay lúc này; tài khoản mới được tính trong khoảng thời gian đã chọn.",
-        "candidates": "Ứng viên",
-        "recruiters": "Nhà tuyển dụng",
-        "locked": "Đang bị khóa",
-        "newInWindow": "Mới trong kỳ"
-      },
       "jobPostings": {
         "title": "Tin tuyển dụng",
-        "definition": "Số lượng theo trạng thái, tính từ trước đến nay.",
         "pending": "Chờ duyệt",
         "open": "Đang tuyển",
         "intakeClosed": "Đã ngừng nhận đơn",
@@ -349,32 +374,11 @@
       },
       "applications": {
         "title": "Đơn ứng tuyển",
-        "definition": "Số lượng theo trạng thái tính từ trước đến nay. Số đơn đã nộp được tính trong khoảng thời gian đã chọn.",
         "pending": "Chờ xét duyệt CV",
         "interviewEligible": "Đủ điều kiện phỏng vấn",
         "interviewed": "Đã phỏng vấn",
         "approved": "Đã duyệt",
-        "rejected": "Bị từ chối",
-        "submittedInWindow": "Đã nộp trong kỳ"
-      },
-      "interviews": {
-        "title": "Phỏng vấn",
-        "definition": "Số buổi đã bắt đầu và đã hoàn thành được tính trong khoảng thời gian đã chọn. Số buổi đánh giá thất bại tính từ trước đến nay.",
-        "practiceStarted": "Luyện tập đã bắt đầu",
-        "recruitmentStarted": "Phỏng vấn tuyển dụng đã bắt đầu",
-        "completed": "Đã hoàn thành",
-        "evaluationFailed": "Đánh giá thất bại"
-      },
-      "finance": {
-        "title": "Tài chính",
-        "definition": "Doanh thu là các lần nạp tiền PayOS thành công trong khoảng thời gian đã chọn. Tổng số xu cũng tính trong khoảng thời gian này. Xu đã tiêu và xu hoàn lại không phải doanh thu.",
-        "revenue": "Doanh thu",
-        "successfulDeposits": "Lần nạp thành công",
-        "coinsSold": "Xu đã bán",
-        "coinsSpent": "Xu đã tiêu",
-        "coinsRefunded": "Xu đã hoàn",
-        "uniquePayers": "Người thanh toán",
-        "successRate": "Tỷ lệ thanh toán thành công"
+        "rejected": "Bị từ chối"
       }
     }
   },
