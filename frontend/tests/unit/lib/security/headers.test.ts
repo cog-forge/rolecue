@@ -47,6 +47,36 @@ describe("security headers", () => {
     expect(csp).toMatch(/worker-src [^;]*blob:/);
   });
 
+  it("adds the storage origin to connect-src, img-src and media-src", () => {
+    const csp = buildCsp({
+      nonce: "n",
+      isDev: false,
+      storageOrigin: "https://s3.ap-southeast-1.amazonaws.com/",
+    });
+    for (const directive of ["connect-src", "img-src", "media-src"]) {
+      const values = csp
+        .split("; ")
+        .find((part) => part.startsWith(`${directive} `))!
+        .split(" ");
+      expect(values).toContain("https://s3.ap-southeast-1.amazonaws.com");
+    }
+    expect(csp).not.toContain("amazonaws.com/");
+    expect(csp).toMatch(/worker-src 'self' blob:(;|$)/);
+  });
+
+  it("ignores an invalid storage origin", () => {
+    const base = buildCsp({ nonce: "n", isDev: false });
+    expect(
+      buildCsp({ nonce: "n", isDev: false, storageOrigin: "not a url" }),
+    ).toBe(base);
+    expect(buildCsp({ nonce: "n", isDev: false, storageOrigin: "" })).toBe(
+      base,
+    );
+    expect(buildCsp({ nonce: "n", isDev: false, storageOrigin: null })).toBe(
+      base,
+    );
+  });
+
   it("allows eval only in development", () => {
     expect(buildCsp({ nonce: "n", isDev: true })).toContain("'unsafe-eval'");
   });

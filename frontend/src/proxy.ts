@@ -11,6 +11,7 @@ export function proxy(request: NextRequest) {
     isDev: process.env.NODE_ENV === "development",
     apiBaseUrl: process.env.NEXT_PUBLIC_API_BASE_URL,
     avaturnProjectUrl: getAvaturnProjectUrl(),
+    storageOrigin: process.env.NEXT_PUBLIC_STORAGE_ORIGIN,
   });
   const name = cspHeaderName(process.env.CSP_ENFORCE);
   const requestHeaders = new Headers(request.headers);
