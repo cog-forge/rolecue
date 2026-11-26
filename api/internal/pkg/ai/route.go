@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cog-forge/rolecue/api/internal/config"
+	"github.com/cog-forge/rolecue/api/internal/pkg/logger"
 )
 
 var ErrInvalidOutput = errors.New("invalid structured output")
@@ -20,11 +21,13 @@ type Route struct {
 	task    config.Task
 	budget  time.Duration
 	entries []routeEntry
+	// health holds the 429 cooldowns shared by every route of the process (KAN-386). Nil turns cooldowns off.
+	health *ProviderHealth
 }
 
 func NewRoute(ctx context.Context, cfg *config.Config, task config.Task) (*Route, error) {
 	primary, fallback := cfg.TaskLLM(task)
-	r := &Route{task: task, budget: primary.Timeout, legacy: cfg.AI.Route(task) == (config.TaskRoute{})}
+	r := &Route{task: task, budget: primary.Timeout, legacy: cfg.AI.Route(task) == (config.TaskRoute{}), health: sharedHealth}
 	if task == config.TaskFollowUp && r.budget > 5*time.Second {
 		r.budget = 5 * time.Second
 	}
@@ -60,19 +63,28 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 		}
 		return err
 	}
+	cooling := func(e routeEntry) bool { return r.cooling(e) > 0 }
 	var last error
+	attempted := false
 	for index, entry := range r.entries {
+		if remaining := r.cooling(entry); remaining > 0 {
+			logger.FromContext(ctx).Info("llm provider cooling down, skipped", logger.Op("ai.route"), logger.String("task", string(r.task)),
+				logger.String("provider", entry.config.Provider), logger.String("model", entry.config.Model),
+				logger.Int("remaining_seconds", int(remaining.Round(time.Second)/time.Second)))
+			continue
+		}
 		for attempt := 0; attempt <= entry.config.MaxRetries; attempt++ {
 			if err := ctx.Err(); err != nil {
 				return zero, expired(err)
 			}
 			// Reserve a fair share for remaining providers/retries, especially inside the live 5s budget.
 			deadline, _ := ctx.Deadline()
-			slots := len(r.entries) - index + entry.config.MaxRetries - attempt
+			slots := attemptSlots(r.entries, index, attempt, cooling)
 			duration := time.Until(deadline) / time.Duration(slots)
 			attemptCtx, stop := context.WithTimeout(ctx, duration)
 			lm := &loggedModel{inner: entry.model, provider: entry.config.Provider, model: entry.config.Model, task: string(r.task)}
 			done := lm.startAttempt(attemptCtx)
+			attempted = true
 			result, err := call(attemptCtx, lm)
 			if attemptCtx.Err() != nil {
 				err = attemptCtx.Err()
@@ -89,13 +101,43 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 			if !canFallback(err) {
 				return zero, sanitizedFailure(err)
 			}
-			// 429 is an immediate fallback, never an unbounded sleep or a same-provider retry.
+			// A 429 starts a cooldown for this provider and model and goes to the next entry at once: never a
+			// sleep, never a same-provider retry.
 			if llmFailureReason(err) == "rate_limited" {
+				if r.health != nil {
+					r.health.RateLimited(entryKey(entry.config), retryAfterOf(err))
+				}
 				break
 			}
 		}
 	}
+	if !attempted {
+		// Every entry is cooling down: calling one would break its Retry-After, so the call fails at once and the
+		// caller above the route reports the service as busy.
+		return zero, &providerFailure{reason: "rate_limited"}
+	}
 	return zero, sanitizedFailure(last)
+}
+
+// cooling reports how long the entry must still be left alone.
+func (r *Route) cooling(e routeEntry) time.Duration {
+	if r.health == nil {
+		return 0
+	}
+	return r.health.Cooling(entryKey(e.config))
+}
+
+// attemptSlots counts the attempts the time left must be shared between when entry index tries attempt: this
+// attempt, the retries this entry still has, and one for each later entry that is not cooling down. A cooling
+// entry will be skipped, so its share goes to the entries before it.
+func attemptSlots(entries []routeEntry, index, attempt int, cooling func(routeEntry) bool) int {
+	slots := 1 + entries[index].config.MaxRetries - attempt
+	for _, later := range entries[index+1:] {
+		if !cooling(later) {
+			slots++
+		}
+	}
+	return slots
 }
 func canFallback(err error) bool {
 	switch llmFailureReason(err) {

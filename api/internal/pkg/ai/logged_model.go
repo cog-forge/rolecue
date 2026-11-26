@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
+	"time"
 
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
@@ -144,6 +146,8 @@ func (m *loggedModel) startAttempt(ctx context.Context) func(error, ...zap.Field
 type providerFailure struct {
 	reason string
 	status int
+	// retryAfter is the provider's Retry-After on a 429, kept so the route can start a cooldown (KAN-386).
+	retryAfter time.Duration
 }
 
 func (e *providerFailure) Error() string { return "llm call failed: " + e.reason }
@@ -163,5 +167,31 @@ func safeProviderError(err error) error {
 	if errors.As(err, &geminiErr) {
 		status = geminiErr.Code
 	}
-	return &providerFailure{reason: llmFailureReason(err), status: status}
+	return &providerFailure{reason: llmFailureReason(err), status: status, retryAfter: retryAfterOf(err)}
+}
+
+// retryAfterOf returns how long the provider asked callers to wait: the Retry-After of an HTTP error, the retry
+// delay Gemini puts in its error details, or the value a sanitised failure kept. Zero means none was given.
+func retryAfterOf(err error) time.Duration {
+	var safe *providerFailure
+	if errors.As(err, &safe) {
+		return safe.retryAfter
+	}
+	var httpErr *HTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.RetryAfter
+	}
+	var geminiErr genai.APIError
+	if errors.As(err, &geminiErr) {
+		for _, detail := range geminiErr.Details {
+			if kind, _ := detail["@type"].(string); strings.HasSuffix(kind, "RetryInfo") {
+				if delay, _ := detail["retryDelay"].(string); delay != "" {
+					if d, perr := time.ParseDuration(delay); perr == nil && d > 0 {
+						return d
+					}
+				}
+			}
+		}
+	}
+	return 0
 }
