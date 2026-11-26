@@ -201,6 +201,26 @@ func TestOpenAICompatTimeoutKeepsDeadlineCause(t *testing.T) {
 	}
 }
 
+// Headers arrive but the body stalls: that is the provider being slow, not an unusable reply.
+func TestOpenAICompatSlowBodyIsATimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+		case <-time.After(3 * time.Second):
+		}
+	}))
+	defer srv.Close()
+	cfg := compatConfig(srv.URL)
+	cfg.Timeout = 50 * time.Millisecond
+	_, err := compatGenerate(t, cfg)
+	if err == nil || llmFailureReason(err) != "timeout" {
+		t.Fatalf("reason = %q, error = %v", llmFailureReason(err), err)
+	}
+}
+
 func TestOpenAICompatStreamUnsupported(t *testing.T) {
 	m, err := newOpenAICompat(compatConfig("http://127.0.0.1:1"))
 	if err != nil {
