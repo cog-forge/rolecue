@@ -31,11 +31,15 @@ type TaskRoute struct {
 type AIConfig struct {
 	GroqAPIKey string `mapstructure:"groq_api_key"`
 	// OpenRouterAPIKey is the OpenRouter credential (KAN-386). Env only, never YAML.
-	OpenRouterAPIKey string    `mapstructure:"openrouter_api_key"`
-	JD               TaskRoute `mapstructure:"jd_extraction"`
-	Bank             TaskRoute `mapstructure:"question_bank"`
-	FollowUp         TaskRoute `mapstructure:"follow_up"`
-	Evaluation       TaskRoute `mapstructure:"evaluation"`
+	OpenRouterAPIKey string `mapstructure:"openrouter_api_key"`
+	// BedrockAPIKey is an Amazon Bedrock API key (a bearer token) and BedrockRegion the region it is called in
+	// (default us-east-1) (KAN-386). Env only, never YAML.
+	BedrockAPIKey string    `mapstructure:"bedrock_api_key"`
+	BedrockRegion string    `mapstructure:"bedrock_region"`
+	JD            TaskRoute `mapstructure:"jd_extraction"`
+	Bank          TaskRoute `mapstructure:"question_bank"`
+	FollowUp      TaskRoute `mapstructure:"follow_up"`
+	Evaluation    TaskRoute `mapstructure:"evaluation"`
 	// Cloudflare Workers AI credentials for the Clef decision model (KAN-274). Env only, never YAML.
 	CloudflareAccountID string `mapstructure:"cloudflare_account_id"`
 	CloudflareAPIToken  string `mapstructure:"cloudflare_api_token"`
@@ -65,6 +69,9 @@ const (
 )
 
 var cloudflareAccountID = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+// awsRegion keeps the region a plain AWS region name, because it becomes part of the API host.
+var awsRegion = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]$`)
 
 // FollowUpDecisionRoute returns the follow-up decision route with defaults filled in. Provider "" means off.
 func (c AIConfig) FollowUpDecisionRoute() DecisionRoute {
@@ -148,6 +155,7 @@ const (
 	ProviderGroq       = "groq"
 	ProviderCloudflare = "cloudflare"
 	ProviderOpenRouter = "openrouter"
+	ProviderBedrock    = "bedrock"
 
 	groqBaseURL       = "https://api.groq.com/openai/v1"
 	openRouterBaseURL = "https://openrouter.ai/api/v1"
@@ -169,6 +177,11 @@ func (c *Config) defaultModel(task Task, provider string) string {
 			return "@cf/openai/gpt-oss-20b"
 		}
 		return "@cf/openai/gpt-oss-120b"
+	case ProviderBedrock:
+		if small {
+			return "openai.gpt-oss-20b-1:0"
+		}
+		return "openai.gpt-oss-120b-1:0"
 	}
 	return ""
 }
@@ -189,11 +202,20 @@ func (c *Config) fillProvider(task Task, base LLMConfig, provider, model string)
 		f.BaseURL = "https://api.cloudflare.com/client/v4/accounts/" + c.AI.CloudflareAccountID + "/ai/v1"
 	case ProviderOpenRouter:
 		f.APIKey, f.BaseURL = c.AI.OpenRouterAPIKey, openRouterBaseURL
+	case ProviderBedrock:
+		f.APIKey, f.BaseURL = c.AI.BedrockAPIKey, "https://bedrock-runtime."+c.bedrockRegion()+".amazonaws.com"
 	}
 	if f.Model == "" {
 		f.Model = c.defaultModel(task, provider)
 	}
 	return f
+}
+
+func (c *Config) bedrockRegion() string {
+	if c.AI.BedrockRegion == "" {
+		return "us-east-1"
+	}
+	return c.AI.BedrockRegion
 }
 
 func (c *Config) TaskLLM(task Task) (LLMConfig, []LLMConfig) {
@@ -233,6 +255,8 @@ func bindAI(v *viper.Viper) error {
 	for key, env := range map[string]string{
 		"ai.groq_api_key":          "GROQ_API_KEY",
 		"ai.openrouter_api_key":    "OPENROUTER_API_KEY",
+		"ai.bedrock_api_key":       "AWS_BEARER_TOKEN_BEDROCK",
+		"ai.bedrock_region":        "BEDROCK_REGION",
 		"ai.cloudflare_account_id": "CLOUDFLARE_ACCOUNT_ID",
 		"ai.cloudflare_api_token":  "CLOUDFLARE_AI_API_TOKEN",
 	} {
@@ -281,8 +305,12 @@ func (c *Config) validateAI() error {
 				if strings.ContainsAny(m.APIKey, " \t") {
 					return fmt.Errorf("ai.%s: CLOUDFLARE_AI_API_TOKEN must be one token", task)
 				}
+			case ProviderBedrock:
+				if !awsRegion.MatchString(c.bedrockRegion()) {
+					return fmt.Errorf("ai.%s: BEDROCK_REGION must be an AWS region such as us-east-1", task)
+				}
 			default:
-				return fmt.Errorf("ai.%s: provider must be gemini, groq, cloudflare or openrouter", task)
+				return fmt.Errorf("ai.%s: provider must be gemini, groq, cloudflare, openrouter or bedrock", task)
 			}
 			if strings.TrimSpace(m.Model) == "" || strings.ContainsAny(m.Model, " \r\n\t") {
 				return fmt.Errorf("ai.%s: model is required and must be one ID", task)

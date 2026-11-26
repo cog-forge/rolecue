@@ -15,8 +15,9 @@ import (
 
 func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatModel, error) {
 	compat := cfg.Provider == config.ProviderGroq || cfg.Provider == config.ProviderCloudflare || cfg.Provider == config.ProviderOpenRouter
-	if !compat && cfg.Provider != config.ProviderGemini {
-		return nil, fmt.Errorf("unsupported LLM provider %q: expected gemini, groq, cloudflare or openrouter", cfg.Provider)
+	bedrock := cfg.Provider == config.ProviderBedrock
+	if !compat && !bedrock && cfg.Provider != config.ProviderGemini {
+		return nil, fmt.Errorf("unsupported LLM provider %q: expected gemini, groq, cloudflare, openrouter or bedrock", cfg.Provider)
 	}
 	if strings.TrimSpace(cfg.APIKey) == "" || strings.ContainsAny(cfg.APIKey, "\r\n") {
 		return nil, fmt.Errorf("LLM API key is required and must not contain newlines")
@@ -27,11 +28,15 @@ func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatMode
 	if cfg.Timeout <= 0 {
 		return nil, fmt.Errorf("LLM timeout must be positive")
 	}
-	if compat {
+	if compat || bedrock {
 		if strings.TrimSpace(cfg.BaseURL) == "" {
 			return nil, fmt.Errorf("%s API base URL is required", cfg.Provider)
 		}
-		inner, err := newOpenAICompat(cfg)
+		build := newOpenAICompat
+		if bedrock {
+			build = newBedrock
+		}
+		inner, err := build(cfg)
 		if err != nil {
 			return nil, err
 		}

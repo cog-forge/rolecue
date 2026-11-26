@@ -215,13 +215,13 @@ func (a *TaskAdapter) GradeQuestion(ctx context.Context, in ed.QuestionGradeInpu
 }
 
 // bankBatchSize caps one bank request at 10 questions when any entry of the chain is a gpt-oss provider served
-// through the OpenAI-compatible adapter (Groq, Cloudflare, OpenRouter): a 50-question reply does not fit their
+// (Groq, Cloudflare, OpenRouter, Bedrock): a 50-question reply does not fit their
 // output throughput or rate limits, and a batch must be small enough to finish inside one attempt's share of the
 // task budget. A chain without them keeps a single call.
 func bankBatchSize(entries []routeEntry, count int) int {
 	for _, entry := range entries {
 		switch entry.config.Provider {
-		case config.ProviderGroq, config.ProviderCloudflare, config.ProviderOpenRouter:
+		case config.ProviderGroq, config.ProviderCloudflare, config.ProviderOpenRouter, config.ProviderBedrock:
 			return min(count, 10)
 		}
 	}

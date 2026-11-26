@@ -24,7 +24,7 @@ func TestTaskDefaultsAndOverrides(t *testing.T) {
 	if err := c.validateAI(); err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range []TaskRoute{{Provider: "bedrock"}, {Provider: "groq", Timeout: -1}, {Provider: "groq", Fallback: "unknown:x"}} {
+	for _, r := range []TaskRoute{{Provider: "bogus"}, {Provider: "groq", Timeout: -1}, {Provider: "groq", Fallback: "unknown:x"}} {
 		c.AI.JD = r
 		if c.validateAI() == nil {
 			t.Fatal("bad route accepted")

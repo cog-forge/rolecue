@@ -26,6 +26,7 @@ func TestBankBatchSize(t *testing.T) {
 		{"groq", []string{"groq"}, 50, 10},
 		{"cloudflare", []string{"cloudflare"}, 50, 10},
 		{"openrouter", []string{"openrouter"}, 50, 10},
+		{"bedrock", []string{"bedrock"}, 50, 10},
 		{"gemini only keeps one call", []string{"gemini"}, 50, 50},
 		{"gemini first, cloudflare behind", []string{"gemini", "cloudflare"}, 50, 10},
 		{"small bank", []string{"cloudflare"}, 8, 8},

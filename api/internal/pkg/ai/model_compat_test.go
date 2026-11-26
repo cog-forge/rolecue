@@ -51,3 +51,28 @@ func TestNewChatModelNeedsABaseURLForCompatProviders(t *testing.T) {
 		})
 	}
 }
+
+func TestNewChatModelServesBedrock(t *testing.T) {
+	var uri string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uri = r.RequestURI
+		_, _ = w.Write([]byte(`{"output":{"message":{"content":[{"text":"{}"}]}}}`))
+	}))
+	defer srv.Close()
+	m, err := NewChatModel(context.Background(), config.LLMConfig{Provider: "bedrock", APIKey: "k", Model: "openai.gpt-oss-120b-1:0", Timeout: time.Second, BaseURL: srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m.(*loggedModel); !ok {
+		t.Fatalf("model is %T, want the logged wrapper", m)
+	}
+	if _, err := m.Generate(context.Background(), []*schema.Message{schema.UserMessage("JSON")}); err != nil || uri != "/model/openai.gpt-oss-120b-1%3A0/converse" {
+		t.Fatalf("uri=%q err=%v", uri, err)
+	}
+}
+
+func TestNewChatModelNeedsABaseURLForBedrock(t *testing.T) {
+	if _, err := NewChatModel(context.Background(), config.LLMConfig{Provider: "bedrock", APIKey: "k", Model: "m", Timeout: time.Second}); err == nil {
+		t.Fatal("missing base URL accepted")
+	}
+}

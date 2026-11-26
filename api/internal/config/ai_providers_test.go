@@ -15,6 +15,7 @@ func providersConfig() Config {
 	c.AI.CloudflareAccountID = testAccountID
 	c.AI.CloudflareAPIToken = "cf-token"
 	c.AI.OpenRouterAPIKey = "or-key"
+	c.AI.BedrockAPIKey = "br-key"
 	return c
 }
 
@@ -122,5 +123,82 @@ func TestOpenRouterKeyBinding(t *testing.T) {
 	}
 	if c.AI.OpenRouterAPIKey != "or-from-env" {
 		t.Fatal("OPENROUTER_API_KEY not loaded")
+	}
+}
+
+func TestTaskLLMBedrock(t *testing.T) {
+	c := providersConfig()
+	c.AI.Bank = TaskRoute{Provider: "bedrock"}
+	c.AI.FollowUp = TaskRoute{Provider: "bedrock"}
+	bank, _ := c.TaskLLM(TaskBank)
+	if bank.Provider != "bedrock" || bank.Model != "openai.gpt-oss-120b-1:0" || bank.APIKey != "br-key" || bank.BaseURL != "https://bedrock-runtime.us-east-1.amazonaws.com" {
+		t.Fatalf("bank = %+v", bank)
+	}
+	if followUp, _ := c.TaskLLM(TaskFollowUp); followUp.Model != "openai.gpt-oss-20b-1:0" {
+		t.Fatalf("follow-up model = %q", followUp.Model)
+	}
+	c.AI.BedrockRegion = "ap-southeast-1"
+	if bank, _ = c.TaskLLM(TaskBank); bank.BaseURL != "https://bedrock-runtime.ap-southeast-1.amazonaws.com" {
+		t.Fatalf("base url = %q", bank.BaseURL)
+	}
+}
+
+// Bedrock model IDs contain a colon; only the first colon of a fallback entry separates the provider.
+func TestTaskLLMBedrockModelKeepsItsColonInAFallback(t *testing.T) {
+	c := providersConfig()
+	c.AI.Bank = TaskRoute{Provider: "groq", Fallback: "bedrock:openai.gpt-oss-120b-1:0,bedrock"}
+	_, fallback := c.TaskLLM(TaskBank)
+	if fallback[0].Model != "openai.gpt-oss-120b-1:0" || fallback[1].Model != "openai.gpt-oss-120b-1:0" || fallback[0].APIKey != "br-key" {
+		t.Fatalf("fallback = %+v", fallback)
+	}
+}
+
+func TestValidateBedrock(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		mutate func(*Config)
+		valid  bool
+	}{
+		{"complete", func(c *Config) { c.AI.Bank = TaskRoute{Provider: "bedrock"} }, true},
+		{"missing key", func(c *Config) {
+			c.AI.Bank = TaskRoute{Provider: "bedrock"}
+			c.AI.BedrockAPIKey = ""
+		}, false},
+		{"only in the fallback, key missing", func(c *Config) {
+			c.AI.Bank = TaskRoute{Provider: "groq", Fallback: "bedrock"}
+			c.AI.BedrockAPIKey = ""
+		}, false},
+		{"region that is not a region", func(c *Config) {
+			c.AI.Bank = TaskRoute{Provider: "bedrock"}
+			c.AI.BedrockRegion = "evil.example.com/x"
+		}, false},
+		{"another region", func(c *Config) {
+			c.AI.Bank = TaskRoute{Provider: "bedrock"}
+			c.AI.BedrockRegion = "eu-central-1"
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := providersConfig()
+			tc.mutate(&c)
+			if err := c.validateAI(); (err == nil) != tc.valid {
+				t.Fatalf("validateAI() = %v, want valid=%v", err, tc.valid)
+			}
+		})
+	}
+}
+
+func TestBedrockEnvironmentBinding(t *testing.T) {
+	t.Setenv("AWS_BEARER_TOKEN_BEDROCK", "br-from-env")
+	t.Setenv("BEDROCK_REGION", "us-west-2")
+	v := viper.New()
+	if err := bindAI(v); err != nil {
+		t.Fatal(err)
+	}
+	var c Config
+	if err := v.Unmarshal(&c); err != nil {
+		t.Fatal(err)
+	}
+	if c.AI.BedrockAPIKey != "br-from-env" || c.AI.BedrockRegion != "us-west-2" {
+		t.Fatal("Bedrock settings not loaded from the environment")
 	}
 }
