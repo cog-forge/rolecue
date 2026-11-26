@@ -6,10 +6,13 @@ explicitly to enable routing. No schema, database or WebSocket contract changes.
 
 | Task / env prefix | Suggested primary | Ordered fallback |
 | --- | --- | --- |
-| JD extraction / `AI_JD_EXTRACTION` | Groq `openai/gpt-oss-120b` | Gemini |
-| Question bank / `AI_QUESTION_BANK` | Groq `openai/gpt-oss-120b` | Gemini |
-| Live follow-up decision + text / `AI_FOLLOW_UP` | Groq `openai/gpt-oss-20b` | Gemini, if budget remains |
-| Evaluation / `AI_EVALUATION` | Groq `openai/gpt-oss-120b` | Gemini |
+| JD extraction / `AI_JD_EXTRACTION` | Groq `openai/gpt-oss-120b` | Cloudflare, then Gemini |
+| Question bank / `AI_QUESTION_BANK` | Groq `openai/gpt-oss-120b` | Cloudflare, then Gemini |
+| Live follow-up decision + text / `AI_FOLLOW_UP` | Groq `openai/gpt-oss-20b` | Gemini, then Cloudflare, if budget remains |
+| Evaluation / `AI_EVALUATION` | Groq `openai/gpt-oss-120b` | Cloudflare, then Gemini |
+
+Since KAN-386 the fallback list may be longer (Bedrock and OpenRouter can be appended); the order above is the
+measured one, see "Chains and the bake-off" below.
 
 Each prefix accepts `_PROVIDER`, `_MODEL`, `_TIMEOUT`, `_MAX_RETRIES`, `_FALLBACK`.
 Unspecified fields inherit `LLM_*`; a provider named without a model takes its default
@@ -23,7 +26,7 @@ retry count. Invalid providers, missing keys/models, invalid timeout (positive, 
 and retries outside 0–3 fail startup.
 
 `.env.example` contains the complete opt-in recipe: 30s for JD/evaluation, 90s for
-bank generation, 5s for follow-ups, zero retries, Gemini fallback. YAML has matching
+bank generation, 5s for follow-ups, zero retries, Cloudflare and Gemini fallbacks. YAML has matching
 `ai.<task>` sections; credentials must stay in env. Bedrock, Cloudflare chat and
 OpenRouter arrived with KAN-386 (below). Jev is not used; Clef (below) took its place for the
 follow-up decision.
