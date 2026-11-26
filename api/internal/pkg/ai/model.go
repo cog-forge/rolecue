@@ -14,8 +14,9 @@ import (
 )
 
 func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatModel, error) {
-	if cfg.Provider != "gemini" && cfg.Provider != "groq" {
-		return nil, fmt.Errorf("unsupported LLM provider %q: expected gemini or groq", cfg.Provider)
+	compat := cfg.Provider == config.ProviderGroq || cfg.Provider == config.ProviderCloudflare || cfg.Provider == config.ProviderOpenRouter
+	if !compat && cfg.Provider != config.ProviderGemini {
+		return nil, fmt.Errorf("unsupported LLM provider %q: expected gemini, groq, cloudflare or openrouter", cfg.Provider)
 	}
 	if strings.TrimSpace(cfg.APIKey) == "" || strings.ContainsAny(cfg.APIKey, "\r\n") {
 		return nil, fmt.Errorf("LLM API key is required and must not contain newlines")
@@ -26,9 +27,9 @@ func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatMode
 	if cfg.Timeout <= 0 {
 		return nil, fmt.Errorf("LLM timeout must be positive")
 	}
-	if cfg.Provider == "groq" {
-		if cfg.BaseURL == "" {
-			cfg.BaseURL = "https://api.groq.com/openai/v1"
+	if compat {
+		if strings.TrimSpace(cfg.BaseURL) == "" {
+			return nil, fmt.Errorf("%s API base URL is required", cfg.Provider)
 		}
 		inner, err := newOpenAICompat(cfg)
 		if err != nil {
