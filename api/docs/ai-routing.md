@@ -12,18 +12,83 @@ explicitly to enable routing. No schema, database or WebSocket contract changes.
 | Evaluation / `AI_EVALUATION` | Groq `openai/gpt-oss-120b` | Gemini |
 
 Each prefix accepts `_PROVIDER`, `_MODEL`, `_TIMEOUT`, `_MAX_RETRIES`, `_FALLBACK`.
-Unspecified fields inherit `LLM_*`; setting provider `groq` without a model selects
-the model above. `GROQ_API_KEY` is read only from the environment. Gemini uses
-`LLM_API_KEY`. Neither credential is logged. Fallback is a comma-separated ordered
-list, e.g. `gemini` or `gemini:gemini-3.1-flash-lite,groq:openai/gpt-oss-20b`.
-Bare `gemini` inherits `LLM_MODEL`. Other entries require explicit model IDs.
-Fallback entries share the task timeout and retry count. Invalid providers, missing
-keys/models, invalid timeout (positive, at most 10m), and retries outside 0–3 fail startup.
+Unspecified fields inherit `LLM_*`; a provider named without a model takes its default
+(table in "Providers, chains and cooldown" below). Credentials are read only from the
+environment and never logged. Fallback is a comma-separated ordered list of any length, e.g.
+`gemini` or `cloudflare,gemini:gemini-3.1-flash-lite,groq:openai/gpt-oss-20b`; only the first
+colon of an entry separates the provider, so model IDs may contain `/`, `@` and `:`. A bare
+provider name takes that provider's default model (bare `gemini` inherits `LLM_MODEL`);
+`openrouter` has no default and needs a model. Fallback entries share the task timeout and
+retry count. Invalid providers, missing keys/models, invalid timeout (positive, at most 10m),
+and retries outside 0–3 fail startup.
 
 `.env.example` contains the complete opt-in recipe: 30s for JD/evaluation, 90s for
 bank generation, 5s for follow-ups, zero retries, Gemini fallback. YAML has matching
-`ai.<task>` sections; credentials must stay in env. Bedrock is deferred. Jev is not
-used; Clef (below) took its place for the follow-up decision.
+`ai.<task>` sections; credentials must stay in env. Bedrock, Cloudflare chat and
+OpenRouter arrived with KAN-386 (below). Jev is not used; Clef (below) took its place for the
+follow-up decision.
+
+## Providers, chains and cooldown (KAN-386)
+
+Cause: during UAT on 2026-11-24, Groq answered 429 while the Gemini fallback answered 503, and a
+two-provider route had nothing left, so confirming a Role Profile failed with
+`QUESTION_GENERATION_FAILED`. Chains are now any length and every entry has its own credential.
+
+| Provider | Credential (env only) | Default model | Notes |
+| --- | --- | --- | --- |
+| `groq` | `GROQ_API_KEY` | `openai/gpt-oss-120b`, `-20b` for `follow_up` | Free limits are per model (8K TPM, 200K tokens/day). |
+| `gemini` | `LLM_API_KEY` | `LLM_MODEL` | Independent failure domain from the gpt-oss providers. |
+| `cloudflare` | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_AI_API_TOKEN` (shared with Clef) | `@cf/openai/gpt-oss-120b`, `-20b` for `follow_up` | Free allocation of 10,000 neurons a day is shared with Clef. |
+| `openrouter` | `OPENROUTER_API_KEY` | none, name a model | `openrouter/free` is a router that picks the model; free models may spend their whole token budget on reasoning. Keep it last, and review its data policy before real user text goes there. |
+| `bedrock` | `AWS_BEARER_TOKEN_BEDROCK`, `BEDROCK_REGION` (default `us-east-1`) | `openai.gpt-oss-120b-1:0`, `-20b` for `follow_up` | Converse API over HTTPS. Verified against fakes only: the AWS account answers `Operation not allowed` until the support case closes. Check live with `AI_LIVE_BEDROCK=1`. |
+
+**Cooldown.** A 429 starts a cooldown for that provider and model (`provider:model`), shared by every
+task of the process because one key serves them all. The wait is the `Retry-After` in full (seconds or an
+HTTP date; Gemini's retry delay is read from its error details), 10 s when none is given, with a one-hour
+sanity cap. A cooling entry is skipped without a call and its share of the task time goes to the entries
+that will be called; if every entry is cooling the call fails at once as `rate_limited`. Only a 429 starts a
+cooldown. The store is in memory per process: a restart or a second instance starts clean.
+
+**Busy error.** When every provider of a question-bank, Roadmap-topic or JD-extraction generation failed
+with a timeout, a 429, a 5xx or a network error, the API answers `AI_SERVICE_BUSY` (HTTP 503) instead of
+`QUESTION_GENERATION_FAILED`, `ROADMAP_GENERATION_FAILED` or `EXTRACTION_FAILED`, and the UI says the service
+is busy and to try again in a few minutes. When the chain ends in a mix of failures the most informative one
+is returned: a transient failure beats an unusable reply, which beats a client error, so congestion is never
+reported as a configuration problem. Failed confirmations and analyses leave the profile retryable.
+Evaluation and the live follow-up keep their own recovery and are unchanged.
+
+### Chains and the bake-off (2026-11-27)
+
+Rule, written before the run: Cloudflare would replace Groq as the first entry of a task only if all
+five samples passed the unchanged validators and its median latency was at most 1.5 times Groq's.
+Method: `AI_LIVE_NO_FALLBACK=1 go test -tags ai_live ./internal/pkg/ai -run 'TestLiveTasks/<provider>/(jd_extraction|question_bank|evaluation)$' -count=5`,
+one provider at a time, one synthetic sample per run (not a benchmark). Groq ran paced
+(`AI_LIVE_PACE=65s`): back to back, its free 8K tokens-per-minute limit answered 429 from the second
+sample on, which says Groq alone can serve about one full bank a minute.
+
+| Task | Groq passed, median | Cloudflare passed, median | Cloudflare / Groq |
+| --- | --- | --- | --- |
+| JD extraction | 5/5, 1.20 s | 5/5, 8.13 s | 6.8 times |
+| Question bank (50, batches of 10) | 5/5, 7.12 s | 5/5, 35.66 s | 5.0 times |
+| Evaluation (one question) | 5/5, 0.97 s | 5/5, 2.74 s | 2.8 times |
+
+Cloudflare passes every sample but misses the latency bound on every task, so **Groq stays first
+everywhere**. The chains are Groq, then Cloudflare (the same gpt-oss family, so prompts and validators
+behave alike), then Gemini (an independent failure domain); the live follow-up puts Gemini before
+Cloudflare because its 5 s budget cannot afford Cloudflare's latency. When Groq is rate limited its
+cooldown sends the traffic to Cloudflare, which is the case the ticket is about:
+
+| Task | Chain |
+| --- | --- |
+| `jd_extraction` | `groq openai/gpt-oss-120b`, `cloudflare`, `gemini` |
+| `question_bank` (and Roadmap topics) | `groq openai/gpt-oss-120b`, `cloudflare`, `gemini` |
+| `follow_up` | `groq openai/gpt-oss-20b`, `gemini`, `cloudflare` |
+| `evaluation` | `groq openai/gpt-oss-120b`, `cloudflare`, `gemini` |
+
+Append `bedrock` once AWS lifts the account restriction and `AI_LIVE_BEDROCK=1` passes, and
+`openrouter:openrouter/free` only after OpenRouter's data policy is reviewed.
+A smoke call on 2026-11-27 showed why OpenRouter stays last: `openrouter/free` timed out after 60 s, and
+`inclusionai/ling-3.2-flash:free` spent its whole 4096-token budget on reasoning and returned no text.
 
 ## Execution and validation
 
@@ -32,12 +97,16 @@ The live route is additionally capped at 5s; the existing service still skips a 
 decision. Remaining time is divided between remaining providers/retries so a slow
 primary cannot consume every fallback opportunity. Max retries means additional
 attempts at each entry. A 429 goes immediately to the next entry, with no sleep or
-same-provider retry, regardless of Retry-After; this preserves interactive budgets.
-Timeouts, network failures, 5xx and invalid structured output can retry/fall back.
-Authentication and other 4xx errors stop the route. Cancellation stops immediately.
+same-provider retry, and starts a cooldown for that provider and model (below); this
+preserves interactive budgets. Timeouts, network failures, 5xx and invalid structured
+output can retry/fall back. An authentication error or any other 4xx (rejected key, no
+credit, unknown model, restricted account) is logged as a Warn and the route moves on to
+the next entry, with no retry and no cooldown (KAN-386; it used to stop the route).
+Cancellation and unclassified errors stop immediately.
 
-Groq uses the OpenAI-compatible `/openai/v1/chat/completions` endpoint, JSON object
-mode, low reasoning effort, one HTTP request per Generate, no SDK retry and no
+Groq, Cloudflare Workers AI and OpenRouter share one OpenAI-compatible adapter (the eino-ext
+`openai` component behind a small transport shim that reads the status and Retry-After): JSON
+object mode, low reasoning effort, one HTTP request per Generate, no SDK retry and no
 redirects. The existing strict decoders and domain validators decide acceptance,
 including JD evidence checks, bank distinctness, follow-up rules and scoring IDs/ranges.
 JSON mode ensures syntax; application validators enforce the schema and semantics.
@@ -46,7 +115,8 @@ only classified reasons, avoiding provider response bodies in upstream service l
 Logs include task, provider, model, duration, reason/status, Retry-After and token
 usage where supplied; prompts, answers, credentials and response bodies are omitted.
 
-Groq banks use sequential batches of at most 10. Previous questions are sent in an
+A bank is generated in sequential batches of at most 10 whenever the chain contains Groq,
+Cloudflare, OpenRouter or Bedrock (a 900-token Cloudflare reply took 16 s). Previous questions are sent in an
 explicit untrusted data field to avoid repetition; prompt rules and injection
 handling remain intact. Each attempt validates the combined bank with the existing
 storage validator, which deduplicates case-insensitively. A cross-batch duplicate
