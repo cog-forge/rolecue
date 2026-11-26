@@ -29,11 +29,13 @@ type TaskRoute struct {
 	Fallback string `mapstructure:"fallback"`
 }
 type AIConfig struct {
-	GroqAPIKey string    `mapstructure:"groq_api_key"`
-	JD         TaskRoute `mapstructure:"jd_extraction"`
-	Bank       TaskRoute `mapstructure:"question_bank"`
-	FollowUp   TaskRoute `mapstructure:"follow_up"`
-	Evaluation TaskRoute `mapstructure:"evaluation"`
+	GroqAPIKey string `mapstructure:"groq_api_key"`
+	// OpenRouterAPIKey is the OpenRouter credential (KAN-386). Env only, never YAML.
+	OpenRouterAPIKey string    `mapstructure:"openrouter_api_key"`
+	JD               TaskRoute `mapstructure:"jd_extraction"`
+	Bank             TaskRoute `mapstructure:"question_bank"`
+	FollowUp         TaskRoute `mapstructure:"follow_up"`
+	Evaluation       TaskRoute `mapstructure:"evaluation"`
 	// Cloudflare Workers AI credentials for the Clef decision model (KAN-274). Env only, never YAML.
 	CloudflareAccountID string `mapstructure:"cloudflare_account_id"`
 	CloudflareAPIToken  string `mapstructure:"cloudflare_api_token"`
@@ -139,48 +141,90 @@ func (c AIConfig) Route(task Task) TaskRoute {
 	}
 	return TaskRoute{}
 }
+
+// Chat providers a task route may name (KAN-386 added cloudflare and openrouter).
+const (
+	ProviderGemini     = "gemini"
+	ProviderGroq       = "groq"
+	ProviderCloudflare = "cloudflare"
+	ProviderOpenRouter = "openrouter"
+
+	groqBaseURL       = "https://api.groq.com/openai/v1"
+	openRouterBaseURL = "https://openrouter.ai/api/v1"
+)
+
+// defaultModel is the model a provider uses when a route names none; "" means the provider has no default.
+func (c *Config) defaultModel(task Task, provider string) string {
+	small := task == TaskFollowUp
+	switch provider {
+	case ProviderGemini:
+		return c.LLM.Model
+	case ProviderGroq:
+		if small {
+			return "openai/gpt-oss-20b"
+		}
+		return "openai/gpt-oss-120b"
+	case ProviderCloudflare:
+		if small {
+			return "@cf/openai/gpt-oss-20b"
+		}
+		return "@cf/openai/gpt-oss-120b"
+	}
+	return ""
+}
+
+// fillProvider returns one chain entry: base (which carries the task's timeout and retries) with the provider's
+// credential, API root and, when model is empty, default model. Every field that belongs to a provider is set
+// here for every provider, so an entry never inherits a key or a host from the entry it was copied from.
+func (c *Config) fillProvider(task Task, base LLMConfig, provider, model string) LLMConfig {
+	f := base
+	f.Provider, f.Model, f.BaseURL, f.APIKey = provider, model, "", ""
+	switch provider {
+	case ProviderGemini:
+		f.APIKey = c.LLM.APIKey
+	case ProviderGroq:
+		f.APIKey, f.BaseURL = c.AI.GroqAPIKey, groqBaseURL
+	case ProviderCloudflare:
+		f.APIKey = c.AI.CloudflareAPIToken
+		f.BaseURL = "https://api.cloudflare.com/client/v4/accounts/" + c.AI.CloudflareAccountID + "/ai/v1"
+	case ProviderOpenRouter:
+		f.APIKey, f.BaseURL = c.AI.OpenRouterAPIKey, openRouterBaseURL
+	}
+	if f.Model == "" {
+		f.Model = c.defaultModel(task, provider)
+	}
+	return f
+}
+
 func (c *Config) TaskLLM(task Task) (LLMConfig, []LLMConfig) {
 	r := c.AI.Route(task)
-	primary := c.LLM
+	provider := c.LLM.Provider
 	if r.Provider != "" {
-		primary.Provider = r.Provider
+		provider = r.Provider
 	}
-	if r.Model != "" {
-		primary.Model = r.Model
-	} else if primary.Provider == "groq" {
-		primary.Model = "openai/gpt-oss-120b"
-		if task == TaskFollowUp {
-			primary.Model = "openai/gpt-oss-20b"
-		}
-	}
+	primary := c.LLM
 	if r.Timeout != 0 {
 		primary.Timeout = r.Timeout
 	}
 	if r.MaxRetries != nil {
 		primary.MaxRetries = *r.MaxRetries
 	}
-	if primary.Provider == "groq" {
-		primary.APIKey = c.AI.GroqAPIKey
+	// A route that names no model keeps the legacy model of the legacy provider and takes the default of
+	// any other provider.
+	model := r.Model
+	if model == "" && provider == c.LLM.Provider && provider != ProviderGroq {
+		model = c.LLM.Model
 	}
+	primary = c.fillProvider(task, primary, provider, model)
 	var fallback []LLMConfig
 	if r.Fallback != "" {
 		for _, entry := range strings.Split(r.Fallback, ",") {
 			pair := strings.SplitN(strings.TrimSpace(entry), ":", 2)
-			f := primary
-			f.Provider = pair[0]
-			f.Model = ""
+			name, entryModel := pair[0], ""
 			if len(pair) == 2 {
-				f.Model = pair[1]
+				entryModel = pair[1]
 			}
-			if f.Provider == "gemini" {
-				f.APIKey = c.LLM.APIKey
-				if f.Model == "" {
-					f.Model = c.LLM.Model
-				}
-			} else {
-				f.APIKey = c.AI.GroqAPIKey
-			}
-			fallback = append(fallback, f)
+			fallback = append(fallback, c.fillProvider(task, primary, name, entryModel))
 		}
 	}
 	return primary, fallback
@@ -188,6 +232,7 @@ func (c *Config) TaskLLM(task Task) (LLMConfig, []LLMConfig) {
 func bindAI(v *viper.Viper) error {
 	for key, env := range map[string]string{
 		"ai.groq_api_key":          "GROQ_API_KEY",
+		"ai.openrouter_api_key":    "OPENROUTER_API_KEY",
 		"ai.cloudflare_account_id": "CLOUDFLARE_ACCOUNT_ID",
 		"ai.cloudflare_api_token":  "CLOUDFLARE_AI_API_TOKEN",
 	} {
@@ -227,8 +272,17 @@ func (c *Config) validateAI() error {
 		} // Preserve legacy optional LLM setup.
 		p, fallback := c.TaskLLM(task)
 		for _, m := range append([]LLMConfig{p}, fallback...) {
-			if m.Provider != "gemini" && m.Provider != "groq" {
-				return fmt.Errorf("ai.%s: provider must be gemini or groq", task)
+			switch m.Provider {
+			case ProviderGemini, ProviderGroq, ProviderOpenRouter:
+			case ProviderCloudflare:
+				if !cloudflareAccountID.MatchString(c.AI.CloudflareAccountID) {
+					return fmt.Errorf("ai.%s: CLOUDFLARE_ACCOUNT_ID must be a 32-character hex account ID", task)
+				}
+				if strings.ContainsAny(m.APIKey, " \t") {
+					return fmt.Errorf("ai.%s: CLOUDFLARE_AI_API_TOKEN must be one token", task)
+				}
+			default:
+				return fmt.Errorf("ai.%s: provider must be gemini, groq, cloudflare or openrouter", task)
 			}
 			if strings.TrimSpace(m.Model) == "" || strings.ContainsAny(m.Model, " \r\n\t") {
 				return fmt.Errorf("ai.%s: model is required and must be one ID", task)
