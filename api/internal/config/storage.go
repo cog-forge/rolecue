@@ -45,6 +45,13 @@ func isLoopbackHost(host string) bool {
 
 var bucketName = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
 
+// UsesStaticCredentials reports whether the access key and secret key are configured. When both are
+// empty the storage client uses the AWS SDK default credential chain, which resolves to the IAM role
+// on ECS. Validate rejects a half-configured pair, so callers can rely on this single check.
+func (c StorageConfig) UsesStaticCredentials() bool {
+	return strings.TrimSpace(c.AccessKeyID) != "" && strings.TrimSpace(c.SecretAccessKey) != ""
+}
+
 // Validate is called by the storage constructor, so loading unrelated application
 // settings does not require credentials. Errors deliberately omit config values.
 func (c StorageConfig) Validate() error {
@@ -77,8 +84,15 @@ func (c StorageConfig) Validate() error {
 	if !bucketName.MatchString(c.Bucket) || strings.Contains(c.Bucket, "..") || net.ParseIP(c.Bucket) != nil {
 		return errors.New("storage bucket must be a DNS-compatible name of 3 to 63 characters")
 	}
-	if strings.TrimSpace(c.AccessKeyID) == "" || strings.TrimSpace(c.SecretAccessKey) == "" || strings.ContainsAny(c.AccessKeyID+c.SecretAccessKey+c.SessionToken, "\r\n") {
-		return errors.New("storage access key and secret key are required; credentials must not contain newlines")
+	if strings.ContainsAny(c.AccessKeyID+c.SecretAccessKey+c.SessionToken, "\r\n") {
+		return errors.New("storage credentials must not contain newlines")
+	}
+	hasKey, hasSecret := strings.TrimSpace(c.AccessKeyID) != "", strings.TrimSpace(c.SecretAccessKey) != ""
+	if hasKey != hasSecret {
+		return errors.New("storage access key and secret key must be set together")
+	}
+	if !hasKey && strings.TrimSpace(c.SessionToken) != "" {
+		return errors.New("storage session token requires an access key and secret key")
 	}
 	return nil
 }

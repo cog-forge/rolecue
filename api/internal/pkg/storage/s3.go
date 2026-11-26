@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -60,11 +61,15 @@ func newClient(cfg config.StorageConfig) (*s3.Client, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("configure storage: %w", err)
 	}
+	creds, err := credentialsProvider(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return s3.New(s3.Options{
 		BaseEndpoint: aws.String(cfg.Endpoint),
 		Region:       cfg.Region,
 		UsePathStyle: true,
-		Credentials:  credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SessionToken),
+		Credentials:  creds,
 		HTTPClient: &http.Client{
 			Transport:     awshttp.NewBuildableClient().GetTransport(),
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -73,6 +78,22 @@ func newClient(cfg config.StorageConfig) (*s3.Client, error) {
 		RequestChecksumCalculation: aws.RequestChecksumCalculationWhenRequired,
 		ResponseChecksumValidation: aws.ResponseChecksumValidationWhenRequired,
 	}), nil
+}
+
+// credentialsProvider returns the configured static credentials, or, when none are configured, the AWS
+// SDK default chain (environment, shared config, web identity, container credentials such as the ECS
+// task role, then EC2 instance metadata). The chain's provider caches and refreshes temporary
+// credentials before they expire; the presign client signs through the same provider, so presigned
+// URLs use the same credentials as direct requests. Resolution happens on first use, not here.
+func credentialsProvider(cfg config.StorageConfig) (aws.CredentialsProvider, error) {
+	if cfg.UsesStaticCredentials() {
+		return credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, cfg.SessionToken), nil
+	}
+	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(cfg.Region))
+	if err != nil {
+		return nil, fmt.Errorf("configure storage: load default AWS credential chain: %w", err)
+	}
+	return awsCfg.Credentials, nil
 }
 
 func (s *s3Store) Upload(ctx context.Context, body io.ReadSeeker, contentType string) (string, error) {
