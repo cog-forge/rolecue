@@ -66,12 +66,15 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 	cooling := func(e routeEntry) bool { return r.cooling(e) > 0 }
 	// kept is the most informative failure so far (see moreInformative); it is what an exhausted chain returns.
 	var kept error
-	attempted := false
 	for index, entry := range r.entries {
 		if remaining := r.cooling(entry); remaining > 0 {
 			logger.FromContext(ctx).Info("llm provider cooling down, skipped", logger.Op("ai.route"), logger.String("task", string(r.task)),
 				logger.String("provider", entry.config.Provider), logger.String("model", entry.config.Model),
 				logger.Int("remaining_seconds", int(remaining.Round(time.Second)/time.Second)))
+			// A skipped entry is a rate-limited provider that was not called. It counts as that failure, so a chain
+			// whose other entries fail with something less informative is still reported as busy, and a chain
+			// that is entirely cooling fails at once without a call.
+			kept = moreInformative(kept, &providerFailure{reason: "rate_limited"})
 			continue
 		}
 		for attempt := 0; attempt <= entry.config.MaxRetries; attempt++ {
@@ -85,7 +88,6 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 			attemptCtx, stop := context.WithTimeout(ctx, duration)
 			lm := &loggedModel{inner: entry.model, provider: entry.config.Provider, model: entry.config.Model, task: string(r.task)}
 			done := lm.startAttempt(attemptCtx)
-			attempted = true
 			result, err := call(attemptCtx, lm)
 			if attemptCtx.Err() != nil {
 				err = attemptCtx.Err()
@@ -123,11 +125,6 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 				break
 			}
 		}
-	}
-	if !attempted {
-		// Every entry is cooling down: calling one would break its Retry-After, so the call fails at once and the
-		// caller above the route reports the service as busy.
-		return zero, &providerFailure{reason: "rate_limited"}
 	}
 	return zero, sanitizedFailure(kept)
 }

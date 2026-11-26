@@ -137,6 +137,11 @@ func (a *TaskAdapter) Extract(ctx context.Context, jd string) (rd.ExtractionCand
 // the reply is decoded and validated inside each provider attempt, so an unusable proposal is retried or falls
 // back instead of reaching the caller.
 func (a *TaskAdapter) GenerateTopics(ctx context.Context, in md.TopicInput) (md.TopicCandidate, error) {
+	candidate, err := a.generateTopics(ctx, in)
+	return candidate, a.ownBudgetExpired(ctx, err)
+}
+
+func (a *TaskAdapter) generateTopics(ctx context.Context, in md.TopicInput) (md.TopicCandidate, error) {
 	if !a.route.legacy {
 		// One budget for the proposal and its repeats, like a bank, so the topic step cannot take the time
 		// the bank step needs inside the caller's deadline.
@@ -229,6 +234,23 @@ func bankBatchSize(entries []routeEntry, count int) int {
 }
 
 func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count int) (qd.GenerationCandidate, error) {
+	candidate, err := a.generate(ctx, in, count)
+	return candidate, a.ownBudgetExpired(ctx, err)
+}
+
+// ownBudgetExpired turns the running out of the route's own budget into the timeout it is. A bank or a topic step
+// gives its whole generation one deadline of the route's budget, so when it passes while the chain was failing
+// the error that comes back is a bare deadline; as a classified timeout it is a transient failure (a busy
+// service) that a caller may repeat. The caller's own deadline or cancellation, and a legacy route, stay as they
+// are. caller is the context the caller passed in, before the budget was applied.
+func (a *TaskAdapter) ownBudgetExpired(caller context.Context, err error) error {
+	if err != nil && !a.route.legacy && caller.Err() == nil && errors.Is(err, context.DeadlineExceeded) {
+		return &providerFailure{reason: "timeout"}
+	}
+	return err
+}
+
+func (a *TaskAdapter) generate(ctx context.Context, in qd.GenerationInput, count int) (qd.GenerationCandidate, error) {
 	if !a.route.legacy {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, a.route.budget)
