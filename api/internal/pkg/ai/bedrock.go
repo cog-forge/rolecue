@@ -153,5 +153,5 @@ func (m *bedrockModel) endpoint() (*url.URL, error) {
 }
 
 func (m *bedrockModel) Stream(context.Context, []*schema.Message, ...model.Option) (*schema.StreamReader[*schema.Message], error) {
-	return nil, errors.New("Bedrock routing supports Generate only")
+	return nil, errors.New("bedrock routing supports Generate only")
 }
