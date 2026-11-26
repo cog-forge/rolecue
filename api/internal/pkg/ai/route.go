@@ -64,7 +64,8 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 		return err
 	}
 	cooling := func(e routeEntry) bool { return r.cooling(e) > 0 }
-	var last error
+	// kept is the most informative failure so far (see moreInformative); it is what an exhausted chain returns.
+	var kept error
 	attempted := false
 	for index, entry := range r.entries {
 		if remaining := r.cooling(entry); remaining > 0 {
@@ -94,16 +95,28 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 			if err == nil {
 				return result, nil
 			}
-			last = err
 			if ctx.Err() != nil {
 				return zero, expired(ctx.Err())
 			}
-			if !canFallback(err) {
+			reason := llmFailureReason(err)
+			clientError := reason == "auth_rejected" || reason == "http_4xx"
+			if !canFallback(err) && !clientError {
+				// Cancellation, or an error that is not a provider answer: stop at once.
 				return zero, sanitizedFailure(err)
+			}
+			kept = moreInformative(kept, err)
+			if clientError {
+				// The provider refused this call (rejected key, bad request, no credit, unknown model, restricted
+				// account). That says nothing about the providers behind it, so go on to the next entry, without
+				// retrying this one and without a cooldown.
+				logger.FromContext(ctx).Warn("llm provider rejected the call, trying the next entry", logger.Op("ai.route"),
+					logger.String("task", string(r.task)), logger.String("provider", entry.config.Provider),
+					logger.String("model", entry.config.Model), logger.String("reason", reason), logger.Int("status_code", statusOf(err)))
+				break
 			}
 			// A 429 starts a cooldown for this provider and model and goes to the next entry at once: never a
 			// sleep, never a same-provider retry.
-			if llmFailureReason(err) == "rate_limited" {
+			if reason == "rate_limited" {
 				if r.health != nil {
 					r.health.RateLimited(entryKey(entry.config), retryAfterOf(err))
 				}
@@ -116,7 +129,7 @@ func Run[T any](ctx context.Context, r *Route, call func(context.Context, model.
 		// caller above the route reports the service as busy.
 		return zero, &providerFailure{reason: "rate_limited"}
 	}
-	return zero, sanitizedFailure(last)
+	return zero, sanitizedFailure(kept)
 }
 
 // cooling reports how long the entry must still be left alone.
@@ -145,4 +158,37 @@ func canFallback(err error) bool {
 		return true
 	}
 	return false
+}
+
+// moreInformative returns the failure a caller should see when several entries failed: a transient one (timeout,
+// 429, 5xx, network) beats an unusable reply, which beats a client error, and among equals the later one wins. A
+// congestion error must not be hidden behind a configuration-looking one.
+func moreInformative(kept, err error) error {
+	if kept == nil || failureRank(err) >= failureRank(kept) {
+		return err
+	}
+	return kept
+}
+
+func failureRank(err error) int {
+	switch llmFailureReason(err) {
+	case "timeout", "rate_limited", "http_5xx", "network":
+		return 3
+	case "invalid_output":
+		return 2
+	}
+	return 1
+}
+
+// statusOf returns the HTTP status a failure carries, or 0.
+func statusOf(err error) int {
+	var safe *providerFailure
+	if errors.As(err, &safe) && safe.status != 0 {
+		return safe.status
+	}
+	var httpErr *HTTPError
+	if errors.As(err, &httpErr) {
+		return httpErr.Status
+	}
+	return 0
 }
