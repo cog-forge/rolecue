@@ -154,3 +154,21 @@ describe("describeStartFailure", () => {
       }
   });
 });
+
+describe("describeStartFailure when the AI service is busy", () => {
+  it("tells the user nothing was charged and offers a retry, in both languages", () => {
+    expect(confirmedStartCodes).toContain("AI_SERVICE_BUSY");
+    expect(describeFailure(confirmed("AI_SERVICE_BUSY"), practice)).toEqual({
+      message:
+        "The AI service is busy. No session was created and no coins were charged. Try again in a few minutes.",
+      action: "retry",
+    });
+    expect(
+      describeFailure(confirmed("AI_SERVICE_BUSY"), recruitment, "vi"),
+    ).toEqual({
+      message:
+        "Dịch vụ AI đang bận. Không tạo phiên và không trừ xu. Vui lòng thử lại sau vài phút.",
+      action: "retry",
+    });
+  });
+});

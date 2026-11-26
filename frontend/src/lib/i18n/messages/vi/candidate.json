@@ -1641,6 +1641,7 @@
       "roadmapNotReady": "Lộ trình chưa sẵn sàng. Mở hồ sơ vị trí để kiểm tra hoặc thử chuẩn bị lại.",
       "coverageInsufficient": "Ngân hàng câu hỏi chưa bao phủ đủ kỹ năng cần thiết. Hãy kiểm tra hồ sơ vị trí trước khi thử lại.",
       "generationFailed": "Chưa chuẩn bị được câu hỏi. Không tạo phiên và không trừ xu. Bạn có thể thử lại.",
+      "aiBusy": "Dịch vụ AI đang bận. Không tạo phiên và không trừ xu. Vui lòng thử lại sau vài phút.",
       "modelBudget": "Đã hết hạn mức tạo câu hỏi. Bạn vui lòng thử lại sau.",
       "intentConflict": "Lượt bắt đầu này đã gắn với phạm vi luyện tập khác. Thử lại để tạo lượt mới.",
       "questionBankFocused": "Chủ đề này chưa có đủ câu hỏi. Bạn có thể luyện tổng quát hoặc chọn chủ đề khác."

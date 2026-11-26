@@ -60,3 +60,14 @@ describe("roleErrorMessage", () => {
     );
   });
 });
+
+describe("roleErrorMessage when the AI service is busy", () => {
+  it("shows the shared busy message instead of the generic one, in both languages", () => {
+    const busy = failure(503, "AI_SERVICE_BUSY");
+    const en = roleErrorMessage(roleT("en"), errorsFor("en"), busy);
+    const vi = roleErrorMessage(roleT("vi"), errorsFor("vi"), busy);
+    expect(en).toBe("The AI service is busy. Try again in a few minutes.");
+    expect(vi).toBe("Dịch vụ AI đang bận. Vui lòng thử lại sau vài phút.");
+    expect(en).not.toContain("Server English text");
+  });
+});

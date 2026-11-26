@@ -61,6 +61,7 @@
     "CORE_QUESTION_IN_USE": "Câu hỏi này đang được sử dụng nên không thể xóa.",
     "REQUIREMENTS_NOT_CONFIRMED": "Hãy xác nhận các yêu cầu trước.",
     "QUESTION_GENERATION_FAILED": "Không thể tạo câu hỏi. Vui lòng thử lại.",
+    "AI_SERVICE_BUSY": "Dịch vụ AI đang bận. Vui lòng thử lại sau vài phút.",
     "INVALID_QUESTION_GENERATION_OUTPUT": "Các câu hỏi được tạo chưa dùng được. Vui lòng thử lại.",
     "QUESTION_BANK_UNAVAILABLE": "Hiện chưa thể dùng bộ câu hỏi. Vui lòng thử lại sau.",
     "ROADMAP_GENERATING": "Lộ trình học của bạn đang được chuẩn bị. Vui lòng đợi một chút rồi thử lại.",
