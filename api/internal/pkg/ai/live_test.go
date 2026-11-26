@@ -46,6 +46,11 @@ func TestLiveTasks(t *testing.T) {
 					}
 					// A 429 seen by one sample must not put the provider on cooldown for the next one.
 					sharedHealth = NewProviderHealth(time.Now)
+					// AI_LIVE_PACE (for example 65s) spaces the samples so a per-minute token limit, such as Groq's
+					// free 8K TPM, does not turn a bake-off into a rate-limit test.
+					if pace, err := time.ParseDuration(os.Getenv("AI_LIVE_PACE")); err == nil && pace > 0 {
+						time.Sleep(pace)
+					}
 					cfg.AI.JD = route
 					cfg.AI.Bank = route
 					cfg.AI.FollowUp = route
