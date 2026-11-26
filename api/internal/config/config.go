@@ -173,6 +173,9 @@ type LLMConfig struct {
 	// MaxOutputTokens caps one completion, which bounds the cost of a single call. Zero leaves the
 	// provider default.
 	MaxOutputTokens int `mapstructure:"max_output_tokens"`
+	// BaseURL is the API root of an OpenAI-compatible or Bedrock provider (KAN-386). It is derived from the
+	// provider by AIConfig, never read from config, so a key cannot be pointed at another host.
+	BaseURL string `mapstructure:"-"`
 	// UserDailyCallBudget is the most LLM-backed operations one user may start per UTC day (KAN-278); 0 is
 	// unlimited. See internal/pkg/llmbudget.
 	UserDailyCallBudget int `mapstructure:"user_daily_call_budget"`

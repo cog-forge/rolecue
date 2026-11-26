@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -14,14 +13,6 @@ import (
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 )
-
-// HTTPError deliberately excludes the response body, which may echo private input.
-type HTTPError struct {
-	Status     int
-	RetryAfter time.Duration
-}
-
-func (e *HTTPError) Error() string { return fmt.Sprintf("LLM HTTP status %d", e.Status) }
 
 type groqModel struct {
 	key, model, endpoint string
