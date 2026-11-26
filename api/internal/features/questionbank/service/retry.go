@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmerr"
 	"time"
 
 	evaluationdomain "github.com/cog-forge/rolecue/api/internal/features/evaluation/domain"
@@ -26,7 +27,7 @@ const generationFailedMessage = "Question generation failed."
 // seen before it.
 func (s *Service) generateWithRetry(ctx context.Context, in domain.GenerationInput, forPosting bool) ([]domain.GeneratedQuestion, error) {
 	fail := func(cause error) error {
-		return apperror.Wrap(apperror.CodeQuestionGenerationFailed, generationFailedMessage, cause)
+		return llmerr.Wrap(apperror.CodeQuestionGenerationFailed, generationFailedMessage, cause)
 	}
 	// A Roadmap bank is generated large enough for every topic to reach its minimum, and each topic is given
 	// its share of it; the validation below still checks what the model actually wrote.

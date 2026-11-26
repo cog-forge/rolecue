@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmerr"
 	"time"
 
 	questionbankdomain "github.com/cog-forge/rolecue/api/internal/features/questionbank/domain"
@@ -265,7 +266,7 @@ func topicInput(in questionbankdomain.GenerationInput) domain.TopicInput {
 // validation, a retry only for invalid output, and invalid output is never fed back to the model.
 func (s *Service) generateTopics(ctx context.Context, input domain.TopicInput) ([]domain.NewItem, error) {
 	fail := func(cause error) error {
-		return apperror.Wrap(apperror.CodeRoadmapGenerationFailed, topicsFailedMessage, cause)
+		return llmerr.Wrap(apperror.CodeRoadmapGenerationFailed, topicsFailedMessage, cause)
 	}
 	for attempt := 0; ; attempt++ {
 		if err := ctx.Err(); err != nil {

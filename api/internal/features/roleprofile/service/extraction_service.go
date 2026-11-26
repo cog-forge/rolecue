@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cog-forge/rolecue/api/internal/pkg/llmerr"
 	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/roleprofile/domain"
@@ -65,7 +66,7 @@ func (s *ExtractionService) extractWithRetry(ctx context.Context, jd string) (do
 		}
 		var appErr *apperror.AppError
 		if !errors.As(err, &appErr) || appErr == nil || appErr.Code != apperror.CodeInvalidExtractionOutput {
-			err = apperror.Wrap(apperror.CodeExtractionFailed, extractionFailedMessage, err)
+			err = llmerr.Wrap(apperror.CodeExtractionFailed, extractionFailedMessage, err)
 		}
 		willRetry := attempt < s.maxRetries && shouldRetry(err)
 		logRejectedAttempt(ctx, attempt, stage, willRetry, err)
