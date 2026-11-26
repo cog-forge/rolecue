@@ -213,6 +213,21 @@ func (a *TaskAdapter) GradeQuestion(ctx context.Context, in ed.QuestionGradeInpu
 		return grade, outputError(err)
 	})
 }
+
+// bankBatchSize caps one bank request at 10 questions when any entry of the chain is a gpt-oss provider served
+// through the OpenAI-compatible adapter (Groq, Cloudflare, OpenRouter): a 50-question reply does not fit their
+// output throughput or rate limits, and a batch must be small enough to finish inside one attempt's share of the
+// task budget. A chain without them keeps a single call.
+func bankBatchSize(entries []routeEntry, count int) int {
+	for _, entry := range entries {
+		switch entry.config.Provider {
+		case config.ProviderGroq, config.ProviderCloudflare, config.ProviderOpenRouter:
+			return min(count, 10)
+		}
+	}
+	return count
+}
+
 func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count int) (qd.GenerationCandidate, error) {
 	if !a.route.legacy {
 		var cancel context.CancelFunc
@@ -221,12 +236,7 @@ func (a *TaskAdapter) Generate(ctx context.Context, in qd.GenerationInput, count
 	}
 	// Legacy Gemini-only routing keeps the single-call route, but every output now passes the same domain
 	// validators as the routed path (KAN-300).
-	batchSize := count
-	for _, entry := range a.route.entries {
-		if entry.config.Provider == "groq" && batchSize > 10 {
-			batchSize = 10
-		}
-	}
+	batchSize := bankBatchSize(a.route.entries, count)
 	merged := qd.GenerationCandidate{Questions: []qd.GeneratedQuestion{}}
 	// Questions the topic check dropped (KAN-384) are excluded from later batches like stored ones, so a refill
 	// does not write them again. drops counts the batches that lost questions; it bounds the refills.
