@@ -3,37 +3,47 @@
 import Image from "next/image";
 import { useState } from "react";
 import { Peek } from "@doan-labs/peek";
+import { getApiBaseUrl } from "@/lib/api/config";
 import { cn } from "@/lib/utils";
 
 export function UserAvatar({
   id,
   name,
   image,
+  previewUrl,
   className,
 }: {
   id?: string;
   name: string;
   image?: string | null;
+  previewUrl?: string;
   className?: string;
 }) {
   const [failed, setFailed] = useState<string | null>(null);
-  let source: string | null = null;
-  if (image) {
+  let source = previewUrl ?? null;
+  if (!source && image) {
+    const apiBase = getApiBaseUrl();
+    const managed = /^\/profile\/photos\/[a-f0-9-]{36}\/[a-f0-9-]{36}$/.test(
+      image,
+    );
+    const candidate =
+      managed && apiBase ? `${apiBase.replace(/\/$/, "")}${image}` : image;
     try {
-      const url = new URL(image);
+      const url = new URL(candidate);
       if (
         ["https:", "http:"].includes(url.protocol) &&
         url.hostname &&
         !url.username &&
         !url.password
       )
-        source = image;
+        source = candidate;
     } catch {
       /* Invalid legacy image falls back to a generated avatar. */
     }
   }
   return (
     <span
+      data-slot="user-avatar"
       aria-hidden
       className={cn(
         "relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted",

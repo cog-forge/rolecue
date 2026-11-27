@@ -1,5 +1,5 @@
-import axios from "axios";
 import { apiClient } from "@/lib/api/client";
+import { putStorageFile } from "@/lib/api/signed-storage-request";
 import {
   listEnvelopeSchema,
   profileEnvelopeSchema,
@@ -102,17 +102,5 @@ export async function uploadPDF(
   signal: AbortSignal,
   progress: (percent: number) => void,
 ) {
-  if (ticket.request.Method !== "PUT") throw new Error("Invalid upload method");
-  // Isolated storage transport: never attach the API client's cookies/interceptors.
-  await axios.request({
-    url: ticket.request.URL,
-    method: "PUT",
-    headers: ticket.request.Headers,
-    data: file,
-    withCredentials: false,
-    signal,
-    timeout: 120_000,
-    onUploadProgress: (event) =>
-      progress(Math.min(100, Math.round((event.loaded / file.size) * 100))),
-  });
+  await putStorageFile(ticket.request, file, progress, signal);
 }

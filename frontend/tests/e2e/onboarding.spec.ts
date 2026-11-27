@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
+import { mockProfilePhoto, profilePhotoFile } from "./fixtures/profile-photo";
 async function fixture(
   page: Page,
   role: "candidate" | "recruiter" = "candidate",
@@ -24,6 +25,7 @@ async function fixture(
   };
   let profilePatchCalls = 0;
   let profileGetCalls = 0;
+  const photo = await mockProfilePhoto(page, user.id);
   await page.route("**/auth/me", (r) =>
     r.fulfill({ json: { success: true, data: user } }),
   );
@@ -34,13 +36,17 @@ async function fixture(
     await r.fulfill({ json: { success: true, data: user } });
   });
   await page.route("**/profile**", async (r) => {
-    if (r.request().isNavigationRequest()) {
+    if (
+      r.request().isNavigationRequest() ||
+      new URL(r.request().url()).pathname !== "/profile"
+    ) {
       await r.fallback();
       return;
     }
     if (r.request().method() === "PATCH") {
       profilePatchCalls++;
-      const patch = r.request().postDataJSON();
+      const { photo_upload_id, ...patch } = r.request().postDataJSON();
+      if (photo_upload_id) patch.image = photo.attachedPhoto(photo_upload_id);
       profile = { ...profile, ...patch, onboarding_completed: true };
       user = { ...user, ...patch, onboarding_completed: true };
     } else {
@@ -48,7 +54,13 @@ async function fixture(
     }
     await r.fulfill({ json: { success: true, data: profile } });
   });
-  return () => ({ user, profile, profilePatchCalls, profileGetCalls });
+  return () => ({
+    user,
+    profile,
+    profilePatchCalls,
+    profileGetCalls,
+    photoPath: photo.photoPath,
+  });
 }
 test("candidate: mandatory dialog, Peek, completion and reload", async ({
   page,
@@ -75,7 +87,7 @@ test("candidate: mandatory dialog, Peek, completion and reload", async ({
   await page.reload();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
-test("recruiter: resume metadata, website preview, correct sidebar", async ({
+test("recruiter: resume onboarding, preview website and save profile photo", async ({
   page,
 }) => {
   const state = await fixture(page, "recruiter", true);
@@ -83,6 +95,7 @@ test("recruiter: resume metadata, website preview, correct sidebar", async ({
   await expect(page.getByRole("radio")).toHaveCount(0);
   await page.getByLabel("Display name").fill("Riley Recruiter");
   await page.getByLabel("Company name").fill("Acme");
+  await page.getByLabel("Profile photo file").setInputFiles(profilePhotoFile);
   await page.getByRole("button", { name: "Open my workspace" }).click();
   await expect(page.getByText("Enter your company website.")).toBeVisible();
   await page
@@ -103,6 +116,7 @@ test("recruiter: resume metadata, website preview, correct sidebar", async ({
   ).toBeVisible();
   expect(state().profilePatchCalls).toBe(1);
   expect(state().profile.company_website).toBe("https://acme.example");
+  expect(state().profile.image).toBe(state().photoPath);
 });
 test("recruiter can submit a bare website with Enter before blur", async ({
   page,

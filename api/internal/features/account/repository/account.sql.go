@@ -457,19 +457,24 @@ func (q *Queries) ListStorageKeys(ctx context.Context, id uuid.UUID) ([]*string,
 	return items, nil
 }
 
-const lockAccountEmail = `-- name: LockAccountEmail :one
-SELECT email
+const lockAccountForErasure = `-- name: LockAccountForErasure :one
+SELECT email, profile_photo_key
 FROM public.users
 WHERE id = $1
 FOR UPDATE
 `
 
+type LockAccountForErasureRow struct {
+	Email           string
+	ProfilePhotoKey *uuid.UUID
+}
+
 // Locks the user row for the erasure transaction. No row means the account is already gone.
-func (q *Queries) LockAccountEmail(ctx context.Context, id uuid.UUID) (string, error) {
-	row := q.db.QueryRow(ctx, lockAccountEmail, id)
-	var email string
-	err := row.Scan(&email)
-	return email, err
+func (q *Queries) LockAccountForErasure(ctx context.Context, id uuid.UUID) (LockAccountForErasureRow, error) {
+	row := q.db.QueryRow(ctx, lockAccountForErasure, id)
+	var i LockAccountForErasureRow
+	err := row.Scan(&i.Email, &i.ProfilePhotoKey)
+	return i, err
 }
 
 const lockCandidateAssets = `-- name: LockCandidateAssets :exec

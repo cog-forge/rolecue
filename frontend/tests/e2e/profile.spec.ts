@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { mockProfilePhoto, profilePhotoFile } from "./fixtures/profile-photo";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const initial = {
@@ -23,8 +24,13 @@ async function mockProfile(
   let sessionStatus = 200;
   let roleChangedDuringSave = false;
   let calls = 0;
+  const photo = await mockProfilePhoto(page, id);
   await page.route("http://localhost:8080/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path !== "/auth/me" && path !== "/profile") {
+      await route.fallback();
+      return;
+    }
     const headers = {
       "access-control-allow-origin": "http://127.0.0.1:3100",
       "access-control-allow-credentials": "true",
@@ -98,9 +104,13 @@ async function mockProfile(
           });
           return;
         }
+        const { photo_upload_id, ...patch } = route.request().postDataJSON();
         profile = {
           ...profile,
-          ...route.request().postDataJSON(),
+          ...patch,
+          ...(photo_upload_id
+            ? { image: photo.attachedPhoto(photo_upload_id) }
+            : {}),
           updated_at: "2026-10-08T00:00:00Z",
         };
       } else if (failRead) {
@@ -117,16 +127,9 @@ async function mockProfile(
       await route.fulfill({ headers, json: { success: true, data: profile } });
       return;
     }
-    await route.fulfill({
-      status: 404,
-      headers,
-      json: {
-        success: false,
-        error: { code: "NOT_FOUND", message: "Not found" },
-      },
-    });
   });
   return {
+    ...photo,
     failSave: () => {
       failSave = true;
     },
@@ -222,9 +225,15 @@ test("failed save keeps draft, discard restores baseline and validation blocks i
   await expect(page.getByLabel("Display name")).toHaveValue("Unsaved draft");
   await page.getByRole("button", { name: "Discard" }).click();
   await expect(page.getByLabel("Display name")).toHaveValue("Alex Doe");
-  await page.getByLabel("Avatar URL").fill("http://example.com/avatar.png");
+  await page.getByLabel("Profile photo file").setInputFiles({
+    name: "photo.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("invalid photo"),
+  });
   await expect(
-    page.getByRole("alert").filter({ hasText: "HTTPS image" }),
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Choose a JPEG, PNG, or WebP photo." }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Save changes" }),
@@ -273,28 +282,29 @@ for (const width of [390, 768, 1440]) {
     await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.type("Keyboard user");
     await page.keyboard.press("Tab");
-    await expect(page.getByLabel("Avatar URL")).toBeFocused();
+    await expect(
+      page.getByRole("button", { name: "Choose photo" }),
+    ).toBeFocused();
   });
 }
-test("failed avatar falls back to Peek in profile and sidebar", async ({
+test("a profile photo is uploaded, kept after reload and falls back to Peek if unavailable", async ({
   page,
 }) => {
-  await mockProfile(page);
-  await page.route("https://avatar.example/**", (route) =>
-    route.fulfill({ status: 404, body: "missing" }),
-  );
+  const api = await mockProfile(page);
   await page.goto("/profile");
-  await page
-    .getByLabel("Avatar URL")
-    .fill("https://avatar.example/missing.png");
+  const form = page.getByRole("form", { name: "Edit your profile" });
+  await page.getByLabel("Profile photo file").setInputFiles(profilePhotoFile);
+  await expect(form.locator('img[src^="blob:"]')).toBeVisible();
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(
-    page.getByRole("form", { name: "Edit your profile" }).getByRole("status"),
-  ).toHaveText(/Your profile has been saved/);
-  await expect(page.locator("span[aria-hidden] > svg")).toHaveCount(2);
-  await expect(
-    page.locator('img[src="https://avatar.example/missing.png"]'),
-  ).toHaveCount(0);
+  await expect(form.getByText("Your profile has been saved.")).toBeVisible();
+  const savedPhotos = page.locator(`img[src$="${api.photoPath}"]`);
+  await expect(savedPhotos).toHaveCount(2);
+  await page.reload();
+  await expect(savedPhotos).toHaveCount(2);
+  api.makePhotoUnavailable();
+  await page.reload();
+  await expect(page.locator('[data-slot="user-avatar"] > svg')).toHaveCount(2);
+  await expect(savedPhotos).toHaveCount(0);
 });
 
 test("Peek avatars animate and stop when reduced motion is enabled", async ({
@@ -303,7 +313,7 @@ test("Peek avatars animate and stop when reduced motion is enabled", async ({
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await mockProfile(page);
   await page.goto("/profile");
-  const avatar = page.locator("main span[aria-hidden] > svg");
+  const avatar = page.locator('main [data-slot="user-avatar"] > svg');
   await expect(avatar).toBeVisible();
   const before = await avatar.innerHTML();
   await expect.poll(() => avatar.innerHTML()).not.toBe(before);

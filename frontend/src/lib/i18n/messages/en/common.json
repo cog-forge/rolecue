@@ -250,8 +250,6 @@
       "personalTitle": "Personal information",
       "personalDescription": "Keep your name and photo up to date.",
       "displayName": "Display name",
-      "avatarUrl": "Avatar URL",
-      "avatarHint": "Use an HTTPS link to your photo. Leave this blank for your generated avatar.",
       "company": "Company",
       "companyTitle": "Company information",
       "companyDescription": "You can update these details after onboarding.",
@@ -268,9 +266,25 @@
     },
     "validation": {
       "name": "Enter a display name between 1 and 100 characters.",
-      "image": "Use an HTTPS image URL without credentials, up to 2048 characters.",
       "companyLength": "Company name must be 200 characters or fewer.",
       "website": "Use an HTTPS website URL without credentials, up to 2048 characters."
+    },
+    "photo": {
+      "label": "Profile photo",
+      "fileInput": "Profile photo file",
+      "dropHere": "Drop a photo here",
+      "formats": "JPEG, PNG, or WebP. Up to 5 MB and 4096 × 4096 pixels.",
+      "choose": "Choose photo",
+      "change": "Change photo",
+      "remove": "Remove current photo",
+      "restore": "Keep current photo",
+      "discardFile": "Discard selected photo",
+      "oneFile": "Choose one photo at a time.",
+      "invalidFormat": "Choose a JPEG, PNG, or WebP photo.",
+      "tooLarge": "Choose a photo up to 5 MB.",
+      "progressLabel": "Photo upload",
+      "uploading": "Uploading photo… {progress}%",
+      "verifying": "Checking your photo…"
     },
     "loadingLabel": "Loading your profile"
   },

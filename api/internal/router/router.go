@@ -173,7 +173,9 @@ func (r *Router) Setup() *gin.Engine {
 
 	profiles := router.Group("/profile", r.authHandler.RequireAuth(r.cfg.CORS.AllowOrigins))
 	profiles.GET("", r.profileHandler.Get)
-	profiles.PATCH("", r.profileHandler.Update)
+	profiles.PATCH("", with(limits.expensive, r.profileHandler.Update)...)
+	profiles.POST("/photo-uploads", with(limits.expensive, r.profileHandler.CreatePhotoUpload)...)
+	profiles.GET("/photos/:owner/:key", r.profileHandler.ReadPhoto)
 
 	// Auth only, so a user who has not finished onboarding can still leave and take their data.
 	if r.accountHandler != nil {

@@ -18,7 +18,7 @@ const profile: Profile = {
   updated_at: "2026-10-07T16:00:00Z",
 };
 describe("profile contract", () => {
-  it("validates Unicode name length and HTTPS avatar", () => {
+  it("validates Unicode name length", () => {
     const schema = createProfileFormSchema(profile);
     expect(
       schema.safeParse({
@@ -32,24 +32,9 @@ describe("profile contract", () => {
         full_name: "ệ".repeat(101),
       }).success,
     ).toBe(false);
-    expect(
-      schema.safeParse({
-        ...profileValues(profile),
-        image: "http://example.com/a",
-      }).success,
-    ).toBe(false);
-    expect(
-      schema.safeParse({
-        ...profileValues(profile),
-        image: "https://u:p@example.com/a",
-      }).success,
-    ).toBe(false);
   });
-  it("sends only changed allowed fields, with null for removed avatar", () => {
+  it("sends only changed fields editable by a candidate", () => {
     const p = { ...profile, image: "https://example.com/a.png" };
-    expect(profilePatch({ ...profileValues(p), image: "" }, p)).toEqual({
-      image: null,
-    });
     expect(
       profilePatch(
         {

@@ -13,7 +13,6 @@ export function createOnboardingSchema(
   profile: Profile,
   messages?: {
     name: string;
-    image: string;
     companyLength: string;
     website: string;
     companyRequired: string;

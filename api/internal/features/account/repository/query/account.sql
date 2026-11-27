@@ -4,8 +4,8 @@ FROM public.users
 WHERE id = @id;
 
 -- Locks the user row for the erasure transaction. No row means the account is already gone.
--- name: LockAccountEmail :one
-SELECT email
+-- name: LockAccountForErasure :one
+SELECT email, profile_photo_key
 FROM public.users
 WHERE id = @id
 FOR UPDATE;

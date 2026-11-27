@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LoaderCircle, Building2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { ProfilePhotoUpload } from "../api/profile";
+import {
+  ProfilePhotoField,
+  type ProfilePhotoDraft,
+} from "./profile-photo-field";
 import {
   Card,
   CardContent,
@@ -84,7 +89,7 @@ export function ProfileForm({
   savedProfile,
 }: {
   profile: Profile;
-  onSave: (patch: ProfilePatch) => Promise<void>;
+  onSave: (patch: ProfilePatch, photo?: ProfilePhotoUpload) => Promise<boolean>;
   saving: boolean;
   error: string | null;
   saved: boolean;
@@ -95,7 +100,6 @@ export function ProfileForm({
     () =>
       createProfileFormSchema(profile, {
         name: t("validation.name"),
-        image: t("validation.image"),
         companyLength: t("validation.companyLength"),
         website: t("validation.website"),
       }),
@@ -103,17 +107,21 @@ export function ProfileForm({
   );
   const baseline = useRef(profile);
   const lastSaved = useRef<Profile | undefined>(undefined);
+  const [photo, setPhoto] = useState<ProfilePhotoDraft>(undefined);
+  const [progress, setProgress] = useState<number | null>(null);
   const {
     register,
     handleSubmit,
     reset,
     setValue,
-    formState: { errors, isDirty, isValid },
+    formState: { errors, isDirty, isValid, isSubmitting },
   } = useForm<ProfileValues>({
     resolver: zodResolver(schema),
     defaultValues: profileValues(profile),
     mode: "onChange",
   });
+  const dirty = isDirty || photo !== undefined;
+  const busy = saving || isSubmitting;
   const companyWebsiteRegistration = register("company_website");
   useEffect(() => {
     // New server data reconciles pristine forms; a dirty draft stays untouched.
@@ -121,7 +129,7 @@ export function ProfileForm({
       lastSaved.current = savedProfile;
       baseline.current = savedProfile;
       reset(profileValues(savedProfile));
-    } else if (profile !== baseline.current && !isDirty) {
+    } else if (profile !== baseline.current && !dirty) {
       // Query structural sharing can clone a saved response. Updating only the
       // object identity must not schedule another reset over the next draft.
       const values = profileValues(profile);
@@ -130,15 +138,30 @@ export function ProfileForm({
       baseline.current = profile;
       if (changed) reset(values);
     }
-  }, [profile, savedProfile, isDirty, reset]);
+  }, [profile, savedProfile, dirty, reset]);
   const submit = (event: FormEvent<HTMLFormElement>) => {
+    if (busy) {
+      event.preventDefault();
+      return;
+    }
     void handleSubmit(async (values) => {
       const patch = profilePatch(values, baseline.current);
-      if (!Object.keys(patch).length) {
+      if (photo === null) patch.image = null;
+      if (!photo && !Object.keys(patch).length) {
         reset(profileValues(baseline.current));
         return;
       }
-      await onSave(patch);
+      try {
+        if (
+          await onSave(
+            patch,
+            photo ? { file: photo.file, onProgress: setProgress } : undefined,
+          )
+        )
+          setPhoto(undefined);
+      } finally {
+        setProgress(null);
+      }
     })(event);
   };
   return (
@@ -166,17 +189,17 @@ export function ProfileForm({
             id="profile-name"
             label={t("form.displayName")}
             registration={register("full_name")}
-            disabled={saving}
+            disabled={busy}
             error={errors.full_name?.message}
           />
-          <ProfileField
-            id="profile-image"
-            label={t("form.avatarUrl")}
-            type="url"
-            hint={t("form.avatarHint")}
-            registration={register("image")}
-            disabled={saving}
-            error={errors.image?.message}
+          <ProfilePhotoField
+            userId={profile.id}
+            name={profile.full_name}
+            image={profile.image}
+            draft={photo}
+            onChange={setPhoto}
+            disabled={busy}
+            progress={progress}
           />
         </CardContent>
       </Card>
@@ -201,7 +224,7 @@ export function ProfileForm({
               id="profile-company"
               label={t("form.companyName")}
               registration={register("company_name")}
-              disabled={saving}
+              disabled={busy}
               error={errors.company_name?.message}
             />
             <ProfileField
@@ -224,7 +247,7 @@ export function ProfileForm({
                   await companyWebsiteRegistration.onBlur(event);
                 },
               }}
-              disabled={saving}
+              disabled={busy}
               error={errors.company_website?.message}
             />
           </CardContent>
@@ -244,9 +267,9 @@ export function ProfileForm({
           aria-live="polite"
           className="text-sm text-muted-foreground"
         >
-          {saving
+          {busy
             ? t("form.saving")
-            : isDirty
+            : dirty
               ? t("form.unsaved")
               : saved
                 ? t("form.saved")
@@ -256,10 +279,11 @@ export function ProfileForm({
           <Button
             type="button"
             variant="outline"
-            disabled={!isDirty || saving}
+            disabled={!dirty || busy}
             onClick={() => {
               baseline.current = profile;
               reset(profileValues(profile));
+              setPhoto(undefined);
             }}
           >
             {t("form.discard")}
@@ -267,16 +291,16 @@ export function ProfileForm({
           <Button
             type="submit"
             className="bg-workspace-accent text-white hover:bg-workspace-accent/90"
-            disabled={!isDirty || !isValid || saving}
-            aria-busy={saving}
+            disabled={!dirty || !isValid || busy}
+            aria-busy={busy}
           >
-            {saving && (
+            {busy && (
               <LoaderCircle
                 className="size-4 animate-spin motion-reduce:animate-none"
                 aria-hidden
               />
             )}
-            {saving ? t("form.savingButton") : t("form.save")}
+            {busy ? t("form.savingButton") : t("form.save")}
           </Button>
         </div>
       </div>

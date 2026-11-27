@@ -84,10 +84,9 @@ func (r *Repository) StorageKeys(ctx context.Context, id uuid.UUID) ([]string, e
 // victim. Nothing outside the transaction has happened yet, so a rerun is safe.
 const eraseAttempts = 3
 
-// Erase deletes the account and everything it owns in one transaction and returns the object keys of the avatar
-// models whose asset row it deleted (the only ones that may be removed from the store). The caller has already
-// removed the other stored objects and must remove these only after Erase returned, after ModelKeyInUse said
-// nobody references them any more. It locks the user row and checks again that no work is active, so a posting
+// Erase deletes the account and everything it owns in one transaction and returns the current photo and orphaned
+// avatar model keys for post-commit removal. The caller checks model references before deleting those objects.
+// It locks the user row and checks again that no work is active, so a posting
 // that went live after the first check is refused (ErrActiveWork). An account that is already gone is not an
 // error, which makes a retry after a lost response safe.
 func (r *Repository) Erase(ctx context.Context, id uuid.UUID) ([]string, error) {
@@ -116,7 +115,7 @@ func (r *Repository) eraseOnce(ctx context.Context, id uuid.UUID) (keys []string
 		}
 	}()
 	q := r.queries.WithTx(tx)
-	email, scanErr := q.LockAccountEmail(ctx, id)
+	account, scanErr := q.LockAccountForErasure(ctx, id)
 	switch {
 	case errors.Is(scanErr, pgx.ErrNoRows):
 		return nil, tx.Commit(ctx)
@@ -130,8 +129,11 @@ func (r *Repository) eraseOnce(ctx context.Context, id uuid.UUID) (keys []string
 	if !work.None() {
 		return nil, ErrActiveWork
 	}
-	if keys, err = erase(ctx, q, id, email); err != nil {
+	if keys, err = erase(ctx, q, id, account.Email); err != nil {
 		return nil, apperror.Wrap(apperror.CodeInternal, "could not erase the account", err)
+	}
+	if account.ProfilePhotoKey != nil {
+		keys = append(keys, account.ProfilePhotoKey.String())
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return nil, apperror.Wrap(apperror.CodeInternal, "could not erase the account", err)

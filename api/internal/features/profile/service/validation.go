@@ -11,8 +11,11 @@ import (
 
 func invalid(message string) error { return apperror.New(apperror.CodeValidation, message) }
 func validatePatch(p *domain.Patch, role string, imageHosts []string) error {
-	if !p.FullName.Present && !p.Image.Present && !p.CompanyName.Present && !p.CompanyWebsite.Present {
+	if !p.FullName.Present && !p.Image.Present && !p.PhotoUploadID.Present && !p.CompanyName.Present && !p.CompanyWebsite.Present {
 		return invalid("at least one profile field is required")
+	}
+	if p.PhotoUploadID.Present && p.Image.Present {
+		return invalid("send either image or photo_upload_id")
 	}
 	if role != "recruiter" && (p.CompanyName.Present || p.CompanyWebsite.Present) {
 		return apperror.New(apperror.CodeForbidden, "company fields are only available to recruiters")

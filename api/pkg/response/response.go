@@ -136,6 +136,8 @@ var httpStatusByCode = map[apperror.Code]int{
 	apperror.CodeAdminMFARequired:                 http.StatusForbidden,
 	apperror.CodeOnboardingRoleConflict:           http.StatusConflict,
 	apperror.CodeValidation:                       http.StatusBadRequest,
+	apperror.CodeInvalidProfilePhoto:              http.StatusBadRequest,
+	apperror.CodeProfilePhotoUploadUnavailable:    http.StatusBadRequest,
 	apperror.CodeInternal:                         http.StatusInternalServerError,
 
 	// Wallet / payment domain.

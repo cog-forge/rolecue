@@ -8,14 +8,15 @@ import (
 	"github.com/cog-forge/rolecue/api/internal/features/profile/repository"
 	"github.com/cog-forge/rolecue/api/internal/features/profile/service"
 	"github.com/cog-forge/rolecue/api/internal/handler"
+	"github.com/cog-forge/rolecue/api/internal/pkg/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func ProvideProfileRepository(pool *pgxpool.Pool) *repository.Repository {
 	return repository.NewRepository(pool)
 }
-func ProvideProfileService(cfg *config.Config, repo *repository.Repository) *service.Service {
-	return service.NewService(repo, service.WithImageHosts(profileImageHosts(cfg)))
+func ProvideProfileService(cfg *config.Config, repo *repository.Repository, store storage.Store) *service.Service {
+	return service.NewService(repo, service.WithImageHosts(profileImageHosts(cfg)), service.WithPhotoUploads(repo, store))
 }
 func ProvideProfileHandler(svc *service.Service) *handler.ProfileHandler {
 	return handler.NewProfileHandler(svc)
