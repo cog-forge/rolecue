@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Syncs infra/aws/prod/secrets.sops.env to SSM Parameter Store as SecureString under /rolecue/prod/<KEY>.
-# When the prod stack has an RDS endpoint (terraform output), also writes the two assembled database URLs.
+# When the prod stack has an RDS endpoint (terraform output, or the RDS API in CI), also writes the two assembled database URLs.
 # Idempotent. Prints key names and counts, never values. Values never appear on a command line.
 #
 # Usage: AWS_PROFILE=rolecue-prod scripts/prod/sync-secrets.sh
@@ -65,8 +65,16 @@ while IFS= read -r line; do
   printf '  synced %s\n' "$key"
 done <<<"$PLAIN"
 
+# The endpoint comes from the terraform output when it is available (local runs) and from the RDS API otherwise (CI has
+# no terraform and no state). A stopped instance still reports its endpoint.
+rds_endpoint() {
+  terraform -chdir="$TF_DIR" output -raw rds_endpoint 2>/dev/null ||
+    aws rds describe-db-instances --db-instance-identifier rolecue-prod \
+      --query 'DBInstances[0].Endpoint.Address' --output text 2>/dev/null
+}
+
 db_urls=0
-if endpoint="$(terraform -chdir="$TF_DIR" output -raw rds_endpoint 2>/dev/null)" && [ -n "$endpoint" ]; then
+if endpoint="$(rds_endpoint)" && [ -n "$endpoint" ] && [ "$endpoint" != "None" ]; then
   endpoint="${endpoint%:*}" # drop a trailing :port if the output has one
   app_pw="$(get APP_DB_PASSWORD)" || die "APP_DB_PASSWORD missing from the secrets file"
   master_pw="$(get RDS_MASTER_PASSWORD)" || die "RDS_MASTER_PASSWORD missing from the secrets file"
@@ -77,7 +85,7 @@ if endpoint="$(terraform -chdir="$TF_DIR" output -raw rds_endpoint 2>/dev/null)"
   db_urls=2
   printf '  synced DATABASE_URL_APP, DATABASE_URL_MIGRATE\n'
 else
-  echo "RDS endpoint not available from terraform output; skipping DATABASE_URL_APP and DATABASE_URL_MIGRATE."
+  echo "RDS endpoint not available; skipping DATABASE_URL_APP and DATABASE_URL_MIGRATE."
 fi
 
 total="$(aws ssm get-parameters-by-path --path "$SSM_PREFIX" --recursive --no-with-decryption \

@@ -1,0 +1,411 @@
+name: Deploy production (AWS)
+
+# Deploys a commit of main to the AWS prod stack (infra/aws/prod): build and push four images to ECR, sync the SOPS
+# secrets to SSM, run the migrate task, then roll auth -> api -> frontend on ECS.
+#
+# AWS access is a GitHub OIDC role (infra/aws/prod/github_oidc.tf). This workflow deliberately uses no GitHub
+# environment, secret or variable: every value below is public and hardcoded. ci.yml (and its self-hosted `deploy` job
+# for the other deployment) is not touched.
+
+on:
+  # CI finished on main. Only a successful push/dispatch run of main in this repository is deployed (see `guard`).
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, tag or branch to deploy. It must already be on main. Going back to an older commit only works while the database is not ahead of that commit's migrations (migrate refuses otherwise).
+        type: string
+        default: main
+      simulate_migrate_failure:
+        description: Make the migrate task fail without touching the database, to prove no service rolls.
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+# One prod deploy at a time. Never cancel a running one: stopping a rollout half way leaves a mixed stack.
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-southeast-1
+  AWS_ROLE_ARN: arn:aws:iam::399643456405:role/rolecue-prod-github-deploy
+  REGISTRY: 399643456405.dkr.ecr.ap-southeast-1.amazonaws.com
+  CLUSTER: rolecue-prod
+  DB_INSTANCE: rolecue-prod
+  API_HOST: rolecue-api.dorriss.com
+  APP_HOST: rolecue.dorriss.com
+  SOPS_VERSION: v3.13.3
+  SOPS_SHA256: e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b # sops-v3.13.3.linux.amd64
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Decides whether, and which commit, to deploy. Everything after it only runs when `proceed` is true.
+  guard:
+    name: Guard
+    # Only main's own workflow definition may deploy (the OIDC trust also pins refs/heads/main). A workflow_run is
+    # accepted only for a successful CI run of a push (or manual run) on main of THIS repository: `branches: [main]`
+    # matches the head branch name only, so without these checks a pull request from a fork whose branch is called
+    # "main" would pass, and workflow_run tokens carry the default branch's ref regardless of whose code triggered them.
+    if: >-
+      github.repository == 'cog-forge/rolecue' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      contains(fromJSON('["push","workflow_dispatch"]'), github.event.workflow_run.event) &&
+      github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      proceed: ${{ steps.rds.outputs.available == 'true' && steps.resolve.outputs.ok == 'true' }}
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - name: Resolve the commit and check it is on main
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REQUESTED_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            sha="$RUN_HEAD_SHA"
+          else
+            ref="${REQUESTED_REF:-main}"
+            [[ "$ref" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "::error::Invalid ref"; exit 1; }
+            sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/$(jq -rn --arg r "$ref" '$r|@uri')" --jq .sha)"
+          fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Not a commit SHA: $sha"; exit 1; }
+
+          # The commit must be main or one of its ancestors: this is what stops a dispatch (or a stray run) from
+          # deploying an unmerged branch with the production role, and it still allows rolling back to an old commit.
+          status="$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq .status)"
+          case "$status" in
+            identical | behind) ;;
+            *) echo "::error::Commit $sha is not on main (compare status: $status)"; exit 1 ;;
+          esac
+
+          # A CI run that finishes late must not roll production back to an older commit than main's head.
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            head="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+            if [ "$sha" != "$head" ]; then
+              echo "::notice::Skipped $sha: main has moved on to $head."
+              printf '### Deploy skipped\n\n`%s` is no longer the head of main (`%s`); its own run deploys that commit.\n' "$sha" "$head" >>"$GITHUB_STEP_SUMMARY"
+              echo 'ok=false' >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          echo 'ok=true' >>"$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        if: steps.resolve.outputs.ok == 'true'
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: deploy-guard-${{ github.run_id }}
+          mask-aws-account-id: false
+
+      # The stack sleeps by stopping RDS (scripts/prod/sleep.sh). Nothing can run or be migrated then, so stop quietly.
+      - name: Skip when the stack is asleep
+        id: rds
+        if: steps.resolve.outputs.ok == 'true'
+        env:
+          SHA: ${{ steps.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          state="$(aws rds describe-db-instances --db-instance-identifier "$DB_INSTANCE" \
+            --query 'DBInstances[0].DBInstanceStatus' --output text)"
+          if [ "$state" != available ]; then
+            echo "::notice::RDS $DB_INSTANCE is '$state': the prod stack is asleep, nothing was deployed."
+            printf '### Deploy skipped\n\nRDS `%s` is `%s`, so the prod stack is asleep. Wake it (`scripts/prod/wake.sh`) and run this workflow again for `%s`.\n' \
+              "$DB_INSTANCE" "$state" "$SHA" >>"$GITHUB_STEP_SUMMARY"
+            echo 'available=false' >>"$GITHUB_OUTPUT"
+          else
+            echo 'available=true' >>"$GITHUB_OUTPUT"
+          fi
+
+  # One job per image so the large api image (Blender) neither slows the others down nor fills one runner's disk.
+  build:
+    name: Image (${{ matrix.component }})
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: api
+            context: api
+            file: api/Dockerfile
+          - component: auth
+            context: auth
+            file: auth/Dockerfile
+          # Class B build args: public, baked into the bundle. NEXT_PUBLIC_API_BASE_URL is the api's public host.
+          - component: frontend
+            context: frontend
+            file: frontend/Dockerfile
+            build_args: |
+              NEXT_PUBLIC_API_BASE_URL=https://rolecue-api.dorriss.com
+              NEXT_PUBLIC_AVATURN_PROJECT_URL=https://rolecue.avaturn.dev
+              NEXT_PUBLIC_STORAGE_ORIGIN=https://s3.ap-southeast-1.amazonaws.com
+          # The migrate image ships api/migrations, so its context is the repository root.
+          - component: migrate
+            context: .
+            file: .docker/migrate/Dockerfile
+    env:
+      IMAGE_TAG: ${{ needs.guard.outputs.sha }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: deploy-build-${{ matrix.component }}-${{ github.run_id }}
+          mask-aws-account-id: false
+
+      # ECR tags are immutable, so a second push of the same SHA would fail: reuse what is there. That also makes a
+      # re-run after a later failure cheap.
+      - name: Look for the image in ECR
+        id: exists
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          set -euo pipefail
+          if out="$(aws ecr describe-images --repository-name "rolecue-$COMPONENT" \
+            --image-ids "imageTag=$IMAGE_TAG" --query 'imageDetails[0].imageDigest' --output text 2>&1)"; then
+            echo "::notice::rolecue-$COMPONENT:$IMAGE_TAG already exists ($out); not rebuilding."
+            echo 'found=true' >>"$GITHUB_OUTPUT"
+          elif grep -q ImageNotFoundException <<<"$out"; then
+            echo 'found=false' >>"$GITHUB_OUTPUT"
+          else
+            echo "$out" >&2
+            exit 1
+          fi
+
+      - if: steps.exists.outputs.found != 'true'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.IMAGE_TAG }}
+          persist-credentials: false
+
+      - if: steps.exists.outputs.found != 'true'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to ECR
+        if: steps.exists.outputs.found != 'true'
+        run: aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY"
+
+      - name: Build and push
+        if: steps.exists.outputs.found != 'true'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          sbom: false
+          tags: ${{ env.REGISTRY }}/rolecue-${{ matrix.component }}:${{ env.IMAGE_TAG }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/cog-forge/rolecue
+            org.opencontainers.image.revision=${{ env.IMAGE_TAG }}
+          build-args: ${{ matrix.build_args }}
+          # Read the cache CI wrote for the same component, and keep a separate one for these builds (the frontend's
+          # build args differ from CI's, so the two must not overwrite each other).
+          cache-from: |
+            type=gha,scope=${{ matrix.component }}
+            type=gha,scope=prod-${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=prod-${{ matrix.component }}
+
+  deploy:
+    name: Deploy
+    needs: [guard, build]
+    if: needs.guard.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60 # the STS session lasts one hour
+    env:
+      IMAGE_TAG: ${{ needs.guard.outputs.sha }}
+      SIMULATE_MIGRATE_FAILURE: ${{ inputs.simulate_migrate_failure && 'true' || 'false' }}
+    steps:
+      # Deliberately NOT the deployed commit: the scripts and the secrets file come from the workflow's own commit (the
+      # head of main), so rolling back to an old image never runs old scripts or re-syncs old secret values over
+      # rotated ones. The images are what the target commit decides.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: deploy-${{ github.run_id }}
+          mask-aws-account-id: false
+
+      - name: Verify the four images exist
+        run: |
+          set -euo pipefail
+          {
+            printf '### Deploy `%s`\n\nTrigger: `%s`\n\n| Image | Digest |\n|---|---|\n' "$IMAGE_TAG" "$GITHUB_EVENT_NAME"
+            for c in frontend auth api migrate; do
+              digest="$(aws ecr describe-images --repository-name "rolecue-$c" \
+                --image-ids "imageTag=$IMAGE_TAG" --query 'imageDetails[0].imageDigest' --output text)"
+              printf '| `rolecue-%s:%s` | `%s` |\n' "$c" "${IMAGE_TAG:0:12}" "$digest"
+            done
+            printf '\n'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      # A pinned, checksum-verified release binary, not a package-manager or `latest` install.
+      - name: Install sops
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/bin/sops" \
+            "https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64"
+          echo "${SOPS_SHA256}  $RUNNER_TEMP/bin/sops" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/bin/sops"
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
+          sops --version
+
+      # Same script the owner runs locally, so the two cannot drift. It prints key names and counts only; values go
+      # from sops through shell variables and a private tmpfs file, never onto a command line or into the log.
+      - name: Sync secrets to SSM
+        run: bash scripts/prod/sync-secrets.sh
+
+      - name: Migrate
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=scripts/prod/ecs-lib.sh
+          source scripts/prod/ecs-lib.sh
+
+          # Simulated failure: the definition registered for this run loses its DATABASE_URL secret and gets a plain
+          # value pointing at a closed port on the task's own loopback instead. The real migrate binary then runs in a
+          # real Fargate task, fails to connect, exits 1 and writes its error to CloudWatch, which is exactly the path
+          # a failing migration takes below, while RDS is never contacted. It is registered under a separate family
+          # (rolecue-prod-migrate-drill), so the real migrate family, which every later deploy copies, is never
+          # touched; no service revision is registered or changed. The task definition is edited rather than overridden
+          # at run-task time because it is not known whether an `environment` override wins over a same-named secret.
+          filter='.'
+          if [ "$SIMULATE_MIGRATE_FAILURE" = true ]; then
+            echo "::warning::simulate_migrate_failure is on: migrate gets an unreachable database URL and is expected to fail."
+            filter='.family = "rolecue-prod-migrate-drill" | .containerDefinitions |= map(.secrets |= map(select(.name != "DATABASE_URL"))
+              | .environment += [{name: "DATABASE_URL", value: "postgres://simulated:simulated@127.0.0.1:1/simulated?sslmode=disable"}])'
+          fi
+
+          migrate_td="$(new_revision rolecue-prod-migrate migrate "$REGISTRY/rolecue-migrate:$IMAGE_TAG" "$filter")"
+
+          subnets="$(aws ec2 describe-subnets \
+            --filters Name=tag:Project,Values=rolecue Name=tag:Env,Values=prod Name=tag:Tier,Values=private-app \
+            --query 'Subnets[].SubnetId' --output text | tr '\t' ',')"
+          sg="$(aws ec2 describe-security-groups \
+            --filters Name=group-name,Values=rolecue-prod-migrate Name=tag:Project,Values=rolecue \
+            --query 'SecurityGroups[0].GroupId' --output text)"
+          [ -n "$subnets" ] && [ -n "$sg" ] && [ "$sg" != None ] || { echo "::error::Cannot find the private-app subnets or the migrate security group"; exit 1; }
+
+          run="$(aws ecs run-task --cluster "$CLUSTER" --task-definition "$migrate_td" --launch-type FARGATE --count 1 \
+            --started-by "deploy-$GITHUB_RUN_ID" \
+            --network-configuration "awsvpcConfiguration={subnets=[$subnets],securityGroups=[$sg],assignPublicIp=DISABLED}" \
+            --output json)"
+          task_arn="$(jq -r '.tasks[0].taskArn // empty' <<<"$run")"
+          if [ -z "$task_arn" ]; then
+            jq -r '.failures[] | "run-task failure: \(.arn // "-") \(.reason) \(.detail // "")"' <<<"$run"
+            exit 1
+          fi
+          task_id="${task_arn##*/}"
+          echo "Migrate task $task_id started from ${migrate_td##*/}"
+
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn" ||
+            { echo "::error::Timed out waiting for the migrate task to stop"; exit 1; }
+
+          info="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" --output json)"
+          # A task that never started its container (image pull, secret injection) has no exit code: that is a failure too.
+          exit_code="$(jq -r '[.tasks[0].containers[] | select(.name == "migrate") | .exitCode] | first // "none"' <<<"$info")"
+          stopped="$(jq -r '.tasks[0].stoppedReason // "-"' <<<"$info")"
+
+          if [ "$exit_code" != 0 ]; then
+            echo "::error::Migration failed (exit code $exit_code, stopped reason: $stopped). No service was changed."
+            echo '--- migrate log tail ---'
+            # Never let a connection string reach the (public) log, whatever the tool printed.
+            aws logs get-log-events --log-group-name /rolecue/prod/migrate \
+              --log-stream-name "migrate/migrate/$task_id" --limit 50 --query 'events[].[message]' --output text 2>&1 |
+              sed -E "s#(://)[^[:space:]\"']*@#\\1***@#g" || true
+            printf '#### Migrate failed\n\nExit code `%s`, stopped reason `%s`. Services were not touched.\n\n' "$exit_code" "$stopped" >>"$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "Migration finished with exit code 0."
+          printf '#### Migrate\n\nTask `%s` (`%s`) exited 0.\n\n' "$task_id" "${migrate_td##*/}" >>"$GITHUB_STEP_SUMMARY"
+
+      # Order matters: auth first (api reaches it through Service Connect), then api, then the frontend.
+      - name: Roll services
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=scripts/prod/ecs-lib.sh
+          source scripts/prod/ecs-lib.sh
+
+          describe() { aws ecs describe-services --cluster "$CLUSTER" --services "$1" --output json; }
+
+          printf '#### Services\n\n| Service | Previous | New | Desired |\n|---|---|---|---|\n' >>"$GITHUB_STEP_SUMMARY"
+          for svc in auth api frontend; do
+            before="$(describe "$svc")"
+            prev="$(jq -r '.services[0].taskDefinition' <<<"$before")"
+            desired="$(jq -r '.services[0].desiredCount' <<<"$before")"
+            new_arn="$(new_revision "rolecue-prod-$svc" "$svc" "$REGISTRY/rolecue-$svc:$IMAGE_TAG")"
+            echo "$svc: ${prev##*/} -> ${new_arn##*/} (desired count $desired)"
+
+            aws ecs update-service --cluster "$CLUSTER" --service "$svc" --task-definition "$new_arn" \
+              --query service.serviceName --output text >/dev/null
+            echo "DESIRED_$svc=$desired" >>"$GITHUB_ENV"
+
+            if [ "$desired" -gt 0 ]; then
+              # The waiter gives up after 10 minutes; a slow api start (Blender image, 180 s health-check grace) gets a second go.
+              aws ecs wait services-stable --cluster "$CLUSTER" --services "$svc" ||
+                aws ecs wait services-stable --cluster "$CLUSTER" --services "$svc" ||
+                { echo "::error::$svc did not become stable"; describe "$svc" | jq -r '.services[0].events[:8][].message'; exit 1; }
+              # A rollout the circuit breaker rolled back also ends "stable", on the OLD revision: compare.
+              after="$(describe "$svc")"
+              current="$(jq -r '.services[0].taskDefinition' <<<"$after")"
+              state="$(jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState' <<<"$after")"
+              if [ "$current" != "$new_arn" ] || [ "$state" != COMPLETED ]; then
+                echo "::error::$svc is on ${current##*/} (rollout $state), not ${new_arn##*/}: the deployment failed or was rolled back."
+                jq -r '.services[0].events[:8][].message' <<<"$after"
+                exit 1
+              fi
+              printf '| %s | `%s` | `%s` | %s |\n' "$svc" "${prev##*/}" "${new_arn##*/}" "$desired" >>"$GITHUB_STEP_SUMMARY"
+            else
+              echo "::notice::$svc is scaled to 0; its new revision applies when it is scaled up."
+              printf '| %s | `%s` | `%s` | 0 (scaled to 0, not started) |\n' "$svc" "${prev##*/}" "${new_arn##*/}" >>"$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          printf '\n' >>"$GITHUB_STEP_SUMMARY"
+
+      # Through the public names (Cloudflare -> ALB). Skipped while a service is scaled to 0 or DNS is not published.
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          smoke() { # <host> <path>
+            if ! getent hosts "$1" >/dev/null; then
+              echo "::notice::$1 does not resolve (DNS not published yet); smoke test skipped."
+              printf '#### Smoke\n\n`%s` does not resolve yet; skipped.\n\n' "$1" >>"$GITHUB_STEP_SUMMARY"
+              return 0
+            fi
+            code="$(curl -fsS --retry 12 --retry-delay 10 --retry-all-errors --max-time 20 \
+              -o /dev/null -w '%{http_code}' "https://$1$2")"
+            echo "https://$1$2 -> $code"
+            printf '#### Smoke\n\n`https://%s%s` -> %s\n\n' "$1" "$2" "$code" >>"$GITHUB_STEP_SUMMARY"
+          }
+          if [ "${DESIRED_api:-0}" -gt 0 ]; then smoke "$API_HOST" /health; else echo 'api is scaled to 0: no /health smoke test.'; fi
+          if [ "${DESIRED_frontend:-0}" -gt 0 ]; then smoke "$APP_HOST" /; else echo 'frontend is scaled to 0: no / smoke test.'; fi
