@@ -277,7 +277,8 @@ jobs:
           echo "${SOPS_SHA256}  $RUNNER_TEMP/bin/sops" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/bin/sops"
           echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
-          sops --version
+          # GITHUB_PATH only applies to later steps, so call the binary by its path here.
+          "$RUNNER_TEMP/bin/sops" --version
 
       # Same script the owner runs locally, so the two cannot drift. It prints key names and counts only; values go
       # from sops through shell variables and a private tmpfs file, never onto a command line or into the log.
