@@ -250,8 +250,6 @@
       "personalTitle": "Thông tin cá nhân",
       "personalDescription": "Luôn cập nhật tên và ảnh của bạn.",
       "displayName": "Tên hiển thị",
-      "avatarUrl": "URL avatar",
-      "avatarHint": "Dùng liên kết HTTPS tới ảnh của bạn. Để trống nếu muốn dùng avatar được tạo tự động.",
       "company": "Công ty",
       "companyTitle": "Thông tin công ty",
       "companyDescription": "Bạn có thể cập nhật các thông tin này sau khi hoàn tất thiết lập.",
@@ -268,9 +266,25 @@
     },
     "validation": {
       "name": "Nhập tên hiển thị từ 1 đến 100 ký tự.",
-      "image": "Dùng URL ảnh HTTPS không chứa thông tin đăng nhập, tối đa 2048 ký tự.",
       "companyLength": "Tên công ty không được vượt quá 200 ký tự.",
       "website": "Dùng URL website HTTPS không chứa thông tin đăng nhập, tối đa 2048 ký tự."
+    },
+    "photo": {
+      "label": "Ảnh đại diện",
+      "fileInput": "Tệp ảnh đại diện",
+      "dropHere": "Kéo ảnh vào đây",
+      "formats": "JPEG, PNG hoặc WebP. Tối đa 5 MB và 4096 × 4096 pixel.",
+      "choose": "Chọn ảnh",
+      "change": "Đổi ảnh",
+      "remove": "Xóa ảnh hiện tại",
+      "restore": "Giữ ảnh hiện tại",
+      "discardFile": "Bỏ ảnh đã chọn",
+      "oneFile": "Chỉ chọn một ảnh mỗi lần.",
+      "invalidFormat": "Chọn ảnh JPEG, PNG hoặc WebP.",
+      "tooLarge": "Chọn ảnh có dung lượng tối đa 5 MB.",
+      "progressLabel": "Tiến độ tải ảnh",
+      "uploading": "Đang tải ảnh… {progress}%",
+      "verifying": "Đang kiểm tra ảnh…"
     },
     "loadingLabel": "Đang tải hồ sơ của bạn"
   },

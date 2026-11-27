@@ -37,6 +37,8 @@
     "RUBRIC_STALE": "Barem này vừa được người khác thay đổi. Hãy tải lại rồi thử lại.",
     "ROADMAP_ITEM_NOT_FOUND": "Chủ đề này của Roadmap không còn tồn tại.",
     "INVALID_CREDENTIALS": "Email hoặc mật khẩu không đúng.",
+    "INVALID_PROFILE_PHOTO": "Chọn ảnh JPEG, PNG hoặc WebP hợp lệ, tối đa 5 MB và 4096 × 4096 pixel.",
+    "PROFILE_PHOTO_UPLOAD_UNAVAILABLE": "Ảnh tải lên đã hết hạn hoặc không tìm thấy. Vui lòng thử lưu lại.",
     "USER_NOT_FOUND": "Không tìm thấy tài khoản này.",
     "USER_INACTIVE": "Tài khoản này đang bị khóa. Hãy liên hệ bộ phận hỗ trợ để được xem xét.",
     "INVALID_TOKEN": "Liên kết không hợp lệ hoặc đã hết hạn.",

@@ -62,7 +62,9 @@ describe("own profile screen in Vietnamese", () => {
     expect(await screen.findByLabelText("Tên hiển thị")).toHaveValue(
       "Nguyễn Văn An",
     );
-    expect(screen.getByLabelText("URL avatar")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Chọn ảnh" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Tên công ty")).toHaveValue("Acme Studio");
     expect(screen.getByLabelText("Website công ty")).toHaveValue(
       "https://acme.example",

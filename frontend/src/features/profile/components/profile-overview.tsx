@@ -154,11 +154,12 @@ export function ProfileOverview() {
               error={saveError}
               saved={mutation.isSuccess}
               savedProfile={mutation.data}
-              onSave={async (patch) => {
+              onSave={async (patch, photo) => {
                 try {
-                  await mutation.mutateAsync(patch);
+                  await mutation.mutateAsync({ patch, photo });
+                  return true;
                 } catch {
-                  /* Mutation state exposes the error and retains the form draft. */
+                  return false;
                 }
               }}
             />

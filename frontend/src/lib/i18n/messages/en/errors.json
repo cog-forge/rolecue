@@ -37,6 +37,8 @@
     "RUBRIC_STALE": "Someone else changed this rubric. Reload it and try again.",
     "ROADMAP_ITEM_NOT_FOUND": "This Roadmap topic no longer exists.",
     "INVALID_CREDENTIALS": "Email or password is incorrect.",
+    "INVALID_PROFILE_PHOTO": "Choose a valid JPEG, PNG, or WebP up to 5 MB and 4096 × 4096 pixels.",
+    "PROFILE_PHOTO_UPLOAD_UNAVAILABLE": "This photo upload expired or could not be found. Try saving again.",
     "USER_NOT_FOUND": "We couldn't find this account.",
     "USER_INACTIVE": "This account is locked. Contact support to request a review.",
     "INVALID_TOKEN": "This link is invalid or has expired.",

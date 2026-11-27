@@ -18,13 +18,13 @@ export const profileEnvelopeSchema = z.object({
 export type Profile = z.infer<typeof profileEnvelopeSchema>["data"];
 export type ProfileValues = {
   full_name: string;
-  image: string;
   company_name: string;
   company_website: string;
 };
 export type ProfilePatch = Partial<{
   full_name: string;
   image: string | null;
+  photo_upload_id: string;
   company_name: string | null;
   company_website: string | null;
 }>;
@@ -32,7 +32,6 @@ export type ProfilePatch = Partial<{
 export function profileValues(profile: Profile): ProfileValues {
   return {
     full_name: profile.full_name,
-    image: profile.image ?? "",
     company_name: profile.company_name ?? "",
     company_website: profile.company_website ?? "",
   };
@@ -64,7 +63,6 @@ export function createProfileFormSchema(
   profile: Profile,
   messages?: {
     name: string;
-    image: string;
     companyLength: string;
     website: string;
   },
@@ -72,7 +70,6 @@ export function createProfileFormSchema(
   return z
     .object({
       full_name: z.string(),
-      image: z.string(),
       company_name: z.string(),
       company_website: z.string(),
     })
@@ -84,18 +81,6 @@ export function createProfileFormSchema(
           message:
             messages?.name ??
             "Enter a display name between 1 and 100 characters.",
-        });
-      if (
-        values.image !== (profile.image ?? "") &&
-        values.image.trim() &&
-        !isHttpsProfileUrl(values.image.trim())
-      )
-        ctx.addIssue({
-          code: "custom",
-          path: ["image"],
-          message:
-            messages?.image ??
-            "Use an HTTPS image URL without credentials, up to 2048 characters.",
         });
       if (profile.role !== "recruiter") return;
       if (length(values.company_name.trim()) > 200)
@@ -129,7 +114,6 @@ export function profilePatch(
   const patch: ProfilePatch = {};
   if (values.full_name !== current.full_name)
     patch.full_name = values.full_name.trim();
-  if (values.image !== current.image) patch.image = values.image.trim() || null;
   if (profile.role === "recruiter") {
     if (values.company_name !== current.company_name)
       patch.company_name = values.company_name.trim() || null;

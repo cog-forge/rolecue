@@ -251,9 +251,9 @@ export function OnboardingDialog({ user }: { user: SessionUser }) {
                 profile={profile.data}
                 saving={save.isPending}
                 error={save.error ? onboardingError(save.error, errorsT) : null}
-                onSave={async (patch) => {
+                onSave={async (patch, photo) => {
                   try {
-                    await save.mutateAsync(patch);
+                    await save.mutateAsync({ patch, photo });
                   } catch {
                     /* Mutation owns the error and keeps the form draft. */
                   }
