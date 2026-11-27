@@ -1,8 +1,16 @@
 #!/bin/sh
 # Supply a disposable DATABASE_URL for the API and auth images; never source the local .env.
 set -eu
-component=${1:?Usage: smoke.sh api|frontend|auth IMAGE}
-image=${2:?Usage: smoke.sh api|frontend|auth IMAGE}
+component=${1:?Usage: smoke.sh api|frontend|auth|migrate IMAGE}
+image=${2:?Usage: smoke.sh api|frontend|auth|migrate IMAGE}
+if [ "$component" = migrate ]; then
+    # A run-to-completion job: no health endpoint, so just prove the binary starts as a non-root user.
+    docker run --rm --entrypoint migrate "$image" -version
+    case "$(docker image inspect --format '{{.Config.User}}' "$image")" in
+        ''|0|0:*|root|root:*) echo 'Image must run as non-root' >&2; exit 1 ;;
+    esac
+    exit 0
+fi
 case "$component" in
     api)
         : "${DATABASE_URL:?Use a disposable PostgreSQL instance}"
@@ -31,7 +39,7 @@ case "$component" in
             -e RESEND_VERIFY_EMAIL_TEMPLATE_ID=ci-only -e RESEND_RESET_PASSWORD_TEMPLATE_ID=ci-only "$image")
         url=http://127.0.0.1:13001/healthz
         ;;
-    *) echo 'Expected api, frontend or auth' >&2; exit 1 ;;
+    *) echo 'Expected api, frontend, auth or migrate' >&2; exit 1 ;;
 esac
 trap 'docker logs "$container"; docker rm -f "$container" >/dev/null' EXIT
 attempt=0

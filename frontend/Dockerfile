@@ -9,7 +9,11 @@ COPY . .
 ARG NEXT_PUBLIC_API_BASE_URL
 # Public Avaturn project origin for the avatar creator. Optional: without it, creation is disabled.
 ARG NEXT_PUBLIC_AVATURN_PROJECT_URL
-ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL NEXT_PUBLIC_AVATURN_PROJECT_URL=$NEXT_PUBLIC_AVATURN_PROJECT_URL NEXT_TELEMETRY_DISABLED=1
+# Origin of the object storage behind presigned URLs (CSP connect-src/img-src/media-src). Optional.
+ARG NEXT_PUBLIC_STORAGE_ORIGIN=
+# Extra comma-separated hostnames allowed for the PayOS checkout redirect. Optional.
+ARG NEXT_PUBLIC_PAYOS_CHECKOUT_HOSTS=
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL NEXT_PUBLIC_AVATURN_PROJECT_URL=$NEXT_PUBLIC_AVATURN_PROJECT_URL NEXT_PUBLIC_STORAGE_ORIGIN=$NEXT_PUBLIC_STORAGE_ORIGIN NEXT_PUBLIC_PAYOS_CHECKOUT_HOSTS=$NEXT_PUBLIC_PAYOS_CHECKOUT_HOSTS NEXT_TELEMETRY_DISABLED=1
 RUN node -e 'const u = new URL(process.env.NEXT_PUBLIC_API_BASE_URL); if (!["http:","https:"].includes(u.protocol) || u.username || u.password) process.exit(1)' \
     && bun run build
 

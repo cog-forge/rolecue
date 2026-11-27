@@ -50,6 +50,9 @@ export type CspOptions = {
   isDev: boolean;
   apiBaseUrl?: string;
   avaturnProjectUrl?: string | null;
+  // Origin of the object storage that presigned upload/download URLs point at. The browser talks to it
+  // directly (fetch/axios PUT and GET), so it needs connect-src; empty or invalid adds nothing.
+  storageOrigin?: string | null;
 };
 
 function unique(values: Array<string | null>) {
@@ -63,9 +66,11 @@ export function buildCsp({
   isDev,
   apiBaseUrl,
   avaturnProjectUrl,
+  storageOrigin,
 }: CspOptions) {
   const api = origin(apiBaseUrl);
   const avaturn = origin(avaturnProjectUrl);
+  const storage = origin(storageOrigin);
   const directives: Array<[string, string[]]> = [
     ["default-src", ["'self'"]],
     [
@@ -79,8 +84,8 @@ export function buildCsp({
     ],
     // Inline style attributes (framer-motion, three, Radix) cannot carry a nonce.
     ["style-src", ["'self'", "'unsafe-inline'"]],
-    ["img-src", unique(["'self'", "blob:", "data:", api])],
-    ["media-src", unique(["'self'", "blob:", "data:", api])],
+    ["img-src", unique(["'self'", "blob:", "data:", api, storage])],
+    ["media-src", unique(["'self'", "blob:", "data:", api, storage])],
     ["font-src", ["'self'", "data:"]],
     [
       "connect-src",
@@ -90,6 +95,7 @@ export function buildCsp({
         // The interview room uses a WebSocket on the API origin.
         api ? api.replace(/^http/, "ws") : null,
         avaturn,
+        storage,
         // Avaturn exports are fetched over https (validated in avaturn-export.ts).
         "https://*.avaturn.dev",
         "https://*.avaturn.live",

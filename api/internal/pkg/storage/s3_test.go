@@ -7,8 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/config"
 	"github.com/google/uuid"
@@ -174,13 +178,88 @@ func TestUploadFailureReturnsNoKey(t *testing.T) {
 	}
 }
 
-func TestConstructorDoesNotFallBackToMachineCredentials(t *testing.T) {
-	t.Setenv("AWS_ACCESS_KEY_ID", "machine-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "machine-secret")
-	cfg := testConfig("http://localhost:9000")
+// isolateAWSEnv makes the SDK default credential chain independent of the machine running the tests:
+// no shared config or credentials files, no profile, and no metadata or container endpoints.
+func isolateAWSEnv(t *testing.T) {
+	t.Helper()
+	empty := filepath.Join(t.TempDir(), "empty")
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AWS_CONFIG_FILE", empty)
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", empty)
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_DEFAULT_PROFILE", "")
+	t.Setenv("AWS_SESSION_TOKEN", "")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI", "")
+	t.Setenv("AWS_CONTAINER_CREDENTIALS_FULL_URI", "")
+	t.Setenv("AWS_WEB_IDENTITY_TOKEN_FILE", "")
+}
+
+func TestNewClientUsesDefaultCredentialChainWithoutStaticKeys(t *testing.T) {
+	isolateAWSEnv(t)
+	t.Setenv("AWS_ACCESS_KEY_ID", "env-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "env-secret")
+	cfg := testConfig("https://s3.ap-southeast-1.amazonaws.com")
+	cfg.Region = "ap-southeast-1"
 	cfg.AccessKeyID, cfg.SecretAccessKey = "", ""
+	store, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get, err := store.PresignGet(context.Background(), "object-key", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	put, err := store.PresignPut(context.Background(), "text/plain", 5, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, signed := range map[string]string{"GET": get.URL, "PUT": put.Request.URL} {
+		u, err := url.Parse(signed)
+		if err != nil {
+			t.Fatal(err)
+		}
+		credential := u.Query().Get("X-Amz-Credential")
+		if !strings.HasPrefix(credential, "env-key/") || !strings.HasSuffix(credential, "/ap-southeast-1/s3/aws4_request") {
+			t.Fatalf("presigned %s URL was not signed with default-chain credentials for the configured region", name)
+		}
+		if strings.Contains(signed, "env-secret") {
+			t.Fatalf("presigned %s URL exposed the secret key", name)
+		}
+	}
+}
+
+func TestStaticCredentialsTakePrecedenceOverDefaultChain(t *testing.T) {
+	isolateAWSEnv(t)
+	t.Setenv("AWS_ACCESS_KEY_ID", "env-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "env-secret")
+	store, err := New(testConfig("https://objects.example.test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	signed, err := store.PresignGet(context.Background(), "object-key", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, err := url.Parse(signed.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(u.Query().Get("X-Amz-Credential"), "test-key/") {
+		t.Fatal("configured static credentials were replaced by the default chain")
+	}
+}
+
+func TestConstructorRejectsPartialStaticCredentials(t *testing.T) {
+	isolateAWSEnv(t)
+	t.Setenv("AWS_ACCESS_KEY_ID", "env-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "env-secret")
+	cfg := testConfig("http://localhost:9000")
+	cfg.SecretAccessKey = ""
 	if _, err := New(cfg); err == nil {
-		t.Fatal("constructor accepted missing configured credentials")
+		t.Fatal("constructor accepted an access key without a secret key")
 	}
 }
 

@@ -26,6 +26,33 @@ func TestStorageEnvironmentOverrides(t *testing.T) {
 	}
 }
 
+func TestStorageCredentialModes(t *testing.T) {
+	base := StorageConfig{Endpoint: "https://s3.ap-southeast-1.amazonaws.com", Region: "ap-southeast-1", Bucket: "rolecue-prod"}
+	for _, tc := range []struct {
+		name   string
+		change func(*StorageConfig)
+		static bool
+	}{
+		{"no keys uses the default AWS chain", func(*StorageConfig) {}, false},
+		{"blank keys use the default AWS chain", func(c *StorageConfig) { c.AccessKeyID, c.SecretAccessKey = "  ", "\t" }, false},
+		{"both keys are static", func(c *StorageConfig) { c.AccessKeyID, c.SecretAccessKey = "test-key", "test-secret" }, true},
+		{"both keys with session token are static", func(c *StorageConfig) {
+			c.AccessKeyID, c.SecretAccessKey, c.SessionToken = "test-key", "test-secret", "test-token"
+		}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := base
+			tc.change(&cfg)
+			if err := cfg.Validate(); err != nil {
+				t.Fatalf("valid storage config rejected: %v", err)
+			}
+			if got := cfg.UsesStaticCredentials(); got != tc.static {
+				t.Fatalf("UsesStaticCredentials() = %v, want %v", got, tc.static)
+			}
+		})
+	}
+}
+
 func TestStorageValidation(t *testing.T) {
 	valid := StorageConfig{Endpoint: "http://localhost:9000", Region: "us-east-1", Bucket: "rolecue-local", AccessKeyID: "test-key", SecretAccessKey: "test-secret"}
 	if err := valid.Validate(); err != nil {
@@ -47,7 +74,12 @@ func TestStorageValidation(t *testing.T) {
 		{"IP bucket", func(c *StorageConfig) { c.Bucket = "127.0.0.1" }},
 		{"missing key", func(c *StorageConfig) { c.AccessKeyID = "" }},
 		{"missing secret", func(c *StorageConfig) { c.SecretAccessKey = "" }},
+		{"only blank key", func(c *StorageConfig) { c.AccessKeyID = "  " }},
+		{"only blank secret", func(c *StorageConfig) { c.SecretAccessKey = "\t" }},
+		{"session token without keys", func(c *StorageConfig) { c.AccessKeyID, c.SecretAccessKey, c.SessionToken = "", "", "private-value" }},
+		{"session token with blank keys", func(c *StorageConfig) { c.AccessKeyID, c.SecretAccessKey, c.SessionToken = " ", " ", "private-value" }},
 		{"credential newline", func(c *StorageConfig) { c.SecretAccessKey = "private-value\n" }},
+		{"session token newline", func(c *StorageConfig) { c.SessionToken = "private-value\n" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := valid
