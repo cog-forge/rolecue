@@ -177,6 +177,11 @@ const (
 	CodeCoinRecipientBalanceLimit Code = "COIN_RECIPIENT_BALANCE_LIMIT"
 )
 
+const (
+	CodeInvalidProfilePhoto           Code = "INVALID_PROFILE_PHOTO"
+	CodeProfilePhotoUploadUnavailable Code = "PROFILE_PHOTO_UPLOAD_UNAVAILABLE"
+)
+
 type AppError struct {
 	Code    Code
 	Message string

@@ -9034,7 +9034,7 @@ const docTemplate = `{
                         "SessionCookie": []
                     }
                 ],
-                "description": "While onboarding is pending, PATCH requires full_name and (for recruiters) company_name/company_website and atomically marks completion.\nOmitted keys are unchanged. Null removes image/company values; full_name cannot be null. Only recruiters may change company fields. Trusted Origin required. Unknown fields reject the whole request.",
+                "description": "While onboarding is pending, PATCH requires full_name and (for recruiters) company_name/company_website and atomically marks completion.\nOmitted keys are unchanged. Null removes image/company values; full_name cannot be null. Send photo_upload_id to attach a finished upload, or image to update a legacy URL. Only recruiters may change company fields. Trusted Origin required. Unknown fields reject the whole request.",
                 "consumes": [
                     "application/json"
                 ],
@@ -9106,6 +9106,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/response.Envelope"
                         }
                     },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -9114,6 +9120,147 @@ const docTemplate = `{
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/profile/photo-uploads": {
+            "post": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "Start a private profile photo upload",
+                "parameters": [
+                    {
+                        "description": "JPEG, PNG or WebP MIME and size (up to 5 MiB)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/domain.PhotoUploadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Envelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/domain.PhotoUpload"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/profile/photos/{owner}/{key}": {
+            "get": {
+                "security": [
+                    {
+                        "SessionCookie": []
+                    }
+                ],
+                "tags": [
+                    "profile"
+                ],
+                "summary": "Read the current profile photo as its owner or an administrator",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Profile owner UUID",
+                        "name": "owner",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Current profile photo UUID",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Envelope"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/response.Envelope"
                         }
@@ -11509,7 +11656,9 @@ const docTemplate = `{
                 "SETUP_NOT_READY",
                 "COIN_TRANSFER_KEY_INVALID",
                 "COIN_TRANSFER_KEY_CONFLICT",
-                "COIN_RECIPIENT_BALANCE_LIMIT"
+                "COIN_RECIPIENT_BALANCE_LIMIT",
+                "INVALID_PROFILE_PHOTO",
+                "PROFILE_PHOTO_UPLOAD_UNAVAILABLE"
             ],
             "x-enum-varnames": [
                 "CodeRoleConflict",
@@ -11633,7 +11782,9 @@ const docTemplate = `{
                 "CodeSetupNotReady",
                 "CodeCoinTransferKeyInvalid",
                 "CodeCoinTransferKeyConflict",
-                "CodeCoinRecipientBalanceLimit"
+                "CodeCoinRecipientBalanceLimit",
+                "CodeInvalidProfilePhoto",
+                "CodeProfilePhotoUploadUnavailable"
             ]
         },
         "domain.AccessAuditEntry": {
@@ -13977,6 +14128,31 @@ const docTemplate = `{
                 "image": {
                     "type": "string",
                     "x-nullable": true
+                },
+                "photo_upload_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.PhotoUpload": {
+            "type": "object",
+            "properties": {
+                "request": {
+                    "$ref": "#/definitions/storage.SignedRequest"
+                },
+                "upload_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "domain.PhotoUploadRequest": {
+            "type": "object",
+            "properties": {
+                "content_type": {
+                    "type": "string"
+                },
+                "size_bytes": {
+                    "type": "integer"
                 }
             }
         },

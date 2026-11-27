@@ -10,9 +10,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type Repository struct{ queries *Queries }
+type Repository struct {
+	db      DBTX
+	queries *Queries
+}
 
-func NewRepository(db DBTX) *Repository { return &Repository{queries: New(db)} }
+func NewRepository(db DBTX) *Repository { return &Repository{db: db, queries: New(db)} }
 
 func toProfile(row GetProfileRow) domain.Profile {
 	p := domain.Profile{OnboardingRoleSelected: row.OnboardingRoleSelected, OnboardingCompleted: row.OnboardingCompleted, ID: row.ID, FullName: row.Name, Email: row.Email, Image: row.Image,
@@ -41,10 +44,15 @@ func (r *Repository) Get(ctx context.Context, id uuid.UUID) (domain.Profile, err
 func (r *Repository) Update(ctx context.Context, id uuid.UUID, role string, patch domain.Patch) (domain.Profile, error) {
 	// A single UPDATE prevents partial writes and rechecks role/lock/verification
 	// alongside the write, including changes since middleware authenticated.
+	var photoKey *uuid.UUID
+	if patch.PhotoObjectKey != uuid.Nil {
+		photoKey = &patch.PhotoObjectKey
+	}
 	row, err := r.queries.UpdateProfile(ctx, UpdateProfileParams{
 		ID: id, Role: role,
 		SetName: patch.FullName.Present, Name: patch.FullName.Value,
 		SetImage: patch.Image.Present, Image: patch.Image.Value,
+		PhotoKey:       photoKey,
 		SetCompanyName: patch.CompanyName.Present, CompanyName: patch.CompanyName.Value,
 		SetCompanyWebsite: patch.CompanyWebsite.Present, CompanyWebsite: patch.CompanyWebsite.Value,
 	})

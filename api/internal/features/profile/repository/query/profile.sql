@@ -10,6 +10,7 @@ WHERE id = $1;
 UPDATE public.users SET
     name = CASE WHEN sqlc.arg(set_name)::boolean THEN sqlc.narg(name)::text ELSE name END,
     image = CASE WHEN sqlc.arg(set_image)::boolean THEN sqlc.narg(image)::text ELSE image END,
+    profile_photo_key = CASE WHEN sqlc.arg(set_image)::boolean THEN sqlc.narg(photo_key) ELSE profile_photo_key END,
     company_name = CASE WHEN sqlc.arg(set_company_name)::boolean THEN sqlc.narg(company_name)::text ELSE company_name END,
     company_website = CASE WHEN sqlc.arg(set_company_website)::boolean THEN sqlc.narg(company_website)::text ELSE company_website END,
     onboarding_status = CASE WHEN role = 'admin' THEN onboarding_status ELSE 'completed'::public.onboarding_status END,

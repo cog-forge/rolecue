@@ -71,16 +71,17 @@ const updateProfile = `-- name: UpdateProfile :one
 UPDATE public.users SET
     name = CASE WHEN $1::boolean THEN $2::text ELSE name END,
     image = CASE WHEN $3::boolean THEN $4::text ELSE image END,
-    company_name = CASE WHEN $5::boolean THEN $6::text ELSE company_name END,
-    company_website = CASE WHEN $7::boolean THEN $8::text ELSE company_website END,
+    profile_photo_key = CASE WHEN $3::boolean THEN $5 ELSE profile_photo_key END,
+    company_name = CASE WHEN $6::boolean THEN $7::text ELSE company_name END,
+    company_website = CASE WHEN $8::boolean THEN $9::text ELSE company_website END,
     onboarding_status = CASE WHEN role = 'admin' THEN onboarding_status ELSE 'completed'::public.onboarding_status END,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $9
-    AND coalesce(role, 'candidate') = $10::text
+WHERE id = $10
+    AND coalesce(role, 'candidate') = $11::text
     AND NOT coalesce(is_locked, false) AND email_verified
     AND (coalesce(role, 'candidate') = 'admin' OR onboarding_status = 'completed' OR (
         onboarding_status = 'role_selected' AND $1::boolean
-        AND (role = 'candidate' OR ($5::boolean AND $7::boolean))
+        AND (role = 'candidate' OR ($6::boolean AND $8::boolean))
     ))
 RETURNING id, name, email, image, coalesce(role, 'candidate')::text AS role,
           email_verified, company_name, company_website, created_at, updated_at,
@@ -93,6 +94,7 @@ type UpdateProfileParams struct {
 	Name              *string
 	SetImage          bool
 	Image             *string
+	PhotoKey          *uuid.UUID
 	SetCompanyName    bool
 	CompanyName       *string
 	SetCompanyWebsite bool
@@ -122,6 +124,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (U
 		arg.Name,
 		arg.SetImage,
 		arg.Image,
+		arg.PhotoKey,
 		arg.SetCompanyName,
 		arg.CompanyName,
 		arg.SetCompanyWebsite,

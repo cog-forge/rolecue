@@ -124,6 +124,8 @@ definitions:
     - COIN_TRANSFER_KEY_INVALID
     - COIN_TRANSFER_KEY_CONFLICT
     - COIN_RECIPIENT_BALANCE_LIMIT
+    - INVALID_PROFILE_PHOTO
+    - PROFILE_PHOTO_UPLOAD_UNAVAILABLE
     type: string
     x-enum-varnames:
     - CodeRoleConflict
@@ -248,6 +250,8 @@ definitions:
     - CodeCoinTransferKeyInvalid
     - CodeCoinTransferKeyConflict
     - CodeCoinRecipientBalanceLimit
+    - CodeInvalidProfilePhoto
+    - CodeProfilePhotoUploadUnavailable
   domain.AccessAuditEntry:
     properties:
       action:
@@ -1882,6 +1886,22 @@ definitions:
       image:
         type: string
         x-nullable: true
+      photo_upload_id:
+        type: string
+    type: object
+  domain.PhotoUpload:
+    properties:
+      request:
+        $ref: '#/definitions/storage.SignedRequest'
+      upload_id:
+        type: string
+    type: object
+  domain.PhotoUploadRequest:
+    properties:
+      content_type:
+        type: string
+      size_bytes:
+        type: integer
     type: object
   domain.PostingRequirement:
     properties:
@@ -10121,7 +10141,7 @@ paths:
       - application/json
       description: |-
         While onboarding is pending, PATCH requires full_name and (for recruiters) company_name/company_website and atomically marks completion.
-        Omitted keys are unchanged. Null removes image/company values; full_name cannot be null. Only recruiters may change company fields. Trusted Origin required. Unknown fields reject the whole request.
+        Omitted keys are unchanged. Null removes image/company values; full_name cannot be null. Send photo_upload_id to attach a finished upload, or image to update a legacy URL. Only recruiters may change company fields. Trusted Origin required. Unknown fields reject the whole request.
       parameters:
       - description: Trusted frontend origin
         in: header
@@ -10162,6 +10182,10 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/response.Envelope'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.Envelope'
         "500":
           description: Internal Server Error
           schema:
@@ -10173,6 +10197,93 @@ paths:
       security:
       - SessionCookie: []
       summary: Update allowed fields in your own profile
+      tags:
+      - profile
+  /profile/photo-uploads:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: JPEG, PNG or WebP MIME and size (up to 5 MiB)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.PhotoUploadRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Envelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.PhotoUpload'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "429":
+          description: Too Many Requests
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Start a private profile photo upload
+      tags:
+      - profile
+  /profile/photos/{owner}/{key}:
+    get:
+      parameters:
+      - description: Profile owner UUID
+        in: path
+        name: owner
+        required: true
+        type: string
+      - description: Current profile photo UUID
+        in: path
+        name: key
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      security:
+      - SessionCookie: []
+      summary: Read the current profile photo as its owner or an administrator
       tags:
       - profile
   /recruiter/applications:

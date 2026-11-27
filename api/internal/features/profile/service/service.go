@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/cog-forge/rolecue/api/internal/features/profile/domain"
 	"github.com/google/uuid"
@@ -15,6 +16,8 @@ type Repository interface {
 type Service struct {
 	imageHosts []string
 	repository Repository
+	photos     photoRepository
+	photoStore photoStore
 }
 
 // Option configures the Service.
@@ -48,6 +51,12 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, role string, patch d
 	}
 	if err := validateOnboarding(current, patch); err != nil {
 		return domain.Profile{}, err
+	}
+	if patch.PhotoUploadID.Present {
+		return s.attachPhoto(ctx, id, role, patch)
+	}
+	if patch.Image.Present && s.photos != nil {
+		return s.replacePhoto(ctx, id, role, patch, uuid.Nil, uuid.Nil, time.Time{})
 	}
 	return s.repository.Update(ctx, id, role, patch)
 }

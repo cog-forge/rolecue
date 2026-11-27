@@ -1,6 +1,5 @@
-// Package uploadgrant binds an uploaded PDF's storage key to the user it was issued to and makes it
-// single-use. Object keys are bare UUIDs, so without this anyone who learns a key could attach
-// another user's upload and read it back through the document link.
+// Package uploadgrant binds an upload's storage key to the user and purpose it was issued for.
+// A key can be consumed only once, by the owner, when attaching the upload.
 //
 // Keys uploaded before upload_grants existed have no row and are refused: the upload windows are
 // minutes long (a 5-minute presigned PUT, or an immediate create after the server-side upload), so
@@ -18,6 +17,7 @@ import (
 const (
 	PurposeRoleProfilePDF = "role_profile_pdf"
 	PurposeJobPostingPDF  = "job_posting_pdf"
+	PurposeProfilePhoto   = "profile_photo"
 )
 
 // ErrUnavailable means the upload cannot be attached by this user.
