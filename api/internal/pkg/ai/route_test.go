@@ -23,7 +23,9 @@ func TestRouteFallback(t *testing.T) {
 		{"503", &HTTPError{Status: 503}, 2, false},
 		{"invalid output", ErrInvalidOutput, 2, false},
 		{"429", &HTTPError{Status: 429, RetryAfter: time.Hour}, 2, false},
-		{"auth", &HTTPError{Status: 401}, 1, true},
+		{"auth", &HTTPError{Status: 401}, 2, false},
+		{"forbidden", &HTTPError{Status: 403}, 2, false},
+		{"bad request", &HTTPError{Status: 400}, 2, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := &Route{budget: time.Second, entries: []routeEntry{{model: fakeModel{err: tc.first}, config: config.LLMConfig{}}, {model: fakeModel{}, config: config.LLMConfig{}}}}

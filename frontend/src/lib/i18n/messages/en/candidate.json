@@ -1641,6 +1641,7 @@
       "roadmapNotReady": "Your roadmap is not ready. Open your Role Profile to check or retry preparation.",
       "coverageInsufficient": "The question bank does not cover all required skills yet. Review your Role Profile before trying again.",
       "generationFailed": "Questions could not be prepared. No session was created and no coins were charged. You can try again.",
+      "aiBusy": "The AI service is busy. No session was created and no coins were charged. Try again in a few minutes.",
       "modelBudget": "The question-generation limit has been reached. Please try again later.",
       "intentConflict": "This attempt belongs to a different practice focus. Try again to create a new attempt.",
       "questionBankFocused": "There are not enough questions for this topic yet. Try general practice or choose another topic."

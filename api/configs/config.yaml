@@ -114,9 +114,13 @@ evaluation:
 # Opt-in task routing. Blank routes preserve LLM_* behavior and service retries.
 # Per task: provider, model, timeout (total task budget), max_retries, fallback.
 # Environment: AI_<JD_EXTRACTION|QUESTION_BANK|FOLLOW_UP|EVALUATION>_<FIELD>.
-# Groq-first model defaults when provider=groq: openai/gpt-oss-120b,
-# except follow_up: openai/gpt-oss-20b. Suggested fallback: gemini.
-# GROQ_API_KEY is env-only; never put credentials in this file.
+# Providers: groq, gemini, cloudflare, openrouter, bedrock. Model defaults when a provider is named without
+# a model: openai/gpt-oss-120b on groq, @cf/openai/gpt-oss-120b on cloudflare, openai.gpt-oss-120b-1:0 on
+# bedrock (the 20b variant for follow_up); gemini uses llm.model; openrouter needs an explicit model.
+# Fallback is an ordered provider[:model] list of any length, e.g. "cloudflare,gemini". A provider that answers
+# 429 is skipped until its Retry-After passes; one that rejects the call (401/403/4xx) is skipped for that call.
+# Credentials are env-only (GROQ_API_KEY, LLM_API_KEY, CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_AI_API_TOKEN,
+# OPENROUTER_API_KEY, AWS_BEARER_TOKEN_BEDROCK + BEDROCK_REGION); never put credentials in this file.
 # See docs/ai-routing.md for the complete recipe.
 ai:
   jd_extraction: {}

@@ -14,8 +14,10 @@ import (
 )
 
 func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatModel, error) {
-	if cfg.Provider != "gemini" && cfg.Provider != "groq" {
-		return nil, fmt.Errorf("unsupported LLM provider %q: expected gemini or groq", cfg.Provider)
+	compat := cfg.Provider == config.ProviderGroq || cfg.Provider == config.ProviderCloudflare || cfg.Provider == config.ProviderOpenRouter
+	bedrock := cfg.Provider == config.ProviderBedrock
+	if !compat && !bedrock && cfg.Provider != config.ProviderGemini {
+		return nil, fmt.Errorf("unsupported LLM provider %q: expected gemini, groq, cloudflare, openrouter or bedrock", cfg.Provider)
 	}
 	if strings.TrimSpace(cfg.APIKey) == "" || strings.ContainsAny(cfg.APIKey, "\r\n") {
 		return nil, fmt.Errorf("LLM API key is required and must not contain newlines")
@@ -26,8 +28,19 @@ func NewChatModel(ctx context.Context, cfg config.LLMConfig) (model.BaseChatMode
 	if cfg.Timeout <= 0 {
 		return nil, fmt.Errorf("LLM timeout must be positive")
 	}
-	if cfg.Provider == "groq" {
-		return &loggedModel{inner: &groqModel{key: cfg.APIKey, model: cfg.Model, maxTokens: cfg.MaxOutputTokens, endpoint: "https://api.groq.com/openai/v1/chat/completions", client: &http.Client{Timeout: cfg.Timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, provider: cfg.Provider, model: cfg.Model}, nil
+	if compat || bedrock {
+		if strings.TrimSpace(cfg.BaseURL) == "" {
+			return nil, fmt.Errorf("%s API base URL is required", cfg.Provider)
+		}
+		build := newOpenAICompat
+		if bedrock {
+			build = newBedrock
+		}
+		inner, err := build(cfg)
+		if err != nil {
+			return nil, err
+		}
+		return &loggedModel{inner: inner, provider: cfg.Provider, model: cfg.Model}, nil
 	}
 	attempts := int32(1)
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{

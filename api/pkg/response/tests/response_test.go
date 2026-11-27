@@ -56,6 +56,7 @@ func TestError(t *testing.T) {
 		{"question generation", apperror.CodeQuestionGenerationFailed, http.StatusBadGateway},
 		{"invalid question output", apperror.CodeInvalidQuestionGenerationOutput, http.StatusBadGateway},
 		{"question bank unavailable", apperror.CodeQuestionBankUnavailable, http.StatusServiceUnavailable},
+		{"ai service busy", apperror.CodeAIServiceBusy, http.StatusServiceUnavailable},
 		{"posting not pending", apperror.CodeJobPostingNotPending, http.StatusConflict},
 		{"guideline version conflict", apperror.CodeGuidelineVersionConflict, http.StatusConflict},
 		{"bank not ready", apperror.CodeQuestionBankNotReady, http.StatusConflict},

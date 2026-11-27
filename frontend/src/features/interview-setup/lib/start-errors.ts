@@ -72,6 +72,8 @@ export function describeStartFailure(
     case "QUESTION_GENERATION_FAILED":
     case "INVALID_QUESTION_GENERATION_OUTPUT":
       return { message: t("generationFailed"), action: "retry" };
+    case "AI_SERVICE_BUSY":
+      return { message: t("aiBusy"), action: "retry" };
     case "LLM_BUDGET_EXCEEDED":
       return { message: t("modelBudget"), action: null };
     case "INTERVIEW_START_INTENT_CONFLICT":

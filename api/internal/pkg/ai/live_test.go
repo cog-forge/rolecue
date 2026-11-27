@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -26,14 +27,29 @@ func TestLiveTasks(t *testing.T) {
 	if err != nil {
 		t.Fatal("config invalid")
 	}
-	for _, provider := range []string{"groq", "gemini"} {
+	for _, provider := range []string{"groq", "gemini", "cloudflare", "openrouter", "bedrock"} {
 		t.Run(provider, func(t *testing.T) {
+			if reason := liveSkipReason(cfg, provider); reason != "" {
+				t.Skip(reason)
+			}
 			for _, task := range config.AITasks {
 				t.Run(string(task), func(t *testing.T) {
 					zero := 0
-					route := config.TaskRoute{Provider: provider, Timeout: 30 * time.Second, MaxRetries: &zero}
-					if provider == "groq" {
+					timeout := 30 * time.Second
+					if task == config.TaskBank {
+						timeout = 90 * time.Second
+					}
+					route := config.TaskRoute{Provider: provider, Model: liveModel(provider), Timeout: timeout, MaxRetries: &zero}
+					// A bake-off measures one provider: AI_LIVE_NO_FALLBACK drops Groq's Gemini fallback.
+					if provider == "groq" && os.Getenv("AI_LIVE_NO_FALLBACK") == "" {
 						route.Fallback = "gemini"
+					}
+					// A 429 seen by one sample must not put the provider on cooldown for the next one.
+					sharedHealth = NewProviderHealth(time.Now)
+					// AI_LIVE_PACE (for example 65s) spaces the samples so a per-minute token limit, such as Groq's
+					// free 8K TPM, does not turn a bake-off into a rate-limit test.
+					if pace, err := time.ParseDuration(os.Getenv("AI_LIVE_PACE")); err == nil && pace > 0 {
+						time.Sleep(pace)
 					}
 					cfg.AI.JD = route
 					cfg.AI.Bank = route
@@ -88,6 +104,45 @@ func TestLiveTasks(t *testing.T) {
 			}
 		})
 	}
+}
+
+// liveModel is the model a live run names for a provider; "" lets the provider's default apply.
+func liveModel(provider string) string {
+	if provider == "openrouter" {
+		return "openrouter/free"
+	}
+	return ""
+}
+
+// liveSkipReason says why a provider cannot be tried live, or "" when it can. Bedrock is opt-in
+// (AI_LIVE_BEDROCK=1) because its account restriction makes every call fail until AWS lifts it.
+func liveSkipReason(cfg *config.Config, provider string) string {
+	switch provider {
+	case "groq":
+		if cfg.AI.GroqAPIKey == "" {
+			return "GROQ_API_KEY is not set"
+		}
+	case "gemini":
+		if cfg.LLM.APIKey == "" {
+			return "LLM_API_KEY is not set"
+		}
+	case "cloudflare":
+		if !cfg.AI.HasCloudflareCredentials() {
+			return "CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_AI_API_TOKEN is not set"
+		}
+	case "openrouter":
+		if cfg.AI.OpenRouterAPIKey == "" {
+			return "OPENROUTER_API_KEY is not set"
+		}
+	case "bedrock":
+		if os.Getenv("AI_LIVE_BEDROCK") != "1" {
+			return "set AI_LIVE_BEDROCK=1 to try Bedrock live (pending the AWS account approval)"
+		}
+		if cfg.AI.BedrockAPIKey == "" {
+			return "AWS_BEARER_TOKEN_BEDROCK is not set"
+		}
+	}
+	return ""
 }
 
 func TestLiveModelIDsAndJSON(t *testing.T) {

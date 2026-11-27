@@ -142,13 +142,16 @@ const (
 	CodeEvaluationAttemptsExceeded Code = "EVALUATION_ATTEMPTS_EXCEEDED"
 	CodeRateLimited                Code = "RATE_LIMITED"
 	CodeLLMBudgetExceeded          Code = "LLM_BUDGET_EXCEEDED"
-	CodeFinalReviewLocked          Code = "FINAL_REVIEW_LOCKED"
-	CodeApplicationNotInterviewed  Code = "APPLICATION_NOT_INTERVIEWED"
-	CodeRecordingNotFound          Code = "RECORDING_NOT_FOUND"
-	CodeRecordingNotAllowed        Code = "RECORDING_NOT_ALLOWED"
-	CodeRecordingUploadLimit       Code = "RECORDING_UPLOAD_LIMIT"
-	CodeRecordingIntegrity         Code = "RECORDING_INTEGRITY"
-	CodeRecordingConsentRequired   Code = "RECORDING_CONSENT_REQUIRED"
+	// CodeAIServiceBusy means every model provider of a generation was rate limited, overloaded or unreachable
+	// (KAN-386). The request can be repeated in a few minutes.
+	CodeAIServiceBusy             Code = "AI_SERVICE_BUSY"
+	CodeFinalReviewLocked         Code = "FINAL_REVIEW_LOCKED"
+	CodeApplicationNotInterviewed Code = "APPLICATION_NOT_INTERVIEWED"
+	CodeRecordingNotFound         Code = "RECORDING_NOT_FOUND"
+	CodeRecordingNotAllowed       Code = "RECORDING_NOT_ALLOWED"
+	CodeRecordingUploadLimit      Code = "RECORDING_UPLOAD_LIMIT"
+	CodeRecordingIntegrity        Code = "RECORDING_INTEGRITY"
+	CodeRecordingConsentRequired  Code = "RECORDING_CONSENT_REQUIRED"
 
 	// Account erasure (KAN-280).
 	CodeAccountHasActiveWork  Code = "ACCOUNT_HAS_ACTIVE_WORK"

@@ -61,6 +61,7 @@
     "CORE_QUESTION_IN_USE": "This question is in use and can't be removed.",
     "REQUIREMENTS_NOT_CONFIRMED": "Confirm the requirements first.",
     "QUESTION_GENERATION_FAILED": "We couldn't generate questions. Try again.",
+    "AI_SERVICE_BUSY": "The AI service is busy. Try again in a few minutes.",
     "INVALID_QUESTION_GENERATION_OUTPUT": "The generated questions weren't usable. Try again.",
     "QUESTION_BANK_UNAVAILABLE": "The question bank is unavailable right now. Try again later.",
     "ROADMAP_GENERATING": "Your learning roadmap is being prepared. Wait a moment and try again.",
