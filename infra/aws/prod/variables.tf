@@ -33,3 +33,9 @@ variable "image_tag" {
   type        = string
   default     = "bootstrap"
 }
+
+variable "alert_email" {
+  description = "Receives the CloudWatch alarm emails (SNS) and the budget notifications. The repo is public, so there is no default: it comes from TF_VAR_alert_email in infra/aws/prod/ops.sops.env (exported by `sops exec-env`)."
+  type        = string
+  sensitive   = true
+}
