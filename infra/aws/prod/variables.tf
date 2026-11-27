@@ -15,3 +15,9 @@ variable "awake" {
   type        = bool
   default     = true
 }
+
+variable "go_live" {
+  description = "true publishes the proxied Cloudflare CNAMEs for rolecue and rolecue-api (and only takes effect while awake). Stays false until the smoke tests through the ALB DNS name pass (plan Task 10)."
+  type        = bool
+  default     = false
+}

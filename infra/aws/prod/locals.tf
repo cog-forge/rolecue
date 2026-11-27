@@ -17,5 +17,9 @@ locals {
   media_bucket = "rolecue-prod-media-${local.account_id}"
   ecr_repos    = ["frontend", "auth", "api", "migrate"]
 
-  app_url = "https://rolecue.dorriss.com"
+  # Public names. Both are proxied through Cloudflare to the ALB (dns.tf); the ACM certificate covers both.
+  zone_name = "dorriss.com"
+  app_host  = "rolecue.${local.zone_name}"
+  api_host  = "rolecue-api.${local.zone_name}"
+  app_url   = "https://${local.app_host}"
 }

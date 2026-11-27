@@ -49,3 +49,16 @@ output "ecr_repository_urls" {
 output "nat_instance_id" {
   value = aws_instance.nat.id
 }
+
+output "alb_dns_name" {
+  description = "null while asleep."
+  value       = var.awake ? aws_lb.main[0].dns_name : null
+}
+
+output "target_group_arns" {
+  value = { for k, tg in aws_lb_target_group.app : k => tg.arn }
+}
+
+output "certificate_arn" {
+  value = aws_acm_certificate_validation.main.certificate_arn
+}

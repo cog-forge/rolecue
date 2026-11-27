@@ -10,3 +10,9 @@ provider "aws" {
     }
   }
 }
+
+# Reads CLOUDFLARE_API_TOKEN from the environment. Run every terraform command through
+#   sops exec-env infra/aws/prod/ops.sops.env 'terraform -chdir=infra/aws/prod ...'
+# so the token is never written to disk or printed. Scope: zone dorriss.com only (Zone Read, DNS Edit,
+# Zone Settings Edit).
+provider "cloudflare" {}
