@@ -1,0 +1,12 @@
+# Terraform working files and state (the prod state lives in S3; bootstrap state stays local on the owner's machine)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tf.plan
+crash.log
+# Never commit decrypted secrets; only the *.sops.* encrypted file is tracked
+*.dec
+*.dec.*
+*.plain.env
+plan.txt

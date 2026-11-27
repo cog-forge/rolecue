@@ -1,0 +1,5 @@
+# SOPS rules for RoleCue prod secrets. Edit with: AWS_PROFILE=rolecue-prod sops edit infra/aws/prod/secrets.sops.env
+# The KMS key is created by infra/aws/bootstrap; access is granted through IAM, not by this file.
+creation_rules:
+  - path_regex: ^infra/aws/prod/secrets\.sops\.env$
+    kms: arn:aws:kms:ap-southeast-1:399643456405:alias/rolecue-prod-sops
