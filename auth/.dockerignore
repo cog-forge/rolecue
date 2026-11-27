@@ -4,3 +4,5 @@
 !tsconfig.json
 !src
 !src/**
+!certs
+!certs/rds-global-bundle.pem

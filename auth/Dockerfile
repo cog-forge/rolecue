@@ -17,6 +17,8 @@ RUN bun install --production --omit peer --frozen-lockfile --ignore-scripts
 FROM cgr.dev/chainguard/wolfi-base:latest@sha256:360896efb0753a5701c48f860e17130c205eae5a264797aa3e7ea126ee2923a7 AS runtime
 RUN apk add --no-cache ca-certificates libstdc++ libgcc && adduser -D -u 10001 rolecue
 COPY --from=dependencies /usr/local/bin/bun /usr/local/bin/bun
+# AWS RDS CA bundle for sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem (see .docker/certs/README.md).
+COPY --chmod=0644 certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 WORKDIR /app
 COPY --from=production-dependencies --chown=10001:10001 /app/node_modules ./node_modules
 COPY --from=build --chown=10001:10001 /app/dist ./dist
