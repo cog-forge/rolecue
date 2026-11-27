@@ -62,3 +62,35 @@ output "target_group_arns" {
 output "certificate_arn" {
   value = aws_acm_certificate_validation.main.certificate_arn
 }
+
+output "cluster_name" {
+  value = aws_ecs_cluster.main.name
+}
+
+output "service_names" {
+  value = merge(
+    { auth = aws_ecs_service.auth.name },
+    { for k, s in aws_ecs_service.client : k => s.name }
+  )
+}
+
+output "task_definition_families" {
+  description = "Family of every task, migrate included; the deploy workflow registers revisions under these names."
+  value       = { for k, t in aws_ecs_task_definition.app : k => t.family }
+}
+
+output "migrate_run_task_network" {
+  description = "Network settings for `aws ecs run-task` of the migrate task."
+  value = {
+    subnets         = aws_subnet.private_app[*].id
+    security_groups = [aws_security_group.migrate.id]
+  }
+}
+
+output "execution_role_arn" {
+  value = aws_iam_role.execution.arn
+}
+
+output "task_role_arns" {
+  value = { for k, r in aws_iam_role.task : k => r.arn }
+}

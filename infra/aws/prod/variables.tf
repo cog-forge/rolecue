@@ -21,3 +21,15 @@ variable "go_live" {
   type        = bool
   default     = false
 }
+
+variable "run_services" {
+  description = "false keeps the three ECS services at desired_count 0. No images exist in ECR before the first deploy workflow run, so Task 10 flips this to true after the first deploy."
+  type        = bool
+  default     = false
+}
+
+variable "image_tag" {
+  description = "Tag of the images in the initial task definitions and the value of APP_VERSION. The deploy workflow registers new revisions with the git SHA; the services ignore task_definition changes, so this only matters until the first deploy."
+  type        = string
+  default     = "bootstrap"
+}

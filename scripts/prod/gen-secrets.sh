@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds infra/aws/prod/secrets.sops.env (SOPS + KMS alias/rolecue-prod-sops):
-#   class S: copied from the owner's .env and auth/.env (13 keys, current third-party values)
+#   class S: copied from the owner's .env and auth/.env (14 keys, current third-party values)
 #   class G: generated fresh for prod (4 keys, 48 alphanumeric characters)
 # See docs/superpowers/plans/2026-11-27-prod-env-inventory.md. Prints key names and counts, never values.
 #
@@ -29,7 +29,7 @@ ROOT_KEYS=(
   LLM_API_KEY AZURE_SPEECH_KEY GROQ_API_KEY
   CLOUDFLARE_AI_API_TOKEN OPENROUTER_API_KEY AWS_BEARER_TOKEN_BEDROCK
 )
-AUTH_KEYS=(GOOGLE_CLIENT_SECRET GITHUB_CLIENT_SECRET FACEBOOK_CLIENT_SECRET RESEND_API_KEY)
+AUTH_KEYS=(GOOGLE_CLIENT_SECRET GITHUB_CLIENT_SECRET FACEBOOK_CLIENT_SECRET RESEND_API_KEY SUPPORT_EMAIL)
 GENERATED_KEYS=(RDS_MASTER_PASSWORD APP_DB_PASSWORD BETTER_AUTH_SECRET ADMIN_AUTH_INTERNAL_SECRET)
 EXPECTED=$((${#ROOT_KEYS[@]} + ${#AUTH_KEYS[@]} + ${#GENERATED_KEYS[@]}))
 
