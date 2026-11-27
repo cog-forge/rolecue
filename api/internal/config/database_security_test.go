@@ -90,6 +90,9 @@ func TestRequireTLSNeedsRootCert(t *testing.T) {
 	cfg.Database.URL += "&sslrootcert=/etc/ssl/db-ca.pem"
 	assertValidate(t, cfg, "")
 
+	cfg.Database.URL = "postgres://rolecue:s3cret-value@db/rolecue?sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem"
+	assertValidate(t, cfg, "")
+
 	cfg.Database.URL = "postgres://rolecue:s3cret-value@db/rolecue?sslmode=prefer&sslrootcert=/x"
 	assertValidate(t, cfg, "sslmode=verify-full")
 }

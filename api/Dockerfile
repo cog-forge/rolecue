@@ -37,6 +37,8 @@ ENV HOME=/home/rolecue PATH=/opt/blender:$PATH
 WORKDIR /app
 COPY --from=build /out/rolecue ./rolecue
 COPY --chown=rolecue:rolecue configs ./configs
+# AWS RDS CA bundle for sslmode=verify-full&sslrootcert=/etc/ssl/certs/rds-global-bundle.pem (see .docker/certs/README.md).
+COPY --chmod=0644 certs/rds-global-bundle.pem /etc/ssl/certs/rds-global-bundle.pem
 USER rolecue
 # Assert the runtime contract as the same user that handles conversion requests.
 RUN blender --background --factory-startup --disable-autoexec --python-exit-code 1 \
