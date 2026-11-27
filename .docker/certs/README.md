@@ -22,7 +22,7 @@ the repository. Docker builds use `api/` and `auth/` as their contexts (see
 `.docker/compose.build.yaml` and `.github/workflows/ci.yml`), so each image needs its own copy and the
 same file is committed twice and the copies must stay byte-identical:
 
-- `api/certs/rds-global-bundle.pem`
+- `api/certs/rds-global-bundle.pem` (also copied into the migrate image, which builds from the repository root)
 - `auth/certs/rds-global-bundle.pem`
 
 ## Refresh
